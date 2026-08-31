@@ -1,55 +1,114 @@
-Template,What it covers,Check,Desktop,Mobile 390px,Notes / bugs found,URL
-Homepage,The layout every other template copies,Campus line + course code match the resolved school,,,,https://surviveaccounting.com/
-,,Swap icon opens the school picker and repaints the page,,,,
-,,Solo button is the course-code amber; chapter button is the blue,,,,
-,,"Value chips under the scope line, testimonials below",,,,
-,,"Find your chapter -> waitlist popup, every campus listed",,,,
-,,,,,,
-Campus landing,Every campus (~970) on one template,Player loads,,,,https://surviveaccounting.com/university-of-alabama
-,,Exam tabs switch,,,,
-,,Change school works,,,,
-,,Professor picker works,,,,
-,,,,,,
-Chapter page,"Every chapter, thousands of pages","Hero mirrors homepage (eyebrow, headline, campus line, chips)",,,,https://surviveaccounting.com/go/university-of-alabama/alpha-chi-omega
-,,"Two doors, no player",,,,
-,,"Share kit: 3 tier doors, every copy button confirms",,,,
-,,Flyer + slide download,,,,
-,,"Claim modal: 4 fields in 2 rows, one close button, SMS line present",,,,
-,,,,,,
-Council page,Every council; goes out in cold email,Centred hero; 3 doors in one row on desktop,,,,https://surviveaccounting.com/partners/council/university-of-alabama/panhellenic
-,,Share tab 1: message contains EVERY chapter link,,,,
-,,"Share tab 2: copy-link rows, no typing",,,,
-,,Share tab 3: import fills the table,,,,
-,,Anchors #share / #materials / #chapters,,,,
-,,Table stacks to cards on mobile,,,,
-,,,,,,
-Share - campus (DM),DM destination for every campus,"Fits one phone screen, no scroll",,,,https://surviveaccounting.com/s/university-of-alabama
-,,Chapter search matches nicknames (ADPi),,,,
-,,All three buttons work,,,,
-,,,,,,
-Share - chapter (DM),DM destination for every chapter,One screen,,,,https://surviveaccounting.com/s/university-of-alabama/alpha-chi-omega
-,,Copy link + Copy message both confirm,,,,
-,,Copied link carries ?ref= when present,,,,
-,,,,,,
-Share - council (DM),DM destination for every council,One screen,,,,https://surviveaccounting.com/s/university-of-alabama/council?c=panhellenic
-,,Header says council + campus,,,,
-,,Copies 18 links not 71,,,,
-,,No ?c= falls back to all,,,,
-,,,,,,
-Chapters portal,Greek front door: school then chapter,Both pickers searchable,,,,https://surviveaccounting.com/chapters
-,,Picking a chapter navigates,,,,
-,,Don't-see-your-school works,,,,
-,,,,,,
-The campaign (private),Shared by email only; noindex,noindex + nofollow in page source,,,,https://surviveaccounting.com/the-campaign
-,,Counts are live (not 203/677 hardcoded),,,,
-,,"Deck: 15 slides, arrows + swipe + counter",,,,
-,,Every number's ? opens its assumption,,,,
-,,Form submits with ONLY a name,,,,
-,,Confirmation shows the right extra lines,,,,
-,,,,,,
-Student player V1,Comparison baseline for future players,Exam tabs,,,,https://surviveaccounting.com/preview/studentplayerv1
-,,Topic list with timings,,,,
-,,School + professor pickers,,,,
-,,,,,,
-Templates index,"This checklist, live on the site",Every link opens the right page,,,,https://surviveaccounting.com/preview/templates
-,,,,,,
+Group,Template,What it covers,Needs,Check,Desktop,Mobile 390px,Notes / bugs found,URL
+Student,Homepage,"One page, but it is the layout every other template copies.",,Campus line and course code match the resolved school,,,,https://surviveaccounting.com/
+,,,,Swap icon beside the campus line opens the school picker and repaints the page,,,,
+,,,,Solo button is the course-code amber; chapter button is the blue,,,,
+,,,,"Value chips under the scope line, testimonials below",,,,
+,,,,Find your chapter → waitlist popup lists every campus,,,,
+,,,,,,,,
+Student,Campus landing,"Every campus — one template, ~970 in the system.",,Player loads,,,,https://surviveaccounting.com/university-of-alabama
+,,,,Exam tabs switch,,,,
+,,,,Change school works,,,,
+,,,,Professor picker works,,,,
+,,,,,,,,
+Student,Student player V1,The player as it stood 2026-08-29 — the comparison baseline for future versions.,,Exam tabs,,,,https://surviveaccounting.com/preview/studentplayerv1
+,,,,Topic list with per-topic timings,,,,
+,,,,School and professor pickers,,,,
+,,,,,,,,
+Student,Waitlist,The pre-launch capture.,,Submits,,,,https://surviveaccounting.com/waitlist
+,,,,Confirms visibly,,,,
+,,,,No dead ends on mobile,,,,
+,,,,,,,,
+Student,Welcome,Where a new account lands.,,Reads correctly for someone who just signed up,,,,https://surviveaccounting.com/welcome
+,,,,Next step is obvious,,,,
+,,,,,,,,
+Student,Onboarding,One template per order — the post-purchase setup.,,Renders for a real ref,,,,https://surviveaccounting.com/o/105
+,,,,Steps are in order,,,,
+,,,,Works on a phone,,,,
+,,,,,,,,
+Student,Thank you,Post-purchase confirmation.,,Says what happens next,,,,https://surviveaccounting.com/thankyou
+,,,,No broken links,,,,
+,,,,,,,,
+Greek — chapter and council,Chapter page,Every chapter — thousands of pages on this one template.,,"Hero mirrors the homepage (eyebrow, headline, campus line, chips)",,,,https://surviveaccounting.com/go/university-of-alabama/alpha-chi-omega
+,,,,"Two doors, no player",,,,
+,,,,"Share kit: three tier doors, every copy button confirms",,,,
+,,,,Flyer and slide download,,,,
+,,,,"Claim modal: four fields in two rows, one close button, SMS line present",,,,
+,,,,,,,,
+Greek — chapter and council,Chapters portal,"The Greek front door — school, then chapter.",,Both pickers searchable,,,,https://surviveaccounting.com/chapters
+,,,,Picking a chapter navigates,,,,
+,,,,“Don’t see your school” works,,,,
+,,,,,,,,
+Greek — chapter and council,Chapter exec dashboard,Where the claim flow's CTA lands. One template per claimed chapter.,"A signed-in exec of a claimed chapter — otherwise it shows its signed-out state, which is also worth checking.",Signed-out state is honest,,,,https://surviveaccounting.com/chapters/dashboard
+,,,,Real top line always shows,,,,
+,,,,Member detail locked until sponsored,,,,
+,,,,,,,,
+Greek — chapter and council,Council page,Every council on every campus. This is what goes out in cold email.,,"Centred hero, three doors in one row on desktop",,,,https://surviveaccounting.com/partners/council/university-of-alabama/panhellenic
+,,,,Share tab 1: message contains EVERY chapter link,,,,
+,,,,"Share tab 2: copy-link rows, nothing to type",,,,
+,,,,Share tab 3: import fills the table,,,,
+,,,,Anchors #share / #materials / #chapters land correctly,,,,
+,,,,Table stacks to cards on mobile,,,,
+,,,,,,,,
+Greek — chapter and council,Council command centre (private),The token-linked page for a council we already work with.,Normally reached with ?k=<token>; without one it should degrade honestly rather than error.,"No token → says so, does not 500",,,,https://surviveaccounting.com/go/university-of-alabama/council/panhellenic
+,,,,With a token → the real dashboard,,,,
+,,,,,,,,
+Share screens (DM destinations),Share — campus,The DM destination for every campus.,,"Fits one phone screen, no scrolling",,,,https://surviveaccounting.com/s/university-of-alabama
+,,,,Chapter search matches nicknames (ADPi),,,,
+,,,,All three buttons work,,,,
+,,,,,,,,
+Share screens (DM destinations),Share — chapter,The DM destination for every chapter.,,One screen,,,,https://surviveaccounting.com/s/university-of-alabama/alpha-chi-omega
+,,,,Copy link and Copy message both confirm,,,,
+,,,,Copied link carries ?ref= when present,,,,
+,,,,,,,,
+Share screens (DM destinations),Share — council,The DM destination for every council.,,One screen,,,,https://surviveaccounting.com/s/university-of-alabama/council?c=panhellenic
+,,,,Header says PANHELLENIC · ALABAMA,,,,
+,,,,"Copies 18 links, not all 71",,,,
+,,,,Without ?c= it falls back to every chapter and says so,,,,
+,,,,,,,,
+Campus reps,Rep interest,The public rep pitch — one page for the whole program.,,Explains the deal and the commission,,,,https://surviveaccounting.com/rep
+,,,,Apply CTA is obvious,,,,
+,,,,Reads on a phone,,,,
+,,,,,,,,
+Campus reps,Rep — campus specific,One per campus — the rep pitch wearing that school.,,Names the campus,,,,https://surviveaccounting.com/university-of-alabama/rep
+,,,,Campus colourway,,,,
+,,,,Apply CTA works,,,,
+,,,,,,,,
+Campus reps,Rep apply,The application flow.,,Every step advances and can go back,,,,https://surviveaccounting.com/rep/join
+,,,,Phone verification path works end to end,,,,
+,,,,A half-finished application is not lost on refresh,,,,
+,,,,Confirmation is unambiguous,,,,
+,,,,,,,,
+Campus reps,Rep dashboard,"One template per rep — links, clicks, conversions, earnings.",A signed-in rep. Signed out it should say so rather than render an empty shell.,Signed-out state is honest,,,,https://surviveaccounting.com/rep/dashboard
+,,,,Tracked link copies and confirms,,,,
+,,,,Earnings figures match the admin view,,,,
+,,,,Works on a phone — reps live on their phones,,,,
+,,,,,,,,
+Campus reps,Rep tracked link,Every rep link — the /r/<code> hop that sets the commission cookie.,Use a REAL code from the rep admin. An unknown code should fail gracefully.,Redirects to the destination,,,,https://surviveaccounting.com/r/demo
+,,,,Sets the sa_ref cookie (commission attribution),,,,
+,,,,Unknown code does not 500,,,,
+,,,,,,,,
+Partners,Councils overview,The generic councils pitch.,,Reads without a campus context,,,,https://surviveaccounting.com/partners/campus-councils
+,,,,CTA reaches the finder,,,,
+,,,,,,,,
+Partners,Nationals overview,The generic nationals pitch.,,Reads without an org context,,,,https://surviveaccounting.com/partners/national-organizations
+,,,,CTA works,,,,
+,,,,,,,,
+Partners,National org page,"One per national organisation, across every campus it has chapters on.",,Names the org,,,,https://surviveaccounting.com/partners/national/alpha-chi-omega
+,,,,Campus list is real,,,,
+,,,,Share modal works,,,,
+,,,,,,,,
+Private and legal,The campaign (private),"Shared by email only, linked from nowhere.",,noindex + nofollow in the page source,,,,https://surviveaccounting.com/the-campaign
+,,,,"Counts are live, not hardcoded",,,,
+,,,,"Deck: 15 slides, arrows, swipe, counter",,,,
+,,,,Every number's ? opens its assumption,,,,
+,,,,Form submits with only a name,,,,
+,,,,Confirmation appends the right extra lines,,,,
+,,,,,,,,
+Private and legal,Privacy,Linked from every SMS consent block. If it 404s that is a compliance problem.,,Loads,,,,https://surviveaccounting.com/privacy
+,,,,Current,,,,
+,,,,Reachable from the consent line on a form,,,,
+,,,,,,,,
+Private and legal,Terms,Same — linked from every SMS consent block.,,Loads,,,,https://surviveaccounting.com/terms
+,,,,Current,,,,
+,,,,Reachable from the consent line on a form,,,,
+,,,,,,,,
