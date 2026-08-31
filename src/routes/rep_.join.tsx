@@ -17,6 +17,7 @@ import { SearchPicker } from "@/components/site/SearchPicker";
 import { ALL_SCHOOLS, boltForSlug } from "@/lib/schools";
 import { applyAsRep, checkRepVerification, startRepVerification } from "@/lib/rep-auth.functions";
 import { formatUsPhoneInput } from "@/lib/rep-shared";
+import { CEILING_LINE, RAMP_LINE } from "@/lib/rep-copy";
 import { parseTestParams, readTestSession } from "@/lib/test-mode";
 import { ogMeta } from "@/lib/og";
 
@@ -154,8 +155,12 @@ function RepJoin() {
           <ul className="mx-auto mt-5 grid max-w-[46ch] gap-2.5 text-[14.5px] leading-snug" style={{ color: "var(--text-muted)", fontFamily: BRAND_SANS }}>
             <li className="flex gap-2.5"><span aria-hidden style={{ color: "var(--accent)" }}>•</span><span>Find the right execs or advisors in each fraternity and sorority.</span></li>
             <li className="flex gap-2.5"><span aria-hidden style={{ color: "var(--accent)" }}>•</span><span>Send them the free Exam 1 kit. Get the flyer in the house.</span></li>
-            <li className="flex gap-2.5"><span aria-hidden style={{ color: "var(--accent)" }}>•</span><span>Earn <b style={{ color: "var(--accent)" }}>10%</b> of the revenue you generate — just one chapter can earn you <b style={{ color: "var(--accent)" }}>$300+</b>.</span></li>
+            <li className="flex gap-2.5"><span aria-hidden style={{ color: "var(--accent)" }}>•</span><span>Earn <b style={{ color: "var(--accent)" }}>10%</b> of everything your chapters buy — for as long as they keep buying.</span></li>
           </ul>
+          {/* THE TWO NUMBERS, ceiling first then ramp (rep-copy.ts). Both, in this order, or
+              neither: the ceiling alone over-promises and the ramp alone undersells. */}
+          <p className="mx-auto mt-5 max-w-[46ch] text-center text-[15px] font-bold leading-snug" style={{ color: "var(--brand-cream)", fontFamily: BRAND_SANS }}>{CEILING_LINE}</p>
+          <p className="mx-auto mt-2 max-w-[46ch] text-center text-[13.5px] leading-relaxed" style={{ color: "var(--text-muted)", fontFamily: BRAND_SANS }}>{RAMP_LINE}</p>
           {/* The comp condition, stated plainly at signup — never fine print (comp spec §7). */}
           <p className="mx-auto mt-4 max-w-[46ch] rounded-xl px-4 py-2.5 text-[12.5px] leading-relaxed" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--text-muted)", fontFamily: BRAND_SANS }}>
             You earn <b style={{ color: "var(--brand-cream)" }}>10% of everything sold through your link, always</b>. On top of that, there's a one-time bonus of up to <b style={{ color: "var(--brand-cream)" }}>$300</b> for getting your campus off the ground — paid when your first chapter signs up. If no chapter signs up, the bonus isn't paid.

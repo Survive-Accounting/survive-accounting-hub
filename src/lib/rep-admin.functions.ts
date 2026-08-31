@@ -520,7 +520,7 @@ export const adminReviewApplication = createServerFn({ method: "POST" })
     const db = await admin();
     const by = await adminEmail();
     const { data: rep } = await db.from("referral_partners")
-      .select("id,name,campus_id,is_test,application_status").eq("id", data.partnerId).eq("type", "campus_rep").maybeSingle();
+      .select("id,name,email,campus_id,is_test,application_status").eq("id", data.partnerId).eq("type", "campus_rep").maybeSingle();
     if (!rep?.id) return { ok: false, error: "Rep not found." };
     const nowIso = new Date().toISOString();
 
@@ -535,6 +535,27 @@ export const adminReviewApplication = createServerFn({ method: "POST" })
         partner_id: rep.id, kind: status === "waitlisted" ? "application_waitlisted" : "application_declined",
         meta: { by }, is_test: !!rep.is_test,
       }).then(() => undefined, () => undefined);
+
+      // THE DECLINE NOTE. Only on a decline — a waitlisted rep has not been turned down and
+      // must not be told they have. Best-effort: the decision is already recorded, and a mail
+      // failure must not make Lee think the decline did not take.
+      if (status === "declined" && rep.email) {
+        try {
+          let school: string | null = null;
+          if (rep.campus_id) {
+            const { data: c } = await db.from("campuses").select("slug,name,short_name").eq("id", rep.campus_id).maybeSingle();
+            if (c?.slug) school = canonicalSchoolName(c.slug as string, (c.short_name as string) || (c.name as string));
+          }
+          const { sendTemplateEmail } = await import("@/lib/comms/send.server");
+          await sendTemplateEmail({
+            key: "rep_declined",
+            ctx: { name: rep.name as string, email: rep.email as string, school },
+            to: rep.email as string,
+            dedupeKey: `rep_declined:${rep.id}`,
+            isTest: !!rep.is_test,
+          });
+        } catch (e) { console.warn("decline note not sent:", (e as Error).message); }
+      }
       return { ok: true };
     }
 

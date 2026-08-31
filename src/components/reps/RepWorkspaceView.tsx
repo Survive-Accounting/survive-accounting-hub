@@ -14,6 +14,7 @@ import {
   CONTACT_ROLES, DM_PACE_NOTE, dmMessage, fmtMs, mailtoHref, smsHref, CHAPTER_STATE_LABEL,
   type AssignedChapter, type ChapterState, type RepChapterRow, type RepWorkspace, type ShareKit,
 } from "@/lib/rep-shared";
+import { BONUS_GATE_LINE, emptyStateCopy } from "@/lib/rep-copy";
 import {
   getShareKit, logRepShare, markDmCopied, markDmReplied, setHousePosted, submitRepContact, updateRepVenmoSession,
 } from "@/lib/rep-workspace.functions";
@@ -76,6 +77,11 @@ export function RepWorkspaceView({ d, readOnly = false, viewingAs, legacyToken, 
 
   const chapter = useMemo(() => d.chapters.find((c) => c.id === drawer) ?? null, [d.chapters, drawer]);
   const first = d.name.split(" ")[0];
+  // "Before doing anything" = nothing sent, nothing landed. Any real activity retires the
+  // empty state permanently — no flag to store, nothing to get out of sync.
+  const isFresh = d.applicationStatus === "approved"
+    && d.assigned.every((a) => a.dmStatus === "not_contacted")
+    && d.impact.clicks === 0 && d.impact.kitsInitiated === 0 && d.impact.contactsSubmitted === 0;
 
   const filtered = useMemo(() => {
     let rows = d.chapters;
@@ -121,7 +127,11 @@ export function RepWorkspaceView({ d, readOnly = false, viewingAs, legacyToken, 
         </div>
       </div>
 
-      <Onboarding videoUrl={d.onboardingVideoUrl} repId={d.repId} />
+      {/* THE EMPTY STATE. What a newly approved rep sees before doing anything — the highest-
+          leverage copy in the set. It needs no dismiss button: it disappears the moment they act. */}
+      {isFresh
+        ? <RepEmptyState d={d} />
+        : <Onboarding videoUrl={d.onboardingVideoUrl} repId={d.repId} />}
 
       {/* YOUR IMPACT */}
       <section className="mt-5">
@@ -181,7 +191,7 @@ export function RepWorkspaceView({ d, readOnly = false, viewingAs, legacyToken, 
       )}
 
       {/* CHAPTER LEADERBOARD — the full campus picture. */}
-      <section className="mt-6">
+      <section id="all-chapters" className="scroll-mt-4 mt-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{d.assigned.length > 0 ? `All chapters at ${d.campusName ?? "your campus"}` : `Chapters at ${d.campusName ?? "your campus"}`}</h2>
           <select value={sort} onChange={(e) => setSort(e.target.value)} className="rounded-lg px-2 text-[12.5px] font-bold" style={{ minHeight: 38, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }} aria-label="Sort chapters">
@@ -271,7 +281,7 @@ function EarningsPanel({ legacyToken, refreshKey }: { legacyToken?: string | nul
           <span className="text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--accent)" }}>{formatCents(b.earnedCents)} <span className="text-[11.5px] font-bold" style={{ color: "var(--text-muted)" }}>of {formatCents(b.capCents)} max</span></span>
         </div>
         <p className="mt-1 text-[12px] font-bold" style={{ color: b.locked ? "#FFC9A3" : "#8BE28B" }}>
-          {b.locked ? "🔒 Locked — no chapter sale yet. Paid with your first commission payout after a chapter signs up ($1,000+). If no chapter signs up, the bonus isn't paid." : `✓ Unlocked — first chapter sale ${e.firstSaleAt ? new Date(e.firstSaleAt).toLocaleDateString() : ""}. Pays with your next commission payout.`}
+          {b.locked ? `🔒 ${BONUS_GATE_LINE} It pays with your first commission payout after that.` : `✓ Unlocked — first chapter sale ${e.firstSaleAt ? new Date(e.firstSaleAt).toLocaleDateString() : ""}. Pays with your next commission payout.`}
         </p>
         {(e.perChapter.length > 0 || e.perFlyer.length > 0 || e.claims.length > 0) && (
           <button type="button" onClick={() => setOpen((v) => !v)} className="mt-1.5 text-[12px] font-bold underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
@@ -339,7 +349,7 @@ function AssignedSection({ d, readOnly, legacyToken, reload, copied, copy, openD
   };
 
   return (
-    <section className="mt-6">
+    <section id="your-chapters" className="scroll-mt-4 mt-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Your chapters · {d.assigned.length} assigned</h2>
         <button type="button" onClick={() => { setEditing((v) => !v); if (template == null) setTemplate(dmMessage({ chapterName: "{chapter}", courseCode: d.courseCode, shortUrl: "{link}" })); }}
@@ -396,6 +406,36 @@ function AssignedSection({ d, readOnly, legacyToken, reload, copied, copy, openD
 }
 
 // ── onboarding (3 lines + optional video; dismissable) ───────────────────────────────────────
+// ── THE EMPTY STATE (marketing copy brief) ───────────────────────────────────────────────────
+// Three steps, the ceiling, the gate, one button. Every word comes from rep-copy.ts so this and
+// the application page cannot drift apart on the numbers.
+function RepEmptyState({ d }: { d: RepWorkspace }) {
+  const c = emptyStateCopy({ campusName: d.campusName, chapterCount: d.assigned.length });
+  return (
+    <section className="mt-5 rounded-2xl p-5" style={{ background: "var(--bg-surface)", border: "1px solid var(--accent)" }}>
+      <p className="text-[11px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.12em" }}>{c.eyebrow}</p>
+      <h2 className="mt-1.5 text-[20px] font-black leading-[1.15]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{c.headline}</h2>
+      <ol className="mt-3.5 grid gap-2">
+        {c.steps.map((s, i) => (
+          <li key={i} className="flex gap-3 text-[13.5px] leading-snug" style={{ color: "var(--brand-cream)" }}>
+            <span aria-hidden className="shrink-0 text-[13px] font-black" style={{ color: "var(--accent)", minWidth: 14 }}>{i + 1}</span>
+            <span>{s}</span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-4 text-[13.5px] font-bold leading-snug" style={{ color: "var(--brand-cream)" }}>{c.ceiling}</p>
+      <p className="text-[13.5px]" style={{ color: "var(--text-muted)" }}>{c.job}</p>
+      <p className="mt-3 text-[12.5px] font-bold" style={{ color: "#FFC9A3" }}>{c.gate}</p>
+      <div className="mt-3.5 flex flex-wrap items-center gap-2">
+        <a href={d.assigned.length > 0 ? "#your-chapters" : "#all-chapters"} className="inline-flex items-center rounded-xl px-4 text-[14px] font-black" style={{ minHeight: 46, background: "var(--accent)", color: "#0B1220" }}>{c.cta}</a>
+        {d.onboardingVideoUrl && (
+          <a href={d.onboardingVideoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-xl px-4 text-[13px] font-black" style={{ minHeight: 46, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>▶ How it works (2 min)</a>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function Onboarding({ videoUrl, repId }: { videoUrl: string | null; repId: string }) {
   const key = `sa-rep-onboarded-${repId}`;
   const [hidden, setHidden] = useState(true);
