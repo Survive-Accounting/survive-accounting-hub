@@ -25,7 +25,7 @@
 // two constantly-boiling icons on one screen is too busy. Reduced motion gets
 // the static frame and nothing else.
 import { useEffect, useRef, useState } from "react";
-import { GraduationCap, Landmark } from "lucide-react";
+import { GraduationCap, House } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 
@@ -43,10 +43,13 @@ const BURST_MS = 1600;         // the beat an arriving door gets, then stillness
 
 const GLYPHS: Record<BoltGlyph, typeof GraduationCap> = {
   cap: GraduationCap,
-  // Lee's pick over `house`: the columned building reads as an institution.
-  // It carries more interior line-work than a plain silhouette, which is
-  // exactly what the knockout layer exists to protect.
-  house: Landmark,
+  // `landmark` was tried first and measurably lost. Its four columns sit 8.7px
+  // apart at this size while the knockout is 7px wide, so the knockouts nearly
+  // merged and erased the bolt through the middle half of the icon — and six
+  // thin strokes read lighter than the cap's solid mass, so the doors were not
+  // at equal optical weight. `house` is two paths and a real silhouette: the
+  // knockout carves cleanly and the bolt survives around it.
+  house: House,
 };
 
 export function BoltBadge({
