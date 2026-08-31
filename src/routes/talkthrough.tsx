@@ -330,6 +330,7 @@ function Home({ tt, topics, onOpenSet, onOpenSession }: {
             const board = sessionBoard(tt.doc, s.id);
             const rs = reviewStateOf(tt.doc, s);
             const chip = rs.state === "capturing" ? { t: "CAPTURING", c: "#3BF5A0" }
+              : rs.state === "stale" ? { t: "IDLE", c: NEON.muted as string }
               : rs.state === "queued" ? { t: "QUEUED", c: NEON.muted as string }
               : rs.state === "generating" ? { t: "GENERATING…", c: "#7DD3FC" }
               : rs.state === "ready" ? { t: "READY", c: GOLD }
@@ -340,7 +341,7 @@ function Home({ tt, topics, onOpenSet, onOpenSession }: {
                 <div style={{ color: NEON.muted, fontSize: 12 }}>{new Date(s.startedAt).toLocaleString()}</div>
                 <div style={{ color: NEON.muted, fontSize: 12 }}>{Math.round(m.durationMs / 60000)}m · {m.segments} segments · {m.words} words</div>
                 {board.length > 0 && <div style={{ color: GOLD, fontSize: 11 }}>board: {board.length}</div>}
-                {chip && <div className="rounded-full px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider" style={{ border: `1px solid ${chip.c}55`, color: chip.c }} title={rs.error ?? undefined}>{chip.t}</div>}
+                {chip && <div className="rounded-full px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider" style={{ border: `1px solid ${chip.c}55`, color: chip.c }} title={rs.error ?? (rs.state === "stale" ? "Open but nothing captured for over an hour — click to resume; it picks up exactly where you left off." : undefined)}>{chip.t}</div>}
               </button>
             );
           })}

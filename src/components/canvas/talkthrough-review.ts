@@ -3,8 +3,9 @@
 // whichever studio tab queued it while Lee keeps talking in the next set —
 // capture is NEVER blocked. Honest status the sessions list can render:
 //
-//   CAPTURING (session open) · QUEUED · GENERATING · READY (script on the
-//   board) · ERROR (visible, retryable — re-queue any time).
+//   CAPTURING (open AND recently active) · IDLE (open but untouched for an
+//   hour — still resumable, just not pretending to record) · QUEUED ·
+//   GENERATING · READY (script on the board) · ERROR (visible, retryable).
 //
 // The queue survives a reload as intent only: state is mirrored to
 // localStorage so a killed tab shows ERROR with a retry rather than lying
@@ -13,7 +14,7 @@
 import { runMicro, runTalkthroughReview } from "@/lib/talkthrough.functions";
 
 import {
-  canonicalStamp, makeTag, newTTId, recentApprovedExamples, segmentsInContext, sessionBoard, sessionSegments, sessionTags,
+  canonicalStamp, isSessionIdle, makeTag, newTTId, recentApprovedExamples, segmentsInContext, sessionBoard, sessionSegments, sessionTags,
   styleKindFor, styleNotesFor,
   type BoardItem, type TTDoc, type TalkSession,
 } from "./talkthrough";
@@ -43,11 +44,14 @@ const set = (sessionId: string, state: ReviewState, error?: string) => {
 };
 
 /** The honest status for a session row. READY = a script item exists. */
-export function reviewStateOf(doc: TTDoc, s: TalkSession): { state: "capturing" | ReviewState | "ready"; error?: string } {
+export function reviewStateOf(doc: TTDoc, s: TalkSession): { state: "capturing" | ReviewState | "ready" | "stale"; error?: string } {
   if (sessionBoard(doc, s.id).some((b) => b.kind === "script" && !b.archivedAt)) return { state: "ready" };
   const m = load()[s.id];
   if (m) return m.state === "generating" ? { state: "generating" } : m;
-  return { state: s.endedAt ? "idle" : "capturing" };
+  if (s.endedAt) return { state: "idle" };
+  // Open, but nothing has happened in an hour — say so instead of claiming to
+  // be recording. The session is still resumable; only the label changes.
+  return { state: isSessionIdle(doc, s) ? "stale" : "capturing" };
 }
 
 /** A tab reload can strand a "generating" flag with no promise behind it —
