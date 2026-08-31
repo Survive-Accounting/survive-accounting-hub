@@ -13,7 +13,6 @@ import {
   Building2,
   GraduationCap,
   Landmark,
-  Layers,
   Network,
   Radar,
   Rocket,
@@ -54,7 +53,6 @@ const TABS = [
 
 const MORE_TABS = [
   { to: "/admin/growth/king", label: "King HQ", icon: Rocket },
-  { to: "/admin/growth/tranches", label: "Batches", icon: Layers },
   { to: "/admin/growth/campuses", label: "Campus table", icon: Building2 },
   { to: "/admin/growth/chapters", label: "Chapters", icon: GraduationCap },
   { to: "/admin/growth/councils", label: "Councils", icon: Landmark },
