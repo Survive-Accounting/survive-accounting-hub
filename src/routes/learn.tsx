@@ -166,8 +166,11 @@ function EndCard({ kicker, name, sub, ctaLabel, countdown, onGo, onDismiss }: { 
 // ---- SET PLAYER — one modal walks a set's stages: Cram Blast → Practice → Review. The video
 //      element is the app's hls.js path (@mux/mux-player isn't a dep) and is the SAME for cram
 //      and review — the stage decides which playback id it gets and where "done" leads. --------
-function SetPlayer({ set, sets, stage, chipText, startAt, demo, topicNumber, campusName, onClose, onStarted, onComplete, onPosition, onGoto }: {
+function SetPlayer({ set, sets, stage, chipText, startAt, demo, topicNumber, campusName, inline = false, onClose, onStarted, onComplete, onPosition, onGoto }: {
   set: StudentSet; sets: StudentSet[]; stage: SetStage; chipText: string; startAt: number; demo: boolean; topicNumber: number | null; campusName: string | null;
+  /** TRUE renders in the page's centre column (v2). FALSE keeps the full-screen modal, which is
+   *  still what a narrow viewport gets — a three-column layout has no centre column on a phone. */
+  inline?: boolean;
   onClose: () => void; onStarted: () => void; onComplete: () => void;
   onPosition: (positionSec: number, durationSec: number | null) => void;
   /** Move within the flow — same set another stage, or the next set's cram. */
@@ -244,10 +247,10 @@ function SetPlayer({ set, sets, stage, chipText, startAt, demo, topicNumber, cam
       {st === "cram" ? "Cram" : st === "practice" ? "Practice" : "Review"}
     </button>
   );
-  return (
-    <div className="fixed inset-0 z-[100] grid place-items-center p-4" style={{ background: "rgba(4,7,14,0.92)" }} onClick={onClose}>
-      <div className="relative w-full" style={{ maxWidth: portrait ? 460 : 1100 }} onClick={(e) => e.stopPropagation()}>
-        <button className="absolute -top-9 right-0 grid h-8 w-8 place-items-center rounded-full" style={{ color: "#e8ecf5", border: "1px solid rgba(255,255,255,0.2)" }} onClick={onClose} title="Close (Esc)"><X className="h-4 w-4" /></button>
+  const body = (
+    <>
+      <div className="relative w-full" style={{ maxWidth: inline ? undefined : portrait ? 460 : 1100 }} onClick={inline ? undefined : (e) => e.stopPropagation()}>
+        {!inline && <button className="absolute -top-9 right-0 grid h-8 w-8 place-items-center rounded-full" style={{ color: "#e8ecf5", border: "1px solid rgba(255,255,255,0.2)" }} onClick={onClose} title="Close (Esc)"><X className="h-4 w-4" /></button>}
         {/* SET SHELL STRIP — where the student IS: set number + the stage walk. */}
         <div className="mb-2 flex items-center gap-2">
           <span className="min-w-0 truncate text-[13px] font-bold" style={{ color: "#e8ecf5" }}>{set.name}</span>
@@ -308,6 +311,16 @@ function SetPlayer({ set, sets, stage, chipText, startAt, demo, topicNumber, cam
           </div>
         )}
       </div>
+    </>
+  );
+
+  // INLINE: the caller owns the frame (the v2 centre column).
+  // MODAL: the original scrim, unchanged — still what a narrow viewport gets, because a
+  // three-column layout has no centre column on a phone.
+  if (inline) return <div className="w-full">{body}</div>;
+  return (
+    <div className="fixed inset-0 z-[100] grid place-items-center p-4" style={{ background: "rgba(4,7,14,0.92)" }} onClick={onClose}>
+      {body}
     </div>
   );
 }
