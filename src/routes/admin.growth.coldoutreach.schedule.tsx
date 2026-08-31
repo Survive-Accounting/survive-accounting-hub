@@ -27,6 +27,12 @@ const OWNERS: { id: Owner; label: string }[] = [{ id: "lee", label: "Lee" }, { i
 
 function todayYmd() { try { return new Date().toISOString().slice(0, 10); } catch { return "2026-09-01"; } }
 
+// Bare Instagram handle from either an @handle or a full instagram.com URL.
+const igName = (s: string) => {
+  const m = String(s || "").match(/instagram\.com\/([^/?#\s]+)/i);
+  return (m ? m[1] : String(s || "")).replace(/^@+/, "").replace(/\/+$/, "");
+};
+
 async function copyText(text: string, ok: string) {
   try { await navigator.clipboard.writeText(text); toast.success(ok); } catch { toast.error("Clipboard blocked."); }
 }
@@ -167,7 +173,7 @@ function SequenceRow({ it, sender, onChange }: { it: ScheduleItemView; sender: "
         <div className="mb-1 flex flex-wrap items-center gap-1.5">
           <span className="inline-flex w-5 justify-center text-muted-foreground">①</span>
           <Instagram className="size-3 text-pink-400" />
-          <a href={`https://instagram.com/${dm.handle.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="text-pink-400 hover:underline">@{dm.handle.replace(/^@/, "")}</a>
+          <a href={`https://instagram.com/${igName(dm.handle)}`} target="_blank" rel="noreferrer" className="text-pink-400 hover:underline">@{igName(dm.handle)}</a>
           <ExternalLink className="size-2.5 text-muted-foreground" />
           <button onClick={() => copyAndSend("dm", it.messages.dm ?? "", "dm")} className="ml-auto inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 hover:bg-muted"><Copy className="size-3" /> Copy DM</button>
           <button onClick={() => copyAndSend("story_reply", it.messages.story ?? "", "story_reply")} title="Reply to an active Story instead of a cold DM" className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 hover:bg-muted"><MessageSquare className="size-3" /> Story reply</button>
@@ -273,7 +279,7 @@ function PrewarmView({ owner, weekStart }: { owner: Owner; weekStart: string }) 
       {targets.map((t) => (
         <div key={t.contactId} className="flex items-center gap-2 rounded-md border border-border bg-card p-2 text-[11px]">
           <span className="text-muted-foreground">◇</span>
-          <a href={`https://instagram.com/${t.handle.replace(/^@/, "")}`} target="_blank" rel="noreferrer" className="text-pink-400 hover:underline">@{t.handle.replace(/^@/, "")}</a>
+          <a href={`https://instagram.com/${igName(t.handle)}`} target="_blank" rel="noreferrer" className="text-pink-400 hover:underline">@{igName(t.handle)}</a>
           <ExternalLink className="size-2.5 text-muted-foreground" />
           <span className="min-w-0 truncate text-muted-foreground">{t.label} · {t.campusName}</span>
           <label className="ml-auto inline-flex items-center gap-1"><input type="checkbox" checked={t.igFollowed} onChange={(e) => t.contactId && set.mutate({ contactId: t.contactId, followed: e.target.checked })} /> follow</label>
