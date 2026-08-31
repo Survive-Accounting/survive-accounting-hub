@@ -1,7 +1,28 @@
-# BRAND ANIMATION — PARKED (written 2026-08-31, build LATER, after launch settles)
+# BRAND ANIMATION — BUILT 2026-08-31 (Lee's word: "build it now")
 
-Two pieces of brand animation, written down so they don't evaporate. **Do not build these
-unprompted** — the first is an hour, the second is a real build, and both wait for Lee's word.
+Both pieces shipped the same day the spec was parked. This doc is now the spec AND the map of
+what exists:
+
+- **AnimatedWordmark** — `src/components/brand/AnimatedWordmark.tsx`; letterforms (hand-authored
+  single-stroke marker glyphs) in `wordmark-glyphs.ts` — tweak numbers there, eyeball at
+  /lab/brand. Pure function of `progress` (pathLength=1 normalisation, no getTotalLength);
+  self-drives once at `speed` only when `progress` is omitted. Mounted: /learn first arrival
+  (`LearnIntro.tsx` — once per visitor, click-to-skip, reduced-motion never shows it).
+- **CampusGlobe** — `src/components/brand/CampusGlobe.tsx` + `src/lib/globe/`. Live tiers from
+  campuses.campus_status (shell/backlog=dim · ready=brighter · live=lit+pulsing rings); arcs from
+  REAL approved chapter claims only (zero pre-launch = zero arcs, honestly); school colours where
+  known (SEC override, then reviewed DB colours). Placement: city-precise for the 119 seeded
+  slugs (campus-geo.ts), state-centroid otherwise, legend says "positions approximate · +N not
+  yet mapped". Landmass: vendored Natural Earth 110m countries (public/geo/land-110m.json —
+  Antarctica dropped, one degenerate North Korea ring repaired: both make h3's polygonToCells
+  throw). Lazy via IntersectionObserver; `eager` skips the gate for the lab and for offline
+  rendering (no scrolling exists there). Mounted: /the-campaign hero (real arcs only) and
+  /lab/brand (with a clearly-labelled sample-arcs preview toggle).
+- **/lab/brand** — both standalone mounts, progress scrubber proving determinism.
+- NOT yet mounted: bio video intros (Remotion-side — drive `progress` per frame) and /learn
+  Review mode (possible later).
+
+Original spec below, kept verbatim.
 
 ---
 
