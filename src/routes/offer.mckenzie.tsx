@@ -17,15 +17,21 @@
 //
 // NO email capture, no urgency, no countdown, no analytics beyond the site pixel, no stock
 // photography. Both buttons text him; she is not a lead.
+//
+// ── THERE IS NO PASSWORD ON THIS PAGE ─────────────────────────────────────────────────────────
+// It had one. OFFER_PASSWORD never reached Vercel, the gate is fail-closed by design, and so it
+// refused everyone including Lee — he asked for it to come off rather than chase the env var.
+// The page is unlisted (noindex, nofollow, linked from nowhere) but it is NOT protected: anyone
+// with the URL can read it, and public/offer/mckenzie.jpg was already fetchable regardless.
+// The working gate is one commit back in history if it is ever wanted again.
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { useNavyDocument } from "@/components/site/SiteHeader";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { DOOR_CARD_CSS, DOOR_CTA_VARS } from "@/components/site/home-two-door/DoorCard";
-import { checkOfferPassword, offerUnlocked } from "@/lib/offer-gate.functions";
 import { OFFER_PHOTO_URL } from "@/lib/site-config";
 import { ogMeta } from "@/lib/og";
 import { scrollToId } from "@/lib/ui-scroll";
@@ -37,9 +43,6 @@ const TASK_ID = "task";
 const VISION_ID = "vision";
 
 export const Route = createFileRoute("/offer/mckenzie")({
-  // Read the cookie on the server so a returning visit renders the offer directly instead of
-  // flashing the gate and then replacing it.
-  loader: async () => ({ unlocked: await offerUnlocked().catch(() => false) }),
   head: () => ({
     meta: [
       ...ogMeta({
@@ -54,8 +57,6 @@ export const Route = createFileRoute("/offer/mckenzie")({
 });
 
 function OfferPage() {
-  const { unlocked } = Route.useLoaderData();
-  const [open, setOpen] = useState(unlocked);
   useNavyDocument();
 
   return (
@@ -69,90 +70,13 @@ function OfferPage() {
       }}
     >
       <style>{DOOR_CARD_CSS}</style>
-      <style>{OFFER_CSS}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
         <FrameBackground variant="orbital" intensity={0.3} animate />
       </div>
       <div style={{ position: "relative", zIndex: 1 }}>
-        {open ? <Offer /> : <Gate onPass={() => setOpen(true)} />}
+        <Offer />
       </div>
     </div>
-  );
-}
-
-// ── 1. THE GATE ───────────────────────────────────────────────────────────────────────────────
-/** The whole first screen: bolt, prompt, hint, field. Nothing else. */
-function Gate({ onPass }: { onPass: () => void }) {
-  const [pw, setPw] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [nope, setNope] = useState(false);
-  const boxRef = useRef<HTMLDivElement>(null);
-
-  const submit = async () => {
-    if (busy || !pw.trim()) return;
-    setBusy(true);
-    setNope(false);
-    try {
-      const r = await checkOfferPassword({ data: { password: pw } });
-      if (r.ok) { onPass(); return; }
-      // A shake and "nope". No error styling, no counter, no lockout.
-      setNope(true);
-      boxRef.current?.classList.remove("offer-shake");
-      void boxRef.current?.offsetWidth; // restart the animation
-      boxRef.current?.classList.add("offer-shake");
-    } catch {
-      setNope(true);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <main
-      className="mx-auto flex w-full max-w-[420px] flex-col items-center justify-center px-6 text-center"
-      style={{ minHeight: "100dvh" }}
-    >
-      <div ref={boxRef} className="w-full">
-        <div className="mx-auto mb-8 inline-block"><BoltBoil height={72} /></div>
-
-        <p className="text-[14px]" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>
-          Enter family password to view offer
-        </p>
-
-        <input
-          autoFocus
-          type="password"
-          value={pw}
-          onChange={(e) => { setPw(e.target.value); setNope(false); }}
-          onKeyDown={(e) => { if (e.key === "Enter") void submit(); }}
-          aria-label="Family password"
-          className="mt-4 w-full rounded-xl px-4 text-center outline-none"
-          style={{
-            fontSize: 16, minHeight: 52,
-            background: "rgba(0,0,0,0.35)", border: "1px solid var(--border-default)",
-            color: "var(--brand-cream)", letterSpacing: "0.2em",
-          }}
-        />
-
-        <p className="mt-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
-          hint: it&apos;s our boy
-        </p>
-
-        <button
-          type="button"
-          onClick={() => void submit()}
-          disabled={busy}
-          className="mt-5 w-full rounded-xl text-[15px] font-black disabled:opacity-45"
-          style={{ minHeight: 52, background: "var(--accent)", color: "#0B1220", border: 0, cursor: "pointer" }}
-        >
-          Enter
-        </button>
-
-        {nope && (
-          <p className="mt-3 text-[13px]" style={{ color: "var(--text-muted)" }}>nope</p>
-        )}
-      </div>
-    </main>
   );
 }
 
@@ -458,16 +382,3 @@ function GlobeMark({ height = 72 }: { height?: number }) {
     </svg>
   );
 }
-
-const OFFER_CSS = `
-/* A shake, and nothing else. No red, no counter, no lockout — it is a family password. */
-@keyframes offer-shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-7px); }
-  40% { transform: translateX(6px); }
-  60% { transform: translateX(-4px); }
-  80% { transform: translateX(2px); }
-}
-.offer-shake { animation: offer-shake 380ms ease; }
-@media (prefers-reduced-motion: reduce) { .offer-shake { animation: none; } }
-`;
