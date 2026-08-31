@@ -599,17 +599,17 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
         </div>
       )}
 
-      <div className="sticky bottom-0 -mx-4 flex items-center gap-2 border-t border-border bg-background px-4 py-2.5">
-        <span className="text-[11px] text-muted-foreground">
-          {queued.length} to save{openForm && rowHasContent(openForm.draft) ? " · 1 open (not added yet)" : ""}
-        </span>
+      <div className="sticky bottom-0 -mx-4 flex flex-col items-center gap-1 border-t border-border bg-background px-4 py-2.5">
         <button
           onClick={() => save.mutate()}
           disabled={queued.length === 0 || save.isPending}
-          className="ml-auto rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
+          className="rounded-md bg-primary px-6 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
         >
-          {save.isPending ? "Saving…" : `Save ${queued.length}`}
+          {save.isPending ? "Saving…" : `Save queued (${queued.length})`}
         </button>
+        {openForm && rowHasContent(openForm.draft) && (
+          <span className="text-[10px] text-amber-500">1 contact open — not added yet</span>
+        )}
       </div>
     </BottomSheet>
   );
