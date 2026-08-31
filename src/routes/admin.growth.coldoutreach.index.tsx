@@ -9,12 +9,14 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Clock,
   Copy,
   HelpCircle,
   Instagram,
   Landmark,
   Loader2,
   Mail,
+  MessageSquarePlus,
   Pencil,
   Plus,
   Recycle,
@@ -23,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "@tanstack/react-router";
 import {
   growthBoard,
   growthCampusContactSlots,
@@ -36,7 +39,8 @@ import {
   type ExistingContact,
 } from "@/lib/growth-tranche.functions";
 import { growthDeleteContact, growthUpdateContact } from "@/lib/growth-reach.functions";
-import { AddForm, atHandle } from "@/components/growth/contact-add-form";
+import { growthLogEnrichmentTime, growthAddFeedback, growthEnrichmentStats } from "@/lib/growth-enrich-feedback.functions";
+import { AddForm, atHandle, ROLE_CHIPS, roleChipOf } from "@/components/growth/contact-add-form";
 import { BottomSheet } from "@/components/growth/BottomSheet";
 import { ColdHeader } from "@/components/growth/ColdHeader";
 import { renderQueryState } from "@/components/growth/QueryState";
@@ -120,6 +124,7 @@ const OWNERS: { id: BoardOwner; label: string }[] = [
 function ColdOutreachPage() {
   const [owner, setOwner] = useState<BoardOwner>("king");
   const board = useQuery({ queryKey: ["co-board", owner], queryFn: () => growthBoard({ data: { owner } }) });
+  const stats = useQuery({ queryKey: ["enrich-stats"], queryFn: () => growthEnrichmentStats() });
   const [openTranche, setOpenTranche] = useState<number | null>(1);
   const [picked, setPicked] = useState<BoardCampus | null>(null);
 
@@ -133,8 +138,15 @@ function ColdOutreachPage() {
       <ColdHeader
         tab="enrichment"
         right={
-          <span title="Campuses with a complete contact set, out of your assigned batches" className="text-xs text-muted-foreground">
-            <strong className="text-emerald-400">{readyCount}</strong> / {totalCampuses} ready
+          <span className="flex items-center gap-3 text-xs text-muted-foreground">
+            {(stats.data?.campusCount ?? 0) > 0 && (
+              <span title={`Rolling average over the ${stats.data!.campusCount} campus${stats.data!.campusCount === 1 ? "" : "es"} timed so far — three campuses is roughly ${Math.round((stats.data!.avgSeconds * 3) / 60)} min`} className="inline-flex items-center gap-1">
+                <Clock className="size-3.5" /> avg {Math.max(1, Math.round(stats.data!.avgSeconds / 60))} min / campus
+              </span>
+            )}
+            <span title="Campuses with a complete contact set, out of your assigned batches">
+              <strong className="text-emerald-400">{readyCount}</strong> / {totalCampuses} ready
+            </span>
           </span>
         }
       />
@@ -294,6 +306,72 @@ function neededList(r: CampusReadiness): string[] {
   return out;
 }
 
+const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+// Campus timer (item 6): starts on the first interaction, counts while active, pauses after 60s idle.
+// `ping` on any interaction (re)starts it; `flush` returns the elapsed seconds and resets, to record
+// on save/close so the header average is real.
+function useEnrichmentTimer() {
+  const [seconds, setSeconds] = useState(0);
+  const running = useRef(false);
+  const lastActivity = useRef(0);
+  const secRef = useRef(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!running.current) return;
+      if (Date.now() - lastActivity.current > 60_000) { running.current = false; return; } // idle → pause
+      secRef.current += 1; setSeconds(secRef.current);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  const ping = () => { lastActivity.current = Date.now(); running.current = true; };
+  const flush = (): number => { const s = secRef.current; secRef.current = 0; setSeconds(0); running.current = false; return s; };
+  return { seconds, ping, flush };
+}
+
+// Item 5: the launch order, so it's obvious enrichment comes before any outreach — a rep who says yes
+// needs chapters to work, and this is step 1.
+const LAUNCH_STEPS = ["Enrich", "Council outreach", "Chapter outreach", "Rep recruiting"];
+function LaunchLadder() {
+  return (
+    <div className="flex flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-lg border border-border bg-muted/20 px-2.5 py-1.5 text-[10px]">
+      <span className="mr-0.5 font-semibold uppercase tracking-wide text-muted-foreground/80">Launch order</span>
+      {LAUNCH_STEPS.map((label, i) => (
+        <span key={label} className="inline-flex items-center gap-1">
+          <span className={cn("grid size-4 place-items-center rounded-full text-[8px] font-bold", i === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>{i + 1}</span>
+          <span className={cn(i === 0 ? "font-semibold text-primary" : "text-muted-foreground")}>{label}</span>
+          {i === 0 && <span className="text-[8px] font-medium uppercase tracking-wide text-primary/70">← you're here</span>}
+          {i < LAUNCH_STEPS.length - 1 && <ChevronRight className="size-3 text-muted-foreground/40" />}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// Item 7: always-open, never collapsed. The friction to complain must be zero, and the prompt is
+// specific on purpose — "feedback" gets nothing; "what would make this faster" gets the real answer.
+function FeedbackBox({ campusId }: { campusId: string }) {
+  const [note, setNote] = useState("");
+  const m = useMutation({
+    mutationFn: () => growthAddFeedback({ data: { campusId, note: note.trim() } }),
+    onSuccess: (r) => { if (r.ok) { setNote(""); toast.success("Got it", { description: "Logged for the team." }); } else toast.error(r.error ?? "Couldn't save"); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't save"),
+  });
+  return (
+    <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.04] p-2.5">
+      <div className="mb-1 flex items-center gap-1.5">
+        <MessageSquarePlus className="size-3.5 text-amber-400" />
+        <span className="text-[11px] font-medium">What would make this faster next time?</span>
+        <Link to="/admin/growth/coldoutreach/feedback" className="ml-auto text-[9px] text-muted-foreground hover:text-primary hover:underline">see all notes →</Link>
+      </div>
+      <div className="flex gap-1.5">
+        <input value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && note.trim()) m.mutate(); }} placeholder="A field, a step, a search — anything that slowed you down" className="flex-1 rounded border border-border bg-background px-2 py-1 text-[11px]" />
+        <button onClick={() => note.trim() && m.mutate()} disabled={!note.trim() || m.isPending} className="rounded-md bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground disabled:opacity-40">{m.isPending ? "…" : "Submit"}</button>
+      </div>
+    </div>
+  );
+}
+
 function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClose: () => void; onSaved: () => void }) {
   const qc = useQueryClient();
   const slots = useQuery({ queryKey: ["co-slots", campus.campusId], queryFn: () => growthCampusContactSlots({ data: { campusId: campus.campusId } }) });
@@ -305,6 +383,10 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
   const [openForm, setOpenForm] = useState<{ orgKey: string; draft: Row; editingKey: string | null } | null>(null);
   const [roleFilter, setRoleFilter] = useState(false);
   const restored = useRef(false);
+  const timer = useEnrichmentTimer();
+  const logTime = (s: number) => { if (s > 3) growthLogEnrichmentTime({ data: { campusId: campus.campusId, seconds: s } }).catch(() => { /* fire-and-forget */ }); };
+  // Record any un-flushed time on close, then close.
+  const handleClose = () => { logTime(timer.flush()); onClose(); };
 
   // Autosave the queued (added-but-unsaved) contacts to browser storage, keyed by campus.
   useEffect(() => {
@@ -333,8 +415,14 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
       if (rowHasContent(openForm.draft) && !window.confirm("You have an unsaved contact open. Discard it and start a new one?")) return;
     }
     const draft = emptyRow(spec);
-    draft.isPerson = spec.isPerson ?? false;
-    if (spec.role) draft.role = spec.role;
+    if (spec.isPerson !== undefined) {
+      draft.isPerson = spec.isPerson;
+      if (spec.role) draft.role = spec.role;
+    } else if (isSequenced(spec)) {
+      // Sequenced orgs open on the next unfilled role as a person, not a blank org form.
+      draft.isPerson = true;
+      draft.role = nextRoleFor(spec) ?? "";
+    }
     setOpenForm({ orgKey, draft, editingKey: null });
   };
   const cancelForm = () => {
@@ -355,11 +443,22 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
     cleared.notFound = mode === "notfound";
     setOpenForm({ ...openForm, draft: cleared });
   };
-  const addQueued = () => {
+  const addQueued = (patch?: Partial<Row>) => {
     if (!openForm) return;
-    const d = openForm.draft;
+    const d = { ...openForm.draft, ...(patch ?? {}) };
     if (!d.name.trim() && !d.email.trim() && !d.instagram.trim()) { toast.error("Add a name, email, or Instagram before adding."); return; }
-    setQueued((q) => (openForm.editingKey ? q.map((x) => (x.key === openForm.editingKey ? d : x)) : [...q, d]));
+    const editing = openForm.editingKey;
+    setQueued((q) => (editing ? q.map((x) => (x.key === editing ? d : x)) : [...q, d]));
+    // Guided progression: after adding a person to a sequenced org, jump to the next unfilled role.
+    const spec: Partial<Row> = { kind: d.kind, entityId: d.entityId, councilType: d.councilType, newClubName: d.newClubName, newClubCategory: d.newClubCategory, label: d.label };
+    if (!editing && d.isPerson && isSequenced(spec)) {
+      const next = nextRoleFor(spec, d.role);
+      if (next) {
+        const nd = emptyRow(spec); nd.isPerson = true; nd.role = next;
+        setOpenForm({ orgKey: specOrgKey(spec), draft: nd, editingKey: null });
+        return;
+      }
+    }
     setOpenForm(null);
   };
   const editQueued = (r: Row) => {
@@ -392,6 +491,9 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
       }),
     onSuccess: async (res) => {
       setQueued([]);
+      const spent = timer.flush(); // record time spent this session against the campus
+      if (spent > 3) { try { await growthLogEnrichmentTime({ data: { campusId: campus.campusId, seconds: spent } }); } catch { /* ignore */ } }
+      qc.invalidateQueries({ queryKey: ["enrich-stats"] });
       try { localStorage.removeItem(draftKey(campus.campusId)); } catch { /* ignore */ }
       await qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] });
       onSaved();
@@ -416,6 +518,26 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
   });
 
   const s = slots.data;
+
+  // Guided role progression (item 1): councils (except the FSL office) and chapters are worked as a
+  // sequence — Scholarship chair, President, VP, Treasurer. These helpers say which roles are already
+  // on file and which comes next, so the form opens on the next gap and advances as you add.
+  const isSequenced = (spec: Partial<Row>) => (spec.kind === "council" && spec.councilType !== "fsl") || spec.kind === "chapter";
+  const orgRoles = (spec: Partial<Row>): (string | null)[] => {
+    const own = spec.kind === "council" ? (s?.councils.find((c) => c.type === spec.councilType)?.contacts ?? [])
+      : spec.kind === "chapter" ? (s?.chapters.find((ch) => ch.id === spec.entityId)?.contacts ?? [])
+        : [];
+    return [...own.map((c) => c.role), ...queuedFor(specOrgKey(spec)).map((r) => r.role)];
+  };
+  const coveredRolesFor = (spec: Partial<Row>): string[] => {
+    const chips = new Set(orgRoles(spec).map((r) => roleChipOf(r)).filter(Boolean) as string[]);
+    return ROLE_CHIPS.filter((c) => chips.has(c));
+  };
+  const nextRoleFor = (spec: Partial<Row>, alsoCovered?: string | null): string | null => {
+    const covered = new Set(coveredRolesFor(spec));
+    const e = roleChipOf(alsoCovered); if (e) covered.add(e);
+    return ROLE_CHIPS.find((c) => !covered.has(c)) ?? null;
+  };
 
   // Role-account filter view — every role/position inbox on the campus, for a semester refresh.
   const roleAccounts = useMemo(() => {
@@ -443,6 +565,8 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
           draft={openForm.draft}
           editing={!!openForm.editingKey}
           notFoundPending={notFoundMut.isPending}
+          coveredRoles={isSequenced(spec) ? coveredRolesFor(spec) : undefined}
+          campusName={campus.name}
           onChange={setDraft}
           onSwitch={switchMode}
           onAdd={addQueued}
@@ -512,11 +636,18 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
   );
 
   return (
-    <BottomSheet open onClose={onClose} title={<span className="sa-admin-display text-sm font-semibold">Add contacts · {campus.name}</span>}>
+    <BottomSheet open onClose={handleClose} title={<span className="sa-admin-display text-sm font-semibold">Add contacts · {campus.name}</span>}>
       {slots.isLoading || !s ? (
         <div className="flex h-32 items-center justify-center"><Loader2 className="size-4 animate-spin text-muted-foreground" /></div>
       ) : (
-        <div className="space-y-2 pb-24">
+        <div className="space-y-2 pb-24" onPointerDownCapture={timer.ping} onKeyDownCapture={timer.ping}>
+          <div className="flex items-start gap-2">
+            <LaunchLadder />
+            <span title="Time spent on this campus this session — pauses after 60s idle, added to the campus on save" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/20 px-2 py-1.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+              <Clock className="size-3.5" /> {fmtClock(timer.seconds)}
+            </span>
+          </div>
+          <FeedbackBox campusId={campus.campusId} />
           <ReadinessBar r={s.readiness} />
           <div className="flex items-center gap-2 px-1 text-[10px] text-muted-foreground">
             <span>Add contacts one at a time — each drops into a queue below its org. <span className="text-primary">Save</span> the whole batch once.</span>

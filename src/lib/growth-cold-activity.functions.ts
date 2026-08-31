@@ -28,9 +28,9 @@ const actorOf = (s: string | null | undefined): Actor => {
 };
 const ACTOR_LABEL: Record<Actor, string> = { lee: "LEE", king: "KING", ej: "EJ", other: "—" };
 
-export type ActivityType = "contact_added" | "not_found" | "emails_sent" | "dms_sent" | "reply_logged" | "warmup";
-const TYPE_GROUP: Record<ActivityType, "contacts" | "outreach" | "replies" | "warmup"> = {
-  contact_added: "contacts", not_found: "contacts", emails_sent: "outreach", dms_sent: "outreach", reply_logged: "replies", warmup: "warmup",
+export type ActivityType = "contact_added" | "not_found" | "emails_sent" | "dms_sent" | "reply_logged" | "warmup" | "feedback";
+const TYPE_GROUP: Record<ActivityType, "contacts" | "outreach" | "replies" | "warmup" | "feedback"> = {
+  contact_added: "contacts", not_found: "contacts", emails_sent: "outreach", dms_sent: "outreach", reply_logged: "replies", warmup: "warmup", feedback: "feedback",
 };
 
 export interface ActivityEvent {
@@ -55,7 +55,7 @@ export const growthColdActivity = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({
     person: z.enum(["all", "lee", "king", "ej"]).default("all"),
     when: z.enum(["today", "week", "30", "all"]).default("week"),
-    type: z.enum(["all", "contacts", "outreach", "replies", "warmup"]).default("all"),
+    type: z.enum(["all", "contacts", "outreach", "replies", "warmup", "feedback"]).default("all"),
     campusId: z.string().uuid().nullable().optional(),
   }).parse(d ?? {}))
   .handler(async ({ data }): Promise<ColdActivityView> => {
@@ -64,9 +64,10 @@ export const growthColdActivity = createServerFn({ method: "GET" })
     const weekStart = weekStartSun(today);
     const whenFrom = data.when === "today" ? today : data.when === "week" ? weekStart : data.when === "30" ? addDays(today, -30) : "2026-01-01";
 
-    const [{ data: qc }, { data: touches }] = await Promise.all([
+    const [{ data: qc }, { data: touches }, { data: feedback }] = await Promise.all([
       db.from("growth_contact_qc").select("id,qc_by,created_at,outreach_eligible,contact_type,name,email,instagram,campus_id,entity_type,entity_id,council_type,prewarmed_at,ig_followed,ig_liked").eq("source_type", "manual_entry"),
       db.from("outreach_touch").select("id,campus_id,org_key,source_channel,sender,created_by,sent_at,replied_at,outcome"),
+      db.from("growth_enrichment_feedback").select("id,campus_id,note,created_by,created_at"),
     ]);
 
     // resolve org labels (referenced set is small)
@@ -94,7 +95,7 @@ export const growthColdActivity = createServerFn({ method: "GET" })
       return labelFor(k === "council" ? "council" : k === "chapter" ? "chapter" : "club", k === "council" ? null : id, k === "council" ? id : null);
     };
 
-    const campusIds = [...new Set([...(qc ?? []).map((r: any) => r.campus_id), ...(touches ?? []).map((t: any) => t.campus_id)].filter(Boolean))] as string[];
+    const campusIds = [...new Set([...(qc ?? []).map((r: any) => r.campus_id), ...(touches ?? []).map((t: any) => t.campus_id), ...(feedback ?? []).map((f: any) => f.campus_id)].filter(Boolean))] as string[];
     const campusName = new Map<string, string>();
     if (campusIds.length) { const { data } = await db.from("campuses").select("id,name,display_name").in("id", campusIds); for (const c of data ?? []) campusName.set(c.id, c.display_name || c.name); }
 
@@ -112,6 +113,9 @@ export const growthColdActivity = createServerFn({ method: "GET" })
       const org = orgFromKey(t.org_key);
       if (t.replied_at) raw.push({ id: `r-${t.id}`, ts: t.replied_at, actor, type: "reply_logged", campusId: t.campus_id, org, personalIg: false, detail: t.outcome ?? null });
       if (t.sent_at) raw.push({ id: `s-${t.id}`, ts: t.sent_at, actor, type: t.source_channel === "email" ? "emails_sent" : "dms_sent", campusId: t.campus_id, org, personalIg: false, detail: null });
+    }
+    for (const f of (feedback ?? []) as any[]) {
+      raw.push({ id: `fb-${f.id}`, ts: f.created_at, actor: actorOf(f.created_by), type: "feedback", campusId: f.campus_id ?? "", org: null, personalIg: false, detail: f.note });
     }
 
     const scoped = raw.filter((e) => data.person === "all" || e.actor === data.person);
@@ -139,7 +143,8 @@ export const growthColdActivity = createServerFn({ method: "GET" })
       if (e.ts.slice(0, 10) < whenFrom) return false;
       return true;
     }).sort((a, b) => (a.ts < b.ts ? 1 : -1));
-    const bucketKey = (e: Raw) => `${e.actor}|${e.type}|${e.campusId}|${e.org}|${Math.floor(new Date(e.ts).getTime() / 600000)}`;
+    // Feedback notes are each distinct — never merge them; everything else batches within ~10 min.
+    const bucketKey = (e: Raw) => e.type === "feedback" ? `fb|${e.id}` : `${e.actor}|${e.type}|${e.campusId}|${e.org}|${Math.floor(new Date(e.ts).getTime() / 600000)}`;
     const merged = new Map<string, ActivityEvent & { _igs: number }>();
     for (const e of filtered) {
       const bk = bucketKey(e);
@@ -152,7 +157,7 @@ export const growthColdActivity = createServerFn({ method: "GET" })
       const V: Record<ActivityType, string> = {
         contact_added: `added ${n} contact${n === 1 ? "" : "s"}`, not_found: `marked not found`,
         emails_sent: `sent ${n} email${n === 1 ? "" : "s"}`, dms_sent: `sent ${n} DM${n === 1 ? "" : "s"}`,
-        reply_logged: `logged a reply`, warmup: `warmed up ${n}`,
+        reply_logged: `logged a reply`, warmup: `warmed up ${n}`, feedback: `left feedback`,
       };
       ev.verb = V[ev.type];
       if (ev.type === "contact_added" && _igs > 0) ev.detail = `${_igs} personal IG${_igs === 1 ? "" : "s"}`;

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle, Building2, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown,
-  Copy, Download, ExternalLink, HelpCircle, Instagram, Loader2, Mail, MessageSquare, Plus, Send,
+  Copy, Download, ExternalLink, HelpCircle, Instagram, Loader2, Lock, Mail, MessageSquare, Plus, Send,
   Sparkles, User, X, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -259,7 +259,7 @@ function SectionBlock({ sec, date, sender, owner, expand, onChange }: { sec: Sch
         {sec.section === "rep" && <Tip which="rep" />}
         <span className="ml-auto text-[10px] text-muted-foreground">{sec.campuses.length} campus{sec.campuses.length === 1 ? "" : "es"}</span>
       </button>
-      {open && <div className="space-y-1 px-1.5 pb-1.5">{sec.campuses.map((c) => <CampusBlock key={c.campusId} campus={c} date={date} sender={sender} expand={expand} onChange={onChange} />)}</div>}
+      {open && <div className="space-y-1 px-1.5 pb-1.5">{sec.campuses.map((c) => <CampusBlock key={c.campusId} campus={c} date={date} sender={sender} expand={expand} repBlocked={sec.section === "rep" && !c.contactReady} onChange={onChange} />)}</div>}
     </div>
   );
 }
@@ -268,9 +268,20 @@ function Bolt({ color, ready }: { color: string | null; ready: boolean }) {
   return <Zap className={cn("size-3.5 shrink-0", ready && "animate-pulse")} style={{ color: color ?? undefined, fill: ready && color ? color : "transparent" }} />;
 }
 
-function CampusBlock({ campus, date, sender, expand, onChange }: { campus: SchedCampusCol; date: string; sender: "lee" | "king"; expand: Expand; onChange: () => void }) {
+function CampusBlock({ campus, date, sender, expand, repBlocked, onChange }: { campus: SchedCampusCol; date: string; sender: "lee" | "king"; expand: Expand; repBlocked?: boolean; onChange: () => void }) {
   const [open, setOpen] = useExpandSignal(expand, false);
   const state = !campus.dataReady ? "data" : campus.contactReady ? "ready" : "notready";
+  // Item 5: rep recruiting can't run before the campus is contact-ready — a rep who says yes needs
+  // chapters to work. Blocked, not empty; the block lifts on its own when the campus hits ready.
+  if (repBlocked) {
+    return (
+      <div title="Enrich this campus first — a rep needs chapters to work" className="flex items-center gap-1.5 rounded border border-dashed border-border/60 bg-muted/20 px-2 py-1.5 opacity-60">
+        <Lock className="size-3 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 truncate text-[12px] font-medium text-muted-foreground">{campus.name}</span>
+        <span className="ml-auto shrink-0 text-[9px] uppercase tracking-wide text-muted-foreground/80">enrich first</span>
+      </div>
+    );
+  }
   return (
     <div className="overflow-hidden rounded border border-border/50 bg-background/40">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left">
