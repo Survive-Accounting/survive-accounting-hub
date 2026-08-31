@@ -15,7 +15,6 @@ import { ArrowLeftRight, ClipboardCheck, Play, Target, MessageCircle } from "luc
 
 import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/canvas/brand";
 import { AnimatedCampusBolt, type BoltCampus } from "@/components/site/bolt";
-import { GREEK_HOUSE_CSS } from "@/components/site/chapter/GreekHouseMark";
 import { CAMPUS_LINE_CSS, CampusDot, CampusEm, CampusFor, CampusLine } from "@/components/site/home-two-door/campus-line";
 import { CompactLockup } from "@/components/site/SiteHeader";
 import { NotListedForm } from "@/components/site/NotListedForm";
@@ -284,7 +283,6 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
 /** Chip hover/focus styling — subtle brightness + a hair of lift, quick, reduced-motion safe. */
 export const MARKETING_CSS = `
 ${CAMPUS_LINE_CSS}
-${GREEK_HOUSE_CSS}
 /* CHANGE-SCHOOL SWAP. A 44px touch target around a 16px glyph, so it is quiet to look at and still
    comfortably tappable on a phone. It brightens rather than growing — nothing under the bolt should
    move on hover except the bolt. */

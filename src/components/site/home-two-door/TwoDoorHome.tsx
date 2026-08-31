@@ -22,7 +22,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
-import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { BoltBadge } from "@/components/site/BoltBadge";
 import {
   FeatureValueStrip, FloatingContact, MARKETING_CSS, MARKETING_HERO_ID, SocialProofSection,
   TrustChips, TutorBioModal, TutorCard,
@@ -45,7 +45,6 @@ import { readTestSession } from "@/lib/test-mode";
 import { CHAPTER_BTN, DOOR_CARD_CSS, DOOR_CTA_VARS, DoorCard, DoorRow, DOOR_BTN_CLASS, SOLO_BTN } from "./DoorCard";
 import { ArrowLeftRight } from "lucide-react";
 
-import { GREEK_HOUSE_CSS, GreekHouseMark } from "@/components/site/chapter/GreekHouseMark";
 import { SchoolSwitchSheet } from "./SchoolSwitchSheet";
 
 import { CAMPUS_LINE_CSS, CampusEm, CampusFor, CampusLine } from "./campus-line";
@@ -315,11 +314,12 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
   return (
     <DoorRow id={DOORS_ID} label="Choose how you want to study">
         {/* LEFT DOOR — solo students. First in DOM so it stacks first on mobile. */}
-        {/* H3: THE BOILING BOLT — the exact same BoltBoil the footer wordmark's "i" uses (one
-            shared implementation, one speed). It is the only living thing on screen; the temple
-            opposite stays still. prefers-reduced-motion serves BoltBoil's built-in static frame. */}
+        {/* BOTH DOORS WEAR THE SAME BADGE (BoltBadge) — one component, two
+            variants, so the pair cannot drift apart the way two hand-drawn
+            icons did. Each holds still until hovered or scrolled into view;
+            two boiling icons at once is too busy. */}
         <DoorCard
-          icon={<span aria-hidden style={{ display: "block" }}><BoltBoil height={112} /></span>}
+          icon={<BoltBadge glyph="cap" tint="var(--cta-solo-bg)" size={112} />}
           title="Study solo"
           button={
             soloHref ? (
@@ -353,7 +353,7 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
         {/* RIGHT DOOR — Greek chapters. Same frame, equal-weight CTA; generic chapter-house
             visual (never one org's letters as the site's default branding). */}
         <DoorCard
-          icon={<GreekHouseMark height={96} variant="home" />}
+          icon={<BoltBadge glyph="house" tint="var(--cta-chapter-bg)" size={112} />}
           title="Study with your chapter"
           button={
             <button
@@ -513,7 +513,6 @@ const TWO_DOOR_CSS = `
 
 /* CAMPUS LINE (H3) — the v1 bolt-plate type treatment on the hero axis. */
 ${CAMPUS_LINE_CSS}
-${GREEK_HOUSE_CSS}
 
 /* DOOR CARDS — one hover response for both: a hair of lift, nothing else moves. */
 .sa-door-card { transition: transform 180ms ease, box-shadow 180ms ease; }
