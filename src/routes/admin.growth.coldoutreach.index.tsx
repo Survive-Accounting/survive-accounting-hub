@@ -41,6 +41,7 @@ import {
 import { growthDeleteContact, growthUpdateContact } from "@/lib/growth-reach.functions";
 import { growthLogEnrichmentTime, growthAddFeedback, growthEnrichmentStats } from "@/lib/growth-enrich-feedback.functions";
 import { AddForm, atHandle, ROLE_CHIPS, roleChipOf } from "@/components/growth/contact-add-form";
+import { VaProgress } from "@/components/growth/va-mode";
 import { BottomSheet } from "@/components/growth/BottomSheet";
 import { ColdHeader } from "@/components/growth/ColdHeader";
 import { renderQueryState } from "@/components/growth/QueryState";
@@ -372,7 +373,7 @@ function FeedbackBox({ campusId }: { campusId: string }) {
   );
 }
 
-function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClose: () => void; onSaved: () => void }) {
+export function AddContacts({ campus, onClose, onSaved, vaMode, onDone }: { campus: BoardCampus; onClose: () => void; onSaved: () => void; vaMode?: boolean; onDone?: () => void }) {
   const qc = useQueryClient();
   const slots = useQuery({ queryKey: ["co-slots", campus.campusId], queryFn: () => growthCampusContactSlots({ data: { campusId: campus.campusId } }) });
   const [open, setOpen] = useState<Record<string, boolean>>({ councils: true, chapters: false, clubs: false });
@@ -641,14 +642,20 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
         <div className="flex h-32 items-center justify-center"><Loader2 className="size-4 animate-spin text-muted-foreground" /></div>
       ) : (
         <div className="space-y-2 pb-24" onPointerDownCapture={timer.ping} onKeyDownCapture={timer.ping}>
-          <div className="flex items-start gap-2">
-            <LaunchLadder />
-            <span title="Time spent on this campus this session — pauses after 60s idle, added to the campus on save" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/20 px-2 py-1.5 text-[11px] font-medium tabular-nums text-muted-foreground">
-              <Clock className="size-3.5" /> {fmtClock(timer.seconds)}
-            </span>
-          </div>
-          <FeedbackBox campusId={campus.campusId} />
-          <ReadinessBar r={s.readiness} />
+          {/* VA mode strips the ladder, the visible timer, and the feedback box (help lives in the
+              floating bolt); progress becomes plain language. Everything else is the same panel. */}
+          {!vaMode && (
+            <>
+              <div className="flex items-start gap-2">
+                <LaunchLadder />
+                <span title="Time spent on this campus this session — pauses after 60s idle, added to the campus on save" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/20 px-2 py-1.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+                  <Clock className="size-3.5" /> {fmtClock(timer.seconds)}
+                </span>
+              </div>
+              <FeedbackBox campusId={campus.campusId} />
+            </>
+          )}
+          {vaMode ? <VaProgress s={s} /> : <ReadinessBar r={s.readiness} />}
           <div className="flex items-center gap-2 px-1 text-[10px] text-muted-foreground">
             <span>Add contacts one at a time — each drops into a queue below its org. <span className="text-primary">Save</span> the whole batch once.</span>
             {roleAccounts.length > 0 && (
@@ -730,16 +737,19 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
         </div>
       )}
 
-      <div className="sticky bottom-0 -mx-4 flex flex-col items-center gap-1 border-t border-border bg-background px-4 py-2.5">
+      <div className="sticky bottom-0 -mx-4 flex flex-col items-center gap-1.5 border-t border-border bg-background px-4 py-2.5" style={{ paddingBottom: "max(0.625rem, env(safe-area-inset-bottom))" }}>
         <button
           onClick={() => save.mutate()}
           disabled={queued.length === 0 || save.isPending}
-          className="rounded-md bg-primary px-6 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
+          className={cn("rounded-md bg-primary font-semibold text-primary-foreground disabled:opacity-40", vaMode ? "w-full py-3 text-sm" : "px-6 py-1.5 text-xs")}
         >
           {save.isPending ? "Saving…" : `Save queued (${queued.length})`}
         </button>
         {openForm && rowHasContent(openForm.draft) && (
           <span className="text-[10px] text-amber-500">1 contact open — not added yet</span>
+        )}
+        {vaMode && onDone && queued.length === 0 && !(openForm && rowHasContent(openForm.draft)) && (
+          <button onClick={onDone} className="text-[11px] text-muted-foreground underline decoration-dotted hover:text-foreground">Done with this campus →</button>
         )}
       </div>
     </BottomSheet>

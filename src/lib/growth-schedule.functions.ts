@@ -27,7 +27,7 @@ const whoNow = async (): Promise<string> => {
 export type Owner = "lee" | "king" | "ej";
 const POOL: Record<Exclude<Owner, "ej">, string> = { lee: "founder", king: "king" };
 
-async function ownerCampusIds(db: DB, owner: Owner): Promise<string[]> {
+export async function ownerCampusIds(db: DB, owner: Owner): Promise<string[]> {
   if (owner === "ej") return [];
   let q = db.from("partner_tranches").select("campus_ids,partner_id,pool").eq("pool", POOL[owner]);
   if (owner === "king") {
@@ -70,7 +70,7 @@ export interface SchedCampusMeta {
   dataReady: boolean; dataChecks: { courseCode: boolean; chaptersSeeded: boolean; colors: boolean };
 }
 
-async function buildSchedCampuses(db: DB, campusIds: string[]): Promise<{ campuses: SchedCampus[]; slugOf: Map<string, string | null>; meta: Map<string, SchedCampusMeta> }> {
+export async function buildSchedCampuses(db: DB, campusIds: string[]): Promise<{ campuses: SchedCampus[]; slugOf: Map<string, string | null>; meta: Map<string, SchedCampusMeta> }> {
   if (!campusIds.length) return { campuses: [], slugOf: new Map(), meta: new Map() };
   const [camps, chaps, clubs, contacts] = await Promise.all([
     db.from("campuses").select("id,name,display_name,slug,color_primary,color_secondary,course_family_codes_json,outreach_priority").in("id", campusIds),

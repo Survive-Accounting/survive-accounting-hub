@@ -79,7 +79,11 @@ export const adminSessionOk = createServerFn({ method: "GET" }).handler(
       // Passcode session (2026-08-28): the team passcode, exchanged server-side for an
       // HMAC cookie — see installPasscodeSession below. Lee's call: no magic link.
       const passEmail = await emailFromPassCookie(getCookie("sa_admin_pass"));
-      return passEmail ? { ok: true, email: passEmail } : { ok: false };
+      if (passEmail) return { ok: true, email: passEmail };
+      // VA session (2026-08-31): a per-VA private link, exchanged for an HMAC cookie. Attribution
+      // identity is `va:<id>` so contacts they add carry their id for the pay rollup.
+      const vaId = await vaIdFromCookie(getCookie(VA_COOKIE));
+      return vaId ? { ok: true, email: `va:${vaId}` } : { ok: false };
     } catch {
       return { ok: false }; // no request context (cron/worker) — never an admin
     }
@@ -164,6 +168,82 @@ export const installPasscodeSession = createServerFn({ method: "POST" })
       return { ok: false, error: e instanceof Error ? e.message : "Couldn't set the session." };
     }
   });
+
+/* ── VA SESSIONS (2026-08-31) ───────────────────────────────────────────────────────────
+   VAs (King's team + EJ) reach a stripped enrichment view through a private, passcode-free
+   link carrying a unique token. installVaSession verifies the token against the growth_va
+   roster server-side and exchanges it for an HttpOnly HMAC cookie. adminSessionOk accepts it
+   like the passcode cookie, so the existing enrichment write-path works and attributes each
+   contact to `va:<id>`. VAs are trusted staff; this is the same "deterrent" posture as the
+   passcode, scoped to a person for pay. */
+const VA_COOKIE = "sa_va";
+const VA_VERSION = "v1";
+async function vaSig(id: string): Promise<string> {
+  const { createHmac } = await import("node:crypto");
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  return createHmac("sha256", key).update(`sa-va-${VA_VERSION}:${id}`).digest("hex");
+}
+async function vaIdFromCookie(raw: string | undefined | null): Promise<string | null> {
+  if (!raw) return null;
+  const dot = raw.indexOf(".");
+  if (dot <= 0) return null;
+  const id = raw.slice(0, dot);
+  const given = raw.slice(dot + 1);
+  const expected = await vaSig(id);
+  if (given.length !== expected.length) return null;
+  const { timingSafeEqual } = await import("node:crypto");
+  try {
+    if (!timingSafeEqual(Buffer.from(given, "hex"), Buffer.from(expected, "hex"))) return null;
+  } catch {
+    return null;
+  }
+  return id;
+}
+
+/** Exchange a VA's private-link token for the HttpOnly session cookie. */
+export const installVaSession = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ token: z.string().trim().min(4).max(200) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; vaId?: string; name?: string; team?: string; error?: string }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as { from: (t: string) => any };
+    const { data: va } = await db.from("growth_va").select("id,name,team,active").eq("token", data.token).maybeSingle();
+    if (!va || va.active === false) return { ok: false, error: "This link isn't active." };
+    try {
+      const { setCookie } = await import("@tanstack/react-start/server");
+      setCookie(VA_COOKIE, `${va.id}.${await vaSig(va.id)}`, {
+        httpOnly: true, sameSite: "lax", path: "/",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24 * 30,
+      });
+      return { ok: true, vaId: va.id, name: va.name, team: va.team };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Couldn't start the session." };
+    }
+  });
+
+/** The VA identity behind the current request, or {ok:false}. Used by the VA view + its functions. */
+export const vaSessionOk = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ ok: boolean; vaId?: string; name?: string; team?: string }> => {
+    try {
+      const { getCookie } = await import("@tanstack/react-start/server");
+      const id = await vaIdFromCookie(getCookie(VA_COOKIE));
+      if (!id) return { ok: false };
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: va } = await (supabaseAdmin as unknown as { from: (t: string) => any }).from("growth_va").select("id,name,team,active").eq("id", id).maybeSingle();
+      if (!va || va.active === false) return { ok: false };
+      return { ok: true, vaId: va.id, name: va.name, team: va.team };
+    } catch {
+      return { ok: false };
+    }
+  },
+);
+
+/** Throw unless the current request is a VA session; returns the VA identity. */
+export async function assertVa(): Promise<{ vaId: string; name: string; team: string }> {
+  const r = await vaSessionOk();
+  if (!r.ok || !r.vaId) throw new Error("Not a VA session.");
+  return { vaId: r.vaId, name: r.name ?? "VA", team: r.team ?? "king" };
+}
 
 /** Verify the passcode cookie. Returns the operator's email for attribution, or null. */
 async function emailFromPassCookie(raw: string | undefined | null): Promise<string | null> {

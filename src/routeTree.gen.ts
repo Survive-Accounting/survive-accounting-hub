@@ -44,6 +44,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as UIndexRouteImport } from './routes/u.index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as SchoolIndexRouteImport } from './routes/$school.index'
+import { Route as VaTokenRouteImport } from './routes/va.$token'
 import { Route as UTokenRouteImport } from './routes/u.$token'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
@@ -328,6 +329,11 @@ const OutreachIndexRoute = OutreachIndexRouteImport.update({
 const SchoolIndexRoute = SchoolIndexRouteImport.update({
   id: '/$school/',
   path: '/$school/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VaTokenRoute = VaTokenRouteImport.update({
+  id: '/va/$token',
+  path: '/va/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UTokenRoute = UTokenRouteImport.update({
@@ -985,6 +991,7 @@ export interface FileRoutesByFullPath {
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/va/$token': typeof VaTokenRoute
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
@@ -1129,6 +1136,7 @@ export interface FileRoutesByTo {
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/va/$token': typeof VaTokenRoute
   '/$school': typeof SchoolIndexRoute
   '/outreach': typeof OutreachIndexRoute
   '/u': typeof UIndexRoute
@@ -1276,6 +1284,7 @@ export interface FileRoutesById {
   '/study_/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/va/$token': typeof VaTokenRoute
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
@@ -1425,6 +1434,7 @@ export interface FileRouteTypes {
     | '/study/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/va/$token'
     | '/$school/'
     | '/outreach/'
     | '/u/'
@@ -1569,6 +1579,7 @@ export interface FileRouteTypes {
     | '/study/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/va/$token'
     | '/$school'
     | '/outreach'
     | '/u'
@@ -1715,6 +1726,7 @@ export interface FileRouteTypes {
     | '/study_/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/va/$token'
     | '/$school/'
     | '/outreach/'
     | '/u/'
@@ -1834,6 +1846,7 @@ export interface RootRouteChildren {
   StudyFoundationsRoute: typeof StudyFoundationsRoute
   TSlugRoute: typeof TSlugRoute
   UTokenRoute: typeof UTokenRoute
+  VaTokenRoute: typeof VaTokenRoute
   SchoolIndexRoute: typeof SchoolIndexRoute
   UIndexRoute: typeof UIndexRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
@@ -2104,6 +2117,13 @@ declare module '@tanstack/react-router' {
       path: '/$school'
       fullPath: '/$school/'
       preLoaderRoute: typeof SchoolIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/va/$token': {
+      id: '/va/$token'
+      path: '/va/$token'
+      fullPath: '/va/$token'
+      preLoaderRoute: typeof VaTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/u/$token': {
@@ -3141,6 +3161,7 @@ const rootRouteChildren: RootRouteChildren = {
   StudyFoundationsRoute: StudyFoundationsRoute,
   TSlugRoute: TSlugRoute,
   UTokenRoute: UTokenRoute,
+  VaTokenRoute: VaTokenRoute,
   SchoolIndexRoute: SchoolIndexRoute,
   UIndexRoute: UIndexRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
