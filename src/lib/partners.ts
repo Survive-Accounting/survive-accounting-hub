@@ -134,12 +134,30 @@ export function councilChapterLinksPost(d: {
 }): string {
   const course = d.courseCode ?? "intro accounting";
   return [
-    `Hey all — free exam prep for ${course}, the first exam is completely free. Each chapter has its own link:`,
+    // ── THE FIRST LINE HAS TO SURVIVE A NOTIFICATION PREVIEW ─────────────────────────────────
+    // A group chat shows roughly the first line before anyone opens it, so the offer and the
+    // catch go there together. "No cost, nothing to buy" is doing specific work: an exec pasting
+    // this is putting her own name behind it, and the first question the chat will ask her is
+    // what it costs. Answering it before it is asked is what makes the post pasteable.
+    `Free ${course} exam prep — the whole first exam, no cost, nothing to buy.`,
     ``,
-    ...d.chapters.map((c) => `${c.name} — ${c.url.replace("https://", "")}`),
+    `Cram videos + practice questions for what's actually on Exam 1.`,
+    // The credential moved UP (2026-08-31). It used to be the last line, on the theory that a
+    // group chat's eye lands last — but that was written when the post ended in prose. It now
+    // ends in a wall of chapter links, so a closing line is below everything anyone will read.
+    `Built by a tutor who's worked with 1,000+ students.`,
     ``,
-    `Made by a tutor who's worked with 1,000+ accounting students.`,
-  ].join("\n");
+    `Each chapter has its own link:`,
+    ``,
+    // ── ONE CHAPTER, TWO LINES, A BLANK LINE BETWEEN ─────────────────────────────────────────
+    // These were "Name — url" on a single line each, which in a chat client is 18 consecutive
+    // lines of near-identical text: a wall, and a president scanning for her own house cannot
+    // find it. Name on its own line, link under it, blank line between entries. The post gets
+    // longer and becomes scannable, which is the trade worth making — nobody reads this
+    // top-to-bottom, they hunt for one row.
+    ...d.chapters.flatMap((c) => [c.name, c.url.replace("https://", ""), ``]),
+    // The trailing blank from the last entry is trimmed so the post does not end in whitespace.
+  ].join("\n").trimEnd();
 }
 
 /** The email a national officer sends down the chain to chapter leaders. */

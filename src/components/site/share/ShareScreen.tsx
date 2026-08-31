@@ -67,7 +67,10 @@ export function ShareScreen({ boltVars, children }: {
       <main
         style={{
           position: "relative", zIndex: 1, maxWidth: 520, margin: "0 auto",
-          padding: "0 20px calc(24px + env(safe-area-inset-bottom, 0px))",
+          // TOP PADDING CLEARS THE CORNER WORDMARK. The lockup is absolutely positioned, so it
+          // takes no space in flow — without this the hero bolt is drawn straight through it the
+          // moment the content is tall enough to start at the top instead of centring.
+          padding: "calc(66px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px))",
           width: "100%", minHeight: "100dvh",
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           textAlign: "center", fontFamily: BRAND_SANS,

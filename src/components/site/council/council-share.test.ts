@@ -34,8 +34,37 @@ describe("the group-chat post", () => {
     expect(post.toLowerCase()).toContain("free");
   });
 
-  test("ends on the credential, where a group chat's eye lands last", () => {
-    expect(post.trim().endsWith("Made by a tutor who's worked with 1,000+ accounting students.")).toBe(true);
+  // REWRITTEN 2026-08-31. The credential used to be the last line and this test pinned that.
+  // The post now ends in a wall of chapter links, so a closing line sits below everything anyone
+  // reads — the credential moved into the opening block instead. Same claim, pinned in its new
+  // place; the assertion is not weaker, it is aimed at where the copy actually lives now.
+  test("carries the credential where it will be read — in the opening block, not under the links", () => {
+    expect(post).toContain("1,000+ students");
+    const credentialAt = post.indexOf("1,000+ students");
+    const firstLinkAt = post.indexOf("surviveaccounting.com");
+    expect(credentialAt).toBeLessThan(firstLinkAt);
+  });
+
+  test("answers 'what does it cost' in the first line, which is all a chat preview shows", () => {
+    const firstLine = post.split("\n")[0];
+    expect(firstLine.toLowerCase()).toContain("free");
+    expect(firstLine.toLowerCase()).toContain("no cost");
+  });
+
+  // THE WALL. 18 chapters as 18 consecutive near-identical lines is unscannable, and a president
+  // hunting for her own house gives up. Name, link, blank line — every entry, every time.
+  test("every chapter entry is separated by a blank line", () => {
+    const lines = post.split("\n");
+    const axo = lines.indexOf("Alpha Chi Omega");
+    expect(axo).toBeGreaterThan(-1);
+    expect(lines[axo + 1]).toBe("surviveaccounting.com/go/alabama/axo");
+    expect(lines[axo + 2]).toBe("");
+    expect(lines[axo + 3]).toBe("Alpha Delta Pi");
+  });
+
+  test("does not end in trailing whitespace — the last entry's separator is trimmed", () => {
+    expect(post).toBe(post.trimEnd());
+    expect(post.endsWith("surviveaccounting.com/go/alabama/adpi")).toBe(true);
   });
 
   test("carries NO tracking stamp — it gets forwarded and retyped, so a stamp would lie", () => {
