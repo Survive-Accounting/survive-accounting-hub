@@ -77,14 +77,18 @@ function RoleSearch({ campus, org }: { campus: string; org: string }) {
         <Search className="size-2.5" /> Search ▾
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-40 mt-0.5 w-52 rounded-md border border-border bg-background p-1 shadow-lg" onMouseLeave={() => setOpen(false)}>
-          <div className="px-2 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground/70">Search for…</div>
-          {ROLE_SEARCHES.map((rs) => (
-            <button key={rs.label} onClick={(e) => { e.stopPropagation(); googleSearch(rs.q(campus, org)); setOpen(false); }} className="block w-full rounded px-2 py-1 text-left text-[10px] hover:bg-muted">
-              {rs.label}
-            </button>
-          ))}
-        </div>
+        <>
+          {/* backdrop: any outside click closes the menu (not just mouse-leave) */}
+          <div className="fixed inset-0 z-30" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
+          <div className="absolute left-0 top-full z-40 mt-0.5 w-52 rounded-md border border-border bg-background p-1 shadow-lg">
+            <div className="px-2 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground/70">Search for…</div>
+            {ROLE_SEARCHES.map((rs) => (
+              <button key={rs.label} onClick={(e) => { e.stopPropagation(); googleSearch(rs.q(campus, org)); setOpen(false); }} className="block w-full rounded px-2 py-1 text-left text-[10px] hover:bg-muted">
+                {rs.label}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </span>
   );
