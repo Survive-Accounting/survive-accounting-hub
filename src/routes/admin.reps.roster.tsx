@@ -21,8 +21,8 @@ import {
 import { Money, TestToggle, useShowTest } from "@/components/reps/RepsKit";
 import {
   adminAssignmentAction, adminChangeRepCampus, adminListPendingRepContacts, adminListReps,
-  adminListRepApplications, adminRepAction, adminRepAssignments, adminReviewApplication,
-  adminReviewRepContact, adminScheduleRepCall,
+  adminGetRepBonus, adminListRepApplications, adminQueueSigningBonus, adminRepAction,
+  adminRepAssignments, adminReviewApplication, adminReviewRepContact, adminScheduleRepCall,
   type AdminRepRow, type RepApplicationCard,
 } from "@/lib/rep-admin.functions";
 import { REP_COVERAGES, REP_COVERAGE_LABEL, REP_STATUS_LABEL, type RepCoverage, type RepStatus } from "@/lib/rep-shared";
@@ -276,6 +276,30 @@ function ApplicationCard({ a, refresh }: { a: RepApplicationCard; refresh: () =>
   );
 }
 
+// ── signing bonus (drawer block): derived state + the one-time queue action ──────────────────
+function BonusBlock({ partnerId }: { partnerId: string }) {
+  const q = useQuery({ queryKey: ["admin-rep-bonus", partnerId], queryFn: () => adminGetRepBonus({ data: { partnerId } }) });
+  const queue = useMutation({
+    mutationFn: () => adminQueueSigningBonus({ data: { partnerId } }),
+    onSuccess: (r) => { if (r.ok) { toast.success(`Bonus queued — $${((r.cents ?? 0) / 100).toFixed(2)} pending in the ledger.`); void q.refetch(); } else toast.error(r.error ?? "Failed."); },
+    onError: () => toast.error("Couldn't reach the server."),
+  });
+  if (!q.data?.ok) return null;
+  const { bonus, alreadyQueued } = q.data;
+  return (
+    <div className="rounded-lg border border-border px-3 py-2 text-sm">
+      <p className="font-bold">Signing bonus <span className="font-normal text-muted-foreground">— {bonus.lines.map((l) => `${l.count}×$${l.eachCents / 100}`).join(" · ")}</span></p>
+      <p className="text-xs text-muted-foreground">
+        Earned ${(bonus.earnedCents / 100).toFixed(2)} of $300 · {bonus.locked ? "🔒 locked (no $1,000+ chapter sale)" : "✓ unlocked"}
+        {alreadyQueued && ` · queued in ledger ($${(alreadyQueued.cents / 100).toFixed(2)}, ${alreadyQueued.status})`}
+      </p>
+      {!bonus.locked && !alreadyQueued && bonus.earnedCents > 0 && (
+        <Button size="sm" className="mt-1.5" onClick={() => queue.mutate()} disabled={queue.isPending}>Queue bonus payout (one-time)</Button>
+      )}
+    </div>
+  );
+}
+
 // ── per-rep drawer ───────────────────────────────────────────────────────────────────────────
 function RepDrawer({ rep, onClose, refresh, act, busy }: {
   rep: AdminRepRow; onClose: () => void; refresh: () => void;
@@ -322,6 +346,8 @@ function RepDrawer({ rep, onClose, refresh, act, busy }: {
           </div>
           <Button size="sm" variant="outline" onClick={() => changeCampus.mutate()} disabled={!campusSlug.trim() || changeCampus.isPending}>Change</Button>
         </div>
+
+        <BonusBlock partnerId={rep.id} />
 
         <div>
           <h3 className="text-sm font-bold">Chapter assignments</h3>

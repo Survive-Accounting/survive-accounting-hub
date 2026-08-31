@@ -64,7 +64,7 @@ export async function ensureMainCampusLink(db: DB, rep: Pick<RepRow, "id" | "cam
   const { data: campus } = await db.from("campuses").select("slug,name,short_name").eq("id", rep.campus_id).maybeSingle();
   if (!campus?.slug) return null;
   const { data: existing } = await db.from("referral_links").select("id,code")
-    .eq("partner_id", rep.id).is("campus_greek_chapter_id", null).eq("active", true)
+    .eq("partner_id", rep.id).is("campus_greek_chapter_id", null).is("utm_content", null).eq("active", true)
     .order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (existing?.id) return existing as { id: string; code: string };
 
@@ -91,7 +91,7 @@ export async function ensureMainCampusLink(db: DB, rep: Pick<RepRow, "id" | "cam
  *  by the campus_greek_chapter_id FK (never parsed out of the URL — audit's structural fix). */
 export async function ensureRepChapterLink(db: DB, rep: Pick<RepRow, "id" | "is_test">, chapter: { id: string; slug: string; campusSlug: string; orgName: string }): Promise<{ id: string; code: string }> {
   const { data: existing } = await db.from("referral_links").select("id,code")
-    .eq("partner_id", rep.id).eq("campus_greek_chapter_id", chapter.id).eq("active", true)
+    .eq("partner_id", rep.id).eq("campus_greek_chapter_id", chapter.id).is("utm_content", null).eq("active", true)
     .order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (existing?.id) return existing as { id: string; code: string };
   const { generateUniqueCode } = await import("@/lib/referral.server");
@@ -100,6 +100,27 @@ export async function ensureRepChapterLink(db: DB, rep: Pick<RepRow, "id" | "is_
     code, partner_id: rep.id, label: chapter.orgName,
     destination_url: `/go/${chapter.campusSlug}/${chapter.slug}`,
     campus_greek_chapter_id: chapter.id, active: true, is_test: rep.is_test,
+  }).select("id,code").single();
+  if (error) throw new Error(error.message);
+  return ins as { id: string; code: string };
+}
+
+/** UNIQUE QR PER FLYER (comp spec §5): the flyer/QR artwork gets its OWN link — utm_content
+ *  'flyer' — separate from the copy/DM link, so "this flyer produced 5 signups" is measurable and
+ *  scans (clicks on these links) stay a diagnostic. Chapter flyers carry the chapter FK; the
+ *  campus flyer is rep-attributed only. */
+export async function ensureFlyerLink(db: DB, rep: Pick<RepRow, "id" | "is_test">, target: { chapterId: string; chapterSlug: string; campusSlug: string; name: string } | { campus: true; campusSlug: string; name: string }): Promise<{ id: string; code: string }> {
+  const chapterId = "chapterId" in target ? target.chapterId : null;
+  let q = db.from("referral_links").select("id,code").eq("partner_id", rep.id).eq("utm_content", "flyer").eq("active", true);
+  q = chapterId ? q.eq("campus_greek_chapter_id", chapterId) : q.is("campus_greek_chapter_id", null);
+  const { data: existing } = await q.order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (existing?.id) return existing as { id: string; code: string };
+  const { generateUniqueCode } = await import("@/lib/referral.server");
+  const code = await generateUniqueCode();
+  const { data: ins, error } = await db.from("referral_links").insert({
+    code, partner_id: rep.id, label: `${target.name} — flyer`,
+    destination_url: chapterId ? `/go/${target.campusSlug}/${(target as { chapterSlug: string }).chapterSlug}` : `/${target.campusSlug}`,
+    campus_greek_chapter_id: chapterId, utm_content: "flyer", active: true, is_test: rep.is_test,
   }).select("id,code").single();
   if (error) throw new Error(error.message);
   return ins as { id: string; code: string };
@@ -147,11 +168,13 @@ export async function buildWorkspace(db: DB, rep: RepRow): Promise<RepWorkspaceR
 
   // ── my links (also feeds impact + per-chapter stats) ──
   const { data: linkRows } = await db.from("referral_links")
-    .select("id,code,campus_greek_chapter_id").eq("partner_id", rep.id).eq("active", true).limit(500);
-  const links = (linkRows ?? []) as Array<{ id: string; code: string; campus_greek_chapter_id: string | null }>;
+    .select("id,code,campus_greek_chapter_id,utm_content").eq("partner_id", rep.id).eq("active", true).limit(500);
+  const links = (linkRows ?? []) as Array<{ id: string; code: string; campus_greek_chapter_id: string | null; utm_content: string | null }>;
   const linkIds = links.map((l) => l.id);
-  const mainLinkRow = links.find((l) => !l.campus_greek_chapter_id) ?? null;
-  const linkByChapter = new Map(links.filter((l) => l.campus_greek_chapter_id).map((l) => [l.campus_greek_chapter_id as string, l]));
+  // Flyer links (utm_content='flyer') are the printed QRs — they count in clicks/conversions but
+  // must never be handed out as the main/DM link.
+  const mainLinkRow = links.find((l) => !l.campus_greek_chapter_id && l.utm_content !== "flyer") ?? null;
+  const linkByChapter = new Map(links.filter((l) => l.campus_greek_chapter_id && l.utm_content !== "flyer").map((l) => [l.campus_greek_chapter_id as string, l]));
 
   // Clicks: humans only; a real rep's numbers exclude test rows.
   const clicksByLink = new Map<string, number>();
@@ -332,6 +355,15 @@ export async function buildWorkspace(db: DB, rep: RepRow): Promise<RepWorkspaceR
     campusActivity.identified = users.size;
   }
 
+  // Campus flyer gets its own unique QR link too (rep-attributed, no chapter). Lazy + idempotent.
+  let campusFlyerCode: string | null = null;
+  if (campus && (rep.application_status ?? "approved") === "approved") {
+    try {
+      const fl = await ensureFlyerLink(db, rep, { campus: true, campusSlug: campus.slug, name: campus.name });
+      campusFlyerCode = fl.code;
+    } catch (e) { console.warn("campus flyer link deferred:", (e as Error).message); }
+  }
+
   // onboarding video — configurable; the card hides cleanly when unset.
   let onboardingVideoUrl: string | null = null;
   try {
@@ -353,6 +385,7 @@ export async function buildWorkspace(db: DB, rep: RepRow): Promise<RepWorkspaceR
     campusSlug: campus?.slug ?? null, campusName: campus?.name ?? null, courseCode: campus?.courseCode ?? null,
     termId: tid, termLabel: term.label,
     mainLink: mainLinkRow ? { code: mainLinkRow.code, shortUrl: `${ORIGIN}/r/${mainLinkRow.code}` } : null,
+    campusFlyerCode,
     impact: {
       chaptersReserved: myAsg.filter((a) => a.term_id === tid && a.status === "reserved").length,
       chaptersQualified: myAsg.filter((a) => a.term_id === tid && a.status === "qualified").length,
@@ -538,8 +571,11 @@ export const getShareKit = createServerFn({ method: "POST" })
     }
     const shortUrl = `${ORIGIN}/r/${link.code}`;
 
+    // The PRINTED QR is the flyer's own link (unique QR per flyer — comp spec §5), so
+    // flyer-produced signups are measurable separately from copied/DM'd links.
+    const flyer = await ensureFlyerLink(db, rep, { chapterId: ch.id, chapterSlug: ch.slug, campusSlug: campus.slug, name: displayName });
     const { qrDataUri } = await import("@/lib/referral-qr.server");
-    const qr = await qrDataUri(shortUrl);
+    const qr = await qrDataUri(`${ORIGIN}/r/${flyer.code}`);
 
     // Contacts THE REP submitted for this chapter (their workflow, not the Growth CRM).
     const { data: cRows } = await db.from("growth_public_contacts")
@@ -566,7 +602,7 @@ export const getShareKit = createServerFn({ method: "POST" })
       chapterId: ch.id, chapterName: displayName, chapterSlug: ch.slug, campusSlug: campus.slug,
       courseCode: campus.courseCode, shortUrl, code: link.code, qrDataUri: qr,
       message: msg, email: em,
-      flyerUrl: `/api/flyer/${campus.slug}/${ch.slug}?ref=${link.code}`,
+      flyerUrl: `/api/flyer/${campus.slug}/${ch.slug}?ref=${flyer.code}`,
       contacts: contactRows.map((c) => ({
         id: c.id, name: c.name, role: c.role, email: c.email, phone: c.phone,
         qcState: (qcById.get(c.id) === "approve" ? "approved" : qcById.get(c.id) === "reject" ? "rejected" : "pending"),

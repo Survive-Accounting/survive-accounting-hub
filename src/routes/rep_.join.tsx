@@ -156,6 +156,10 @@ function RepJoin() {
             <li className="flex gap-2.5"><span aria-hidden style={{ color: "var(--accent)" }}>•</span><span>Send them the free Exam 1 kit. Get the flyer in the house.</span></li>
             <li className="flex gap-2.5"><span aria-hidden style={{ color: "var(--accent)" }}>•</span><span>Earn <b style={{ color: "var(--accent)" }}>10%</b> of the revenue you generate — just one chapter can earn you <b style={{ color: "var(--accent)" }}>$300+</b>.</span></li>
           </ul>
+          {/* The comp condition, stated plainly at signup — never fine print (comp spec §7). */}
+          <p className="mx-auto mt-4 max-w-[46ch] rounded-xl px-4 py-2.5 text-[12.5px] leading-relaxed" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--text-muted)", fontFamily: BRAND_SANS }}>
+            You earn <b style={{ color: "var(--brand-cream)" }}>10% of everything sold through your link, always</b>. On top of that, there's a one-time bonus of up to <b style={{ color: "var(--brand-cream)" }}>$300</b> for getting your campus off the ground — paid when your first chapter signs up. If no chapter signs up, the bonus isn't paid.
+          </p>
         </section>
 
         <div className="mt-8 rounded-2xl p-5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>

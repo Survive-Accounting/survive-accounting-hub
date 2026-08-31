@@ -303,6 +303,25 @@ export const tagChapterMember = createServerFn({ method: "POST" })
       }
     }
 
+    // CAMPUS-REP FREE-SIGNUP EVENT (comp spec 08-30): a member joining through a rep's tracked
+    // link is THE verified "free signup" — recorded through the one conversion engine, attributed
+    // by the sa_ref cookie, idempotent per member. This is what the $1 bonus, the per-flyer
+    // threshold and the 10-signup chapter activation all count. Best-effort: attribution can
+    // never break the join.
+    try {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      const { recordConversionForRequest } = await import("@/lib/referral.server");
+      const request = getRequest();
+      if (request) {
+        const { isTestRequest } = await import("@/lib/test-mode.functions");
+        const subject = data.userId ? `member:${chapterId}:${data.userId}` : `member:${chapterId}:ph:${(data.phone ?? "").replace(/\D/g, "")}`;
+        await recordConversionForRequest(request, {
+          kind: "signup", subjectType: "member", subjectId: subject,
+          userId: data.userId ?? null, amountCents: 0, forceTest: await isTestRequest(),
+        });
+      }
+    } catch (e) { console.warn("rep signup attribution skipped:", (e as Error).message); }
+
     const { count } = await db.from("greek_chapter_members").select("*", { count: "exact", head: true }).eq("chapter_id", chapterId);
     return { ok: true, members: count ?? 0 };
   });

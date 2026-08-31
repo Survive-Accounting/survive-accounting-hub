@@ -636,6 +636,54 @@ export const adminRepAssignments = createServerFn({ method: "POST" })
     };
   });
 
+// ── SIGNING BONUS PAYOUT (comp spec §8) ──────────────────────────────────────────────────────
+// The bonus is derived, never ledgered — until THIS action, which snapshots the unlocked amount
+// into the EXISTING commissions ledger as one flat pending row, so it rides the normal monthly
+// payout (and the normal human approve step) alongside commission. One-time by construction.
+const BONUS_NOTE_TAG = "SIGNING BONUS";
+
+export const adminGetRepBonus = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ partnerId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }) => {
+    await assertAdmin();
+    const db = await admin();
+    const { data: rep } = await db.from("referral_partners").select("id,is_test").eq("id", data.partnerId).eq("type", "campus_rep").maybeSingle();
+    if (!rep?.id) return { ok: false as const, error: "Rep not found." };
+    const { computeRepEarnings } = await import("@/lib/rep-earnings.functions");
+    const e = await computeRepEarnings(db, rep as never);
+    const { data: queued } = await db.from("referral_commissions").select("id,commission_cents,status")
+      .eq("partner_id", rep.id).like("notes", `${BONUS_NOTE_TAG}%`).maybeSingle();
+    return { ok: true as const, bonus: e.bonus, firstSaleAt: e.firstSaleAt, alreadyQueued: queued ? { cents: queued.commission_cents as number, status: queued.status as string } : null };
+  });
+
+export const adminQueueSigningBonus = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ partnerId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; cents?: number; error?: string }> => {
+    await assertAdmin();
+    const db = await admin();
+    const by = await adminEmail();
+    const { data: rep } = await db.from("referral_partners").select("id,is_test").eq("id", data.partnerId).eq("type", "campus_rep").maybeSingle();
+    if (!rep?.id) return { ok: false, error: "Rep not found." };
+
+    const { data: queued } = await db.from("referral_commissions").select("id")
+      .eq("partner_id", rep.id).like("notes", `${BONUS_NOTE_TAG}%`).maybeSingle();
+    if (queued?.id) return { ok: false, error: "The signing bonus was already queued — it's one-time." };
+
+    const { computeRepEarnings } = await import("@/lib/rep-earnings.functions");
+    const e = await computeRepEarnings(db, rep as never);
+    if (e.bonus.locked) return { ok: false, error: "Still locked — no $1,000+ chapter sale yet." };
+    if (e.bonus.earnedCents <= 0) return { ok: false, error: "Nothing accrued — no bonus to queue." };
+
+    const { error } = await db.from("referral_commissions").insert({
+      partner_id: rep.id, conversion_id: null, link_id: null,
+      basis_cents: e.bonus.earnedCents, commission_type: "flat", commission_rate: e.bonus.earnedCents,
+      commission_cents: e.bonus.earnedCents, status: "pending", is_test: !!rep.is_test,
+      notes: `${BONUS_NOTE_TAG} — one-time, unlocked ${e.firstSaleAt ?? ""} (queued by ${by})`,
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, cents: e.bonus.earnedCents };
+  });
+
 // ── VIEW AS REP (read-only, audited, never via the rep's token) ──────────────────────────────
 export const adminGetRepWorkspace = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ partnerId: z.string().uuid() }).parse(d))

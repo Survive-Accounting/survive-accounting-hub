@@ -26,6 +26,7 @@ import QRCode from "qrcode";
 
 import { BOLT_OUTER, BOLT_RIGHT, SEC_SCHOOLS } from "@/components/canvas/brand";
 import { schoolBySlug } from "@/lib/schools";
+import { flyerQrCaption } from "@/lib/rep-earnings";
 
 const FALLBACK_C1 = "#CE1126";
 const FALLBACK_C2 = "#1D4E9E";
@@ -137,7 +138,8 @@ export async function flyerSvg(i: FlyerInput): Promise<string> {
   <text x="1275" y="2056" fill="#14213D" font-size="52" font-weight="700" letter-spacing="4" text-anchor="middle">SCAN IT — EXAM 1 IS FREE</text>
   <rect x="945" y="2150" width="660" height="660" rx="24" fill="#FFFFFF"/>
   <image x="975" y="2180" width="600" height="600" href="${qr}"/>
-  <text x="1275" y="2905" fill="#8B97BD" font-size="46" font-style="italic" text-anchor="middle">${i.chapterName ? esc(`Shared by ${i.chapterName}`) : ""}</text>
+  <text x="1275" y="2872" fill="#F5F1E8" font-size="42" font-weight="600" text-anchor="middle">${esc(flyerQrCaption(i.courseCode))}</text>
+  <text x="1275" y="2952" fill="#8B97BD" font-size="46" font-style="italic" text-anchor="middle">${i.chapterName ? esc(`Shared by ${i.chapterName}`) : ""}</text>
   <line x1="700" y1="3010" x2="1850" y2="3010" stroke="#2A3555" stroke-width="3"/>
   <text x="1275" y="3105" fill="#F5F1E8" font-size="58" font-weight="600" text-anchor="middle">surviveaccounting.com</text>
   <text x="1275" y="3175" fill="#5C6B99" font-size="38" text-anchor="middle">Free Exam 1 · No card required</text>
@@ -192,6 +194,7 @@ export async function slideSvg(i: FlyerInput): Promise<string> {
   <!-- QR: 380px square, scannable from the back of a chapter room -->
   <rect x="1480" y="700" width="320" height="320" rx="18" fill="#FFFFFF"/>
   <image x="1502" y="722" width="276" height="276" href="${qr}"/>
+  <text x="1640" y="1052" fill="#F5F1E8" font-size="24" font-weight="600" text-anchor="middle">${esc(flyerQrCaption(i.courseCode))}</text>
 </svg>`;
 }
 // ── the PDF ───────────────────────────────────────────────────────────────────────────────────
@@ -283,6 +286,12 @@ export async function slidePdf(i: FlyerInput): Promise<Buffer> {
   page.drawRectangle({ x: W - q - 60 - 16, y: 60 - 16, width: q + 32, height: q + 32, color: rgb(1, 1, 1) });
   const qr = await doc.embedPng(await qrDataUri(i, slideTarget(i)));
   page.drawImage(qr, { x: W - q - 60, y: 60, width: q, height: q });
+  // The line beneath every QR (comp spec §5) — a bare QR on a projector gets ignored too.
+  {
+    const cap = flyerQrCaption(i.courseCode);
+    const cw = semi.widthOfTextAtSize(cap, 11);
+    page.drawText(cap, { x: W - 60 - q / 2 - cw / 2, y: 26, size: 11, font: semi, color: hex("#F5F1E8") });
+  }
 
   return Buffer.from(await doc.save());
 }
@@ -330,7 +339,9 @@ export async function flyerPdf(i: FlyerInput): Promise<Buffer> {
   const qr = await doc.embedPng(await qrDataUri(i));
   page.drawImage(qr, { x: X(975), y: Y(2780), width: X(600), height: X(600) });
 
-  if (i.chapterName) centre(page, `Shared by ${i.chapterName}`, 2905, 46, ital, "#8B97BD");
+  // Every QR gets a line of text beneath it — a bare QR on a corkboard gets ignored (comp spec §5).
+  centre(page, flyerQrCaption(i.courseCode), 2872, 42, semi, "#F5F1E8");
+  if (i.chapterName) centre(page, `Shared by ${i.chapterName}`, 2952, 46, ital, "#8B97BD");
 
   page.drawRectangle({ x: X(700), y: Y(3010), width: X(1150), height: X(3), color: hex("#2A3555") });
   centre(page, "surviveaccounting.com", 3105, 58, semi, "#F5F1E8");

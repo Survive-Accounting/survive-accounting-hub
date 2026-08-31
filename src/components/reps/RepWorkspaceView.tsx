@@ -17,6 +17,7 @@ import {
 import {
   getShareKit, logRepShare, markDmCopied, markDmReplied, setHousePosted, submitRepContact, updateRepVenmoSession,
 } from "@/lib/rep-workspace.functions";
+import { getRepEarnings, type RepEarnings } from "@/lib/rep-earnings.functions";
 
 // ── tiny shared bits ─────────────────────────────────────────────────────────────────────────
 const FIELD: React.CSSProperties = {
@@ -141,6 +142,10 @@ export function RepWorkspaceView({ d, readOnly = false, viewingAs, legacyToken, 
         </div>
       </section>
 
+      {/* YOUR EARNINGS — commission from the real ledger + the signing-bonus pool, derived from
+          verified events only. Visible from day one, locked until the first chapter sale. */}
+      <EarningsPanel legacyToken={legacyToken} refreshKey={d.impact.signups + d.impact.purchases} />
+
       {/* CAMPUS ACTIVITY — explicitly campus-wide, not the rep's own numbers. */}
       <section className="mt-5">
         <h2 className="text-[12px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.12em" }}>Campus activity — last 7 days (all of {d.campusName ?? "campus"}, not just you)</h2>
@@ -162,7 +167,7 @@ export function RepWorkspaceView({ d, readOnly = false, viewingAs, legacyToken, 
             </div>
             <div className="flex gap-2">
               <button type="button" disabled={readOnly} onClick={() => { copy("main", d.mainLink!.shortUrl); void logRepShare({ data: { legacyToken, method: "copy" } }); }} className="rounded-lg px-3.5 text-[13px] font-black disabled:opacity-40" style={{ minHeight: 42, background: "var(--accent)", color: "#0B1220" }}>{copied === "main" ? "Copied ⚡" : "Copy"}</button>
-              <a aria-disabled={readOnly} href={readOnly ? undefined : `/api/flyer/${d.campusSlug}/campus?ref=${d.mainLink.code}`} onClick={() => !readOnly && void logRepShare({ data: { legacyToken, method: "flyer" } })} className="inline-flex items-center rounded-lg px-3.5 text-[13px] font-black" style={{ minHeight: 42, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", opacity: readOnly ? 0.4 : 1 }}>Campus flyer</a>
+              <a aria-disabled={readOnly} href={readOnly ? undefined : `/api/flyer/${d.campusSlug}/campus?ref=${d.campusFlyerCode ?? d.mainLink.code}`} onClick={() => !readOnly && void logRepShare({ data: { legacyToken, method: "flyer" } })} className="inline-flex items-center rounded-lg px-3.5 text-[13px] font-black" style={{ minHeight: 42, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", opacity: readOnly ? 0.4 : 1 }}>Campus flyer</a>
             </div>
           </div>
           <p className="mt-1.5 text-[12px]" style={{ color: "var(--text-muted)" }}>Have access to a printer? Put a few campus flyers up around campus — the QR is yours.</p>
@@ -227,6 +232,80 @@ export function RepWorkspaceView({ d, readOnly = false, viewingAs, legacyToken, 
         />
       )}
     </div>
+  );
+}
+
+// ── YOUR EARNINGS: commission + the signing-bonus pool (comp spec §6) ────────────────────────
+function EarningsPanel({ legacyToken, refreshKey }: { legacyToken?: string | null; refreshKey: number }) {
+  const [e, setE] = useState<RepEarnings | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    void getRepEarnings({ data: { legacyToken } }).then((r) => { if (r.ok) setE(r); }).catch(() => undefined);
+  }, [legacyToken, refreshKey]);
+  if (!e) return null;
+  const commissionTotal = e.commission.pendingCents + e.commission.approvedCents + e.commission.paidCents;
+  const b = e.bonus;
+  return (
+    <section className="mt-5 rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+      <h2 className="text-[12px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.12em" }}>Your earnings</h2>
+      <div className="mt-2 flex items-baseline justify-between gap-2 text-[13.5px]" style={{ color: "var(--brand-cream)" }}>
+        <span className="font-bold">Commission</span>
+        <span className="font-black" style={{ fontFamily: BRAND_DISPLAY }}>{formatCents(commissionTotal)}</span>
+      </div>
+      <p className="text-[11.5px]" style={{ color: "var(--text-muted)" }}>10% of sales through your link — always, no cap.</p>
+
+      <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border-default)" }}>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.1em" }}>Signing bonus <span style={{ textTransform: "none", fontWeight: 600 }}>— unlocks with your first chapter sale</span></p>
+        </div>
+        <div className="mt-1.5 grid gap-1 text-[13px]" style={{ color: "var(--brand-cream)", fontVariantNumeric: "tabular-nums" }}>
+          {b.lines.map((l) => (
+            <div key={l.label} className="flex items-baseline justify-between gap-2">
+              <span style={{ color: l.count ? "var(--brand-cream)" : "var(--text-muted)" }}>{l.label} <span style={{ color: "var(--text-muted)" }}>{l.count} × {formatCents(l.eachCents)}</span></span>
+              <span className="font-bold">{formatCents(l.totalCents)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 flex items-baseline justify-between gap-2 border-t pt-2" style={{ borderColor: "var(--border-default)" }}>
+          <span className="text-[13.5px] font-black" style={{ color: "var(--brand-cream)" }}>Earned so far</span>
+          <span className="text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--accent)" }}>{formatCents(b.earnedCents)} <span className="text-[11.5px] font-bold" style={{ color: "var(--text-muted)" }}>of {formatCents(b.capCents)} max</span></span>
+        </div>
+        <p className="mt-1 text-[12px] font-bold" style={{ color: b.locked ? "#FFC9A3" : "#8BE28B" }}>
+          {b.locked ? "🔒 Locked — no chapter sale yet. Paid with your first commission payout after a chapter signs up ($1,000+). If no chapter signs up, the bonus isn't paid." : `✓ Unlocked — first chapter sale ${e.firstSaleAt ? new Date(e.firstSaleAt).toLocaleDateString() : ""}. Pays with your next commission payout.`}
+        </p>
+        {(e.perChapter.length > 0 || e.perFlyer.length > 0 || e.claims.length > 0) && (
+          <button type="button" onClick={() => setOpen((v) => !v)} className="mt-1.5 text-[12px] font-bold underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
+            {open ? "Hide the breakdown" : "See which houses produced what"}
+          </button>
+        )}
+        {open && (
+          <div className="mt-2 grid gap-2 text-[12px]" style={{ color: "var(--text-muted)" }}>
+            {e.perChapter.length > 0 && (
+              <div>
+                <p className="font-black uppercase" style={{ letterSpacing: "0.08em" }}>Signups by chapter</p>
+                {e.perChapter.map((c) => (
+                  <p key={c.chapterId}><b style={{ color: "var(--brand-cream)" }}>{c.name}</b> — {c.signups} signup{c.signups === 1 ? "" : "s"}{c.activated ? " · ⚡ activated (10+)" : ""}</p>
+                ))}
+              </div>
+            )}
+            {e.perFlyer.length > 0 && (
+              <div>
+                <p className="font-black uppercase" style={{ letterSpacing: "0.08em" }}>Flyers</p>
+                {e.perFlyer.map((f, i) => (
+                  <p key={i}><b style={{ color: "var(--brand-cream)" }}>{f.label}</b> — {f.signups} signup{f.signups === 1 ? "" : "s"} · {f.scans} scan{f.scans === 1 ? "" : "s"}{f.paying ? " · pays" : f.scans >= 20 && f.signups <= 1 ? " · lots of scans, few signups — try a better spot or a different wall" : ""}</p>
+                ))}
+              </div>
+            )}
+            {e.claims.length > 0 && (
+              <div>
+                <p className="font-black uppercase" style={{ letterSpacing: "0.08em" }}>Pages claimed</p>
+                {e.claims.map((c, i) => <p key={i}><b style={{ color: "var(--brand-cream)" }}>{c.chapterName}</b> — {new Date(c.at).toLocaleDateString()}</p>)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -311,7 +390,7 @@ function AssignedSection({ d, readOnly, legacyToken, reload, copied, copy, openD
           </div>
         ))}
       </div>
-      <p className="mt-2 text-[11.5px]" style={{ color: "var(--text-muted)" }}>{DM_PACE_NOTE} Tap a chapter for its flyer, QR and full kit.</p>
+      <p className="mt-2 text-[11.5px]" style={{ color: "var(--text-muted)" }}>{DM_PACE_NOTE} Tap a chapter for its flyer, QR and full kit. Logging your DMs keeps you eligible for the signing-bonus pool — the bonus itself only pays on verified results (signups, claims, activations), never per message.</p>
     </section>
   );
 }

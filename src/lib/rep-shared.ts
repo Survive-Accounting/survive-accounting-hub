@@ -226,6 +226,8 @@ export type RepWorkspace = {
   termId: string;
   termLabel: string;
   mainLink: { code: string; shortUrl: string } | null;
+  /** V2 comp: the campus flyer's own unique-QR link (utm_content='flyer', no chapter). */
+  campusFlyerCode: string | null;
   impact: RepImpact;
   campus: CampusActivity;
   chapters: RepChapterRow[];
