@@ -267,18 +267,13 @@ async function eligibleForTranches(db: DB): Promise<{
 }
 
 // ── King's working board: his tranches, campuses, est students, contact progress ─────
-// READY FOR OUTREACH rule: ≥1 council/FSL contact, ≥1 club contact, every top-5 fraternity
-// and top-5 sorority "covered" (a contact OR marked not-found), AND campus-wide at least one
-// organization contact AND at least one named-person contact. Campus rep is optional.
+// READY FOR OUTREACH (simplified): ≥1 council/FSL contact, ≥1 fraternity contact, ≥1 sorority
+// contact, ≥1 club contact. Each is a benchmark shown as ✗ until met, ✓ when met.
 export interface CampusReadiness {
   councilOk: boolean;
+  fratOk: boolean;
+  sororityOk: boolean;
   clubOk: boolean;
-  fratsCovered: number;
-  fratsTotal: number; // capped at 5
-  sororitiesCovered: number;
-  sororitiesTotal: number; // capped at 5
-  orgOk: boolean; // ≥1 organization-type contact anywhere on campus
-  personOk: boolean; // ≥1 named-person contact anywhere on campus
   ready: boolean;
 }
 export interface BoardCampus {
@@ -287,10 +282,8 @@ export interface BoardCampus {
   state: string | null;
   seats: number | null; // estimated students / yr
   campusStatus: string | null;
-  councilContacts: number;
-  greekContacts: number;
-  clubContacts: number;
-  personalIgs: number; // named-person contacts that carry a personal Instagram handle
+  emailContacts: number; // contacts on file that carry an email
+  igContacts: number; // contacts on file that carry an Instagram handle
   readiness: CampusReadiness;
 }
 export interface BoardTranche {
@@ -368,35 +361,17 @@ export function topChapters(
     .slice(0, 5);
 }
 
-// READY rule, computed for one campus from its chapters and contact rows.
+// READY rule (simplified), computed for one campus. Each benchmark is "≥1 contact". Frats/
+// sororities are vacuously OK when the campus has no chapters of that kind.
 function readinessFor(chaps: { id: string; name?: string; orgType: string; size: number | null }[], contacts: any[]): CampusReadiness {
   const real = contacts.filter(isRealContact);
   const councilOk = real.some((c) => c.entity_type === "council"); // FSL saves as entity_type=council
   const clubOk = real.some((c) => c.entity_type === "club");
-  const orgOk = real.some((c) => !isPersonContact(c));
-  const personOk = real.some((c) => isPersonContact(c));
-  // covered = the chapter has any row at all — a real contact, or a not-found marker.
-  const covered = new Set<string>();
-  for (const c of contacts) {
-    if (c.entity_type === "chapter" && c.entity_id) covered.add(c.entity_id);
-  }
-  const fratsTop = topChapters(chaps, "fraternity");
-  const sororitiesTop = topChapters(chaps, "sorority");
-  const fratsCovered = fratsTop.filter((c) => covered.has(c.id)).length;
-  const sororitiesCovered = sororitiesTop.filter((c) => covered.has(c.id)).length;
-  return {
-    councilOk,
-    clubOk,
-    fratsTotal: fratsTop.length,
-    fratsCovered,
-    sororitiesTotal: sororitiesTop.length,
-    sororitiesCovered,
-    orgOk,
-    personOk,
-    ready:
-      councilOk && clubOk && orgOk && personOk &&
-      fratsCovered === fratsTop.length && sororitiesCovered === sororitiesTop.length,
-  };
+  const fratIds = new Set(chaps.filter((c) => normOrgType(c.orgType) === "fraternity").map((c) => c.id));
+  const soroIds = new Set(chaps.filter((c) => normOrgType(c.orgType) === "sorority").map((c) => c.id));
+  const fratOk = fratIds.size === 0 || real.some((c) => c.entity_type === "chapter" && fratIds.has(c.entity_id));
+  const sororityOk = soroIds.size === 0 || real.some((c) => c.entity_type === "chapter" && soroIds.has(c.entity_id));
+  return { councilOk, fratOk, sororityOk, clubOk, ready: councilOk && clubOk && fratOk && sororityOk };
 }
 
 // Turn partner_tranches rows into hydrated board tranches (names, est seats, contact progress, READY).
@@ -420,34 +395,30 @@ async function hydrateTranches(db: DB, rows: any[]): Promise<{ tranches: BoardTr
       chapsBy.set(c.campus_id, arr);
     }
     const contactsBy = new Map<string, any[]>();
-    const cc = new Map<string, { council: number; greek: number; club: number; igs: number }>();
+    const cc = new Map<string, { emails: number; igs: number }>();
     for (const e of ((elig as any).data ?? []) as any[]) {
       const arr = contactsBy.get(e.campus_id) ?? [];
       arr.push(e);
       contactsBy.set(e.campus_id, arr);
       if (!isRealContact(e)) continue; // not-found markers don't count as contacts
-      const a = cc.get(e.campus_id) ?? { council: 0, greek: 0, club: 0, igs: 0 };
-      if (e.entity_type === "council") a.council++;
-      else if (e.entity_type === "chapter") a.greek++;
-      else if (e.entity_type === "club") a.club++;
-      if (isPersonContact(e) && e.instagram && String(e.instagram).trim()) a.igs++;
+      const a = cc.get(e.campus_id) ?? { emails: 0, igs: 0 };
+      if (e.email && String(e.email).trim()) a.emails++;
+      if (e.instagram && String(e.instagram).trim()) a.igs++;
       cc.set(e.campus_id, a);
     }
     let totalSeats = 0;
     const tranches: BoardTranche[] = ((rows ?? []) as any[]).map((t) => {
       const campuses: BoardCampus[] = (t.campus_ids ?? []).map((id: string) => {
         const c = nameOf.get(id) ?? {};
-        const a = cc.get(id) ?? { council: 0, greek: 0, club: 0, igs: 0 };
+        const a = cc.get(id) ?? { emails: 0, igs: 0 };
         return {
           campusId: id,
           name: c.display_name || c.name || id.slice(0, 8),
           state: c.state ?? null,
           seats: seatsOf.get(id) ?? null,
           campusStatus: c.campus_status ?? null,
-          councilContacts: a.council,
-          greekContacts: a.greek,
-          clubContacts: a.club,
-          personalIgs: a.igs,
+          emailContacts: a.emails,
+          igContacts: a.igs,
           readiness: readinessFor(chapsBy.get(id) ?? [], contactsBy.get(id) ?? []),
         };
       });

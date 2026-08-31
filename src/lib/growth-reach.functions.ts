@@ -173,6 +173,15 @@ export const growthUpdateContact = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Hard-delete a manually-managed contact row. Used by the enrichment UI's per-contact X. */
+export const growthDeleteContact = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ qcId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    const { db } = await adminCtx();
+    const { error } = await db.from("growth_contact_qc").delete().eq("id", data.qcId);
+    return error ? { ok: false, error: error.message } : { ok: true };
+  });
+
 /** Mark a contact dead/wrong. Keeps the row (provenance) but takes it out of every queue. */
 export const growthRetireContact = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
