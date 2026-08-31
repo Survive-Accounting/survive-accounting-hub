@@ -143,6 +143,8 @@ import { FrameRearrangeGrid } from "@/components/canvas/FrameRearrangeGrid";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 import { CanvasNavbar } from "@/components/canvas/CanvasNavbar";
 import { UsageTelemetryProvider } from "@/components/usage/UsageTelemetryProvider";
+import { getAdminWho } from "@/components/AdminGate";
+import { operatorUuid } from "@/lib/usage-elements";
 
 // Panels that can be popped out to the director's second-monitor window.
 type PopKey = "teleprompter" | "cuesheet" | "deck" | "script" | "runtimer" | "outline" | "ceqstudio";
@@ -5712,7 +5714,10 @@ function PresentCanvas() {
            before, so takes are pixel-identical. */}
       {/* USAGE TELEMETRY (admin) — logs interaction/impression on instrumented elements
           (data-sa-el) so dashboards can be simplified on evidence. Null render; never blocks. */}
-      <UsageTelemetryProvider surface="study-canvas" userId={null} />
+      {/* PER-USER, NEVER MERGED (guardrail 8): the operator identity picked at the
+          AdminGate, mapped to a stable uuid. Null until an identity is chosen —
+          unattributed rather than wrongly attributed. */}
+      <UsageTelemetryProvider surface="study-canvas" userId={operatorUuid(getAdminWho())} />
       {chrome && !chromeV1 && (
         <CanvasNavbar
           sceneName={sceneName}
@@ -5754,7 +5759,7 @@ function PresentCanvas() {
       <div className="flex min-h-0 min-w-0 flex-1">
         {chrome && !chromeV1 && (outlineCollapsed ? (
           // COLLAPSED — a thin rail; click to bring the outline back.
-          <button className="sa-dock flex w-7 shrink-0 flex-col items-center gap-2 py-2" style={{ background: "rgba(9,14,26,0.92)", borderRight: `1px solid ${NEON.borderSoft}`, color: NEON.cyan }} onClick={() => toggleOutline(false)} title="Show the outline">
+          <button data-sa-el="outline-rail" className="sa-dock flex w-7 shrink-0 flex-col items-center gap-2 py-2" style={{ background: "rgba(9,14,26,0.92)", borderRight: `1px solid ${NEON.borderSoft}`, color: NEON.cyan }} onClick={() => toggleOutline(false)} title="Show the outline">
             <span className="text-[13px] font-bold leading-none">»</span>
             <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl", color: NEON.muted }}>Sets</span>
           </button>
@@ -5762,15 +5767,15 @@ function PresentCanvas() {
           /* WIDTH is drag-resizable and persisted (Studio Consolidation D): the outline carries a
              three-level tree now (topic → set → CEQ stems), so 280px clipped every stem. Default
              360px; the grip lives on the right edge. */
-          <aside className="sa-dock relative flex shrink-0 flex-col overflow-hidden" style={{ width: outlineW, background: "rgba(9,14,26,0.92)", borderRight: `1px solid ${NEON.borderSoft}` }}>
+          <aside data-sa-el="outline-panel" data-sa-panel="outline" className="sa-dock relative flex shrink-0 flex-col overflow-hidden" style={{ width: outlineW, background: "rgba(9,14,26,0.92)", borderRight: `1px solid ${NEON.borderSoft}` }}>
             <div
-              onPointerDown={startOutlineResize}
+              data-sa-el="outline-resize" onPointerDown={startOutlineResize}
               className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize"
               style={{ background: resizingOutline ? NEON.yellow : "transparent" }}
               title="Drag to resize the outline"
             />
             <div className="flex items-center justify-end px-1.5 pt-1">
-              <button className="grid h-5 w-5 place-items-center rounded hover:bg-white/10" style={{ color: NEON.muted }} onClick={() => toggleOutline(true)} title="Collapse the outline">«</button>
+              <button className="grid h-5 w-5 place-items-center rounded hover:bg-white/10" style={{ color: NEON.muted }} data-sa-el="outline-collapse" onClick={() => toggleOutline(true)} title="Collapse the outline">«</button>
             </div>
             <div className="min-h-0 flex-1 px-1.5 pb-1.5">
               {!isPopped("outline")

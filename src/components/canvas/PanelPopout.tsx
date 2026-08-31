@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { AlignJustify, ExternalLink, Minus, Plus, SunMedium } from "lucide-react";
 import { useNodes } from "@xyflow/react";
 
+import { attachUsageDom } from "@/components/usage/UsageTelemetryProvider";
 import { frameCellLabel } from "./frames";
 import { hasScript } from "./script-doc";
 import { NEON } from "./theme";
@@ -55,7 +56,11 @@ export function PanelPopout({ win, title, onReturn, children, chromeless }: {
     const closeChild = () => { try { win.close(); } catch { /* ignore */ } }; // main window closes → close popout
     win.addEventListener("pagehide", onHide);
     window.addEventListener("pagehide", closeChild);
+    // USAGE TELEMETRY — this window has its own document, so it needs its own
+    // listeners; without them a filming run in the capture popout logs nothing.
+    const detachUsage = attachUsageDom(win.document, "study-canvas");
     return () => {
+      detachUsage();
       win.removeEventListener("pagehide", onHide);
       window.removeEventListener("pagehide", closeChild);
       try { win.close(); } catch { /* ignore */ }

@@ -110,8 +110,10 @@ export function useExhibit(decl: ExhibitDeclaration): ExhibitApi {
 /** The standard shell: chrome + resizer + connection dots, all already
  *  film-gated. A card renders <ExhibitShell> around its content and is DONE —
  *  no per-card film plumbing. */
-export function ExhibitShell({ id, decl, posLock, selected, width, minHeight, children }: {
+export function ExhibitShell({ id, kind, decl, posLock, selected, width, minHeight, children }: {
   id: string;
+  /** Card kind — usage telemetry only (`node-<kind>`); never affects rendering. */
+  kind?: string;
   decl: ExhibitDeclaration;
   posLock?: boolean;
   selected?: boolean;
@@ -131,7 +133,7 @@ export function ExhibitShell({ id, decl, posLock, selected, width, minHeight, ch
   useEffect(() => subscribeOrientation(setO), []);
   const fit = isVertical(o) ? exhibitFit({ w: width, h: minHeight }, o) : 1;
   return (
-    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150"
+    <div data-sa-el={kind ? `node-${kind}` : undefined} onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150"
       style={fit < 1 ? { width: Math.round(width * fit), minHeight: Math.round(minHeight * fit) } : { width, minHeight }}>
       <ConnectionDots />
       <ElementChrome id={id} posLock={posLock} selected={selected} />
