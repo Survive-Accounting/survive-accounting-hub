@@ -19,6 +19,21 @@
 // `contra: true` — Dividends is equity, Accumulated Depreciation is an asset.
 // That matches `coa-groups.ts`, which nests contras under the parent type
 // rather than inventing a sixth bucket, and `rubric-view.CONTRA`.
+//
+// WHY ONLY TWO CONTRAS (checked 2026-08-30 — do not "fix" this to three).
+// The bank teaches a THIRD contra account: deck-ch1-full asks "Dividends,
+// Accumulated Depreciation, and Allowance for Doubtful Accounts are all
+// ______." → Contra accounts, and deck-e1s-3-1 asks which side increases
+// "Allowance for Doubtful Accounts, a contra-asset related to Accounts
+// Receivable". Both CEQs are CORRECT — Allowance IS a contra-asset. It is
+// absent here on purpose: this registry is the Exam 1 classification set, and
+// Allowance is never asked "what type of account is it?", only used as a
+// concept example (receivables are a later chapter). Adding it is not a
+// one-line fix — `classification-exhibit.test.ts` pins this contra set equal
+// to `rubric-view.CONTRA`, so it would change the SHIPPED Rubric board and the
+// classification exhibit's current-asset pile on camera. If Allowance should
+// become a first-class account, do it as a deliberate exhibit change with its
+// own film QA, not as a registry tidy-up.
 import type { CueLevel } from "./users-exhibit-config";
 
 export type AccountCategory = "asset" | "liability" | "equity" | "revenue" | "expense";
@@ -49,7 +64,7 @@ export const ACCOUNT_REGISTRY: readonly AccountDef[] = [
   { id: "accounts-receivable", label: "Accounts Receivable", category: "asset", term: "current",
     whyLine: "Cash we EXPECT TO RECEIVE from a customer — you OWN that claim.",
     trap: { note: "Cash we expect to RECEIVE — you own that claim.", tag: "easy" },
-    aliases: ["A/R", "Receivables", "Notes Receivable", "Interest Receivable"] },
+    aliases: ["A/R", "Receivables", "Notes Receivable", "Interest Receivable", "Rent Receivable"] },
   { id: "supplies", label: "Supplies", category: "asset", term: "current",
     whyLine: "Bought now, used later — you OWN them until you use them." },
   { id: "prepaid-insurance", label: "Prepaid Insurance", category: "asset", term: "current",
@@ -63,7 +78,7 @@ export const ACCOUNT_REGISTRY: readonly AccountDef[] = [
   { id: "vehicles", label: "Vehicles", category: "asset", term: "longterm",
     whyLine: "Cars and trucks you OWN — used for years.", aliases: ["Cars & Trucks"] },
   { id: "buildings", label: "Buildings", category: "asset", term: "longterm",
-    whyLine: "Property you OWN and use for years." },
+    whyLine: "Property you OWN and use for years.", aliases: ["Building"] },
   { id: "land", label: "Land", category: "asset", term: "longterm",
     whyLine: "Property you OWN — and it never depreciates.", aliases: ["Land Improvements"] },
   { id: "trademarks", label: "Trademarks", category: "asset", term: "longterm", intangible: true,
@@ -114,6 +129,8 @@ export const ACCOUNT_REGISTRY: readonly AccountDef[] = [
     whyLine: "Goods delivered — that's EARNED.", aliases: ["Sales"] },
   { id: "interest-revenue", label: "Interest Revenue", category: "revenue",
     whyLine: "Interest you EARNED on money you're owed.", aliases: ["Interest Earned"] },
+  { id: "rent-revenue", label: "Rent Revenue", category: "revenue",
+    whyLine: "Rent you've EARNED by letting someone use your space.", aliases: ["Rent Earned"] },
 
   // -------------------------------------------------------------- expenses
   { id: "rent-expense", label: "Rent Expense", category: "expense",

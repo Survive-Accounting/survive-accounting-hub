@@ -840,7 +840,7 @@ export interface CornerBoltElement extends CardBase {
 //      spotlightable (whole-element "self" target), never in the deck. ----
 export interface CycleStep {
   id: string;
-  /** The step label, e.g. "Record JEs". */
+  /** The step label, e.g. "Record journal entries". */
   text: string;
 }
 // ---- Users ("Who's It For?"): internal/external users + financial/managerial
