@@ -53,9 +53,18 @@ const BOIL_CSS = `
   .sa-boil-f:first-child { opacity: 1; }
 }`;
 
-export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, className, style }:
-  { height?: number; opacity?: number; red?: string; blue?: string; cream?: string; className?: string; style?: CSSProperties }) {
+export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, className, style, boilFrame }:
+  { height?: number; opacity?: number; red?: string; blue?: string; cream?: string; className?: string; style?: CSSProperties;
+    /** DETERMINISTIC BOIL (blast-off frames, 2026-08-30). Undefined = the CSS
+     *  animation, which is wall-clock and therefore unrenderable frame-by-frame.
+     *  Given a number, exactly ONE boil frame is drawn with no animation, so the
+     *  same progress value always produces the same pixels — what an offline
+     *  renderer needs. Wraps, so callers can pass a raw tick. */
+    boilFrame?: number }) {
   const spec = useContext(BoltContext);
+  const pinned = boilFrame !== undefined
+    ? ((Math.floor(boilFrame) % spec.frames.length) + spec.frames.length) % spec.frames.length
+    : null;
   // Colours fall back through CSS variables so a themed FrameStage (frames/) can recolour any
   // bolt inside it for a school variant — with the brand/spec colour as the var fallback, so
   // every bolt OUTSIDE a FrameStage renders exactly as before. An explicit prop still wins.
@@ -64,8 +73,9 @@ export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, classNam
     <span className={className} style={{ display: "inline-block", width: height * spec.ratio, height, opacity, ...style }}>
       <style>{BOIL_CSS}</style>
       <svg viewBox={spec.viewBox} width="100%" height="100%" style={{ display: "block", overflow: "visible" }} aria-hidden>
-        {spec.frames.map((f, i) => (
-          <g key={i} className="sa-boil-f" style={{ animationDelay: `${(-0.125 * i).toFixed(3)}s` }}>
+        {(pinned === null ? spec.frames : [spec.frames[pinned]]).map((f, i) => (
+          <g key={i} className={pinned === null ? "sa-boil-f" : undefined}
+             style={pinned === null ? { animationDelay: `${(-0.125 * i).toFixed(3)}s` } : undefined}>
             <path d={f.outer} fill={R} stroke={C === "none" ? undefined : C} strokeWidth={C === "none" ? 0 : f.sw} strokeLinejoin="round" strokeLinecap="round" paintOrder="stroke" />
             <path d={f.seam} fill={B} />
           </g>
@@ -78,14 +88,14 @@ export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, classNam
 /** "surv[bolt]ve" — the wordmark with the boiling bolt standing in for the "i". `size` is
  *  the cap-height in px; the bolt tracks it and drops slightly to sit on the baseline.
  *  Colours default to the active BoltSpec (so a loaded preset carries through). */
-export function SurviveWordmark({ size, cream = BRAND_CREAM, style }: { size: number; cream?: string; style?: CSSProperties }) {
+export function SurviveWordmark({ size, cream = BRAND_CREAM, style, boilFrame }: { size: number; cream?: string; style?: CSSProperties; boilFrame?: number }) {
   // Bolt-as-"i" placement baked from Lee's FINAL Logo Lab wordmark params so the cards match
   // /logo-lab exactly (previously the bolt was oversized): boltScale 0.8, baseline drop 0.13,
   // kerning 0.005 + overlap L -0.02 / R 0.025, offX -1px@wordSize96, rotate 2°, pivot 100%/51%.
   return (
     <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "-0.01em", color: cream, whiteSpace: "nowrap", ...style }}>
       surv
-      <BoltBoil height={size * 0.8} style={{ marginLeft: size * -0.015, marginRight: size * 0.03, transform: `translate(${size * (-1 / 96)}px, ${size * 0.13}px) rotate(2deg)`, transformOrigin: "100% 51%" }} />
+      <BoltBoil height={size * 0.8} boilFrame={boilFrame} style={{ marginLeft: size * -0.015, marginRight: size * 0.03, transform: `translate(${size * (-1 / 96)}px, ${size * 0.13}px) rotate(2deg)`, transformOrigin: "100% 51%" }} />
       ve
     </span>
   );

@@ -522,6 +522,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "c.$slug.tsx": "legacy redirect → /go/…",
   // Internal dev labs (noindex, not user-facing)
   "callout-demo.tsx": "dev lab (noindex)",
+  "blastoff-demo.tsx": "dev lab (noindex) — vertical Blast Off frame previews",
   "exhibit-demo.tsx": "dev lab (noindex)",
   "exhibit-lab.tsx": "dev lab (noindex)",
   "practice-demo.tsx": "dev lab (noindex) — shared PracticeStage QA mount",
