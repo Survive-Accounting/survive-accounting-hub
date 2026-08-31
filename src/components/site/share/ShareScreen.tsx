@@ -14,6 +14,7 @@
 // someone off a page that exists to end in one tap.
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { CompactLockup, useNavyDocument } from "@/components/site/SiteHeader";
 import { DOOR_CTA_VARS } from "@/components/site/home-two-door/DoorCard";
 
@@ -37,6 +38,30 @@ export function ShareScreen({ boltVars, children }: {
         <FrameBackground variant="orbital" intensity={0.3} animate />
       </div>
 
+      {/* THE WORDMARK IS TOP-LEFT (2026-08-31), not stacked above the hero.
+
+          It used to sit inside the centred column, which put it directly over the headline: two
+          brand elements on one vertical axis, reading as one three-line block. Every other page
+          on the site puts the wordmark in the top-left corner, and a share page arriving from a
+          DM is the LAST place to invent a second convention — it is the one moment the visitor is
+          deciding whether this is a real thing. So it goes where it goes everywhere else, out of
+          the hero's way, and the hero gets the bolt instead.
+
+          Absolutely positioned rather than a flex row so the centred column below it stays
+          genuinely centred in the viewport, not centred in whatever is left beside a logo. */}
+      <a
+        href="/"
+        aria-label="Survive Accounting — home"
+        style={{
+          position: "absolute", zIndex: 2,
+          top: "calc(14px + env(safe-area-inset-top, 0px))",
+          left: "calc(20px + env(safe-area-inset-left, 0px))",
+          display: "inline-flex", alignItems: "center", minHeight: 44,
+        }}
+      >
+        <CompactLockup size={16} />
+      </a>
+
       {/* minHeight uses dvh, not vh: on iOS Safari `100vh` is taller than the visible viewport, so
           a "one screen, no scrolling" page scrolls by exactly the height of the browser chrome. */}
       <main
@@ -48,7 +73,6 @@ export function ShareScreen({ boltVars, children }: {
           textAlign: "center", fontFamily: BRAND_SANS,
         }}
       >
-        <div className="pb-6 pt-5"><CompactLockup /></div>
         {children}
       </main>
     </div>
@@ -60,6 +84,12 @@ export function ShareScreen({ boltVars, children }: {
 export function ShareHeading({ title, sub }: { title: React.ReactNode; sub?: React.ReactNode }) {
   return (
     <>
+      {/* THE HERO BOLT — the centred brand element, and a SEPARATE thing from the wordmark in the
+          corner. The share screen had no mark of its own once the lockup moved out of the column,
+          and a DM destination that opens on plain type has four seconds to look like a real
+          product. The boiling bolt is the homepage's own hero mark at a smaller size, so this
+          reads as the same site rather than a lookalike. */}
+      <span className="mb-5 block" aria-hidden><BoltBoil height={84} /></span>
       <h1
         className="mx-auto max-w-[18ch] text-[26px] font-black leading-[1.14] sm:text-[32px]"
         style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}

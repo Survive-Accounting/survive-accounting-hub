@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 
+import { CompactLockup } from "@/components/site/SiteHeader";
+
 interface SiteNavbarProps {
   onBookTutoring?: () => void;
 }
-
-const LOGO_URL =
-  "https://lwfiles.mycourse.app/672bc379cd024d536f651ecc-public/1554d231f0e2bf121ac35937c4d438ca.png";
 
 export default function SiteNavbar({ onBookTutoring }: SiteNavbarProps) {
   const [scrolled, setScrolled] = useState(false);
@@ -44,17 +43,19 @@ export default function SiteNavbar({ onBookTutoring }: SiteNavbarProps) {
           }}
         />
 
+        {/* THE CURRENT WORDMARK (2026-08-31). This was a raster PNG on an external CDN
+            (lwfiles.mycourse.app) — a different mark from the `survive ACCOUNTING` lockup every
+            other page carries, loaded from a host we do not control, on exactly the pages a
+            visitor reaches when they are checking whether this is a real company. It is the same
+            component as the main header now, so the two cannot drift, and it is one fewer
+            third-party request in the critical path. */}
         <a
           href="/"
           className="relative inline-flex items-center"
           aria-label="Survive Accounting — home"
+          style={{ minHeight: 44 }}
         >
-          <img
-            src={LOGO_URL}
-            alt="Survive Accounting"
-            className="h-5 sm:h-[22px] w-auto object-contain select-none"
-            draggable={false}
-          />
+          <CompactLockup size={17} />
         </a>
 
         <div className="relative flex items-center gap-3 sm:gap-5">

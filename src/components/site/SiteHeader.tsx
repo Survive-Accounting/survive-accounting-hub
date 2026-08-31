@@ -268,11 +268,59 @@ function SiteMenu({ items }: { items: NavItem[] }) {
 // same landing layout) and "/" everywhere else. Before this the hrefs were hard-coded "/#reviews",
 // so on /university-of-mississippi the navbar's own "Cram Exam 1 Free" sent the visitor to the
 // GENERIC homepage and asked them to pick the school the URL had just named.
-const desktopLinks = (base: string, greekHref: string): NavItem[] => [
+const desktopLinks = (base: string): NavItem[] => [
   { label: "Reviews", href: `${base}#reviews` },
   { label: "Meet your tutor", href: `${base}#lee` },
-  { label: "For Greeks", href: greekHref },
+  // "For Greeks" is no longer one of these. It is GreekNavPill below — always visible, at every
+  // width, on every marketing page. See the note there.
 ];
+
+/** THE GREEK DOOR IN THE NAVBAR — persistent, never inside the hamburger (2026-08-31).
+ *
+ *  It used to be a desktop-only inline link and a hamburger row, which meant that on the surface
+ *  where it matters most — a phone — the Greek path existed only behind a menu nobody opens. Lee
+ *  asked for it back as a standing item, so it is a pill rather than a link: it has to hold its
+ *  own beside a wordmark and a hamburger without becoming a fourth competing CTA, and a bordered
+ *  pill in the accent reads as a DOOR rather than as navigation.
+ *
+ *  ── WHY THE LABEL CHANGES WITH THE VIEWPORT ─────────────────────────────────────────────────
+ *  "For Fraternities & Sororities · ⚡ Boost chapter GPAs" is ~290px of type. On a 390px bar
+ *  already carrying a 150px wordmark and a 44px hamburger there is about 180px left, so the full
+ *  label cannot be shown there without either truncating it — which turns a proposition into
+ *  "For Fraternities & Sor…" — or wrapping the bar to two rows. The pill therefore says the
+ *  shortest TRUE version of itself at each width and the full thing where it fits:
+ *
+ *    < 480px   "⚡ Greeks"
+ *    < 1024px  "⚡ For Greeks"
+ *    >= 1024px "For Fraternities & Sororities" with "⚡ Boost chapter GPAs" beneath it
+ *
+ *  All three are one element with one href, so there is nothing to keep in sync. */
+function GreekNavPill({ href }: { href: string }) {
+  return (
+    <a
+      href={href}
+      className="ml-2 inline-flex shrink-0 items-center rounded-full px-3 lg:px-4"
+      style={{
+        minHeight: 36,
+        border: "1px solid color-mix(in srgb, var(--accent, #FCA311) 55%, transparent)",
+        background: "color-mix(in srgb, var(--accent, #FCA311) 12%, transparent)",
+        color: "var(--accent, #FCA311)",
+        fontWeight: 900,
+        lineHeight: 1.05,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {/* The short labels. `hidden` at the width where the next one takes over — never two at once. */}
+      <span className="text-[12.5px] min-[480px]:hidden">⚡ Greeks</span>
+      <span className="hidden text-[12.5px] min-[480px]:inline lg:hidden">⚡ For Greeks</span>
+      {/* The full proposition, only where all of it fits. */}
+      <span className="hidden flex-col lg:flex">
+        <span className="text-[13px]">For Fraternities &amp; Sororities</span>
+        <span className="text-[10.5px] font-bold" style={{ opacity: 0.85 }}>⚡ Boost chapter GPAs</span>
+      </span>
+    </a>
+  );
+}
 
 // Pass 2 order. The first item repeats the page CTA on purpose: the navbar is sticky, so once
 // the hero has scrolled away this is the only Cram-Exam-1 door still on screen. The Greek link
@@ -282,12 +330,13 @@ const desktopLinks = (base: string, greekHref: string): NavItem[] => [
 // no page defines. The revealed rows are an sms: link and a GMAIL COMPOSE link the visitor
 // chooses deliberately — never mailto:, which on a phone with no mail handler opens whatever
 // app claimed the scheme. See lib/email-link.ts.)
-const menuLinks = (base: string, greekHref: string): NavItem[] => [
+const menuLinks = (base: string): NavItem[] => [
   { label: "Start cramming", href: `${base}#exam1` },
   { label: "Reviews", href: `${base}#reviews` },
   { label: "Meet your tutor", href: `${base}#lee` },
   { label: "Contact", href: "", contact: true },
-  { label: "For Fraternities & Sororities", href: greekHref, route: true, sub: "⚡ Boost chapter GPAs" },
+  // "For Fraternities & Sororities" is NOT here any more — it is GreekNavPill, always visible in
+  // the bar itself. Leaving a copy in the menu would give one door two entries.
 ];
 
 // TWO-DOOR HOMEPAGE NAV (08-27). The homepage's Greek path is one of the two doors directly
@@ -317,8 +366,8 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
   // Access, Reviews, Meet Lee) and an exec-facing CTA. Generic homepage links ("For Greeks",
   // Contact) are deliberately absent there — a visitor on a chapter page is already somewhere
   // specific, and every link that navigates away is a door out of the funnel.
-  const links = chapterNav ? chapterLinks(chapterNav) : homeNav ? homeLinks() : desktopLinks(base, greekHref);
-  const menuItems = chapterNav ? chapterLinks(chapterNav) : homeNav ? homeMenuLinks() : menuLinks(base, greekHref);
+  const links = chapterNav ? chapterLinks(chapterNav) : homeNav ? homeLinks() : desktopLinks(base);
+  const menuItems = chapterNav ? chapterLinks(chapterNav) : homeNav ? homeMenuLinks() : menuLinks(base);
   // null = no CTA pill at all (the two-door homepage: the doors are the CTAs).
   const cta: NavItem | null = homeNav ? null : chapterNav
     ? { label: "Set Up Chapter Access →", href: `#${chapterNav.accessAnchor}` }
@@ -385,6 +434,11 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
             </a>
           ))}
         </nav>
+
+        {/* THE GREEK DOOR — always on, at every width, on every marketing page. A chapter page
+            is the one exception: the visitor is already standing inside a chapter, so a link out
+            to "find a chapter" is a door out of the funnel they are already in. */}
+        {!chapterNav && <GreekNavPill href={greekHref} />}
 
         {/* THE CTA survives to tablet; only the links collapse into the hamburger there.
             Absent entirely on the two-door homepage — the doors below the hero are the CTAs. */}
