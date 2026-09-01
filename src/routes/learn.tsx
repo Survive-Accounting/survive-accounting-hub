@@ -37,7 +37,8 @@ import { LEARN_MODE_CSS, LEARN_MODES, MODE_BLURB, MODE_LABEL, modeStyle, type Le
 import { ModeBolt } from "@/components/learn/ModeBolt";
 import { VideoCard } from "@/components/learn/VideoCard";
 import { ExamRail, type ExamTabState } from "@/components/learn/ExamRail";
-import { GreekDoor } from "@/components/learn/GreekDoor";
+import { LearnCta } from "@/components/learn/LearnCta";
+import { schoolByCampusId } from "@/lib/schools";
 import { Spine, useVisibleTopic, type SpineTopic } from "@/components/learn/Spine";
 import { isContactRef } from "@/lib/contact-ref";
 
@@ -1092,13 +1093,6 @@ function LearnShell() {
             </div>
           )}
 
-          {/* THE GREEK DOOR — a billboard in the flow, skippable, never a modal. */}
-          <GreekDoor
-            campusId={campusId}
-            campusName={campuses.find((c) => c.id === campusId)?.name ?? null}
-            courseCode={null}
-          />
-
           {/* PRACTICE PLACEHOLDER — unchanged. When the practice player lands this becomes a
               mode switch rather than a separate page, which is why it sits under the player. */}
           {current && current.t.sets.some((x) => x.ceqCount > 0) && (
@@ -1189,8 +1183,18 @@ function LearnShell() {
           <button className="text-[11px] font-bold" style={{ color: NEON.muted }} onClick={() => setFetchNote(null)}>✕</button>
         </div>
       )}
-      {/* GREEK SHARE FUNNEL — the adaptive CTA bar mounts here (learn-share-flow, next phase),
-          replacing both the flag-off ChairPanel and the GreekDoor billboard. */}
+      {/* GREEK SHARE FUNNEL — the adaptive CTA bar, replacing the flag-off ChairPanel and the
+          GreekDoor billboard. Fixed at the bottom; shows only when a campus is known (the /s/
+          redirect carries ?g, an organic visitor gets it from the campus they're viewing). Never
+          in demo mode — that surface is a placeholder tree with no real chapter to join. */}
+      {!demo && (() => {
+        const ctaSlug = search.g ?? schoolByCampusId(campusId)?.slug ?? null;
+        // Render when a campus is known OR when ?test forces a state (the fixture supplies the
+        // chapter, so no campus is needed to preview).
+        if (!ctaSlug && !search.test) return null;
+        const ctaName = schoolByCampusId(campusId)?.name ?? campuses.find((c) => c.id === campusId)?.name ?? ctaSlug ?? "your campus";
+        return <LearnCta campusSlug={ctaSlug ?? "your-campus"} campusName={ctaName} ref={search.ref ?? null} by={search.by ?? null} test={search.test} />;
+      })()}
     </div>
   );
 }
