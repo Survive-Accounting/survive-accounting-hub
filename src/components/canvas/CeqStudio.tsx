@@ -3462,6 +3462,11 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           {/* CAPTURE WINDOW launch, on the strip (P1) — dispatches to the previewer’s
               ONE toggleFilm, so this chip and the transport button can never drift. */}
           <button className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => window.dispatchEvent(new Event("sa-launch-capture"))} title="CAPTURE WINDOW — the film popout snapped to exactly 1920×1080 physical pixels for OBS window-capture. Same launcher as the previewer’s 🎯 Capture button.">🎯 capture</button>
+          {/* PREVIEW (R1) — the same film surface, over this page instead of in a
+              popout. For LOOKING, not filming: its size is whatever the browser
+              window is, so OBS still captures the popout. It exists so the film
+              surface can be reviewed (and scripted) without window.open. */}
+          <button className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider" style={{ color: "#8FD3FF", border: "1px solid rgba(143,211,255,0.5)" }} onClick={() => window.dispatchEvent(new Event("sa-launch-film-inline"))} title="PREVIEW the film surface in this page (no popout). For checking a take's look — film from 🎯 capture, which is the one sized exactly for OBS.">👁 preview</button>
           <span className="ml-auto text-[9px] uppercase" style={{ color: NEON.muted }}>F9 roll · F10 keep · F8 trash <span title="F10 and F8 are APP keys — this window needs focus. Only OBS\u2019s F9 is global.">(app focus)</span></span>
         </div>
       )}

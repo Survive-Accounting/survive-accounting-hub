@@ -275,6 +275,41 @@ const SLOT_H = 150; // nominal chip height at scale 1 — the overflow stacking 
  *  the context menu. Module-scope so the array identity is stable across
  *  renders (a fresh array every render defeats ReactFlow's prop memoisation). */
 const PAN_BUTTONS = [0, 1];
+
+/** WHERE THE FILM SURFACE LIVES — a popout window, or this page.
+ *
+ *  Popout is the FILMING path: OBS window-capture needs its own window sized to
+ *  exact physical pixels (see capture-window.ts), and only that path snaps it.
+ *
+ *  Inline is the LOOKING path: same subtree, same nodes, same camera, rendered
+ *  over this page. It exists because window.open cannot be driven by a scripted
+ *  browser, so the most important surface in the app was also the only one that
+ *  could not be reviewed without sitting at Lee's desk. Do not film off it —
+ *  its size is whatever the browser window happens to be. */
+function FilmShell({ inline, win, onReturn, children }: {
+  inline: boolean; win: Window; onReturn: () => void; children: ReactNode;
+}) {
+  if (!inline) {
+    return <PanelPopout win={win} title="Film — CEQ" onReturn={onReturn} chromeless>{children}</PanelPopout>;
+  }
+  return (
+    <div data-film-inline="1" style={{ position: "fixed", inset: 0, zIndex: 9000, background: "#000" }}>
+      <div style={{ position: "absolute", inset: 0 }}>{children}</div>
+      <button
+        onClick={onReturn}
+        title="Close the inline film surface (Esc)"
+        style={{
+          position: "absolute", top: 10, right: 12, zIndex: 10,
+          background: "rgba(7,11,20,0.88)", color: "#F4EFE6",
+          border: "1px solid rgba(244,239,230,0.22)", borderRadius: 8,
+          padding: "5px 11px", fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+        }}
+      >
+        close preview
+      </button>
+    </div>
+  );
+}
 // CARD_W/CARD_H, the slot palette, rackOf and activeSlots moved to ceq-geom.ts —
 // they were imported back from there, which made this a runtime import cycle.
 
@@ -1224,6 +1259,21 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // (Declared here, used by the film block far below: activeYOff needs to know
   //  whether the film popout is open.)
   const [filmWin, setFilmWin] = useState<Window | null>(null);
+  // FILM INLINE (R1, 2026-09-01) — mount the film surface IN THIS PAGE instead of
+  // a popout window.
+  //
+  // Why it exists: the capture surface only ever existed inside window.open, and
+  // a scripted browser cannot open one (popup blockers return null). That made
+  // the single most important surface in the app the one nobody could look at
+  // without sitting at Lee's desk — which is how a crash shipped to him twice.
+  //
+  // The trick is that `filmWin` becomes `window` itself. Everything downstream —
+  // fitFilm measuring the root, the resize/focus listeners, the fonts-ready gate
+  // — is written against a real Window and keeps working unchanged. The keydown
+  // effect already guards `filmWin !== ownerWin`, so it binds once, not twice.
+  //
+  // It is also useful on its own: a take can be previewed without popping out.
+  const [filmInline, setFilmInline] = useState(false);
   // FILM STACK (A2, spacewalk-preload): on a filming surface (the "\" popout, or
   // the recording surface Rehearse mounts) the WHOLE set is mounted — every frame
   // full-fidelity at its own slot in the vertical stack — and the space-walk is a
@@ -1757,8 +1807,8 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
    *  form, which is the whole reason a manual push can survive a window resize
    *  mid-take instead of snapping back on the 900ms timer. */
   const fitFilm = useCallback((duration = 0, force = false) => {
-    const inst = filmFitRef.current; const win = filmWin;
-    if (!inst || !win) return;
+    const win = filmWin;
+    if (!win) return;
     // MEASURE THE PANE, NOT THE WINDOW (Lee's black-on-advance, 08-15). In
     // ELEMENT fullscreen the window's inner size never changes — only the
     // fullscreened element grows to the screen. Sizing the camera from
@@ -1781,7 +1831,14 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // ALWAYS record the home shot, even when we decline to move: the CEQ pin
     // anchors against these exact numbers, so a resize while pushed in must
     // still update where "home" is or the pinned card would drift.
+    // RECORD HOME UNCONDITIONALLY. It is a fact about the pane's size and the
+    // frame's shape — it does not need the ReactFlow instance, and the CEQ pin
+    // anchors against it. Gating this behind `inst` meant that whenever onInit
+    // hadn't landed yet, home stayed null and the pin silently did nothing
+    // (observed live, 2026-09-01: camera fine, pin dead).
     setFilmHome(home);
+    const inst = filmFitRef.current;
+    if (!inst) return;                                  // can't move the camera yet
     if (!force && !autoFitAllowed()) return;
     if (force) releaseCamera();
     inst.setViewport(home, { duration });
@@ -1853,8 +1910,44 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     window.addEventListener("sa-launch-capture", on);
     return () => window.removeEventListener("sa-launch-capture", on);
   }, []);
+  // FILM INLINE (R1) — the same one-launcher rule, for the in-page surface.
+  // Fired by the Studio's "preview" chip and by ?film=inline on the URL, which
+  // is what lets a scripted browser (or Lee on a machine whose popup blocker is
+  // winning) reach the film surface at all.
+  useEffect(() => {
+    const on = () => toggleFilmInlineRef.current(undefined);
+    window.addEventListener("sa-launch-film-inline", on);
+    return () => window.removeEventListener("sa-launch-film-inline", on);
+  }, []);
+  useEffect(() => {
+    let url: URL | null = null;
+    try { url = new URL(window.location.href); } catch { return; }
+    if (url.searchParams.get("film") !== "inline") return;
+    // One shot, after the previewer has a question and the nodes have seeded.
+    const t = window.setTimeout(() => toggleFilmInlineRef.current(undefined), 600);
+    return () => window.clearTimeout(t);
+  }, []);
+  /** Mount / unmount the film surface INLINE (see filmInline above). Never opens
+   *  a window, so it works under a popup blocker and in a scripted browser. */
+  const toggleFilmInline = (v2?: boolean) => {
+    if (filmWin) { closeFilm(); return; }
+    if (v2 !== undefined) setFilmMode(v2);
+    captureRef.current = false;
+    setFilmInline(true);
+    setFilmWin(window); // the surface's "window" IS this one
+  };
+
+  /** The one teardown. Closing `window` would close the app, so the inline case
+   *  must never reach win.close(). */
+  const closeFilm = () => {
+    if (filmWin && filmWin !== window) { try { filmWin.close(); } catch { /* ignore */ } }
+    setFilmWin(null);
+    setFilmInline(false);
+    captureRef.current = false;
+  };
+
   const toggleFilm = (v2?: boolean, capture?: boolean) => {
-    if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); captureRef.current = false; return; }
+    if (filmWin) { closeFilm(); return; }
     if (v2 !== undefined) setFilmMode(v2);
     captureRef.current = !!capture;
     const o = orientation();
@@ -1869,6 +1962,8 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   };
   const toggleFilmRef = useRef(toggleFilm);
   toggleFilmRef.current = toggleFilm;
+  const toggleFilmInlineRef = useRef(toggleFilmInline);
+  toggleFilmInlineRef.current = toggleFilmInline;
   // ELEMENT FULLSCREEN (C1): fullscreen targets THIS stable wrapper — it never
   // unmounts (frames swap INSIDE it; the arrival-gap fix guarantees the
   // interior), so spacewalking a whole set in fullscreen can never blank or
@@ -2194,6 +2289,13 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // undealt frame IS the base state). Deliberately NOT keyed on `walk`/practice
   // state, so a Space step never rebuilds the stack.
   const stackSlotH = frameH + Math.round(frameH * 0.16);
+  // DECLARED ABOVE filmStandins ON PURPOSE (2026-09-01). filmStandins' memo
+  // factory reads liveIds, and a useMemo factory runs DURING RENDER — so with
+  // liveIds declared below it, opening the film surface on a multi-question deck
+  // threw "Cannot access 'liveIds' before initialization" and white-screened the
+  // capture window. Same in-component dead zone tdz-hazards.test.ts documents
+  // for CeqStudio.spineLabelOf. Keep this line above its readers.
+  const liveIds = useMemo(() => new Set(nodes.map((nd) => nd.id)), [nodes]);
   const filmStandins = useMemo<Node[]>(() => {
     if (!filmStack || !deckCeqIds) return [];
     const out: Node[] = [];
@@ -2230,7 +2332,6 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // arrow heads (a performance tool) and explicit data.filmMovable opt-ins. The
   // per-node flag beats the pane-level nodesDraggable, so the pane prop can stay
   // true for the nodes that ARE allowed to move.
-  const liveIds = useMemo(() => new Set(nodes.map((nd) => nd.id)), [nodes]);
   const filmNodes = useMemo(() => nodes
     .filter((n) => !n.id.startsWith("ov:") && !n.id.startsWith("ovf:") && !n.id.startsWith("ovm:") && !(n.data as { stage?: { hidden?: boolean } } | undefined)?.stage?.hidden)
     .map((n): Node => ({ ...n, draggable: filmDragAllowed(n) }))
@@ -2748,7 +2849,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                 world background + brand watermark make it read like a real canvas frame.
                 `film-mode` class lets the world gradient breathe (WorldBackground). */}
             {filmWin && (
-              <PanelPopout win={filmWin} title="Film — CEQ" onReturn={() => setFilmWin(null)} chromeless>
+              <FilmShell inline={filmInline} win={filmWin} onReturn={closeFilm}>
                 {/* The camera sees the TRUE walk state — the Arrows toggle lights every
                     memo for authoring, and that must not reach a take. */}
                 <RevealContext.Provider value={walkRevealedIds}>
@@ -2807,7 +2908,14 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                         zoomOnDoubleClick={false}
                         onMoveStart={(e) => { if (e) markCameraManual(); }}
                         onMove={(e, vp) => { if (e) markCameraManual(); publishFilmViewport(vp); }}
-                        preventScrolling={false}
+                        // PLAIN WHEEL MUST ZOOM (2026-09-01). This was false, which
+                        // lets the page scroll under the pointer — and ReactFlow
+                        // then only zooms on ctrl+wheel. Verified by driving the
+                        // real surface: a plain wheel did nothing at all, so the
+                        // free camera was reachable only by a modifier nobody
+                        // would guess. There is nothing to scroll on a film
+                        // surface: it IS the whole window.
+                        preventScrolling
                         style={{ width: "100%", height: "100%", background: "#05070d" }}
                       />
                     </ReactFlowProvider>
@@ -2831,7 +2939,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                   </div>
                 </FilmContext.Provider>
                 </RevealContext.Provider>
-              </PanelPopout>
+              </FilmShell>
             )}
            </ChoiceMenuContext.Provider>
            </SelectQuestionContext.Provider>

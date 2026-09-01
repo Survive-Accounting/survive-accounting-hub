@@ -29,7 +29,12 @@ export function NoteCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as NoteCard;
   const { update, remove, toFront } = useCardActions(id);
   const scale = useCardScale(id, d as unknown as CardBase);
-  const c = NOTE_COLORS[d.color % NOTE_COLORS.length];
+  // `color` is typed as required but real scenes contain notes without it —
+  // `undefined % n` is NaN, NOTE_COLORS[NaN] is undefined, and reading .bg off
+  // that took the WHOLE film surface down (2026-09-01: the note frame in
+  // "Accounting cycle order"). A note with no colour chosen is a note in the
+  // default colour, not a crash. Index defensively at the one read site.
+  const c = NOTE_COLORS[(d.color ?? 0) % NOTE_COLORS.length] ?? NOTE_COLORS[0];
   const fontSize = d.fontSize ?? 15;
   const [editing, setEditing] = useState(false);
   const html = initialContent(d);

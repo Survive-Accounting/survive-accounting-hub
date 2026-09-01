@@ -289,8 +289,11 @@ describe("capture-window wiring (source pins)", () => {
     const hud = src.slice(src.indexOf("{/* CAMERA HUD"), src.indexOf("<ReactFlow\n"));
     expect(hud).toContain("sa-chrome");
     expect(hud).toContain("pointer-events-none");
-    // It renders in the editor pane, which is outside the PanelPopout subtree.
-    expect(src.indexOf("{/* CAMERA HUD")).toBeLessThan(src.indexOf("<PanelPopout win={filmWin}"));
+    // It renders in the editor pane, which is outside the film subtree — whether
+    // that subtree is in a popout or mounted inline (FilmShell owns both).
+    const filmSubtree = src.indexOf("<FilmShell inline=");
+    expect(filmSubtree).toBeGreaterThan(0);
+    expect(src.indexOf("{/* CAMERA HUD")).toBeLessThan(filmSubtree);
   });
 
   test("the editor mirror has exactly ONE writer, so the panes cannot fight", () => {

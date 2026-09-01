@@ -553,7 +553,10 @@ export interface NoteCard extends CardBase {
   bodyHtml?: string;
   /** Card-level font step (Ctrl+Shift+> / <). */
   fontSize?: number;
-  color: number; // index into NOTE_COLORS
+  /** Index into NOTE_COLORS. OPTIONAL because real scenes contain notes without
+   *  it — this was typed as required, so nothing ever guarded the read and the
+   *  film surface crashed on a colourless note. Absent = the default colour. */
+  color?: number;
 }
 
 // ---- Video ----
