@@ -103,6 +103,11 @@ function dmTemplate(entity: string, campusName: string) {
   return `Hey ${org}! 👋 I'm with Survive Accounting. This Fall we're giving Intro Accounting students at ${campusName} a free Exam 1 study tool, and a few chapters are already sharing it with their members. Can I send you the link so ${org} can pass it along? It's free and takes 2 minutes. 🙏`;
 }
 
+// Prefilled Google search. Council/club handles search "<university> <org> instagram"; a PERSON
+// searches "<name> <university> instagram" — name + university alone finds a personal account far
+// more often than adding the role or council, which mostly drags in org pages.
+const googleUrl = (q: string) => `https://www.google.com/search?q=${encodeURIComponent(q.trim())}`;
+
 // Display an Instagram handle from either a bare @handle or a full instagram.com URL.
 const igHandle = (s: string | null) => {
   if (!s) return null;
@@ -344,18 +349,26 @@ const hasHandle = (list: ExistingContact[], pred: (c: ExistingContact) => boolea
 function StatusDot({ ok, label }: { ok: boolean; label: string }) {
   return <span title={ok ? `${label} — on file` : `${label} — still needed`} className={cn("inline-flex items-center gap-0.5", ok ? "text-emerald-400" : "text-muted-foreground/60")}>{ok ? <Check className="size-2.5" /> : <span className="size-1.5 rounded-full border border-current" />}{label}</span>;
 }
-function IgInput({ label, required, value, onChange, placeholder }: { label: string; required?: boolean; value: string; onChange: (v: string) => void; placeholder?: string }) {
+// The little magnifier opens the prefilled Google search in a new tab — one click, no retyping.
+function IgSearch({ query }: { query: string }) {
+  return (
+    <a href={googleUrl(query)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title={`Google: ${query}`} className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] text-primary hover:bg-primary/10">
+      <Search className="size-2.5" /> find
+    </a>
+  );
+}
+function IgInput({ label, required, value, onChange, placeholder, search }: { label: string; required?: boolean; value: string; onChange: (v: string) => void; placeholder?: string; search?: string }) {
   return (
     <label className="block">
-      <span className="mb-0.5 flex items-center gap-1 text-[9px] text-muted-foreground"><Instagram className="size-2.5 text-pink-400" /> {label}{required && <span className="text-pink-400">•</span>}</span>
+      <span className="mb-0.5 flex items-center gap-1 text-[9px] text-muted-foreground"><Instagram className="size-2.5 text-pink-400" /> {label}{required && <span className="text-pink-400">•</span>}{search && <span className="ml-auto"><IgSearch query={search} /></span>}</span>
       <input value={value} onChange={(e) => onChange(atHandle(e.target.value))} placeholder={placeholder ?? "@handle"} className="w-full rounded border border-pink-500/30 bg-background px-2 py-1.5 text-[11px]" />
     </label>
   );
 }
-function PersonInput({ label, required, name, ig, onChange }: { label: string; required?: boolean; name: string; ig: string; onChange: (p: Partial<Row>) => void }) {
+function PersonInput({ label, required, name, ig, campusName, onChange }: { label: string; required?: boolean; name: string; ig: string; campusName: string; onChange: (p: Partial<Row>) => void }) {
   return (
     <div>
-      <span className="mb-0.5 flex items-center gap-1 text-[9px] text-muted-foreground">{label}{required && <span className="text-pink-400">•</span>}<span className="text-muted-foreground/60">— name + their personal Instagram</span></span>
+      <span className="mb-0.5 flex items-center gap-1 text-[9px] text-muted-foreground">{label}{required && <span className="text-pink-400">•</span>}<span className="text-muted-foreground/60">— name + their personal Instagram</span>{name.trim() && <span className="ml-auto"><IgSearch query={`${name} ${campusName} instagram`} /></span>}</span>
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[1fr_160px]">
         <input value={name} onChange={(e) => onChange({ name: e.target.value })} placeholder="First Last" className="rounded border border-border bg-background px-2 py-1.5 text-[11px]" />
         <input value={ig} onChange={(e) => onChange({ instagram: atHandle(e.target.value) })} placeholder="@personal IG" className="rounded border border-pink-500/40 bg-background px-2 py-1.5 text-[11px]" />
@@ -380,9 +393,9 @@ function CouncilCard({ label, contacts, queuedRows, showPres, campusName, onFiel
       </div>
       {contacts.map((c) => <ExistingRow key={c.id} c={c} orgLabel={label} campusName={campusName} onEdited={onEdited} />)}
       <div className="mt-1 space-y-1.5">
-        {!orgDone && <IgInput label="Council Instagram" required value={q("org")?.instagram ?? ""} onChange={(v) => onField("org", { instagram: v })} placeholder="@councilaccount" />}
-        {!chairDone && <PersonInput label="Scholarship chair" required name={q("chair")?.name ?? ""} ig={q("chair")?.instagram ?? ""} onChange={(p) => onField("chair", p)} />}
-        {showPres && !presDone && <PersonInput label="President" name={q("pres")?.name ?? ""} ig={q("pres")?.instagram ?? ""} onChange={(p) => onField("pres", p)} />}
+        {!orgDone && <IgInput label="Council Instagram" required value={q("org")?.instagram ?? ""} onChange={(v) => onField("org", { instagram: v })} placeholder="@councilaccount" search={`${campusName} ${label} instagram`} />}
+        {!chairDone && <PersonInput label="Scholarship chair" required name={q("chair")?.name ?? ""} ig={q("chair")?.instagram ?? ""} campusName={campusName} onChange={(p) => onField("chair", p)} />}
+        {showPres && !presDone && <PersonInput label="President" name={q("pres")?.name ?? ""} ig={q("pres")?.instagram ?? ""} campusName={campusName} onChange={(p) => onField("pres", p)} />}
       </div>
     </div>
   );
@@ -395,6 +408,10 @@ function ClubCard({ name, headerExtra, contacts, queuedRows, showPres, campusNam
   const q = (slot: Slot) => queuedRows.find((r) => slotOf(r) === slot);
   const orgDone = hasHandle(contacts, (c) => !c.isPerson);
   const presDone = contacts.some((c) => c.isPerson && roleIsPres(c.role));
+  // Org IG is all a club needs; a president is an optional add, per-club so it isn't noise on every
+  // row. The Pass-2 toggle (showPres) or the queued row itself also opens it.
+  const [addPres, setAddPres] = useState(false);
+  const showClubPres = !presDone && (showPres || addPres || !!q("pres"));
   return (
     <div className="rounded-lg border border-border p-2.5">
       <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -404,8 +421,10 @@ function ClubCard({ name, headerExtra, contacts, queuedRows, showPres, campusNam
       </div>
       {contacts.map((c) => <ExistingRow key={c.id} c={c} orgLabel={name} campusName={campusName} onEdited={onEdited} />)}
       <div className="mt-1 space-y-1.5">
-        {!orgDone && <IgInput label="Club Instagram" required value={q("org")?.instagram ?? ""} onChange={(v) => onField("org", { instagram: v })} placeholder="@clubaccount" />}
-        {showPres && !presDone && <PersonInput label="President (optional)" name={q("pres")?.name ?? ""} ig={q("pres")?.instagram ?? ""} onChange={(p) => onField("pres", p)} />}
+        {!orgDone && <IgInput label="Club Instagram" required value={q("org")?.instagram ?? ""} onChange={(v) => onField("org", { instagram: v })} placeholder="@clubaccount" search={`${campusName} ${name} instagram`} />}
+        {showClubPres
+          ? <PersonInput label="President (optional)" name={q("pres")?.name ?? ""} ig={q("pres")?.instagram ?? ""} campusName={campusName} onChange={(p) => onField("pres", p)} />
+          : !presDone && <button onClick={() => setAddPres(true)} className="text-[10px] font-medium text-primary hover:underline">+ president</button>}
       </div>
     </div>
   );
