@@ -198,15 +198,18 @@ export function councilPrompt(campusName: string): string {
 export function officerPrompt(campusName: string, urls: Array<{ council: CouncilKey; url: string }>): string {
   const list = urls.map((u) => `${COUNCIL_LABEL[u.council]}: ${u.url}`).join("\n");
   return [
-    `From these ${campusName} council pages, list the current officers.`,
+    `From these ${campusName} council pages, return two things per council: the council's own Instagram account, and its Scholarship Chair and President.`,
     "",
     list,
     "",
-    "Roles wanted, in priority order: Scholarship / Academic Chair, President, Vice President, Treasurer.",
-    "For each officer return: council, position, name, email, phone, instagram, source_url.",
+    "Only these two roles per council, in priority order: Scholarship / Academic Chair, then President. Accept common equivalents for the chair (academic chair, VP of scholarship, VP of academic affairs, chapter development). Ignore every other officer — we do not use vice presidents, treasurers, secretaries, recruitment, or advisors.",
     "",
-    "If an email or phone is unavailable, return null. Never substitute the council's or Greek Life office's general address.",
-    "Try to find each officer's personal Instagram (search their name plus the university plus their role), but only return a handle when there is specific evidence it belongs to that person — their name in the bio, the council tagged, the university in the profile. Never construct a handle from a name. Never return a council or chapter account as a person's Instagram. When unsure, return null.",
+    "Also return one row per council for the council's OWN organization Instagram — position \"Organization\", no personal name, the council account's handle in the instagram field.",
+    "",
+    "For each row return: council, position, name, email, instagram, source_url. (Do not return phone numbers — we do not use them.)",
+    "",
+    "Email is opportunistic: if the page lists a personal email return it, otherwise null. Never substitute the council's or Greek Life office's general address as a person's email.",
+    "Personal Instagram is the priority. For the chair and president, search their name plus the university plus their role, but only return a handle when there is specific evidence it belongs to that person — their name in the bio, the council tagged, the university in the profile. Never construct a handle from a name. Never return a council or chapter account as a person's Instagram — the council account belongs only on the \"Organization\" row. When unsure, return null.",
     "Include source_url for every officer.",
   ].join("\n");
 }

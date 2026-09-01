@@ -5,15 +5,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Building2,
   Check,
   ChevronDown,
   ChevronRight,
+  ClipboardPaste,
   Clock,
   Copy,
-  HelpCircle,
   Instagram,
-  Landmark,
   Loader2,
   Mail,
   MessageSquarePlus,
@@ -21,7 +19,6 @@ import {
   Plus,
   Recycle,
   Search,
-  Users,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -42,7 +39,6 @@ import { growthDeleteContact, growthUpdateContact } from "@/lib/growth-reach.fun
 import { growthLogEnrichmentTime, growthAddFeedback, growthEnrichmentStats } from "@/lib/growth-enrich-feedback.functions";
 import { FindContactsPanel } from "@/components/growth/FindContactsPanel";
 import { AddForm, atHandle, ROLE_CHIPS, roleChipOf } from "@/components/growth/contact-add-form";
-import { VaProgress } from "@/components/growth/va-mode";
 import { BottomSheet } from "@/components/growth/BottomSheet";
 import { ColdHeader } from "@/components/growth/ColdHeader";
 import { renderQueryState } from "@/components/growth/QueryState";
@@ -308,8 +304,6 @@ function neededList(r: CampusReadiness): string[] {
   return out;
 }
 
-const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-
 // Campus timer (item 6): starts on the first interaction, counts while active, pauses after 60s idle.
 // `ping` on any interaction (re)starts it; `flush` returns the elapsed seconds and resets, to record
 // on save/close so the header average is real.
@@ -331,28 +325,210 @@ function useEnrichmentTimer() {
   return { seconds, ping, flush };
 }
 
-// Item 5: the launch order, so it's obvious enrichment comes before any outreach — a rep who says yes
-// needs chapters to work, and this is step 1.
-const LAUNCH_STEPS = ["Enrich", "Council outreach", "Chapter outreach", "Rep recruiting"];
-function LaunchLadder() {
+// ── Simplified enrichment (2026-08-31): councils are a fixed field grid, not a free-form add. Per
+// council we want three handles — the council org IG, the scholarship chair's personal IG, the
+// president's personal IG — because personal handles are the product of this page. Presidents are
+// Pass 2 (collapsed by default). Clubs want an org IG (+ optional president). Email is opportunistic.
+const FIELD_COUNCILS = [
+  { type: "ifc", label: "IFC" },
+  { type: "panhellenic", label: "Panhellenic" },
+  { type: "nphc", label: "NPHC" },
+  { type: "mgc", label: "MGC" },
+];
+const roleIsChair = (role: string | null) => roleChipOf(role) === "Scholarship / Academic Chair";
+const roleIsPres = (role: string | null) => roleChipOf(role) === "President";
+type Slot = "org" | "chair" | "pres";
+const slotOf = (r: Row): Slot | "other" => (!r.isPerson ? "org" : roleIsChair(r.role) ? "chair" : roleIsPres(r.role) ? "pres" : "other");
+const hasHandle = (list: ExistingContact[], pred: (c: ExistingContact) => boolean) => list.some((c) => pred(c) && !!(c.instagram && c.instagram.trim()));
+
+function StatusDot({ ok, label }: { ok: boolean; label: string }) {
+  return <span title={ok ? `${label} — on file` : `${label} — still needed`} className={cn("inline-flex items-center gap-0.5", ok ? "text-emerald-400" : "text-muted-foreground/60")}>{ok ? <Check className="size-2.5" /> : <span className="size-1.5 rounded-full border border-current" />}{label}</span>;
+}
+function IgInput({ label, required, value, onChange, placeholder }: { label: string; required?: boolean; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
-    <div className="flex flex-1 flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-lg border border-border bg-muted/20 px-2.5 py-1.5 text-[10px]">
-      <span className="mr-0.5 font-semibold uppercase tracking-wide text-muted-foreground/80">Launch order</span>
-      {LAUNCH_STEPS.map((label, i) => (
-        <span key={label} className="inline-flex items-center gap-1">
-          <span className={cn("grid size-4 place-items-center rounded-full text-[8px] font-bold", i === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>{i + 1}</span>
-          <span className={cn(i === 0 ? "font-semibold text-primary" : "text-muted-foreground")}>{label}</span>
-          {i === 0 && <span className="text-[8px] font-medium uppercase tracking-wide text-primary/70">← you're here</span>}
-          {i < LAUNCH_STEPS.length - 1 && <ChevronRight className="size-3 text-muted-foreground/40" />}
-        </span>
-      ))}
+    <label className="block">
+      <span className="mb-0.5 flex items-center gap-1 text-[9px] text-muted-foreground"><Instagram className="size-2.5 text-pink-400" /> {label}{required && <span className="text-pink-400">•</span>}</span>
+      <input value={value} onChange={(e) => onChange(atHandle(e.target.value))} placeholder={placeholder ?? "@handle"} className="w-full rounded border border-pink-500/30 bg-background px-2 py-1.5 text-[11px]" />
+    </label>
+  );
+}
+function PersonInput({ label, required, name, ig, onChange }: { label: string; required?: boolean; name: string; ig: string; onChange: (p: Partial<Row>) => void }) {
+  return (
+    <div>
+      <span className="mb-0.5 flex items-center gap-1 text-[9px] text-muted-foreground">{label}{required && <span className="text-pink-400">•</span>}<span className="text-muted-foreground/60">— name + their personal Instagram</span></span>
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[1fr_160px]">
+        <input value={name} onChange={(e) => onChange({ name: e.target.value })} placeholder="First Last" className="rounded border border-border bg-background px-2 py-1.5 text-[11px]" />
+        <input value={ig} onChange={(e) => onChange({ instagram: atHandle(e.target.value) })} placeholder="@personal IG" className="rounded border border-pink-500/40 bg-background px-2 py-1.5 text-[11px]" />
+      </div>
     </div>
   );
 }
 
-// Item 7: always-open, never collapsed. The friction to complain must be zero, and the prompt is
-// specific on purpose — "feedback" gets nothing; "what would make this faster" gets the real answer.
-function FeedbackBox({ campusId }: { campusId: string }) {
+function CouncilCard({ label, contacts, queuedRows, showPres, campusName, onField, onEdited }: {
+  label: string; contacts: ExistingContact[]; queuedRows: Row[]; showPres: boolean; campusName: string;
+  onField: (slot: Slot, patch: Partial<Row>) => void; onEdited: () => void;
+}) {
+  const q = (slot: Slot) => queuedRows.find((r) => slotOf(r) === slot);
+  const orgDone = hasHandle(contacts, (c) => !c.isPerson);
+  const chairDone = hasHandle(contacts, (c) => c.isPerson && roleIsChair(c.role));
+  const presDone = contacts.some((c) => c.isPerson && roleIsPres(c.role));
+  return (
+    <div className="rounded-lg border border-border p-2.5">
+      <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-[12px] font-semibold">{label}</span>
+        <span className="flex items-center gap-2 text-[9px]"><StatusDot ok={orgDone || !!q("org")?.instagram.trim()} label="org IG" /><StatusDot ok={chairDone || !!q("chair")?.instagram.trim()} label="chair IG" /></span>
+      </div>
+      {contacts.map((c) => <ExistingRow key={c.id} c={c} orgLabel={label} campusName={campusName} onEdited={onEdited} />)}
+      <div className="mt-1 space-y-1.5">
+        {!orgDone && <IgInput label="Council Instagram" required value={q("org")?.instagram ?? ""} onChange={(v) => onField("org", { instagram: v })} placeholder="@councilaccount" />}
+        {!chairDone && <PersonInput label="Scholarship chair" required name={q("chair")?.name ?? ""} ig={q("chair")?.instagram ?? ""} onChange={(p) => onField("chair", p)} />}
+        {showPres && !presDone && <PersonInput label="President" name={q("pres")?.name ?? ""} ig={q("pres")?.instagram ?? ""} onChange={(p) => onField("pres", p)} />}
+      </div>
+    </div>
+  );
+}
+
+function ClubCard({ name, headerExtra, contacts, queuedRows, showPres, campusName, onField, onEdited }: {
+  name: string; headerExtra?: ReactNode; contacts: ExistingContact[]; queuedRows: Row[]; showPres: boolean; campusName: string;
+  onField: (slot: Slot, patch: Partial<Row>) => void; onEdited: () => void;
+}) {
+  const q = (slot: Slot) => queuedRows.find((r) => slotOf(r) === slot);
+  const orgDone = hasHandle(contacts, (c) => !c.isPerson);
+  const presDone = contacts.some((c) => c.isPerson && roleIsPres(c.role));
+  return (
+    <div className="rounded-lg border border-border p-2.5">
+      <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-[12px] font-semibold">{name}</span>
+        {headerExtra}
+        <StatusDot ok={orgDone || !!q("org")?.instagram.trim()} label="org IG" />
+      </div>
+      {contacts.map((c) => <ExistingRow key={c.id} c={c} orgLabel={name} campusName={campusName} onEdited={onEdited} />)}
+      <div className="mt-1 space-y-1.5">
+        {!orgDone && <IgInput label="Club Instagram" required value={q("org")?.instagram ?? ""} onChange={(v) => onField("org", { instagram: v })} placeholder="@clubaccount" />}
+        {showPres && !presDone && <PersonInput label="President (optional)" name={q("pres")?.name ?? ""} ig={q("pres")?.instagram ?? ""} onChange={(p) => onField("pres", p)} />}
+      </div>
+    </div>
+  );
+}
+
+// Parse pasted rows (tab- or comma-separated, optional header) into {council, position, name, ig, email}.
+export interface PastedRow { council: string; position: string; name: string; instagram: string; email: string; raw: string }
+const COL_KEYS = ["council", "position", "name", "instagram", "email"];
+function splitCells(line: string): string[] {
+  if (line.includes("\t")) return line.split("\t").map((s) => s.trim());
+  return line.split(",").map((s) => s.trim());
+}
+// Store handles bare: strip a leading @ and any instagram.com/ prefix (spec §the paste box).
+function bareHandle(s: string): string {
+  const raw = (s ?? "").trim();
+  if (!raw) return "";
+  const m = raw.match(/instagram\.com\/([^/?#\s]+)/i);
+  return (m ? m[1] : raw).replace(/^@+/, "").replace(/\/+$/, "");
+}
+// Header words map a column NAME onto a key. Matched against whole cells only, never as a
+// substring — otherwise a data value like "instagram.com/foo" would be mistaken for a header.
+const HEADER_WORDS: Record<string, string> = {
+  council: "council", org: "council", organization: "council", chapter: "council",
+  position: "position", role: "position", title: "position", office: "position",
+  name: "name", officer: "name", "full name": "name", person: "name",
+  instagram: "instagram", ig: "instagram", handle: "instagram", insta: "instagram",
+  email: "email", "e-mail": "email", mail: "email",
+};
+export function parsePasted(text: string): PastedRow[] {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return [];
+  // Header row only if row 0's cells look like column NAMES (≥2 known header words) and none
+  // looks like a value (an @handle, a URL, an email). A no-header paste keeps the default order.
+  let order = COL_KEYS;
+  let start = 0;
+  const firstCells = splitCells(lines[0]).map((c) => c.toLowerCase());
+  const headerHits = firstCells.filter((c) => c in HEADER_WORDS).length;
+  const looksLikeValues = firstCells.some((c) => /@|instagram\.com|https?:|\.(com|edu|org|net)\b/.test(c));
+  if (headerHits >= 2 && !looksLikeValues) {
+    order = firstCells.map((c) => HEADER_WORDS[c] ?? c);
+    start = 1;
+  }
+  const out: PastedRow[] = [];
+  for (let i = start; i < lines.length; i++) {
+    const cells = splitCells(lines[i]);
+    const rec: Record<string, string> = {};
+    order.forEach((k, idx) => { if (cells[idx] !== undefined) rec[k] = cells[idx]; });
+    out.push({ council: rec.council ?? "", position: rec.position ?? "", name: rec.name ?? "", instagram: bareHandle(rec.instagram ?? ""), email: rec.email ?? "", raw: lines[i] });
+  }
+  return out;
+}
+const COUNCIL_MATCH: [string, RegExp][] = [
+  ["ifc", /\bifc\b|interfraternity/i],
+  ["panhellenic", /panhel/i],
+  ["nphc", /\bnphc\b|pan-?hellenic council|national pan/i],
+  ["mgc", /\bmgc\b|multicultural greek/i],
+];
+function matchCouncilType(s: string): string | null { for (const [t, re] of COUNCIL_MATCH) if (re.test(s)) return t; return null; }
+function matchClub(s: string, clubs: { clubType: string; name: string }[]): string | null {
+  const v = s.toLowerCase();
+  if (/women\s*in\s*business|\bwib\b/.test(v)) return "women_in_business";
+  if (/financ/.test(v)) return "finance";
+  if (/invest/.test(v)) return "investing";
+  const hit = clubs.find((c) => c.name && v.includes(c.name.toLowerCase().slice(0, 6)));
+  return hit?.clubType ?? null;
+}
+function matchSlot(position: string, name: string, instagram: string): Slot | null {
+  if (/scholar|academ|chapter\s*develop/i.test(position) || /vp.*scholar|vp.*academ/i.test(position)) return "chair";
+  if (/president/i.test(position) && !/vice|\bvp\b/i.test(position)) return "pres";
+  if (!name.trim() && instagram.trim()) return "org"; // handle-only row = the org account
+  return null;
+}
+
+// The paste box — the highest-leverage change. One textarea takes tab/comma-separated officer rows
+// (from a spreadsheet or a scrape) and pre-fills the council blocks for review instead of a
+// search-and-click per field. Nothing saves until the operator hits Save.
+function PasteBox({ onApply }: { onApply: (rows: PastedRow[]) => void }) {
+  const [text, setText] = useState("");
+  const [open, setOpen] = useState(false);
+  const parse = () => { const rows = parsePasted(text); if (!rows.length) { toast.message("Nothing to parse — paste rows first."); return; } onApply(rows); toast.success(`Parsed ${rows.length} row${rows.length === 1 ? "" : "s"} — review below, then Save.`); setText(""); setOpen(false); };
+  return (
+    <div className="rounded-lg border border-primary/30 bg-primary/[0.03] p-2.5">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-1.5 text-left">
+        <ClipboardPaste className="size-3.5 text-primary" />
+        <span className="text-[12px] font-semibold">Paste officers</span>
+        <span className="hidden text-[10px] text-muted-foreground sm:inline">tab or comma columns: council · position · name · instagram · email</span>
+        {open ? <ChevronDown className="ml-auto size-4" /> : <ChevronRight className="ml-auto size-4" />}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-1.5">
+          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} placeholder={"IFC\tPresident\tGrayson King\t@graysonking\tgking@olemiss.edu\nPanhellenic\tScholarship Chair\tSarah Chen\t@sarahchen\t"} className="w-full rounded border border-border bg-background px-2 py-1.5 font-mono text-[10.5px]" />
+          <div className="flex items-center gap-2">
+            <button onClick={parse} disabled={!text.trim()} className="rounded-md bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground disabled:opacity-40">Parse & prefill</button>
+            <span className="text-[10px] text-muted-foreground">Header row optional · order-tolerant · nothing saves until you hit Save</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UnassignedRow({ row, clubs, onAssign, onDrop }: { row: PastedRow; clubs: { clubType: string; name: string }[]; onAssign: (target: string, slot: Slot) => void; onDrop: () => void }) {
+  const [target, setTarget] = useState("");
+  const [slot, setSlot] = useState<Slot>("chair");
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 py-1 text-[10px]">
+      <span className="min-w-0 flex-1 truncate text-muted-foreground">{[row.name, row.instagram, row.council].filter(Boolean).join(" · ") || row.raw}</span>
+      <select value={target} onChange={(e) => setTarget(e.target.value)} className="rounded border border-border bg-background px-1 py-0.5">
+        <option value="">where?</option>
+        {FIELD_COUNCILS.map((c) => <option key={c.type} value={c.type}>{c.label}</option>)}
+        {clubs.map((c) => <option key={c.clubType} value={`club:${c.clubType}`}>{c.name}</option>)}
+      </select>
+      <select value={slot} onChange={(e) => setSlot(e.target.value as Slot)} className="rounded border border-border bg-background px-1 py-0.5">
+        <option value="org">org IG</option><option value="chair">chair</option><option value="pres">president</option>
+      </select>
+      <button onClick={() => target && onAssign(target, slot)} disabled={!target} className="rounded bg-primary px-2 py-0.5 font-medium text-primary-foreground disabled:opacity-40">Assign</button>
+      <button onClick={onDrop} title="Leave out" className="grid size-5 place-items-center rounded text-muted-foreground hover:bg-red-500/15 hover:text-red-400"><X className="size-3" /></button>
+    </div>
+  );
+}
+
+// Feedback, collapsed to a single line at the bottom (this box is how the rebuild got scoped).
+function FeedbackLine({ campusId }: { campusId: string }) {
   const [note, setNote] = useState("");
   const m = useMutation({
     mutationFn: () => growthAddFeedback({ data: { campusId, note: note.trim() } }),
@@ -360,16 +536,10 @@ function FeedbackBox({ campusId }: { campusId: string }) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't save"),
   });
   return (
-    <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.04] p-2.5">
-      <div className="mb-1 flex items-center gap-1.5">
-        <MessageSquarePlus className="size-3.5 text-amber-400" />
-        <span className="text-[11px] font-medium">What would make this faster next time?</span>
-        <Link to="/admin/growth/coldoutreach/feedback" className="ml-auto text-[9px] text-muted-foreground hover:text-primary hover:underline">see all notes →</Link>
-      </div>
-      <div className="flex gap-1.5">
-        <input value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && note.trim()) m.mutate(); }} placeholder="A field, a step, a search — anything that slowed you down" className="flex-1 rounded border border-border bg-background px-2 py-1 text-[11px]" />
-        <button onClick={() => note.trim() && m.mutate()} disabled={!note.trim() || m.isPending} className="rounded-md bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground disabled:opacity-40">{m.isPending ? "…" : "Submit"}</button>
-      </div>
+    <div className="flex items-center gap-1.5 pt-1">
+      <MessageSquarePlus className="size-3 shrink-0 text-muted-foreground" />
+      <input value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && note.trim()) m.mutate(); }} placeholder="What would make this faster next time?" className="flex-1 rounded border border-border bg-background px-2 py-1 text-[11px]" />
+      <button onClick={() => note.trim() && m.mutate()} disabled={!note.trim() || m.isPending} className="rounded bg-primary px-2 py-1 text-[10px] font-medium text-primary-foreground disabled:opacity-40">Send</button>
     </div>
   );
 }
@@ -383,7 +553,6 @@ export function AddContacts({ campus, onClose, onSaved, vaMode, onDone }: { camp
   // Only ONE form is open anywhere on the page. { orgKey, draft, editingKey } — editingKey is set
   // when re-opening an already-queued row so Add replaces it instead of appending.
   const [openForm, setOpenForm] = useState<{ orgKey: string; draft: Row; editingKey: string | null } | null>(null);
-  const [roleFilter, setRoleFilter] = useState(false);
   const restored = useRef(false);
   const timer = useEnrichmentTimer();
   const logTime = (s: number) => { if (s > 3) growthLogEnrichmentTime({ data: { campusId: campus.campusId, seconds: s } }).catch(() => { /* fire-and-forget */ }); };
@@ -470,6 +639,53 @@ export function AddContacts({ campus, onClose, onSaved, vaMode, onDone }: { camp
   const removeQueued = (key: string) => setQueued((q) => q.filter((x) => x.key !== key));
   const queuedFor = (orgKey: string) => queued.filter((r) => orgKeyOf(r) === orgKey);
 
+  // ── field grid: each council/club slot (org IG / chair / president) maps to at most one queued row.
+  const [showPres, setShowPres] = useState(false); // Pass 2 — presidents collapsed by default
+  const [unassigned, setUnassigned] = useState<PastedRow[]>([]);
+  const setSlotField = (spec: Partial<Row>, slot: Slot, patch: Partial<Row>) => {
+    setQueued((q) => {
+      const idx = q.findIndex((r) => orgKeyOf(r) === specOrgKey(spec) && slotOf(r) === slot);
+      if (idx >= 0) {
+        const merged = { ...q[idx], ...patch };
+        if (!merged.name.trim() && !merged.instagram.trim() && !merged.email.trim()) return q.filter((_, i) => i !== idx);
+        return q.map((r, i) => (i === idx ? merged : r));
+      }
+      const base = emptyRow(spec);
+      base.isPerson = slot !== "org";
+      base.role = slot === "chair" ? "Scholarship / Academic Chair" : slot === "pres" ? "President" : "";
+      base.igRoleAccount = slot === "org"; // a council/club handle is an org account, not a person's
+      const merged = { ...base, ...patch };
+      if (!merged.name.trim() && !merged.instagram.trim() && !merged.email.trim()) return q;
+      return [...q, merged];
+    });
+  };
+  // Apply parsed rows: matched ones fill the grid, the rest land in the unassigned tray.
+  const applyPasted = (rows: PastedRow[]) => {
+    const leftover: PastedRow[] = [];
+    for (const row of rows) {
+      const ctype = matchCouncilType(row.council);
+      const clubType = ctype ? null : matchClub(row.council, (s?.clubTypes ?? []).map((c) => ({ clubType: c.clubType, name: c.name })));
+      const slot = matchSlot(row.position, row.name, row.instagram);
+      if ((ctype || clubType) && slot) {
+        const spec: Partial<Row> = ctype
+          ? { kind: "council", councilType: ctype, label: FIELD_COUNCILS.find((c) => c.type === ctype)?.label ?? ctype }
+          : { kind: "club", newClubCategory: clubType!, entityId: (s?.clubTypes ?? []).find((c) => c.clubType === clubType)?.clubId ?? null, newClubName: (s?.clubTypes ?? []).find((c) => c.clubType === clubType)?.name ?? null, label: (s?.clubTypes ?? []).find((c) => c.clubType === clubType)?.name ?? "" };
+        setSlotField(spec, slot, { name: row.name || "", instagram: row.instagram ? atHandle(row.instagram) : "", email: row.email || "" });
+      } else {
+        leftover.push(row);
+      }
+    }
+    setUnassigned(leftover);
+  };
+  const assignUnassigned = (row: PastedRow, target: string, slot: Slot) => {
+    const isClub = target.startsWith("club:");
+    const spec: Partial<Row> = isClub
+      ? { kind: "club", newClubCategory: target.slice(5), entityId: (s?.clubTypes ?? []).find((c) => c.clubType === target.slice(5))?.clubId ?? null, newClubName: (s?.clubTypes ?? []).find((c) => c.clubType === target.slice(5))?.name ?? null, label: (s?.clubTypes ?? []).find((c) => c.clubType === target.slice(5))?.name ?? "" }
+      : { kind: "council", councilType: target, label: FIELD_COUNCILS.find((c) => c.type === target)?.label ?? target };
+    setSlotField(spec, slot, { name: row.name || "", instagram: row.instagram ? atHandle(row.instagram) : "", email: row.email || "" });
+    setUnassigned((u) => u.filter((x) => x !== row));
+  };
+
   // Not found commits immediately (its own tiny save) so the org settles and stops reading as a gap.
   const notFoundMut = useMutation({
     mutationFn: (spec: Row) => growthSaveCampusContacts({ data: { campusId: campus.campusId, contacts: [{ kind: spec.kind, entityId: spec.entityId, councilType: spec.councilType, newClubName: spec.newClubName, newClubCategory: spec.newClubCategory, isPerson: false, notFound: true, isRoleAccount: false, igRoleAccount: false, name: null, role: null, email: null, instagram: null }] } }),
@@ -521,6 +737,45 @@ export function AddContacts({ campus, onClose, onSaved, vaMode, onDone }: { camp
 
   const s = slots.data;
 
+  // Combined (saved + queued) handle picture per council/club — drives the ready panel + DM list.
+  const handlesFor = (spec: Partial<Row>) => {
+    const existing = spec.kind === "council"
+      ? (s?.councils.find((c) => c.type === spec.councilType)?.contacts ?? [])
+      : (s?.clubTypes.find((c) => c.clubType === spec.newClubCategory)?.contacts ?? []);
+    const q = queuedFor(specOrgKey(spec));
+    const exOrg = existing.find((c) => !c.isPerson && c.instagram && c.instagram.trim());
+    const exChair = existing.find((c) => c.isPerson && roleIsChair(c.role));
+    const exPres = existing.find((c) => c.isPerson && roleIsPres(c.role));
+    const qChair = q.find((r) => slotOf(r) === "chair");
+    const qPres = q.find((r) => slotOf(r) === "pres");
+    return {
+      orgIg: (igHandle(exOrg?.instagram ?? null) ?? "") || (q.find((r) => slotOf(r) === "org")?.instagram ? igHandle(q.find((r) => slotOf(r) === "org")!.instagram) ?? "" : ""),
+      chairIg: (igHandle(exChair?.instagram ?? null) ?? "") || (qChair?.instagram ? igHandle(qChair.instagram) ?? "" : ""),
+      chairName: exChair?.name ?? qChair?.name ?? "",
+      presIg: (igHandle(exPres?.instagram ?? null) ?? "") || (qPres?.instagram ? igHandle(qPres.instagram) ?? "" : ""),
+      presName: exPres?.name ?? qPres?.name ?? "",
+      hasChair: !!(exChair || qChair),
+    };
+  };
+  const councilHandles = FIELD_COUNCILS.map((c) => ({ ...c, ...handlesFor({ kind: "council", councilType: c.type }) }));
+  const clubHandles = (s?.clubTypes ?? []).map((cl) => ({ clubType: cl.clubType, name: cl.name, ...handlesFor({ kind: "club", newClubCategory: cl.clubType }) }));
+  const pass1Ready = councilHandles.some((c) => c.orgIg && c.chairIg) && clubHandles.some((c) => c.orgIg);
+  const emptyCouncils = councilHandles.filter((c) => !c.orgIg || !c.chairIg).map((c) => c.label);
+  const councilsWithChair = councilHandles.filter((c) => c.hasChair);
+  const pass2Ready = councilsWithChair.length > 0 && councilsWithChair.every((c) => c.presIg || c.presName);
+  const dmList = () => {
+    const councils = councilHandles.filter((c) => c.orgIg).map((c) => c.orgIg);
+    const chairs = councilHandles.filter((c) => c.chairIg).map((c) => `${c.chairIg}${c.chairName ? ` (${c.chairName}, ${c.label})` : ` (${c.label})`}`);
+    const clubs = clubHandles.filter((c) => c.orgIg).map((c) => c.orgIg);
+    const pres = councilHandles.filter((c) => c.presIg).map((c) => `${c.presIg}${c.presName ? ` (${c.presName}, ${c.label})` : ` (${c.label})`}`);
+    const lines = [`${campus.name} — ${showPres ? "Pass 2" : "Pass 1"}`];
+    if (councils.length) lines.push(`Councils:  ${councils.join(" · ")}`);
+    if (chairs.length) lines.push(`Chairs:    ${chairs.join(" · ")}`);
+    if (clubs.length) lines.push(`Clubs:     ${clubs.join(" · ")}`);
+    if (pres.length) lines.push(`Presidents: ${pres.join(" · ")}`);
+    return lines.join("\n");
+  };
+
   // Guided role progression (item 1): councils (except the FSL office) and chapters are worked as a
   // sequence — Scholarship chair, President, VP, Treasurer. These helpers say which roles are already
   // on file and which comes next, so the form opens on the next gap and advances as you add.
@@ -540,17 +795,6 @@ export function AddContacts({ campus, onClose, onSaved, vaMode, onDone }: { camp
     const e = roleChipOf(alsoCovered); if (e) covered.add(e);
     return ROLE_CHIPS.find((c) => !covered.has(c)) ?? null;
   };
-
-  // Role-account filter view — every role/position inbox on the campus, for a semester refresh.
-  const roleAccounts = useMemo(() => {
-    if (!s) return [] as { where: string; c: ExistingContact }[];
-    const out: { where: string; c: ExistingContact }[] = [];
-    const isRole = (c: ExistingContact) => c.isRoleAccount || c.igRoleAccount;
-    for (const cl of s.councils) for (const c of cl.contacts) if (isRole(c)) out.push({ where: cl.label, c });
-    for (const ch of s.chapters) for (const c of ch.contacts) if (isRole(c)) out.push({ where: ch.name, c });
-    for (const cb of s.clubs) for (const c of cb.contacts) if (isRole(c)) out.push({ where: cb.name, c });
-    return out;
-  }, [s]);
 
   // Everything an EntityRow needs to host the single add-form + its queued rows for one org.
   const addProps = (spec: Partial<Row>) => {
@@ -579,23 +823,7 @@ export function AddContacts({ campus, onClose, onSaved, vaMode, onDone }: { camp
     };
   };
 
-  const section = (id: string, n: number, title: string, hint: string, icon: any, children: ReactNode) => {
-    const Icon = icon;
-    return (
-      <div className="rounded-lg border border-border">
-        <button onClick={() => setOpen((o) => ({ ...o, [id]: !o[id] }))} className="flex w-full items-center gap-2 px-3 py-2.5 text-left">
-          <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">{n}</span>
-          <Icon className="size-4 text-muted-foreground" />
-          <span className="text-[13px] font-semibold">{title}</span>
-          <span className="hidden text-[10px] text-muted-foreground sm:inline">{hint}</span>
-          {open[id] ? <ChevronDown className="ml-auto size-4" /> : <ChevronRight className="ml-auto size-4" />}
-        </button>
-        {open[id] && <div className="space-y-2 border-t border-border p-3">{children}</div>}
-      </div>
-    );
-  };
-
-  const chapterGroup = (type: "fraternity" | "sorority", heading: string) => {
+  const chapterGroup =(type: "fraternity" | "sorority", heading: string) => {
     const list = (s?.chapters ?? []).filter((ch) => ch.orgType === type);
     if (!list.length) return null;
     const needed = list.filter((ch) => ch.needed);
@@ -643,105 +871,80 @@ export function AddContacts({ campus, onClose, onSaved, vaMode, onDone }: { camp
         <div className="flex h-32 items-center justify-center"><Loader2 className="size-4 animate-spin text-muted-foreground" /></div>
       ) : (
         <div className="space-y-2 pb-24" onPointerDownCapture={timer.ping} onKeyDownCapture={timer.ping}>
-          {/* FIND CONTACTS — two model calls and a review table. Bulk is for a fresh campus;
-              the manual accordion below stays for fixing one contact later (§8). */}
+          {/* FIND CONTACTS — two model calls + a review table, for a fresh campus. */}
           <FindContactsPanel
             campusId={campus.campusId}
             campusName={campus.name}
             onImported={() => { void qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] }); onSaved(); }}
           />
-          {/* VA mode strips the ladder, the visible timer, and the feedback box (help lives in the
-              floating bolt); progress becomes plain language. Everything else is the same panel. */}
-          {!vaMode && (
-            <>
-              <div className="flex items-start gap-2">
-                <LaunchLadder />
-                <span title="Time spent on this campus this session — pauses after 60s idle, added to the campus on save" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/20 px-2 py-1.5 text-[11px] font-medium tabular-nums text-muted-foreground">
-                  <Clock className="size-3.5" /> {fmtClock(timer.seconds)}
-                </span>
-              </div>
-              <FeedbackBox campusId={campus.campusId} />
-            </>
+          <PasteBox onApply={applyPasted} />
+
+          {/* Ready panel — the real bar. Pass 1 = a council with org IG + chair IG, plus a club org IG. */}
+          <div className={cn("rounded-lg border p-2.5 text-[12px]", pass1Ready ? "border-emerald-500/40 bg-emerald-500/10" : "border-border bg-muted/30")}>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className={cn("font-semibold", pass1Ready && "text-emerald-400")}>{pass1Ready ? "🎉 Pass 1 ready" : "Pass 1 — need a council (org IG + chair IG) + a club org IG"}</span>
+              {pass1Ready && <span className={cn("text-[11px]", pass2Ready ? "text-emerald-400" : "text-muted-foreground")}>{pass2Ready ? "· Pass 2 ready" : "· Pass 2: presidents still needed"}</span>}
+              <button onClick={() => copyText(dmList(), "DM list copied — paste it into your working doc.")} disabled={!councilHandles.some((c) => c.orgIg || c.chairIg) && !clubHandles.some((c) => c.orgIg)} className="ml-auto inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-[10px] hover:bg-muted disabled:opacity-40"><Copy className="size-3" /> Copy DM list</button>
+            </div>
+            {emptyCouncils.length > 0 && <div className="mt-1 text-[10px] text-muted-foreground">Still incomplete (need org IG + chair IG): {emptyCouncils.join(" · ")}</div>}
+          </div>
+
+          {/* Councils — the field grid. Personal handles are the product of this page. */}
+          <div className="space-y-2">
+            {FIELD_COUNCILS.map((c) => {
+              const cs = s.councils.find((x) => x.type === c.type);
+              const spec = { kind: "council" as const, councilType: c.type, label: c.label };
+              return (
+                <CouncilCard key={c.type} label={c.label} contacts={cs?.contacts ?? []} queuedRows={queuedFor(specOrgKey(spec))} showPres={showPres} campusName={campus.name}
+                  onField={(slot, patch) => setSlotField(spec, slot, patch)} onEdited={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })} />
+              );
+            })}
+            <button onClick={() => setShowPres((v) => !v)} className="text-[11px] font-medium text-primary hover:underline">{showPres ? "− Hide presidents (Pass 2)" : "+ Add presidents (Pass 2)"}</button>
+          </div>
+
+          {/* Business clubs — org IG each; they feed the campus rep program. */}
+          <div className="space-y-2">
+            <div className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Business clubs</div>
+            {(s.clubTypes ?? []).map((cl) => {
+              const spec = { kind: "club" as const, entityId: cl.clubId, newClubName: cl.name, newClubCategory: cl.clubType, label: cl.name };
+              return (
+                <ClubCard key={cl.clubType} name={cl.name} headerExtra={<RenameClub campusId={campus.campusId} clubType={cl.clubType} name={cl.name} onRenamed={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })} />}
+                  contacts={cl.contacts} queuedRows={queuedFor(specOrgKey(spec))} showPres={showPres} campusName={campus.name}
+                  onField={(slot, patch) => setSlotField(spec, slot, patch)} onEdited={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })} />
+              );
+            })}
+          </div>
+
+          {/* Unassigned tray — pasted rows we couldn't place. */}
+          {unassigned.length > 0 && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.04] p-2.5">
+              <div className="mb-1 text-[11px] font-semibold text-amber-500">Unassigned ({unassigned.length}) — pick a home or leave out</div>
+              {unassigned.map((row, i) => <UnassignedRow key={i} row={row} clubs={s.clubTypes ?? []} onAssign={(target, slot) => assignUnassigned(row, target, slot)} onDrop={() => setUnassigned((u) => u.filter((x) => x !== row))} />)}
+            </div>
           )}
-          {vaMode ? <VaProgress s={s} /> : <ReadinessBar r={s.readiness} />}
-          <div className="flex items-center gap-2 px-1 text-[10px] text-muted-foreground">
-            <span>Add contacts one at a time — each drops into a queue below its org. <span className="text-primary">Save</span> the whole batch once.</span>
-            {roleAccounts.length > 0 && (
-              <button onClick={() => setRoleFilter((v) => !v)} className={cn("ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-0.5", roleFilter ? "border-amber-500/50 bg-amber-500/10 text-amber-500" : "border-border")}>
-                <Recycle className="size-3" /> {roleAccounts.length} role account{roleAccounts.length === 1 ? "" : "s"}
-              </button>
+
+          {/* Chapter outreach + FSL office — out of scope for this pass, kept behind a divider. */}
+          <div className="rounded-lg border border-border/60">
+            <button onClick={() => setOpen((o) => ({ ...o, later: !o.later }))} className="flex w-full items-center gap-2 px-3 py-2 text-left text-muted-foreground">
+              {open.later ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+              <span className="text-[11px] font-medium uppercase tracking-wide">Chapter outreach — later</span>
+              <span className="hidden text-[10px] sm:inline">Greek chapters + the Greek Life / FSL office</span>
+            </button>
+            {open.later && (
+              <div className="space-y-2 border-t border-border p-3">
+                {(() => {
+                  const fsl = s.councils.find((c) => c.type === "fsl");
+                  if (!fsl) return null;
+                  const spec = { kind: "council" as const, councilType: "fsl", label: fsl.label };
+                  return <EntityRow name={fsl.label} searchOrg="fraternity sorority life office" existing={fsl.contacts} notFound={fsl.notFound} person campusName={campus.name} onEdited={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })} {...addProps(spec)} />;
+                })()}
+                {chapterGroup("fraternity", "Fraternities")}
+                {chapterGroup("sorority", "Sororities")}
+              </div>
             )}
           </div>
 
-          {roleFilter ? (
-            <div className="space-y-1 rounded-lg border border-amber-500/30 bg-amber-500/[0.04] p-3">
-              <div className="mb-1 text-[11px] font-semibold text-amber-500">Role accounts — re-verify each semester</div>
-              {roleAccounts.map(({ where, c }) => (
-                <div key={c.id} className="flex items-center gap-1.5 text-[11px]">
-                  <Recycle className="size-3 shrink-0 text-amber-500" />
-                  <span className="text-muted-foreground">{where}:</span>
-                  <span className="truncate">{[c.email, igHandle(c.instagram)].filter(Boolean).join(" · ")}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <>
-              {section("councils", 1, "Councils & Greek Life Office", "Highest leverage — one yes opens 15+ chapters", Landmark,
-                <>
-                  {(s.councils).map((c) => {
-                    const spec = { kind: "council" as const, councilType: c.type, label: c.label };
-                    const showFsl = c.type === "fsl" && !c.contacts.length && !queuedFor(specOrgKey(spec)).length && openForm?.orgKey !== specOrgKey(spec);
-                    return (
-                      <EntityRow
-                        key={c.type}
-                        name={c.label}
-                        searchOrg={c.type === "fsl" ? "fraternity sorority life office" : `${c.label} council`}
-                        existing={c.contacts}
-                        notFound={c.notFound}
-                        person
-                        campusName={campus.name}
-                        onEdited={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })}
-                        {...addProps(spec)}
-                      >
-                        {showFsl && (
-                          <button onClick={() => openFormFor({ ...spec, isPerson: true, role: "FSL Director" })} className="text-left text-[10px] italic text-muted-foreground/70 hover:text-primary">
-                            + FSL Director (add a name when you have one — an email alone is enough to start)
-                          </button>
-                        )}
-                      </EntityRow>
-                    );
-                  })}
-                </>,
-              )}
-
-              {section("chapters", 2, "Greek Chapters", "Top 5 fraternities + top 5 sororities", Users,
-                <>
-                  <p className="text-[10px] text-muted-foreground">Ranked by chapter size where we have it, alphabetically where we don't. Top 5 is what the DM budget supports.</p>
-                  {chapterGroup("fraternity", "Fraternities")}
-                  {chapterGroup("sorority", "Sororities")}
-                </>,
-              )}
-
-              {section("clubs", 3, "Business Clubs", "Women in Business, Finance, Investing — one contact", Building2,
-                <>
-                  {(s.clubTypes ?? []).map((cl) => (
-                    <EntityRow
-                      key={cl.clubType}
-                      name={cl.name}
-                      searchOrg={cl.name}
-                      headerExtra={<RenameClub campusId={campus.campusId} clubType={cl.clubType} name={cl.name} onRenamed={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })} />}
-                      existing={cl.contacts}
-                      notFound={cl.notFound}
-                      person
-                      campusName={campus.name}
-                      onEdited={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })}
-                      {...addProps({ kind: "club", entityId: cl.clubId, newClubName: cl.name, newClubCategory: cl.clubType, label: cl.name })}
-                    />
-                  ))}
-                </>,
-              )}
-            </>
-          )}
+          <FeedbackLine campusId={campus.campusId} />
         </div>
       )}
 
@@ -787,28 +990,6 @@ function RenameClub({ campusId, clubType, name, onRenamed }: { campusId: string;
       <button type="button" onClick={() => val.trim() && m.mutate()} disabled={m.isPending} className="text-[9px] font-medium text-primary disabled:opacity-40">save</button>
       <button type="button" onClick={() => setEditing(false)} className="text-[9px] text-muted-foreground">✕</button>
     </span>
-  );
-}
-
-function ReadinessBar({ r }: { r: CampusReadiness }) {
-  // Each chip carries a ? that explains what the requirement means; when unmet the tooltip says so
-  // plainly ("No business club contact yet").
-  const item = (ok: boolean, label: string, met: string, unmet: string) => (
-    <span title={ok ? met : unmet} className={cn("inline-flex cursor-help items-center gap-1", ok ? "text-emerald-400" : "text-muted-foreground")}>
-      {ok ? <Check className="size-3.5" /> : <X className="size-3.5 text-amber-400" />} {label}
-      <HelpCircle className="size-2.5 text-muted-foreground/50" />
-    </span>
-  );
-  return (
-    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border p-2.5 text-[12px]", r.ready ? "border-emerald-500/40 bg-emerald-500/10" : "border-border bg-muted/30")}>
-      {r.ready
-        ? <span className="font-bold uppercase tracking-wide text-emerald-400">🎉 Ready for outreach!</span>
-        : <span className="font-medium">Needed before launch:</span>}
-      {item(r.councilOk, "Council/FSL", "A council or Greek Life / FSL office contact is on file — one yes reaches every chapter under it.", "No council or Greek Life / FSL office contact yet — the highest-leverage one to get.")}
-      {item(r.fratOk, "Frats", "At least one fraternity chapter contact (email or Instagram) is on file.", "No fraternity contact yet — add one chapter to clear this.")}
-      {item(r.sororityOk, "Sororities", "At least one sorority chapter contact is on file.", "No sorority contact yet — add one chapter to clear this.")}
-      {item(r.clubOk, "Clubs", "A business club contact is on file (Women in Business, Finance, or Investing).", "No business club contact yet.")}
-    </div>
   );
 }
 
