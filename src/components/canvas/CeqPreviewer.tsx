@@ -1274,6 +1274,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   //
   // It is also useful on its own: a take can be previewed without popping out.
   const [filmInline, setFilmInline] = useState(false);
+  /** Alt held right now — see the filmNodes memo. Tracked on BOTH windows because
+   *  the film surface may be a popout whose keyboard is its own. `blur` clears it
+   *  so alt-tabbing away can never leave the lock lifted. */
+  const [altHeld, setAltHeld] = useState(false);
   // FILM STACK (A2, spacewalk-preload): on a filming surface (the "\" popout, or
   // the recording surface Rehearse mounts) the WHOLE set is mounted — every frame
   // full-fidelity at its own slot in the vertical stack — and the space-walk is a
@@ -1910,6 +1914,31 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     window.addEventListener("sa-launch-capture", on);
     return () => window.removeEventListener("sa-launch-capture", on);
   }, []);
+  // ALT LATCH — watch both the owner window and the film popout, since the two
+  // have separate keyboards. Cleared on blur/visibility loss so alt-tabbing out
+  // mid-hold cannot strand the film lock in the lifted state.
+  useEffect(() => {
+    const wins = [window, filmWin].filter((w): w is Window => !!w);
+    const seen = new Set<Window>();
+    const down = (e: KeyboardEvent) => { if (e.altKey) setAltHeld(true); };
+    const up = (e: KeyboardEvent) => { if (!e.altKey) setAltHeld(false); };
+    const off = () => setAltHeld(false);
+    for (const w of wins) {
+      if (seen.has(w)) continue;                       // filmWin === window when inline
+      seen.add(w);
+      w.addEventListener("keydown", down);
+      w.addEventListener("keyup", up);
+      w.addEventListener("blur", off);
+    }
+    return () => {
+      setAltHeld(false);
+      for (const w of seen) {
+        w.removeEventListener("keydown", down);
+        w.removeEventListener("keyup", up);
+        w.removeEventListener("blur", off);
+      }
+    };
+  }, [filmWin]);
   // FILM INLINE (R1) — the same one-launcher rule, for the in-page surface.
   // Fired by the Studio's "preview" chip and by ?film=inline on the URL, which
   // is what lets a scripted browser (or Lee on a machine whose popup blocker is
@@ -2334,8 +2363,16 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // true for the nodes that ARE allowed to move.
   const filmNodes = useMemo(() => nodes
     .filter((n) => !n.id.startsWith("ov:") && !n.id.startsWith("ovf:") && !n.id.startsWith("ovm:") && !(n.data as { stage?: { hidden?: boolean } } | undefined)?.stage?.hidden)
-    .map((n): Node => ({ ...n, draggable: filmDragAllowed(n) }))
-    .concat(filmStandins), [nodes, filmStandins]);
+    // ALT = PICK IT UP (Lee, 2026-09-01). Holding Alt lifts the film lock for as
+    // long as it is held, so anything on the frame can be nudged mid-take —
+    // "pick something up and move it" rather than dragging yourself around the
+    // canvas. Released, the lock is back and geometry is read-only again.
+    //
+    // Still a PERFORMANCE move, not an edit: film never persists geometry
+    // (onNodeDragStop only writes for arrow heads), so whatever is moved snaps
+    // back on the next deal. That is the existing law, unchanged.
+    .map((n): Node => ({ ...n, draggable: altHeld || filmDragAllowed(n) }))
+    .concat(filmStandins), [nodes, filmStandins, altHeld]);
   // The recording surface's merged set (rehearse): live nodes + the same stand-ins.
   const recNodes = useMemo(() => nodes.concat(filmStandins), [nodes, filmStandins]);
   const filmEdges = useMemo(() => buildEdges(walkRevealedIds), [walk, walkRevealedIds, ceqId]);
@@ -2443,18 +2480,22 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // the most recent pending take, F10 keeps it. The inbox owns the action.
       if (e.key === "F8" || e.key === "F10") { e.preventDefault(); e.stopImmediatePropagation(); triageLatest(e.key === "F8" ? "trash" : "keep"); return; }
       if (filmWindow && (e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopImmediatePropagation(); toggleFilmFullscreen(); return; } // F = element fullscreen on the STABLE wrapper (C1)
-      // FREE CAMERA KEYS (Lee, 09-01). The camera itself is the mouse — wheel to
-      // zoom, drag to pan — so only the two things a mouse can't say get keys:
+      // FREE CAMERA KEYS (Lee, 09-01). Gated on "a film surface is up", NOT on
+      // "this is the popout window" — when the surface is mounted inline it IS
+      // the owner window, so a filmWindow-only gate made L and O dead there.
+      //
+      // The camera itself is the mouse — wheel to zoom, drag to pan — so only
+      // the two things a mouse can't say get keys:
       //   L  lock/unlock the question to the set-layout spot (the pin)
       //   O  pull back to see the WHOLE frame and everything spilling out of it,
       //      which is the "zoom out, bounce around, then lock back in" move.
       // Both are film-only; ` and the next question still cut back to the shot.
-      if (filmWindow && (e.key === "l" || e.key === "L") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if ((filmWindow || filmInline) && (e.key === "l" || e.key === "L") && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault(); e.stopImmediatePropagation();
         togglePin(); // the card visibly moves, and the editor-side HUD reads it back
         return;
       }
-      if (filmWindow && (e.key === "o" || e.key === "O") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if ((filmWindow || filmInline) && (e.key === "o" || e.key === "O") && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault(); e.stopImmediatePropagation();
         markCameraManual(); // an overview IS a manual shot — nothing may snap it back
         filmFitRef.current?.fitView({ padding: 0.12, duration: 260 });
@@ -2521,7 +2562,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     }
     return () => { ownerWin.removeEventListener("keydown", onOwnerKey, true); ownerWin.removeEventListener("keyup", onKeyUp, true); filmCleanup?.(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [emph, resolved, shown, cd, onNextQuestion, onPrevQuestion, filmWin, selPerf, recording]);
+  }, [emph, resolved, shown, cd, onNextQuestion, onPrevQuestion, filmWin, filmInline, selPerf, recording]);
 
   if ((!layoutMode && !ceq) || !cd) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
 
@@ -2903,6 +2944,24 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                         // lock deliberately keeps live (film-lock.ts prong 1) are
                         // untouched by this.
                         panOnDrag={PAN_BUTTONS}
+                        // CARD GESTURES BEAT THE PAN (2026-09-01). Left-drag
+                        // panning made a pointerdown anywhere — including on an
+                        // exhibit step — start a pane pan, which swallowed the
+                        // click that followed. The accounting cycle card went
+                        // dead on camera the moment the free camera shipped.
+                        //
+                        // Every interactive part of a card is already marked
+                        // `nodrag` (it is how they opt out of node dragging), so
+                        // pointing ReactFlow's no-pan hook at that same class
+                        // makes one rule cover all of them instead of hunting
+                        // down each card to add `nopan`.
+                        noPanClassName="nodrag"
+                        // SHIFT BELONGS TO THE CARDS. ReactFlow's selection key
+                        // defaults to Shift, so shift-click (light an arc's
+                        // chain on the cycle card) was being read as "start a
+                        // selection box". The authoring pane already moved this
+                        // to Control; the film pane never did.
+                        selectionKeyCode="Control"
                         zoomOnScroll
                         zoomOnPinch
                         zoomOnDoubleClick={false}

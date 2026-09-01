@@ -68,7 +68,7 @@ import { revealedTargetId } from "@/components/canvas/spotlight";
 import { ambientViewport, fillViewport, spotlightPushViewport } from "@/components/canvas/camera-push";
 import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
 import { BridgeCardNode, CeqHookNode, CeqTeaseNode, CornerBoltNode, ExamCueNode, FrameBoltNode, GateNode, IntroCardNode, LogoCardNode, OutroCardNode, TextElementNode } from "@/components/canvas/cards/elements";
-import { BlastCheatNode, BlastFoyeNode, BlastIntroNode, BlastOutroNode, BlastPhraseNode, BlastTipNode } from "@/components/canvas/cards/BlastOffNodes";
+import { BlastBioNode, BlastCheatNode, BlastFoyeNode, BlastIntroNode, BlastOutroNode, BlastPhraseNode, BlastTipNode } from "@/components/canvas/cards/BlastOffNodes";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { Bolt } from "@/components/canvas/brand";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
@@ -869,6 +869,7 @@ const nodeTypes = {
   blastphrase: BlastPhraseNode,
   blastcheat: BlastCheatNode,
   blasttip: BlastTipNode,
+  blastbio: BlastBioNode,
   blastoutro: BlastOutroNode,
   cycle: CycleNode,
   users: UsersNode,

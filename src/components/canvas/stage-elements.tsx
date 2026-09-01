@@ -6,7 +6,7 @@
 // study_.canvas.tsx) were wired to the v1 toolbar, which v2 chrome hides — that's
 // why the palette "disappeared". They live here now, merged, grouped, and sorted
 // alphabetically inside each group.
-import { BlastCheatNode, BlastFoyeNode, BlastIntroNode, BlastOutroNode, BlastPhraseNode, BlastTipNode } from "./cards/BlastOffNodes";
+import { BlastBioNode, BlastCheatNode, BlastFoyeNode, BlastIntroNode, BlastOutroNode, BlastPhraseNode, BlastTipNode } from "./cards/BlastOffNodes";
 import { blankCard, formulaAle, scheduleTemplate } from "./templates";
 import { cardId, type CardData } from "./types";
 
@@ -50,6 +50,7 @@ export const STAGE_ELEMENTS: StageElementSpec[] = [
   { label: "Phrase", group: "Blast Off", make: () => blankCard("blastphrase"), size: { w: 540, h: 960 } },
   { label: "Cheat code", group: "Blast Off", make: () => blankCard("blastcheat"), size: { w: 540, h: 960 } },
   { label: "Tip / Trick", group: "Blast Off", make: () => blankCard("blasttip"), size: { w: 540, h: 960 } },
+  { label: "Blast Off bio", group: "Blast Off", make: () => blankCard("blastbio"), size: { w: 540, h: 960 } },
   { label: "Blast Off outro", group: "Blast Off", make: () => blankCard("blastoutro"), size: { w: 540, h: 960 } },
   // — Teaching: the accounting objects Lee draws on while explaining
   { label: "A = L + E", group: "Teaching", make: () => formulaAle() },
@@ -119,6 +120,7 @@ export const STAGE_NODE_TYPES = {
   blastphrase: BlastPhraseNode,
   blastcheat: BlastCheatNode,
   blasttip: BlastTipNode,
+  blastbio: BlastBioNode,
   blastoutro: BlastOutroNode,
   heading: HeadingCardNode,
   text: TextElementNode,

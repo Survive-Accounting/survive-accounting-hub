@@ -105,6 +105,8 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return { kind: "blastcheat", cheatTitle: "", body: "", w: 540, h: 960 };
     case "blasttip":
       return { kind: "blasttip", text: "", w: 540, h: 960 };
+    case "blastbio":
+      return { kind: "blastbio", w: 540, h: 960 };
     case "blastoutro":
       return { kind: "blastoutro", w: 540, h: 960 };
     case "memo":
@@ -283,6 +285,7 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   blastphrase: "Phrase frame",
   blastcheat: "Cheat code frame",
   blasttip: "Tip frame",
+  blastbio: "Blast Off bio",
   blastoutro: "Blast Off outro",
   je: "Journal Entry",
   schedule: "Schedule",

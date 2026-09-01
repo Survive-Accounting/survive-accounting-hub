@@ -12,10 +12,11 @@ import type { NodeProps } from "@xyflow/react";
 import { CheatCodeFrame, PhraseFrame, TipFrame } from "@/components/blastoff/ContentFrames";
 import { FoundOnYourExam } from "@/components/blastoff/FoundOnYourExam";
 import { SurviveIntro } from "@/components/blastoff/SurviveIntro";
+import { SurviveBio } from "@/components/blastoff/SurviveBio";
 import { SurviveOutro } from "@/components/blastoff/SurviveOutro";
 import { V } from "@/components/blastoff/stage";
 import type {
-  BlastCheatElement, BlastFoyeElement, BlastIntroElement, BlastOutroElement,
+  BlastBioElement, BlastCheatElement, BlastFoyeElement, BlastIntroElement, BlastOutroElement,
   BlastPhraseElement, BlastTipElement,
 } from "../types";
 import { NEON } from "../theme";
@@ -142,6 +143,29 @@ export function BlastTipNode({ id, data, selected }: NodeProps) {
         <KeyBtn on={d.transparent} onClick={() => update({ transparent: !d.transparent })} />
       </>}>
       <TipFrame text={d.text || "The tip"} transparent={d.transparent} scale={w / V.w} />
+    </BlastShell>
+  );
+}
+
+/** THE BIO CARD — the outro's matched pair. Deliberately the same lockup, so
+ *  the cut bio → outro changes the lines under a wordmark that does not move. */
+export function BlastBioNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as BlastBioElement;
+  const { update } = useCardActions(id);
+  const w = d.w ?? 540, h = d.h ?? 960;
+  return (
+    <BlastShell id={id} w={w} h={h} posLock={d.posLock} selected={selected}
+      toolbar={<>
+        <input {...field} style={{ ...field.style, width: 190 }} value={d.credentials ?? ""} placeholder="BAccy • MAccy — Ole Miss"
+          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ credentials: e.target.value })} />
+        <input {...field} style={{ ...field.style, width: 190 }} value={d.proof ?? ""} placeholder="1,000+ students tutored since 2015"
+          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ proof: e.target.value })} />
+        <input {...field} style={{ ...field.style, width: 110 }} value={d.tutor ?? ""} placeholder="tutor"
+          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ tutor: e.target.value })} />
+        <KeyBtn on={d.transparent} onClick={() => update({ transparent: !d.transparent })} />
+      </>}>
+      <SurviveBio credentials={d.credentials || undefined} proof={d.proof ?? undefined} tutor={d.tutor || undefined}
+        transparent={d.transparent} scale={w / V.w} />
     </BlastShell>
   );
 }

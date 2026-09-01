@@ -48,7 +48,8 @@ export type CardKind =
   | "blastphrase"
   | "blastcheat"
   | "blasttip"
-  | "blastoutro";
+  | "blastoutro"
+  | "blastbio";
 
 /** NODE CATEGORIES (design elements run):
  *  - card: teaching content — full contract (deck, flip-help, modes).
@@ -64,6 +65,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   blastphrase: "element",
   blastcheat: "element",
   blasttip: "element",
+  blastbio: "element",
   blastoutro: "element",
   je: "card",
   schedule: "card",
@@ -859,6 +861,16 @@ export interface BlastOutroElement extends CardBase {
   domain?: string;
   transparent?: boolean;
 }
+export interface BlastBioElement extends CardBase {
+  kind: "blastbio";
+  /** Degrees line. */
+  credentials?: string;
+  /** The trust number; blank drops the line. */
+  proof?: string;
+  /** Reads as "tutored by ___". */
+  tutor?: string;
+  transparent?: boolean;
+}
 export interface IntroCardElement extends CardBase {
   kind: "intro";
   /** Topic/title shown in the plate (no chapter number). Legacy — the animated intro
@@ -1058,6 +1070,7 @@ export type CardData =
   | BlastCheatElement
   | BlastTipElement
   | BlastOutroElement
+  | BlastBioElement
   | JeCard
   | ScheduleCard
   | ComputationCard

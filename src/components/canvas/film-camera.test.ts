@@ -213,7 +213,14 @@ describe("atHome", () => {
 // take: the camera welded shut again, or a shot yanked back on a stray resize.
 describe("capture-window wiring (source pins)", () => {
   const src = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
-  const filmRf = src.slice(src.indexOf("nodes={filmNodes}"), src.indexOf("nodes={filmNodes}") + 4000);
+  // The whole <ReactFlow> element for the film surface. Sliced to the closing
+  // tag rather than a byte count — a comment added inside it must not silently
+  // push a prop out of view and turn these pins green-by-truncation.
+  const filmRf = (() => {
+    const a = src.indexOf("nodes={filmNodes}");
+    const b = src.indexOf("/>", src.indexOf('style={{ width: "100%", height: "100%", background: "#05070d" }}', a));
+    return src.slice(a, b);
+  })();
 
   test("the film camera is NOT welded shut any more", () => {
     // These three were `false`. That was the cage.
@@ -227,6 +234,29 @@ describe("capture-window wiring (source pins)", () => {
 
   test("left+middle pan; right stays the context menu", () => {
     expect(src).toContain("const PAN_BUTTONS = [0, 1];");
+  });
+
+  test("card gestures beat the pan — a click on an exhibit is not eaten", () => {
+    // Left-drag panning made pointerdown ANYWHERE start a pane pan, which
+    // swallowed the click after it and killed the accounting cycle card on
+    // camera. Every interactive card part is already marked `nodrag`, so
+    // pointing ReactFlow's no-pan hook at that class covers all of them.
+    expect(filmRf).toContain('noPanClassName="nodrag"');
+  });
+
+  test("Shift belongs to the cards, not to a selection box", () => {
+    // ReactFlow's selectionKeyCode defaults to Shift, which ate shift-click
+    // (light an arc's chain on the cycle card). The authoring pane had already
+    // moved this to Control; the film pane had not.
+    expect(filmRf).toContain('selectionKeyCode="Control"');
+  });
+
+  test("plain wheel zooms — no modifier", () => {
+    // preventScrolling={false} lets the page scroll under the pointer, and
+    // ReactFlow then only zooms on ctrl+wheel. Verified by driving the real
+    // surface: a plain wheel did nothing at all.
+    expect(filmRf).toContain("preventScrolling");
+    expect(filmRf).not.toContain("preventScrolling={false}");
   });
 
   test("only a USER gesture latches the camera manual", () => {

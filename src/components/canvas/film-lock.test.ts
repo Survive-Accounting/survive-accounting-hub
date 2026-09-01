@@ -37,8 +37,18 @@ describe("the film popout enforces the lock (source-level pins)", () => {
   test("FILM_LOCK_CSS is injected into the popout window (it never had FILM_MODE_CSS)", () => {
     expect(previewerSrc).toContain("{FLAME_CSS}{PV_CSS}{FILM_LOCK_CSS}");
   });
-  test("film nodes get per-node draggability from filmDragAllowed", () => {
-    expect(previewerSrc).toContain("draggable: filmDragAllowed(n)");
+  test("film nodes get per-node draggability from filmDragAllowed, with ALT as the only override", () => {
+    // The lock still governs. Lee asked (2026-09-01) to be able to pick a card
+    // up mid-take, so holding Alt lifts it — for exactly as long as it is held.
+    expect(previewerSrc).toContain("draggable: altHeld || filmDragAllowed(n)");
+  });
+  test("the ALT override cannot be left stranded open", () => {
+    // If alt-tabbing away could leave altHeld true, the film lock would be off
+    // for the rest of the take without anything on screen saying so.
+    const latch = previewerSrc.slice(previewerSrc.indexOf("// ALT LATCH"), previewerSrc.indexOf("// FILM INLINE (R1)"));
+    expect(latch).toContain('w.addEventListener("blur", off)');
+    expect(latch).toContain("const off = () => setAltHeld(false);");
+    expect(latch).toContain("setAltHeld(false);");            // and on unmount
   });
   test("film drag-stop persists ARROWS ONLY — a card/memo move on camera never saves", () => {
     // The popout's onNodeDragStop must keep its ah:-only guard.
