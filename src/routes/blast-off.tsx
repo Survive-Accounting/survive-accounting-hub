@@ -204,7 +204,7 @@ function Editor({ set, topicName, onCapture }: { set: BoothSetInfo; topicName?: 
               setBusy(true); setSyncNote("Writing frames into the set…");
               syncBlastPlanToSet({ data: { setId: set.id, frames: plan.frames } })
                 .then((r) => {
-                  setSyncNote(`✓ ${r.reordered + r.wrote} frames ordered${r.missing ? ` · ${r.missing} missing` : ""} — opening film`);
+                  setSyncNote(`✓ ${r.reordered + r.wrote} frames ordered${r.staged ? ` · ${r.staged} exhibit${r.staged > 1 ? "s" : ""} staged` : ""}${r.missing ? ` · ${r.missing} missing` : ""} — opening film`);
                   openFilmMode(set.id);
                 })
                 .catch((e) => setSyncNote(`⚠ ${e instanceof Error ? e.message : String(e)}`))
