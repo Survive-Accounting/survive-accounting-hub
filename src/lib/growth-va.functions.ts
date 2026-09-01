@@ -17,9 +17,6 @@ const adminDb = async (): Promise<DB> => {
 const todayYmd = () => { try { return new Date().toISOString().slice(0, 10); } catch { return "2026-09-01"; } };
 const curMonth = () => { try { return new Date().toISOString().slice(0, 7); } catch { return "2026-09"; } };
 
-// Pay defaults (cents). Per-VA overrides live on growth_va; NULL falls back to these.
-const RATE_READY = 400; // $4 per campus reaching READY
-const RATE_IG = 100; // $1 per personal Instagram
 const PERSON_TYPES = new Set(["student_officer", "chapter_exec", "staff_advisor"]);
 function monthBounds(month: string): { start: string; end: string } {
   const [y, m] = month.split("-").map(Number);
@@ -138,16 +135,17 @@ export const growthVaProblem = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ── Lee's view (assertAdminNotVa — a VA session is refused so pay never leaks) ───────────────
-export interface VaPayRow {
+// ── Lee's view (assertAdminNotVa — a VA session is refused) ──────────────────────────────────
+// Pay was removed (2026-08-31): VAs work pro bono, so this is a roster + activity view, no money.
+export interface VaRosterRow {
   id: string; name: string; team: string; active: boolean; token: string;
   campusesReady: number; personalIgs: number; contacts: number; notFound: number;
-  rateReadyCents: number; rateIgCents: number; payReadyCents: number; payIgCents: number; payTotalCents: number;
 }
-export interface VaTeamPay { team: string; label: string; rows: VaPayRow[]; subtotalCents: number }
-export interface VaRosterView { month: string; teams: VaTeamPay[]; totalCents: number }
+export interface VaTeamGroup { team: string; label: string; rows: VaRosterRow[] }
+export interface VaRosterView { month: string; teams: VaTeamGroup[] }
 
-/** The Payments table: per-VA READY campuses + personal IGs → pay, grouped by team, for a month. */
+/** The team view: per-VA activity (READY campuses, personal IGs, contacts) grouped by team, for a
+ *  month. No pay. */
 export const growthVaRoster = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() }).parse(d ?? {}))
   .handler(async ({ data }): Promise<VaRosterView> => {
@@ -156,7 +154,7 @@ export const growthVaRoster = createServerFn({ method: "GET" })
     const month = data.month ?? curMonth();
     const { start, end } = monthBounds(month);
     const [{ data: vas }, { data: claims }, { data: qc }] = await Promise.all([
-      db.from("growth_va").select("id,token,name,team,active,rate_ready_cents,rate_ig_cents").order("created_at", { ascending: true }),
+      db.from("growth_va").select("id,token,name,team,active").order("created_at", { ascending: true }),
       db.from("growth_va_campus").select("va_id,reached_ready,completed_at").eq("reached_ready", true).gte("completed_at", start).lt("completed_at", end),
       db.from("growth_contact_qc").select("qc_by,contact_type,name,instagram,outreach_eligible,created_at").like("qc_by", "va:%").gte("created_at", start).lt("created_at", end),
     ]);
@@ -170,17 +168,40 @@ export const growthVaRoster = createServerFn({ method: "GET" })
       const isPerson = PERSON_TYPES.has(r.contact_type) || !!(r.name && String(r.name).trim());
       if (isPerson && r.instagram && String(r.instagram).trim()) igs.set(id, (igs.get(id) ?? 0) + 1);
     }
-    const rows: VaPayRow[] = ((vas ?? []) as any[]).map((v) => {
-      const rr = v.rate_ready_cents ?? RATE_READY, ri = v.rate_ig_cents ?? RATE_IG;
-      const cr = ready.get(v.id) ?? 0, ig = igs.get(v.id) ?? 0;
-      return { id: v.id, name: v.name, team: v.team, active: v.active, token: v.token, campusesReady: cr, personalIgs: ig, contacts: contacts.get(v.id) ?? 0, notFound: nf.get(v.id) ?? 0, rateReadyCents: rr, rateIgCents: ri, payReadyCents: cr * rr, payIgCents: ig * ri, payTotalCents: cr * rr + ig * ri };
-    });
-    const teams: VaTeamPay[] = [];
+    const rows: VaRosterRow[] = ((vas ?? []) as any[]).map((v) => ({
+      id: v.id, name: v.name, team: v.team, active: v.active, token: v.token,
+      campusesReady: ready.get(v.id) ?? 0, personalIgs: igs.get(v.id) ?? 0, contacts: contacts.get(v.id) ?? 0, notFound: nf.get(v.id) ?? 0,
+    }));
+    const teams: VaTeamGroup[] = [];
     for (const team of ["king", "lee"]) {
       const trows = rows.filter((r) => r.team === team);
-      if (trows.length) teams.push({ team, label: team === "king" ? "King's team" : "Lee's team", rows: trows, subtotalCents: trows.reduce((n, r) => n + r.payTotalCents, 0) });
+      if (trows.length) teams.push({ team, label: team === "king" ? "King's team" : "Lee's team", rows: trows });
     }
-    return { month, teams, totalCents: rows.reduce((n, r) => n + r.payTotalCents, 0) };
+    return { month, teams };
+  });
+
+/** Preview the VA queue as an admin (assertAdminNotVa) for a chosen team — powers "act as a VA".
+ *  No claiming/attribution; just the next not-ready campus in priority order, so Lee sees their view. */
+export const growthVaQueuePreview = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ team: z.enum(["king", "lee"]).default("king") }).parse(d ?? {}))
+  .handler(async ({ data }): Promise<VaQueueView> => {
+    await assertAdminNotVa();
+    const db = await adminDb();
+    const ids = await ownerCampusIds(db, data.team);
+    if (!ids.length) return { vaName: "Preview", team: data.team, doneToday: 0, remaining: 0, current: null };
+    const { campuses, meta } = await buildSchedCampuses(db, ids);
+    const ordered = [...campuses].sort((a, b) => (a.priority ?? 1e9) - (b.priority ?? 1e9));
+    const notReady = ordered.filter((c) => meta.get(c.campusId)?.contactReady !== true);
+    const readyCount = ordered.length - notReady.length;
+    const cur = notReady[0] ?? null;
+    let current: VaCampusCard | null = null;
+    if (cur) {
+      const m = meta.get(cur.campusId);
+      let courseCode: string | null = null;
+      try { const { data: cr } = await db.from("campuses").select("course_family_codes_json").eq("id", cur.campusId).maybeSingle(); courseCode = (cr?.course_family_codes_json?.intro_1 as string | undefined) ?? null; } catch { /* ignore */ }
+      current = { campusId: cur.campusId, name: cur.name, courseCode, coveredCount: m?.coveredCount ?? 0, neededCount: m?.neededCount ?? 0 };
+    }
+    return { vaName: "Preview", team: data.team, doneToday: readyCount, remaining: Math.max(0, notReady.length - 1), current };
   });
 
 /** Add a VA — generates their private-link token. */

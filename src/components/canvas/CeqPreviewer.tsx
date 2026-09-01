@@ -131,7 +131,7 @@ const LAYOUT_CARD = { prompt: "**LAYOUT** — the question card deals here", cho
 ] };
 /** In the film popout the resize grips are HOVER-ONLY (like the real canvas film
  *  mode) — invisible on camera, but there when Lee reaches in to nudge a card. */
-const PV_CSS = `
+export const PV_CSS = `
 /* FILM V2 — the one-frame crossfade: pure opacity, zero movement. */
 @keyframes sa-ceq-v2-fade { from { opacity: 0; } to { opacity: 1; } }
 ${BOSS_REVEAL_CSS}
@@ -385,7 +385,7 @@ function FrameBgNode({ id, data }: NodeProps) {
  *  Ctrl+click a choice = rehearsal spotlight (local). */
 /** Practice state for INERT stand-ins (film stack, A2): always the base state. */
 const INERT_PRACTICE: { emph: number | null; resolved: Set<number>; select?: (i: number) => void; resolveChoice?: (i: number) => void; toggleBoss?: () => void } = { emph: null, resolved: new Set() };
-function CeqPreviewNode({ id, data }: NodeProps) {
+export function CeqPreviewNode({ id, data }: NodeProps) {
   // INERT (film stack, A2): this card is a fully-rendered stand-in for a NON-ACTIVE
   // frame — practice/emphasis state belongs to the active question only, so an
   // inert card always shows its clean base state. Same id + type as the live card,

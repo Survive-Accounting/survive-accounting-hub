@@ -86,7 +86,7 @@ export function OnboardingCards({ onClose }: { onClose: () => void }) {
 }
 
 // ── the bolt is help (item 5): floating bolt → menu → report a problem ──────────────────────
-export function VaHelp({ campusId, onHowItWorks }: { campusId: string | null; onHowItWorks: () => void }) {
+export function VaHelp({ campusId, onHowItWorks, preview }: { campusId: string | null; onHowItWorks: () => void; preview?: boolean }) {
   const [open, setOpen] = useState(false);
   const [reporting, setReporting] = useState(false);
   return (
@@ -104,7 +104,7 @@ export function VaHelp({ campusId, onHowItWorks }: { campusId: string | null; on
             <button onClick={() => { setOpen(false); onHowItWorks(); }} className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-muted"><HelpCircle className="size-5 text-muted-foreground" /><span className="text-sm font-medium">How this works</span></button>
             <a href={`sms:${LEE_PHONE_TEL}`} className="flex w-full items-center gap-3 border-t border-border px-4 py-3.5 hover:bg-muted"><MessageSquare className="size-5 text-muted-foreground" /><span className="text-sm"><span className="font-medium">Text Lee</span> <span className="text-muted-foreground">{LEE_PHONE}</span></span></a>
             <a href={`mailto:${LEE_EMAIL}`} className="flex w-full items-center gap-3 border-t border-border px-4 py-3.5 hover:bg-muted"><Mail className="size-5 text-muted-foreground" /><span className="text-sm"><span className="font-medium">Email Lee</span> <span className="text-muted-foreground">{LEE_EMAIL}</span></span></a>
-            <button onClick={() => setReporting(true)} className="flex w-full items-center gap-3 border-t border-border px-4 py-3.5 text-left hover:bg-muted"><Send className="size-5 text-amber-400" /><span className="text-sm font-medium">Report a problem →</span></button>
+            <button onClick={() => { if (preview) { toast.message("Report a problem sends from the VA's own link."); setOpen(false); } else setReporting(true); }} className="flex w-full items-center gap-3 border-t border-border px-4 py-3.5 text-left hover:bg-muted"><Send className="size-5 text-amber-400" /><span className="text-sm font-medium">Report a problem →</span></button>
           </div>
         </div>
       )}

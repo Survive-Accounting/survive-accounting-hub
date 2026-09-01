@@ -83,7 +83,7 @@ export function IdeasDock() {
         <div style={{ position: "fixed", top: 10, right: 12, zIndex: 2147483000, display: "flex", gap: 4, alignItems: "center" }}>
           <button
             onClick={() => setOpen(true)}
-            title="Ideas to Save (⌘I) — drop an idea, get back to work"
+            title="Save for Later (Ctrl/⌘ I) — drop it here, get back to work"
             style={{
               display: "flex", alignItems: "center", gap: 7, background: "rgba(16,26,46,0.94)",
               border: `1px solid ${GOLD}66`, color: CREAM, borderRadius: 999,
@@ -91,7 +91,7 @@ export function IdeasDock() {
               fontFamily: "'Rubik', system-ui, sans-serif", boxShadow: "0 4px 14px -6px rgba(0,0,0,0.8)",
             }}
           >
-            <span style={{ color: GOLD }}>⚡</span> Ideas to Save
+            <span style={{ color: GOLD }}>⚡</span> Save for Later
             {count > 0 && (
               <span style={{ background: GOLD, color: "#0B1322", borderRadius: 999, padding: "0 6px", fontSize: 10.5, fontWeight: 900 }}>{count}</span>
             )}
@@ -227,19 +227,19 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
     >
       <div className="flex items-center gap-2" style={{ padding: "12px 14px", borderBottom: `1px solid ${EDGE}` }}>
         <span style={{ color: GOLD }}>⚡</span>
-        <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: "0.04em" }}>Ideas to Save</span>
+        <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: "0.04em" }}>Save for Later</span>
         <a href="/admin/ideas" style={{ marginLeft: "auto", color: MUTED, fontSize: 11, textDecoration: "underline" }}>all {ideas.length} →</a>
         <button onClick={onClose} title="Close (Esc)" style={{ background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 15 }}>×</button>
       </div>
 
       <div style={{ padding: 14, overflowY: "auto", flex: 1 }}>
-        <label style={{ fontSize: 11.5, color: MUTED, display: "block", marginBottom: 6 }}>What's the idea?</label>
+        <label style={{ fontSize: 11.5, color: MUTED, display: "block", marginBottom: 6 }}>What's up?</label>
         <textarea
           ref={ta}
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={7}
-          placeholder="Type it. Nothing else is required."
+          placeholder="Say it however it comes out. Nothing else is required."
           style={{
             width: "100%", background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10,
             color: CREAM, fontSize: 13.5, lineHeight: 1.45, padding: "10px 12px", outline: "none", resize: "vertical",
@@ -273,7 +273,7 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
             onChange={(e) => { if (e.target.files) void addFiles(e.target.files); }} />
           <button onClick={() => file.current?.click()}
             style={{ minHeight: 42, background: "transparent", border: `1px solid ${EDGE}`, color: CREAM, borderRadius: 12, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-            📎 Attach
+            📎 Add screenshot
           </button>
         </div>
         {voiceMsg && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 6 }}>{voiceMsg}</div>}
@@ -284,7 +284,7 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
           </div>
         )}
 
-        <div style={{ fontSize: 11.5, color: MUTED, margin: "14px 0 6px" }}>Categories</div>
+        <div style={{ fontSize: 11.5, color: MUTED, margin: "14px 0 6px" }}>Categories <span style={{ opacity: 0.6 }}>optional</span></div>
         <div className="flex flex-wrap" style={{ gap: 5 }}>
           {CATEGORIES.map((c) => {
             const on = cats.includes(c);

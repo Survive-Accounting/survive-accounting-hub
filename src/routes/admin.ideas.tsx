@@ -9,7 +9,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AdminGate } from "@/components/AdminGate";
+import { AdminGate, getAdminWho } from "@/components/AdminGate";
 import { listIdeas, saveIdea } from "@/lib/ideas.functions";
 import {
   CATEGORIES, CATEGORY_LABEL, FOCUS_LABEL, PEOPLE, PERSON_LABEL, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/admin/ideas")({
   // anywhere" and needs no integrations.
   head: () => ({
     meta: [
-      { title: "Ideas to Save — Survive" },
+      { title: "Save for Later — Survive" },
       { name: "robots", content: "noindex" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-title", content: "Ideas" },
@@ -54,6 +54,7 @@ function Ideas() {
   const [unsorted, setUnsorted] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [prio, setPrio] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const refresh = useCallback(() => {
     listIdeas().then((r) => { setIdeas(r.ideas); setErr(null); })
@@ -82,10 +83,16 @@ function Ideas() {
     <div style={{ minHeight: "100vh", background: BG, color: CREAM, fontFamily: "'Rubik', system-ui, sans-serif", padding: "16px clamp(12px, 4vw, 26px) 90px" }}>
       <header className="flex items-center gap-3" style={{ marginBottom: 16, flexWrap: "wrap" }}>
         <h1 style={{ fontFamily: "'League Spartan', sans-serif", fontWeight: 800, fontSize: 21, letterSpacing: "0.06em", textTransform: "uppercase", margin: 0 }}>
-          ⚡ Ideas to Save
+          ⚡ Save for Later
         </h1>
-        <span style={{ fontSize: 12, color: MUTED }}>{ideas.length} total · ⌘I captures from anywhere</span>
-        <button onClick={() => setPrio(true)} className="ml-auto"
+        <span style={{ fontSize: 12, color: MUTED }}>{ideas.length} total · Ctrl/⌘ I captures from anywhere</span>
+        {/* THE BACKLOG DOOR — prompts written before the vault existed, or
+            written elsewhere today. Name it so the list is readable later. */}
+        <button onClick={() => setUploading(true)} className="ml-auto"
+          style={{ background: "transparent", color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 10, padding: "7px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          ↑ Upload a prompt
+        </button>
+        <button onClick={() => setPrio(true)}
           style={{ background: GOLD, color: "#0B1322", border: "none", borderRadius: 10, padding: "7px 16px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
           Prioritize →
         </button>
@@ -115,7 +122,7 @@ function Ideas() {
 
       {shown.length === 0 ? (
         <div style={{ color: MUTED, fontSize: 13 }}>
-          {ideas.length === 0 ? "Nothing captured yet. Press ⌘I anywhere in admin." : "Nothing matches those filters."}
+          {ideas.length === 0 ? "Nothing here yet. Press Ctrl/⌘ I anywhere in admin, or upload a prompt you already wrote." : "Nothing matches those filters."}
         </div>
       ) : (
         <div className="flex flex-col" style={{ gap: 6, maxWidth: 980 }}>
@@ -126,6 +133,7 @@ function Ideas() {
         </div>
       )}
 
+      {uploading && <UploadPrompt onClose={() => setUploading(false)} onSaved={refresh} />}
       {prio && <Prioritize ideas={ideas} onClose={() => setPrio(false)} />}
     </div>
   );
@@ -339,3 +347,110 @@ const Q = ({ label, children }: { label: string; children: React.ReactNode }) =>
 const Choice = ({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) => (
   <button onClick={onClick} style={{ background: on ? GOLD : "transparent", color: on ? "#0B1322" : CREAM, border: `1px solid ${on ? GOLD : EDGE}`, borderRadius: 999, padding: "5px 13px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>{children}</button>
 );
+
+// ------------------------------------------------------- upload a prompt
+
+/** THE BACKLOG DOOR. Prompts written before this vault existed — or written
+ *  with Claude on another machine today — come in here rather than being
+ *  retyped as ideas. The NAME is the point: a folder of build-prompt-3.md tells
+ *  you nothing six weeks later, so the file arrives already described.
+ *
+ *  It lands as DRAFTED, because a prompt existing is exactly what that status
+ *  means. Categories stay optional here too. */
+function UploadPrompt({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState("");
+  const [cats, setCats] = useState<Category[]>([]);
+  const [picked, setPicked] = useState<{ text: string; filename: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const file = useRef<HTMLInputElement>(null);
+
+  const take = (f: File) => {
+    f.text()
+      .then((text) => {
+        setPicked({ text, filename: f.name });
+        // A name you have not written yet defaults to the filename, minus the
+        // extension — still better than nothing, and fully editable.
+        setName((v) => v.trim() || f.name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " "));
+      })
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+  };
+
+  const save = () => {
+    if (!name.trim() || !picked || busy) return;
+    setBusy(true); setErr(null);
+    saveIdea({ data: {
+      id: `idea-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      title: name.trim(),
+      body: "",
+      categories: cats,
+      subcategory: "",
+      status: "DRAFTED",              // the prompt exists — that IS drafted
+      sourcePath: "/admin/ideas",
+      context: {},
+      promptMd: picked.text,
+      promptFilename: picked.filename,
+      createdBy: getAdminWho() ?? "",
+      sourceKind: "web",
+      attachments: [],
+      audioPath: null,
+      transcriptStatus: null,
+    } })
+      .then(() => { onSaved(); onClose(); })
+      .catch((e) => { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); });
+  };
+
+  const ready = !!name.trim() && !!picked && !busy;
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(4,7,14,0.72)", zIndex: 100, display: "grid", placeItems: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-2xl"
+        style={{ background: "#101A2E", border: `1px solid ${EDGE}`, padding: 22, width: "min(560px, 96vw)", maxHeight: "86vh", overflowY: "auto" }}>
+        <div className="flex items-center" style={{ marginBottom: 6 }}>
+          <h2 style={{ fontFamily: "'League Spartan', sans-serif", fontWeight: 800, fontSize: 16, letterSpacing: "0.06em", textTransform: "uppercase", margin: 0 }}>Upload a prompt</h2>
+          <button onClick={onClose} className="ml-auto" style={{ background: "transparent", border: "none", color: MUTED, fontSize: 16, cursor: "pointer" }}>×</button>
+        </div>
+        <p style={{ fontSize: 12.5, color: MUTED, margin: "0 0 16px" }}>
+          For prompts you already wrote. Give it a name you will recognise later.
+        </p>
+
+        <label style={{ fontSize: 11.5, color: MUTED, display: "block", marginBottom: 6 }}>Name it</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} autoFocus
+          placeholder="e.g. Bio video index page"
+          onKeyDown={(e) => { if (e.key === "Enter") save(); }}
+          style={{ width: "100%", background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 16, padding: "9px 12px", outline: "none", minHeight: 42 }} />
+
+        <div style={{ fontSize: 11.5, color: MUTED, margin: "16px 0 6px" }}>The prompt</div>
+        <input ref={file} type="file" accept=".md,.markdown,.txt" style={{ display: "none" }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) take(f); }} />
+        <button onClick={() => file.current?.click()}
+          style={{ background: "transparent", border: `1px dashed ${picked ? GOLD : EDGE}`, color: picked ? GOLD : CREAM, borderRadius: 12, padding: "14px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", width: "100%", minHeight: 52 }}>
+          {picked ? `✓ ${picked.filename}` : "Choose a .md file"}
+        </button>
+
+        <div style={{ fontSize: 11.5, color: MUTED, margin: "16px 0 6px" }}>Categories <span style={{ opacity: 0.6 }}>optional</span></div>
+        <div className="flex flex-wrap" style={{ gap: 5 }}>
+          {CATEGORIES.map((c) => {
+            const on = cats.includes(c);
+            return (
+              <button key={c} onClick={() => setCats((v) => on ? v.filter((x) => x !== c) : [...v, c])}
+                style={{ background: on ? GOLD : "transparent", color: on ? "#0B1322" : CREAM, border: `1px solid ${on ? GOLD : EDGE}`, borderRadius: 999, padding: "3px 10px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
+                {CATEGORY_LABEL[c]}
+              </button>
+            );
+          })}
+        </div>
+
+        {err && <div style={{ color: "#F87171", fontSize: 12, marginTop: 12 }}>{err}</div>}
+
+        <div className="flex items-center" style={{ marginTop: 20, gap: 10 }}>
+          <span style={{ fontSize: 11, color: MUTED }}>Saves as DRAFTED — the prompt exists.</span>
+          <button onClick={save} disabled={!ready} className="ml-auto"
+            style={{ background: ready ? GOLD : "transparent", color: ready ? "#0B1322" : MUTED, border: `1px solid ${ready ? GOLD : EDGE}`, borderRadius: 10, padding: "8px 20px", fontSize: 13.5, fontWeight: 800, cursor: ready ? "pointer" : "default" }}>
+            {busy ? "Saving…" : "Save it"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
