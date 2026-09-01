@@ -27,7 +27,7 @@
 // click a lit target clears. Plain / Shift+click still selects an arrow (RF).
 // A start/stop timer times the run. Practice + spotlight state are LOCAL — they never
 // dirty the real CEQ, and reset when you switch questions.
-import { Component, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, useStore, ViewportPortal, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import { Clapperboard, ChevronDown, ChevronRight, Eye, Grid3x3, LayoutGrid, Maximize2, Plus, Rows3, Save, Spline, X } from "lucide-react";
 
@@ -58,6 +58,11 @@ import { platform as platformStore, platformGuidesOn as platformGuidesOnStore, s
 import { subscribeSlate, type SlateState } from "./film-slate";
 import { triageLatest } from "./takes-store";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./film-lock";
+import {
+  atHome, autoFitAllowed, getFilmCamera, markCameraManual, mirrorViewport, pinTransform,
+  publishFilmViewport, releaseCamera, setFilmHome, setPinTarget, subscribeFilmCamera, togglePin,
+  type Viewport as FilmViewport,
+} from "./film-camera";
 import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { playSfx } from "./sfx";
@@ -132,6 +137,14 @@ const LAYOUT_CARD = { prompt: "**LAYOUT** — the question card deals here", cho
 /** In the film popout the resize grips are HOVER-ONLY (like the real canvas film
  *  mode) — invisible on camera, but there when Lee reaches in to nudge a card. */
 const PV_CSS = `
+/* THE CEQ PIN (Lee, 09-01) — z-order between ReactFlow nodes belongs to the
+   .react-flow__node WRAPPER, so a z-index on our inner counter-transform div
+   cannot lift the question above an exhibit Lee has zoomed into. :has() reaches
+   the wrapper from the child that knows it is pinned. The pinned card must win
+   outright: it is the one thing that may never be occluded on camera.
+   (Kept ABOVE the V2 keyframes on purpose: film-v2.test.ts reads the block
+   BETWEEN sa-ceq-v2-fade and BOSS MOMENT and requires it to be movement-free.) */
+.react-flow__node:has(> .sa-ceq-pinned) { z-index: 12 !important; }
 /* FILM V2 — the one-frame crossfade: pure opacity, zero movement. */
 @keyframes sa-ceq-v2-fade { from { opacity: 0; } to { opacity: 1; } }
 ${BOSS_REVEAL_CSS}
@@ -258,6 +271,11 @@ function containSpot(state: "spot" | null, big = false): React.CSSProperties {
 function LETTER(i: number): string { return String.fromCharCode(65 + (i % 26)); }
 
 const SLOT_H = 150; // nominal chip height at scale 1 — the overflow stacking step
+
+/** Mouse buttons that pan the FILM camera: left + middle. Right is reserved for
+ *  the context menu. Module-scope so the array identity is stable across
+ *  renders (a fresh array every render defeats ReactFlow's prop memoisation). */
+const PAN_BUTTONS = [0, 1];
 // CARD_W/CARD_H, the slot palette, rackOf and activeSlots moved to ceq-geom.ts —
 // they were imported back from there, which made this a runtime import cycle.
 
@@ -880,7 +898,47 @@ const edgeTypes = { chainBundle: ChainBundleEdge, chainArrow: ChainArrowEdge, fr
 // as on canvas — and therefore films identically. Their edits are routed to the main
 // canvas by the CardWriteCtx bridge below (without it they'd patch the previewer's
 // throwaway nodes and vanish on the next re-seed).
-const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode, ovCeq: OverviewCeqNode, ovMemo: OvMemoNode, arrowEnd: ArrowEndNode, ...STAGE_NODE_TYPES };
+/** THE CEQ PIN (Lee, 09-01) — hold the active question still on screen while the
+ *  film camera flies over the exhibit underneath it.
+ *
+ *  A counter-transform, NOT a re-render somewhere else: the card stays the same
+ *  ReactFlow node it always was, so highlighting, the choice menu, spotlight,
+ *  text selection and the chain arrows all keep working untouched. Only its
+ *  painted position changes. See film-camera.ts for the arithmetic.
+ *
+ *  Three gates, and it no-ops unless all three pass:
+ *    · FILM ONLY — authoring and student surfaces never pin, so a take can't
+ *      bake in a placement the canvas itself doesn't have.
+ *    · Lee's toggle (P).
+ *    · The node id must be the ACTIVE question's. In the film stack every
+ *      question has a card node; pinning them all would stack them on one spot.
+ */
+function withCeqPin(Node: typeof CeqPreviewNode): typeof CeqPreviewNode {
+  return function PinnedCeqNode(props: NodeProps) {
+    const film = useContext(FilmContext);
+    const cam = useSyncExternalStore(subscribeFilmCamera, getFilmCamera, getFilmCamera);
+    // This node's own ReactFlow instance — the film popout has its own provider,
+    // so in the capture window this is the capture window's live camera.
+    const tf = useStore((st) => (st as unknown as { transform: [number, number, number] }).transform);
+    const pin = film && cam.pinOn && cam.pin?.nodeId === props.id ? cam.pin : null;
+    const style = pin && cam.home && tf
+      ? pinTransform({
+          vp: { x: tf[0], y: tf[1], zoom: tf[2] },
+          home: cam.home,
+          pin,
+          nodeX: props.positionAbsoluteX,
+          nodeY: props.positionAbsoluteY,
+          nodeScale: (props.data as { scale?: number } | undefined)?.scale ?? 1,
+        })
+      : null;
+    if (!style) return <Node {...props} />;
+    // sa-ceq-pinned also lifts the WRAPPING .react-flow__node above the exhibit
+    // (PV_CSS :has rule) — z-order between nodes is the wrapper's, not ours.
+    return <div className="sa-ceq-pinned" style={{ ...style, willChange: "transform" }}><Node {...props} /></div>;
+  };
+}
+
+const nodeTypes = { frameBg: FrameBgNode, ceqPreview: withCeqPin(CeqPreviewNode), memoPreview: MemoPreviewNode, ovCeq: OverviewCeqNode, ovMemo: OvMemoNode, arrowEnd: ArrowEndNode, ...STAGE_NODE_TYPES };
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
 /** BOSS REVEAL — the flash + label, drawn in the MARGIN beside the card.
@@ -1589,6 +1647,28 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stageSig, ceqId, setNodes]);
 
+  // WHERE THE PIN NAILS THE CARD — the SET TEMPLATE, deliberately resolved with
+  // NO instance and NO ignoreLayout opt-out (`resolveCardSpot(undefined, ...)`).
+  //
+  // That one argument is the answer to "I set the layout and it doesn't work for
+  // every card". ceq-geom resolves `instance ?? template`, so a question that was
+  // ever nudged by hand carries its own geom and outranks the template forever —
+  // and `ignoreLayout` frames opt out permanently. Both are RIGHT for authoring
+  // (Lee placed those on purpose) and both are wrong on camera, where the only
+  // thing that matters is that the question's top edge lands in the same place
+  // every single time. While pinned, the template governs, full stop.
+  //
+  // Nothing is written anywhere: the authored geometry is untouched and comes
+  // straight back the moment the pin is off or the popout is closed.
+  const pinSpot = useMemo(() => {
+    if (layoutMode) return null; // Question 0 IS the template — nothing to pin it to
+    const t = resolveCardSpot(undefined, baseline, frameW, frameH);
+    return { nodeId: ceqId, x: Math.round(t.x), y: Math.round(activeYOff + t.y), scale: t.scale };
+  }, [layoutMode, baseline, frameW, frameH, ceqId, activeYOff]);
+  // Only ever pinned while the capture window is open.
+  useEffect(() => { setPinTarget(filmWin ? pinSpot : null); }, [pinSpot, filmWin]);
+  useEffect(() => () => setPinTarget(null), []);
+
   const fitRef = useRef<ReactFlowInstance | null>(null);
   // Fit to the ACTIVE frame; in overview that's the frame at its stack index, so a
   // question change SMOOTHLY glides the view to it. `fitAll` zooms out to every frame.
@@ -1601,6 +1681,34 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // capture window (08-19) — the camera cuts between slots; Step 2's stable
   // background id is what removed the flash, not a pan.
   useEffect(() => { const t = window.setTimeout(() => fitActive(overviewOn ? 420 : 0), 40); return () => window.clearTimeout(t); }, [ceqId, frameW, frameH, overviewOn, fitActive]);
+
+  // ---- THE EDITOR MIRROR (Lee, 09-01) ---------------------------------------
+  // "If I zoom in on the capture window it should match the study canvas."
+  // CAPTURE LEADS, EDITOR FOLLOWS — one writer, so the two panes can never fight
+  // each other for the camera. What crosses over is the canvas RECT the capture
+  // window is looking at, not its viewport numbers: the panes are different
+  // sizes, so copying x/y/zoom would show two different shots (see
+  // film-camera.mirrorViewport).
+  //
+  // Only while Lee is actually flying. At the home shot the editor keeps its own
+  // behaviour — including Overview, which is HIS shot and must not be stolen.
+  const editPaneRef = useRef<HTMLDivElement>(null);
+  const cam = useSyncExternalStore(subscribeFilmCamera, getFilmCamera, getFilmCamera);
+  useEffect(() => {
+    if (!filmWin || !cam.manual || !cam.live || overviewOn) return;
+    const inst = fitRef.current;
+    const fr = filmRootRef.current?.getBoundingClientRect();
+    const er = editPaneRef.current?.getBoundingClientRect();
+    if (!inst || !fr?.width || !fr?.height || !er?.width || !er?.height) return;
+    // duration 0: a mirror that eases lags behind the take it is mirroring.
+    void inst.setViewport(mirrorViewport(cam.live, fr.width, fr.height, er.width, er.height), { duration: 0 });
+  }, [cam.live, cam.manual, filmWin, overviewOn]);
+  // Coming back to the home shot hands the editor its own camera back.
+  const wasManual = useRef(false);
+  useEffect(() => {
+    if (wasManual.current && !cam.manual) fitActive(0);
+    wasManual.current = cam.manual;
+  }, [cam.manual, fitActive]);
 
   // FILM MODE (Lee) — a popout window on the 2nd monitor that MIRRORS this previewer
   // (same CEQ + memos + practice/spotlight state, since it's the same React tree), and
@@ -1643,7 +1751,13 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // stays referentially stable across question changes as a bonus.
   const activeYOffRef = useRef(activeYOff);
   activeYOffRef.current = activeYOff;
-  const fitFilm = useCallback((duration = 0) => {
+  /** FREE CAMERA (Lee, 09-01): `force` = an explicit re-home (` or a question
+   *  change). Without it a fit is ADVISORY — it still recomputes and records the
+   *  home shot, but it will not move a camera Lee is holding. The settle timers,
+   *  the resize/focus listeners and the ResizeObserver all call the advisory
+   *  form, which is the whole reason a manual push can survive a window resize
+   *  mid-take instead of snapping back on the 900ms timer. */
+  const fitFilm = useCallback((duration = 0, force = false) => {
     const inst = filmFitRef.current; const win = filmWin;
     if (!inst || !win) return;
     // MEASURE THE PANE, NOT THE WINDOW (Lee's black-on-advance, 08-15). In
@@ -1664,8 +1778,20 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // In an exact-9:16 client the two are identical. Landscape keeps cover.
     const vertical = frameH > frameW;
     const zoom = vertical ? w / frameW : Math.max(w / frameW, h / frameH);
-    inst.setViewport({ x: (w - frameW * zoom) / 2, y: (vertical ? 0 : (h - frameH * zoom) / 2) - activeYOffRef.current * zoom, zoom }, { duration });
+    const home = { x: (w - frameW * zoom) / 2, y: (vertical ? 0 : (h - frameH * zoom) / 2) - activeYOffRef.current * zoom, zoom };
+    // ALWAYS record the home shot, even when we decline to move: the CEQ pin
+    // anchors against these exact numbers, so a resize while pushed in must
+    // still update where "home" is or the pinned card would drift.
+    setFilmHome(home);
+    if (!force && !autoFitAllowed()) return;
+    if (force) releaseCamera();
+    inst.setViewport(home, { duration });
+    publishFilmViewport(home);
   }, [filmWin, frameW, frameH]);
+  // The ` sweep lives in long-lived keydown listeners whose dep arrays must not
+  // churn on every popout/frame-size change (same reason toggleFilmRef exists).
+  const fitFilmRef = useRef(fitFilm);
+  fitFilmRef.current = fitFilm;
   useEffect(() => {
     if (!filmWin) return;
     // Refit the 16:9 cover on EVERY way the popout can change size. Going FULLSCREEN
@@ -1701,6 +1827,19 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // node re-seed and the frame ends off-screen. The camera CUTS between slots;
     // the flash is already gone via the stable per-frame background id (Step 2).
   }, [filmWin, ceqId, frameW, frameH, fitFilm]);
+  // A QUESTION CHANGE ALWAYS RE-HOMES (Lee's "spacebar locks me back into the
+  // frame"). Walking to the next question is a cut, and a cut is framed — so
+  // the free camera is released here and only here, plus on `. Deliberately a
+  // SEPARATE effect from the settle above: that one re-runs on every resize,
+  // and releasing the camera there would drop a manual shot the moment the
+  // window moved, which is exactly the snap-back this feature removes.
+  useEffect(() => {
+    if (!filmWin) return;
+    releaseCamera();
+    const t = window.setTimeout(() => fitFilm(0, true), 45);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ceqId, filmWin]);
   // CAPTURE WINDOW (C1): same film popout, but the window is snapped so the
   // INNER canvas is exactly 1920x1080 PHYSICAL pixels (dpr-aware) — OBS
   // window-capture at Reset Transform is 1:1 pixel-perfect.
@@ -2167,7 +2306,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         // ` on the recording surface: the SAME full reset as every other surface
         // (backtick sweep) — practice, spotlights, arrows, perf arrows, highlights.
         // Temporary state only; nothing saved is touched.
-        if (e.code === "Backquote" || e.key === "`") { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); setReveal(null); return; }
+        if (e.code === "Backquote" || e.key === "`") { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); setReveal(null); fitFilmRef.current(0, true); return; }
         // 0 — every exhibit node back to normal, and NOTHING else. ` stays the
         // global wipe; this is the narrow one you can hit mid-take without
         // losing your memos. Audit in CHANGES.md: no digit was bound anywhere.
@@ -2204,6 +2343,23 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // the most recent pending take, F10 keeps it. The inbox owns the action.
       if (e.key === "F8" || e.key === "F10") { e.preventDefault(); e.stopImmediatePropagation(); triageLatest(e.key === "F8" ? "trash" : "keep"); return; }
       if (filmWindow && (e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopImmediatePropagation(); toggleFilmFullscreen(); return; } // F = element fullscreen on the STABLE wrapper (C1)
+      // FREE CAMERA KEYS (Lee, 09-01). The camera itself is the mouse — wheel to
+      // zoom, drag to pan — so only the two things a mouse can't say get keys:
+      //   L  lock/unlock the question to the set-layout spot (the pin)
+      //   O  pull back to see the WHOLE frame and everything spilling out of it,
+      //      which is the "zoom out, bounce around, then lock back in" move.
+      // Both are film-only; ` and the next question still cut back to the shot.
+      if (filmWindow && (e.key === "l" || e.key === "L") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        togglePin(); // the card visibly moves, and the editor-side HUD reads it back
+        return;
+      }
+      if (filmWindow && (e.key === "o" || e.key === "O") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        markCameraManual(); // an overview IS a manual shot — nothing may snap it back
+        filmFitRef.current?.fitView({ padding: 0.12, duration: 260 });
+        return;
+      }
       // EXHIBIT MODES (cycle-modes): same film-controller keys as the recording
       // branch — M flips modes; ORDER mode takes Tab (orbit step) and P
       // (play/pause). Each consumes ONLY when a moded exhibit is mounted (and,
@@ -2245,7 +2401,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // ` = full reset (choices + memos). SHIFT+` = MEMO SWEEP: clear the memos off
       // the board but KEEP every choice's resolution, so a wrong answer stays struck
       // and the correct one stays green. Nothing re-resolves, so no sound re-fires.
-      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); setReveal(null); } return; }
+      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); setReveal(null); fitFilmRef.current(0, true); } return; }
       // 0 — reset every exhibit node to normal. Narrow by design (see above).
       if (e.code === "Digit0" || e.key === "0") { e.preventDefault(); e.stopImmediatePropagation(); clearExhibitHighlights(); return; }
     };
@@ -2295,7 +2451,23 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                 popped out to a 2nd window (the global copy lives on the main canvas). */}
             <style>{FLAME_CSS}{PV_CSS}</style>
             <div ref={rootRef} className="flex h-full min-h-0 flex-col" onMouseEnter={() => { engagedRef.current = true; }} onMouseLeave={() => { engagedRef.current = false; }}>
-              <div className="min-h-0 flex-1" style={{ background: "rgba(4,7,14,0.6)", position: "relative" }}>
+              <div ref={editPaneRef} className="min-h-0 flex-1" style={{ background: "rgba(4,7,14,0.6)", position: "relative" }}>
+                {/* CAMERA HUD — EDITOR SIDE ONLY, never inside the popout: it is
+                    chrome, and chrome in the capture window is chrome in the take.
+                    It answers the two things Lee can't see from a pushed-in shot:
+                    is the camera off its mark, and is the question still pinned. */}
+                {filmWin && (
+                  <div className="sa-chrome pointer-events-none absolute left-2 top-2 z-20 flex items-center gap-2 rounded-md px-2 py-1"
+                    style={{ background: "rgba(5,7,13,0.86)", border: `1px solid ${NEON.borderSoft}`, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                    <span style={{ color: atHome(cam.live, cam.home) ? NEON.muted : "#FCA311" }}>
+                      {atHome(cam.live, cam.home) ? "camera · framed" : "camera · free"}
+                    </span>
+                    <span style={{ color: cam.pinOn ? "#3BF5A0" : NEON.muted }}>{cam.pinOn ? "Q pinned" : "Q loose"}</span>
+                    <span style={{ color: NEON.muted, letterSpacing: "0.04em", textTransform: "none", fontWeight: 600 }}>
+                      wheel zoom · drag pan · O out · L pin · ` re-frame
+                    </span>
+                  </div>
+                )}
                 <ReactFlow
                   // RECORDING/REHEARSE (A2): same preload treatment as the film popout —
                   // the whole set stays mounted so the walk is a pan, never a re-seed.
@@ -2607,10 +2779,29 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                         nodesConnectable
                         elementsSelectable
                         deleteKeyCode={null}
-                        panOnDrag={false}
-                        zoomOnScroll={false}
-                        zoomOnPinch={false}
+                        // FREE CAMERA (Lee, 09-01). These were all false: the shot
+                        // was welded to the fitted frame so OBS framing could never
+                        // drift. That made the frame a cage — an exhibit had to
+                        // shrink until it fit, which is unreadable on a phone.
+                        //
+                        // The framing guarantee is kept, just made RECOVERABLE:
+                        // ` and every question change cut back to the exact same
+                        // fitted shot (fitFilm(0, true)), and while Lee is holding
+                        // the camera nothing else may move it. So a take can only
+                        // ever start from the framed shot.
+                        //
+                        // LEFT + MIDDLE drag pans; RIGHT is left alone for the
+                        // context menu. Dragging a NODE still drags the node —
+                        // ReactFlow only pans on a drag of the pane itself — so
+                        // the arrow-head and card performance gestures the film
+                        // lock deliberately keeps live (film-lock.ts prong 1) are
+                        // untouched by this.
+                        panOnDrag={PAN_BUTTONS}
+                        zoomOnScroll
+                        zoomOnPinch
                         zoomOnDoubleClick={false}
+                        onMoveStart={(e) => { if (e) markCameraManual(); }}
+                        onMove={(e, vp) => { if (e) markCameraManual(); publishFilmViewport(vp); }}
                         preventScrolling={false}
                         style={{ width: "100%", height: "100%", background: "#05070d" }}
                       />
