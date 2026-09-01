@@ -17,5 +17,22 @@ export default defineConfig({
   nitro: { preset: "vercel" },
   // Extra plugins layered on top of the lovable preset. siteQaVersions bakes the
   // /admin/site-qa change-detection hashes into `virtual:site-qa-versions`.
-  vite: { plugins: [siteQaVersions()] },
+  vite: {
+    plugins: [siteQaVersions()],
+    build: {
+      // SOURCEMAPS ON PREVIEWS ONLY (2026-09-01).
+      //
+      // Two production crashes this week arrived as "Cannot access 'wl' before
+      // initialization" and "…'yl'…". Minified names cost a full round trip
+      // each: the first one I matched to the wrong module and shipped a fix
+      // that wasn't the bug. With a map, those read 'orientation' and 'liveIds'
+      // and the fix is obvious from the stack alone.
+      //
+      // NOT in production: the maps are served at predictable URLs, and this is
+      // a public site — shipping them would publish the whole source. Preview
+      // deploys are the ones behind Vercel SSO and the ones we debug against,
+      // so that is where they belong.
+      sourcemap: process.env.VERCEL_ENV !== "production",
+    },
+  },
 });
