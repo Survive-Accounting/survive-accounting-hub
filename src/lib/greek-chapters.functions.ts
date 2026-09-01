@@ -204,6 +204,14 @@ export interface ChapterDashboard {
    *  "Sponsored by" line. Drives which dashboard panels are unlocked (K4.1). Never inferred from
    *  a claim: claiming is free, and a claimed chapter is not a paying one. */
   sponsored: boolean;
+  /** BUILD 2 · SECTION 4 — how many members checked "I'd want the chapter to sponsor this" in the
+   *  member gate. A separate campus_waitlist row (greek_sponsor_interest), never inferred from a
+   *  signup — the whole point of the unchecked box is that "N want this" cannot be counting joins.
+   *
+   *  BEST-EFFORT, and matched by campus + chapter NAME: the member gate keys interest to the
+   *  campus_greek_chapters identity while this dashboard is the greek_chapters one, and no column
+   *  joins them. Any mismatch or lookup failure reads as 0 (under-counts, never over-counts). */
+  sponsorInterest: number;
   /** `id` and `hasSeat` are what make a seat toggle possible per row. */
   roster: Array<{ id: string; name: string; joinedAt: string; setsCompleted: number; hasSeat: boolean }>;
 }
@@ -243,6 +251,20 @@ export const getChapterDashboard = createServerFn({ method: "POST" })
         !p.expires_at || new Date(p.expires_at).getTime() > now);
     } catch { sponsored = false; }
 
+    // SPONSORSHIP-BOX COUNT — best-effort, campus + chapter-name match (see the interface note).
+    let sponsorInterest = 0;
+    try {
+      if (ch.campus_id && ch.chapter_name) {
+        const { count } = await db.from("campus_waitlist")
+          .select("id", { count: "exact", head: true })
+          .eq("kind", "greek_sponsor_interest")
+          .eq("campus_id", ch.campus_id)
+          .eq("is_test", false)
+          .ilike("chapter", ch.chapter_name);
+        sponsorInterest = count ?? 0;
+      }
+    } catch { sponsorInterest = 0; }
+
     return {
       chapterId: ch.id, kitPath,
       seatsTotal: (ch.seats_total as number) ?? 0,
@@ -255,6 +277,7 @@ export const getChapterDashboard = createServerFn({ method: "POST" })
       courseCode,
       digestEnabled: !!ch.digest_enabled,
       sponsored,
+      sponsorInterest,
       membersJoined: rows.length,
       setsCompleted: rows.reduce((a, r) => a + (r.sets_completed ?? 0), 0),
       activeThisWeek: rows.filter((r) => new Date(r.joined_at).getTime() >= weekAgo).length,
