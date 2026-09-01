@@ -13,6 +13,7 @@ import {
   Copy,
   Instagram,
   Loader2,
+  Lock,
   Mail,
   MessageSquarePlus,
   Pencil,
@@ -40,6 +41,7 @@ import { growthLogEnrichmentTime, growthAddFeedback, growthEnrichmentStats } fro
 import { FindContactsPanel } from "@/components/growth/FindContactsPanel";
 import { AddForm, atHandle, ROLE_CHIPS, roleChipOf } from "@/components/growth/contact-add-form";
 import { BottomSheet } from "@/components/growth/BottomSheet";
+import { DmBoard } from "@/components/growth/DmBoard";
 import { ColdHeader } from "@/components/growth/ColdHeader";
 import { renderQueryState } from "@/components/growth/QueryState";
 import { cn } from "@/lib/utils";
@@ -120,112 +122,82 @@ const igHandle = (s: string | null) => {
 const OWNERS: { id: BoardOwner; label: string }[] = [
   { id: "lee", label: "Lee" },
   { id: "king", label: "King" },
-  { id: "ej", label: "EJ" },
 ];
+
+// The queue order Lee asked for: Ole Miss, then LSU, then the Florida campuses by size, then the
+// rest by size. King works his pool straight by estimated student size. No batch labels.
+function queueSort(campuses: BoardCampus[], owner: BoardOwner): BoardCampus[] {
+  const rank = (c: BoardCampus): [number, number] => {
+    const n = c.name.toLowerCase();
+    if (owner === "lee") {
+      if (n.includes("university of mississippi") || n.includes("ole miss")) return [0, 0];
+      if (n.includes("louisiana state")) return [1, 0];
+      if ((c.state ?? "") === "FL") return [2, -(c.seats ?? 0)];
+      return [3, -(c.seats ?? 0)];
+    }
+    return [0, -(c.seats ?? 0)];
+  };
+  return campuses.slice().sort((a, b) => {
+    const [ap, as] = rank(a), [bp, bs] = rank(b);
+    return ap - bp || as - bs || a.name.localeCompare(b.name);
+  });
+}
 
 // ── page ──────────────────────────────────────────────────────────────────────────────
 function ColdOutreachPage() {
-  const [owner, setOwner] = useState<BoardOwner>("king");
+  const [owner, setOwner] = useState<BoardOwner>("lee");
   const board = useQuery({ queryKey: ["co-board", owner], queryFn: () => growthBoard({ data: { owner } }) });
-  const stats = useQuery({ queryKey: ["enrich-stats"], queryFn: () => growthEnrichmentStats() });
-  const [openTranche, setOpenTranche] = useState<number | null>(1);
-  const [picked, setPicked] = useState<BoardCampus | null>(null);
+  const [picked, setPicked] = useState<BoardCampus | null>(null);   // find-contacts (locked campus)
+  const [boardCampus, setBoardCampus] = useState<BoardCampus | null>(null); // DM board (has contacts)
 
-  const tranches = board.data?.tranches ?? [];
-  const ownerLabel = OWNERS.find((o) => o.id === owner)?.label ?? "";
-  const readyCount = tranches.flatMap((t) => t.campuses).filter((c) => c.readiness?.ready).length;
-  const totalCampuses = tranches.reduce((n, t) => n + t.campuses.length, 0);
+  const campuses = queueSort((board.data?.tranches ?? []).flatMap((t) => t.campuses), owner);
+  const sentCount = campuses.filter((c) => c.igContacts > 0).length;
+  // A campus is locked until it has at least one reachable handle to DM.
+  const isLocked = (c: BoardCampus) => c.igContacts === 0;
 
   return (
     <div className="mx-auto max-w-2xl space-y-3">
       <ColdHeader
         tab="enrichment"
         right={
-          <span className="flex items-center gap-3 text-xs text-muted-foreground">
-            {(stats.data?.campusCount ?? 0) > 0 && (
-              <span title={`Rolling average over the ${stats.data!.campusCount} campus${stats.data!.campusCount === 1 ? "" : "es"} timed so far — three campuses is roughly ${Math.round((stats.data!.avgSeconds * 3) / 60)} min`} className="inline-flex items-center gap-1">
-                <Clock className="size-3.5" /> avg {Math.max(1, Math.round(stats.data!.avgSeconds / 60))} min / campus
-              </span>
-            )}
-            <span title="Campuses with a complete contact set, out of your assigned batches">
-              <strong className="text-emerald-400">{readyCount}</strong> / {totalCampuses} ready
-            </span>
+          <span className="text-xs text-muted-foreground">
+            <strong className="text-emerald-400">{sentCount}</strong> / {campuses.length} with contacts
           </span>
         }
       />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex overflow-hidden rounded-lg border border-border text-xs">
-          {OWNERS.map((o) => (
-            <button
-              key={o.id}
-              onClick={() => { setOwner(o.id); setOpenTranche(1); }}
-              className={cn("px-3.5 py-1.5 font-medium", owner === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
+      <div className="inline-flex overflow-hidden rounded-lg border border-border text-xs">
+        {OWNERS.map((o) => (
+          <button key={o.id} onClick={() => setOwner(o.id)} className={cn("px-4 py-1.5 font-medium", owner === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>{o.label}</button>
+        ))}
       </div>
 
       {renderQueryState(board)}
-      {!board.isLoading && !board.isError && board.data?.ready === false && (
-        <div className="rounded-lg border border-dashed border-border p-6 text-center">
-          <p className="text-sm font-medium">{ownerLabel} isn't set up yet</p>
-          <p className="mt-1 text-xs text-muted-foreground">Add {ownerLabel} as a user and assign batches — this view fills in automatically.</p>
-        </div>
-      )}
 
-      {tranches.map((t) => {
-        const open = openTranche === t.number;
-        const ready = t.campuses.filter((c) => c.readiness?.ready).length;
-        return (
-          <div key={t.number} className="overflow-hidden rounded-lg border border-border">
-            <button
-              onClick={() => setOpenTranche(open ? null : t.number)}
-              className={cn("flex w-full items-center gap-2 px-3 py-2 text-left", t.status === "active" ? "bg-primary/[0.04]" : "bg-card")}
-            >
-              {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-              <span className="sa-admin-display text-sm font-semibold">Batch {t.label}</span>
-              <span title="Campuses ready for outreach in this batch · estimated students / yr" className="ml-auto text-[11px] text-muted-foreground">
-                <span className="text-emerald-400">{ready}</span>/{t.campuses.length} ready · {t.totalSeats.toLocaleString()} est.
+      <div className="overflow-hidden rounded-lg border border-border divide-y divide-border/60">
+        {campuses.map((c) => {
+          const locked = isLocked(c);
+          return (
+            <button key={c.campusId} onClick={() => (locked ? setPicked(c) : setBoardCampus(c))} className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/50">
+              <span className="min-w-0 flex-1">
+                <span className="truncate text-[13px] font-medium">{c.name}</span>
+                <span className="block text-[10px] text-muted-foreground">{[c.state, `~${(c.seats ?? 0).toLocaleString()} students`].filter(Boolean).join(" · ")}</span>
               </span>
+              {locked ? (
+                <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"><Lock className="size-3" /> add contacts to start</span>
+              ) : (
+                <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-emerald-400"><Instagram className="size-3" /> {c.igContacts} to DM</span>
+              )}
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
             </button>
-            {open && (
-              <div className="divide-y divide-border/60 border-t border-border">
-                {t.campuses.map((c) => (
-                  <button
-                    key={c.campusId}
-                    onClick={() => setPicked(c)}
-                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/50"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-1.5">
-                        <span className="truncate text-[13px] font-medium">{c.name}</span>
-                        {c.readiness?.ready && (
-                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wide text-emerald-400">
-                            <Check className="size-2.5" /> Ready
-                          </span>
-                        )}
-                      </span>
-                      <span className="block text-[10px] text-muted-foreground">
-                        {[c.state, `~${(c.seats ?? 0).toLocaleString()} students`].filter(Boolean).join(" · ")}
-                      </span>
-                    </span>
-                    <ContactCounters email={c.emailContacts} ig={c.igContacts} />
-                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+        {!board.isLoading && campuses.length === 0 && <div className="p-6 text-center text-xs text-muted-foreground">No campuses assigned yet.</div>}
+      </div>
 
-      {/* Campus click opens Add Contacts directly — no dead-tile door menu. */}
-      {picked && (
-        <AddContacts campus={picked} onClose={() => setPicked(null)} onSaved={() => board.refetch()} />
-      )}
+      {/* Locked → find & add contacts. Unlocked → the DM board. */}
+      {picked && <AddContacts campus={picked} onClose={() => setPicked(null)} onSaved={() => board.refetch()} />}
+      {boardCampus && <DmBoard campusId={boardCampus.campusId} campusName={boardCampus.name} onClose={() => setBoardCampus(null)} />}
     </div>
   );
 }
