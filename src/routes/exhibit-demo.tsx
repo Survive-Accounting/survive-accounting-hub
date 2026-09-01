@@ -16,6 +16,8 @@ import { StandardsNode } from "@/components/canvas/cards/StandardsNode";
 import { BasisNode } from "@/components/canvas/cards/BasisNode";
 import { CareersNode } from "@/components/canvas/cards/CareersNode";
 import { ClassificationNode } from "@/components/canvas/cards/ClassificationNode";
+import { CycleNode } from "@/components/canvas/cards/CycleNode";
+import { blankCard } from "@/components/canvas/templates";
 import { FilmContext } from "@/components/canvas/film-lock";
 import { PAPER } from "@/components/canvas/theme";
 
@@ -27,6 +29,7 @@ const StandardsDemo = StandardsNode as unknown as (p: { id: string; data: unknow
 const BasisDemo = BasisNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 const CareersDemo = CareersNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 const ClassificationDemo = ClassificationNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
+const CycleDemo = CycleNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 
 export const Route = createFileRoute("/exhibit-demo")({
   head: () => ({ meta: [{ title: "⚡ Exhibit Layer Demo — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
@@ -133,6 +136,22 @@ function ExhibitDemo() {
           </div>
           <div style={{ marginTop: 8 }}>
             <ClassificationDemo id="demo-classification-narrow" data={{ kind: "classification", w: 460, h: 1200 }} selected={false} />
+          </div>
+          {/* THE ACCOUNTING CYCLE — the card Lee films most, and the one that had
+              no canvas-free QA mount. It starts in PLAIN: click a step to
+              highlight it, click again to blur it, shift-click an arrow to light
+              a chain, ` clears, 0 resets. M walks on to Source Docs /
+              Definitions / Order, which is where the popovers and the orbit
+              live. Seeded from blankCard so this is the real nine steps.
+
+              CAVEAT for whoever QAs here: exhibit-modes keeps ONE module-level
+              modeDefs slot ("one moded exhibit kind mounted at a time today"),
+              and this page mounts two moded cards — Basis and Cycle — so M is
+              whichever rendered last. Not a product bug: a frame in the capture
+              window only ever has one exhibit on it. Trust the click gestures
+              on this page; test M in the Studio. */}
+          <div style={{ marginTop: 8 }}>
+            <CycleDemo id="demo-cycle" data={blankCard("cycle")} selected={false} />
           </div>
         </FilmContext.Provider>
       </ReactFlowProvider>
