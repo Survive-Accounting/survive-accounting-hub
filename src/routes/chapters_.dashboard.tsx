@@ -276,6 +276,17 @@ function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard
         </p>
       )}
 
+      {/* THE NUMBER THAT SELLS A CHAPTER (learn-share-flow §4). Free membership is the pipeline for
+          paid seats: when the chapter buys seats, it assigns them to members already in the product
+          rather than recruiting from zero. So the member count is framed here as the case for it. */}
+      {data.membersJoined > 0 && (
+        <p className="mt-2 text-center text-[13px] leading-snug" style={{ color: "var(--brand-cream)" }}>
+          <span className="font-black" style={{ color: "var(--accent)" }}>{data.membersJoined}</span>{" "}
+          of your members {data.membersJoined === 1 ? "is" : "are"} already using this. Sponsor seats and
+          you&apos;re unlocking Exams 2–Final for people who are already here.
+        </p>
+      )}
+
       {/* HOW MANY CHECKED THE SPONSORSHIP BOX (Build 2, section 4). A separate signal from signups —
           these members asked the chapter to cover the rest of the semester for them. Shown only
           when at least one has, so a chapter with none is never nudged by an empty stat. */}

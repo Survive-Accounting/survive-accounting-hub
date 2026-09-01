@@ -23,6 +23,7 @@ import { NEON } from "@/components/canvas/theme";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { ChapterAccessForm } from "@/components/site/ChapterAccessForm";
+import { ChapterShareSheet } from "@/components/learn/ChapterShareSheet";
 import { getGoChapter, listGoChapters, tagChapterMember } from "@/lib/greek-go.functions";
 import { deviceAnonId } from "@/lib/device-id";
 
@@ -76,7 +77,7 @@ export function LearnCta({
 
   const [dismissed, setDismissed] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
-  const [view, setView] = useState<"bar" | "pick" | "setup">("bar");
+  const [view, setView] = useState<"bar" | "pick" | "setup" | "share">("bar");
   const [joinBusy, setJoinBusy] = useState(false);
   const [justJoined, setJustJoined] = useState(false);
 
@@ -143,7 +144,9 @@ export function LearnCta({
   const pick = (slug: string) => {
     setPicked(slug);
     if (!testing) ls.set(kPick(campusSlug), slug);
-    setView("bar");
+    // Picking a chapter is the chair's path to the deliverable: go straight to the share sheet
+    // (what-you-get + the link), not back to the bar.
+    setView("share");
   };
 
   const dismiss = () => {
@@ -167,8 +170,6 @@ export function LearnCta({
       </button>
     );
   }
-
-  const shareHref = chapterSlug ? `/s/${campusSlug}/${chapterSlug}${ref ? `?ref=${ref}` : ""}` : `/s/${campusSlug}`;
 
   return (
     <>
@@ -208,10 +209,10 @@ export function LearnCta({
             {state === "C" && <Primary onClick={() => setView("setup")}>Set up {chapterName} →</Primary>}
             {state === "D" && <Primary onClick={() => void join()} busy={joinBusy}>{joinBusy ? "Joining…" : "Join →"}</Primary>}
             {state === "F" && (
-              <a href={shareHref} className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-[13px] font-bold"
+              <button onClick={() => setView("share")} className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-[13px] font-bold"
                 style={{ background: "rgba(255,255,255,0.06)", color: NEON.text }}>
                 <Share2 size={14} /> Share
-              </a>
+              </button>
             )}
           </div>
 
@@ -223,9 +224,9 @@ export function LearnCta({
         {/* A quiet share link under the bar for a chair on a known chapter (states C/D). */}
         {(state === "C" || state === "D") && chapterSlug && (
           <div className="mx-auto mt-1.5 w-full max-w-[560px] text-center">
-            <a href={shareHref} className="text-[12px] font-bold underline underline-offset-4" style={{ color: NEON.muted }}>
+            <button onClick={() => setView("share")} className="text-[12px] font-bold underline underline-offset-4" style={{ color: NEON.muted }}>
               Just want to share {chapterName} with your members? →
-            </a>
+            </button>
           </div>
         )}
       </div>
@@ -256,6 +257,18 @@ export function LearnCta({
             <ChapterAccessForm schoolSlug={campusSlug} chapterSlug={chapterSlug} chapterName={chapterName} onClose={() => setView("bar")} bare />
           )}
         </Sheet>
+      )}
+
+      {/* THE SHARE SHEET — the deliverable: what-you-get + the link + the ask (§6-7). */}
+      {view === "share" && chapterSlug && (
+        <ChapterShareSheet
+          campusSlug={campusSlug}
+          campusName={campusName}
+          chapterName={chapterName || "your chapter"}
+          ref={ref}
+          testing={testing}
+          onClose={() => setView("bar")}
+        />
       )}
     </>
   );
