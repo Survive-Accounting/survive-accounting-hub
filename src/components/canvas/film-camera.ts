@@ -154,6 +154,13 @@ export function pinTransform(opts: {
 }): { transform: string; transformOrigin: string } | null {
   const { vp, home, pin, nodeX, nodeY } = opts;
   if (!vp.zoom || !home.zoom) return null;
+  // PULLING BACK RELEASES THE PIN. Pinning exists so pushing INTO an exhibit
+  // doesn't shove the question off screen. Zoomed OUT past the framed shot Lee
+  // is reading the map — "let me zoom out and bounce around to a new problem" —
+  // and a card held at full screen size would sit on top of that map like a
+  // billboard, hiding the very layout he pulled back to see. Below home zoom the
+  // card rides the canvas with everything else and shrinks honestly.
+  if (vp.zoom < home.zoom - 1e-4) return null;
   const nodeScale = opts.nodeScale || 1;
   const k = (home.zoom / vp.zoom) * ((pin.scale || 1) / nodeScale);
   const dx = (home.x + pin.x * home.zoom - vp.x) / vp.zoom - nodeX;

@@ -97,6 +97,24 @@ describe("pin transform", () => {
     expect(t.transform).toContain("scale(0.5)");
   });
 
+  test("pulling BACK past the framed shot releases the pin", () => {
+    // Zoomed out to bounce around: the card must shrink with the map, not sit
+    // on top of it at full size hiding the layout Lee pulled back to look at.
+    const out: Viewport = { x: 0, y: 0, zoom: HOME.zoom * 0.6 };
+    expect(pinTransform({ vp: out, home: HOME, pin: PIN, nodeX: 400, nodeY: 50, nodeScale: 1 })).toBeNull();
+  });
+
+  test("pushing IN keeps the pin", () => {
+    const inn: Viewport = { x: 0, y: 0, zoom: HOME.zoom * 1.8 };
+    expect(pinTransform({ vp: inn, home: HOME, pin: PIN, nodeX: 400, nodeY: 50, nodeScale: 1 })).not.toBeNull();
+  });
+
+  test("exactly at the home shot the pin still governs placement", () => {
+    // The boundary belongs to the pinned side — at home the template must win,
+    // which is the whole "same spot every question" guarantee.
+    expect(pinTransform({ vp: HOME, home: HOME, pin: PIN, nodeX: 400, nodeY: 50, nodeScale: 1 })).not.toBeNull();
+  });
+
   test("a zero/absent zoom can never produce NaN in a style string", () => {
     expect(pinTransform({ vp: { x: 0, y: 0, zoom: 0 }, home: HOME, pin: PIN, nodeX: 0, nodeY: 0, nodeScale: 1 })).toBeNull();
     expect(pinTransform({ vp: HOME, home: { x: 0, y: 0, zoom: 0 }, pin: PIN, nodeX: 0, nodeY: 0, nodeScale: 1 })).toBeNull();

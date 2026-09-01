@@ -2462,7 +2462,13 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                     <span style={{ color: atHome(cam.live, cam.home) ? NEON.muted : "#FCA311" }}>
                       {atHome(cam.live, cam.home) ? "camera · framed" : "camera · free"}
                     </span>
-                    <span style={{ color: cam.pinOn ? "#3BF5A0" : NEON.muted }}>{cam.pinOn ? "Q pinned" : "Q loose"}</span>
+                    {/* "pinned" only when the pin is actually GOVERNING: it
+                        releases below the home shot, so saying pinned while
+                        zoomed out would be a lie the card visibly contradicts. */}
+                    {(() => {
+                      const govern = cam.pinOn && (!cam.live || !cam.home || cam.live.zoom >= cam.home.zoom - 1e-4);
+                      return <span style={{ color: govern ? "#3BF5A0" : NEON.muted }}>{!cam.pinOn ? "Q loose" : govern ? "Q pinned" : "Q riding (zoomed out)"}</span>;
+                    })()}
                     <span style={{ color: NEON.muted, letterSpacing: "0.04em", textTransform: "none", fontWeight: 600 }}>
                       wheel zoom · drag pan · O out · L pin · ` re-frame
                     </span>
