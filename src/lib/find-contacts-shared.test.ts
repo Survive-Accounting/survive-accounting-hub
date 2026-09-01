@@ -12,7 +12,7 @@ import {
 const row = (o: Partial<OfficerRow> & { id: string }): OfficerRow => ({
   council: "ifc", position: "President", name: "Grayson King",
   email: "gking@olemiss.edu", phone: null, instagram: null,
-  instagramSource: null, instagramConfidence: null,
+  instagramSource: null, instagramConfidence: null, chapter: null,
   sourceUrl: "https://ifc.olemiss.edu/officers",
   include: true, igVerified: false, sourceChecked: false, ...o,
 });

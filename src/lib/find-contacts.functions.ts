@@ -131,27 +131,45 @@ export const scrapeOfficersFn = createServerFn({ method: "POST" })
     if (!campus) return { ok: false, error: "Campus not found.", campusId: data.campusId };
 
     try {
-      const { scrapeOfficers } = await import("@/lib/find-contacts.server");
+      const { scrapeOfficers, searchPersonalInstagram } = await import("@/lib/find-contacts.server");
       const r = await scrapeOfficers(campus.name, data.urls);
       await recordRun(db, { campusId: campus.id, step: "officers", model: r.usage.model, ok: true, promptTokens: r.usage.promptTokens, completionTokens: r.usage.completionTokens, costUsd: r.usage.costUsd, count: r.data.length, by });
 
-      // What this campus already has — duplicates are EXCLUDED, never overwritten.
-      const { data: ex } = await db.from("campus_council_contacts")
-        .select("email,instagram_url").eq("campus_id", campus.id).limit(2000);
-      const rows = (ex ?? []) as Array<{ email: string | null; instagram_url: string | null }>;
+      // §Step 3 — SerpAPI prefill. For a named person with no handle from the page, run one Google
+      // search for their personal Instagram. Bounded fan-out; a miss just leaves the row blank.
+      const drafts = r.data.slice();
+      const needIg = drafts.map((o, i) => ({ o, i })).filter(({ o }) => o.name && o.name.trim() && !o.instagram);
+      const found = await Promise.all(needIg.map(({ o }) => searchPersonalInstagram(o.name!, campus.name).catch(() => null)));
+      needIg.forEach(({ i }, k) => {
+        const h = found[k];
+        if (h) { drafts[i] = { ...drafts[i], instagram: h, instagramSource: "found", instagramConfidence: "low" }; }
+      });
+
+      // What this campus already has — duplicates are EXCLUDED, never overwritten. The canonical
+      // store is growth_contact_qc (what the enrichment view + board read); campus_council_contacts
+      // is the legacy scrape store and is unioned here so neither is re-imported.
+      const [{ data: exQc }, { data: exCc }] = await Promise.all([
+        db.from("growth_contact_qc").select("email,instagram").eq("campus_id", campus.id).limit(4000),
+        db.from("campus_council_contacts").select("email,instagram_url").eq("campus_id", campus.id).limit(2000),
+      ]);
+      const emails = [
+        ...((exQc ?? []) as Array<{ email: string | null }>).map((x) => x.email),
+        ...((exCc ?? []) as Array<{ email: string | null }>).map((x) => x.email),
+      ].filter(Boolean) as string[];
+      const handles = [
+        ...((exQc ?? []) as Array<{ instagram: string | null }>).map((x) => x.instagram),
+        ...((exCc ?? []) as Array<{ instagram_url: string | null }>).map((x) => x.instagram_url),
+      ].filter(Boolean) as string[];
 
       return {
         ok: true, campusId: campus.id, campusName: campus.name, costUsd: r.usage.costUsd,
-        officers: r.data.map((o, i) => ({
+        officers: drafts.map((o, i) => ({
           id: `r${i}`, council: o.council, position: o.position, name: o.name,
           email: o.email, phone: o.phone, instagram: o.instagram,
           instagramSource: o.instagramSource, instagramConfidence: o.instagramConfidence,
-          sourceUrl: o.sourceUrl, include: true, igVerified: false, sourceChecked: false,
+          chapter: o.chapter, sourceUrl: o.sourceUrl, include: true, igVerified: false, sourceChecked: false,
         })),
-        existing: {
-          emails: rows.map((x) => x.email).filter(Boolean) as string[],
-          handles: rows.map((x) => x.instagram_url).filter(Boolean) as string[],
-        },
+        existing: { emails, handles },
       };
     } catch (e) {
       const msg = (e as Error).message;
@@ -171,6 +189,7 @@ const OfficerRowSchema = z.object({
   instagram: z.string().max(200).nullable(),
   instagramSource: z.enum(["listed", "found", "manual"]).nullable(),
   instagramConfidence: z.enum(["high", "low"]).nullable(),
+  chapter: z.string().max(160).nullable(),
   sourceUrl: z.string().max(500).nullable(),
   include: z.boolean(),
   igVerified: z.boolean(),
@@ -236,6 +255,58 @@ export const importReviewedContactsFn = createServerFn({ method: "POST" })
       }
     }
     return { ok: true, imported, skipped: rows.length - imported };
+  });
+
+// ── SUBMIT → INSTAGRAM DM QUEUE ────────────────────────────────────────────────────────────────
+// The endpoint of the flow. Reviewed rows are written into growth_contact_qc (the canonical store
+// the enrichment field grid + board read, via growthSaveCampusContacts, which resolves/creates the
+// Women-in-Business club and marks org vs person), then the campus is stamped in growth_ig_queue so
+// the /coldoutreach/instagram page can list it. Councils map straight through; wib → the WiB club.
+export const sendToDmQueueFn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    campusId: z.string().uuid(),
+    rows: z.array(OfficerRowSchema).max(200),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; imported: number; error?: string }> => {
+    const by = await actor();
+    const db = await admin();
+    const campus = await campusOf(db, data.campusId);
+    if (!campus) return { ok: false, imported: 0, error: "Campus not found." };
+
+    const kept = (data.rows as OfficerRow[]).filter((r) => r.include && (normalizeEmail(r.email) || normalizeHandle(r.instagram)));
+    const contacts = kept.map((r) => {
+      const isPerson = !!(r.name && r.name.trim());
+      const isClub = r.council === "wib";
+      return {
+        kind: isClub ? ("club" as const) : ("council" as const),
+        newClubCategory: isClub ? "women_in_business" : undefined,
+        newClubName: isClub ? "Women in Business" : undefined,
+        councilType: isClub ? undefined : r.council,
+        isPerson,
+        name: isPerson ? r.name : null,
+        role: r.position,
+        email: r.email,
+        instagram: r.instagram,
+        chapter: r.chapter,
+        igRoleAccount: !isPerson,
+      };
+    });
+
+    let imported = 0;
+    try {
+      const { growthSaveCampusContacts } = await import("@/lib/growth-tranche.functions");
+      const res = await growthSaveCampusContacts({ data: { campusId: campus.id, contacts } });
+      imported = res.saved;
+    } catch (e) {
+      return { ok: false, imported: 0, error: (e as Error).message };
+    }
+
+    // Stamp the queue — one row per campus, refreshed on each submit.
+    await db.from("growth_ig_queue").upsert({
+      campus_id: campus.id, queued_at: new Date().toISOString(), queued_by: by, contact_count: imported,
+    }, { onConflict: "campus_id" }).then(() => undefined, (e: unknown) => console.warn("ig_queue upsert failed", e));
+
+    return { ok: true, imported };
   });
 
 /** Records a Confirm / Wrong-clear / manual paste decision on a searched handle, so the header's
