@@ -22,7 +22,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
-import { BoltBadge } from "@/components/site/BoltBadge";
+import { DoorGlyph } from "@/components/site/home-two-door/DoorGlyph";
 import {
   FeatureValueStrip, FloatingContact, MARKETING_CSS, MARKETING_HERO_ID, SocialProofSection,
   TrustChips, TutorBioModal, TutorCard,
@@ -57,6 +57,11 @@ import { nbspCode } from "@/lib/course-code";
 const DOORS_ID = "doors";
 
 // ── PAGE ──────────────────────────────────────────────────────────────────────────────────────
+/** THE HOME CARD ICON SIZE. ~38% of the finished card at 390px, which is where speechnotes.co
+ *  sits and roughly double what the badge occupied. One constant, both doors — the pair being
+ *  identical here is the whole reason they read as a set. */
+const DOOR_ICON_H = 190;
+
 export function TwoDoorHome({ storedCampusId, initialCode, previewSoloHref }: {
   /** The returning visitor's campus, read from the request cookie by the route loader — same
    *  contract as LandingPage's storedCampusId (SSR renders the personalized hero, no flicker). */
@@ -314,12 +319,23 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
   return (
     <DoorRow id={DOORS_ID} label="Choose how you want to study">
         {/* LEFT DOOR — solo students. First in DOM so it stacks first on mobile. */}
-        {/* BOTH DOORS WEAR THE SAME BADGE (BoltBadge) — one component, two
-            variants, so the pair cannot drift apart the way two hand-drawn
-            icons did. Each holds still until hovered or scrolled into view;
-            two boiling icons at once is too busy. */}
+        {/* ── THE ICONS ARE PLAIN NOW (2026-09-01) ─────────────────────────────────
+            These wore BoltBadge: the Survive bolt as a rotated backdrop, a heavy
+            knockout, and the glyph on top. Measured on this page at 390px, the bolt's
+            ink was 62x84 and the GLYPH's was 43x30 — the backdrop was bigger than the
+            thing it was backing, and the pair read as a muddle rather than as a sign.
+
+            An icon on a card has one job: explain the card before a word is read. That
+            needs a single flat silhouette at size, with nothing behind it. BoltBadge is
+            NOT deleted — the composition moves to /learn, where it has room and a reason
+            to exist. It is simply not what a first-screen card wants.
+
+            The two doors stay one component with a shared symmetry contract (see
+            DoorGlyph): one colour, one stroke weight, and only the per-glyph optical
+            scale is allowed to differ. */}
         <DoorCard
-          icon={<BoltBadge glyph="cap" tint="var(--cta-solo-bg)" size={112} />}
+          iconHeight={DOOR_ICON_H}
+          icon={<DoorGlyph glyph="cap" size={DOOR_ICON_H} />}
           title="Study solo"
           button={
             soloHref ? (
@@ -353,7 +369,8 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
         {/* RIGHT DOOR — Greek chapters. Same frame, equal-weight CTA; generic chapter-house
             visual (never one org's letters as the site's default branding). */}
         <DoorCard
-          icon={<BoltBadge glyph="house" tint="var(--cta-chapter-bg)" size={112} />}
+          iconHeight={DOOR_ICON_H}
+          icon={<DoorGlyph glyph="house" size={DOOR_ICON_H} />}
           title="Study with your chapter"
           button={
             <button
