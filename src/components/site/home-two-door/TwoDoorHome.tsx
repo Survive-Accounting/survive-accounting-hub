@@ -42,13 +42,14 @@ import { examRequest, notifyNote } from "@/lib/notify-request";
 import { rememberStudentEmail } from "@/lib/student-email";
 import { readTestSession } from "@/lib/test-mode";
 import { CHAPTER_BTN, DOOR_CARD_CSS, DOOR_CTA_VARS, DOOR_BTN_CLASS, SOLO_BTN } from "./DoorCard";
-import { HOME_FOLD_CSS, HomeDoorCard, HomeDoorRow } from "./HomeFold";
+import { ChapterBuildingIcon, HOME_FOLD_CSS, HomeDoorCard, HomeDoorRow, SoloBoltIcon } from "./HomeFold";
 import { ArrowLeftRight } from "lucide-react";
 
-import { SchoolSwitchSheet } from "./SchoolSwitchSheet";
+import { SchoolPickerSheet } from "./SchoolPickerSheet";
+import type { School as PickerSchool } from "@/lib/schools";
 
 import { CAMPUS_LINE_CSS, CampusEm, CampusFor, CampusLine } from "./campus-line";
-import { soloButtonLabel, soloSupport } from "./two-door-copy";
+import { homeCourseCode, soloButtonLabel, soloSupport } from "./two-door-copy";
 import { nbspCode } from "@/lib/course-code";
 
 /** The doors section's anchor. Also aliased by the legacy #exam1 anchor below it, because every
@@ -106,24 +107,37 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [finderOpen, setFinderOpen] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
-  const [switchOpen, setSwitchOpen] = useState(false);
   const [syllabusOpen, setSyllabusOpen] = useState(false);
+  // THE PICKER GATE (p1 §2): either door opens the school picker first; the hero swap opens the
+  // same sheet. `pickerFor` records which flow to continue into once a school is chosen.
+  const [pickerFor, setPickerFor] = useState<null | "switch" | "solo" | "chapter">(null);
 
   // Shared analytics context — attach what the page knows, never more.
   const ctx = () => ({ campus_id: campus.school?.id, course_code: campus.code ?? undefined });
 
-  // On the live "/" the solo door opens the public waitlist; on /preview/home it navigates into
-  // the private Player V2 instead (same event, `preview` property tells them apart).
+  // Either door opens the picker first. On /preview/home the solo door still NAVIGATES straight
+  // into Player V2 (dev path), so it keeps its link and skips the picker.
   const openSolo = () => {
     track("homepage_study_solo_clicked", { ...ctx(), returning, preview: !!previewSoloHref });
-    if (!previewSoloHref) setWaitlistOpen(true);
+    if (!previewSoloHref) setPickerFor("solo");
   };
-  const openChapter = () => { track("homepage_chapter_clicked", ctx()); setFinderOpen(true); };
+  const openChapter = () => { track("homepage_chapter_clicked", ctx()); setPickerFor("chapter"); };
   const openScope = () => { track("homepage_course_scope_opened", ctx()); setScopeOpen(true); };
-  const openSwitch = () => { track("homepage_school_switch_opened", ctx()); setSwitchOpen(true); };
+  const openSwitch = () => { track("homepage_school_switch_opened", ctx()); setPickerFor("switch"); };
   // The SECOND Exam-1 door, at the foot of the feature list — a reader who scrolled the whole
   // list can convert without scrolling back up. Same waitlist the solo door opens.
   const openExam1Free = () => { track("homepage_secondary_cta_clicked", ctx()); setWaitlistOpen(true); };
+
+  // A school was chosen in the picker: remember it (the page repaints for that campus), then
+  // continue into whichever flow opened the picker. State updates batch, so the flow's modal
+  // reads the just-picked campus on the next render.
+  const onPickSchool = (school: PickerSchool) => {
+    const mode = pickerFor;
+    campus.setSessionSchool(school.id);
+    setPickerFor(null);
+    if (mode === "solo") setWaitlistOpen(true);
+    else if (mode === "chapter") setFinderOpen(true);
+  };
 
   // HEADER CONTEXT PILL (spec §7) — only when a course is actually resolved. On the generic home,
   // where no course is selected, the pill renders nothing (the prop is undefined).
@@ -183,34 +197,47 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           </button>
         </p>
 
-        {/* WHAT YOU'LL GET (spec §10) — the three value points, now under a header that frames
-            them, and closed by a SECOND Exam-1 door so a reader at the end of the list can convert
-            without scrolling back to the top. ~64px of air above it (spec §9). */}
+        {/* PROOF BEFORE THE FEATURE LIST (p2 reorder): someone who just read the headline wants to
+            know whether to trust it BEFORE they read what's included. So What-students-are-saying +
+            Meet-your-tutor now sits directly under the scope line, and the feature list follows. */}
+        <div id="reviews" className="sa-anchor" />
+        <div className="pt-12 sm:pt-16">
+          <SocialProofSection
+            testimonials={<TestimonialsSlider />}
+            tutor={<TutorCard onMore={() => setBioOpen(true)} />}
+          />
+        </div>
+
+        {/* WHAT YOU'LL GET — the three value points under a header, closed by a SECONDARY Exam-1
+            catch. It is deliberately NOT a second full-width amber primary (that competed with the
+            hero's "Start cramming"): an amber OUTLINE button, so the eye still lands on the card
+            buttons first and this reads as the catch for a reader who scrolled past them (p2). */}
         <section className="pt-16">
           <h2 className="text-center text-[22px] font-black sm:text-[26px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
             What you&apos;ll get
           </h2>
           <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} />
-          <div className="mx-auto flex max-w-[360px] justify-center">
+          <div className="mt-3 flex justify-center">
             <button
               type="button"
               onClick={openExam1Free}
-              className={`w-full ${DOOR_BTN_CLASS}`}
-              style={SOLO_BTN}
+              className="sa-cta-secondary inline-flex items-center justify-center rounded-xl focus-visible:ring-2"
+              style={{
+                minHeight: 44,
+                paddingInline: 22,
+                fontSize: 14.5,
+                fontWeight: 900,
+                fontFamily: BRAND_SANS,
+                background: "transparent",
+                color: "var(--accent)",
+                border: "1.5px solid var(--accent)",
+              }}
             >
               Start Exam 1 free →
             </button>
           </div>
         </section>
 
-        <div id="reviews" className="sa-anchor" />
-        {/* Air above the proof block: it is a new thought, not a continuation of the strip. */}
-        <div className="pt-16">
-          <SocialProofSection
-            testimonials={<TestimonialsSlider />}
-            tutor={<TutorCard onMore={() => setBioOpen(true)} />}
-          />
-        </div>
         <SectionDivider />
         <Faq />
       </main>
@@ -238,7 +265,14 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
         />
       )}
       {scopeOpen && <CourseScopeModal onClose={() => setScopeOpen(false)} />}
-      {switchOpen && <SchoolSwitchSheet onClose={() => setSwitchOpen(false)} />}
+      {pickerFor && (
+        <SchoolPickerSheet
+          onClose={() => setPickerFor(null)}
+          onPick={onPickSchool}
+          showClear={pickerFor === "switch"}
+          title={pickerFor === "chapter" ? "Which school is your chapter at?" : "Which school are you at?"}
+        />
+      )}
       {syllabusOpen && <SyllabusModal school={schoolObj} onClose={() => setSyllabusOpen(false)} />}
     </div>
   );
@@ -351,12 +385,11 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
 }) {
   return (
     <HomeDoorRow id={DOORS_ID} label="Choose how you want to study">
-        {/* LEFT DOOR — solo students. First in DOM so it stacks first on mobile. The giant cap
-            icon is GONE (spec §1): it ate a third of the fold and pushed the chapter card off
-            screen. The card's title is now the bolt lockup, and the rectangle keeps both doors
-            above the fold on a 390px phone. */}
+        {/* LEFT DOOR — solo students. First in DOM so it stacks first on mobile. Its large icon is
+            the boiling, campus-tinted Survive bolt; the heading is "survive Solo". Clicking opens
+            the school picker first (p1 §2), then the Exam-1 flow. */}
         <HomeDoorCard
-          tail="SOLO"
+          icon={<SoloBoltIcon />}
           button={
             soloHref ? (
               <a
@@ -386,12 +419,11 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
           }
         />
 
-        {/* RIGHT DOOR — Greek chapters. Same frame; the small columned-building glyph beside the
-            lockup is the one icon left on either card, there to tell the two doors apart. NOT a
-            house — that read as real-estate, not a Greek chapter (spec §3b). */}
+        {/* RIGHT DOOR — Greek chapters. Its large icon is the classical columned building (NOT a
+            house — that read as real-estate, not a Greek chapter). Clicking opens the same picker,
+            then the chapter waitlist. */}
         <HomeDoorCard
-          tail="WITH YOUR CHAPTER"
-          chapterGlyph
+          icon={<ChapterBuildingIcon />}
           button={
             <button
               type="button"
@@ -399,17 +431,15 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
               className={DOOR_BTN_CLASS}
               style={CHAPTER_BTN}
             >
-              Find your chapter →
+              Study with your chapter →
             </button>
           }
           support={
-            <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch" }}>
-              {/* spec §8: only ONE bold phrase per line, so the emphasis lands — "Boost GPAs."
-                  keeps the bold; "fraternity or sorority" no longer competes for it. */}
-              <span style={{ color: "var(--text-muted)" }}>
-                Get Survive through your fraternity or sorority.{" "}
-              </span>
-              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Boost GPAs.</span>
+            <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch", color: "var(--text-muted)" }}>
+              {/* Course code is dynamic per campus (same source the hero headline uses); falls back
+                  to the flagship code when no campus is resolved. */}
+              Get <span className="font-bold" style={{ color: "var(--brand-cream)" }}>{homeCourseCode(code)}</span> exam prep for your sorority or fraternity.{" "}
+              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Exam 1 is free for every member.</span>
             </span>
           }
         />
@@ -558,5 +588,11 @@ ${CAMPUS_LINE_CSS}
 @media (prefers-reduced-motion: reduce) {
   .sa-door-card, .sa-door-card:hover { transform: none; transition: none; }
 }
+
+/* SECONDARY CTA (p2) — amber outline; on hover the fill warms a touch. Never a solid amber, so it
+   stays a step below the hero's primary. */
+.sa-cta-secondary { transition: background-color 160ms ease, border-color 160ms ease; }
+.sa-cta-secondary:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+@media (prefers-reduced-motion: reduce) { .sa-cta-secondary { transition: none; } }
 
 `;

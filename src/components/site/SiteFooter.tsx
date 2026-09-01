@@ -19,6 +19,7 @@
 // LAYOUT: brand + company metadata in one left block, three link columns to its right. Horizontal
 // rather than a tall stack with a big centred metadata slab underneath.
 import { useEffect, useState } from "react";
+import { Mail, Phone } from "lucide-react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { FitWordmark } from "@/components/site/SiteHeader";
@@ -28,12 +29,25 @@ const PHONE = "(662) 565-8818";
 const TEL = "+16625658818";
 export const EMAIL = "lee@surviveaccounting.com";
 
-type Col = { title: string; links: Array<{ label: string; href?: string; onClick?: () => void }> };
+/** GMAIL COMPOSE, not mailto: (p3). A bare mailto: handed off to whatever mail client iOS had
+ *  registered — often the wrong one, or nothing. This opens Gmail's web composer directly, which
+ *  is where Lee actually reads mail. External web URL → open in a new tab. */
+export function gmailComposeHref(to: string, subject?: string, body?: string): string {
+  const p = new URLSearchParams({ view: "cm", fs: "1", to });
+  if (subject) p.set("su", subject);
+  if (body) p.set("body", body);
+  return `https://mail.google.com/mail/?${p.toString()}`;
+}
+
+type Col = { title: string; links: Array<{ label: string; href?: string; onClick?: () => void; icon?: React.ReactNode; external?: boolean }> };
 
 export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
   // Same-page anchors only where those sections exist; absolute everywhere else.
   const base = onLanding ? "" : "/";
   const [founder, setFounder] = useState(false);
+  // The council pages are being rebuilt, so the four "For <council>" links are not wired to a page
+  // yet — clicking one explains that rather than 404ing on an unseeded campus (p3 decision).
+  const [maint, setMaint] = useState(false);
 
   const columns: Col[] = [
     {
@@ -48,21 +62,29 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
       ],
     },
     {
-      // THE GREEK COLUMN IS GONE (2026-08-28). The council and national-org pages are being
-      // iterated on privately — they live on /leeportal now and are noindexed, so a public
-      // footer link to them would be a door to a room that is being rebuilt. The ONE Greek
-      // path a visitor should find today is the homepage's chapter door (the waitlist).
-      // "Add your school" / "Add your Greek org" went with it: both opened write-in forms for
-      // a program that is not taking sign-ups at this stage.
+      // GREEK COUNCILS (rebuilt p3). "Find your chapter" is the one live, arbitrary-campus page
+      // (/chapters works for every seeded school). The four "For <council>" pages exist only per
+      // seeded (school, council) pair, so until there is a generic council page they open a quiet
+      // "under maintenance" note instead of a dead link.
+      title: "Greek Councils",
+      links: [
+        { label: "Find your chapter", href: "/chapters" },
+        { label: "For IFC", onClick: () => setMaint(true) },
+        { label: "For Panhellenic", onClick: () => setMaint(true) },
+        { label: "For NPHC", onClick: () => setMaint(true) },
+        { label: "For MGC", onClick: () => setMaint(true) },
+      ],
+    },
+    {
       title: "Help",
       links: [
-        { label: `Text Lee ${PHONE}`, href: `sms:${TEL}` },
-        { label: `Email ${EMAIL}`, href: `mailto:${EMAIL}` },
+        { label: `Text Lee ${PHONE}`, href: `sms:${TEL}`, icon: <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden /> },
+        { label: EMAIL, href: gmailComposeHref(EMAIL), external: true, icon: <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden /> },
       ],
     },
   ];
 
-  const linkCls = "inline-flex items-center text-left text-[14px] font-semibold transition-colors hover:text-[var(--accent)]";
+  const linkCls = "inline-flex items-center gap-1.5 text-left text-[14px] font-semibold transition-colors hover:text-[var(--accent)]";
   const linkStyle = { color: "var(--brand-cream)", minHeight: 34 } as const;
   const metaCls = "text-[13px]";
   const metaStyle = { color: "var(--text-secondary)" } as const;
@@ -74,34 +96,32 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
       // relative + z-1: see the note at the top of this file.
       style={{ position: "relative", zIndex: 1, borderColor: "var(--border-default)", background: "var(--bg-nav)", fontFamily: BRAND_SANS }}
     >
-      {/* Three tracks since the Greek column was removed (2026-08-28): brand + Students + Help.
-          The brand block keeps the wide track; the two link columns share the rest. */}
-      <div className="mx-auto grid max-w-[1040px] grid-cols-2 gap-x-6 gap-y-8 px-5 lg:grid-cols-[1.5fr_1fr_1fr] lg:gap-x-8">
-        {/* BRAND + COMPANY. One block: mark, promise, a quiet rule, then the metadata that used to
-            sprawl across a full-width centred row of its own. */}
+      {/* Four tracks (p3): brand + Students + Greek Councils + Help. On a phone the brand block
+          spans the full width and the three link columns fall into a 2-col grid beneath it, so the
+          footer stays compact rather than becoming a tall stack. */}
+      <div className="mx-auto grid max-w-[1100px] grid-cols-2 gap-x-6 gap-y-8 px-5 lg:grid-cols-[1.5fr_1fr_1fr_1fr] lg:gap-x-8">
+        {/* BRAND + COMPANY. One block: mark, promise, a quiet rule, then the company metadata. */}
         <div className="col-span-2 lg:col-span-1">
           <div className="max-w-[180px]"><FitWordmark size={50} style={{ alignItems: "flex-start" }} /></div>
           <p className="mt-2 text-[14px]" style={{ color: "var(--text-secondary)" }}>Cram what&apos;s on your exam.</p>
 
           <div className="my-4 h-px w-full max-w-[240px]" style={{ background: "var(--border-subtle)" }} />
 
-          <p className={metaCls} style={metaStyle}>Earned Wisdom LLC</p>
-          <p className={metaCls} style={metaStyle}>surviveaccounting.com</p>
-          <p className={`${metaCls} mt-0.5`} style={metaStyle}>
-            <a href="/privacy" className="hover:text-[var(--accent)]" style={{ color: "inherit" }}>Privacy</a>
-            <span aria-hidden className="px-1.5" style={{ opacity: 0.5 }}>·</span>
-            <a href="/terms" className="hover:text-[var(--accent)]" style={{ color: "inherit" }}>Terms</a>
-          </p>
-          <p className={`${metaCls} mt-2`} style={metaStyle}>
+          <p className={metaCls} style={metaStyle}>
             Created by Lee Ingram{" "}
             <span aria-hidden style={{ opacity: 0.5 }}>·</span>{" "}
             <button type="button" onClick={() => setFounder(true)} className="font-bold underline underline-offset-4 hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>
               Learn how →
             </button>
           </p>
-          {/* The memorial moved INSIDE the Learn-How panel (FINAL MILE H5) — it lives only there now.
-              The Greek badge strip that briefly lived here is gone (2026-08-28): the chapter door on
-              the homepage is the single Greek entry point while the program is pre-launch. */}
+          <p className={`${metaCls} mt-2`} style={metaStyle}>
+            © 2026 Earned Wisdom LLC
+            <span aria-hidden className="px-1.5" style={{ opacity: 0.5 }}>·</span>
+            <a href="/privacy" className="hover:text-[var(--accent)]" style={{ color: "inherit" }}>Privacy</a>
+            <span aria-hidden className="px-1.5" style={{ opacity: 0.5 }}>·</span>
+            <a href="/terms" className="hover:text-[var(--accent)]" style={{ color: "inherit" }}>Terms</a>
+          </p>
+          <p className="mt-3 text-[12.5px] italic" style={{ color: "var(--text-tertiary)" }}>In memory of Ben Ingram.</p>
         </div>
 
         {columns.map((col) => (
@@ -111,9 +131,17 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
               {col.links.map((l) => (
                 <li key={l.label}>
                   {l.href ? (
-                    <a href={l.href} className={linkCls} style={linkStyle}>{l.label}</a>
+                    <a
+                      href={l.href}
+                      target={l.external ? "_blank" : undefined}
+                      rel={l.external ? "noopener noreferrer" : undefined}
+                      className={linkCls}
+                      style={linkStyle}
+                    >
+                      {l.icon}{l.label}
+                    </a>
                   ) : (
-                    <button type="button" onClick={l.onClick} className={linkCls} style={linkStyle}>{l.label}</button>
+                    <button type="button" onClick={l.onClick} className={linkCls} style={linkStyle}>{l.icon}{l.label}</button>
                   )}
                 </li>
               ))}
@@ -123,7 +151,30 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
       </div>
 
       {founder && <FounderModal onClose={() => setFounder(false)} />}
+      {maint && <MaintenanceModal onClose={() => setMaint(false)} />}
     </footer>
+  );
+}
+
+/** The council pages are mid-rebuild — a quiet note instead of a dead link (p3). */
+function MaintenanceModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-[300] grid place-items-center px-4" style={{ background: "rgba(5,8,16,0.72)" }} onClick={onClose} role="dialog" aria-modal="true" aria-label="Under maintenance">
+      <div
+        className="w-full max-w-[360px] rounded-2xl p-5 text-center"
+        style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", fontFamily: BRAND_SANS }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>Under maintenance</p>
+        <p className="mt-1.5 text-[14px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>This feature is currently under maintenance. Check back soon.</p>
+        <button onClick={onClose} className="mt-4 w-full rounded-xl text-[14px] font-black" style={{ minHeight: 46, background: "var(--accent)", color: "#0B1220" }}>Got it</button>
+      </div>
+    </div>
   );
 }
 
