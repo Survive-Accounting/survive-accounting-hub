@@ -41,6 +41,60 @@ if a file is misnamed. You never touch asset IDs.
    Click the chip to flag **RETAKE** and keep moving; the Script editor is the
    shot list — retakes glow amber there.
 
+## The camera in the capture window (2026-09-01)
+
+The capture window used to have no camera at all: pan and zoom were switched
+off so the shot stayed welded to the fitted frame and OBS framing could never
+drift. That kept framing exact and made the frame a **cage** — an exhibit had
+to be shrunk until it fit a 1080×1920 box, which is unreadable on a phone.
+
+The framing guarantee is still there. It is just **recoverable** instead of
+absolute, which means a frame rect is now a *shot the camera returns to*, not
+a box the content must fit inside. Content may live outside it.
+
+| | |
+| --- | --- |
+| **wheel** | zoom |
+| **drag** (left or middle) | pan — right stays the context menu |
+| **O** | pull back far enough to see everything, including whatever spills outside the frame |
+| **`** | re-frame: cuts back to the exact fitted shot (and still sweeps marks) |
+| **space / next question** | also cuts back to the fitted shot |
+| **L** | pin the question on/off |
+
+**A take can still only ever start from the framed shot**, because ` and every
+question change return to it. While you are holding the camera, nothing else
+may move it — not a window resize, not focus, not the settle timers.
+
+### The pin
+
+The active question is held still in screen space while the camera flies over
+the exhibit underneath it. It is the same card as always — highlighting, the
+choice menu, spotlight, text selection and chain arrows all work; only its
+painted position changes.
+
+The pin anchors on the **set template** (the Q0 layout), *not* on the
+question's own saved geometry. That is deliberate, and it is the fix for "I set
+the layout and it doesn't apply to every card": `ceq-geom` resolves
+`instance ?? template`, so any question ever nudged by hand outranks the
+template forever, and `ignoreLayout` frames opt out permanently. Both are right
+for authoring and wrong on camera, where all that matters is the question's top
+edge landing in the same place every time. **Pinned, the template governs.**
+
+Nothing is written. The authored geometry is untouched and comes straight back
+when the pin is off (`L`) or the popout closes.
+
+The pin **releases when you pull back** past the framed shot — zoomed out you
+are reading the map, and a card held at full size would cover it. The editor's
+camera HUD says which state you are in.
+
+### The editor mirrors the capture window
+
+While you are flying, the editor previewer follows as a monitor so you can see
+where you are without touching it. Capture leads; one writer, so the two panes
+can't fight. What crosses over is the canvas *rect* being looked at, not the
+viewport numbers — the panes are different sizes, so copying x/y/zoom would
+show two different shots.
+
 ## Where things live
 
 - **Scripts** — on the frame (scene payload). No DB table.
