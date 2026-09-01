@@ -58,7 +58,7 @@ export function LearnCta({
   campusSlug,
   campusName,
   ref,
-  by,
+  sharerIsCouncil,
   test,
 }: {
   campusSlug: string;
@@ -66,8 +66,8 @@ export function LearnCta({
   /** The contact who brought them (recipient). Kept for attribution on join; the sharer banner is
    *  Phase 3. */
   ref?: string | null;
-  /** by = the human sharer (Phase 3 banner + state B). Accepted now so the mount is stable. */
-  by?: string | null;
+  /** The resolved sharer/recipient sits on a council → state B ("get this to your chapter"). */
+  sharerIsCouncil?: boolean;
   /** ?test letter — forces a state from a fixture, client-only. */
   test?: string;
 }) {
@@ -121,10 +121,10 @@ export function LearnCta({
   // ── the state ────────────────────────────────────────────────────────────────────────────────
   const state: CtaState = useMemo(() => {
     if (fixture) return fixture.state;
-    if (!chapterSlug) return by || refIsCouncil(ref) ? "B" : "A"; // B refined in Phase 3
+    if (!chapterSlug) return sharerIsCouncil ? "B" : "A";
     if (isMember) return "F";
     return claimed ? "D" : "C";
-  }, [fixture, chapterSlug, isMember, claimed, by, ref]);
+  }, [fixture, chapterSlug, isMember, claimed, sharerIsCouncil]);
 
   const join = async () => {
     if (!chapterSlug || joinBusy) return;
@@ -293,10 +293,6 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
     </div>
   );
 }
-
-// Placeholder until the Phase 3 contact resolver: we can't yet know a bare ref's role, so B only
-// fires from ?test for now. Kept as a function so the call site reads as intended.
-function refIsCouncil(_ref?: string | null): boolean { return false; }
 
 function fixtureChapters(testing: boolean): Array<{ slug: string; name: string; nickname: string | null; letters: string | null }> {
   return testing ? [{ slug: "chi-omega", name: "Chi Omega", nickname: "Chi O", letters: "ΧΩ" }] : [];

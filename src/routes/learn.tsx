@@ -38,6 +38,7 @@ import { ModeBolt } from "@/components/learn/ModeBolt";
 import { VideoCard } from "@/components/learn/VideoCard";
 import { ExamRail, type ExamTabState } from "@/components/learn/ExamRail";
 import { LearnCta } from "@/components/learn/LearnCta";
+import { ShareBanner, useShareContext } from "@/components/learn/ShareBanner";
 import { schoolByCampusId } from "@/lib/schools";
 import { Spine, useVisibleTopic, type SpineTopic } from "@/components/learn/Spine";
 import { isContactRef } from "@/lib/contact-ref";
@@ -515,6 +516,9 @@ function useIsNarrow(): boolean {
 function LearnShell() {
   const search = Route.useSearch();
   const demo = !!search.demo;
+  // GREEK SHARE FUNNEL — resolve the sharer/recipient once, for the vouched banner (by) and the CTA
+  // bar's council state (by or ref). ?test=banner uses a fixture.
+  const shareCtx = useShareContext({ by: search.by, ref: search.ref, test: search.test });
   // CAMPUS CONTEXT (Prompt 3) — pick a campus to see its chapter numbers + order. Only campuses
   // that actually have overrides are offered (others = the course default, so picking changes
   // nothing). Persisted; passed to the tree so numbering/order resolve server-side.
@@ -956,6 +960,9 @@ function LearnShell() {
         </div>
       )}
 
+      {/* VOUCHED BANNER — top of the dashboard, only for ?by= (a human sharer). */}
+      {!demo && <ShareBanner ctx={shareCtx} />}
+
       <div className="flex min-h-0 flex-1">
         {/* ── SPINE — the course map, tracking the rail's scroll. ─────────────────────────── */}
         {!isNarrow && (
@@ -1193,7 +1200,7 @@ function LearnShell() {
         // chapter, so no campus is needed to preview).
         if (!ctaSlug && !search.test) return null;
         const ctaName = schoolByCampusId(campusId)?.name ?? campuses.find((c) => c.id === campusId)?.name ?? ctaSlug ?? "your campus";
-        return <LearnCta campusSlug={ctaSlug ?? "your-campus"} campusName={ctaName} ref={search.ref ?? null} by={search.by ?? null} test={search.test} />;
+        return <LearnCta campusSlug={ctaSlug ?? "your-campus"} campusName={ctaName} ref={search.ref ?? null} sharerIsCouncil={shareCtx.isCouncil} test={search.test} />;
       })()}
     </div>
   );
