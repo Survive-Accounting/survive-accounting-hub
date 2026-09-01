@@ -18,15 +18,11 @@ import { loadBoothBank, type BoothCeq, type BoothSetInfo, type BoothTopic } from
 import { loadBlastPlan, saveBlastPlan } from "@/lib/blastoff.functions";
 import { syncBlastPlanToSet } from "@/lib/blastoff-sync.functions";
 import { openFilmMode } from "@/components/blastoff/FilmHandoff";
-import { CheatCodeFrame, PhraseFrame, TipFrame } from "@/components/blastoff/ContentFrames";
-import { CeqFrame } from "@/components/blastoff/CeqFrame";
-import { FoundOnYourExam } from "@/components/blastoff/FoundOnYourExam";
-import { SurviveIntro } from "@/components/blastoff/SurviveIntro";
-import { SurviveOutro } from "@/components/blastoff/SurviveOutro";
-import { V } from "@/components/blastoff/stage";
+import { SetCard } from "@/components/blastoff/SetCard";
+import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
 import { HighlightContext, useTextHighlights } from "@/components/canvas/text-highlights";
 import {
-  FRAME_LABEL, INSERT_KINDS, insertFrame, moveFrame, newFrameId, reconcilePlan, removeFrame,
+  FRAME_LABEL, INSERT_CALLOUT, INSERT_KINDS, insertFrame, isInsert, moveFrame, newFrameId, reconcilePlan, removeFrame,
   type BlastFrame, type BlastFrameKind, type BlastPlan,
 } from "@/components/blastoff/plan";
 import { BankPicker } from "@/components/blastoff/BankPicker";
@@ -58,14 +54,17 @@ function BlastOff() {
     loadBoothBank().then((r) => setTopics(r.topics)).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, []);
 
-  const set = useMemo(() => {
+  // The set AND the topic it lives under — the topic name is the kicker the
+  // canvas prints above a question stem ("EASY POINTS"), so the preview needs it.
+  const found = useMemo(() => {
     if (view.mode === "home" || !topics) return null;
-    for (const t of topics) for (const s of t.sets) if (s.id === view.setId) return s;
+    for (const t of topics) for (const s of t.sets) if (s.id === view.setId) return { set: s, topicName: t.name };
     return null;
   }, [topics, view]);
+  const set = found?.set ?? null;
 
   if (view.mode === "capture" && set) {
-    return <Capture set={set} onExit={() => setView({ mode: "edit", setId: set.id })} />;
+    return <Capture set={set} topicName={found?.topicName} onExit={() => setView({ mode: "edit", setId: set.id })} />;
   }
 
   return (
@@ -94,7 +93,7 @@ function BlastOff() {
           onCapture={(s) => setView({ mode: "capture", setId: s.id })} />
       )}
       {view.mode === "edit" && set && (
-        <Editor set={set} onCapture={() => setView({ mode: "capture", setId: set.id })} />
+        <Editor set={set} topicName={found?.topicName} onCapture={() => setView({ mode: "capture", setId: set.id })} />
       )}
       {view.mode === "edit" && !set && topics && <div style={{ color: MUTED }}>Set not found.</div>}
     </div>
@@ -168,18 +167,22 @@ function usePlan(set: BoothSetInfo) {
 
 // ---------------------------------------------------------------- editor
 
-function Editor({ set, onCapture }: { set: BoothSetInfo; onCapture: () => void }) {
+function Editor({ set, topicName, onCapture }: { set: BoothSetInfo; topicName?: string; onCapture: () => void }) {
   const { plan, commit, saving } = usePlan(set);
   const [picker, setPicker] = useState<BlastFrameKind | null>(null);
   const [at, setAt] = useState<number>(0);
   const [busy, setBusy] = useState(false);
   const [syncNote, setSyncNote] = useState<string | null>(null);
   const ceqById = useMemo(() => new Map(set.ceqs.map((c) => [c.id, c])), [set.ceqs]);
+  const progressById = useMemo(
+    () => questionProgress(plan?.frames ?? [], ceqById),
+    [plan?.frames, ceqById],
+  );
 
   if (!plan) return <div style={{ color: MUTED, fontSize: 13 }}>Loading the running order…</div>;
 
   const add = (kind: BlastFrameKind, patch: Partial<BlastFrame> = {}) => {
-    commit(insertFrame(plan.frames, { id: newFrameId(kind), kind, ...patch }, at || plan.frames.length - 2));
+    commit(insertFrame(plan.frames, { id: newFrameId(kind), kind, ...patch }, at));
     setPicker(null);
   };
 
@@ -201,7 +204,7 @@ function Editor({ set, onCapture }: { set: BoothSetInfo; onCapture: () => void }
               setBusy(true); setSyncNote("Writing frames into the set…");
               syncBlastPlanToSet({ data: { setId: set.id, frames: plan.frames } })
                 .then((r) => {
-                  setSyncNote(`✓ ${r.wrote} frames written · ${r.reordered} questions ordered${r.missingCeqs ? ` · ${r.missingCeqs} missing` : ""} — opening film`);
+                  setSyncNote(`✓ ${r.reordered + r.wrote} frames ordered${r.missing ? ` · ${r.missing} missing` : ""} — opening film`);
                   openFilmMode(set.id);
                 })
                 .catch((e) => setSyncNote(`⚠ ${e instanceof Error ? e.message : String(e)}`))
@@ -222,7 +225,7 @@ function Editor({ set, onCapture }: { set: BoothSetInfo; onCapture: () => void }
             </button>
           ))}
           <span style={{ fontSize: 10.5, color: MUTED, alignSelf: "center", marginLeft: 6 }}>
-            inserts land after frame {(at || plan.frames.length - 2) + 1}
+            inserts land after frame {Math.min(at, plan.frames.length - 1) + 1}
           </span>
         </div>
 
@@ -233,8 +236,11 @@ function Editor({ set, onCapture }: { set: BoothSetInfo; onCapture: () => void }
 
         <div className="flex flex-col gap-1.5">
           {plan.frames.map((f, i) => {
-            const fixed = f.kind === "intro" || f.kind === "outro";
+            // Only inserts can be deleted here — a card the set owns stays,
+            // because the set still has it and it still has to be filmed.
+            const insert = isInsert(f.kind);
             const ceq = f.ceqId ? ceqById.get(f.ceqId) : undefined;
+            const note = f.kind === "ceq" && !!ceq?.noteOnly;
             return (
               <div key={f.id} onClick={() => setAt(i)}
                 className="flex items-center gap-3 rounded-xl px-3 py-2"
@@ -244,32 +250,30 @@ function Editor({ set, onCapture }: { set: BoothSetInfo; onCapture: () => void }
                   cursor: "pointer",
                 }}>
                 <span style={{ color: MUTED, fontSize: 11, fontWeight: 800, minWidth: 24, fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
-                <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: fixed ? MUTED : GOLD, minWidth: 128 }}>
-                  {FRAME_LABEL[f.kind]}
+                <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: insert ? GOLD : MUTED, minWidth: 128 }}>
+                  {note ? "Note frame" : FRAME_LABEL[f.kind]}
                 </span>
                 <span style={{ fontSize: 12.5, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                  {f.kind === "ceq" ? (ceq ? `${ceq.label} · ${ceq.stem}` : "— question missing from the bank —")
-                    : f.kind === "intro" ? (f.topic || set.name)
-                    : f.kind === "outro" ? (f.tagline || "Cram what's on your exam.")
-                    : f.kind === "foye" ? (f.canonical || "generated from this set")
+                  {f.kind === "ceq" ? (ceq ? (note ? ceq.stem : `${ceq.label} · ${ceq.stem}`) : "— card missing from the set —")
                     : f.kind === "cheat" ? `${f.title ?? ""}${f.body ? " — " + f.body : ""}`
+                    : f.kind === "exhibit" ? (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit")
                     : (f.text ?? "")}
                 </span>
-                {!fixed && (
-                  <>
-                    <button title="Up" style={{ color: MUTED, background: "none", border: "none", cursor: "pointer" }}
-                      onClick={(e) => { e.stopPropagation(); commit(moveFrame(plan.frames, i, i - 1)); }}>
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button title="Down" style={{ color: MUTED, background: "none", border: "none", cursor: "pointer" }}
-                      onClick={(e) => { e.stopPropagation(); commit(moveFrame(plan.frames, i, i + 1)); }}>
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </button>
-                    <button title="Remove" style={{ color: MUTED, background: "none", border: "none", cursor: "pointer" }}
-                      onClick={(e) => { e.stopPropagation(); commit(removeFrame(plan.frames, f.id)); }}>
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </>
+                {/* Everything reorders — the set's own intro is just a card, and
+                    if Lee wants a cheat code to open the rip that is his call. */}
+                <button title="Up" style={{ color: MUTED, background: "none", border: "none", cursor: "pointer" }}
+                  onClick={(e) => { e.stopPropagation(); commit(moveFrame(plan.frames, i, i - 1)); }}>
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </button>
+                <button title="Down" style={{ color: MUTED, background: "none", border: "none", cursor: "pointer" }}
+                  onClick={(e) => { e.stopPropagation(); commit(moveFrame(plan.frames, i, i + 1)); }}>
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </button>
+                {insert && (
+                  <button title="Remove this insert" style={{ color: MUTED, background: "none", border: "none", cursor: "pointer" }}
+                    onClick={(e) => { e.stopPropagation(); commit(removeFrame(plan.frames, f.id)); }}>
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 )}
               </div>
             );
@@ -282,8 +286,9 @@ function Editor({ set, onCapture }: { set: BoothSetInfo; onCapture: () => void }
         <div style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, fontWeight: 800, marginBottom: 7 }}>
           Frame {Math.min(at, plan.frames.length - 1) + 1} preview
         </div>
-        <div style={{ border: `1px solid ${EDGE}`, borderRadius: 10, overflow: "hidden", lineHeight: 0 }}>
-          <FrameView frame={plan.frames[Math.min(at, plan.frames.length - 1)]} set={set} scale={0.26} />
+        <div style={{ border: `1px solid ${EDGE}`, borderRadius: 10, overflow: "hidden" }}>
+          <FrameView frame={plan.frames[Math.min(at, plan.frames.length - 1)]} set={set} scale={0.62}
+            topicName={topicName} progress={progressById.get(plan.frames[Math.min(at, plan.frames.length - 1)]?.id)} />
         </div>
       </div>
     </div>
@@ -292,45 +297,70 @@ function Editor({ set, onCapture }: { set: BoothSetInfo; onCapture: () => void }
 
 // ------------------------------------------------------- one frame, drawn
 
-function FrameView({ frame, set, scale, progress, showAnswer }: {
-  frame: BlastFrame; set: BoothSetInfo; scale: number; progress?: number; showAnswer?: boolean;
-}) {
-  const stems = useMemo(() => set.ceqs.filter((c) => !c.noteOnly && !c.draft).map((c) => c.stem), [set.ceqs]);
-  const ceq: BoothCeq | undefined = frame.ceqId ? set.ceqs.find((c) => c.id === frame.ceqId) : undefined;
+/** Is this plan frame a QUESTION, as opposed to one of the set's note frames?
+ *  The canvas's own rule: a note frame is breath — it neither counts toward the
+ *  "Q 3/8" counter nor is counted by it. */
+const isQuestion = (f: BlastFrame, byId: Map<string, BoothCeq>): boolean =>
+  f.kind === "ceq" && !!f.ceqId && !byId.get(f.ceqId)?.noteOnly;
 
-  switch (frame.kind) {
-    case "intro":
-      return <SurviveIntro topic={frame.topic || set.name} scale={scale} progress={progress} />;
-    case "foye":
-      return <FoundOnYourExam stems={stems} canonical={frame.canonical} variations={frame.variations} scale={scale} progress={progress} />;
-    case "outro":
-      return <SurviveOutro tagline={frame.tagline} scale={scale} progress={progress} />;
-    case "phrase":
-      return <PhraseFrame text={frame.text ?? ""} scale={scale} progress={progress} />;
-    case "cheat":
-      return <CheatCodeFrame title={frame.title ?? ""} body={frame.body} scale={scale} progress={progress} />;
-    case "tip":
-      return <TipFrame text={frame.text ?? ""} scale={scale} progress={progress} />;
-    case "ceq":
-      return ceq
-        ? <CeqFrame ceqId={ceq.id} label={ceq.label} stem={ceq.stem} choices={ceq.choices} showAnswer={showAnswer} scale={scale} progress={progress} />
-        : <CeqFrame stem="This question is no longer in the bank." scale={scale} progress={progress} />;
-    case "exhibit":
-      return <CeqFrame label="Exhibit" stem={frame.exhibitRef ? `Exhibit: ${frame.exhibitRef}` : "Exhibit — film it from Exhibit Lab"} scale={scale} progress={progress} />;
-    default:
-      return <CeqFrame stem={frame.text ?? ""} scale={scale} progress={progress} />;
+/** frame id → "Q 3/8", questions only. Built once per plan. */
+function questionProgress(frames: readonly BlastFrame[], byId: Map<string, BoothCeq>): Map<string, { x: number; y: number }> {
+  const y = frames.filter((f) => isQuestion(f, byId)).length;
+  const out = new Map<string, { x: number; y: number }>();
+  let x = 0;
+  for (const f of frames) if (isQuestion(f, byId)) out.set(f.id, { x: ++x, y });
+  return out;
+}
+
+/** ONE FRAME, drawn by the canvas's own card. Nothing here re-implements a
+ *  card — a set frame renders its stem and choices, an insert renders as the
+ *  callout kind it will become when it lands in the set. */
+function FrameView({ frame, set, scale, topicName, progress }: {
+  frame: BlastFrame; set: BoothSetInfo; scale: number; topicName?: string | null;
+  progress?: { x: number; y: number } | null;
+}) {
+  if (frame.kind === "ceq") {
+    const ceq: BoothCeq | undefined = frame.ceqId ? set.ceqs.find((c) => c.id === frame.ceqId) : undefined;
+    if (!ceq) return <SetCard stem="This card is no longer in the set." scale={scale} />;
+    return (
+      <SetCard
+        id={ceq.id}
+        stem={ceq.stem}
+        choices={ceq.choices}
+        // The set's own note cards ARE the "found on your exam" card — that is
+        // what NOTE_EYEBROW says. Questions get the topic name instead.
+        topic={ceq.noteOnly ? NOTE_EYEBROW : topicName ?? null}
+        progress={progress ?? null}
+        scale={scale}
+      />
+    );
   }
+
+  const kindTag = INSERT_CALLOUT[frame.kind];
+  const stem =
+    frame.kind === "cheat" ? [frame.title?.trim(), frame.body?.trim()].filter(Boolean).join(" — ")
+    : frame.kind === "exhibit" ? (frame.exhibitRef ? `Exhibit: ${frame.exhibitRef}` : "Exhibit")
+    : (frame.text ?? "");
+  return (
+    <SetCard
+      id={frame.id}
+      stem={stem}
+      scale={scale}
+      // "blank" is a BARE frame — card hidden, so Lee builds on it from scratch.
+      callout={frame.kind === "blank" ? { hidden: true } : kindTag ? { kind: kindTag } : undefined}
+    />
+  );
 }
 
 // --------------------------------------------------------------- capture
 
 /** CAPTURE — one frame, full height, spacebar forward. Nothing else on screen:
  *  OBS captures this window and anything that is not the frame is in the shot. */
-function Capture({ set, onExit }: { set: BoothSetInfo; onExit: () => void }) {
+function Capture({ set, topicName, onExit }: { set: BoothSetInfo; topicName?: string; onExit: () => void }) {
   const { plan } = usePlan(set);
   const [i, setI] = useState(0);
-  const [answer, setAnswer] = useState(false);
   const [chrome, setChrome] = useState(true);
+  const ceqById = useMemo(() => new Map(set.ceqs.map((c) => [c.id, c])), [set.ceqs]);
   // The SHARED highlight store (canvas/text-highlights) — same gesture, same
   // offsets, same gold as the canvas. Session-scoped, so marks survive walking
   // between frames within a rip and die only on ` or leaving capture.
@@ -345,13 +375,13 @@ function Capture({ set, onExit }: { set: BoothSetInfo; onExit: () => void }) {
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       if (e.key === " ") {
         e.preventDefault();
-        if (e.shiftKey) { setI((v) => Math.max(0, v - 1)); setAnswer(false); }
-        else { setI((v) => Math.min(n - 1, v + 1)); setAnswer(false); }
-      } else if (e.key === "Enter") { e.preventDefault(); setAnswer((v) => !v); }
+        if (e.shiftKey) setI((v) => Math.max(0, v - 1));
+        else setI((v) => Math.min(n - 1, v + 1));
+      }
       // ` = the full wipe, same mental model as every other filming surface:
       // temporary state goes, nothing saved is touched. Lee reaches for this
       // without thinking, so it has to exist the moment highlighting does.
-      else if (e.code === "Backquote" || e.key === "`") { e.preventDefault(); clearAllTextHls(); setAnswer(false); }
+      else if (e.code === "Backquote" || e.key === "`") { e.preventDefault(); clearAllTextHls(); }
       else if (e.key === "Escape") { e.preventDefault(); onExit(); }
       else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
     };
@@ -359,10 +389,12 @@ function Capture({ set, onExit }: { set: BoothSetInfo; onExit: () => void }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [n, onExit]);
 
-  // Fit a 1080x1920 frame to the window height — OBS crops to the frame itself.
-  const [scale, setScale] = useState(0.5);
+  // Fit the CARD to the window. The card is the canvas's own 560-wide card, so
+  // this scales that box rather than a 1080x1920 vertical frame — Blast Off is
+  // an arrangement surface now, and the real takes happen on the canvas.
+  const [scale, setScale] = useState(1);
   useEffect(() => {
-    const fit = () => setScale(Math.min(window.innerHeight / V.h, window.innerWidth / V.w));
+    const fit = () => setScale(Math.max(0.5, Math.min(2.4, Math.min(window.innerHeight / 760, window.innerWidth / 700))));
     fit();
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
@@ -374,7 +406,8 @@ function Capture({ set, onExit }: { set: BoothSetInfo; onExit: () => void }) {
   return (
     <HighlightContext.Provider value={hlApi}>
     <div style={{ minHeight: "100vh", background: "#000", display: "grid", placeItems: "center", position: "relative" }}>
-      <FrameView frame={frame} set={set} scale={scale} showAnswer={answer} />
+      <FrameView frame={frame} set={set} scale={scale} topicName={topicName}
+        progress={questionProgress(frames, ceqById).get(frame.id)} />
       {chrome && (
         <div style={{
           position: "fixed", left: 12, bottom: 12, display: "flex", gap: 12, alignItems: "center",
@@ -383,7 +416,7 @@ function Capture({ set, onExit }: { set: BoothSetInfo; onExit: () => void }) {
         }}>
           <span style={{ color: GOLD, fontWeight: 800 }}>{i + 1} / {n}</span>
           <span>{FRAME_LABEL[frame.kind]}</span>
-          <span>space next · shift+space back · enter answer · ` resets · H hide this · esc exit</span>
+          <span>space next · shift+space back · ` resets · H hide this · esc exit</span>
         </div>
       )}
     </div>

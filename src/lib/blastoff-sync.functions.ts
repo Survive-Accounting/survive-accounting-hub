@@ -1,26 +1,36 @@
-// BLAST OFF → THE SET. Materialises a blast-off running order as REAL canvas
-// frames, so the thing Lee films is the thing the canvas has always filmed.
+// BLAST OFF → THE SET. Writes a blast-off running order onto the set as real
+// canvas frames, so the thing Lee films is the thing the canvas has always
+// filmed.
 //
 // WHY THIS EXISTS INSTEAD OF A SECOND RENDERER. /blast-off used to draw its own
-// CEQ and its own "found on your exam". That was a second implementation of a
-// machine the canvas already owns — identical frame geometry every flip, text
-// highlight-to-yellow, spotlight, chains, reveal, the bolt cursor — and it was
-// never going to catch up. So blast-off plans, the canvas films, and these
-// frames are the handoff.
+// CEQ card and its own "found on your exam". That was a second implementation of
+// a machine the canvas already owns — identical frame geometry every flip,
+// highlight-to-yellow, the spotlight rig, chains, reveal, the bolt cursor — and
+// it was never going to catch up. Blast off plans; the canvas films.
 //
-// SHAPE MATCHES CeqStudio.insertFrame EXACTLY: a non-CEQ frame is a `ceq` node
-// carrying `noteOnly: true` + `frameMode`, which is why "the whole card system
-// just works" on it. Nothing new is invented here.
+// WHAT CHANGED 2026-08-31 (the duplicate-bookends bug). The first version
+// invented an intro / found-on-your-exam / outro per set and renumbered ONLY the
+// frames it knew about. But sets already ship authored intro and outro cards
+// (note-only CEQ nodes like `ceq-e1s-1-3-intro`), and those kept their original
+// stageOrder of 0 and 9 — so they sorted AHEAD of the generated pair and the
+// spine read: note, note, intro, note, Q1… two mystery cards, then a duplicate
+// intro. Fixed by inverting the rule:
 //
-// IDEMPOTENT: every generated frame has a derived id (`blast-<frameId>`), so
+//   THE PLAN IS THE WHOLE RUNNING ORDER. Every frame in the set is renumbered
+//   from it — the set's own cards included — so what Lee arranged is exactly
+//   what the canvas shows. Nothing is generated; nothing is duplicated.
+//
+// SHAPE MATCHES CeqStudio.insertFrame EXACTLY: a non-question frame is a `ceq`
+// node carrying `noteOnly: true` + `frameMode: "note"`, which is why the whole
+// card system just works on it. Inserts become REAL callout cards using the
+// canvas's own callout kinds, not new card types.
+//
+// IDEMPOTENT: every inserted frame has a derived id (`blast-<frameId>`), so
 // re-syncing updates in place rather than piling up duplicates.
-//
-// LEE OWNS THE ORDER (his call, 2026-08-31): the plan's order is written to
-// stageOrder for EVERY frame in the set, questions included. Re-running after a
-// canvas reorder will pull it back to the plan — reorder in blast-off, or
-// re-sync after changing the canvas, not both at once.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+
+import { INSERT_CALLOUT } from "@/components/blastoff/plan";
 
 const admin = async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -29,60 +39,36 @@ const admin = async () => {
 
 const frameIn = z.object({
   id: z.string().min(1).max(80),
-  kind: z.enum(["intro", "foye", "ceq", "phrase", "cheat", "tip", "exhibit", "blank", "outro"]),
+  kind: z.enum(["ceq", "phrase", "cheat", "tip", "exhibit", "blank"]),
   ceqId: z.string().max(130).optional(),
   text: z.string().max(4000).optional(),
   title: z.string().max(400).optional(),
   body: z.string().max(4000).optional(),
-  topic: z.string().max(300).optional(),
-  tagline: z.string().max(300).optional(),
-  canonical: z.string().max(600).optional(),
-  variations: z.array(z.string().max(600)).max(8).optional(),
   exhibitRef: z.string().max(60).optional(),
+  bankItemId: z.string().max(130).optional(),
 });
 type FrameIn = z.infer<typeof frameIn>;
 
-/** Which canvas frameMode a plan frame becomes. Everything that is not the
- *  bookends is a NOTE frame — the canvas's own word for "a frame with no
- *  choices that is never counted". */
-const modeFor = (k: FrameIn["kind"]): "intro" | "outro" | "note" =>
-  k === "intro" ? "intro" : k === "outro" ? "outro" : "note";
+// The insert → callout-kind mapping is SHARED with the Blast Off preview
+// (components/blastoff/plan), so the card Lee arranged is the card that lands.
 
-/** The frame's on-card words. The canvas renders `prompt` as the stem, so this
- *  is what ends up on screen. */
-function promptFor(f: FrameIn, setName: string, foye: { canonical: string; variations: string[] }): string {
-  switch (f.kind) {
-    case "intro": return f.topic?.trim() || setName;
-    // A frame whose words are generated at RENDER time would land in the canvas
-    // empty — the canvas cannot generate them. So they are resolved here, once,
-    // and become real editable text on a real frame.
-    case "outro": return f.tagline?.trim() || "Cram what's on your exam.";
-    case "foye": return f.canonical?.trim() || foye.canonical;
-    case "cheat": return [f.title?.trim(), f.body?.trim()].filter(Boolean).join(" — ");
-    case "exhibit": return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
-    default: return f.text?.trim() || "";
-  }
+/** The frame's on-card words — the canvas renders `prompt` as the stem. */
+function promptFor(f: FrameIn): string {
+  if (f.kind === "cheat") return [f.title?.trim(), f.body?.trim()].filter(Boolean).join(" — ");
+  if (f.kind === "exhibit") return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
+  return f.text?.trim() ?? "";
 }
 
-/** FOUND ON YOUR EXAM is a callout with secondary stems — the canvas already
- *  draws exactly that (kicker + stem + indented grey bullets), which is the
- *  card Lee wanted rather than a redrawn one. */
-function calloutFor(f: FrameIn, foye: { canonical: string; variations: string[] }): Record<string, unknown> | undefined {
-  if (f.kind === "foye") {
-    const stems = f.variations?.length ? f.variations : foye.variations;
-    return { showTopic: true, extraStems: stems.slice(0, 6) };
-  }
-  // The outro's card is hidden — the frame is its staged brand elements.
-  if (f.kind === "outro") return { hidden: true };
-  return undefined;
-}
+/** Ten apart, so Lee can still hand-insert a frame between two in the canvas
+ *  without forcing a renumber of everything after it. */
+const orderAt = (i: number) => (i + 1) * 10;
 
 export const syncBlastPlanToSet = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
     setId: z.string().min(1).max(120),
     frames: z.array(frameIn).min(1).max(400),
   }).parse(d))
-  .handler(async ({ data }): Promise<{ ok: true; wrote: number; reordered: number; missingCeqs: number }> => {
+  .handler(async ({ data }): Promise<{ ok: true; wrote: number; reordered: number; missing: number; parked: number }> => {
     const db = await admin();
     const { loadDecksDeduped } = await import("./student.functions");
     const owned = await loadDecksDeduped(db as never);
@@ -99,42 +85,37 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
     j.nodes ??= [];
     const setName = (j.decks ?? []).find((d) => d.id === data.setId)?.name ?? "";
 
-    // THE SET'S OWN QUESTIONS decide what "found on your exam" says — the same
-    // generator the preview uses, resolved once here so the frame carries real
-    // words instead of arriving blank.
-    const stems = j.nodes
-      .filter((n) => n.type === "ceq" && n.data?.deckId === data.setId && !n.data?.noteOnly && !n.data?.draft)
-      .map((n) => String(n.data?.prompt ?? ""))
-      .filter(Boolean);
-    const { foundOnYourExam } = await import("@/components/blastoff/found-on-exam");
-    const foye = foundOnYourExam(stems);
+    let wrote = 0, reordered = 0, missing = 0;
+    const planned = new Set<string>();
 
-    let wrote = 0, reordered = 0, missingCeqs = 0;
-
-    // Ten apart so Lee can still hand-insert something between two frames in the
-    // canvas without a renumber.
     data.frames.forEach((f, i) => {
-      const stageOrder = (i + 1) * 10;
+      const stageOrder = orderAt(i);
 
+      // A card the set already owns: renumber it in place. Its content, its
+      // choices, its layout and its authoring history are none of our business.
       if (f.kind === "ceq") {
         const node = f.ceqId ? j.nodes!.find((n) => n.id === f.ceqId) : undefined;
-        if (!node?.data) { missingCeqs++; return; }
+        if (!node?.data) { missing++; return; }
         node.data.stageOrder = stageOrder;
         node.data.slotIndex = stageOrder;
+        planned.add(node.id);
         reordered++;
         return;
       }
 
+      // A card Lee inserted here: upsert it as a real note frame.
       const nodeId = `blast-${f.id}`;
       const pos = { x: 520, y: 210 };
-      const callout = calloutFor(f, foye);
+      const kindTag = INSERT_CALLOUT[f.kind];
+      const callout: Record<string, unknown> | undefined =
+        f.kind === "blank" ? { hidden: true } : kindTag ? { kind: kindTag, showTopic: true } : undefined;
+
       const dataObj: Record<string, unknown> = {
         kind: "ceq",
         title: setName,
-        prompt: promptFor(f, setName, foye),
-        // The canvas's own contract for a non-question frame.
-        noteOnly: true,
-        frameMode: modeFor(f.kind),
+        prompt: promptFor(f),
+        noteOnly: true,          // the canvas's own contract for a non-question frame
+        frameMode: "note",
         choices: [],
         ...(callout ? { callout } : {}),
         deckId: data.setId,
@@ -154,19 +135,33 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
       const existing = j.nodes!.find((n) => n.id === nodeId);
       if (existing) existing.data = { ...existing.data, ...dataObj };
       else j.nodes!.push({ id: nodeId, type: "ceq", position: pos, data: dataObj });
+      planned.add(nodeId);
       wrote++;
     });
 
+    // ANYTHING THE PLAN DID NOT MENTION (drafts, mostly) is parked AFTER the
+    // running order rather than left interleaved with it — a draft sitting at
+    // stageOrder 3 would otherwise land in the middle of the take.
+    let parked = 0;
+    const tail = j.nodes!
+      .filter((n) => n.data?.deckId === data.setId && !planned.has(n.id))
+      .sort((a, b) => Number(a.data?.stageOrder ?? 0) - Number(b.data?.stageOrder ?? 0));
+    tail.forEach((n, k) => {
+      n.data!.stageOrder = orderAt(data.frames.length + k);
+      n.data!.slotIndex = n.data!.stageOrder;
+      parked++;
+    });
+
     // A frame Lee deleted in blast-off should leave the set too — but ONLY ones
-    // blast-off created. Hand-authored frames are never touched.
-    const keep = new Set(data.frames.filter((f) => f.kind !== "ceq").map((f) => `blast-${f.id}`));
+    // blast-off created. Hand-authored frames are never touched. This is also
+    // what clears the generated intro/foye/outro cards the old version wrote.
     j.nodes = j.nodes!.filter((n) => {
       const d = n.data as { provenance?: string; deckId?: string } | undefined;
       if (d?.provenance !== "blast-off" || d?.deckId !== data.setId) return true;
-      return keep.has(n.id);
+      return planned.has(n.id);
     });
 
     const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", o.sceneId);
     if (up.error) throw new Error(up.error.message);
-    return { ok: true as const, wrote, reordered, missingCeqs };
+    return { ok: true as const, wrote, reordered, missing, parked };
   });
