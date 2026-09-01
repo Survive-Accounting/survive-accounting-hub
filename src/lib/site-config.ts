@@ -54,3 +54,24 @@ export const CAMPAIGN_REPORT_PDF = "";
  *
  *  Drop the file at public/offer/mckenzie.jpg and set this to "/offer/mckenzie.jpg". */
 export const OFFER_PHOTO_URL = "/offer/mckenzie.jpg";
+
+// ── Greek chair landing (Build 2) ───────────────────────────────────────────────────────────
+/** THE ONE-LINE SWITCH for section 1 of Build 2.
+ *
+ *  FALSE (default): a scholarship chair or council exec who opens a /s/ share link lands on the
+ *  current share screen — the safe thing to show while /learn is still filling up. TRUE: the same
+ *  link redirects her onto the platform itself (/learn, branded to her chapter or council) with
+ *  the floating share panel over it, so she gets confident in the product and shares from inside
+ *  it. Both paths are built; this is the only edit needed to flip between them.
+ *
+ *  Flip to TRUE once /learn has filmed Blast Offs and real data in the grid — sending a stranger
+ *  to an empty player does the opposite of building confidence. The panel itself is always
+ *  reachable directly at /learn?chair=… (see chair-landing.ts) so it can be reviewed before the
+ *  flag is flipped. */
+export const CHAIR_LANDS_ON_PLATFORM = false;
+
+/** Where the "How to buy" kit page and the chair's "I'm interested" path point a chapter that
+ *  decides to fund seats. EMPTY until Lee has a cart/invoice link — until then the kit PDF and the
+ *  panel say "text Lee and he sends it" rather than shipping a dead button. Paste a Stripe/cart URL
+ *  or an invoice-request link when there is one; nothing here breaks when it stays "". */
+export const CHAPTER_SEATS_BUY_URL = "";
