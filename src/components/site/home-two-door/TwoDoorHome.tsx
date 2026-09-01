@@ -22,7 +22,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
-import { DoorGlyph } from "@/components/site/home-two-door/DoorGlyph";
 import {
   FeatureValueStrip, FloatingContact, MARKETING_CSS, MARKETING_HERO_ID, SocialProofSection,
   TrustChips, TutorBioModal, TutorCard,
@@ -42,7 +41,8 @@ import { submitNotify } from "@/lib/syllabus.functions";
 import { examRequest, notifyNote } from "@/lib/notify-request";
 import { rememberStudentEmail } from "@/lib/student-email";
 import { readTestSession } from "@/lib/test-mode";
-import { CHAPTER_BTN, DOOR_CARD_CSS, DOOR_CTA_VARS, DoorCard, DoorRow, DOOR_BTN_CLASS, SOLO_BTN } from "./DoorCard";
+import { CHAPTER_BTN, DOOR_CARD_CSS, DOOR_CTA_VARS, DOOR_BTN_CLASS, SOLO_BTN } from "./DoorCard";
+import { HOME_FOLD_CSS, HomeDoorCard, HomeDoorRow } from "./HomeFold";
 import { ArrowLeftRight } from "lucide-react";
 
 import { SchoolSwitchSheet } from "./SchoolSwitchSheet";
@@ -56,12 +56,12 @@ import { nbspCode } from "@/lib/course-code";
  *  player that no longer exists here. */
 const DOORS_ID = "doors";
 
-// ── PAGE ──────────────────────────────────────────────────────────────────────────────────────
-/** THE HOME CARD ICON SIZE. ~38% of the finished card at 390px, which is where speechnotes.co
- *  sits and roughly double what the badge occupied. One constant, both doors — the pair being
- *  identical here is the whole reason they read as a set. */
-const DOOR_ICON_H = 190;
+/** The hero campus line's anchor. The SiteHeader context pill watches this element to know when
+ *  "for ALABAMA students" has scrolled away (spec §7). Exported so there is ONE id, not two that
+ *  can drift apart. */
+export const HERO_CAMPUS_LINE_ID = "sa-hero-campus-line";
 
+// ── PAGE ──────────────────────────────────────────────────────────────────────────────────────
 export function TwoDoorHome({ storedCampusId, initialCode, previewSoloHref }: {
   /** The returning visitor's campus, read from the request cookie by the route loader — same
    *  contract as LandingPage's storedCampusId (SSR renders the personalized hero, no flicker). */
@@ -120,6 +120,16 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   };
   const openChapter = () => { track("homepage_chapter_clicked", ctx()); setFinderOpen(true); };
   const openScope = () => { track("homepage_course_scope_opened", ctx()); setScopeOpen(true); };
+  const openSwitch = () => { track("homepage_school_switch_opened", ctx()); setSwitchOpen(true); };
+  // The SECOND Exam-1 door, at the foot of the feature list — a reader who scrolled the whole
+  // list can convert without scrolling back up. Same waitlist the solo door opens.
+  const openExam1Free = () => { track("homepage_secondary_cta_clicked", ctx()); setWaitlistOpen(true); };
+
+  // HEADER CONTEXT PILL (spec §7) — only when a course is actually resolved. On the generic home,
+  // where no course is selected, the pill renders nothing (the prop is undefined).
+  const contextPill = campus.code && campus.school
+    ? { code: nbspCode(campus.code), school: campus.school.name, onClick: openSwitch, anchorId: HERO_CAMPUS_LINE_ID }
+    : undefined;
 
   return (
     <div style={{
@@ -128,18 +138,18 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
     }}>
       <style>{MARKETING_CSS}</style>
       <style>{DOOR_CARD_CSS}</style>
+      <style>{HOME_FOLD_CSS}</style>
       <style>{TWO_DOOR_CSS}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
-      <SiteHeader homeNav onLanding />
+      <SiteHeader homeNav onLanding contextPill={contextPill} />
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
         <TwoDoorHero
           code={campus.code}
           schoolName={campus.school?.name ?? null}
           schoolId={campus.school?.id ?? null}
-          onOpenBio={() => setBioOpen(true)}
-          onSwitchSchool={() => { track("homepage_school_switch_opened", ctx()); setSwitchOpen(true); }}
+          onSwitchSchool={openSwitch}
         />
 
         {/* Legacy compatibility: every other page's navbar still links "/#exam1". */}
@@ -151,6 +161,12 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           soloHref={previewSoloHref}
           onChapter={openChapter}
         />
+
+        {/* THE PROOF STRIP moves BELOW the doors (spec §5/§6): the doors are the instruction and
+            must reach the fold first; the three checks back the claim once a door is chosen. */}
+        <div className="mt-6 sm:mt-7">
+          <TrustChips onBio={() => setBioOpen(true)} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} />
+        </div>
 
         {/* COURSE SCOPE — one quiet line, because students have genuinely asked whether Survive
             covers Intermediate. A tiny modal answers; the hero stays out of it. */}
@@ -167,13 +183,29 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           </button>
         </p>
 
-        {/* WHAT IT IS, then WHETHER IT IS REAL. The three value points sit right under the
-            scope line — they finish the sentence the doors started — and the proof follows. */}
-        <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} />
+        {/* WHAT YOU'LL GET (spec §10) — the three value points, now under a header that frames
+            them, and closed by a SECOND Exam-1 door so a reader at the end of the list can convert
+            without scrolling back to the top. ~64px of air above it (spec §9). */}
+        <section className="pt-16">
+          <h2 className="text-center text-[22px] font-black sm:text-[26px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+            What you&apos;ll get
+          </h2>
+          <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} />
+          <div className="mx-auto flex max-w-[360px] justify-center">
+            <button
+              type="button"
+              onClick={openExam1Free}
+              className={`w-full ${DOOR_BTN_CLASS}`}
+              style={SOLO_BTN}
+            >
+              Start Exam 1 free →
+            </button>
+          </div>
+        </section>
 
         <div id="reviews" className="sa-anchor" />
         {/* Air above the proof block: it is a new thought, not a continuation of the strip. */}
-        <div className="pt-10 sm:pt-14">
+        <div className="pt-16">
           <SocialProofSection
             testimonials={<TestimonialsSlider />}
             tutor={<TutorCard onMore={() => setBioOpen(true)} />}
@@ -186,7 +218,9 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       <Footer onLanding />
 
       {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
-      <FloatingContact heroId={MARKETING_HERO_ID} tel={TEL} phone={PHONE} />
+      {/* The Text-Lee bubble waits until the DOORS (the fold) have scrolled away, so it can never
+          overlap the chapter card's support copy (spec §11). */}
+      <FloatingContact heroId={DOORS_ID} tel={TEL} phone={PHONE} />
       {waitlistOpen && (
         <Exam1LaunchModal
           campusId={schoolObj?.campusId ?? null}
@@ -211,13 +245,13 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
 }
 
 // ── HERO — CENTERED, QUIET ────────────────────────────────────────────────────────────────────
-/** Headline → promise → proof chips, all on one centered axis. No CTA here and no bolt: the
- *  doors immediately below are the only instruction, and the bolt lives in the left one. */
-function TwoDoorHero({ code, schoolName, schoolId, onOpenBio, onSwitchSchool }: {
+/** Headline → promise → campus line, all on one centered axis. No CTA, no bolt, and (since the
+ *  mobile-fold pass) no proof chips: the doors immediately below are the only instruction and must
+ *  reach the fold, so the three checks now sit BELOW the doors instead of ahead of them. */
+function TwoDoorHero({ code, schoolName, schoolId, onSwitchSchool }: {
   code: string | null;
   schoolName: string | null;
   schoolId: string | null;
-  onOpenBio: () => void;
   onSwitchSchool: () => void;
 }) {
   // Same honesty rule as every hero before it: the campus version needs BOTH a school and a
@@ -241,9 +275,6 @@ function TwoDoorHero({ code, schoolName, schoolId, onOpenBio, onSwitchSchool }: 
           change, and a visitor's own resolved campus still wins. An UNRESOLVED campus names no
           school at all — see HomeCampusLine. */}
       <HomeCampusLine schoolName={schoolName} schoolId={schoolId} onSwitch={onSwitchSchool} />
-      {/* The three proof points — the "small credibility layer" between promise and doors.
-          "Built for exam week" points at the doors: they are what backs the claim now. */}
-      <TrustChips onBio={onOpenBio} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} />
     </section>
   );
 }
@@ -269,7 +300,9 @@ function HomeCampusLine({ schoolName, schoolId, onSwitch }: {
   const known = !!schoolName;
   const color = schoolId ? boltFor(schoolId).c1 : HOME_CAMPUS.colors.primary;
   return (
-    <span className="mt-4 inline-flex items-center gap-0.5">
+    // id: the header context pill (spec §7) observes this line — it fades the "AC 210 · Alabama"
+    // pill in once this scrolls out of view, and back out when it returns.
+    <span id={HERO_CAMPUS_LINE_ID} className="mt-4 inline-flex items-center gap-0.5">
       <CampusLine className="">
         {known ? (
           <>
@@ -317,26 +350,13 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
   onChapter: () => void;
 }) {
   return (
-    <DoorRow id={DOORS_ID} label="Choose how you want to study">
-        {/* LEFT DOOR — solo students. First in DOM so it stacks first on mobile. */}
-        {/* ── THE ICONS ARE PLAIN NOW (2026-09-01) ─────────────────────────────────
-            These wore BoltBadge: the Survive bolt as a rotated backdrop, a heavy
-            knockout, and the glyph on top. Measured on this page at 390px, the bolt's
-            ink was 62x84 and the GLYPH's was 43x30 — the backdrop was bigger than the
-            thing it was backing, and the pair read as a muddle rather than as a sign.
-
-            An icon on a card has one job: explain the card before a word is read. That
-            needs a single flat silhouette at size, with nothing behind it. BoltBadge is
-            NOT deleted — the composition moves to /learn, where it has room and a reason
-            to exist. It is simply not what a first-screen card wants.
-
-            The two doors stay one component with a shared symmetry contract (see
-            DoorGlyph): one colour, one stroke weight, and only the per-glyph optical
-            scale is allowed to differ. */}
-        <DoorCard
-          iconHeight={DOOR_ICON_H}
-          icon={<DoorGlyph glyph="cap" size={DOOR_ICON_H} />}
-          title="Study solo"
+    <HomeDoorRow id={DOORS_ID} label="Choose how you want to study">
+        {/* LEFT DOOR — solo students. First in DOM so it stacks first on mobile. The giant cap
+            icon is GONE (spec §1): it ate a third of the fold and pushed the chapter card off
+            screen. The card's title is now the bolt lockup, and the rectangle keeps both doors
+            above the fold on a 390px phone. */}
+        <HomeDoorCard
+          tail="SOLO"
           button={
             soloHref ? (
               <a
@@ -366,12 +386,12 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
           }
         />
 
-        {/* RIGHT DOOR — Greek chapters. Same frame, equal-weight CTA; generic chapter-house
-            visual (never one org's letters as the site's default branding). */}
-        <DoorCard
-          iconHeight={DOOR_ICON_H}
-          icon={<DoorGlyph glyph="house" size={DOOR_ICON_H} />}
-          title="Study with your chapter"
+        {/* RIGHT DOOR — Greek chapters. Same frame; the small columned-building glyph beside the
+            lockup is the one icon left on either card, there to tell the two doors apart. NOT a
+            house — that read as real-estate, not a Greek chapter (spec §3b). */}
+        <HomeDoorCard
+          tail="WITH YOUR CHAPTER"
+          chapterGlyph
           button={
             <button
               type="button"
@@ -384,15 +404,16 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
           }
           support={
             <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch" }}>
+              {/* spec §8: only ONE bold phrase per line, so the emphasis lands — "Boost GPAs."
+                  keeps the bold; "fraternity or sorority" no longer competes for it. */}
               <span style={{ color: "var(--text-muted)" }}>
-                Get Survive through your{" "}
-                <span className="font-bold" style={{ color: "var(--brand-cream)" }}>fraternity or sorority</span>.{" "}
+                Get Survive through your fraternity or sorority.{" "}
               </span>
               <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Boost GPAs.</span>
             </span>
           }
         />
-    </DoorRow>
+    </HomeDoorRow>
   );
 }
 
