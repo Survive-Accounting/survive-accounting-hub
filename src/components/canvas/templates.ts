@@ -107,6 +107,10 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return { kind: "blasttip", text: "", w: 540, h: 960 };
     case "blastoutro":
       return { kind: "blastoutro", w: 540, h: 960 };
+    case "blastbio":
+      // Defaults empty: SurviveBio owns the copy, so the claims live in ONE
+      // place rather than being copied into every card that gets created.
+      return { kind: "blastbio", w: 540, h: 960 };
     case "memo":
       return { kind: "memo", memoKind: "note", title: "", body: "" };
     case "paygate":
@@ -279,6 +283,7 @@ export function scheduleTemplate(preset: SchedulePreset): CardData {
 
 export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   blastintro: "Blast Off intro",
+  blastbio: "Blast Off bio",
   blastfoye: "Found on your exam",
   blastphrase: "Phrase frame",
   blastcheat: "Cheat code frame",

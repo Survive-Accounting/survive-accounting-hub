@@ -11,11 +11,12 @@ import type { NodeProps } from "@xyflow/react";
 
 import { CheatCodeFrame, PhraseFrame, TipFrame } from "@/components/blastoff/ContentFrames";
 import { FoundOnYourExam } from "@/components/blastoff/FoundOnYourExam";
+import { SurviveBio } from "@/components/blastoff/SurviveBio";
 import { SurviveIntro } from "@/components/blastoff/SurviveIntro";
 import { SurviveOutro } from "@/components/blastoff/SurviveOutro";
 import { V } from "@/components/blastoff/stage";
 import type {
-  BlastCheatElement, BlastFoyeElement, BlastIntroElement, BlastOutroElement,
+  BlastBioElement, BlastCheatElement, BlastFoyeElement, BlastIntroElement, BlastOutroElement,
   BlastPhraseElement, BlastTipElement,
 } from "../types";
 import { NEON } from "../theme";
@@ -158,6 +159,31 @@ export function BlastOutroNode({ id, data, selected }: NodeProps) {
         <KeyBtn on={d.transparent} onClick={() => update({ transparent: !d.transparent })} />
       </>}>
       <SurviveOutro tagline={d.tagline || undefined} domain={d.domain || undefined} transparent={d.transparent} scale={w / V.w} />
+    </BlastShell>
+  );
+}
+
+/** THE BIO SLOT. Four fields, all optional — blank means SurviveBio's default,
+ *  which is where the cleared claims live. Lee edits them here when a frame
+ *  needs different words, and nowhere else. */
+export function BlastBioNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as BlastBioElement;
+  const { update } = useCardActions(id);
+  const w = d.w ?? 540, h = d.h ?? 960;
+  return (
+    <BlastShell id={id} w={w} h={h} posLock={d.posLock} selected={selected}
+      toolbar={<>
+        <input {...field} style={{ ...field.style, width: 120 }} value={d.name ?? ""} placeholder="Lee Ingram"
+          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ name: e.target.value })} />
+        <input {...field} style={{ ...field.style, width: 180 }} value={d.credentials ?? ""} placeholder="BAccy · MAccy — Ole Miss"
+          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ credentials: e.target.value })} />
+        <input {...field} style={{ ...field.style, width: 210 }} value={d.claim ?? ""} placeholder="1,000+ students tutored since 2015"
+          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ claim: e.target.value })} />
+        <KeyBtn on={d.transparent} onClick={() => update({ transparent: !d.transparent })} />
+      </>}>
+      <SurviveBio name={d.name || undefined} credentials={d.credentials || undefined}
+        claim={d.claim || undefined} domain={d.domain || undefined}
+        transparent={d.transparent} scale={w / V.w} />
     </BlastShell>
   );
 }

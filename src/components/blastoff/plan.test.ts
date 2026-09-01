@@ -12,7 +12,8 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  generatePlan, insertFrame, INSERT_CALLOUT, isInsert, moveFrame, reconcilePlan, removeFrame,
+  generatePlan, insertFrame, INSERT_CALLOUT, isInsert, isStandard, moveFrame, reconcilePlan,
+  removeFrame, STANDARD_KINDS,
   type BlastFrame, type BlastPlan, type PlanCeq,
 } from "./plan";
 
@@ -26,15 +27,32 @@ const SET: PlanCeq[] = [
 ];
 const kinds = (p: BlastPlan) => p.frames.map((f) => f.kind);
 const refs = (p: BlastPlan) => p.frames.map((f) => f.ceqId ?? f.kind);
+/** Just the set's own cards — the standard spine stripped out. */
+const setRefs = (p: BlastPlan) => refs(p).filter((r) => !isStandard(r as never));
 
 describe("generatePlan", () => {
-  // THE REGRESSION. The old generator filtered note-only cards OUT and then
-  // invented an intro/foye/outro of its own, so a synced set ended up with two
-  // sets of bookends.
-  test("the set's OWN note frames are in the plan, and nothing is invented", () => {
-    const p = generatePlan(SET);
-    expect(refs(p)).toEqual(["ceq-intro", "ceq-a", "ceq-b", "ceq-outro"]);
-    expect(kinds(p).every((k) => k === "ceq")).toBe(true);
+  // THE REGRESSION. The old generator filtered note-only cards OUT and invented
+  // a found-on-your-exam of its own, so a synced set ended up with two sets of
+  // bookends. The standard spine below is a different thing: brand frames that
+  // no set owns, which is why they cannot duplicate anything.
+  test("the set's OWN note frames are in the plan, and none are invented", () => {
+    expect(setRefs(generatePlan(SET))).toEqual(["ceq-intro", "ceq-a", "ceq-b", "ceq-outro"]);
+  });
+
+  test("every plan opens and closes with the standard spine", () => {
+    const k = kinds(generatePlan(SET));
+    expect(k[0]).toBe("intro");
+    expect(k.slice(-2)).toEqual(["bio", "outro"]);
+  });
+
+  test("the spine appears exactly once each — never doubled", () => {
+    const k = kinds(generatePlan(SET));
+    for (const std of STANDARD_KINDS) expect(k.filter((x) => x === std), std).toHaveLength(1);
+  });
+
+  test("the bio sits before the sign-off, which is the whole point of the slot", () => {
+    const k = kinds(generatePlan(SET));
+    expect(k.indexOf("bio")).toBeLessThan(k.indexOf("outro"));
   });
 
   test("drafts never reach a running order", () => {
@@ -43,7 +61,7 @@ describe("generatePlan", () => {
   });
 
   test("bank order is the default running order", () => {
-    expect(refs(generatePlan(SET))).toEqual(SET.map((c) => c.id));
+    expect(setRefs(generatePlan(SET))).toEqual(SET.map((c) => c.id));
   });
 });
 
@@ -51,7 +69,32 @@ describe("reconcilePlan", () => {
   const stored = (frames: BlastFrame[]): BlastPlan => ({ frames, updatedAt: "2026-08-31T00:00:00.000Z" });
 
   test("no stored plan generates one", () => {
-    expect(refs(reconcilePlan(null, SET))).toEqual(SET.map((c) => c.id));
+    expect(setRefs(reconcilePlan(null, SET))).toEqual(SET.map((c) => c.id));
+  });
+
+  // A plan written before the spine existed must gain it, or Lee films a set
+  // with no intro and no sign-off — which is exactly what he hit.
+  test("a plan from before the spine gets it back", () => {
+    const old = stored([{ id: "f1", kind: "ceq", ceqId: "ceq-a" }]);
+    const k = kinds(reconcilePlan(old, SET));
+    for (const std of STANDARD_KINDS) expect(k, std).toContain(std);
+    expect(k[0]).toBe("intro");
+    expect(k.slice(-2)).toEqual(["bio", "outro"]);
+  });
+
+  // Guaranteed, not pinned: reconcile restores a MISSING one, it does not drag
+  // one Lee deliberately moved.
+  test("a spine frame Lee moved stays where he put it", () => {
+    const mine = stored([
+      { id: "f0", kind: "ceq", ceqId: "ceq-intro" },
+      { id: "f1", kind: "intro" },
+      { id: "f2", kind: "ceq", ceqId: "ceq-a" },
+      { id: "f3", kind: "ceq", ceqId: "ceq-b" },
+      { id: "f4", kind: "ceq", ceqId: "ceq-outro" },
+      { id: "f5", kind: "bio" },
+      { id: "f6", kind: "outro" },
+    ]);
+    expect(kinds(reconcilePlan(mine, SET))[1]).toBe("intro");
   });
 
   test("Lee's inserts and his order survive untouched", () => {
@@ -62,7 +105,7 @@ describe("reconcilePlan", () => {
       { id: "f4", kind: "ceq", ceqId: "ceq-intro" },
       { id: "f5", kind: "ceq", ceqId: "ceq-outro" },
     ]);
-    expect(refs(reconcilePlan(mine, SET))).toEqual(["ceq-b", "cheat", "ceq-a", "ceq-intro", "ceq-outro"]);
+    expect(setRefs(reconcilePlan(mine, SET))).toEqual(["ceq-b", "cheat", "ceq-a", "ceq-intro", "ceq-outro"]);
   });
 
   test("a card removed from the set drops out, so no ghost gets filmed", () => {
@@ -81,13 +124,13 @@ describe("reconcilePlan", () => {
       { id: "f1", kind: "ceq", ceqId: "ceq-intro" },
       { id: "f2", kind: "ceq", ceqId: "ceq-outro" },
     ]);
-    expect(refs(reconcilePlan(mine, SET))).toEqual(["ceq-intro", "ceq-a", "ceq-b", "ceq-outro"]);
+    expect(setRefs(reconcilePlan(mine, SET))).toEqual(["ceq-intro", "ceq-a", "ceq-b", "ceq-outro"]);
   });
 
   test("a card added at the FRONT of the bank lands first, not after the intro", () => {
     const withNew: PlanCeq[] = [{ id: "ceq-new", label: "Q0", stem: "brand new" }, ...SET];
     const mine = stored(SET.map((c, i) => ({ id: `f${i}`, kind: "ceq" as const, ceqId: c.id })));
-    expect(refs(reconcilePlan(mine, withNew))[0]).toBe("ceq-new");
+    expect(setRefs(reconcilePlan(mine, withNew))[0]).toBe("ceq-new");
   });
 
   test("reconciling is stable — running it twice changes nothing", () => {
@@ -145,6 +188,16 @@ describe("inserts", () => {
   test("isInsert separates Lee's cards from the set's", () => {
     expect(isInsert("cheat")).toBe(true);
     expect(isInsert("ceq")).toBe(false);
+  });
+
+  // The spine is neither an insert nor a set card — it cannot be deleted, which
+  // is what stops a Blast Off going out with no sign-off.
+  test("the spine is not an insert, so it cannot be removed", () => {
+    for (const std of STANDARD_KINDS) {
+      expect(isStandard(std), std).toBe(true);
+      expect(isInsert(std), std).toBe(false);
+      expect(removeFrame([{ id: "x", kind: std }], "x")).toHaveLength(1);
+    }
   });
 
   // The preview and the sync BOTH read this map, which is the whole point of it

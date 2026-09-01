@@ -17,7 +17,10 @@
 //
 // Pure: no React, no network. The route renders what these functions return.
 
-export type BlastFrameKind = "ceq" | "phrase" | "cheat" | "tip" | "exhibit" | "blank";
+export type BlastFrameKind =
+  | "intro" | "bio" | "outro"                              // the standard spine
+  | "ceq"                                                  // a card the set owns
+  | "phrase" | "cheat" | "tip" | "exhibit" | "blank";      // what Lee inserts
 
 export interface BlastFrame {
   id: string;
@@ -47,6 +50,23 @@ export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip"
 
 export const isInsert = (k: BlastFrameKind): boolean => INSERT_KINDS.includes(k);
 
+/** THE STANDARD SPINE. Every Blast Off opens the same way and closes the same
+ *  way — intro, then the set, then the bio slot, then the sign-off. Lee, on
+ *  finding them missing: "We want to have the same standardized frames set up
+ *  for each blast-off."
+ *
+ *  These are GUARANTEED, not pinned: reconcile puts a missing one back at its
+ *  canonical spot, but never drags one Lee has deliberately moved. And they
+ *  cannot be deleted — a Blast Off without a sign-off is a mistake, not a
+ *  choice. The bio slot is deliberately its own frame rather than part of the
+ *  outro: same position every video means it can later hold the chapter ask or
+ *  the rep ask instead, filmed once and dropped in at the edit. */
+export const STANDARD_KINDS = ["intro", "bio", "outro"] as const;
+export type StandardKind = (typeof STANDARD_KINDS)[number];
+
+export const isStandard = (k: BlastFrameKind): k is StandardKind =>
+  (STANDARD_KINDS as readonly string[]).includes(k);
+
 /** Inserts become the canvas's OWN callout kinds — a cheat-code frame is the same
  *  card the canvas has always drawn for a cheat code. ONE mapping, imported by both
  *  the Blast Off preview and the sync that writes the frame, so what Lee arranges
@@ -59,6 +79,9 @@ export const INSERT_CALLOUT: Partial<Record<BlastFrameKind, string>> = {
 };
 
 export const FRAME_LABEL: Record<BlastFrameKind, string> = {
+  intro: "Intro",
+  bio: "Bio slot",
+  outro: "Outro",
   ceq: "Set card",
   phrase: "Phrase",
   cheat: "Cheat code",
@@ -82,7 +105,12 @@ const filmable = (ceqs: readonly PlanCeq[]): PlanCeq[] => ceqs.filter((c) => !c.
 /** The spine a set films if Lee changes nothing: its own cards, bank order. */
 export function generatePlan(ceqs: readonly PlanCeq[], now = new Date()): BlastPlan {
   return {
-    frames: filmable(ceqs).map((c) => ({ id: newFrameId("ceq"), kind: "ceq" as const, ceqId: c.id })),
+    frames: [
+      { id: newFrameId("intro"), kind: "intro" as const },
+      ...filmable(ceqs).map((c) => ({ id: newFrameId("ceq"), kind: "ceq" as const, ceqId: c.id })),
+      { id: newFrameId("bio"), kind: "bio" as const },
+      { id: newFrameId("outro"), kind: "outro" as const },
+    ],
     updatedAt: now.toISOString(),
   };
 }
@@ -116,6 +144,14 @@ export function reconcilePlan(plan: BlastPlan | null | undefined, ceqs: readonly
     frames.splice(anchor + 1, 0, { id: newFrameId("ceq"), kind: "ceq", ceqId: c.id });
     have.add(c.id);
   });
+
+  // THE SPINE IS GUARANTEED. A plan written before these existed, or one where a
+  // frame was lost, gets the missing piece back at its canonical spot — the
+  // intro leading, the bio and sign-off closing. One that Lee already moved is
+  // left exactly where he put it.
+  if (!frames.some((f) => f.kind === "intro")) frames.unshift({ id: newFrameId("intro"), kind: "intro" });
+  if (!frames.some((f) => f.kind === "bio")) frames.push({ id: newFrameId("bio"), kind: "bio" });
+  if (!frames.some((f) => f.kind === "outro")) frames.push({ id: newFrameId("outro"), kind: "outro" });
 
   return { frames, updatedAt: now.toISOString() };
 }

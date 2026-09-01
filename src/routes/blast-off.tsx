@@ -19,10 +19,13 @@ import { loadBlastPlan, saveBlastPlan } from "@/lib/blastoff.functions";
 import { syncBlastPlanToSet } from "@/lib/blastoff-sync.functions";
 import { openFilmMode } from "@/components/blastoff/FilmHandoff";
 import { SetCard } from "@/components/blastoff/SetCard";
+import { SurviveBio } from "@/components/blastoff/SurviveBio";
+import { SurviveIntro } from "@/components/blastoff/SurviveIntro";
+import { SurviveOutro } from "@/components/blastoff/SurviveOutro";
 import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
 import { HighlightContext, useTextHighlights } from "@/components/canvas/text-highlights";
 import {
-  FRAME_LABEL, INSERT_CALLOUT, INSERT_KINDS, insertFrame, isInsert, moveFrame, newFrameId, reconcilePlan, removeFrame,
+  FRAME_LABEL, INSERT_CALLOUT, INSERT_KINDS, insertFrame, isInsert, isStandard, moveFrame, newFrameId, reconcilePlan, removeFrame,
   type BlastFrame, type BlastFrameKind, type BlastPlan,
 } from "@/components/blastoff/plan";
 import { BankPicker } from "@/components/blastoff/BankPicker";
@@ -250,11 +253,12 @@ function Editor({ set, topicName, onCapture }: { set: BoothSetInfo; topicName?: 
                   cursor: "pointer",
                 }}>
                 <span style={{ color: MUTED, fontSize: 11, fontWeight: 800, minWidth: 24, fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
-                <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: insert ? GOLD : MUTED, minWidth: 128 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: insert ? GOLD : isStandard(f.kind) ? "#7DD3FC" : MUTED, minWidth: 128 }}>
                   {note ? "Note frame" : FRAME_LABEL[f.kind]}
                 </span>
                 <span style={{ fontSize: 12.5, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                  {f.kind === "ceq" ? (ceq ? (note ? ceq.stem : `${ceq.label} · ${ceq.stem}`) : "— card missing from the set —")
+                  {isStandard(f.kind) ? (f.kind === "intro" ? (f.text?.trim() || set.name) : f.kind === "bio" ? "Lee Ingram · BAccy · MAccy — Ole Miss" : (f.text?.trim() || "Cram what's on your exam."))
+                    : f.kind === "ceq" ? (ceq ? (note ? ceq.stem : `${ceq.label} · ${ceq.stem}`) : "— card missing from the set —")
                     : f.kind === "cheat" ? `${f.title ?? ""}${f.body ? " — " + f.body : ""}`
                     : f.kind === "exhibit" ? (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit")
                     : (f.text ?? "")}
@@ -319,6 +323,16 @@ function FrameView({ frame, set, scale, topicName, progress }: {
   frame: BlastFrame; set: BoothSetInfo; scale: number; topicName?: string | null;
   progress?: { x: number; y: number } | null;
 }) {
+  // THE STANDARD SPINE renders as the vertical 9:16 frame it actually is —
+  // these are brand cards, not CEQ cards, and showing them in the silver card
+  // shell would be the same mistake the first Blast Off preview made.
+  if (isStandard(frame.kind)) {
+    const s = scale * 0.34; // a 1080-wide frame, sized to sit beside the list
+    if (frame.kind === "intro") return <SurviveIntro topic={frame.text?.trim() || set.name} scale={s} />;
+    if (frame.kind === "bio") return <SurviveBio scale={s} />;
+    return <SurviveOutro tagline={frame.text?.trim() || undefined} scale={s} />;
+  }
+
   if (frame.kind === "ceq") {
     const ceq: BoothCeq | undefined = frame.ceqId ? set.ceqs.find((c) => c.id === frame.ceqId) : undefined;
     if (!ceq) return <SetCard stem="This card is no longer in the set." scale={scale} />;

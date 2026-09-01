@@ -40,7 +40,7 @@ const admin = async () => {
 
 const frameIn = z.object({
   id: z.string().min(1).max(80),
-  kind: z.enum(["ceq", "phrase", "cheat", "tip", "exhibit", "blank"]),
+  kind: z.enum(["intro", "bio", "outro", "ceq", "phrase", "cheat", "tip", "exhibit", "blank"]),
   ceqId: z.string().max(130).optional(),
   text: z.string().max(4000).optional(),
   title: z.string().max(400).optional(),
@@ -53,8 +53,13 @@ type FrameIn = z.infer<typeof frameIn>;
 // The insert → callout-kind mapping is SHARED with the Blast Off preview
 // (components/blastoff/plan), so the card Lee arranged is the card that lands.
 
-/** The frame's on-card words — the canvas renders `prompt` as the stem. */
-function promptFor(f: FrameIn): string {
+/** The frame's on-card words. The standard spine's cards are HIDDEN — their
+ *  content is the vertical frame staged on them — so for those this is only the
+ *  label Lee reads in the spine. */
+function promptFor(f: FrameIn, setName = ""): string {
+  if (f.kind === "intro") return f.text?.trim() || setName;
+  if (f.kind === "bio") return f.text?.trim() || "Bio — Lee Ingram";
+  if (f.kind === "outro") return f.text?.trim() || "Cram what's on your exam.";
   if (f.kind === "cheat") return [f.title?.trim(), f.body?.trim()].filter(Boolean).join(" — ");
   if (f.kind === "exhibit") return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
   return f.text?.trim() ?? "";
@@ -88,7 +93,19 @@ export const STAGE_W = 1600, STAGE_H = 900;
 /** Exhibit id (EXHIBIT_REGISTRY) → the canvas node kind and the size the Add menu
  *  uses for it. Sizes copied from stage-elements.tsx; the ids happen to equal the
  *  kinds, but they are spelled out rather than assumed. */
-export const EXHIBIT_STAGE: Record<string, { kind: string; w: number; h: number }> = {
+export interface StageSpec { kind: string; w: number; h: number }
+
+/** THE STANDARD SPINE'S FRAMES. The vertical 9:16 cards, at the size the Add
+ *  menu uses for them (stage-elements.tsx: 540x960 — half of a 1080x1920
+ *  capture). The bio is its own frame so the slot can later be re-cut as the
+ *  chapter ask or the rep ask without reshooting the sign-off. */
+export const STANDARD_STAGE: Record<string, StageSpec> = {
+  intro: { kind: "blastintro", w: 540, h: 960 },
+  bio: { kind: "blastbio", w: 540, h: 960 },
+  outro: { kind: "blastoutro", w: 540, h: 960 },
+};
+
+export const EXHIBIT_STAGE: Record<string, StageSpec> = {
   cycle: { kind: "cycle", w: 900, h: 560 },
   users: { kind: "users", w: 960, h: 560 },
   standards: { kind: "standards", w: 960, h: 540 },
@@ -107,17 +124,16 @@ export const stagePos = (w: number, h: number) => ({
 /** The staged-exhibit node itself. Pure, and exported so the shape is under test
  *  rather than asserted about — a wrong `stage.ceqId` would silently strand the
  *  exhibit on no frame at all, which stays invisible until Lee is on camera. */
-export function stagedExhibitNode(frameNodeId: string, frameId: string, exhibitRef: string) {
-  const ex = EXHIBIT_STAGE[exhibitRef];
-  if (!ex) return null;
-  const at = stagePos(ex.w, ex.h);
-  const card = blankCard(ex.kind as never) as unknown as Record<string, unknown>;
+export function stagedElementNode(frameNodeId: string, frameId: string, spec: StageSpec, extra: Record<string, unknown> = {}) {
+  const at = stagePos(spec.w, spec.h);
+  const card = blankCard(spec.kind as never) as unknown as Record<string, unknown>;
   return {
     id: `blast-el-${frameId}`,
-    type: ex.kind,
+    type: spec.kind,
     position: at,
     data: {
       ...card,
+      ...extra,
       // THE ATTACHMENT. `stage.ceqId` is how CeqStudio.stagedHere finds an
       // element's frame — not ReactFlow parenting, which is a protected zone.
       stage: { ceqId: frameNodeId, x: at.x, y: at.y, scale: 1 },
@@ -125,6 +141,13 @@ export function stagedExhibitNode(frameNodeId: string, frameId: string, exhibitR
       blastFrameId: frameId,
     } as Record<string, unknown>,
   };
+}
+
+/** An exhibit, by its registry id. Null for an id we do not ship, so a stale
+ *  plan stages nothing rather than a broken node. */
+export function stagedExhibitNode(frameNodeId: string, frameId: string, exhibitRef: string) {
+  const ex = EXHIBIT_STAGE[exhibitRef];
+  return ex ? stagedElementNode(frameNodeId, frameId, ex) : null;
 }
 
 /** Ten apart, so Lee can still hand-insert a frame between two in the canvas
@@ -176,18 +199,24 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
       const nodeId = `blast-${f.id}`;
       const pos = { x: 520, y: 210 };
       const kindTag = INSERT_CALLOUT[f.kind];
-      // An exhibit frame's content IS the exhibit, so its card is hidden — a
-      // second card reading "Exhibit: cycle" would just be in the shot.
-      const ex = f.kind === "exhibit" && f.exhibitRef ? EXHIBIT_STAGE[f.exhibitRef] : undefined;
+      // WHAT THIS FRAME STAGES. The standard spine stages its vertical 9:16 card;
+      // an exhibit frame stages the exhibit. Either way the frame's own callout is
+      // HIDDEN — the staged element is the content, and a second card underneath
+      // it reading "Exhibit: cycle" or "Bio" would just be in the shot.
+      const spec: StageSpec | undefined =
+        STANDARD_STAGE[f.kind] ?? (f.kind === "exhibit" && f.exhibitRef ? EXHIBIT_STAGE[f.exhibitRef] : undefined);
       const callout: Record<string, unknown> | undefined =
-        f.kind === "blank" || ex ? { hidden: true } : kindTag ? { kind: kindTag, showTopic: true } : undefined;
+        f.kind === "blank" || spec ? { hidden: true } : kindTag ? { kind: kindTag, showTopic: true } : undefined;
 
       const dataObj: Record<string, unknown> = {
         kind: "ceq",
         title: setName,
-        prompt: promptFor(f),
+        prompt: promptFor(f, setName),
         noteOnly: true,          // the canvas's own contract for a non-question frame
-        frameMode: "note",
+        // The bookends are the canvas's own intro/outro frame modes; everything
+        // else — bio included — is a note, which is the canvas's word for "a frame
+        // with no choices that the question counter never counts".
+        frameMode: f.kind === "intro" ? "intro" : f.kind === "outro" ? "outro" : "note",
         choices: [],
         ...(callout ? { callout } : {}),
         deckId: data.setId,
@@ -210,17 +239,20 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
       planned.add(nodeId);
       wrote++;
 
-      // STAGE THE EXHIBIT ITSELF onto that frame.
-      if (ex) {
+      // STAGE THE FRAME'S OWN CARD onto it — the vertical intro/bio/outro, or
+      // the exhibit.
+      if (spec) {
         const elId = `blast-el-${f.id}`;
         const el = j.nodes!.find((n) => n.id === elId);
         stagedEls.add(elId);
-        // ONCE. After it exists it is Lee's — he drags it, resizes it, edits its
-        // steps, and a re-sync must not undo any of that. The only thing that
-        // rebuilds it is the exhibit being swapped for a different one.
-        if (el && el.type === ex.kind) { staged++; return; }
-        const made = stagedExhibitNode(nodeId, f.id, f.exhibitRef!);
-        if (!made) return;
+        // ONCE. After it exists it is Lee's — he drags it, resizes it, retypes the
+        // bio, and a re-sync must not undo any of that. The only thing that
+        // rebuilds it is the frame becoming a different KIND of thing.
+        if (el && el.type === spec.kind) { staged++; return; }
+        // The intro card names the set it is about to blast off on; the rest carry
+        // their own copy, which lives in the frame component rather than here.
+        const extra = f.kind === "intro" ? { topic: setName, tutor: "Lee Ingram" } : {};
+        const made = stagedElementNode(nodeId, f.id, spec, extra);
         if (el) { el.type = made.type; el.position = made.position; el.data = made.data; }
         else j.nodes!.push(made);
         staged++;

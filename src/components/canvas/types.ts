@@ -44,6 +44,7 @@ export type CardKind =
   // BLAST OFF vertical frames (Lee, 2026-08-30) — the 9:16 cards every Blast
   // Off opens, punctuates and closes with. Rendered by components/blastoff/.
   | "blastintro"
+  | "blastbio"
   | "blastfoye"
   | "blastphrase"
   | "blastcheat"
@@ -60,6 +61,7 @@ export type NodeCategory = "card" | "element" | "bridge";
 
 export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   blastintro: "element",
+  blastbio: "element",
   blastfoye: "element",
   blastphrase: "element",
   blastcheat: "element",
@@ -856,6 +858,17 @@ export interface BlastOutroElement extends CardBase {
   domain?: string;
   transparent?: boolean;
 }
+/** THE BIO SLOT — the end slate before the sign-off. Every field is overridable
+ *  so the same frame can be re-cut for a different presenter, but the defaults
+ *  are the claims that are cleared for use (see SurviveBio). */
+export interface BlastBioElement extends CardBase {
+  kind: "blastbio";
+  name?: string;
+  credentials?: string;
+  claim?: string;
+  domain?: string;
+  transparent?: boolean;
+}
 export interface IntroCardElement extends CardBase {
   kind: "intro";
   /** Topic/title shown in the plate (no chapter number). Legacy — the animated intro
@@ -1050,6 +1063,7 @@ export interface ListCard extends CardBase {
 
 export type CardData =
   | BlastIntroElement
+  | BlastBioElement
   | BlastFoyeElement
   | BlastPhraseElement
   | BlastCheatElement

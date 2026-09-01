@@ -11,8 +11,9 @@
 // at the old size and sit off-centre on camera. These tests fail instead.
 import { describe, expect, test } from "bun:test";
 
-import { EXHIBIT_STAGE, STAGE_H, STAGE_W, stagePos, stagedExhibitNode } from "@/lib/blastoff-sync.functions";
+import { EXHIBIT_STAGE, STAGE_H, STAGE_W, STANDARD_STAGE, stagePos, stagedElementNode, stagedExhibitNode } from "@/lib/blastoff-sync.functions";
 import { EXHIBIT_REGISTRY } from "@/lib/talkthrough.functions";
+import { STANDARD_KINDS } from "./plan";
 import { STAGE_ELEMENTS } from "@/components/canvas/stage-elements";
 
 /** The Add-menu entry that makes each exhibit, found by the kind it produces. */
@@ -111,5 +112,50 @@ describe("the staged node itself", () => {
     for (const r of EXHIBIT_REGISTRY) {
       expect(stagedExhibitNode("frame", "f", r.id), r.id).not.toBeNull();
     }
+  });
+});
+
+describe("the standard spine stages its own vertical frames", () => {
+  test("every standard kind has a frame to stage", () => {
+    for (const k of STANDARD_KINDS) expect(STANDARD_STAGE[k], k).toBeDefined();
+  });
+
+  test("they are the vertical 9:16 cards, at the Add menu's size", () => {
+    for (const k of STANDARD_KINDS) {
+      const spec = STANDARD_STAGE[k];
+      expect({ w: spec.w, h: spec.h }, k).toEqual({ w: 540, h: 960 });
+      // 9:16 — a squashed brand frame is a wasted take.
+      expect(spec.w / spec.h).toBeCloseTo(9 / 16, 5);
+      expect(addMenuEntry(spec.kind), k).toBeDefined();
+    }
+  });
+
+  test("each maps to its own card kind — the bio is not the outro", () => {
+    expect(STANDARD_STAGE.intro.kind).toBe("blastintro");
+    expect(STANDARD_STAGE.bio.kind).toBe("blastbio");
+    expect(STANDARD_STAGE.outro.kind).toBe("blastoutro");
+    const kinds = STANDARD_KINDS.map((k) => STANDARD_STAGE[k].kind);
+    expect(new Set(kinds).size).toBe(kinds.length);
+  });
+
+  test("a staged spine frame attaches to its frame like any other element", () => {
+    const node = stagedElementNode("blast-bf-bio-1", "bf-bio-1", STANDARD_STAGE.bio);
+    expect((node.data.stage as { ceqId: string }).ceqId).toBe("blast-bf-bio-1");
+    expect(node.type).toBe("blastbio");
+    expect(node.data.provenance).toBe("blast-off-el");
+  });
+
+  test("the intro carries the set name it is blasting off on", () => {
+    const node = stagedElementNode("f", "f", STANDARD_STAGE.intro, { topic: "Accounting cycle order", tutor: "Lee Ingram" });
+    expect(node.data.topic).toBe("Accounting cycle order");
+    expect(node.data.tutor).toBe("Lee Ingram");
+  });
+
+  // The bio card owns its own copy (SurviveBio), so the node ships blank rather
+  // than baking the claims into every frame ever created.
+  test("the bio ships blank so its claims live in one place", () => {
+    const node = stagedElementNode("f", "f", STANDARD_STAGE.bio);
+    expect(node.data.name).toBeUndefined();
+    expect(node.data.claim).toBeUndefined();
   });
 });
