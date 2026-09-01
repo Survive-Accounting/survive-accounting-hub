@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import {
   atHome, autoFitAllowed, getFilmCamera, markCameraManual, pinTransform, releaseCamera,
@@ -200,5 +202,103 @@ describe("atHome", () => {
   test("no home recorded yet reads as home — the badge stays quiet on open", () => {
     expect(atHome(null, null)).toBe(true);
     expect(atHome(HOME, null)).toBe(true);
+  });
+});
+
+// ---- WIRING PINS ------------------------------------------------------------
+// The capture surface can only be rendered inside the Studio, behind an
+// authenticated canvas, so the wiring below is pinned by reading the source —
+// the same idiom film-v2.test.ts and exhibit-modes.test.ts use. Each of these
+// is a guarantee that, if it silently regressed, would only be discovered mid
+// take: the camera welded shut again, or a shot yanked back on a stray resize.
+describe("capture-window wiring (source pins)", () => {
+  const src = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
+  const filmRf = src.slice(src.indexOf("nodes={filmNodes}"), src.indexOf("nodes={filmNodes}") + 4000);
+
+  test("the film camera is NOT welded shut any more", () => {
+    // These three were `false`. That was the cage.
+    expect(filmRf).toContain("panOnDrag={PAN_BUTTONS}");
+    expect(filmRf).toContain("zoomOnScroll\n");
+    expect(filmRf).toContain("zoomOnPinch\n");
+    expect(filmRf).not.toContain("panOnDrag={false}");
+    expect(filmRf).not.toContain("zoomOnScroll={false}");
+    expect(filmRf).not.toContain("zoomOnPinch={false}");
+  });
+
+  test("left+middle pan; right stays the context menu", () => {
+    expect(src).toContain("const PAN_BUTTONS = [0, 1];");
+  });
+
+  test("only a USER gesture latches the camera manual", () => {
+    // `e` is null for programmatic setViewport — latching on those would mean
+    // the very first fitFilm froze the camera and ` could never re-home.
+    expect(filmRf).toContain("onMoveStart={(e) => { if (e) markCameraManual(); }}");
+    expect(filmRf).toContain("onMove={(e, vp) => { if (e) markCameraManual(); publishFilmViewport(vp); }}");
+  });
+
+  test("an ADVISORY fit records home but will not move a held camera", () => {
+    const fn = src.slice(src.indexOf("const fitFilm = useCallback"), src.indexOf("const fitFilmRef"));
+    expect(fn).toContain("setFilmHome(home)");                 // always, even when declining
+    expect(fn).toContain("if (!force && !autoFitAllowed()) return;");
+    // …and the order matters: home is recorded BEFORE the bail, or the pin
+    // would anchor against a stale shot after a resize.
+    expect(fn.indexOf("setFilmHome(home)")).toBeLessThan(fn.indexOf("if (!force && !autoFitAllowed())"));
+  });
+
+  test("the settle timers / resize / focus handlers are all ADVISORY", () => {
+    // They call fitFilm with no args ⇒ force = false. If any of them forced,
+    // a window resize mid-take would snap Lee's shot back.
+    const settle = src.slice(src.indexOf("const settle = () =>"), src.indexOf("filmWin.addEventListener(\"resize\", settle)"));
+    expect(settle).toContain("window.setTimeout(fitFilm, ms)");
+    expect(settle).not.toContain("fitFilm(0, true)");
+  });
+
+  test("` and a question change are the ONLY things that re-home", () => {
+    // Both backtick sweeps force a re-home…
+    expect(src.split("fitFilmRef.current(0, true)").length).toBe(3); // 2 sweep sites
+    // …and the question-change effect releases the camera then forces the fit.
+    const q = src.slice(src.indexOf("useEffect(() => {\n    if (!filmWin) return;\n    releaseCamera();"), src.indexOf("// CAPTURE WINDOW (C1)"));
+    expect(q).toContain("releaseCamera();");
+    expect(q).toContain("fitFilm(0, true)");
+  });
+
+  test("the pin anchors on the TEMPLATE, never the question's own geometry", () => {
+    const fn = src.slice(src.indexOf("const pinSpot = useMemo"), src.indexOf("const fitRef = useRef"));
+    // undefined instance + raw baseline = the Q0 layout, with no ignoreLayout
+    // opt-out. This one line is the "apply the layout" fix.
+    expect(fn).toContain("resolveCardSpot(undefined, baseline, frameW, frameH)");
+    expect(fn).not.toContain("templateFor(");
+    expect(fn).not.toContain("geomOf(");
+  });
+
+  test("pinning is film-only and targets exactly one node", () => {
+    const hoc = src.slice(src.indexOf("function withCeqPin"), src.indexOf("const nodeTypes ="));
+    expect(hoc).toContain("const film = useContext(FilmContext);");
+    expect(hoc).toContain("cam.pin?.nodeId === props.id");
+    expect(hoc).toContain("cam.pinOn");
+  });
+
+  test("the pin is never written to a node — authored geometry survives", () => {
+    const hoc = src.slice(src.indexOf("function withCeqPin"), src.indexOf("const nodeTypes ="));
+    expect(hoc).not.toContain("setNodes");
+    expect(hoc).not.toContain("onSaveInstance");
+    expect(hoc).not.toContain("commitGeom");
+  });
+
+  test("the camera HUD is editor-side only — chrome in the popout is chrome in the take", () => {
+    const hud = src.slice(src.indexOf("{/* CAMERA HUD"), src.indexOf("<ReactFlow\n"));
+    expect(hud).toContain("sa-chrome");
+    expect(hud).toContain("pointer-events-none");
+    // It renders in the editor pane, which is outside the PanelPopout subtree.
+    expect(src.indexOf("{/* CAMERA HUD")).toBeLessThan(src.indexOf("<PanelPopout win={filmWin}"));
+  });
+
+  test("the editor mirror has exactly ONE writer, so the panes cannot fight", () => {
+    // publishFilmViewport is called from fitFilm and the FILM ReactFlow's
+    // onMove only. If the editor's ReactFlow ever published too, the mirror
+    // would feed back into itself.
+    expect(src.split("publishFilmViewport(").length - 1).toBe(2); // fitFilm + the film ReactFlow's onMove
+    const editorRf = src.slice(src.indexOf("nodes={recording && filmStack ? recNodes : nodes}"), src.indexOf("nodes={filmNodes}"));
+    expect(editorRf).not.toContain("publishFilmViewport");
   });
 });
