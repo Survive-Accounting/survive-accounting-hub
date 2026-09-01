@@ -39,8 +39,7 @@ import { VideoCard } from "@/components/learn/VideoCard";
 import { ExamRail, type ExamTabState } from "@/components/learn/ExamRail";
 import { GreekDoor } from "@/components/learn/GreekDoor";
 import { Spine, useVisibleTopic, type SpineTopic } from "@/components/learn/Spine";
-import { ChairPanel } from "@/components/site/chair/ChairPanel";
-import { chairContextFrom, validateChairSearch, type ChairSearch } from "@/lib/chair-landing";
+import { isContactRef } from "@/lib/contact-ref";
 
 type ProgressState = "unstarted" | "in_progress" | "complete";
 /** One set's progress. positionSec/durationSec power resume + the watched strip; updatedAt
@@ -48,7 +47,15 @@ type ProgressState = "unstarted" | "in_progress" | "complete";
  *  student_set_progress (position columns degrade gracefully until 20260820_1500 applies). */
 type Prog = { state: ProgressState; positionSec: number; durationSec: number | null; updatedAt: number };
 
-type LearnSearch = { campus?: string; topic?: string; set?: string; stage?: SetStage; demo?: boolean } & ChairSearch;
+type LearnSearch = {
+  campus?: string; topic?: string; set?: string; stage?: SetStage; demo?: boolean;
+  // ── GREEK SHARE FUNNEL (learn-share-flow) ──────────────────────────────────────────────────
+  // ref = the contact WE messaged (recipient; no banner, CTA context only). by = a PERSON who
+  // forwarded the link (sharer; shows the vouched banner). g = the campus slug the /s/<campus>
+  // hop resolved, so the CTA bar can scope its copy before a chapter is picked. test = force a CTA
+  // state (A–F) or the banner, client-side, no DB — mirrors ?demo=1.
+  ref?: string; by?: string; g?: string; test?: string;
+};
 
 export const Route = createFileRoute("/learn")({
   validateSearch: (s: Record<string, unknown>): LearnSearch => ({
@@ -58,9 +65,12 @@ export const Route = createFileRoute("/learn")({
     set: typeof s.set === "string" && s.set ? s.set : undefined,
     stage: s.stage === "cram" || s.stage === "practice" || s.stage === "review" ? s.stage : undefined,
     demo: s.demo === true || s.demo === 1 || s.demo === "1" || s.demo === "true" ? true : undefined,
-    // BUILD 2 — chair/council context, present only when a /s/ link redirected here (or a reviewer
-    // opened /learn?chair=… directly). Mounts the floating share panel; see ChairPanel.
-    ...validateChairSearch(s),
+    // GREEK SHARE FUNNEL — ref/by are contact UUIDs (anything else dropped, so a rep code can never
+    // be mistaken for a contact); g is a campus slug; test is a single CTA-state letter (or "banner").
+    ref: typeof s.ref === "string" && isContactRef(s.ref) ? s.ref : undefined,
+    by: typeof s.by === "string" && isContactRef(s.by) ? s.by : undefined,
+    g: typeof s.g === "string" && s.g ? s.g : undefined,
+    test: typeof s.test === "string" && s.test ? s.test : undefined,
   }),
   head: () => ({ meta: [{ title: "⚡ Learn — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
   component: LearnShell,
@@ -504,10 +514,6 @@ function useIsNarrow(): boolean {
 function LearnShell() {
   const search = Route.useSearch();
   const demo = !!search.demo;
-  // BUILD 2 — chair/council context off the URL. Independent of the CHAIR_LANDS_ON_PLATFORM flag:
-  // the flag decides whether /s/ links redirect here, but the panel always renders when the params
-  // are present, so it can be reviewed at /learn?chair=… before the flag is flipped.
-  const chair = useMemo(() => chairContextFrom(search), [search]);
   // CAMPUS CONTEXT (Prompt 3) — pick a campus to see its chapter numbers + order. Only campuses
   // that actually have overrides are offered (others = the course default, so picking changes
   // nothing). Persisted; passed to the tree so numbering/order resolve server-side.
@@ -1183,9 +1189,8 @@ function LearnShell() {
           <button className="text-[11px] font-bold" style={{ color: NEON.muted }} onClick={() => setFetchNote(null)}>✕</button>
         </div>
       )}
-      {/* BUILD 2 — the chair/council share panel, floating over the real product. Portals to body
-          from inside, so it is unaffected by this shell's stacking. */}
-      {chair && <ChairPanel ctx={chair} />}
+      {/* GREEK SHARE FUNNEL — the adaptive CTA bar mounts here (learn-share-flow, next phase),
+          replacing both the flag-off ChairPanel and the GreekDoor billboard. */}
     </div>
   );
 }

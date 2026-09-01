@@ -13,11 +13,8 @@
 //
 // If the intent really was to replace the full page, that is a routing change — this screen is a
 // component and would serve either path unchanged.
-import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useState } from "react";
-
-import { CHAIR_LANDS_ON_PLATFORM } from "@/lib/site-config";
-import { chairLearnPath } from "@/lib/chair-landing";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { ShareButton, ShareFootnote, ShareHeading, ShareScreen } from "@/components/site/share/ShareScreen";
@@ -34,17 +31,8 @@ import { LEE_SIGNOFF } from "@/lib/partners";
 const ORIGIN = "https://surviveaccounting.com";
 
 export const Route = createFileRoute("/s/$campus/$chapter")({
-  // BUILD 2 · SECTION 1 — the one-line switch. When the platform is worth showing, a chair link
-  // lands her on /learn (branded to this chapter) with the share panel over it, instead of on the
-  // bare share screen. Off by default; see CHAIR_LANDS_ON_PLATFORM. The redirect runs before the
-  // loader so the share-screen data is never fetched on the platform path.
-  beforeLoad: ({ params }) => {
-    if (CHAIR_LANDS_ON_PLATFORM) {
-      throw redirect({
-        href: chairLearnPath({ mode: "chapter", school: params.campus, chapter: params.chapter, council: null }),
-      });
-    }
-  },
+  // THE SHARE BLOCK — a chapter's link + copy-message, reached from the CTA bar's "Pick your
+  // chapter" step (learn-share-flow). This is the deliverable: they came for a link and here it is.
   loader: async ({ params }) => {
     const school = schoolBySlug(params.campus);
     if (!school) throw notFound();
