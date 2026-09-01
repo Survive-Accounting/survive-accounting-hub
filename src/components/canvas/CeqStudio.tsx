@@ -3237,6 +3237,37 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           {deck ? (
             <>
               <span className="min-w-0 truncate text-[13px] font-black" style={{ color: NEON.text }} title={setDisplayName(deck.name)}>{setDisplayName(deck.name)}</span>
+              {/* PROVENANCE (Lee, 09-01) — WHICH set is this? Set names repeat across
+                  topics ("Accounting cycle order" exists under both Easy Points and
+                  The Accounting Cycle), and the header showed the name alone, so the
+                  only way to tell them apart was to open one and read the questions.
+                  The topic is the discriminator; the short id makes a set nameable
+                  out loud when two of them are open side by side. Read from the
+                  SPINE (course → topic), falling back to the legacy free-text
+                  fields, same precedence the publish path uses. */}
+              {(() => {
+                const d = deck; // narrowing doesn't survive into the closure
+                if (!d) return null;
+                const rows = spineRows(d);
+                const topic = rows
+                  ? topicLabel(rows.topic).replace(/\s*\(archived\)\s*$/i, "").trim()
+                  : (d.chapter || "").trim();
+                const course = ((rows ? rows.course.course_name : d.course) ?? "").trim();
+                const sid = d.id.replace(/[^a-zA-Z0-9]/g, "").slice(-4).toUpperCase();
+                return (
+                  <span
+                    className="flex shrink-0 items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-[0.1em]"
+                    style={{ color: NEON.muted }}
+                    title={`${course || "no course"} → ${topic || "NO TOPIC — assign this set in the Library"} → ${setDisplayName(d.name)}\nSet id ${d.id}`}
+                  >
+                    <span style={{ opacity: 0.55 }}>›</span>
+                    {topic
+                      ? <span className="max-w-[190px] truncate" style={{ color: "#8FD3FF" }}>{topic}</span>
+                      : <span style={{ color: "#F0B24A" }}>unfiled</span>}
+                    <span className="rounded px-1 py-px" style={{ border: `1px solid ${NEON.borderSoft}`, letterSpacing: "0.06em" }}>#{sid}</span>
+                  </span>
+                );
+              })()}
               {/* LIVE ON STUDENT SIDE — instant draft⇄live toggle, no publish flow. Student queries
                   filter status='live' server-side; draft never reaches the client. */}
               <button

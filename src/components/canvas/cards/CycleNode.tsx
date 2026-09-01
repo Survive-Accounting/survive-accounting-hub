@@ -37,9 +37,19 @@ const CYCLE_CSS = `
 @keyframes cyc-pop-in { from { opacity: 0; } }
 `;
 
-// MODE SWITCHER (cycle-modes) — the three CEQ types Lee films for this topic.
+// MODE SWITCHER (cycle-modes) — the CEQ types Lee films for this topic.
 // Chips + M key + orbit state come from the shared exhibit-modes layer.
+//
+// PLAIN IS FIRST AND IS THE DEFAULT (Lee, 09-01). The card used to boot into
+// SOURCE DOCS, so every click on a step popped a source-document card — and for
+// the "what is the correct order?" videos that is noise on camera. Plain is the
+// crayon-and-glasses mode: click a step to highlight it, click again to blur it
+// out, shift-click an arrow to light a chain. Nothing pops.
+//
+// Source Docs and Definitions are NOT deleted — they are authored, tested
+// content for the videos that do want them, one M press away.
 const CYCLE_MODES: readonly ExhibitModeDef[] = [
+  { id: "plain", label: "Plain" },
   { id: "source", label: "Source Docs" },
   { id: "definitions", label: "Definitions" },
   { id: "order", label: "Order", orbit: true },

@@ -46,7 +46,14 @@ interface ModeSnap {
   depthOn: boolean;
 }
 
-let snap: ModeSnap = { mode: "source", orderTick: 0, orderPlaying: false, revealTick: 0, depthOn: false };
+// DEFAULT = "plain" (Lee, 09-01). This was "source", which meant the accounting
+// cycle card booted into SOURCE DOCS and every click on a step popped a source
+// document — noise on an "what is the correct order?" take. Plain is the
+// highlight/blur/chain mode with no popovers; see CycleNode's CYCLE_MODES.
+// Cards that don't declare a "plain" mode are unaffected: a foreign mode already
+// falls back to the card's own first mode on render, and nextModeId already
+// skips to ids[1] so M never reads as a dead key.
+let snap: ModeSnap = { mode: "plain", orderTick: 0, orderPlaying: false, revealTick: 0, depthOn: false };
 let modeDefs: readonly ExhibitModeDef[] = [];
 const listeners = new Set<() => void>();
 const emit = (p: Partial<ModeSnap>) => { snap = { ...snap, ...p }; listeners.forEach((fn) => fn()); };
