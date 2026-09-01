@@ -283,6 +283,19 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
             chapterName={chapterName}
             onShared={onShared}
           />
+          {/* THE SCHOLARSHIP CHAIR KIT (Build 2, section 6) — flyer, slide, a one-pager on Survive
+              and a how-to-fund-seats walkthrough, one ZIP branded to this chapter. A quiet link:
+              most members want the flyer above, an exec wants the whole folder. */}
+          <a
+            href={`/api/chapter-kit/${schoolSlug}/${chapterSlug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => onShared()}
+            className="mt-1 inline-block text-[12.5px] font-bold underline underline-offset-4"
+            style={{ color: "var(--text-muted, #8B97BD)" }}
+          >
+            Download the whole kit (ZIP) →
+          </a>
         </TierCard>
 
         {/* TIER 3 — THE EXEC'S DOOR. Replaces the grey "Chapter exec?" strip that used to sit

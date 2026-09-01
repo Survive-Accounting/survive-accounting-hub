@@ -23,6 +23,8 @@ import { PDFDocument, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 
 import { flyerPdf, slidePdf, type FlyerInput } from "@/lib/flyer.server";
 import { SEAT_MINIMUM, SEAT_PRICE } from "@/components/site/ChapterAccess";
+import { LEE_PHONE_DISPLAY } from "@/lib/partners";
+import { CHAPTER_SEATS_BUY_URL } from "@/lib/site-config";
 
 const NAVY = "#14213D";
 const CREAM = "#F5F1E8";
@@ -242,4 +244,120 @@ export async function partnerKitZip(d: KitInput): Promise<Buffer> {
   }
 
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" }) as unknown as Promise<Buffer>;
+}
+
+// ── THE SCHOLARSHIP CHAIR KIT — ONE CHAPTER (Build 2, section 6) ───────────────────────────────
+// The council kit above is a whole campus; this is one house's ZIP, branded to it (letters, campus,
+// course code), handed to a scholarship chair from her chapter page or the share panel. Same PDF
+// machinery, four pieces: the flyer, the meeting slide, a one-pager on what Survive is, and a
+// "how to buy" walkthrough — which is deliberately NOT the council kit's sample invoice.
+
+export type ChapterKitInput = {
+  schoolSlug: string;
+  schoolName: string;
+  courseCode: string | null;
+  chapterSlug: string;
+  chapterName: string;
+  letters: string | null;
+  semester: string;
+};
+
+/** "ΑΧΩ · Alabama · Fall 2026" — or the chapter name when there is no ASCII-safe letters string. */
+function chapterStamp(d: ChapterKitInput): string {
+  const who = (d.letters ?? "").trim() || d.chapterName;
+  return `Prepared for ${who} · ${d.schoolName} · ${d.semester}`;
+}
+
+/** ONE PAGE ON WHAT SURVIVE ACCOUNTING IS. Product-first (the About-Lee.pdf in the council kit is
+ *  credentials-first); a chair drops this in front of a house that has never heard the name. */
+async function aboutSurvivePdf(d: ChapterKitInput): Promise<Buffer> {
+  const s = await sheet("About Survive Accounting");
+  const course = (d.courseCode ?? "").trim() || "intro accounting";
+  T(s, chapterStamp(d), 140, 11, s.semi, AMBER, 1.5);
+  T(s, "What Survive is", 186, 34, s.bold, CREAM);
+  let y = para(s, `Survive Accounting is exam prep for ${course}, built around the course ${d.schoolName} actually teaches. Cram videos that cover what the exam asks, and practice questions worked start to finish — not just answered.`, 226, 12, s.reg, BODY);
+
+  y += 16;
+  T(s, "HOW IT WORKS", y, 12, s.bold, AMBER, 1.2); y += 22;
+  for (const line of [
+    "1 · Watch the cram video for the topic.",
+    "2 · Work the practice questions alongside it.",
+    "3 · Walk into the exam having already seen the moves.",
+  ]) { y = para(s, line, y, 12, s.reg, BODY) + 4; }
+
+  y += 16;
+  T(s, "WHO MAKES IT", y, 12, s.bold, AMBER, 1.2); y += 22;
+  y = para(s, "Lee Ingram — two accounting degrees, 1,000+ students tutored, building Survive on his own.", y, 12, s.reg, BODY);
+
+  y += 22;
+  s.page.drawRectangle({ x: 54, y: 792 - y - 8, width: 504, height: 1, color: hex("#2A3555") });
+  y += 26;
+  T(s, "Free for every member of your chapter:", y, 12, s.semi, CREAM); y += 20;
+  y = para(s, "The whole of Exam 1 — cram videos and practice — at no cost to the chapter and nothing to buy.", y, 12, s.reg, BODY);
+
+  T(s, `Questions: Lee Ingram · ${LEE_PHONE_DISPLAY} · lee@surviveaccounting.com`, 720, 12, s.semi, CREAM);
+  T(s, "surviveaccounting.com", 748, 11, s.reg, MUTED);
+  return Buffer.from(await s.doc.save());
+}
+
+/** HOW TO BUY — a walkthrough, not an invoice. What a chapter does IF it wants to fund the rest of
+ *  the semester. Structured so a cart/invoice link can drop into step 1 later: until
+ *  CHAPTER_SEATS_BUY_URL is set, the step says "text Lee and he sends it" rather than a dead link. */
+async function howToBuyPdf(d: ChapterKitInput): Promise<Buffer> {
+  const s = await sheet("How to fund seats — Survive Accounting");
+  T(s, chapterStamp(d), 140, 11, s.semi, AMBER, 1.5);
+  T(s, "How to fund seats", 186, 34, s.bold, CREAM);
+  T(s, "Only if the chapter wants the rest of the semester. Exam 1 is already free.", 224, 12, s.ital, MUTED);
+
+  let y = 268;
+  T(s, "WHAT A SPONSORED SEAT ADDS", y, 12, s.bold, AMBER, 1.2); y += 22;
+  y = para(s, "Exam 2, Exam 3 and the Final — cram videos and practice — unlocked for a member for the whole semester.", y, 12, s.reg, BODY);
+
+  y += 18;
+  T(s, "THE STEPS", y, 12, s.bold, AMBER, 1.2); y += 24;
+  const buyStep = CHAPTER_SEATS_BUY_URL
+    ? `1 · Start here: ${CHAPTER_SEATS_BUY_URL.replace(/^https?:\/\//, "")}`
+    : `1 · Text Lee at ${LEE_PHONE_DISPLAY} and say your chapter wants seats. He sends the invoice.`;
+  for (const line of [
+    buyStep,
+    "2 · Tell him how many members — anything from the minimum up to your whole roster.",
+    "3 · The chapter pays one invoice, by card or check. No member ever pays.",
+    "4 · Those members' Exams 2, 3 and the Final unlock for the semester.",
+  ]) { y = para(s, line, y, 12, s.reg, BODY) + 8; }
+
+  y += 10;
+  T(s, "THE RATE", y, 12, s.bold, AMBER, 1.2); y += 24;
+  T(s, `$${SEAT_PRICE} per member, per semester`, y, 22, s.bold, CREAM); y += 26;
+  T(s, `${SEAT_MINIMUM}-seat minimum`, y, 13, s.semi, MUTED); y += 26;
+  y = para(s, "This sheet is a walkthrough, not a bill — nothing here charges the chapter. An invoice only ever comes after an exec asks for one.", y, 12, s.reg, BODY);
+
+  T(s, "surviveaccounting.com", 748, 11, s.reg, MUTED);
+  return Buffer.from(await s.doc.save());
+}
+
+/** The one-chapter archive. Four pieces, branded to the chapter. `placeholders` names anything that
+ *  degraded to a note rather than a real asset, so the endpoint can surface it in a header and the
+ *  report can list it — nothing is silently invented. */
+export async function chapterKitZip(d: ChapterKitInput): Promise<{ zip: Buffer; placeholders: string[] }> {
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+  const folderName = chapterFolder({ name: d.chapterName, slug: d.chapterSlug, letters: d.letters });
+  const root = zip.folder(`Survive-${folderName}-Kit`)!;
+
+  const input: FlyerInput = {
+    schoolSlug: d.schoolSlug, schoolName: d.schoolName, courseCode: d.courseCode,
+    chapterSlug: d.chapterSlug, chapterName: d.chapterName,
+  };
+  root.file("Flyer.pdf", await flyerPdf(input));
+  // "One-slide PowerPoint" ships as a print/projector-ready PDF slide, exactly as the council kit
+  // does — a real .pptx would need a new dependency for no gain on a slide meant to be projected.
+  root.file("Meeting-Slide.pdf", await slidePdf(input));
+  root.file("About-Survive-Accounting.pdf", await aboutSurvivePdf(d));
+  root.file("How-to-Fund-Seats.pdf", await howToBuyPdf(d));
+
+  // The only asset that can be "missing" is the checkout destination — the PDFs are all generated.
+  const placeholders = CHAPTER_SEATS_BUY_URL ? [] : ["How-to-Fund-Seats.pdf → buy link (CHAPTER_SEATS_BUY_URL is empty; step 1 falls back to texting Lee)"];
+
+  const buf = (await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" })) as unknown as Buffer;
+  return { zip: buf, placeholders };
 }
