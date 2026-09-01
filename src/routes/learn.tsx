@@ -39,6 +39,7 @@ import { VideoCard } from "@/components/learn/VideoCard";
 import { ExamRail, type ExamTabState } from "@/components/learn/ExamRail";
 import { LearnCta } from "@/components/learn/LearnCta";
 import { ShareBanner, useShareContext } from "@/components/learn/ShareBanner";
+import { LearnStateSwitcher } from "@/components/learn/LearnStateSwitcher";
 import { schoolByCampusId } from "@/lib/schools";
 import { Spine, useVisibleTopic, type SpineTopic } from "@/components/learn/Spine";
 import { isContactRef } from "@/lib/contact-ref";
@@ -515,6 +516,7 @@ function useIsNarrow(): boolean {
 
 function LearnShell() {
   const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const demo = !!search.demo;
   // GREEK SHARE FUNNEL — resolve the sharer/recipient once, for the vouched banner (by) and the CTA
   // bar's council state (by or ref). ?test=banner uses a fixture.
@@ -1200,8 +1202,10 @@ function LearnShell() {
         // chapter, so no campus is needed to preview).
         if (!ctaSlug && !search.test) return null;
         const ctaName = schoolByCampusId(campusId)?.name ?? campuses.find((c) => c.id === campusId)?.name ?? ctaSlug ?? "your campus";
-        return <LearnCta campusSlug={ctaSlug ?? "your-campus"} campusName={ctaName} ref={search.ref ?? null} sharerIsCouncil={shareCtx.isCouncil} test={search.test} />;
+        return <LearnCta campusSlug={ctaSlug ?? "your-campus"} campusName={ctaName} sharerBy={search.by ?? search.ref ?? null} sharerIsCouncil={shareCtx.isCouncil} test={search.test} />;
       })()}
+      {/* ADMIN-ONLY: cycle the CTA through every state on the live page (§9). */}
+      {!demo && <LearnStateSwitcher current={search.test} onSelect={(test) => void navigate({ search: (p: LearnSearch) => ({ ...p, test }), replace: true })} />}
     </div>
   );
 }

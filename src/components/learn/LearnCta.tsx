@@ -58,15 +58,15 @@ function testFixture(test: string | undefined): { state: CtaState; chapter: stri
 export function LearnCta({
   campusSlug,
   campusName,
-  ref,
+  sharerBy,
   sharerIsCouncil,
   test,
 }: {
   campusSlug: string;
   campusName: string;
-  /** The contact who brought them (recipient). Kept for attribution on join; the sharer banner is
-   *  Phase 3. */
-  ref?: string | null;
+  /** The last known human this browser carries (by ?? ref) — stamped onto the shared link as ?by=
+   *  so the forward chain stays visible (§8). */
+  sharerBy?: string | null;
   /** The resolved sharer/recipient sits on a council → state B ("get this to your chapter"). */
   sharerIsCouncil?: boolean;
   /** ?test letter — forces a state from a fixture, client-only. */
@@ -265,7 +265,7 @@ export function LearnCta({
           campusSlug={campusSlug}
           campusName={campusName}
           chapterName={chapterName || "your chapter"}
-          ref={ref}
+          sharerBy={sharerBy}
           testing={testing}
           onClose={() => setView("bar")}
         />

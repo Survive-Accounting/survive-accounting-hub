@@ -26,14 +26,18 @@ export function ChapterShareSheet({
   campusSlug,
   campusName,
   chapterName,
-  ref,
+  sharerBy,
   testing,
   onClose,
 }: {
   campusSlug: string;
   campusName: string;
   chapterName: string;
-  ref?: string | null;
+  /** The SHARER's contact id, stamped onto the link as ?by= so the forward chain stays visible
+   *  (learn-share-flow §8). This is the "reuse an existing id" half: the last known human this
+   *  browser carries. Minting a brand-new contact for a fully anonymous sharer is a follow-up
+   *  (it needs a data home) — until then an anonymous share simply carries no by. */
+  sharerBy?: string | null;
   /** In ?test mode: don't read course codes or write the ask. */
   testing?: boolean;
   onClose: () => void;
@@ -53,8 +57,9 @@ export function ChapterShareSheet({
   const code = testing ? "AC 210" : codeQ.data?.find((c) => c.campusId === campus?.campusId)?.code ?? null;
   const course = code ? nbspCode(code) : "intro accounting";
 
-  // THE ONE LINK — campus-level, so it survives forwarding. (Phase 5 appends ?by=<sharer>.)
-  const plainLink = `${ORIGIN}/s/${campusSlug}${ref ? `?ref=${ref}` : ""}`;
+  // THE ONE LINK — campus-level, so it survives forwarding, stamped with the sharer's ?by= so the
+  // council → chair → member → friend chain stays visible.
+  const plainLink = `${ORIGIN}/s/${campusSlug}${sharerBy ? `?by=${sharerBy}` : ""}`;
   const message = [
     `Free ${course} prep for ${chapterName} — the whole first exam is free.`,
     `Cram videos, practice questions, full walkthroughs. No account, nothing to buy.`,
