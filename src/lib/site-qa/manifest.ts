@@ -539,7 +539,6 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "intro-outro.tsx": "dev lab (noindex)",
   "logo-lab.tsx": "dev lab (noindex)",
   "lab.bolt.tsx": "dev lab (noindex)",
-  "lab.brand.tsx": "dev lab (noindex) — brand animation tuning desk",
   "leeportal.tsx": "Lee's private nav portal (AdminGate, noindex, unlinked)",
   "study_.canvas.tsx": "internal authoring lab (noindex)",
   "study_.dashboard.tsx": "prototype (noindex)",

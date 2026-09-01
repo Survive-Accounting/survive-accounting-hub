@@ -29,10 +29,7 @@ import {
 } from "@/components/site/home-two-door/DoorCard";
 import { CampaignDeck } from "@/components/site/campaign/CampaignDeck";
 import { CampaignVideo } from "@/components/site/campaign/CampaignVideo";
-import { CampusGlobe, GlobeLegend } from "@/components/brand/CampusGlobe";
-import { getGlobeData } from "@/lib/globe/campus-globe.functions";
 import { ReferralForm } from "@/components/site/campaign/ReferralForm";
-import { useQuery } from "@tanstack/react-query";
 import { FIGURE_CSS } from "@/components/site/campaign/Figure";
 import { getCampaignCounts, CAMPAIGN_CONTACT_PHONE } from "@/lib/campaign.functions";
 import { CAMPAIGN_REPORT_PDF, CAMPAIGN_VIDEO_POSTER, CAMPAIGN_VIDEO_URL } from "@/lib/site-config";
@@ -118,12 +115,6 @@ function TheCampaignPage() {
               <Chip>Launching September 1</Chip>
             </div>
           )}
-
-          {/* THE MAP OF THE CAMPAIGN — the campus globe, on the same live status data the chips
-              read. A status display, not decoration: dim = in the system, blue = ready, lit +
-              pulsing = live; arcs appear only when real chapter claims happen (docs/
-              BRAND-ANIMATION.md). Lazy: the Three.js payload loads when this scrolls near. */}
-          <CampaignGlobe />
         </section>
 
         <DoorRow label="Send a name, or read the plan">
@@ -179,20 +170,6 @@ function TheCampaignPage() {
 
       <div className="mt-12" />
       <Footer />
-    </div>
-  );
-}
-
-/** The globe block: data fetched client-side (the globe itself is lazy, so its data has no
- *  business in the route loader slowing first paint), and the whole block renders NOTHING when
- *  the data fails — a map with no truth behind it would be decoration, which this page bans. */
-function CampaignGlobe() {
-  const q = useQuery({ queryKey: ["globe-data"], queryFn: () => getGlobeData(), staleTime: 300_000, networkMode: "always" });
-  if (!q.data) return null;
-  return (
-    <div className="mt-8 w-full max-w-[720px]">
-      <CampusGlobe data={q.data} height={400} />
-      <div className="mt-2"><GlobeLegend data={q.data} /></div>
     </div>
   );
 }

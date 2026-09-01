@@ -1,30 +1,31 @@
-# BRAND ANIMATION — BUILT 2026-08-31 (Lee's word: "build it now")
+# BRAND ANIMATION — both pieces attempted, both REMOVED (2026-08-31)
 
-Both pieces shipped the same day the spec was parked. This doc is now the spec AND the map of
-what exists:
+This doc is the spec AND the record of what happened to it. Nothing described below is currently
+built. Read this header before rebuilding either piece.
 
-- **Drawn wordmark — ATTEMPTED AND REJECTED (same day).** Hand-authored single-stroke glyphs +
+- **Drawn wordmark — ATTEMPTED AND REJECTED (2026-08-31).** Hand-authored single-stroke glyphs +
   stroke-dashoffset draw-on shipped, Lee's verdict: "looks horrible." Deleted. The lesson: the
   draw-on idea needs REAL letterforms — traced from Lee's actual handwriting (the videos) — not
-  invented curves; do not re-attempt without that input. The /learn intro instead uses the REAL
+  invented curves; do not re-attempt without that input.
+- **The boil IS the brand animation, and it stayed.** The /learn intro uses the REAL
   SurviveWordmark (bolt boiling, same mark as the footer) with "Loading cram videos..." beneath,
-  as a short boot splash on every arrival (`LearnIntro.tsx` — click-to-skip, reduced-motion
-  never shows it). The boil IS the brand animation.
-- **CampusGlobe** — `src/components/brand/CampusGlobe.tsx` + `src/lib/globe/`. Live tiers from
-  campuses.campus_status (shell/backlog=dim · ready=brighter · live=lit+pulsing rings); arcs from
-  REAL approved chapter claims only (zero pre-launch = zero arcs, honestly); school colours where
-  known (SEC override, then reviewed DB colours). Placement: city-precise for the 119 seeded
-  slugs (campus-geo.ts), state-centroid otherwise, legend says "positions approximate · +N not
-  yet mapped". Landmass: vendored Natural Earth 110m countries (public/geo/land-110m.json —
-  Antarctica dropped, one degenerate North Korea ring repaired: both make h3's polygonToCells
-  throw). Lazy via IntersectionObserver; `eager` skips the gate for the lab and for offline
-  rendering (no scrolling exists there). Mounted: /the-campaign hero (real arcs only) and
-  /lab/brand (with a clearly-labelled sample-arcs preview toggle).
-- **/lab/brand** — the globe standalone (with the labelled sample-arcs preview).
-- NOT yet mounted: bio video intros (Remotion-side — drive the globe's `progress` per frame;
-  the wordmark side waits on real traced letterforms) and /learn Review mode (possible later).
+  as a short boot splash on every arrival (`LearnIntro.tsx` — click-to-skip, reduced-motion never
+  shows it). This is the surviving piece of the whole effort.
+- **CampusGlobe — BUILT AND REMOVED (2026-08-31).** Lee's verdict: "It was a dumb experiment."
+  Deleted: `src/components/brand/CampusGlobe.tsx`, `src/lib/globe/`, `/lab/brand`, the
+  `/the-campaign` mount, and the `react-globe.gl` + `three` dependencies.
+  **The real reason it had to go, beyond taste: it broke the build.** `react-globe.gl` pulls
+  Three.js, which minified into a 1.9 MB chunk (533 kB gzip) — the largest in the app. On Vercel's
+  2-core / 8 GB builder that pushed production builds from a steady 4–7 minutes to 28 minutes, and
+  then to one that ran 44+ minutes without finishing. A brand flourish was costing more build time
+  than the entire rest of the app. If the globe is ever rebuilt, the dependency cost is the first
+  thing to solve, not the last.
+  The vendored landmass data went too (`public/geo/land-110m.json`, 401 KB of Natural Earth 110m
+  countries) — nothing referenced it any more, and a dead asset that large is not worth keeping
+  on the guess that some future map wants it.
+- NOT built: bio video intros, /learn Review mode.
 
-Original spec below, kept verbatim.
+Original spec below, kept verbatim — it is a PROPOSAL, not a description of the codebase.
 
 ---
 
