@@ -16,6 +16,8 @@ import { ArrowDown, ArrowUp, Clapperboard, Pencil, Plus, X } from "lucide-react"
 import { AdminGate } from "@/components/AdminGate";
 import { loadBoothBank, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import { loadBlastPlan, saveBlastPlan } from "@/lib/blastoff.functions";
+import { syncBlastPlanToSet } from "@/lib/blastoff-sync.functions";
+import { openFilmMode } from "@/components/blastoff/FilmHandoff";
 import { CheatCodeFrame, PhraseFrame, TipFrame } from "@/components/blastoff/ContentFrames";
 import { CeqFrame } from "@/components/blastoff/CeqFrame";
 import { FoundOnYourExam } from "@/components/blastoff/FoundOnYourExam";
@@ -170,6 +172,8 @@ function Editor({ set, onCapture }: { set: BoothSetInfo; onCapture: () => void }
   const { plan, commit, saving } = usePlan(set);
   const [picker, setPicker] = useState<BlastFrameKind | null>(null);
   const [at, setAt] = useState<number>(0);
+  const [busy, setBusy] = useState(false);
+  const [syncNote, setSyncNote] = useState<string | null>(null);
   const ceqById = useMemo(() => new Map(set.ceqs.map((c) => [c.id, c])), [set.ceqs]);
 
   if (!plan) return <div style={{ color: MUTED, fontSize: 13 }}>Loading the running order…</div>;
@@ -185,10 +189,25 @@ function Editor({ set, onCapture }: { set: BoothSetInfo; onCapture: () => void }
         <div className="flex items-center gap-2" style={{ marginBottom: 12, flexWrap: "wrap" }}>
           <span style={{ fontSize: 11.5, color: MUTED }}>{plan.frames.length} frames</span>
           {saving && <span style={{ fontSize: 11, color: saving.startsWith("⚠") ? "#F87171" : saving === "saved" ? "#3BF5A0" : MUTED }}>{saving}</span>}
+          {syncNote && <span style={{ fontSize: 11, color: syncNote.startsWith("⚠") ? "#F87171" : syncNote.startsWith("✓") ? "#3BF5A0" : MUTED }}>{syncNote}</span>}
+          {/* THE HANDOFF. Blast-off plans; the canvas films. This writes the
+              running order into the set as real frames, then opens the film
+              surface that already has the bolt cursor, yellow highlighting,
+              spotlight and identical frame geometry. */}
           <button className="ml-auto flex items-center gap-1.5 rounded-xl px-4 py-2"
-            style={{ background: GOLD, color: "#0B1322", fontSize: 13, fontWeight: 800, border: "none", cursor: "pointer" }}
-            onClick={onCapture}>
-            <Clapperboard className="h-3.5 w-3.5" /> Capture →
+            style={{ background: GOLD, color: "#0B1322", fontSize: 13, fontWeight: 800, border: "none", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}
+            disabled={busy}
+            onClick={() => {
+              setBusy(true); setSyncNote("Writing frames into the set…");
+              syncBlastPlanToSet({ data: { setId: set.id, frames: plan.frames } })
+                .then((r) => {
+                  setSyncNote(`✓ ${r.wrote} frames written · ${r.reordered} questions ordered${r.missingCeqs ? ` · ${r.missingCeqs} missing` : ""} — opening film`);
+                  openFilmMode(set.id);
+                })
+                .catch((e) => setSyncNote(`⚠ ${e instanceof Error ? e.message : String(e)}`))
+                .finally(() => setBusy(false));
+            }}>
+            <Clapperboard className="h-3.5 w-3.5" /> Send to film →
           </button>
         </div>
 
