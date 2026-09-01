@@ -23,7 +23,11 @@ export type Orientation = "16:9" | "9:16";
 export const ORIENTATIONS: readonly Orientation[] = ["16:9", "9:16"] as const;
 export const DEFAULT_ORIENTATION: Orientation = "16:9";
 
-export const isVertical = (o: Orientation): boolean => o === "9:16";
+// HOISTED, NOT AN ARROW (see tdz-hazards.test.ts). This is read from inside the
+// previewer's node-building useMemo, which is exactly where a module-scope
+// `const f = () =>` can still be in its temporal dead zone when the bundler
+// orders this module's body after the render that calls it.
+export function isVertical(o: Orientation): boolean { return o === "9:16"; }
 
 /** The delivered pixel size. Both are the standard for their shape, and both are
  *  what OBS must capture 1:1. */
@@ -160,8 +164,8 @@ export function exhibitFit(natural: { w: number; h: number }, o: Orientation, ba
  *
  *  Landscape stays on the original `geom`/`layout` names, so every set authored
  *  before vertical existed reads back exactly as it did. Pure. */
-export const geomField = (o: Orientation): "geom" | "geomV" => (isVertical(o) ? "geomV" : "geom");
-export const layoutField = (o: Orientation): "layout" | "layoutV" => (isVertical(o) ? "layoutV" : "layout");
+export function geomField(o: Orientation): "geom" | "geomV" { return isVertical(o) ? "geomV" : "geom"; }
+export function layoutField(o: Orientation): "layout" | "layoutV" { return isVertical(o) ? "layoutV" : "layout"; }
 
 /** Read the spots for an orientation off a card-ish object. */
 export function geomOf<T>(card: { geom?: T; geomV?: T } | null | undefined, o: Orientation): T | undefined {
