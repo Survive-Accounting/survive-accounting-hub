@@ -61,7 +61,6 @@ import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./f
 import {
   atHome, autoFitAllowed, getFilmCamera, markCameraManual, mirrorViewport, pinTransform,
   publishFilmViewport, releaseCamera, setFilmHome, setPinTarget, subscribeFilmCamera, togglePin,
-  type Viewport as FilmViewport,
 } from "./film-camera";
 import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
