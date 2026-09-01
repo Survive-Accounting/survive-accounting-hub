@@ -11,21 +11,11 @@
 import { useEffect, useRef } from "react";
 
 import { currentContactRef, rememberContactRef } from "@/lib/contact-ref";
+import { deviceAnonId } from "@/lib/device-id";
 import { recordContactRefVisit } from "@/lib/engaged-contacts.functions";
 
-const ANON_COOKIE = "sa_anon";
-const ANON_MAX_AGE = 60 * 60 * 24 * 365;
-
-/** A stable random id for this browser. Not derived from anything about the person. */
-function anonId(): string | null {
-  if (typeof document === "undefined") return null;
-  const m = document.cookie.match(new RegExp(`(?:^|; )${ANON_COOKIE}=([^;]*)`));
-  if (m) return decodeURIComponent(m[1]);
-  const id = (crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`);
-  const secure = location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `${ANON_COOKIE}=${encodeURIComponent(id)}; Path=/; Max-Age=${ANON_MAX_AGE}; SameSite=Lax${secure}`;
-  return id;
-}
+// The anon id moved to lib/device-id.ts (2026-08-31): the member gate de-duplicates on the
+// same cookie, and two implementations of "which browser is this" would drift apart silently.
 
 export function useRecordRefVisit(campusId?: string | null): void {
   // ONCE PER MOUNT, guarded: React 18 StrictMode runs effects twice in development, and without
@@ -46,7 +36,7 @@ export function useRecordRefVisit(campusId?: string | null): void {
         ref,
         path: window.location.pathname,
         campusId: campusId ?? null,
-        anonId: anonId(),
+        anonId: deviceAnonId(),
       },
     }).catch(() => { /* analytics never breaks a page */ });
   }, [campusId]);

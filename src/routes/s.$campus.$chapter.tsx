@@ -26,6 +26,7 @@ import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { currentContactRef, withRef } from "@/lib/contact-ref";
 import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { nbspCode } from "@/lib/course-code";
+import { LEE_SIGNOFF } from "@/lib/partners";
 
 const ORIGIN = "https://surviveaccounting.com";
 
@@ -76,6 +77,11 @@ function ChapterSharePage() {
     `Free prep for ${course} — the entire first exam is free.`,
     `Videos, practice questions, full walkthroughs.`,
     tagged,
+    ``,
+    // A PERSON, WITH A NUMBER, ON EVERY PASTEABLE MESSAGE. Whoever pastes this is putting their
+    // own credibility behind it, and "text Lee Ingram, the tutor behind it" is what makes the
+    // thing they pasted answerable by a human rather than by a brand.
+    LEE_SIGNOFF,
   ].join("\n");
 
   const copy = async (what: "link" | "message", text: string) => {

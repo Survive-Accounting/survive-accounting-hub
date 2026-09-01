@@ -37,7 +37,10 @@ import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/Site
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { ALL_SCHOOLS, schoolBySlug } from "@/lib/schools";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
-import { ChapterGate } from "@/components/site/ChapterGate";
+import { ChapterMemberGate } from "@/components/site/chapter/ChapterMemberGate";
+import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
+import { boltForSlug } from "@/lib/schools";
+import { deviceAnonId } from "@/lib/device-id";
 import { useChapterMember } from "@/lib/use-chapter-member";
 import { ChapterStickyCta } from "@/components/site/ChapterStickyCta";
 import { MARKETING_HERO_ID } from "@/components/site/Marketing";
@@ -120,6 +123,22 @@ function GoChapterPage() {
   const { school, chapter } = Route.useParams();
   const { chapter: ch, code, profSkip } = Route.useLoaderData();
   const { signedIn } = useChapterMember(school, chapter);
+  const bolt = boltForSlug(school);
+
+  // ── HOP 3 OF THE REF CHAIN, WHICH WAS DROPPING IT (2026-08-31) ────────────────────────────
+  // /s/<campus> and /s/<campus>/<chapter> both mounted this; the /go page — the one every share
+  // link actually points AT — did not. So a tagged link travelled the whole way here and then
+  // the ref was read by nothing: no contact_ref_visit row, and no sa_cref cookie, so the tag was
+  // also gone for anything the member did next. surfaceForPath already classifies /go/x/y as
+  // "chapter", so this needed no server change at all — only the mount.
+  useRecordRefVisit(ch?.campusId ?? null);
+
+  // Whether this member has already joined on this device. Read once on the client: the gate
+  // must not flash at someone who signed up ten seconds ago and scrolled back up.
+  const [joined, setJoined] = useState(false);
+  useEffect(() => {
+    try { setJoined(localStorage.getItem(`sa-joined:${school}/${chapter}`) === "1"); } catch { /* private mode */ }
+  }, [school, chapter]);
 
   // VISIT TRACKING. An exec should be able to see interest BEFORE anyone signs up — a chapter
   // that shared the link and got 40 visits and 3 accounts is a different conversation from one
@@ -140,8 +159,26 @@ function GoChapterPage() {
   // Fire-and-forget member attribution. Saying "start Exam 1" on this chapter's own URL is the
   // attribution; nothing is awaited, so a failed tag can never stand between a student and the
   // free exam they came for.
+  //
+  // deviceId is what makes this idempotent. Without it every tap inserted a row — five members
+  // for one person in nine seconds, live. See the de-dup ladder in tagChapterMember.
   const tagMember = () => {
-    void tagChapterMember({ data: { schoolSlug: school, chapterSlug: chapter, source: "link" } }).catch(() => {});
+    void tagChapterMember({
+      data: { schoolSlug: school, chapterSlug: chapter, source: "link", deviceId: deviceAnonId() },
+    }).catch(() => {});
+  };
+
+  // ── "STRAIGHT INTO EXAM 1" — where that actually goes ─────────────────────────────────────
+  // There is no player on this page. `hidePlayer` is set on every chapter page (2a410e66) and
+  // un-setting it would be reverting somebody else's decision, not a cleanup. The real Exam 1
+  // player lives on the CAMPUS page, which is ungated and already knows the course.
+  //
+  // The sa_cref cookie was written on arrival (useRecordRefVisit above), so the ref survives this
+  // hop even though the URL does not carry it — which is the whole reason the cookie exists.
+  const nav = useNavigate();
+  const startExam = () => {
+    tagMember();
+    void nav({ to: "/$school", params: { school }, hash: EXAM_ANCHOR });
   };
 
   // THE RIGHT DOOR. On a phone the fastest share is no UI at all: hand the native sheet the
@@ -209,9 +246,30 @@ function GoChapterPage() {
             claimStatus={ch.claimStatus}
           />
         ) : undefined}
-        // Gate the VIDEO until there is an account. `signedIn === null` means the session is
-        // still being read — showing the gate then would flash it at someone already signed in.
-        videoGate={ch && signedIn === false ? <ChapterGate chapterName={ch.chapterName} /> : undefined}
+        // THE MEMBER GATE, in its own slot. It used to ride in on `videoGate`, which renders
+        // INSIDE ExamPlayer — and this page passes hidePlayer, so since 2a410e66 it has rendered
+        // nowhere at all and the page has had zero inputs.
+        //
+        // `signedIn === null` means the session is still being read; showing the gate then would
+        // flash a form at someone who already has an account. `joined` covers the far more common
+        // case: no account, but they filled this in an hour ago and came back.
+        chapterGate={ch ? (
+          <ChapterMemberGate
+            id={EXAM_ANCHOR}
+            schoolSlug={school}
+            chapterSlug={chapter}
+            chapterName={ch.chapterName}
+            letters={(ch.letters ?? "").trim() || chapterShortName(ch.chapterName, ch.letters, ch.nickname)}
+            schoolName={ch.schoolName}
+            code={code}
+            bolt={bolt}
+            onJoined={() => {
+              try { localStorage.setItem(`sa-joined:${school}/${chapter}`, "1"); } catch { /* private mode */ }
+            }}
+            initialDone={joined || signedIn === true}
+            onStartExam={startExam}
+          />
+        ) : undefined}
         greekOrg={ch ? ch.chapterName : undefined}
       />
       {/* Self-report stays at the foot: it is a STUDENT correction ("I'm in a different house"),

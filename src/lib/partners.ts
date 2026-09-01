@@ -136,9 +136,56 @@ export function councilChapterLinksPost(d: {
   return [
     `Hey all — free exam prep for ${course}, the first exam is completely free. Each chapter has its own link:`,
     ``,
-    ...d.chapters.map((c) => `${c.name} — ${c.url.replace("https://", "")}`),
-    ``,
+    // ── ONE CHAPTER, TWO LINES, A BLANK LINE BETWEEN ─────────────────────────────────────────
+    // These were "Name — url" on one line each, which in a chat client is eighteen consecutive
+    // lines of near-identical text: a wall. A president scanning for her own house cannot find
+    // it. Name on its own line, link under it, blank line between entries — longer, and
+    // scannable, which is the trade worth making. Nobody reads this top to bottom; they hunt for
+    // one row.
+    ...d.chapters.flatMap((c) => [c.name, c.url.replace("https://", ""), ``]),
     `Made by a tutor who's worked with 1,000+ accounting students.`,
+    ``,
+    LEE_SIGNOFF,
+  ].join("\n");
+}
+
+/** THE SIGN-OFF ON EVERY PASTEABLE MESSAGE.
+ *
+ *  A person, with a name and a number — not a support line. An exec pasting this into her
+ *  presidents' chat is putting her own credibility behind it, and "Questions? Text Lee Ingram,
+ *  the tutor behind it" is what makes the thing she pasted answerable by a human rather than a
+ *  brand. One constant so a message can never ship without it, and so the number can never drift
+ *  from the one in the footer. */
+export const LEE_SIGNOFF = `Questions? Text Lee Ingram, the tutor behind it — ${LEE_PHONE_DISPLAY}`;
+
+/** THE PORTAL POST — the primary council share, and one link rather than a wall of them.
+ *
+ *  ── WHY ONE LINK BEATS EIGHTEEN ───────────────────────────────────────────────────────────
+ *  The bulk post asks a president to find her own row in a list of eighteen near-identical
+ *  lines, in a group chat, on a phone. The failure it invites is not "she gives up" — it is
+ *  worse than that: she taps the wrong chapter's link and lands on somebody else's page, and
+ *  every member she then forwards it to is counted against the wrong house. One portal link
+ *  cannot be mis-tapped: every chapter finds itself, and the picker is the only thing that
+ *  decides which page anyone lands on.
+ *
+ *  The bulk version stays, as a secondary, for councils who prefer it. */
+export function councilPortalPost(d: {
+  courseCode: string | null;
+  schoolName: string;
+  /** The /s/<campus> portal, already carrying any ref. */
+  portalUrl: string;
+}): string {
+  const course = d.courseCode ?? "intro accounting";
+  return [
+    `Free ${course} exam prep for every chapter — the whole first exam, no cost, nothing to buy.`,
+    ``,
+    `Cram videos + practice questions for what's actually on Exam 1.`,
+    `Built by a tutor who's worked with 1,000+ students.`,
+    ``,
+    `Your chapter finds itself here:`,
+    d.portalUrl.replace("https://", ""),
+    ``,
+    LEE_SIGNOFF,
   ].join("\n");
 }
 

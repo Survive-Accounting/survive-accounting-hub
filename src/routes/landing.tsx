@@ -159,6 +159,13 @@ interface LandingProps {
   videoGate?: React.ReactNode;
   /** The chapter-access section, rendered after the player (never between a visitor and it). */
   chapterAccess?: React.ReactNode;
+  /** THE MEMBER GATE on a /go page. Its own slot, mounted where the player would have been.
+   *
+   *  It cannot ride in on : that prop is rendered INSIDE ExamPlayer, and chapter
+   *  pages pass hidePlayer, so anything handed to it has been rendering nowhere since 2a410e66.
+   *  This slot sits outside the player for exactly that reason — the gate must not depend on a
+   *  component the page does not render. */
+  chapterGate?: React.ReactNode;
   /** Greek chapter name. Its presence IS the Greek variant switch. */
   greekOrg?: string;
   /** Greek marketing context — org name, display letters, claim state, access anchor. Replaces
@@ -208,7 +215,7 @@ export function LandingPage(props: LandingProps = {}) {
   );
 }
 
-function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, videoGate, storedCampusId, profSkipFor, demoContext, plannerV2, greekDoors, hidePlayer }: LandingProps) {
+function LandingPageInner({ initialCampusId, goChapter, chapterAccess, chapterGate, campusSlug, greek, onStartExam, chapterCount, greekOrg, videoGate, storedCampusId, profSkipFor, demoContext, plannerV2, greekDoors, hidePlayer }: LandingProps) {
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
@@ -257,9 +264,14 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   //
   // It also targets PLAYER_ANCHOR_ID, a fixed empty div, not the player's own #exam1 section —
   // see the anchor's comment for why.
+  // ON A CHAPTER PAGE THE TARGET IS #exam1, NOT #player. PLAYER_ANCHOR_ID is a fixed empty div
+  // that exists so the scroll target cannot move while the player decides how tall it is — but a
+  // chapter page has no player, so that div is followed immediately by the member gate and the
+  // real destination is the gate's own section. It carries scroll-mt for the sticky header;
+  // #player does not, so aiming there put the gate's heading under the navbar.
   const onStart = () => {
     setFocusSignal((f) => f + 1);
-    requestAnimationFrame(() => scrollToId(PLAYER_ANCHOR_ID));
+    requestAnimationFrame(() => scrollToId(hidePlayer ? EXAM_ANCHOR_ID : PLAYER_ANCHOR_ID));
   };
   // The hero primary CTA also carries greek member attribution (the /go/ route's tagMember —
   // saying "start Exam 1" on a chapter's own URL IS the attribution, exactly as before).
@@ -629,6 +641,11 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
         {/* THE STABLE SCROLL TARGET — see PLAYER_ANCHOR_ID. Empty, outside the player, and
             therefore incapable of moving while the player decides how tall it is. */}
         <div id="player" className="sa-anchor" />
+
+        {/* THE MEMBER GATE — where the player would be, and carrying #exam1 with it. On a chapter
+            page this is the only input on the screen and the only thing every CTA points at. */}
+        {chapterGate}
+
         {!hidePlayer && (
         <ExamPlayer dataReady={!mapQ.isFetching} plannerV2={plannerV2} videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); track("school_not_listed"); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onResetQuestions={resetQuestions} resetSeq={resetSeq} onChangeProfessor={changeProfessor} onChangeSchool={changeSchoolAny} routePath={campusSlug ? `/${campusSlug}` : goChapter ? `/go/${goChapter.schoolSlug}/${goChapter.chapterSlug}` : "/"} theater={theater} onTheaterDone={() => { track("personalized_loading_completed"); setTheater(null); }} onNotify={(r) => setNotifyReq(r)} />
         )}

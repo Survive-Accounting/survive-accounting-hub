@@ -331,12 +331,24 @@ function ExecTier({ shortName, claimState, highlight, onClaim }: {
         title="Run it for the house"
         blurb={<>See who is actually studying, and cover every exam for {shortName}.</>}
       >
-        {/* THE GREEK RATE. Two numbers, because the deal IS the message. */}
+        {/* ── THE NUMBERS ARE GONE FROM THIS PAGE (2026-08-31) ──────────────────────────────
+            This block showed "$150 $100/member · Greek rate". That was a deliberate reversal of
+            the earlier "a member never meets a number" rule, and it is being reversed back —
+            Lee's call again, and the reasoning is stronger the second time:
+
+            /go/<campus>/<chapter> IS THE MEMBER'S PAGE. It is what gets pasted into a chapter
+            group chat, so the reader is overwhelmingly a member, not an exec. A member who has
+            just been told Exam 1 is free and then meets a per-seat rate has to work out whether
+            the free thing was really free. She does not need the deal in her head; that
+            conversation belongs to the scholarship chair, who reaches it through the claim flow
+            below and — once build 2 lands — through the chair tour, which is the ONE place
+            pricing appears in the Greek flow.
+
+            SEAT_PRICE and INDIVIDUAL_PRICE are still exported and still used by the chapter
+            dashboard and the FAQ. Nothing about the deal changed; only who meets it unasked. */}
         <p className="text-[12.5px] leading-snug" style={{ color: "var(--text-muted)" }}>
-          <span style={{ textDecoration: "line-through", opacity: 0.75 }}>${INDIVIDUAL_PRICE}</span>{" "}
-          <span className="font-black" style={{ color: "var(--brand-cream)" }}>${SEAT_PRICE}/member</span>
-          <br />
-          <span className="font-black" style={{ color: "var(--accent)" }}>Greek rate</span> — every exam, all semester.
+          <span className="font-black" style={{ color: "var(--accent)" }}>Greek rate</span> — every exam,
+          all semester, at a chapter price.
         </p>
         <button
           type="button"
