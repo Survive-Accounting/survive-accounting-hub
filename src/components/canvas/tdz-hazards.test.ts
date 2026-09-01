@@ -62,6 +62,52 @@ describe("in-component render-time TDZ (08-19: opening a set crashed prod)", () 
   });
 });
 
+// 2026-09-01: it happened a THIRD time. film-camera.ts shipped getFilmCamera /
+// subscribeFilmCamera / autoFitAllowed / emit as module-scope arrows, and
+// withCeqPin calls the first two from useSyncExternalStore DURING RENDER — so
+// the capture window died with "Cannot access 'wl' before initialization" while
+// dev, the local prod build and 1435 tests were all green.
+//
+// The lesson is that naming the two files that had crashed was too narrow: the
+// rule belongs to any module the render path can reach. This list is now the
+// register of those modules, and adding a store here is cheaper than shipping
+// the crash again.
+const RENDER_PATH_MODULES = ["ceq-geom.ts", "CeqPreviewer.tsx", "film-camera.ts", "exhibit-modes.tsx", "exhibit-highlights.ts"];
+
+describe("no module-scope arrow callables anywhere the render path reaches", () => {
+  for (const f of RENDER_PATH_MODULES) {
+    test(`${f} declares its callables as hoisted functions`, () => {
+      expect(tdzCallables(read(f))).toEqual([]);
+    });
+  }
+});
+
+describe("film-camera's state survives ANY module ordering", () => {
+  const src = read("film-camera.ts");
+
+  test("mutable module state is `var` — hoisted AND initialised to undefined", () => {
+    // A `let`/`const` read before its module body runs throws exactly the way
+    // the arrow did, so hoisting only the functions would have moved the crash
+    // rather than removed it.
+    expect(src).toContain("var snap: Snap | undefined;");
+    expect(src).toContain("var listeners: Set<() => void> | undefined;");
+    expect(src).not.toMatch(/^let snap/m);
+    expect(src).not.toMatch(/^const listeners/m);
+  });
+
+  test("state is materialised lazily by a hoisted function, so the first reader wins", () => {
+    expect(src).toContain("function state(): Snap {");
+    expect(src).toContain("function subs(): Set<() => void> {");
+  });
+
+  test("nothing reads the raw bindings directly — every read goes through state()", () => {
+    // `snap` may only be ASSIGNED (in state()/emit); reading `snap.x` anywhere
+    // would reintroduce the hazard the accessor exists to remove.
+    expect(src).not.toMatch(/\bsnap\.\w/);
+    expect(src).not.toMatch(/\blisteners\.\w/);
+  });
+});
+
 describe("hoisting changed the shape, not the behaviour", () => {
   test("dealCentre still centres a card in its frame", () => {
     expect(dealCentre(1920, 1080)).toEqual({ x: 680, y: 300 });

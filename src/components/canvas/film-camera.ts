@@ -73,17 +73,49 @@ interface Snap {
   pinOn: boolean;
 }
 
-let snap: Snap = { manual: false, home: null, live: null, pin: null, pinOn: true };
-const listeners = new Set<() => void>();
+// ---- MODULE STATE, TDZ-IMMUNE (read tdz-hazards.test.ts before touching) ----
+//
+// This module is on the RENDER PATH: withCeqPin calls getFilmCamera and
+// subscribeFilmCamera from useSyncExternalStore during every CEQ node render.
+// The canvas has been taken down twice in production by exactly that shape —
+// "Cannot access 'oi' before initialization", then 'wl' here on 2026-09-01 —
+// where a bundler ordered a module body after the render that reads it. Dev
+// never reproduces it (unbundled ESM) and neither does a local prod build.
+//
+// So this module obeys the house law, all the way down:
+//   · every callable is a hoisted `function` declaration, never `const f = () =>`
+//   · the mutable state is `var`, which hoists AND initialises to undefined —
+//     a `let`/`const` read before its module body runs throws the same way the
+//     arrow did, so hoisting only the functions would have moved the crash
+//     rather than removed it
+//   · state is created lazily inside a hoisted function, so the very first
+//     reader materialises it no matter what order the bundler picked
+//
+// eslint-disable-next-line no-var
+var snap: Snap | undefined;
+// eslint-disable-next-line no-var
+var listeners: Set<() => void> | undefined;
 
-const emit = (p: Partial<Snap>): void => {
-  const next = { ...snap, ...p };
+/** The live snapshot, materialised on first read. */
+function state(): Snap {
+  if (!snap) snap = { manual: false, home: null, live: null, pin: null, pinOn: true };
+  return snap;
+}
+
+function subs(): Set<() => void> {
+  if (!listeners) listeners = new Set();
+  return listeners;
+}
+
+function emit(p: Partial<Snap>): void {
+  const cur = state();
+  const next = { ...cur, ...p };
   // Cheap equality guard: these fire on every pointermove during a pan.
-  if (next.manual === snap.manual && next.pinOn === snap.pinOn && next.pin === snap.pin
-    && sameVp(next.home, snap.home) && sameVp(next.live, snap.live)) return;
+  if (next.manual === cur.manual && next.pinOn === cur.pinOn && next.pin === cur.pin
+    && sameVp(next.home, cur.home) && sameVp(next.live, cur.live)) return;
   snap = next;
-  listeners.forEach((fn) => fn());
-};
+  subs().forEach((fn) => fn());
+}
 
 function sameVp(a: Viewport | null, b: Viewport | null): boolean {
   if (a === b) return true;
@@ -91,11 +123,12 @@ function sameVp(a: Viewport | null, b: Viewport | null): boolean {
   return a.x === b.x && a.y === b.y && a.zoom === b.zoom;
 }
 
-export const subscribeFilmCamera = (fn: () => void): (() => void) => {
-  listeners.add(fn);
-  return () => { listeners.delete(fn); };
-};
-export const getFilmCamera = (): Snap => snap;
+export function subscribeFilmCamera(fn: () => void): () => void {
+  subs().add(fn);
+  return () => { subs().delete(fn); };
+}
+
+export function getFilmCamera(): Snap { return state(); }
 
 /** Lee grabbed the camera. Latches until a re-home. */
 export function markCameraManual(): void { emit({ manual: true }); }
@@ -112,17 +145,17 @@ export function setFilmHome(v: Viewport): void { emit({ home: v }); }
 export function releaseCamera(): void { emit({ manual: false }); }
 
 /** May an automatic fit move the camera right now? */
-export const autoFitAllowed = (): boolean => !snap.manual;
+export function autoFitAllowed(): boolean { return !state().manual; }
 
 export function setPinTarget(t: PinTarget | null): void {
-  const p = snap.pin;
+  const p = state().pin;
   if (p === t) return;
   if (p && t && p.nodeId === t.nodeId && p.x === t.x && p.y === t.y && p.scale === t.scale) return;
   emit({ pin: t });
 }
 
 export function setPinOn(on: boolean): void { emit({ pinOn: on }); }
-export function togglePin(): boolean { emit({ pinOn: !snap.pinOn }); return snap.pinOn; }
+export function togglePin(): boolean { emit({ pinOn: !state().pinOn }); return state().pinOn; }
 
 // ---- THE COUNTER-TRANSFORM --------------------------------------------------
 

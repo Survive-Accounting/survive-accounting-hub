@@ -56,8 +56,8 @@ interface ModeSnap {
 let snap: ModeSnap = { mode: "plain", orderTick: 0, orderPlaying: false, revealTick: 0, depthOn: false };
 let modeDefs: readonly ExhibitModeDef[] = [];
 const listeners = new Set<() => void>();
-const emit = (p: Partial<ModeSnap>) => { snap = { ...snap, ...p }; listeners.forEach((fn) => fn()); };
-const subscribe = (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
+function emit(p: Partial<ModeSnap>) { snap = { ...snap, ...p }; listeners.forEach((fn) => fn()); }
+function subscribe(fn: () => void) { listeners.add(fn); return () => { listeners.delete(fn); }; }
 
 /** Pure mode advance — the M key's contract, pinned by tests.
  *
@@ -74,7 +74,7 @@ export function nextModeId(ids: readonly string[], cur: string): string {
   return ids[(i + 1) % ids.length];
 }
 
-const orbitDef = () => modeDefs.find((m) => m.orbit);
+function orbitDef() { return modeDefs.find((m) => m.orbit); }
 
 // ~620ms travel + ~1s dwell at each step — the cadence Lee narrates over.
 const ORBIT_MS = 1650;
