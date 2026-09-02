@@ -143,6 +143,18 @@ function queueSort(campuses: BoardCampus[], owner: BoardOwner): BoardCampus[] {
   });
 }
 
+// Locked campus → the CRM find-contacts flow, nothing else. (The heavier AddContacts field grid is
+// still used by VA mode.) Submitting queues the campus and closes back to the queue.
+function FindContactsModal({ campus, onClose, onSaved }: { campus: BoardCampus; onClose: () => void; onSaved: () => void }) {
+  return (
+    <BottomSheet open onClose={onClose} title={<span className="sa-admin-display text-sm font-semibold">Find contacts · {campus.name}</span>}>
+      <div className="pb-24">
+        <FindContactsPanel campusId={campus.campusId} campusName={campus.name} onImported={() => { onSaved(); onClose(); }} />
+      </div>
+    </BottomSheet>
+  );
+}
+
 // ── page ──────────────────────────────────────────────────────────────────────────────
 function ColdOutreachPage() {
   const [owner, setOwner] = useState<BoardOwner>("lee");
@@ -196,7 +208,7 @@ function ColdOutreachPage() {
       </div>
 
       {/* Locked → find & add contacts. Unlocked → the DM board. */}
-      {picked && <AddContacts campus={picked} onClose={() => setPicked(null)} onSaved={() => board.refetch()} />}
+      {picked && <FindContactsModal campus={picked} onClose={() => setPicked(null)} onSaved={() => board.refetch()} />}
       {boardCampus && <DmBoard campusId={boardCampus.campusId} campusName={boardCampus.name} onClose={() => setBoardCampus(null)} />}
     </div>
   );
