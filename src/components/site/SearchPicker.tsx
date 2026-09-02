@@ -43,7 +43,7 @@ export type PickerItem = {
   group?: string;
 };
 
-export function SearchPicker({ items, value, placeholder, searchPlaceholder, disabled, disabledHint, onPick, ariaLabel, renderEmpty, footer }: {
+export function SearchPicker({ items, value, placeholder, searchPlaceholder, disabled, disabledHint, onPick, ariaLabel, renderEmpty, footer, collapsibleGroup }: {
   items: PickerItem[];
   value: string | null;
   placeholder: string;
@@ -57,10 +57,14 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
   renderEmpty?: (query: string) => React.ReactNode;
   /** Pinned below the scrolling list — the v1 "Don't see your school?" escape hatch. */
   footer?: React.ReactNode;
+  /** A group name (e.g. "Other") whose rows collapse behind a counted toggle when the list is
+   *  unfiltered — keeps the long tail one click away instead of a long scroll. A search ignores it. */
+  collapsibleGroup?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
+  const [showOther, setShowOther] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -81,6 +85,12 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
     [items, needle],
   );
   const current = items.find((i) => i.value === value) ?? null;
+
+  // COLLAPSE the tail group (e.g. "Other") behind a toggle when unfiltered. `shown` is the single
+  // source for both rendering AND keyboard nav, so `active` never lands on a hidden row.
+  const collapsing = !!collapsibleGroup && !needle;
+  const otherCount = collapsing ? results.reduce((n, i) => n + (i.group === collapsibleGroup ? 1 : 0), 0) : 0;
+  const shown = collapsing && !showOther ? results.filter((i) => i.group !== collapsibleGroup) : results;
 
   // Position from the trigger, and FLIP UP when there is not room below. Without this the popup
   // runs off the bottom of the screen whenever the field sits low on the page — which on a phone
@@ -117,24 +127,41 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
     const n = el.value.length;
     try { el.setSelectionRange(n, n); } catch { /* non-text input types */ }
   }, [open]);
-  useEffect(() => { setActive((i) => Math.min(i, Math.max(0, results.length - 1))); }, [results.length]);
+  useEffect(() => { setActive((i) => Math.min(i, Math.max(0, shown.length - 1))); }, [shown.length]);
   useEffect(() => {
     if (!open) return;
     revealInContainer(listRef.current?.querySelector<HTMLElement>('[data-active="1"]'));
   }, [active, open]);
 
-  const choose = (v: string) => { setOpen(false); setQ(""); onPick(v); };
+  const choose = (v: string) => { setOpen(false); setQ(""); setShowOther(false); onPick(v); };
 
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") { setOpen(false); triggerRef.current?.focus(); return; }
-    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, results.length - 1)); }
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, shown.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
     else if (e.key === "Home") { e.preventDefault(); setActive(0); }
-    else if (e.key === "End") { e.preventDefault(); setActive(results.length - 1); }
-    else if (e.key === "Enter") { const x = results[active]; if (x) { e.preventDefault(); choose(x.value); } }
+    else if (e.key === "End") { e.preventDefault(); setActive(shown.length - 1); }
+    else if (e.key === "Enter") { const x = shown[active]; if (x) { e.preventDefault(); choose(x.value); } }
   };
 
   const listId = `picker-${placeholder.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+
+  // The "Other schools" toggle — a non-option header row that expands/collapses the tail group.
+  const otherToggle = (
+    <li role="presentation">
+      <button
+        type="button"
+        onClick={() => setShowOther((v) => !v)}
+        aria-expanded={showOther}
+        className="flex w-full items-center gap-2 px-4 pb-1.5 pt-2.5 text-left text-[11px] font-extrabold uppercase"
+        style={{ background: "none", border: 0, cursor: "pointer", letterSpacing: "0.16em", color: "var(--text-muted)" }}
+      >
+        <span>{collapsibleGroup === "Other" ? "Other schools" : collapsibleGroup}</span>
+        <span style={{ fontVariantNumeric: "tabular-nums", color: "var(--brand-cream)", background: "rgba(245,239,230,0.10)", borderRadius: 999, padding: "1px 8px", letterSpacing: "normal" }}>{otherCount}</span>
+        <span aria-hidden style={{ marginLeft: "auto", color: "var(--accent)", transform: showOther ? "rotate(180deg)" : "none" }}>▾</span>
+      </button>
+    </li>
+  );
 
   return (
     <>
@@ -142,7 +169,7 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
         ref={triggerRef}
         type="button"
         disabled={disabled}
-        onClick={() => { setQ(""); setOpen((v) => !v); }}
+        onClick={() => { setQ(""); setShowOther(false); setOpen((v) => !v); }}
         // TYPE-TO-SEARCH: tab to the picker and just start typing — the panel opens with that
         // character already in the search box. Attached to THIS trigger only (never a document
         // listener), so typing in any other field on the page is untouched. Mobile taps take the
@@ -198,7 +225,7 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
             aria-expanded
             aria-controls={listId}
             aria-autocomplete="list"
-            aria-activedescendant={results[active] ? `${listId}-${results[active].value}` : undefined}
+            aria-activedescendant={shown[active] ? `${listId}-${shown[active].value}` : undefined}
             placeholder={searchPlaceholder ?? `Search ${items.length}…`}
             autoCorrect="off" autoCapitalize="none" spellCheck={false}
             className="w-full border-b px-3.5 outline-none"
@@ -206,14 +233,17 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
             style={{ fontSize: 16, minHeight: 48, background: "transparent", borderColor: "var(--border-default)", color: "var(--brand-cream)" }}
           />
           <ul id={listId} ref={listRef} role="listbox" className="min-h-0 flex-1 overflow-y-auto py-1">
-            {results.map((it, i) => {
+            {shown.map((it, i) => {
               // Section header: only when unfiltered (a search is one flat ranked list) and the
               // group changes. `role="presentation"` keeps it out of the listbox's option set, so
               // arrow-key navigation and aria-activedescendant still count only real rows.
-              const header = !needle && it.group && it.group !== results[i - 1]?.group ? it.group : null;
+              const header = !needle && it.group && it.group !== shown[i - 1]?.group ? it.group : null;
+              // When the tail group is expanded, ITS header is the toggle (so it can collapse again).
+              const headerIsToggle = header && collapsing && header === collapsibleGroup;
               return (
                 <Fragment key={it.value}>
-                  {header && (
+                  {headerIsToggle && otherToggle}
+                  {header && !headerIsToggle && (
                     <li role="presentation" className="sa-picker-group">{header}</li>
                   )}
                   <li role="option" id={`${listId}-${it.value}`} aria-selected={i === active} data-active={i === active ? "1" : undefined}>
@@ -234,6 +264,8 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
                 </Fragment>
               );
             })}
+            {/* Collapsed: the toggle sits after the visible (non-tail) rows. */}
+            {collapsing && !showOther && otherCount > 0 && otherToggle}
             {!results.length && (
               <li className="px-3.5 py-3 text-[13px]" style={{ color: "var(--text-muted)" }}>
                 {renderEmpty ? renderEmpty(q) : <span className="italic">No matches.</span>}

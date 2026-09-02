@@ -166,6 +166,7 @@ export function GreekWaitlistSheet({ onClose, initialSchoolSlug }: {
               value={school || null}
               placeholder="Pick your school to start"
               searchPlaceholder={`Search ${ALL_SCHOOLS.length} schools…`}
+              collapsibleGroup="Other"
               ariaLabel="Your school"
               onPick={(v) => { setSchool(v); setChapter(""); setShowFree(false); setFreeChapter(""); }}
             />

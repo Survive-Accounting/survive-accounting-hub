@@ -143,6 +143,7 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
             value={school || null}
             placeholder="Pick your school to start"
             searchPlaceholder={`Search ${schools.length} schools…`}
+            collapsibleGroup="Other"
             onPick={(v) => { setSchool(v); setChapter(""); }}
             footer={escapeHatches ? <PickerNotListed label="Don't see your school?" onClick={() => setNotListed("school")} /> : undefined}
           />

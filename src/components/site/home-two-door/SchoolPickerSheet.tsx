@@ -22,17 +22,24 @@ import { useCampus } from "@/lib/campus-context";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { ALL_SCHOOLS, boltForSlug, searchSchools, type School } from "@/lib/schools";
 
-const PINNED_ID = "ole-miss"; // University of Mississippi — the launch campus, always first.
-const LSU_ID = "lsu"; // Louisiana State — pinned #2 inside the SEC group per §4.
+// The four power conferences, shown in this order and always expanded. Everything else collapses
+// into a counted "Other schools" toggle — most visitors search, so the tail should not be a long
+// scroll. Ole Miss leads the SEC group (under the header), then the rest alphabetical.
+const CONFERENCE_SECTIONS = ["SEC", "Big Ten", "Big 12", "ACC"] as const;
+const PINNED_ID = "ole-miss"; // University of Mississippi — first inside SEC.
 
-/** Split a (possibly search-filtered) pool into the three ordered buckets. Ole Miss is never
- *  repeated inside SEC, so the on-screen rows and the header count agree. */
-function groupsFor(pool: School[]): { pinned: School[]; sec: School[]; other: School[] } {
-  const pinned = pool.filter((s) => s.id === PINNED_ID);
-  const sec = pool.filter((s) => s.id !== PINNED_ID && s.isSec);
-  const secOrdered = [...sec.filter((s) => s.id === LSU_ID), ...sec.filter((s) => s.id !== LSU_ID)];
-  const other = pool.filter((s) => s.id !== PINNED_ID && !s.isSec);
-  return { pinned, sec: secOrdered, other };
+/** Split a (possibly search-filtered) pool into the four conference sections plus the "Other"
+ *  tail. Ole Miss is first in SEC; every other row is alphabetical within its section. */
+function sectionsFor(pool: School[]): { sections: { label: string; rows: School[] }[]; other: School[] } {
+  const sections = CONFERENCE_SECTIONS.map((label) => ({
+    label,
+    rows: pool.filter((s) => s.conference === label).sort((a, b) => {
+      if (label === "SEC") { const ao = a.id === PINNED_ID, bo = b.id === PINNED_ID; if (ao !== bo) return ao ? -1 : 1; }
+      return a.name.localeCompare(b.name);
+    }),
+  })).filter((g) => g.rows.length > 0);
+  const other = pool.filter((s) => !(CONFERENCE_SECTIONS as readonly string[]).includes(s.conference)).sort((a, b) => a.name.localeCompare(b.name));
+  return { sections, other };
 }
 
 export function SchoolPickerSheet({ onClose, onPick, title = "Which school are you at?", showClear = false }: {
@@ -46,6 +53,7 @@ export function SchoolPickerSheet({ onClose, onPick, title = "Which school are y
   const campus = useCampus();
   const [q, setQ] = useState("");
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [showOther, setShowOther] = useState(false);
 
   // Same query key + staleTime as /chapters and the campus context, so the codes come from a warm
   // cache and rows never flash without them.
@@ -60,8 +68,9 @@ export function SchoolPickerSheet({ onClose, onPick, title = "Which school are y
     [codesQ.data],
   );
 
-  const results = useMemo(() => (q.trim() ? searchSchools(q, ALL_SCHOOLS) : ALL_SCHOOLS), [q]);
-  const { pinned, sec, other } = useMemo(() => groupsFor(results), [results]);
+  const searching = !!q.trim();
+  const results = useMemo(() => (searching ? searchSchools(q, ALL_SCHOOLS) : ALL_SCHOOLS), [q, searching]);
+  const { sections, other } = useMemo(() => sectionsFor(results), [results]);
   const currentId = campus.school?.id ?? null;
 
   const Row = (s: School) => {
@@ -132,23 +141,42 @@ export function SchoolPickerSheet({ onClose, onPick, title = "Which school are y
 
         <div className="sa-sp-list" role="listbox" aria-label="Schools">
           {results.length === 0 && (
-            <p className="sa-sp-empty">No school by that name — try &ldquo;I&rsquo;m not at any of these&rdquo;.</p>
+            <p className="sa-sp-empty">No school by that name — try &ldquo;Don&rsquo;t see your school?&rdquo; below.</p>
           )}
-          {pinned.map(Row)}
-          {sec.length > 0 && <p className="sa-sp-group">SEC</p>}
-          {sec.map(Row)}
-          {other.length > 0 && <p className="sa-sp-group">Other schools</p>}
-          {other.map(Row)}
+          {searching ? (
+            // A search is one flat list — it already reaches into Other, so no groups or toggle.
+            results.map(Row)
+          ) : (
+            <>
+              {sections.map((g) => (
+                <div key={g.label}>
+                  <p className="sa-sp-group">{g.label}</p>
+                  {g.rows.map(Row)}
+                </div>
+              ))}
+              {other.length > 0 && (
+                <>
+                  {/* The tail is collapsed by default — most visitors search rather than scroll
+                      200 schools. The count sets expectations and grows as we add campuses. */}
+                  <button type="button" className="sa-sp-toggle" aria-expanded={showOther} onClick={() => setShowOther((v) => !v)}>
+                    <span>Other schools</span>
+                    <span className="sa-sp-toggle-count">{other.length}</span>
+                    <span className="sa-sp-toggle-chev" aria-hidden style={{ transform: showOther ? "rotate(180deg)" : "none" }}>▾</span>
+                  </button>
+                  {showOther && other.map(Row)}
+                </>
+              )}
+            </>
+          )}
         </div>
 
-        {showClear && campus.known && (
+        {showClear && (
           <button
             type="button"
             onClick={() => { campus.clearSchool(); onClose(); }}
-            className="mt-3 w-full shrink-0 text-[13px] underline underline-offset-4"
-            style={{ color: "var(--text-muted)", background: "none", border: 0, minHeight: 44, cursor: "pointer" }}
+            className="sa-sp-notlisted"
           >
-            I&apos;m not at any of these
+            Don&apos;t see your school?
           </button>
         )}
       </div>
@@ -183,6 +211,26 @@ const PICKER_CSS = `
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .sa-sp-code { font-size: 12.5px; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+/* OTHER SCHOOLS toggle — reads like a group header but is a button, with a live count + chevron. */
+.sa-sp-toggle {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 12px 8px 8px; margin: 2px 0 0; border: 0; background: none; cursor: pointer;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--text-muted); text-align: left;
+}
+.sa-sp-toggle:hover { color: var(--brand-cream); }
+.sa-sp-toggle-count {
+  font-variant-numeric: tabular-nums; font-weight: 800; letter-spacing: normal;
+  color: var(--brand-cream); background: rgba(245,239,230,0.10); border-radius: 999px; padding: 1px 8px;
+}
+.sa-sp-toggle-chev { margin-left: auto; font-size: 11px; color: var(--accent); transition: transform 140ms ease; }
+/* NOT-LISTED escape hatch — the orange v1 line. */
+.sa-sp-notlisted {
+  margin-top: 10px; width: 100%; flex: none; min-height: 44px; cursor: pointer;
+  background: none; border: 0; text-align: center; font-family: inherit;
+  font-size: 15px; font-weight: 700; color: var(--accent);
+}
+.sa-sp-notlisted:hover { text-decoration: underline; text-underline-offset: 4px; }
 /* PHONE: no hover to reveal a truncated name, so let it wrap to two lines instead of clipping. */
 @media (max-width: 639px) {
   .sa-sp-name {

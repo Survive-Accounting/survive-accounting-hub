@@ -996,6 +996,7 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [showOther, setShowOther] = useState(false);
   const [ring, setRing] = useState(false);
   // THE ARRIVAL CUE (Pass 7) — separate from `pulse`, which also OPENS the sheet. This one only
   // glows: after a CTA scroll the student is looking at a player they did not ask to be scrolled
@@ -1005,7 +1006,7 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
   const btnRef = useRef<HTMLButtonElement>(null);
   const firstPulse = useRef(true);
   const firstCue = useRef(true);
-  const close = () => { setOpen(false); setQ(""); };
+  const close = () => { setOpen(false); setQ(""); setShowOther(false); };
 
   useEffect(() => {
     if (pulse == null) return;
@@ -1104,18 +1105,40 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
           {results.length === 0 && <p className="sa-picker-empty">No school by that name — try &ldquo;My school isn&rsquo;t listed&rdquo; below.</p>}
           {/* The code cell is ALWAYS rendered, empty string and all: it holds its grid track
               open so the row does not jump sideways when listCampusIntroCodes resolves. */}
-          {groups.map((g) => (
-            <Fragment key={g.label}>
-              <p className="sa-picker-group">{g.label}</p>
-              {g.rows.map((s) => { const c = boltFor(s.id); return (
-                <button key={s.id} type="button" className="sa-row" onClick={() => { onPick(s); close(); }}>
-                  <span className="sa-row-bolt" aria-hidden><Bolt c1={c.c1} c2={c.c2} /></span>
-                  <span className="sa-row-name">{s.name}</span>
-                  <span className="sa-row-code">{s.codeVerified && s.code ? s.code : ""}</span>
-                </button>
-              ); })}
-            </Fragment>
-          ))}
+          {(() => {
+            const RowBtn = (s: School) => { const c = boltFor(s.id); return (
+              <button key={s.id} type="button" className="sa-row" onClick={() => { onPick(s); close(); }}>
+                <span className="sa-row-bolt" aria-hidden><Bolt c1={c.c1} c2={c.c2} /></span>
+                <span className="sa-row-name">{s.name}</span>
+                <span className="sa-row-code">{s.codeVerified && s.code ? s.code : ""}</span>
+              </button>
+            ); };
+            const other = groups.find((g) => g.label === "Other schools");
+            return (
+              <>
+                {groups.filter((g) => g.label !== "Other schools").map((g) => (
+                  <Fragment key={g.label}><p className="sa-picker-group">{g.label}</p>{g.rows.map(RowBtn)}</Fragment>
+                ))}
+                {other && (needle ? (
+                  // A search reaches Other already — show it as a normal group, no toggle.
+                  <Fragment key="other"><p className="sa-picker-group">Other schools</p>{other.rows.map(RowBtn)}</Fragment>
+                ) : (
+                  <>
+                    <button
+                      type="button" onClick={() => setShowOther((v) => !v)} aria-expanded={showOther}
+                      className="flex w-full items-center gap-2 text-[11px] font-extrabold uppercase"
+                      style={{ padding: "10px 16px 6px", letterSpacing: "0.16em", color: "var(--text-muted)", background: "none", border: 0, cursor: "pointer", textAlign: "left" }}
+                    >
+                      <span>Other schools</span>
+                      <span style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "normal", color: "var(--brand-cream)", background: "rgba(245,239,230,0.10)", borderRadius: 999, padding: "1px 8px" }}>{other.rows.length}</span>
+                      <span aria-hidden style={{ marginLeft: "auto", color: "var(--accent)", transform: showOther ? "rotate(180deg)" : "none" }}>▾</span>
+                    </button>
+                    {showOther && other.rows.map(RowBtn)}
+                  </>
+                ))}
+              </>
+            );
+          })()}
         </PickerSheet>
       )}
     </div>
