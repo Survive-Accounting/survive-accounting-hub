@@ -14,12 +14,13 @@ import { useEffect, useState } from "react";
 import { ArrowLeftRight, ClipboardCheck, Play, Target, MessageCircle } from "lucide-react";
 
 import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/canvas/brand";
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { AnimatedCampusBolt, type BoltCampus } from "@/components/site/bolt";
 import { CAMPUS_LINE_CSS, CampusDot, CampusEm, CampusFor, CampusLine } from "@/components/site/home-two-door/campus-line";
 import { CompactLockup } from "@/components/site/SiteHeader";
 import { NotListedForm } from "@/components/site/NotListedForm";
 import { nbspCode } from "@/lib/course-code";
-import { scrollToId } from "@/lib/ui-scroll";
+import { SA_NAV_FOCUS_EVENT, scrollToId } from "@/lib/ui-scroll";
 import { useDismiss } from "@/lib/use-dismiss";
 
 /** The greek slice of marketing context. Claim state comes from getGoChapter — never hardcoded. */
@@ -334,16 +335,20 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
 }) {
   // p4 §6: real copy a student feels, and more vertical room to hold it. `clip` marks the slot for
   // an example clip in the cram-videos card (placeholder only, home surface).
+  // Each card leads with the ONE line that lands, then explains underneath — a paragraph break
+  // rather than one run-on block, so a skimmer gets the point from the first line alone.
   const CARDS = [
     {
       icon: Play,
       title: "Quick cram videos",
-      body: "Two minutes or less. The basics you actually need to answer a question, plus the tips and cheat codes that make it click. Nothing like your lecture videos.",
+      lead: "Nothing like your lecture videos—each is ~two minutes or less.",
+      body: "Just the basics needed to answer a question, plus the tips and cheat codes that make it click.",
     },
     {
       icon: ClipboardCheck,
       title: "Practice exams",
-      body: "Exam-style problems, not textbook problems. Going from a B to an A is mostly recognizing the type of problem before it shows up on the test.",
+      lead: "Exam-style problems, not textbook ones.",
+      body: "Going from a B to an A starts here. Learn to recognize patterns and get shown simpler approaches to the correct answer.",
     },
   ];
   // 48px icons centered above each heading, with generous vertical room for the longer copy.
@@ -359,11 +364,12 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
   const iconStyle = { color: "var(--accent)" } as const;
   return (
     <section className="mx-auto grid w-full max-w-[900px] items-stretch gap-4 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
-      {CARDS.map(({ icon: Icon, title, body }) => (
+      {CARDS.map(({ icon: Icon, title, lead, body }) => (
         <div key={title} className={card} style={cardStyle}>
           <Icon className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>{title}</p>
-          <p className={bodyCls} style={bodyStyle}>{body}</p>
+          <p className={bodyCls} style={bodyStyle}>{lead}</p>
+          <p className="mt-2.5 text-[14px] leading-relaxed" style={bodyStyle}>{body}</p>
         </div>
       ))}
       {variant === "council" ? (
@@ -383,7 +389,8 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
         <button type="button" onClick={onSyllabus} className={`${card} transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={actionableStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>Built around your course</p>
-          <p className={bodyCls} style={bodyStyle}>Send your syllabus and I&apos;ll match my content to your course.</p>
+          <p className={bodyCls} style={bodyStyle}>I make videos for everyone.</p>
+          <p className="mt-2.5 text-[14px] leading-relaxed" style={bodyStyle}>Send your syllabus and I&apos;ll match my content to your course.</p>
           <span className="mt-3 text-[14px] font-black" style={{ color: "var(--accent)" }}>Send your syllabus →</span>
         </button>
       )}
@@ -407,19 +414,72 @@ export function SocialProofSection({ testimonials, tutor, testimonialsHeading = 
   const H = ({ children }: { children: React.ReactNode }) => (
     <h2 className="mb-4 text-[20px] font-extrabold" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.01em" }}>{children}</h2>
   );
+
+  // WHICH HALF DID YOU ASK FOR? "Reviews" and "Meet your tutor" are side by side and level, so a
+  // nav press lands on a row that looks identical either way. The requested column flashes the
+  // brand bolt and a quick ring, so the eye is told where it just arrived.
+  const [focus, setFocus] = useState<null | "reviews" | "lee">(null);
+  useEffect(() => {
+    const onFocusEvent = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (id === "reviews" || id === "lee") setFocus(id);
+    };
+    window.addEventListener(SA_NAV_FOCUS_EVENT, onFocusEvent);
+    return () => window.removeEventListener(SA_NAV_FOCUS_EVENT, onFocusEvent);
+  }, []);
+  useEffect(() => {
+    if (!focus) return;
+    const t = window.setTimeout(() => setFocus(null), 1500);
+    return () => window.clearTimeout(t);
+  }, [focus]);
+
+  const FocusBolt = () => (
+    <span aria-hidden className="sa-focus-bolt" style={{ position: "absolute", right: -4, top: -34, width: 30, height: 42, pointerEvents: "none", zIndex: 3 }}>
+      <BoltBoil height={42} />
+    </span>
+  );
+
   return (
     <section className="mx-auto grid w-full max-w-[1040px] items-start gap-8 lg:grid-cols-[3fr_2fr]" style={{ fontFamily: BRAND_SANS }}>
-      <div className="min-w-0">
+      <style>{FOCUS_CSS}</style>
+      <div className={`relative min-w-0${focus === "reviews" ? " sa-focused" : ""}`}>
+        {focus === "reviews" && <FocusBolt />}
         <H>{testimonialsHeading}</H>
         {testimonials}
       </div>
-      <div className="min-w-0" id="lee">
+      {/* sa-anchor is what makes "Meet your tutor" land correctly: without its scroll-margin the
+          column pinned to y=0 under the sticky bar, hiding BOTH headings (its own and, on desktop,
+          the reviews heading level with it). */}
+      <div className={`sa-anchor relative min-w-0${focus === "lee" ? " sa-focused" : ""}`} id="lee">
+        {focus === "lee" && <FocusBolt />}
         <H>Meet your tutor</H>
         {tutor}
       </div>
     </section>
   );
 }
+
+/** The nav-arrival flash: a ring that expands and clears, and the bolt dropping in above the
+ *  column. Both are decoration only — nothing moves, nothing blocks — and both are off under
+ *  reduced motion, where the scroll itself is the whole feedback. */
+const FOCUS_CSS = `
+@keyframes sa-focus-ring {
+  0% { box-shadow: 0 0 0 0 rgba(252,163,17,0.5); }
+  100% { box-shadow: 0 0 0 16px rgba(252,163,17,0); }
+}
+.sa-focused { border-radius: 20px; animation: sa-focus-ring 1300ms ease-out; }
+@keyframes sa-focus-bolt-in {
+  0% { opacity: 0; transform: translateY(-10px) scale(0.4); }
+  22% { opacity: 1; transform: translateY(0) scale(1); }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.sa-focus-bolt { animation: sa-focus-bolt-in 1500ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  .sa-focused { animation: none; }
+  .sa-focus-bolt { display: none; }
+}
+`;
 
 // ── TUTOR CARD + FULL BIO ────────────────────────────────────────────────────────────────────
 // Lee's real photo — 4:5 crop centered on the face (moved here from landing.tsx unchanged; the
@@ -428,9 +488,14 @@ export function LeePortrait({ width = 200, caption = true }: { width?: number; c
   return (
     <figure className="mx-auto sm:mx-0" style={{ width, transform: "rotate(1.5deg)" }}>
       <div style={{ width, aspectRatio: "4 / 5", borderRadius: 16, border: "3px solid var(--brand-cream)", overflow: "hidden" }}>
+        {/* NO extra zoom. The source is 4:3 landscape and the frame is 4:5, so `cover` already fills
+            the height exactly — the whole figure is in shot top to bottom (all of the hair, and the
+            outstretched arm entering bottom-left). Only the horizontal window is a choice, and 20%
+            keeps the arm in frame without cutting the sunrise off his right. Scaling up here was
+            what cropped the hair and the arm away. */}
         <img
           src="/lee-sunrise.jpg" alt="Lee Ingram"
-          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "37% 34%", transform: "scale(1.7)", transformOrigin: "37% 30%", display: "block" }}
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "20% 50%", display: "block" }}
         />
       </div>
       {caption && (
@@ -522,46 +587,111 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
  *  full-width sticky bar (which duplicated the navbar). Hidden until the hero scrolls away and
  *  when the real footer is on screen — same show logic the old bar used, kept because it stops
  *  the pill from stacking on the footer's own Text-Lee link. */
-export function FloatingContact({ heroId, tel, phone, onText, onEmail, bottomOffset = 84 }: { heroId: string; tel: string; phone: string; onText?: () => void; onEmail?: () => void; /** px above the safe-area. 84 clears the practice stage's Next bar; a page with no such bar (the two-door home) passes a small value so the pill sits in the corner, out of the zone where CTAs rest and get read (p6 §1). */ bottomOffset?: number }) {
-  const [pastHero, setPastHero] = useState(false);
-  const [footerSeen, setFooterSeen] = useState(false);
+export function FloatingContact({ heroId, tel, phone, onText, onEmail, bottomOffset = 84, photo }: { heroId: string; tel: string; phone: string; onText?: () => void; onEmail?: () => void; /** px above the safe-area. 84 clears the practice stage's Next bar; a page with no such bar (the two-door home) passes a small value so the pill sits in the very corner, out of the zone where CTAs rest and get read. */ bottomOffset?: number; /** Lee's photo, framed above the pill. It turns an anonymous support chip into a person offering to help — and it only makes sense once the visitor has met him, so pass `heroId` as the bio section. */ photo?: string }) {
+  // BOTH MECHANISMS: IntersectionObserver as the efficient primary, plus a passive scroll listener
+  // reading the rects, because IO delivery rides the rendering lifecycle and a non-compositing tab
+  // can silence it indefinitely — which would leave the pill permanently hidden.
+  //
+  // DIRECTION MATTERS: the trigger element is partway down the page (the bio), so "off screen" is
+  // true at the very top too. Only ABOVE the viewport — bottom <= 0 — counts as scrolled past.
+  const [show, setShow] = useState(false);
   useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return;
-    const hero = document.getElementById(heroId);
-    const footer = document.getElementById("site-footer");
+    const read = () => {
+      const vh = window.innerHeight;
+      const hero = document.getElementById(heroId);
+      const footer = document.getElementById("site-footer");
+      // "You have SEEN it", not "it is entirely gone": waiting for the bio to clear the viewport
+      // completely left almost no window before the footer arrived, so the pill barely existed.
+      // Once the bio has passed the lower third, the visitor has met Lee — that is the moment.
+      const pastHero = hero ? hero.getBoundingClientRect().bottom <= vh * 0.6 : false;
+      // And only stand down when the footer is genuinely in view (it carries its own Text-Lee
+      // link), not the instant its first pixel appears.
+      const footerSeen = footer ? footer.getBoundingClientRect().top < vh * 0.7 : false;
+      setShow(pastHero && !footerSeen);
+    };
+    read();
+    window.addEventListener("scroll", read, { passive: true });
+    window.addEventListener("resize", read);
     const ios: IntersectionObserver[] = [];
-    if (hero) { const io = new IntersectionObserver(([e]) => setPastHero(!e.isIntersecting), { threshold: 0 }); io.observe(hero); ios.push(io); }
-    if (footer) { const io = new IntersectionObserver(([e]) => setFooterSeen(e.isIntersecting), { threshold: 0 }); io.observe(footer); ios.push(io); }
-    return () => ios.forEach((io) => io.disconnect());
+    if (typeof IntersectionObserver !== "undefined") {
+      for (const id of [heroId, "site-footer"]) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const io = new IntersectionObserver(() => read(), { threshold: 0 });
+        io.observe(el);
+        ios.push(io);
+      }
+    }
+    return () => {
+      window.removeEventListener("scroll", read);
+      window.removeEventListener("resize", read);
+      ios.forEach((io) => io.disconnect());
+    };
   }, [heroId]);
-  const show = pastHero && !footerSeen;
   void onEmail;
   return (
-    <a
-      href={`sms:${tel}`}
-      onClick={onText}
-      aria-hidden={!show}
-      tabIndex={show ? 0 : -1}
-      className="fixed z-[190] inline-flex items-center gap-2 rounded-full px-4 shadow-lg transition-all"
+    <div
+      className="fixed z-[190] flex flex-col items-end gap-1.5"
       style={{
         right: 14,
         bottom: `calc(${bottomOffset}px + env(safe-area-inset-bottom, 0px))`,
         opacity: show ? 1 : 0,
         transform: show ? "translateY(0)" : "translateY(12px)",
         pointerEvents: show ? "auto" : "none",
-        minHeight: 44,
-        background: "var(--accent)",
-        color: "#0B1220",
-        fontFamily: BRAND_SANS,
-        fontWeight: 800,
-        fontSize: 14,
+        transition: "opacity 240ms ease, transform 240ms ease",
       }}
     >
-      <MessageCircle className="h-4 w-4" aria-hidden />
-      <span className="hidden sm:inline">Questions? Text Lee</span>
-      <span className="sm:hidden">Text Lee</span>
-      <span className="hidden md:inline" style={{ opacity: 0.75, fontWeight: 600 }}>{phone}</span>
-    </a>
+      {/* PHONE: one small tile — Lee's face with a chat badge on the corner, ~52px square. A wide
+          pill in the corner is precisely the thing that ends up sitting on a CTA, and on a phone the
+          cards are full-bleed so there is no empty gutter for it to live in. The number is not shown
+          because the tap already carries it (the href IS the number). */}
+      <a
+        href={`sms:${tel}`}
+        onClick={onText}
+        aria-hidden={!show}
+        tabIndex={show ? 0 : -1}
+        aria-label={`Text Lee at ${phone}`}
+        className="relative block sm:hidden"
+        style={{ lineHeight: 0 }}
+      >
+        {photo && (
+          <img
+            src={photo} alt="" aria-hidden
+            style={{ width: 50, height: 56, objectFit: "cover", objectPosition: "20% 45%", borderRadius: 12, border: "2px solid var(--brand-cream)", boxShadow: "0 12px 28px -10px rgba(0,0,0,0.85)", display: "block" }}
+          />
+        )}
+        <span
+          className="absolute grid place-items-center rounded-full"
+          style={{ right: -6, bottom: -6, width: 28, height: 28, background: "var(--accent)", color: "#0B1220", boxShadow: "0 6px 16px -6px rgba(0,0,0,0.9)" }}
+        >
+          <MessageCircle className="h-4 w-4" aria-hidden />
+        </span>
+      </a>
+
+      {/* DESKTOP: room for the framed portrait and the full pill, number included. */}
+      {photo && (
+        // Framed like the bio portrait (same cream border and slight tilt) so it reads as the same
+        // person you just met, not a stock avatar.
+        <img
+          src={photo} alt="" aria-hidden
+          className="hidden sm:block"
+          style={{ width: 54, height: 62, objectFit: "cover", objectPosition: "20% 45%", borderRadius: 12, border: "2px solid var(--brand-cream)", boxShadow: "0 12px 28px -10px rgba(0,0,0,0.8)", transform: "rotate(1.5deg)" }}
+        />
+      )}
+      <a
+        href={`sms:${tel}`}
+        onClick={onText}
+        aria-hidden={!show}
+        tabIndex={show ? 0 : -1}
+        aria-label={`Text Lee at ${phone}`}
+        className="hidden items-center gap-2 rounded-full px-4 shadow-lg sm:inline-flex"
+        style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220", fontFamily: BRAND_SANS, fontWeight: 800, fontSize: 13.5 }}
+      >
+        <MessageCircle className="h-4 w-4 shrink-0" aria-hidden />
+        <span>Text Lee</span>
+        <span style={{ opacity: 0.75, fontWeight: 600 }}>{phone}</span>
+      </a>
+    </div>
   );
 }
 
