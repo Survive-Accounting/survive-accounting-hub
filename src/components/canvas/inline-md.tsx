@@ -8,7 +8,10 @@ export function renderInline(text: string, hl?: { bg?: string; color?: string })
   const bg = hl?.bg ?? "rgba(214,158,46,0.38)";
   const color = hl?.color ?? "#C21832";
   const out: ReactNode[] = [];
-  const re = /(\*\*([^*]+?)\*\*|==([^=]+?)==)/g;
+  // A highlight may contain a lone "=" — accounting is full of them ("Assets =
+  // Liabilities + Equity" is exactly the kind of phrase that gets marked).
+  // Only a doubled "==" closes the pair.
+  const re = /(\*\*([^*]+?)\*\*|==((?:[^=]|=(?!=))+?)==)/g;
   let last = 0;
   let k = 0;
   let m: RegExpExecArray | null;

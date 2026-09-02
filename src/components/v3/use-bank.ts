@@ -14,7 +14,7 @@
 // taken production down twice.
 import { useEffect, useState } from "react";
 
-import { loadBoothBank, type BoothTopic } from "@/lib/talkthrough.functions";
+import { loadBoothBank, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 
 // eslint-disable-next-line no-var
 var pending: Promise<BoothTopic[]> | undefined;
@@ -65,6 +65,27 @@ export function findTopic(topics: BoothTopic[], key: string): BoothTopic | undef
   return topics.find((t) => slugOf(t.name) === key) ?? topics.find((t) => t.id === key);
 }
 
-export function findSet(topic: BoothTopic, key: string) {
+export function findSet(topic: BoothTopic, key: string): BoothSetInfo | undefined {
   return topic.sets.find((s) => slugOf(s.name) === key) ?? topic.sets.find((s) => s.id === key);
+}
+
+/** The set a V3 screen is on, resolved from its URL params. Every screen
+ *  under /v3/$topic/$set reads this so none of them re-invent the lookup. */
+export function useV3Set(topicKey: string, setKey: string): BankState & { topic: BoothTopic | undefined; set: BoothSetInfo | undefined } {
+  const { topics, error } = useBank();
+  const topic = topics ? findTopic(topics, topicKey) : undefined;
+  const set = topic ? findSet(topic, setKey) : undefined;
+  return { topics, error, topic, set };
+}
+
+/** The topic a set belongs to — for linking to another set's screens. */
+export function topicOfSet(topics: BoothTopic[], setId: string): BoothTopic | undefined {
+  return topics.find((t) => t.sets.some((s) => s.id === setId));
+}
+
+export type BlastOffStep = "talkthrough" | "arrange" | "film";
+
+/** /v3/$topic/$set/blast-off[/step] — the one place the nested URL is spelled. */
+export function blastOffPath(topic: BoothTopic, set: BoothSetInfo, step?: BlastOffStep): string {
+  return `/v3/${slugOf(topic.name)}/${slugOf(set.name)}/blast-off${step ? `/${step}` : ""}`;
 }

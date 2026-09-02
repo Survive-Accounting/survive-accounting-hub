@@ -108,7 +108,6 @@ import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.l
 import { Route as GoSchoolIndexRouteImport } from './routes/go.$school.index'
 import { Route as AdminRepsIndexRouteImport } from './routes/admin.reps.index'
 import { Route as AdminGrowthIndexRouteImport } from './routes/admin.growth.index'
-import { Route as V3TopicSetRouteImport } from './routes/v3.$topic.$set'
 import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
 import { Route as SCampusCouncilRouteImport } from './routes/s.$campus.council'
 import { Route as SCampusChapterRouteImport } from './routes/s.$campus.$chapter'
@@ -149,6 +148,7 @@ import { Route as AdminGrowthChaptersRouteImport } from './routes/admin.growth.c
 import { Route as AdminGrowthCampusesRouteImport } from './routes/admin.growth.campuses'
 import { Route as AdminGrowthCampaignsRouteImport } from './routes/admin.growth.campaigns'
 import { Route as AdminGrowthActivityRouteImport } from './routes/admin.growth.activity'
+import { Route as V3TopicSetIndexRouteImport } from './routes/v3.$topic.$set.index'
 import { Route as AdminGrowthColdoutreachIndexRouteImport } from './routes/admin.growth.coldoutreach.index'
 import { Route as PartnersCouncilSchoolCouncilRouteImport } from './routes/partners.council.$school.$council'
 import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.council.$council'
@@ -164,6 +164,10 @@ import { Route as AdminGrowthColdoutreachScheduleRouteImport } from './routes/ad
 import { Route as AdminGrowthColdoutreachFeedbackRouteImport } from './routes/admin.growth.coldoutreach.feedback'
 import { Route as AdminGrowthColdoutreachEngagedRouteImport } from './routes/admin.growth.coldoutreach.engaged'
 import { Route as AdminGrowthColdoutreachActivityRouteImport } from './routes/admin.growth.coldoutreach.activity'
+import { Route as V3TopicSetBlastOffIndexRouteImport } from './routes/v3.$topic.$set.blast-off.index'
+import { Route as V3TopicSetBlastOffTalkthroughRouteImport } from './routes/v3.$topic.$set.blast-off.talkthrough'
+import { Route as V3TopicSetBlastOffFilmRouteImport } from './routes/v3.$topic.$set.blast-off.film'
+import { Route as V3TopicSetBlastOffArrangeRouteImport } from './routes/v3.$topic.$set.blast-off.arrange'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -664,11 +668,6 @@ const AdminGrowthIndexRoute = AdminGrowthIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminGrowthRoute,
 } as any)
-const V3TopicSetRoute = V3TopicSetRouteImport.update({
-  id: '/v3/$topic/$set',
-  path: '/v3/$topic/$set',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const StudyScenariosSlugRoute = StudyScenariosSlugRouteImport.update({
   id: '/study_/scenarios/$slug',
   path: '/study/scenarios/$slug',
@@ -873,6 +872,11 @@ const AdminGrowthActivityRoute = AdminGrowthActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => AdminGrowthRoute,
 } as any)
+const V3TopicSetIndexRoute = V3TopicSetIndexRouteImport.update({
+  id: '/v3/$topic/$set/',
+  path: '/v3/$topic/$set/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminGrowthColdoutreachIndexRoute =
   AdminGrowthColdoutreachIndexRouteImport.update({
     id: '/',
@@ -958,6 +962,28 @@ const AdminGrowthColdoutreachActivityRoute =
     id: '/activity',
     path: '/activity',
     getParentRoute: () => AdminGrowthColdoutreachRoute,
+  } as any)
+const V3TopicSetBlastOffIndexRoute = V3TopicSetBlastOffIndexRouteImport.update({
+  id: '/v3/$topic/$set/blast-off/',
+  path: '/v3/$topic/$set/blast-off/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V3TopicSetBlastOffTalkthroughRoute =
+  V3TopicSetBlastOffTalkthroughRouteImport.update({
+    id: '/v3/$topic/$set/blast-off/talkthrough',
+    path: '/v3/$topic/$set/blast-off/talkthrough',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const V3TopicSetBlastOffFilmRoute = V3TopicSetBlastOffFilmRouteImport.update({
+  id: '/v3/$topic/$set/blast-off/film',
+  path: '/v3/$topic/$set/blast-off/film',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V3TopicSetBlastOffArrangeRoute =
+  V3TopicSetBlastOffArrangeRouteImport.update({
+    id: '/v3/$topic/$set/blast-off/arrange',
+    path: '/v3/$topic/$set/blast-off/arrange',
+    getParentRoute: () => rootRouteImport,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -1094,7 +1120,6 @@ export interface FileRoutesByFullPath {
   '/s/$campus/$chapter': typeof SCampusChapterRoute
   '/s/$campus/council': typeof SCampusCouncilRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
-  '/v3/$topic/$set': typeof V3TopicSetRoute
   '/admin/growth/': typeof AdminGrowthIndexRoute
   '/admin/reps/': typeof AdminRepsIndexRoute
   '/go/$school/': typeof GoSchoolIndexRoute
@@ -1116,6 +1141,11 @@ export interface FileRoutesByFullPath {
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
   '/admin/growth/coldoutreach/': typeof AdminGrowthColdoutreachIndexRoute
+  '/v3/$topic/$set/': typeof V3TopicSetIndexRoute
+  '/v3/$topic/$set/blast-off/arrange': typeof V3TopicSetBlastOffArrangeRoute
+  '/v3/$topic/$set/blast-off/film': typeof V3TopicSetBlastOffFilmRoute
+  '/v3/$topic/$set/blast-off/talkthrough': typeof V3TopicSetBlastOffTalkthroughRoute
+  '/v3/$topic/$set/blast-off/': typeof V3TopicSetBlastOffIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -1247,7 +1277,6 @@ export interface FileRoutesByTo {
   '/s/$campus/$chapter': typeof SCampusChapterRoute
   '/s/$campus/council': typeof SCampusCouncilRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
-  '/v3/$topic/$set': typeof V3TopicSetRoute
   '/admin/growth': typeof AdminGrowthIndexRoute
   '/admin/reps': typeof AdminRepsIndexRoute
   '/go/$school': typeof GoSchoolIndexRoute
@@ -1269,6 +1298,11 @@ export interface FileRoutesByTo {
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
   '/admin/growth/coldoutreach': typeof AdminGrowthColdoutreachIndexRoute
+  '/v3/$topic/$set': typeof V3TopicSetIndexRoute
+  '/v3/$topic/$set/blast-off/arrange': typeof V3TopicSetBlastOffArrangeRoute
+  '/v3/$topic/$set/blast-off/film': typeof V3TopicSetBlastOffFilmRoute
+  '/v3/$topic/$set/blast-off/talkthrough': typeof V3TopicSetBlastOffTalkthroughRoute
+  '/v3/$topic/$set/blast-off': typeof V3TopicSetBlastOffIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -1405,7 +1439,6 @@ export interface FileRoutesById {
   '/s/$campus/$chapter': typeof SCampusChapterRoute
   '/s/$campus/council': typeof SCampusCouncilRoute
   '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
-  '/v3/$topic/$set': typeof V3TopicSetRoute
   '/admin/growth/': typeof AdminGrowthIndexRoute
   '/admin/reps/': typeof AdminRepsIndexRoute
   '/go/$school/': typeof GoSchoolIndexRoute
@@ -1427,6 +1460,11 @@ export interface FileRoutesById {
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
   '/admin/growth/coldoutreach/': typeof AdminGrowthColdoutreachIndexRoute
+  '/v3/$topic/$set/': typeof V3TopicSetIndexRoute
+  '/v3/$topic/$set/blast-off/arrange': typeof V3TopicSetBlastOffArrangeRoute
+  '/v3/$topic/$set/blast-off/film': typeof V3TopicSetBlastOffFilmRoute
+  '/v3/$topic/$set/blast-off/talkthrough': typeof V3TopicSetBlastOffTalkthroughRoute
+  '/v3/$topic/$set/blast-off/': typeof V3TopicSetBlastOffIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1564,7 +1602,6 @@ export interface FileRouteTypes {
     | '/s/$campus/$chapter'
     | '/s/$campus/council'
     | '/study/scenarios/$slug'
-    | '/v3/$topic/$set'
     | '/admin/growth/'
     | '/admin/reps/'
     | '/go/$school/'
@@ -1586,6 +1623,11 @@ export interface FileRouteTypes {
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
     | '/admin/growth/coldoutreach/'
+    | '/v3/$topic/$set/'
+    | '/v3/$topic/$set/blast-off/arrange'
+    | '/v3/$topic/$set/blast-off/film'
+    | '/v3/$topic/$set/blast-off/talkthrough'
+    | '/v3/$topic/$set/blast-off/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -1717,7 +1759,6 @@ export interface FileRouteTypes {
     | '/s/$campus/$chapter'
     | '/s/$campus/council'
     | '/study/scenarios/$slug'
-    | '/v3/$topic/$set'
     | '/admin/growth'
     | '/admin/reps'
     | '/go/$school'
@@ -1739,6 +1780,11 @@ export interface FileRouteTypes {
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
     | '/admin/growth/coldoutreach'
+    | '/v3/$topic/$set'
+    | '/v3/$topic/$set/blast-off/arrange'
+    | '/v3/$topic/$set/blast-off/film'
+    | '/v3/$topic/$set/blast-off/talkthrough'
+    | '/v3/$topic/$set/blast-off'
   id:
     | '__root__'
     | '/'
@@ -1874,7 +1920,6 @@ export interface FileRouteTypes {
     | '/s/$campus/$chapter'
     | '/s/$campus/council'
     | '/study_/scenarios/$slug'
-    | '/v3/$topic/$set'
     | '/admin/growth/'
     | '/admin/reps/'
     | '/go/$school/'
@@ -1896,6 +1941,11 @@ export interface FileRouteTypes {
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
     | '/admin/growth/coldoutreach/'
+    | '/v3/$topic/$set/'
+    | '/v3/$topic/$set/blast-off/arrange'
+    | '/v3/$topic/$set/blast-off/film'
+    | '/v3/$topic/$set/blast-off/talkthrough'
+    | '/v3/$topic/$set/blast-off/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1977,7 +2027,6 @@ export interface RootRouteChildren {
   SCampusChapterRoute: typeof SCampusChapterRoute
   SCampusCouncilRoute: typeof SCampusCouncilRoute
   StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
-  V3TopicSetRoute: typeof V3TopicSetRoute
   GoSchoolIndexRoute: typeof GoSchoolIndexRoute
   SCampusIndexRoute: typeof SCampusIndexRoute
   V3TopicIndexRoute: typeof V3TopicIndexRoute
@@ -1988,6 +2037,11 @@ export interface RootRouteChildren {
   ChaptersKitSchoolChapterRoute: typeof ChaptersKitSchoolChapterRoute
   GoSchoolCouncilCouncilRoute: typeof GoSchoolCouncilCouncilRoute
   PartnersCouncilSchoolCouncilRoute: typeof PartnersCouncilSchoolCouncilRoute
+  V3TopicSetIndexRoute: typeof V3TopicSetIndexRoute
+  V3TopicSetBlastOffArrangeRoute: typeof V3TopicSetBlastOffArrangeRoute
+  V3TopicSetBlastOffFilmRoute: typeof V3TopicSetBlastOffFilmRoute
+  V3TopicSetBlastOffTalkthroughRoute: typeof V3TopicSetBlastOffTalkthroughRoute
+  V3TopicSetBlastOffIndexRoute: typeof V3TopicSetBlastOffIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -2685,13 +2739,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGrowthIndexRouteImport
       parentRoute: typeof AdminGrowthRoute
     }
-    '/v3/$topic/$set': {
-      id: '/v3/$topic/$set'
-      path: '/v3/$topic/$set'
-      fullPath: '/v3/$topic/$set'
-      preLoaderRoute: typeof V3TopicSetRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/study_/scenarios/$slug': {
       id: '/study_/scenarios/$slug'
       path: '/study/scenarios/$slug'
@@ -2972,6 +3019,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGrowthActivityRouteImport
       parentRoute: typeof AdminGrowthRoute
     }
+    '/v3/$topic/$set/': {
+      id: '/v3/$topic/$set/'
+      path: '/v3/$topic/$set'
+      fullPath: '/v3/$topic/$set/'
+      preLoaderRoute: typeof V3TopicSetIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/growth/coldoutreach/': {
       id: '/admin/growth/coldoutreach/'
       path: '/'
@@ -3076,6 +3130,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/growth/coldoutreach/activity'
       preLoaderRoute: typeof AdminGrowthColdoutreachActivityRouteImport
       parentRoute: typeof AdminGrowthColdoutreachRoute
+    }
+    '/v3/$topic/$set/blast-off/': {
+      id: '/v3/$topic/$set/blast-off/'
+      path: '/v3/$topic/$set/blast-off'
+      fullPath: '/v3/$topic/$set/blast-off/'
+      preLoaderRoute: typeof V3TopicSetBlastOffIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v3/$topic/$set/blast-off/talkthrough': {
+      id: '/v3/$topic/$set/blast-off/talkthrough'
+      path: '/v3/$topic/$set/blast-off/talkthrough'
+      fullPath: '/v3/$topic/$set/blast-off/talkthrough'
+      preLoaderRoute: typeof V3TopicSetBlastOffTalkthroughRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v3/$topic/$set/blast-off/film': {
+      id: '/v3/$topic/$set/blast-off/film'
+      path: '/v3/$topic/$set/blast-off/film'
+      fullPath: '/v3/$topic/$set/blast-off/film'
+      preLoaderRoute: typeof V3TopicSetBlastOffFilmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v3/$topic/$set/blast-off/arrange': {
+      id: '/v3/$topic/$set/blast-off/arrange'
+      path: '/v3/$topic/$set/blast-off/arrange'
+      fullPath: '/v3/$topic/$set/blast-off/arrange'
+      preLoaderRoute: typeof V3TopicSetBlastOffArrangeRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -3367,7 +3449,6 @@ const rootRouteChildren: RootRouteChildren = {
   SCampusChapterRoute: SCampusChapterRoute,
   SCampusCouncilRoute: SCampusCouncilRoute,
   StudyScenariosSlugRoute: StudyScenariosSlugRoute,
-  V3TopicSetRoute: V3TopicSetRoute,
   GoSchoolIndexRoute: GoSchoolIndexRoute,
   SCampusIndexRoute: SCampusIndexRoute,
   V3TopicIndexRoute: V3TopicIndexRoute,
@@ -3378,6 +3459,11 @@ const rootRouteChildren: RootRouteChildren = {
   ChaptersKitSchoolChapterRoute: ChaptersKitSchoolChapterRoute,
   GoSchoolCouncilCouncilRoute: GoSchoolCouncilCouncilRoute,
   PartnersCouncilSchoolCouncilRoute: PartnersCouncilSchoolCouncilRoute,
+  V3TopicSetIndexRoute: V3TopicSetIndexRoute,
+  V3TopicSetBlastOffArrangeRoute: V3TopicSetBlastOffArrangeRoute,
+  V3TopicSetBlastOffFilmRoute: V3TopicSetBlastOffFilmRoute,
+  V3TopicSetBlastOffTalkthroughRoute: V3TopicSetBlastOffTalkthroughRoute,
+  V3TopicSetBlastOffIndexRoute: V3TopicSetBlastOffIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

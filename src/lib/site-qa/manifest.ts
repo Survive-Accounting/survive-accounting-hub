@@ -540,6 +540,15 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "logo-lab.tsx": "dev lab (noindex)",
   "lab.bolt.tsx": "dev lab (noindex)",
   "leeportal.tsx": "Lee's private nav portal (AdminGate, noindex, unlinked)",
+  // V3 — the production menu (noindex). Blast Off is the one live door;
+  // Practice and Review render closed until they exist.
+  "v3.index.tsx": "V3 menu (noindex) — Exam 1 topics",
+  "v3.$topic.index.tsx": "V3 menu (noindex) — the sets in a topic",
+  "v3.$topic.$set.index.tsx": "V3 menu (noindex) — what are you making?",
+  "v3.$topic.$set.blast-off.index.tsx": "V3 Blast Off (noindex) — which step are you on?",
+  "v3.$topic.$set.blast-off.talkthrough.tsx": "V3 Blast Off step 1 (AdminGate, noindex) — the booth on one set",
+  "v3.$topic.$set.blast-off.arrange.tsx": "V3 Blast Off step 2 (AdminGate, noindex) — the running order",
+  "v3.$topic.$set.blast-off.film.tsx": "V3 Blast Off step 3 (AdminGate, noindex) — capture",
   "study_.canvas.tsx": "internal authoring lab (noindex)",
   "study_.dashboard.tsx": "prototype (noindex)",
   // Two-portal home experiment (08-26). Register go.demo as a real template if it graduates

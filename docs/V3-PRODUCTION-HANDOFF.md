@@ -35,6 +35,36 @@ Plan doc (living): https://claude.ai/code/artifact/2d4a68d9-4e80-4ae7-a94c-43726
 
 ---
 
+## Update — 2026-09-02 evening session (this branch)
+
+Done and verified in the browser (DOM checks; the pane is 0×0 here):
+
+- **Zod enum bug fixed.** `BLAST_FRAME_KINDS` in `blastoff/plan.ts` is the one
+  list; both server schemas (`blastoff.functions.ts`, `blastoff-sync.functions.ts`)
+  derive from it. A plan with intro/bio/outro loads and renders (13 frames on
+  *Internal vs. external users*). The SAVE path is schema-tested, not exercised
+  against the DB — Lee's first edit in Arrange is the live proof.
+- **Talkthrough** (`components/talkthrough/Booth.tsx`, mounted by `/talkthrough`
+  and `/v3/…/blast-off/talkthrough`): Prompter gone, "talking about the set as a
+  whole" gone, focused question is the real `SetCard`, transcript 13.5px muted,
+  every segment has a × (soft archive + undo), **Import transcript** (paste or
+  .txt) parses stamps / "Question N" / "Set:" headers — `talkthrough-import.ts`,
+  14 tests. Importing was NOT clicked against the live store; the parse preview
+  was. First real import is Lee's.
+- **Blast Off under /v3**: `/v3/$topic/$set` → `/blast-off` (which step?) →
+  `/talkthrough` · `/arrange` · `/film`. The old `/blast-off` still works; its
+  editor/capture live in `blastoff/BlastOffEditor.tsx`. Set screen is now an
+  index route (`v3.$topic.$set.index.tsx`) so the steps are flat siblings.
+- **Detour cards**: inserts carry `callout.detour: true` (additive) — navy card,
+  gold edge + label, `==key phrase==` highlighted gold. `insertStem()` marks the
+  phrase; `inline-md` now allows a lone `=` inside a highlight. Verified in the
+  Arrange preview with a cheat code (save blocked in the test browser). Not yet
+  seen on the canvas film surface with a real synced insert.
+
+Still unverified (needs Lee): everything in "NOT verified" below, plus the
+first Arrange save, the first transcript import, and "Send to film" with a
+detour card on the canvas.
+
 ## The route shape Lee wants
 
 Today V3 stops at three doors. He wants it to keep nesting:

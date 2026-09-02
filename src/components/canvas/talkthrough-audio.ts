@@ -184,6 +184,14 @@ export class TalkthroughRecorder {
     };
   }
 
+  /** TRANSCRIPT IMPORT needs seq numbers the next live chunk will not reuse.
+   *  Hands back the first of `n` and skips past them. */
+  reserveSeqs(n: number): number {
+    const first = this.seq;
+    this.seq += Math.max(0, n);
+    return first;
+  }
+
   /** B1 — a context OPEN/CLOSE is a natural boundary too: cut the current
    *  chunk so no audio words straddle the window, without touching the
    *  stream. No-op when idle or nothing was said yet. */

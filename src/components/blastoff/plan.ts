@@ -17,10 +17,16 @@
 //
 // Pure: no React, no network. The route renders what these functions return.
 
-export type BlastFrameKind =
-  | "intro" | "bio" | "outro"                              // the standard spine
-  | "ceq"                                                  // a card the set owns
-  | "phrase" | "cheat" | "tip" | "exhibit" | "blank";      // what Lee inserts
+/** EVERY frame kind, as one list. The Zod schema in blastoff.functions.ts is
+ *  derived from this rather than retyped — the spine kinds were once added to
+ *  the type and not the schema, and every set with a real spine failed to load. */
+export const BLAST_FRAME_KINDS = [
+  "intro", "bio", "outro",                                 // the standard spine
+  "ceq",                                                   // a card the set owns
+  "phrase", "cheat", "tip", "exhibit", "blank",            // what Lee inserts
+] as const;
+
+export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
 
 export interface BlastFrame {
   id: string;
@@ -179,6 +185,24 @@ export function insertFrame(frames: readonly BlastFrame[], frame: BlastFrame, af
  *  it stays, because the set still has it and it still has to be filmed. */
 export const removeFrame = (frames: readonly BlastFrame[], id: string): BlastFrame[] =>
   frames.filter((f) => (f.id === id ? !isInsert(f.kind) : true));
+
+/** THE DETOUR CARD'S WORDS. An insert films as a dark card between the bright
+ *  CEQ cards, and the thing that makes it read at short-form speed is ONE
+ *  highlighted key phrase: a cheat code's rule, a phrase itself. Lee's own
+ *  ==marks== win when he typed any; otherwise the phrase is marked here, once,
+ *  so the Blast Off preview and the frame the sync writes cannot disagree.
+ *  A tip stays plain — it is an aside, not a rule. */
+export function insertStem(f: BlastFrame): string {
+  const mark = (s: string): string => (s.includes("==") ? s : `==${s}==`);
+  if (f.kind === "cheat") {
+    const title = f.title?.trim() ?? "";
+    const body = f.body?.trim() ?? "";
+    return [title ? mark(title) : "", body].filter(Boolean).join("\n");
+  }
+  if (f.kind === "phrase") { const t = f.text?.trim() ?? ""; return t ? mark(t) : ""; }
+  if (f.kind === "exhibit") return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
+  return f.text?.trim() ?? "";
+}
 
 /** How many real takes this plan is — what Lee is about to talk through. */
 export const frameCount = (plan: BlastPlan): number => plan.frames.length;

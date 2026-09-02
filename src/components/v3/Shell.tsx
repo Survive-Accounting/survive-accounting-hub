@@ -33,8 +33,10 @@ export interface Crumb {
   to?: string;
 }
 
-/** The one chrome. Screens supply their crumbs and their body. */
-export function V3Shell({ crumbs, children }: { crumbs: Crumb[]; children: ReactNode }) {
+/** The one chrome. Screens supply their crumbs and their body. `wide` is for
+ *  a working surface (the Blast Off editor: list + frame preview side by side)
+ *  rather than a menu column. */
+export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; children: ReactNode; wide?: boolean }) {
   return (
     <div style={{ minHeight: "100vh", background: V3_NAVY, color: V3_CREAM, fontFamily: V3_BODY }}>
       <header
@@ -75,7 +77,7 @@ export function V3Shell({ crumbs, children }: { crumbs: Crumb[]; children: React
         </nav>
       </header>
 
-      <main style={{ padding: "34px 20px 90px", maxWidth: 1080, margin: "0 auto" }}>{children}</main>
+      <main style={{ padding: "34px 20px 90px", maxWidth: wide ? 1440 : 1080, margin: "0 auto" }}>{children}</main>
     </div>
   );
 }

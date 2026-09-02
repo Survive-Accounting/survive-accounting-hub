@@ -535,6 +535,9 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
   /** A BARE FRAME on camera — see the note at the top. The card contributes
    *  nothing visual; the frame is its staged elements. */
   const bareFilm = film && isCallout && !!d.callout?.hidden;
+  // THE DETOUR CARD (Blast Off inserts): the same card, painted navy with a
+  // gold edge, so a cheat code reads as a detour between the bright CEQ cards.
+  const detour = isCallout && !!d.callout?.detour && !d.callout?.hidden;
   const rflW = useContext(CardWriteCtx);
   const patchCallout = (patch: Partial<CalloutSettings>) => {
     if (!rflW) return;
@@ -551,7 +554,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
     setBulletEdit(null);
   };
   return (
-    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: bareFilm ? "transparent" : PAPER.card, border: bareFilm ? "none" : d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: bareFilm ? "none" : "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
+    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: bareFilm ? "transparent" : detour ? PAPER.navy : PAPER.card, border: bareFilm ? "none" : d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : detour ? "1.5px solid rgba(252,163,17,0.6)" : `1px solid ${PAPER.cardEdge}`, boxShadow: bareFilm ? "none" : "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
       {/* BOSS (P3): the boiling bolt sweeps in with the charge — no text, no sound. */}
       {/* The persistent top-right boss bolt is GONE (Lee, 08-17): it collided with
           the counter, and a bolt standing in frame is a burned-in watermark — the
@@ -593,6 +596,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
             kind={d.callout?.kind ?? (d.calloutMemos?.length ? calloutKindForCategory(d.calloutMemos[0].category) : undefined)}
             highlights={(d.calloutMemos ?? []).map((m) => m.label)}
             bolt={d.callout?.bolt}
+            dark={detour}
             onEditBullet={film ? undefined : (i) => setBulletEdit({ i, draft: d.callout?.extraStems?.[i] ?? "" })}
           />
         </div>

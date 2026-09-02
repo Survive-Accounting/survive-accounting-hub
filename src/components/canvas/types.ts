@@ -1647,6 +1647,11 @@ export interface CalloutSettings {
   /** BARE FRAME (Lee): the callout card itself is hidden — the frame is just
    *  its staged elements, a blank canvas to build on. Reversible. */
   hidden?: boolean;
+  /** DETOUR CARD (Blast Off, 2026-09-02): drawn DARK — navy card, gold label,
+   *  cream text, the key phrase highlighted gold — so an inserted cheat code
+   *  or phrase reads as a detour between the bright CEQ cards in short-form.
+   *  Written by the Blast Off sync on inserts; additive scene JSON. */
+  detour?: boolean;
 }
 
 /** SET PRODUCTION PROFILE (P6): each set is its own project. */

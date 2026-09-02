@@ -12,10 +12,42 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  generatePlan, insertFrame, INSERT_CALLOUT, isInsert, isStandard, moveFrame, reconcilePlan,
+  BLAST_FRAME_KINDS, generatePlan, insertFrame, INSERT_CALLOUT, INSERT_KINDS, insertStem, isInsert, isStandard, moveFrame, reconcilePlan,
   removeFrame, STANDARD_KINDS,
   type BlastFrame, type BlastPlan, type PlanCeq,
 } from "./plan";
+
+describe("BLAST_FRAME_KINDS — the one list the Zod schemas derive from", () => {
+  // The bug (2026-09-02): the spine kinds were added to the type and never to
+  // the server schema, so every set with a real spine failed to save. The
+  // schemas now derive from this list; this pins that the list is complete.
+  test("covers the spine, the set's own cards, and every insert", () => {
+    for (const k of STANDARD_KINDS) expect(BLAST_FRAME_KINDS).toContain(k);
+    for (const k of INSERT_KINDS) expect(BLAST_FRAME_KINDS).toContain(k);
+    expect(BLAST_FRAME_KINDS).toContain("ceq");
+    expect(BLAST_FRAME_KINDS).toHaveLength(STANDARD_KINDS.length + INSERT_KINDS.length + 1);
+  });
+
+  test("a generated plan only uses listed kinds", () => {
+    const p = generatePlan([{ id: "ceq-a", label: "Q1", stem: "x" }]);
+    for (const f of p.frames) expect(BLAST_FRAME_KINDS).toContain(f.kind);
+  });
+});
+
+describe("insertStem — the detour card's words", () => {
+  test("a cheat code marks its rule as the key phrase, body on its own line", () => {
+    expect(insertStem({ id: "f", kind: "cheat", title: "Debits left", body: "always" })).toBe("==Debits left==\nalways");
+  });
+  test("a phrase IS the key phrase; Lee's own marks win", () => {
+    expect(insertStem({ id: "f", kind: "phrase", text: "Cash is king" })).toBe("==Cash is king==");
+    expect(insertStem({ id: "f", kind: "phrase", text: "Cash is ==king==" })).toBe("Cash is ==king==");
+  });
+  test("a tip stays plain; an exhibit names itself", () => {
+    expect(insertStem({ id: "f", kind: "tip", text: "Read the stem twice" })).toBe("Read the stem twice");
+    expect(insertStem({ id: "f", kind: "exhibit", exhibitRef: "cycle" })).toBe("Exhibit: cycle");
+    expect(insertStem({ id: "f", kind: "exhibit", exhibitRef: "cycle", text: "The cycle" })).toBe("The cycle");
+  });
+});
 
 /** A set shaped like the real ones: an authored note intro, questions, an
  *  authored note outro — the exact shape that exposed the duplication bug. */

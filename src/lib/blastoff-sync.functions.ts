@@ -30,7 +30,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { INSERT_CALLOUT } from "@/components/blastoff/plan";
+import { BLAST_FRAME_KINDS, INSERT_CALLOUT, insertStem } from "@/components/blastoff/plan";
 import { blankCard } from "@/components/canvas/templates";
 
 const admin = async () => {
@@ -40,7 +40,7 @@ const admin = async () => {
 
 const frameIn = z.object({
   id: z.string().min(1).max(80),
-  kind: z.enum(["intro", "bio", "outro", "ceq", "phrase", "cheat", "tip", "exhibit", "blank"]),
+  kind: z.enum(BLAST_FRAME_KINDS),
   ceqId: z.string().max(130).optional(),
   text: z.string().max(4000).optional(),
   title: z.string().max(400).optional(),
@@ -60,9 +60,8 @@ function promptFor(f: FrameIn, setName = ""): string {
   if (f.kind === "intro") return f.text?.trim() || setName;
   if (f.kind === "bio") return f.text?.trim() || "Bio — Lee Ingram";
   if (f.kind === "outro") return f.text?.trim() || "Cram what's on your exam.";
-  if (f.kind === "cheat") return [f.title?.trim(), f.body?.trim()].filter(Boolean).join(" — ");
-  if (f.kind === "exhibit") return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
-  return f.text?.trim() ?? "";
+  // Inserts carry their ==key phrase== marked — the detour card highlights it.
+  return insertStem(f);
 }
 
 // ---------------------------------------------------------- staged exhibits
@@ -206,7 +205,7 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
       const spec: StageSpec | undefined =
         STANDARD_STAGE[f.kind] ?? (f.kind === "exhibit" && f.exhibitRef ? EXHIBIT_STAGE[f.exhibitRef] : undefined);
       const callout: Record<string, unknown> | undefined =
-        f.kind === "blank" || spec ? { hidden: true } : kindTag ? { kind: kindTag, showTopic: true } : undefined;
+        f.kind === "blank" || spec ? { hidden: true } : kindTag ? { kind: kindTag, showTopic: true, detour: true } : undefined;
 
       const dataObj: Record<string, unknown> = {
         kind: "ceq",

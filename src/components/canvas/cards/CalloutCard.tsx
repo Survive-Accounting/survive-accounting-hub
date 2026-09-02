@@ -57,13 +57,32 @@ export interface CalloutBodyProps {
   bolt?: boolean;
   /** Authoring-only inline edit hook for an extra-stem bullet (never in film). */
   onEditBullet?: (idx: number) => void;
+  /** THE DETOUR LOOK (CalloutSettings.detour): gold label, cream ink, the
+   *  ==key phrase== highlighted gold-on-navy. The shell paints the navy;
+   *  this only changes the ink. */
+  dark?: boolean;
 }
+
+/** Detour palette — brand gold on brand navy, cream ink. */
+const DETOUR = {
+  gold: "#FCA311",
+  ink: "#F5EFE6",
+  inkMuted: "rgba(245,239,230,0.62)",
+  labelBg: "rgba(252,163,17,0.14)",
+  hl: { bg: "#FCA311", color: "#14213D" },
+} as const;
 
 /** The callout's face — cream card interior, navy text, orange corner accent.
  *  Rendered INSIDE the existing card shell (which owns width/drag/scale). */
-export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, highlights = [], bolt, onEditBullet }: CalloutBodyProps) {
+export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, highlights = [], bolt, onEditBullet, dark = false }: CalloutBodyProps) {
   const stack = highlights.length > 1;
-  const meta = stack ? { label: "HIGHLIGHTS FROM THIS SET", accent: "#C77D0A", tint: "rgba(199,125,10,0.08)" } : kind ? CALLOUT_KINDS[kind] : null;
+  const kindMeta = stack ? { label: "HIGHLIGHTS FROM THIS SET", accent: "#C77D0A", tint: "rgba(199,125,10,0.08)" } : kind ? CALLOUT_KINDS[kind] : null;
+  // On the dark card every label is gold — the kind's own accent was chosen
+  // for cream paper and goes muddy on navy.
+  const meta = kindMeta && dark ? { label: kindMeta.label, accent: DETOUR.gold, tint: DETOUR.labelBg } : kindMeta;
+  const ink = dark ? DETOUR.ink : PAPER.ink;
+  const inkMuted = dark ? DETOUR.inkMuted : PAPER.inkMuted;
+  const hl = dark ? DETOUR.hl : undefined;
   const mainText = highlights.length === 1 ? highlights[0] : stem;
   return (
     <div style={{ position: "relative" }}>
@@ -74,7 +93,7 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
           {meta.label}
         </div>
       )}
-      {topic && <div style={{ fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s }}>{topic}</div>}
+      {topic && <div style={{ fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: inkMuted, marginBottom: 6 * s }}>{topic}</div>}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12 * s }}>
         {/* (bolt retired 08-15 — the standalone Bolt element replaced it; the
             data field stays readable, nothing renders it here) */}
@@ -82,26 +101,26 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
           {stack ? (
             <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8 * s }}>
               {highlights.map((h, i) => (
-                <li key={i} style={{ display: "flex", gap: 8 * s, alignItems: "baseline", fontSize: 17 * s, fontWeight: 700, lineHeight: 1.3, color: PAPER.ink }}>
+                <li key={i} style={{ display: "flex", gap: 8 * s, alignItems: "baseline", fontSize: 17 * s, fontWeight: 700, lineHeight: 1.3, color: ink }}>
                   <span style={{ color: "#FCA311", fontWeight: 900 }}>•</span>
-                  <span>{renderInline(h)}</span>
+                  <span>{renderInline(h, hl)}</span>
                 </li>
               ))}
             </ul>
           ) : (
             <>
-              <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, whiteSpace: "pre-wrap" }}>{renderInline(mainText || "Callout")}</div>
+              <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: ink, whiteSpace: "pre-wrap" }}>{renderInline(mainText || "Callout", hl)}</div>
               {extraStems.length > 0 && (
                 <ul style={{ margin: `${10 * s}px 0 0 ${6 * s}px`, padding: 0, listStyle: "none", display: "grid", gap: 5 * s }}>
                   {extraStems.map((t, i) => (
                     <li
                       key={i}
                       onDoubleClick={onEditBullet ? (e) => { e.stopPropagation(); onEditBullet(i); } : undefined}
-                      style={{ display: "flex", gap: 7 * s, alignItems: "baseline", fontSize: 15.5 * s, fontWeight: 600, lineHeight: 1.3, color: PAPER.inkMuted, cursor: onEditBullet ? "text" : undefined }}
+                      style={{ display: "flex", gap: 7 * s, alignItems: "baseline", fontSize: 15.5 * s, fontWeight: 600, lineHeight: 1.3, color: inkMuted, cursor: onEditBullet ? "text" : undefined }}
                       title={onEditBullet ? "Double-click to edit · empty text removes it" : undefined}
                     >
                       <span style={{ opacity: 0.55 }}>–</span>
-                      <span>{renderInline(t)}</span>
+                      <span>{renderInline(t, hl)}</span>
                     </li>
                   ))}
                 </ul>

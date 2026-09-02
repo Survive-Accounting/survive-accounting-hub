@@ -1,0 +1,751 @@
+// THE BOOTH — the talkthrough capture surface. Mounted by /talkthrough (the
+// full studio: sessions, review, bank) and by /v3/$topic/$set/blast-off/
+// talkthrough (the same booth, on one set, inside the V3 menu).
+//
+// Moved out of routes/talkthrough.tsx on 2026-09-02 so V3 could mount it on
+// its own URL. Four changes came with the move, all from Lee's V3 handoff:
+//   · the Prompter is gone, and so is the "talking about the set as a whole"
+//     paragraph — the frame is the prompt now
+//   · the focused question is drawn by the REAL card Blast Off films (SetCard →
+//     the canvas's own CeqPreviewNode), not a reformatted stem-and-choices
+//   · segments are DELETABLE — soft (archivedAt), never hard: Transcript Law
+//     still holds, and the last delete can be undone
+//   · transcript text is small and quiet — readable, not loud
+// and one addition: TRANSCRIPT IMPORT. Notes dictated anywhere else paste in
+// and become segments, with stamps parsed from the spoken keywords
+// (canvas/talkthrough-import.ts).
+//
+// Everything else is the booth Lee already knows: Space starts/stops the mic,
+// Tab surfs questions, the stamp board opens click-in/click-out contexts, the
+// flowing paragraph grows as he talks.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, FileText, Mic, Square, Undo2, X } from "lucide-react";
+
+import { runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
+import {
+  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, canonicalStamp, contextOfSegment, ghostSegments, makeTag, newTTId, openContext,
+  segmentsInContext, sessionBoard, sessionSegments, sessionTags, stampLabel, styleNotesFor, touchRow,
+  type BoardItem, type StampKind, type TTDoc, type TalkSegment, type TalkSession, type TalkTag,
+} from "@/components/canvas/talkthrough";
+import { putBoardItem, putSegment, putTag, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
+import { TalkthroughRecorder, drainWhisperQueue, isWhisperHallucination, speechRecognitionAvailable, type BoothStatus } from "@/components/canvas/talkthrough-audio";
+import { buildMicroEditMessages, parseMicroEdit, type PassCeq } from "@/components/canvas/talkthrough-pass";
+import { buildImportRows, parseTranscriptImport, setNameMatches, type ImportBlock } from "@/components/canvas/talkthrough-import";
+import { SetCard } from "@/components/blastoff/SetCard";
+import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
+import { BIG_FONT, NEON } from "@/components/canvas/theme";
+
+export const CREAM = "#F4EFE6";
+export const GOLD = "#FCA311";
+export const PANEL = "rgba(16,24,44,0.9)";
+export const EDGE = "rgba(244,239,230,0.16)";
+
+/** The transcript's ink — Lee (V3 handoff): "much smaller, different colour /
+ *  weight — subtle but readable". Quieter than the UI text, never invisible. */
+const TRANSCRIPT_INK = "rgba(244,246,250,0.70)";
+const TRANSCRIPT_PX = 13.5;
+
+/** Player-style label: strip wrapping quotes, blanks become ___ (the same
+ *  treatment exam-path's setLabel applies). */
+export const setLabel = (name: string): string => name.replace(/^"|"$/g, "").replace(/\[\s*\]/g, "___").replace(/\[\s+\]/g, "___");
+
+export const boothToPassCeq = (c: BoothCeq): PassCeq => ({
+  id: c.id, label: c.draft ? `${c.label} (draft)` : c.label, stem: c.stem,
+  choices: c.choices, ...(c.noteOnly ? { noteOnly: true } : {}),
+});
+
+/** DELETE = ARCHIVE. A segment Lee trashes is soft-archived — it leaves every
+ *  view and every AI pass, syncs like any other edit, and can come back. */
+export function archiveSegment(seg: TalkSegment): void {
+  putSegment(touchRow(seg, { archivedAt: new Date().toISOString() } as Partial<TalkSegment>));
+}
+export function unarchiveSegment(seg: TalkSegment): void {
+  const fresh = ttState().doc.segments.find((s) => s.id === seg.id) ?? seg;
+  putSegment(touchRow(fresh, { archivedAt: null } as Partial<TalkSegment>));
+}
+
+// ---------------------------------------------------------------- the path
+
+export function PathTree({ topics, activeSetId, activeCeqs, focusId, onSet, onCeq, stampedCeqIds }: {
+  topics: BoothTopic[] | null;
+  activeSetId: string | null;
+  /** The active set's CEQs — rendered inside the tree under that set. */
+  activeCeqs: BoothCeq[] | null;
+  focusId: string | null;
+  onSet: (s: BoothSetInfo) => void;
+  onCeq?: (c: BoothCeq | null) => void;
+  /** CEQs that already carry stamped data this session — lit in the tree. */
+  stampedCeqIds?: Set<string>;
+}) {
+  const [openTopics, setOpenTopics] = useState<Set<string>>(new Set());
+  // The topic holding the active set opens itself.
+  useEffect(() => {
+    if (!activeSetId || !topics) return;
+    const t = topics.find((x) => x.sets.some((s) => s.id === activeSetId));
+    if (t) setOpenTopics((p) => (p.has(t.id) ? p : new Set(p).add(t.id)));
+  }, [activeSetId, topics]);
+
+  if (!topics) return <div style={{ color: NEON.muted, fontSize: 12 }}>Loading the Exam 1 path…</div>;
+  return (
+    <div className="flex flex-col gap-1" style={{ overflowY: "auto", maxHeight: "82vh", paddingRight: 4 }}>
+      {topics.map((t) => {
+        const open = openTopics.has(t.id);
+        const qCount = t.sets.reduce((n, s) => n + s.liveCount, 0);
+        const dCount = t.sets.reduce((n, s) => n + s.draftCount, 0);
+        return (
+          <div key={t.id}>
+            <button
+              className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left"
+              style={{ background: "transparent", border: "none", color: CREAM }}
+              onClick={() => setOpenTopics((p) => { const n = new Set(p); if (n.has(t.id)) n.delete(t.id); else n.add(t.id); return n; })}
+            >
+              {open ? <ChevronDown className="h-3.5 w-3.5" style={{ color: NEON.muted }} /> : <ChevronRight className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}
+              <span style={{ fontFamily: BIG_FONT, fontWeight: 800, fontSize: 13 }}>{t.name}</span>
+              <span className="ml-auto" style={{ fontSize: 10.5, color: NEON.muted }}>
+                {qCount} q{dCount > 0 ? ` · ${dCount} draft` : ""}
+              </span>
+            </button>
+            {open && t.sets.map((s) => {
+              const active = s.id === activeSetId;
+              return (
+                <div key={s.id} style={{ marginLeft: 14 }}>
+                  <button
+                    className="w-full rounded-lg px-2.5 py-1.5 text-left"
+                    style={{
+                      background: active ? "rgba(252,163,17,0.12)" : "transparent",
+                      border: `1px solid ${active ? GOLD : "transparent"}`,
+                      color: CREAM,
+                    }}
+                    onClick={() => onSet(s)}
+                  >
+                    <span style={{ fontSize: 12 }}>{setLabel(s.name)}</span>
+                    <span style={{ fontSize: 10, color: NEON.muted, marginLeft: 6 }}>
+                      {s.liveCount}{s.draftCount ? ` +${s.draftCount}d` : ""}
+                    </span>
+                  </button>
+                  {/* the active set expands: its CEQ list lives INSIDE the tree */}
+                  {active && activeCeqs && onCeq && (
+                    <div className="flex flex-col" style={{ marginLeft: 10, borderLeft: `1px solid ${EDGE}`, paddingLeft: 6, marginTop: 2, marginBottom: 4 }}>
+                      <button
+                        className="rounded-md px-2 py-1 text-left"
+                        style={{ background: focusId === null ? "rgba(252,163,17,0.14)" : "transparent", border: "none", color: focusId === null ? GOLD : NEON.muted, fontSize: 11 }}
+                        onClick={() => onCeq(null)}
+                      >
+                        General set brainstorm
+                      </button>
+                      {activeCeqs.map((c, i) => {
+                        const stamped = !!stampedCeqIds?.has(c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            className="rounded-md px-2 py-1 text-left"
+                            style={{
+                              background: focusId === c.id ? "rgba(252,163,17,0.14)" : "transparent",
+                              border: "none", color: focusId === c.id ? CREAM : stamped ? CREAM : NEON.muted, fontSize: 11,
+                              opacity: c.noteOnly ? 0.6 : 1,
+                            }}
+                            onClick={() => onCeq(c)}
+                          >
+                            <span style={{ fontWeight: 700, color: stamped ? GOLD : undefined }}>Q{i + 1}</span> · {(c.stem || c.label).slice(0, 44)}
+                            {stamped && <span title="Has stamped data this session" style={{ color: GOLD, marginLeft: 4 }}>●</span>}
+                            {c.draft && <DraftChip />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function DraftChip() {
+  return (
+    <span className="rounded-full px-1.5 py-[1px]" style={{ fontSize: 8, fontWeight: 900, letterSpacing: "0.12em", color: "#7DD3FC", border: "1px solid rgba(125,211,252,0.4)", marginLeft: 5, verticalAlign: "middle" }}>
+      DRAFT
+    </span>
+  );
+}
+
+// ------------------------------------------------------------------- booth
+
+export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
+  tt: TTState; session: TalkSession; set: BoothSetInfo | null; topics: BoothTopic[] | null;
+  onSwitchSet: (s: BoothSetInfo) => void; onEnd: () => void;
+}) {
+  const [, force] = useState(0);
+  const bump = useCallback(() => force((n) => n + 1), []);
+  const recRef = useRef<TalkthroughRecorder | null>(null);
+  if (!recRef.current) {
+    recRef.current = new TalkthroughRecorder(session.id, sessionSegments(ttState().doc, session.id).length, bump);
+  }
+  const rec = recRef.current;
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [micError, setMicError] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [showCount, setShowCount] = useState(4); // B1.4 scrollback window
+  const [importOpen, setImportOpen] = useState(false);
+  const [importNote, setImportNote] = useState<string | null>(null);
+  const [lastDeleted, setLastDeleted] = useState<TalkSegment | null>(null);
+  const status: BoothStatus = rec.status();
+
+  useEffect(() => { void drainWhisperQueue(session.id).then(bump); }, [session.id, bump]);
+  useEffect(() => () => rec.stop(), [rec]);
+
+  const ceqs = set?.ceqs ?? null;
+  const focused = ceqs?.find((c) => c.id === focusId) ?? null;
+  const focusIndex = focused && ceqs ? ceqs.indexOf(focused) : -1;
+  const focusPayload = { ceqId: focused?.id ?? null, label: focused ? `Q${focusIndex + 1} · ${focused.label}` : null };
+  // The topic name is the kicker the real card prints above a question stem.
+  const topicName = topics?.find((t) => t.sets.some((s) => s.id === session.setId))?.name ?? null;
+  // "Q 3/8" — questions only; a note frame is breath and is not counted.
+  const questions = useMemo(() => (ceqs ?? []).filter((c) => !c.noteOnly), [ceqs]);
+  const qProgress = focused && !focused.noteOnly ? { x: questions.indexOf(focused) + 1, y: questions.length } : null;
+  const allTags = sessionTags(tt.doc, session.id);
+  const ctx = openContext(allTags, session.id);
+  const segs = sessionSegments(tt.doc, session.id);
+  const recent = segs.slice(-showCount);
+  const stars = allTags.filter((t) => t.starred && !t.archivedAt);
+  // CEQs that already carry stamps/stars this session — lit gold in the tree.
+  const stampedCeqIds = useMemo(
+    () => new Set(allTags.filter((t) => !t.archivedAt && t.focusedCeqId).map((t) => t.focusedCeqId!)),
+    [allTags],
+  );
+  // Keyboard: ↑↓←→ walk the stamp board, Enter starts/stops the selected
+  // stamp, Space start/stop talking, Tab/Shift+Tab surf questions.
+  const flatStamps = useMemo(() => STAMP_GROUPS.flatMap((g) => g.kinds), []);
+  const [selStamp, setSelStamp] = useState<StampKind | null>(null);
+  const pendingEdits = sessionBoard(tt.doc, session.id).filter((b) => b.kind === "ceq_edit");
+
+  const clickCeq = (c: BoothCeq | null) => {
+    setFocusId(c?.id ?? null);
+    const idx = c && ceqs ? ceqs.indexOf(c) : -1;
+    rec.setFocus(c?.id ?? null, c ? `Q${idx + 1} · ${c.label}` : null); // never interrupts the stream
+  };
+
+  /** B2 — closing an EDIT context fires the background micro draft. Capture is
+   *  never blocked: the pending item exists immediately; the draft fills in. */
+  const fireEditDraft = (closed: TalkTag) => {
+    const stamp = canonicalStamp(closed.tag);
+    if (!stamp || !(EDIT_STAMPS as readonly string[]).includes(stamp)) return;
+    const ceq = set?.ceqs.find((c) => c.id === closed.focusedCeqId);
+    if (!ceq) return;
+    // Give the in-flight chunk a beat to persist its live text, then draft.
+    window.setTimeout(() => {
+      const doc = ttState().doc;
+      const closedNow = doc.tags.find((t) => t.id === closed.id) ?? closed;
+      const spoken = segmentsInContext(sessionSegments(doc, session.id), closedNow).map((s) => s.text.trim()).filter(Boolean).join(" ");
+      if (!spoken) return; // nothing said — nothing to draft
+      const iso = new Date().toISOString();
+      const item: BoardItem = {
+        id: newTTId("ttb"), sessionId: session.id, runId: "micro", kind: "ceq_edit",
+        title: `${STAMP_LABELS[stamp as never] ?? stamp} · ${ceq.label}`,
+        payload: { stamp, ceqId: ceq.id, ceqLabel: ceq.label, instruction: spoken, current: { stem: ceq.stem, choices: ceq.choices }, state: "drafting" },
+        quote: spoken, ceqIds: [ceq.id], status: "pending", comment: "",
+        createdAt: iso, updatedAt: iso, syncedAt: null,
+      };
+      putBoardItem(item);
+      const msgs = buildMicroEditMessages({ stamp: stamp as never, ceq: boothToPassCeq(ceq), instruction: spoken, styleNotes: styleNotesFor(tt.doc, "memo") });
+      runMicro({ data: { system: msgs.system, user: msgs.user } })
+        .then((r) => {
+          const proposal = parseMicroEdit(r.text);
+          const fresh = ttState().doc.boardItems.find((b) => b.id === item.id) ?? item;
+          putBoardItem(touchRow(fresh, proposal
+            ? { status: "suggested", payload: { ...fresh.payload, state: "ready", proposed: proposal, _usage: r.usage } }
+            : { status: "suggested", payload: { ...fresh.payload, state: "error", error: "draft didn't parse — regenerate", _usage: r.usage } } as never));
+        })
+        .catch((e) => {
+          const fresh = ttState().doc.boardItems.find((b) => b.id === item.id) ?? item;
+          putBoardItem(touchRow(fresh, { status: "suggested", payload: { ...fresh.payload, state: "error", error: e instanceof Error ? e.message : String(e) } } as never));
+        });
+    }, 1400);
+  };
+
+  /** B1 — stamps are click-IN/click-OUT contexts. Same stamp closes; a
+   *  different stamp auto-closes the current and opens the new one. */
+  const stamp = (kind: StampKind) => {
+    const now = new Date().toISOString();
+    rec.markBoundary(); // words never straddle a context edge
+    if (ctx) {
+      const closed = touchRow(ctx, { endedAt: now } as Partial<TalkTag>);
+      putTag(closed);
+      fireEditDraft(closed);
+      if (canonicalStamp(ctx.tag) === kind && ctx.focusedCeqId === focusPayload.ceqId) return; // toggled off
+    }
+    putTag({ ...makeTag(session.id, kind, focusPayload), endedAt: null });
+  };
+  /** B1.2 — star = a bookmark on {stamp, ceq}; no context opened. */
+  const star = (kind: StampKind) => {
+    putTag({ ...makeTag(session.id, kind, focusPayload), starred: true, endedAt: new Date().toISOString() });
+  };
+
+  /** TRANSCRIPT IMPORT — the parsed blocks become rows through the same
+   *  local-first path a live chunk takes. An open context is closed first so
+   *  it cannot swallow typed notes into its window; the recorder hands over
+   *  seq numbers so a chunk shipped later never collides. */
+  const importBlocks = (blocks: ImportBlock[]) => {
+    const now = new Date().toISOString();
+    rec.markBoundary();
+    if (ctx) putTag(touchRow(ctx, { endedAt: now } as Partial<TalkTag>));
+    const startSeq = rec.reserveSeqs(blocks.length);
+    const rows = buildImportRows(blocks, { sessionId: session.id, startSeq, ceqs: (ceqs ?? []).map((c) => ({ id: c.id, label: c.label })) });
+    for (const s of rows.segments) putSegment(s);
+    for (const t of rows.tags) putTag(t);
+    setImportOpen(false);
+    setImportNote(`✓ imported ${rows.segments.length} segment${rows.segments.length === 1 ? "" : "s"} · ${rows.tags.length} stamp${rows.tags.length === 1 ? "" : "s"}`);
+  };
+
+  const deleteSeg = (s: TalkSegment) => { archiveSegment(s); setLastDeleted(s); };
+  const undoDelete = () => { if (lastDeleted) { unarchiveSegment(lastDeleted); setLastDeleted(null); } };
+
+  /** Tab / Shift+Tab CEQ surfing. dir=+1 walks Q1→Qn and stops at the end;
+   *  dir=-1 walks back and lands on General set brainstorm before Q1. */
+  const surfCeq = (dir: 1 | -1) => {
+    if (!ceqs?.length) return;
+    if (dir === 1) clickCeq(ceqs[Math.min(focusIndex + 1, ceqs.length - 1)]);
+    else if (focusIndex <= 0) clickCeq(null);
+    else clickCeq(ceqs[focusIndex - 1]);
+  };
+  // The handlers close over per-render state; the ONE listener reads the
+  // latest through this ref so it never has to re-bind.
+  const keys = useRef({ stamp, surfCeq, selStamp, flatStamps });
+  keys.current = { stamp, surfCeq, selStamp, flatStamps };
+  /** Space's start/stop. A ref because startMic/pauseMic are declared BELOW this
+   *  listener — reading them directly here would be an in-component dead zone,
+   *  the same shape that has taken this canvas down twice. */
+  const toggleMicRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      const k = keys.current;
+      const move = (d: 1 | -1) => {
+        e.preventDefault();
+        setSelStamp((s) => {
+          const i = s ? k.flatStamps.indexOf(s) : d === 1 ? -1 : 0;
+          return k.flatStamps[(i + d + k.flatStamps.length) % k.flatStamps.length];
+        });
+      };
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") move(1);
+      else if (e.key === "ArrowUp" || e.key === "ArrowLeft") move(-1);
+      else if (e.key === "Enter") { if (k.selStamp) { e.preventDefault(); k.stamp(k.selStamp); } }
+      // SPACE = START / STOP TALKING (Lee, 2026-09-01). A toggle, not push-to-
+      // talk: press once and talk for as long as you like, press again to stop.
+      else if (e.key === " ") { e.preventDefault(); toggleMicRef.current(); }
+      // Question surfing is Tab / Shift+Tab — "next field" semantics.
+      else if (e.key === "Tab") { e.preventDefault(); k.surfCeq(e.shiftKey ? -1 : 1); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const startMic = () => { setMicError(null); setPaused(false); rec.start().catch((e) => setMicError(e instanceof Error ? e.message : String(e))); };
+  const pauseMic = () => { rec.stop(); setPaused(true); }; // mic RELEASED; session stays open
+  toggleMicRef.current = () => { if (status.recording) pauseMic(); else startMic(); };
+
+  return (
+    <div className="flex gap-4" style={{ alignItems: "stretch", minHeight: "78vh" }}>
+      {/* LEFT — the Exam 1 path, exactly the player's shape */}
+      <div style={{ width: 330, flexShrink: 0 }}>
+        <PathTree topics={topics} activeSetId={session.setId} activeCeqs={ceqs} focusId={focusId} onSet={(x) => { rec.stop(); onSwitchSet(x); }} onCeq={clickCeq} stampedCeqIds={stampedCeqIds} />
+        {!set && <div style={{ color: NEON.muted, fontSize: 12, marginTop: 8 }}>Set not in the live bank — you can still talk; segments anchor to the session.</div>}
+      </div>
+
+      {/* CENTER — the focused question, drawn by THE REAL CARD Blast Off films */}
+      <div className="flex-1 rounded-2xl p-5" style={{ background: PANEL, border: `1px solid ${EDGE}`, overflowY: "auto", maxHeight: "82vh", minWidth: 0 }}>
+        <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
+          <span style={{ color: NEON.muted, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase" }}>{setLabel(session.setName)}</span>
+          {focused ? (
+            <span className="rounded-full px-2.5 py-0.5" style={{ background: GOLD, color: "#0B1322", fontFamily: BIG_FONT, fontWeight: 800, fontSize: 12 }}>
+              Q{focusIndex + 1} / {ceqs?.length ?? "?"}
+            </span>
+          ) : (
+            <span style={{ color: GOLD, fontSize: 11, fontWeight: 700 }}>GENERAL SET BRAINSTORM</span>
+          )}
+          {focused?.draft && <DraftChip />}
+          {focused && pendingEdits.some((b) => (b.payload as { ceqId?: string }).ceqId === focused.id) && (
+            <span style={{ fontSize: 10, color: "#7DD3FC" }}>
+              {pendingEdits.filter((b) => (b.payload as { ceqId?: string }).ceqId === focused.id).map((b) => (b.payload as { state?: string }).state === "drafting" ? "✎ drafting…" : "✎ edit ready").join(" · ")}
+            </span>
+          )}
+          <span className="ml-auto" style={{ fontSize: 10.5, color: stars.length ? GOLD : NEON.muted }}>★ {stars.length}</span>
+        </div>
+
+        {focused && (
+          <>
+            {/* The frame Lee will film — the /blast-off preview, same component,
+                same kicker rule (note frames say FOUND ON YOUR EXAM), same Q x/y. */}
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <SetCard
+                id={focused.id}
+                stem={focused.stem}
+                choices={focused.choices}
+                topic={focused.noteOnly ? NOTE_EYEBROW : topicName}
+                progress={qProgress}
+                scale={0.78}
+              />
+            </div>
+            {(focused.needsExhibit || focused.masterNotes) && (
+              <div className="mt-3 rounded-xl px-3 py-2" style={{ border: `1px dashed ${EDGE}` }}>
+                {focused.needsExhibit && <div style={{ fontSize: 11, color: GOLD }}>needs_exhibit: {focused.needsExhibit}</div>}
+                {focused.masterNotes && <div style={{ fontSize: 11, color: NEON.muted }}>notes: {focused.masterNotes}</div>}
+              </div>
+            )}
+          </>
+        )}
+
+        {importOpen && (
+          <ImportPanel
+            setName={session.setName}
+            ceqCount={ceqs?.length ?? 0}
+            onClose={() => setImportOpen(false)}
+            onImport={importBlocks}
+          />
+        )}
+
+        {/* THE FLOWING PARAGRAPH — one paragraph that grows as you talk. Each
+            committed segment is a span with its own ×, so trashing one idea is
+            one click and never touches the words around it. */}
+        <LiveParagraph
+          segments={segs}
+          liveFinal={status.recording ? status.liveFinal : ""}
+          interim={status.recording ? status.interim : ""}
+          recording={status.recording}
+          liveAvailable={status.liveAvailable}
+          onDelete={deleteSeg}
+        />
+        {(lastDeleted || importNote) && (
+          <div className="mt-2 flex items-center gap-3" style={{ fontSize: 11, color: NEON.muted }}>
+            {lastDeleted && (
+              <button className="flex items-center gap-1" style={{ color: GOLD, background: "none", border: "none", cursor: "pointer", fontSize: 11 }} onClick={undoDelete}>
+                <Undo2 className="h-3 w-3" /> undo delete
+              </button>
+            )}
+            {importNote && <span style={{ color: "#3BF5A0" }}>{importNote}</span>}
+          </div>
+        )}
+
+        {/* the record, by segment — still the audit trail, now secondary */}
+        <details className="mt-4">
+          <summary style={{ color: NEON.muted, fontSize: 11, cursor: "pointer" }}>
+            by segment ({segs.length}) — context chips, [S#] anchors, Whisper status
+          </summary>
+          <div className="mt-2 flex flex-col gap-1.5">
+            <GhostSweep doc={tt.doc} sessionId={session.id} />
+            {segs.length > showCount && (
+              <button className="text-left" style={{ color: NEON.muted, fontSize: 11, background: "transparent", border: "none", cursor: "pointer" }} onClick={() => setShowCount((n) => n + 50)}>
+                earlier ↑ ({segs.length - showCount} more)
+              </button>
+            )}
+            {recent.map((s) => <SegmentLine key={s.id} seg={s} ctx={contextOfSegment(s, allTags)} onDelete={deleteSeg} />)}
+          </div>
+        </details>
+      </div>
+
+      {/* RIGHT — recorder, import, THE STAMP BOARD */}
+      <div className="flex flex-col gap-3" style={{ width: 310, flexShrink: 0, overflowY: "auto", maxHeight: "82vh" }}>
+        <div className="flex gap-2">
+          <button
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl px-3 py-3.5"
+            style={{ background: status.recording ? "rgba(248,113,113,0.16)" : "rgba(59,245,160,0.12)", border: `1.5px solid ${status.recording ? "#F87171" : "#3BF5A0"}`, fontFamily: BIG_FONT, fontWeight: 800, fontSize: 14 }}
+            onClick={() => { if (status.recording) pauseMic(); else startMic(); }}
+          >
+            {status.recording ? <><Square className="h-4 w-4" /> PAUSE</> : <><Mic className="h-4 w-4" /> {paused ? "RESUME" : "START TALKING"}</>}
+          </button>
+        </div>
+        <button
+          className="flex items-center justify-center gap-2 rounded-xl px-3 py-2"
+          style={{ border: `1px solid ${importOpen ? GOLD : EDGE}`, color: importOpen ? GOLD : CREAM, background: "transparent", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+          title="Paste or upload notes you dictated elsewhere — stamps are parsed from the words you said (Phrase:, Cheat code:, Question 3…)"
+          onClick={() => { setImportNote(null); setImportOpen((v) => !v); }}
+        >
+          <FileText className="h-3.5 w-3.5" /> {importOpen ? "Close import" : "Import transcript"}
+        </button>
+        {paused && !status.recording && <div style={{ color: NEON.muted, fontSize: 10.5 }}>Paused — mic released. Resume continues this session exactly here (survives reloads).</div>}
+        {micError && <div style={{ color: "#F87171", fontSize: 12 }}>{micError}</div>}
+        {!speechRecognitionAvailable() && <div style={{ color: NEON.muted, fontSize: 10.5 }}>Live captions unavailable — chunked Whisper alone.</div>}
+
+        {/* open-context banner */}
+        {ctx && (
+          <div className="rounded-xl px-3 py-2" style={{ background: "rgba(252,163,17,0.12)", border: `1.5px solid ${GOLD}` }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.18em", color: GOLD, textTransform: "uppercase", fontWeight: 900 }}>context open</div>
+            <div style={{ fontSize: 12.5, color: CREAM, marginTop: 2 }}>
+              {stampLabel(ctx.tag)}{ctx.focusedCeqLabel ? ` · ${ctx.focusedCeqLabel}` : " · set"} — click the stamp again to close
+            </div>
+          </div>
+        )}
+
+        {/* B2 — THE STAMP BOARD. Every stamp opens a context; ★ bookmarks
+            {stamp, ceq} without opening one. Keyboard: ↑↓←→ select, Enter
+            starts/stops. An OPEN stamp glows like a light left on; the
+            keyboard cursor is the dashed blue ring. An empty group label
+            (Exhibit) renders as a separated tail — not one of the video
+            options. */}
+        <style>{`@keyframes tt-stamp-glow{0%,100%{box-shadow:0 0 5px 1px rgba(252,163,17,.5)}50%{box-shadow:0 0 16px 5px rgba(252,163,17,.9)}}`}</style>
+        {STAMP_GROUPS.map((g) => (
+          <div key={g.id} style={g.label ? undefined : { marginTop: 2, borderTop: `1px dashed ${EDGE}`, paddingTop: 8 }}>
+            {g.label && <div style={{ fontSize: 9.5, letterSpacing: "0.22em", color: NEON.muted, textTransform: "uppercase", fontWeight: 900, marginBottom: 4 }}>{g.label}</div>}
+            <div className="flex flex-wrap gap-1.5">
+              {g.kinds.map((k) => {
+                const active = !!ctx && canonicalStamp(ctx.tag) === k;
+                const selected = selStamp === k;
+                return (
+                  <div
+                    key={k}
+                    className="flex items-stretch"
+                    style={{
+                      borderRadius: 10, overflow: "hidden",
+                      border: `1.5px solid ${active ? GOLD : EDGE}`,
+                      outline: selected ? "2px dashed #7DD3FC" : "none", outlineOffset: 1,
+                      animation: active ? "tt-stamp-glow 1.5s ease-in-out infinite" : "none",
+                    }}
+                  >
+                    <button
+                      className="px-2.5 py-1.5"
+                      style={{ background: active ? GOLD : PANEL, color: active ? "#0B1322" : CREAM, fontFamily: BIG_FONT, fontWeight: 800, fontSize: 11 }}
+                      onClick={() => { setSelStamp(k); stamp(k); }}
+                    >
+                      {STAMP_LABELS[k]}
+                    </button>
+                    <button
+                      title="Star — come back to this (no context)"
+                      className="px-1.5"
+                      style={{ background: active ? "rgba(11,19,34,0.25)" : "rgba(9,13,26,0.7)", color: stars.some((t) => canonicalStamp(t.tag) === k && t.focusedCeqId === focusPayload.ceqId) ? GOLD : NEON.muted, fontSize: 11 }}
+                      onClick={(e) => { e.stopPropagation(); star(k); }}
+                    >
+                      ★
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        <div style={{ color: NEON.muted, fontSize: 9.5, lineHeight: 1.5 }}>
+          ⌨ Space start/stop talking · Tab next Q · Shift+Tab back · ↑↓←→ pick a stamp · Enter fire it
+        </div>
+
+        <div className="mt-auto flex flex-col gap-2">
+          {(status.uploadQueue > 0 || status.transcribeQueue > 0) && (
+            <div style={{ color: NEON.muted, fontSize: 11 }}>background: {status.uploadQueue} uploading · {status.transcribeQueue} awaiting Whisper</div>
+          )}
+          {status.lastError && <div style={{ color: "#F87171", fontSize: 11 }}>retrying: {status.lastError}</div>}
+          {/* B3 — THE primary next action */}
+          <button className="rounded-xl px-4 py-3" style={{ background: GOLD, color: "#0B1322", fontFamily: BIG_FONT, fontWeight: 800, fontSize: 15 }} onClick={() => { rec.stop(); onEnd(); }}>
+            End Session → Review
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------- import
+
+/** TRANSCRIPT IMPORT — paste or upload, see what it parsed to, import.
+ *  Blocks named for another set (a "Set: …" header) are counted and skipped,
+ *  never silently imported into the wrong session. */
+function ImportPanel({ setName, ceqCount, onClose, onImport }: {
+  setName: string; ceqCount: number; onClose: () => void; onImport: (blocks: ImportBlock[]) => void;
+}) {
+  const [text, setText] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const blocks = useMemo(() => parseTranscriptImport(text, ceqCount), [text, ceqCount]);
+  const mine = useMemo(() => blocks.filter((b) => setNameMatches(b.setName, setName)), [blocks, setName]);
+  const skipped = blocks.length - mine.length;
+  const stamped = mine.filter((b) => b.stamp).length;
+  const anchored = mine.filter((b) => b.ceqIndex != null).length;
+
+  const readFile = (f: File) => {
+    f.text()
+      .then((t) => { setText((p) => (p.trim() ? `${p}\n\n${t}` : t)); setNote(`✓ read ${f.name}`); })
+      .catch((e) => setNote(`⚠ ${e instanceof Error ? e.message : String(e)}`));
+  };
+
+  return (
+    <div className="mt-4 rounded-2xl p-4" style={{ border: `1px solid ${GOLD}66`, background: "rgba(9,13,26,0.6)" }}>
+      <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
+        <span style={{ fontFamily: BIG_FONT, fontWeight: 800, fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", color: GOLD }}>Import transcript</span>
+        <button onClick={onClose} className="ml-auto" style={{ color: NEON.muted, background: "none", border: "none", cursor: "pointer" }} title="Close"><X className="h-3.5 w-3.5" /></button>
+      </div>
+      <div style={{ fontSize: 11, color: NEON.muted, lineHeight: 1.5, marginBottom: 8 }}>
+        Say the stamp word, then the idea — <b style={{ color: CREAM }}>Phrase:</b> · <b style={{ color: CREAM }}>Trigger word:</b> · <b style={{ color: CREAM }}>Tip:</b> · <b style={{ color: CREAM }}>Cheat code:</b> · <b style={{ color: CREAM }}>Real world:</b> · <b style={{ color: CREAM }}>Memo:</b> · <b style={{ color: CREAM }}>Exhibit:</b> · <b style={{ color: CREAM }}>Short:</b> · <b style={{ color: CREAM }}>Nerd out:</b> · <b style={{ color: CREAM }}>Reword this:</b> · <b style={{ color: CREAM }}>Revise choices:</b>.
+        Say <b style={{ color: CREAM }}>Question 3</b> before talking about Q3, <b style={{ color: CREAM }}>General</b> to go back to the set. A <b style={{ color: CREAM }}>Set:</b> line names the set for the block under it.
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Paste the dictation here…"
+        rows={8}
+        style={{ width: "100%", background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 12.5, lineHeight: 1.5, padding: "8px 10px", outline: "none", resize: "vertical" }}
+      />
+      <div className="mt-2 flex items-center gap-3" style={{ flexWrap: "wrap" }}>
+        <label className="rounded-lg px-2.5 py-1" style={{ border: `1px solid ${EDGE}`, color: CREAM, fontSize: 11.5, cursor: "pointer" }}>
+          upload .txt
+          <input type="file" accept=".txt,.md,.text,text/plain" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f); e.target.value = ""; }} />
+        </label>
+        <span style={{ fontSize: 11, color: NEON.muted }}>
+          {mine.length} segment{mine.length === 1 ? "" : "s"} · {stamped} stamped · {anchored} anchored to a question
+          {skipped ? ` · ${skipped} skipped (named for another set)` : ""}
+        </span>
+        {note && <span style={{ fontSize: 11, color: note.startsWith("⚠") ? "#F87171" : "#3BF5A0" }}>{note}</span>}
+        <button
+          className="ml-auto rounded-xl px-4 py-1.5"
+          disabled={!mine.length}
+          onClick={() => onImport(mine)}
+          style={{ background: mine.length ? GOLD : "transparent", color: mine.length ? "#0B1322" : NEON.muted, border: `1px solid ${mine.length ? GOLD : EDGE}`, fontFamily: BIG_FONT, fontWeight: 800, fontSize: 12.5, cursor: mine.length ? "pointer" : "default" }}
+        >
+          Import {mine.length || ""}
+        </button>
+      </div>
+      {mine.length > 0 && (
+        <div className="mt-3 flex flex-col gap-1" style={{ maxHeight: 180, overflowY: "auto" }}>
+          {mine.slice(0, 40).map((b, i) => (
+            <div key={i} style={{ fontSize: 11.5, color: TRANSCRIPT_INK, lineHeight: 1.4 }}>
+              {b.ceqIndex != null && <span style={{ color: NEON.muted, fontSize: 10, marginRight: 5 }}>Q{b.ceqIndex + 1}</span>}
+              {b.stamp && <StampChip label={STAMP_LABELS[b.stamp]} />}
+              {b.text.length > 110 ? `${b.text.slice(0, 110)}…` : b.text}
+            </div>
+          ))}
+          {mine.length > 40 && <div style={{ fontSize: 10.5, color: NEON.muted }}>… and {mine.length - 40} more</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------- transcript
+
+/** GHOST SWEEP — the hallucinations Whisper wrote into the transcript before
+ *  the capture-side gate existed. Never removes anything on its own: it shows
+ *  the exact lines and waits for a click. Archive is soft and syncs like any
+ *  other edit, so a mistake is recoverable. */
+export function GhostSweep({ doc, sessionId }: { doc: TTDoc; sessionId: string }) {
+  const [open, setOpen] = useState(false);
+  const [done, setDone] = useState(0);
+  const ghosts = useMemo(() => ghostSegments(doc, sessionId, isWhisperHallucination), [doc, sessionId]);
+  if (!ghosts.length) {
+    return done > 0
+      ? <div style={{ color: "#3BF5A0", fontSize: 11, marginBottom: 6 }}>✓ removed {done} ghost segment{done === 1 ? "" : "s"} — archived, not deleted</div>
+      : null;
+  }
+  const remove = () => {
+    for (const g of ghosts) archiveSegment(g);
+    setDone((n) => n + ghosts.length);
+    setOpen(false);
+  };
+  return (
+    <div className="rounded-xl px-3 py-2" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.35)", marginBottom: 8 }}>
+      <div className="flex items-center gap-2" style={{ flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11.5, color: "#F87171", fontWeight: 700 }}>
+          {ghosts.length} ghost segment{ghosts.length === 1 ? "" : "s"} — Whisper filled silence with video-outro noise
+        </span>
+        <button className="text-[11px]" style={{ color: NEON.muted, textDecoration: "underline", background: "none", border: "none", cursor: "pointer" }} onClick={() => setOpen((v) => !v)}>
+          {open ? "hide" : "show"}
+        </button>
+        <button className="ml-auto rounded-lg px-2.5 py-1 text-[11px] font-bold" style={{ border: "1.5px solid #F87171", color: "#F87171", background: "transparent", cursor: "pointer" }} onClick={remove}>
+          Remove {ghosts.length}
+        </button>
+      </div>
+      {open && (
+        <div className="mt-2 flex flex-col gap-1">
+          {ghosts.map((g) => (
+            <div key={g.id} style={{ fontSize: 11, color: NEON.muted }}>[S{g.seq}] {g.text.slice(0, 120)}</div>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 9.5, color: NEON.muted, marginTop: 4 }}>
+        Only whisper-sourced lines are offered — anything the live mic heard is yours and is never listed. Removal archives; it never deletes.
+      </div>
+    </div>
+  );
+}
+
+/** THE DICTATION VIEW — one growing paragraph, Speechnotes-style.
+ *
+ *  Three tiers of certainty, rendered as one paragraph so the eye never has to
+ *  reassemble them: committed segments, then this chunk's finalised words, then
+ *  the interim tail that is still settling. Only the last is dimmed further —
+ *  any more and the text strobes as words graduate between tiers.
+ *
+ *  Each committed segment is its own span with a faint × — the delete Lee
+ *  asked for, on the words themselves, one idea at a time.
+ *
+ *  Auto-scrolls to the tail, but ONLY while recording: reading back a finished
+ *  session should not yank you to the bottom. */
+function LiveParagraph({ segments, liveFinal, interim, recording, liveAvailable, onDelete }: {
+  segments: TalkSegment[]; liveFinal: string; interim: string; recording: boolean; liveAvailable: boolean;
+  onDelete: (s: TalkSegment) => void;
+}) {
+  const tailRef = useRef<HTMLSpanElement>(null);
+  const shown = segments.filter((s) => s.text.trim());
+  useEffect(() => {
+    if (!recording) return;
+    tailRef.current?.scrollIntoView({ block: "end" });
+  }, [shown.length, liveFinal, interim, recording]);
+
+  const empty = !shown.length && !liveFinal && !interim;
+  return (
+    <div
+      className="mt-4"
+      style={{
+        maxHeight: "34vh", overflowY: "auto",
+        background: "rgba(9,13,26,0.55)", border: `1px solid ${NEON.borderSoft}`,
+        borderRadius: 14, padding: "12px 14px",
+      }}
+    >
+      <style>{`.tt-seg{border-radius:3px}.tt-seg:hover{background:rgba(252,163,17,.09)}.tt-seg-x{opacity:.28;margin:0 1px 0 3px;padding:0 3px;color:#F87171;font-size:11px;font-weight:800;line-height:1;background:none;border:none;cursor:pointer;vertical-align:baseline}.tt-seg:hover .tt-seg-x{opacity:1}`}</style>
+      {empty ? (
+        <div style={{ color: NEON.muted, fontSize: 12.5 }}>
+          {recording
+            ? (liveAvailable ? "Listening — start talking." : "Listening. This browser has no live text, so words land in seconds via Whisper.")
+            : "Press Space to start talking, or import a transcript."}
+        </div>
+      ) : (
+        <div style={{ fontSize: TRANSCRIPT_PX, lineHeight: 1.65, fontWeight: 400, color: TRANSCRIPT_INK, whiteSpace: "pre-wrap" }}>
+          {shown.map((s, i) => (
+            <span key={s.id} className="tt-seg" title={`[S${s.seq}]${s.focusedCeqLabel ? ` · ${s.focusedCeqLabel}` : ""}${s.whisperPending ? " · Whisper pending" : ""}`}>
+              {i > 0 ? " " : ""}{s.text.trim()}
+              <button className="tt-seg-x" title="Delete this segment (archived — undo below)" onClick={() => onDelete(s)}>×</button>
+            </span>
+          ))}
+          {liveFinal ? (shown.length ? " " : "") + liveFinal : ""}
+          {interim ? <span style={{ color: NEON.muted }}>{(shown.length || liveFinal ? " " : "") + interim}</span> : null}
+          <span ref={tailRef} />
+          {recording && <span style={{ color: GOLD }}>▌</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SegmentLine({ seg, ctx, onDelete }: { seg: TalkSegment; ctx?: TalkTag | null; onDelete?: (s: TalkSegment) => void }) {
+  if (!seg.text) return null;
+  return (
+    <div style={{ fontSize: 12, lineHeight: 1.5, color: TRANSCRIPT_INK }}>
+      <span style={{ color: NEON.muted, fontSize: 10.5 }}>[S{seg.seq}]{seg.focusedCeqLabel ? ` ${seg.focusedCeqLabel} · ` : " "}</span>
+      {ctx && <StampChip label={stampLabel(ctx.tag)} />}
+      {seg.text}
+      {seg.whisperPending && <span title="Live text — Whisper canonical copy pending" style={{ color: GOLD, fontSize: 10, marginLeft: 6 }}>◌ pending</span>}
+      {onDelete && (
+        <button title="Delete this segment (archived, not deleted)" onClick={() => onDelete(seg)}
+          style={{ color: "#F87171", background: "none", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 800, marginLeft: 6, opacity: 0.6 }}>
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
+function StampChip({ label }: { label: string }) {
+  return (
+    <span className="rounded-full px-1.5" style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: GOLD, border: `1px solid ${GOLD}55`, marginRight: 5, verticalAlign: "middle" }}>
+      {label}
+    </span>
+  );
+}

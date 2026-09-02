@@ -9,24 +9,28 @@
 // video, and seeing the two that don't exist yet is what makes that obvious —
 // to Lee tomorrow, and to whoever builds them.
 //
-// V3 is Blast Off only, so that is the one door that opens.
-import { createFileRoute, Link } from "@tanstack/react-router";
+// V3 is Blast Off only, so that is the one door that opens — and it opens
+// INTO V3 (/v3/$topic/$set/blast-off), not out to the old /blast-off. Lee, on
+// the move (2026-09-02): "the design is right, the route is wrong."
+//
+// This is an INDEX route (v3.$topic.$set.index.tsx) so the blast-off screens
+// are flat siblings under the same URL prefix rather than children rendered
+// inside this one — each screen is its own whole surface.
+import { createFileRoute } from "@tanstack/react-router";
 import { GraduationCap, Rocket, ClipboardList } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 
-import { useBank, findSet, findTopic, slugOf } from "@/components/v3/use-bank";
-import { V3Shell, V3Note, V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
+import { Door } from "@/components/v3/Door";
+import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
+import { V3Shell, V3Note, V3_DISPLAY, V3_MUTED } from "@/components/v3/Shell";
 
-export const Route = createFileRoute("/v3/$topic/$set")({
+export const Route = createFileRoute("/v3/$topic/$set/")({
   component: V3Set,
   head: () => ({ meta: [{ title: "⚡ Survive — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
 
 function V3Set() {
   const { topic: topicKey, set: setKey } = Route.useParams();
-  const { topics, error } = useBank();
-  const topic = topics ? findTopic(topics, topicKey) : undefined;
-  const set = topic ? findSet(topic, setKey) : undefined;
+  const { topics, error, topic, set } = useV3Set(topicKey, setKey);
 
   return (
     <V3Shell
@@ -58,8 +62,8 @@ function V3Set() {
             <Door
               icon={Rocket}
               title="Blast Off"
-              blurb="Arrange the running order, edit the slides, film it."
-              to="/blast-off"
+              blurb="Talk through the set, arrange the running order, film it."
+              to={blastOffPath(topic, set)}
             />
             <Door icon={ClipboardList} title="Practice" blurb="The question set students work through." soon />
             <Door icon={GraduationCap} title="Review" blurb="The long-form walkthrough video." soon />
@@ -68,40 +72,4 @@ function V3Set() {
       )}
     </V3Shell>
   );
-}
-
-/** One door. Big enough to hit without aiming, and honest about being closed. */
-function Door({ icon: Icon, title, blurb, to, soon }: {
-  icon: LucideIcon; title: string; blurb: string; to?: string; soon?: boolean;
-}) {
-  const body = (
-    <>
-      <Icon style={{ width: 30, height: 30, color: soon ? V3_MUTED : V3_GOLD }} />
-      <span style={{ fontFamily: V3_DISPLAY, fontSize: 21, fontWeight: 900, marginTop: 12, color: soon ? V3_MUTED : V3_CREAM }}>
-        {title}
-      </span>
-      <span style={{ fontSize: 12.5, color: V3_MUTED, marginTop: 6, lineHeight: 1.4 }}>{blurb}</span>
-      {soon && (
-        <span style={{ marginTop: 10, fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: V3_MUTED, border: `1px solid ${V3_EDGE}`, borderRadius: 5, padding: "2px 7px" }}>
-          later
-        </span>
-      )}
-    </>
-  );
-
-  const box: React.CSSProperties = {
-    width: 250, minHeight: 190,
-    display: "flex", flexDirection: "column", alignItems: "flex-start",
-    border: `1.5px solid ${soon ? V3_EDGE : "rgba(252,163,17,0.55)"}`,
-    borderRadius: 18, padding: "22px 20px",
-    textAlign: "left", textDecoration: "none",
-    background: soon ? "transparent" : "rgba(252,163,17,0.06)",
-    opacity: soon ? 0.55 : 1,
-    cursor: soon ? "not-allowed" : "pointer",
-  };
-
-  if (soon || !to) {
-    return <div style={box} aria-disabled>{body}</div>;
-  }
-  return <Link to={to} style={box} className="transition-colors hover:bg-white/5">{body}</Link>;
 }

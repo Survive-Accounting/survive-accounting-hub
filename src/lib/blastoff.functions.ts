@@ -8,6 +8,7 @@
 // plan is production data.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { BLAST_FRAME_KINDS } from "@/components/blastoff/plan";
 
 /** Scene JSON is the store — same door talkthrough.functions.ts uses. */
 const admin = async () => {
@@ -18,7 +19,7 @@ function rethrow(e: { code?: string; message: string }): never { throw new Error
 
 const frameSchema = z.object({
   id: z.string().min(1).max(80),
-  kind: z.enum(["ceq", "phrase", "cheat", "tip", "exhibit", "blank"]),
+  kind: z.enum(BLAST_FRAME_KINDS),
   ceqId: z.string().max(130).optional(),
   text: z.string().max(4000).optional(),
   title: z.string().max(400).optional(),
