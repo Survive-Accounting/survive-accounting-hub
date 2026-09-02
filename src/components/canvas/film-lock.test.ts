@@ -47,8 +47,11 @@ describe("the film popout enforces the lock (source-level pins)", () => {
     // for the rest of the take without anything on screen saying so.
     const latch = previewerSrc.slice(previewerSrc.indexOf("// ALT LATCH"), previewerSrc.indexOf("// FILM INLINE (R1)"));
     expect(latch).toContain('w.addEventListener("blur", off)');
-    expect(latch).toContain("const off = () => setAltHeld(false);");
-    expect(latch).toContain("setAltHeld(false);");            // and on unmount
+    // Clearing must drop BOTH the local flag and the shared store — the store is
+    // what every card's resizer reads, so a stranded `true` there arms handles
+    // on a surface with no film left to disarm them.
+    expect(latch).toContain("const off = () => { setAltHeld(false); setAltRearrange(false); };");
+    expect(latch).toContain("      off(); // BOTH the local flag and the shared store");   // unmount
   });
   test("film drag-stop persists ARROWS ONLY — a card/memo move on camera never saves", () => {
     // The popout's onNodeDragStop must keep its ah:-only guard.

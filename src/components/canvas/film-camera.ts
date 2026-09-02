@@ -71,6 +71,14 @@ interface Snap {
   pin: PinTarget | null;
   /** Lee's toggle. Off ⇒ cards render where their own geometry says. */
   pinOn: boolean;
+  /** ALT IS HELD — the film surface is temporarily in rearrange mode.
+   *
+   *  Lives here rather than in CeqPreviewer's state because the RESIZE handles
+   *  are drawn by ElementResizer, deep inside each card, which has no way to
+   *  reach the previewer. It renders nothing at all in film (isVisible gates on
+   *  !film), which is why CSS could not bring the handles back — there was no
+   *  DOM to un-hide. Cards read this to know the lock is lifted. */
+  altRearrange: boolean;
 }
 
 // ---- MODULE STATE, TDZ-IMMUNE (read tdz-hazards.test.ts before touching) ----
@@ -98,7 +106,7 @@ var listeners: Set<() => void> | undefined;
 
 /** The live snapshot, materialised on first read. */
 function state(): Snap {
-  if (!snap) snap = { manual: false, home: null, live: null, pin: null, pinOn: true };
+  if (!snap) snap = { manual: false, home: null, live: null, pin: null, pinOn: true, altRearrange: false };
   return snap;
 }
 
@@ -111,7 +119,7 @@ function emit(p: Partial<Snap>): void {
   const cur = state();
   const next = { ...cur, ...p };
   // Cheap equality guard: these fire on every pointermove during a pan.
-  if (next.manual === cur.manual && next.pinOn === cur.pinOn && next.pin === cur.pin
+  if (next.manual === cur.manual && next.pinOn === cur.pinOn && next.pin === cur.pin && next.altRearrange === cur.altRearrange
     && sameVp(next.home, cur.home) && sameVp(next.live, cur.live)) return;
   snap = next;
   subs().forEach((fn) => fn());
@@ -239,3 +247,11 @@ export function atHome(vp: Viewport | null, home: Viewport | null): boolean {
   if (!vp || !home) return true;
   return Math.abs(vp.zoom - home.zoom) < 1e-3 && Math.abs(vp.x - home.x) < 0.5 && Math.abs(vp.y - home.y) < 0.5;
 }
+
+/** Alt down / up on a film surface. Cards read this through useAltRearrange. */
+export function setAltRearrange(on: boolean): void {
+  if (state().altRearrange !== on) emit({ altRearrange: on });
+}
+
+/** Is the film lock temporarily lifted? For cards that draw their own chrome. */
+export function altRearrangeOn(): boolean { return state().altRearrange; }

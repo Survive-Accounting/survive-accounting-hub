@@ -2,12 +2,13 @@
 // BRIDGE placeholder cards. Elements never join the deck, never flip, carry no
 // teaching settings: chrome is exactly clone · × · position-lock (+ resize).
 // Gates are VISUAL PLACEHOLDERS ONLY — real gating ships with World v1.
-import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
 import { AlignCenter, AlignLeft, Braces, Clapperboard, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, SunDim, UserRoundPlus, Volume2, X } from "lucide-react";
 
 import { useFrameNav } from "../FrameNavContext";
 import { isTypingTarget, useFilm } from "../film-lock";
+import { altRearrangeOn, subscribeFilmCamera } from "../film-camera";
 import { playSfx } from "../sfx";
 
 import { BaseCard, CardWriteCtx, useCardActions } from "../BaseCard";
@@ -83,6 +84,16 @@ export function ElementResizer({ id, selected, minWidth, minHeight, keepAspect =
   // "card randomly resizes" incident — onResizeEnd PERSISTS w/h, while film drags
   // don't, so the card kept a stuck size under rubber-banding positions.
   const film = useFilm();
+  // ALT LIFTS THE LOCK (Lee, 2026-09-02). Handles stay off on camera — that is
+  // the point of the lock — but holding Alt puts the surface in rearrange mode,
+  // and then a corner has to be grabbable or "alt to resize" is a promise the UI
+  // never keeps. Read from the shared film-camera store: this component sits
+  // deep inside a card with no path to the previewer's state.
+  //
+  // The PERSISTENCE half of the incident above is still prevented — see the
+  // guard in onResizeEnd. An alt resize is a performance move like an alt drag:
+  // it lasts the take and the next deal restores the authored size.
+  const alt = useSyncExternalStore(subscribeFilmCamera, altRearrangeOn, altRearrangeOn);
   // WRITE BRIDGE (Lee, resize-revert fix): when a host provides CardWriteCtx
   // (the Studio previewer), the resize must persist to the MAIN store or the
   // next re-seed reverts it. No bridge = the main canvas = local rf is truth.
@@ -90,7 +101,7 @@ export function ElementResizer({ id, selected, minWidth, minHeight, keepAspect =
   const { updateFn } = useCardActions(id);
   return (
     <NodeResizer
-      isVisible={!!selected && !film}
+      isVisible={!!selected && (!film || alt)}
       minWidth={minWidth}
       minHeight={minHeight}
       keepAspectRatio={keepAspect}
@@ -106,6 +117,12 @@ export function ElementResizer({ id, selected, minWidth, minHeight, keepAspect =
         if (!before) return;
         const w = Math.max(minWidth, Math.round(p.width));
         const h = Math.max(minHeight, Math.round(p.height));
+        // FILM NEVER PERSISTS GEOMETRY. An alt resize on camera is a performance
+        // move, exactly like an alt drag — it holds for the take and the next
+        // deal restores the authored size. Writing it here is precisely the
+        // "card randomly resizes" incident: a stuck size under rubber-banding
+        // positions, because drags don't save and resizes did.
+        if (film) return;
         if (bridge) {
           // PERSIST to the main store (undoable). Staged elements also carry the
           // position delta into data.stage — frame-local, so yOff cancels out.

@@ -60,7 +60,7 @@ import { triageLatest } from "./takes-store";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./film-lock";
 import {
   atHome, autoFitAllowed, getFilmCamera, markCameraManual, mirrorViewport, pinTransform,
-  publishFilmViewport, releaseCamera, setFilmHome, setPinTarget, subscribeFilmCamera, togglePin,
+  publishFilmViewport, releaseCamera, setAltRearrange, setFilmHome, setPinTarget, subscribeFilmCamera, togglePin,
 } from "./film-camera";
 import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
@@ -461,6 +461,26 @@ function FrameBgNode({ id, data }: NodeProps) {
 /** Practice state for INERT stand-ins (film stack, A2): always the base state. */
 const INERT_PRACTICE: { emph: number | null; resolved: Set<number>; select?: (i: number) => void; resolveChoice?: (i: number) => void; toggleBoss?: () => void } = { emph: null, resolved: new Set() };
 export function CeqPreviewNode({ id, data }: NodeProps) {
+  // THE PILL (Lee, 2026-09-02) — "when I zoom on some slides there's this weird
+  // pill thing in the way."
+  //
+  // A BARE FRAME is a callout with `callout.hidden` — types.ts says it plainly:
+  // "the callout card itself is hidden — the frame is just its staged elements".
+  // The bookends use it, because their visual IS the blast element (intro, bio,
+  // outro, logo) and the card is only carrying a label like "Bio — Lee Ingram".
+  //
+  // But `hidden` only ever suppressed the STEM. The card's own cream box, border
+  // and shadow kept rendering, so a bare frame drew an empty PAPER.card pill on
+  // top of the artwork — a pale smudge at frame-fill zoom, a white slab across
+  // the wordmark once Lee zoomed in.
+  //
+  // On camera a hidden card is hidden: the box paints nothing. In AUTHORING it
+  // still paints, because that box is the only handle for finding a bare frame
+  // and switching it back on — invisible everywhere would strand it.
+  //
+  // Done by style rather than an early return: this component runs a long list
+  // of hooks, and returning before them would change hook order the moment a
+  // frame's `hidden` flipped. See `bareFilm` below.
   // INERT (film stack, A2): this card is a fully-rendered stand-in for a NON-ACTIVE
   // frame — practice/emphasis state belongs to the active question only, so an
   // inert card always shows its clean base state. Same id + type as the live card,
@@ -512,6 +532,9 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
   // reading card. Affordances are AUTHORING-ONLY (film shows the finished face);
   // writes go through the main store like any other card edit (undoable).
   const isCallout = !d.layoutBadge && (d.choices?.length ?? 0) === 0;
+  /** A BARE FRAME on camera — see the note at the top. The card contributes
+   *  nothing visual; the frame is its staged elements. */
+  const bareFilm = film && isCallout && !!d.callout?.hidden;
   const rflW = useContext(CardWriteCtx);
   const patchCallout = (patch: Partial<CalloutSettings>) => {
     if (!rflW) return;
@@ -528,7 +551,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
     setBulletEdit(null);
   };
   return (
-    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
+    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: bareFilm ? "transparent" : PAPER.card, border: bareFilm ? "none" : d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: bareFilm ? "none" : "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
       {/* BOSS (P3): the boiling bolt sweeps in with the charge — no text, no sound. */}
       {/* The persistent top-right boss bolt is GONE (Lee, 08-17): it collided with
           the counter, and a bolt standing in frame is a burned-in watermark — the
@@ -1952,9 +1975,9 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   useEffect(() => {
     const wins = [window, filmWin].filter((w): w is Window => !!w);
     const seen = new Set<Window>();
-    const down = (e: KeyboardEvent) => { if (e.altKey) setAltHeld(true); };
-    const up = (e: KeyboardEvent) => { if (!e.altKey) setAltHeld(false); };
-    const off = () => setAltHeld(false);
+    const down = (e: KeyboardEvent) => { if (e.altKey) { setAltHeld(true); setAltRearrange(true); } };
+    const up = (e: KeyboardEvent) => { if (!e.altKey) { setAltHeld(false); setAltRearrange(false); } };
+    const off = () => { setAltHeld(false); setAltRearrange(false); };
     for (const w of wins) {
       if (seen.has(w)) continue;                       // filmWin === window when inline
       seen.add(w);
@@ -1963,7 +1986,9 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       w.addEventListener("blur", off);
     }
     return () => {
-      setAltHeld(false);
+      off(); // BOTH the local flag and the shared store — unmounting mid-hold
+             // would otherwise leave every card's resizer armed with no film
+             // surface left to turn it off.
       for (const w of seen) {
         w.removeEventListener("keydown", down);
         w.removeEventListener("keyup", up);
