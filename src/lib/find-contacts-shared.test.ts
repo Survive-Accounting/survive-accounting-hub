@@ -61,11 +61,11 @@ describe("the blocking rules (§9 Do not)", () => {
     expect(f.some((x) => x.code === "no_contact" && x.level === "block")).toBe(true);
     expect(canImport(r, f)).toBe(false);
   });
-  it("blocks a row with no source URL", () => {
+  it("warns about a missing source URL but does not block it", () => {
     const r = row({ id: "a", sourceUrl: null });
     const f = flagRows([r]).get("a")!;
-    expect(f.some((x) => x.code === "no_source" && x.level === "block")).toBe(true);
-    expect(canImport(r, f)).toBe(false);
+    expect(f.some((x) => x.code === "no_source" && x.level === "warn")).toBe(true);
+    expect(canImport(r, f)).toBe(true); // a hand-entered contact still saves
   });
   it("blocks a duplicate of a contact already on the campus — never overwrites", () => {
     const r = row({ id: "a", email: "gking@olemiss.edu" });

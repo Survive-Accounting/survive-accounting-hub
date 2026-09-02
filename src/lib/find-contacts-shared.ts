@@ -121,7 +121,9 @@ export function flagRows(
     const handle = normalizeHandle(r.instagram);
 
     if (!hasContactMethod(r)) f.push({ level: "block", code: "no_contact", message: "no contact method — will be skipped" });
-    if (!r.sourceUrl) f.push({ level: "block", code: "no_source", message: "no source URL — unverifiable" });
+    // A missing source URL is a note, not a blocker — a hand-entered contact never has one, and the
+    // server never required it. Only "no contact method" and duplicates actually stop a row.
+    if (!r.sourceUrl) f.push({ level: "warn", code: "no_source", message: "no source URL" });
 
     if (email && isRoleAccountEmail(email)) f.push({ level: "warn", code: "role_email", message: "email looks like a role account" });
     if (handle && (handleCount.get(handle) ?? 0) > 1) f.push({ level: "warn", code: "shared_ig", message: "Instagram matches another row — org account, not a person" });
