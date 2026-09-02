@@ -383,6 +383,10 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const ctx = openContext(allTags, session.id);
   const segs = sessionSegments(tt.doc, session.id);
   const recent = segs.slice(-showCount);
+  /** The committed prose of this session, as one paragraph. Archived segments are
+   *  already filtered out upstream; empty ones (a chunk that shipped before any
+   *  words landed) would otherwise show as double spaces. */
+  const paragraphText = segs.map((s) => s.text.trim()).filter(Boolean).join(" ");
   const stars = allTags.filter((t) => t.starred && !t.archivedAt);
   // CEQs that already carry stamps/stars this session — lit gold in the tree.
   const stampedCeqIds = useMemo(
@@ -469,6 +473,10 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   // latest through this ref so it never has to re-bind.
   const keys = useRef({ stamp, surfCeq, selStamp, flatStamps });
   keys.current = { stamp, surfCeq, selStamp, flatStamps };
+  /** Space's start/stop. A ref because startMic/pauseMic are declared BELOW this
+   *  listener — reading them directly here would be an in-component dead zone,
+   *  the same shape that has taken this canvas down twice. */
+  const toggleMicRef = useRef<() => void>(() => {});
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -484,7 +492,14 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
       if (e.key === "ArrowDown" || e.key === "ArrowRight") move(1);
       else if (e.key === "ArrowUp" || e.key === "ArrowLeft") move(-1);
       else if (e.key === "Enter") { if (k.selStamp) { e.preventDefault(); k.stamp(k.selStamp); } }
-      else if (e.key === " ") { e.preventDefault(); k.surfCeq(e.shiftKey ? -1 : 1); }
+      // SPACE = START / STOP TALKING (Lee, 2026-09-01). A toggle, not push-to-
+      // talk: press once and talk for as long as you like, press again to stop.
+      // Space used to surf questions, which is the wrong thing to give the
+      // biggest key on the keyboard in a dictation tool.
+      else if (e.key === " ") { e.preventDefault(); toggleMicRef.current(); }
+      // Question surfing moves to Tab / Shift+Tab — "next field" semantics, and
+      // the browser's own use of it is preventDefault'd here.
+      else if (e.key === "Tab") { e.preventDefault(); k.surfCeq(e.shiftKey ? -1 : 1); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -492,6 +507,7 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
 
   const startMic = () => { setMicError(null); setPaused(false); rec.start().catch((e) => setMicError(e instanceof Error ? e.message : String(e))); };
   const pauseMic = () => { rec.stop(); setPaused(true); }; // mic RELEASED; session stays open
+  toggleMicRef.current = () => { if (status.recording) pauseMic(); else startMic(); };
 
   return (
     <div className="flex gap-4" style={{ alignItems: "stretch", minHeight: "78vh" }}>
@@ -548,21 +564,37 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
           </div>
         )}
 
-        {/* transcript — scrollback upward (B1.4), grouped by context chip */}
-        <div className="mt-6 flex flex-col gap-1.5">
-          <GhostSweep doc={tt.doc} sessionId={session.id} />
-          {segs.length > showCount && (
-            <button className="text-left" style={{ color: NEON.muted, fontSize: 11, background: "transparent", border: "none", cursor: "pointer" }} onClick={() => setShowCount((n) => n + 50)}>
-              earlier ↑ ({segs.length - showCount} more)
-            </button>
-          )}
-          {recent.map((s) => <SegmentLine key={s.id} seg={s} ctx={contextOfSegment(s, allTags)} />)}
-          {status.recording && (
-            <div style={{ fontSize: 13, color: GOLD, fontStyle: "italic", minHeight: 20 }}>
-              {status.interim || (status.liveAvailable ? "…" : "listening (Whisper text lands in seconds)…")}
-            </div>
-          )}
-        </div>
+        {/* THE FLOWING PARAGRAPH (Lee, 2026-09-01) — dictation should read like
+            Speechnotes: one paragraph that grows as you talk, not a stack of
+            segment lines that appear a chunk at a time.
+            The tail of a live dictation is three parts, and all three have to
+            be on screen or text seems to vanish and come back:
+              shipped segments (committed)  +  liveFinal (this chunk so far)
+                                            +  interim (the words mid-air)
+            Interim is dimmed so it reads as "still settling" without jumping. */}
+        <LiveParagraph
+          text={paragraphText}
+          liveFinal={status.recording ? status.liveFinal : ""}
+          interim={status.recording ? status.interim : ""}
+          recording={status.recording}
+          liveAvailable={status.liveAvailable}
+        />
+
+        {/* the record, by segment — still the audit trail, now secondary */}
+        <details className="mt-4">
+          <summary style={{ color: NEON.muted, fontSize: 11, cursor: "pointer" }}>
+            by segment ({segs.length}) — context chips, [S#] anchors, Whisper status
+          </summary>
+          <div className="mt-2 flex flex-col gap-1.5">
+            <GhostSweep doc={tt.doc} sessionId={session.id} />
+            {segs.length > showCount && (
+              <button className="text-left" style={{ color: NEON.muted, fontSize: 11, background: "transparent", border: "none", cursor: "pointer" }} onClick={() => setShowCount((n) => n + 50)}>
+                earlier ↑ ({segs.length - showCount} more)
+              </button>
+            )}
+            {recent.map((s) => <SegmentLine key={s.id} seg={s} ctx={contextOfSegment(s, allTags)} />)}
+          </div>
+        </details>
       </div>
 
       {/* RIGHT — recorder, prompter, THE STAMP BOARD */}
@@ -648,7 +680,7 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
           </div>
         ))}
         <div style={{ color: NEON.muted, fontSize: 9.5, lineHeight: 1.5 }}>
-          ⌨ ↑↓←→ select a stamp · Enter start/stop it · Space next Q · Shift+Space back
+          ⌨ Space start/stop talking · Tab next Q · Shift+Tab back · ↑↓←→ pick a stamp · Enter fire it
         </div>
 
         <div className="mt-auto flex flex-col gap-2">
@@ -797,6 +829,55 @@ function GhostSweep({ doc, sessionId }: { doc: TTDoc; sessionId: string }) {
       <div style={{ fontSize: 9.5, color: NEON.muted, marginTop: 4 }}>
         Only whisper-sourced lines are offered — anything the live mic heard is yours and is never listed. Removal archives; it never deletes.
       </div>
+    </div>
+  );
+}
+
+/** THE DICTATION VIEW — one growing paragraph, Speechnotes-style.
+ *
+ *  Three tiers of certainty, rendered as one sentence so the eye never has to
+ *  reassemble them: committed prose, then this chunk's finalised words, then the
+ *  interim tail that is still settling. Only the last is dimmed — anything more
+ *  and the text strobes as words graduate between tiers while Lee is talking.
+ *
+ *  Auto-scrolls to the tail, but ONLY while recording: reading back a finished
+ *  session should not yank you to the bottom. */
+function LiveParagraph({ text, liveFinal, interim, recording, liveAvailable }: {
+  text: string; liveFinal: string; interim: string; recording: boolean; liveAvailable: boolean;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const tailRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!recording) return;
+    tailRef.current?.scrollIntoView({ block: "end" });
+  }, [text, liveFinal, interim, recording]);
+
+  const empty = !text && !liveFinal && !interim;
+  return (
+    <div
+      ref={boxRef}
+      className="mt-5"
+      style={{
+        maxHeight: "38vh", overflowY: "auto",
+        background: "rgba(9,13,26,0.55)", border: `1px solid ${NEON.borderSoft}`,
+        borderRadius: 14, padding: "16px 18px",
+      }}
+    >
+      {empty ? (
+        <div style={{ color: NEON.muted, fontSize: 14 }}>
+          {recording
+            ? (liveAvailable ? "Listening — start talking." : "Listening. This browser has no live text, so words land in seconds via Whisper.")
+            : "Press Space to start talking."}
+        </div>
+      ) : (
+        <div style={{ fontSize: 18, lineHeight: 1.6, color: NEON.text, whiteSpace: "pre-wrap" }}>
+          {text}
+          {liveFinal ? (text ? " " : "") + liveFinal : ""}
+          {interim ? <span style={{ color: NEON.muted }}>{(text || liveFinal ? " " : "") + interim}</span> : null}
+          <span ref={tailRef} />
+          {recording && <span style={{ color: GOLD }}>▌</span>}
+        </div>
+      )}
     </div>
   );
 }
