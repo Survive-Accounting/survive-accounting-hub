@@ -118,18 +118,27 @@ export function CompactLockup({ size = 19, courseCode, morphed = false }: { size
     mq.addEventListener?.("change", read);
     return () => mq.removeEventListener?.("change", read);
   }, []);
-  const boltH = Math.round(size * 0.74);
-  return (
-    <span style={{ display: "inline-flex", alignItems: "baseline", gap: size * 0.38, lineHeight: 1, whiteSpace: "nowrap" }}>
-      <style>{`@keyframes sa-wm-flash{from{opacity:0;transform:scale(0.45)}to{opacity:1;transform:scale(1)}}.sa-wm-bolt{animation:sa-wm-flash 240ms ease}@media (prefers-reduced-motion: reduce){.sa-wm-bolt{animation:none}}`}</style>
+  // The bolt OVERSHOOTS the wordmark like the footer logo — ~1.5x the cap height, so it breaks past
+  // the letterforms rather than sitting inside them like a bullet. It overshoots without growing the
+  // line: the layout box is only cap-height tall, and the larger bolt is centred inside it and
+  // painted past its edges (overflow visible), so the nav height never changes.
+  const boltH = Math.round(size * 1.05);
+  const boltW = Math.round(boltH * 0.74);
+  const capH = Math.round(size * 0.62);
+  const boltPad = Math.round(size * 0.1); // tighter than the text gap — a bigger bolt with the old
+  return (                                //   gaps reads as three separate elements, not one lockup.
+    <span style={{ display: "inline-flex", alignItems: "baseline", gap: size * 0.3, lineHeight: 1, whiteSpace: "nowrap", overflow: "visible" }}>
+      <style>{`@keyframes sa-wm-flash{from{opacity:0;transform:scale(0.4)}to{opacity:1;transform:scale(1)}}.sa-wm-bolt{animation:sa-wm-flash 240ms ease}@media (prefers-reduced-motion: reduce){.sa-wm-bolt{animation:none}}`}</style>
       <span style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, letterSpacing: "-0.01em", color: "var(--brand-cream, #F5EFE6)" }}>survive</span>
       {courseCode ? (
-        <span style={{ display: "inline-flex", alignItems: "baseline" }}>
+        <span style={{ display: "inline-flex", alignItems: "baseline", overflow: "visible" }}>
           {/* THE BOLT between the words (p6 §9) — appears only with the code, campus-tinted, flashes
-              in with a quick scale-and-fade. Not rendered (no reserved gap) until the code shows. */}
+              in with a quick scale-and-fade, and overshoots the letterforms. */}
           {showCode && (
-            <span className="sa-wm-bolt" aria-hidden style={{ display: "inline-block", width: Math.round(boltH * 0.74), height: boltH, alignSelf: "center", margin: `0 ${Math.round(size * 0.16)}px` }}>
-              <BoltBoil height={boltH} boilFrame={reduced ? 0 : undefined} />
+            <span className="sa-wm-bolt" aria-hidden style={{ position: "relative", display: "inline-block", width: boltW, height: capH, alignSelf: "center", margin: `0 ${boltPad}px`, overflow: "visible" }}>
+              <span style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: boltW, height: boltH, display: "block" }}>
+                <BoltBoil height={boltH} boilFrame={reduced ? 0 : undefined} />
+              </span>
             </span>
           )}
           <span style={{ display: "inline-grid", alignItems: "baseline" }}>
