@@ -42,16 +42,24 @@ export const Route = createFileRoute("/$school/")({
   },
   head: ({ loaderData: d }) => {
     if (!d) return {};
-    // Missing course code ⇒ HOME copy rather than an empty token; the campus-colorway card still
-    // applies because the campus itself is known.
+    // THE CARD SAYS THE STUDENT'S OWN COURSE. A texted link should show their school before they
+    // tap it — the og:title is the page's own hero line, so the preview and the page agree. Missing
+    // course code ⇒ HOME copy rather than an empty token; the campus colourway card still applies
+    // because the campus itself is known.
+    const short = d.name || d.slug;
     const copy = d.courseCode
       ? {
-          title: `Survive your ${d.courseCode} exams.`,
-          description: `Cram videos + practice exams built for ${d.courseCode}. Get help from a tutor who's helped 1,000+ students. Start for free, no account needed.`,
+          title: `${d.courseCode} at ${short} is where GPAs quietly slip.`,
+          description: "Cram what's on your exam. Exam 1 is free.",
         }
       : HOME_OG;
     return {
-      meta: ogMeta({ ...copy, path: `/${d.slug}`, image: campusOgImage(d.slug) }),
+      meta: [
+        // The TAB/search title is the searchable one — course code, campus, brand. The og:title
+        // above is the hero line, which is the better hook in a text message.
+        ...(d.courseCode ? [{ title: `${d.courseCode} at ${short} — Survive Accounting` }] : []),
+        ...ogMeta({ ...copy, path: `/${d.slug}`, image: campusOgImage(d.slug) }),
+      ],
       links: [{ rel: "canonical", href: `${ORIGIN}/${d.slug}` }],
     };
   },

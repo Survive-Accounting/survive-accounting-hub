@@ -13,10 +13,16 @@ export const SITE_ORIGIN = "https://surviveaccounting.com";
 /** The HOME copy — also the universal fallback when a dynamic page is missing the data its own
  *  template needs. A generic-but-correct card always beats "Survive your {COURSE_CODE} exams." */
 export const HOME_OG = {
-  title: "Survive your Intro Accounting exams.",
-  description:
-    "Cram videos + practice exams for intro accounting. Get help from a tutor who's helped 1,000+ students. Start for free, no account needed.",
+  // MATCHES THE PAGE. "Survive your Intro Accounting exams." is not a line that appears anywhere on
+  // the site any more, and the preview is the first thing a student reads when a friend texts them
+  // the link — it should say what the page says.
+  title: "Cram what's on your exam.",
+  description: "Cram videos and practice exams for intro accounting. Exam 1 is free.",
 };
+
+/** The browser-tab and search-result title for the root and every non-campus page. Longer than the
+ *  og:title on purpose: a preview wants the promise, a search result wants the brand with it. */
+export const HOME_TITLE = "Survive Accounting — Cram what's on your exam.";
 
 export const DEFAULT_OG_IMAGE = `${SITE_ORIGIN}/og-card.png`;
 
