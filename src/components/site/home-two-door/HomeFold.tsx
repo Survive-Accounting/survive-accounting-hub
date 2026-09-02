@@ -77,10 +77,13 @@ export function GreekLettersIcon({ letters }: { letters?: string[] } = {}) {
     return () => window.clearInterval(t);
   }, [reduced, pinned]);
 
-  const color = "var(--bolt-primary, #C62828)";
+  // CREAM, not campus-tinted (p6 §4): school colours belong to the campus; Greek letters belong to
+  // chapters, so tinting them in school colours implies the chapter IS the school. Bigger, too, to
+  // match the bolt's optical weight on the solo card.
+  const color = "var(--brand-cream, #F5EFE6)";
   const trioA = letters ?? GREEK_TRIOS[cf.a];
   const trioB = letters ?? GREEK_TRIOS[cf.b];
-  const textProps = { textAnchor: "middle" as const, x: 50, y: 63, fontSize: 34, letterSpacing: 5, style: { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 800 } };
+  const textProps = { textAnchor: "middle" as const, x: 50, y: 66, fontSize: 46, letterSpacing: 3, style: { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 800 } };
 
   return (
     <span aria-hidden style={{ display: "inline-block", width: SOLO_ICON_H * 1.05, height: SOLO_ICON_H }}>

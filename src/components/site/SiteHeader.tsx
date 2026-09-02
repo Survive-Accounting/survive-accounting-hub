@@ -13,7 +13,7 @@
 //   arrived on a shared link was simply stranded.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
+import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { scrollToId } from "@/lib/ui-scroll";
 import { useCampus } from "@/lib/campus-context";
 
@@ -108,13 +108,34 @@ export function CompactLockup({ size = 19, courseCode, morphed = false }: { size
   // moves; the two second-words are stacked in one grid cell so the lockup width never jumps.
   const second: React.CSSProperties = { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 700, fontSize: Math.max(9, size * 0.62), letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--brand-cream, #F5EFE6)" };
   const showCode = morphed && !!courseCode;
+  // reduced-motion read in an effect (SSR-safe first paint) — under it the bolt just appears, no
+  // flash and no boil.
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!mq) return;
+    const read = () => setReduced(mq.matches); read();
+    mq.addEventListener?.("change", read);
+    return () => mq.removeEventListener?.("change", read);
+  }, []);
+  const boltH = Math.round(size * 0.74);
   return (
     <span style={{ display: "inline-flex", alignItems: "baseline", gap: size * 0.38, lineHeight: 1, whiteSpace: "nowrap" }}>
+      <style>{`@keyframes sa-wm-flash{from{opacity:0;transform:scale(0.45)}to{opacity:1;transform:scale(1)}}.sa-wm-bolt{animation:sa-wm-flash 240ms ease}@media (prefers-reduced-motion: reduce){.sa-wm-bolt{animation:none}}`}</style>
       <span style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, letterSpacing: "-0.01em", color: "var(--brand-cream, #F5EFE6)" }}>survive</span>
       {courseCode ? (
-        <span style={{ display: "inline-grid", alignItems: "baseline" }}>
-          <span aria-hidden={showCode} style={{ gridArea: "1 / 1", ...second, opacity: showCode ? 0 : 0.6, transition: "opacity 260ms ease" }}>Accounting</span>
-          <span aria-hidden={!showCode} style={{ gridArea: "1 / 1", ...second, opacity: showCode ? 0.85 : 0, transition: "opacity 260ms ease" }}>{courseCode}</span>
+        <span style={{ display: "inline-flex", alignItems: "baseline" }}>
+          {/* THE BOLT between the words (p6 §9) — appears only with the code, campus-tinted, flashes
+              in with a quick scale-and-fade. Not rendered (no reserved gap) until the code shows. */}
+          {showCode && (
+            <span className="sa-wm-bolt" aria-hidden style={{ display: "inline-block", width: Math.round(boltH * 0.74), height: boltH, alignSelf: "center", margin: `0 ${Math.round(size * 0.16)}px` }}>
+              <BoltBoil height={boltH} boilFrame={reduced ? 0 : undefined} />
+            </span>
+          )}
+          <span style={{ display: "inline-grid", alignItems: "baseline" }}>
+            <span aria-hidden={showCode} style={{ gridArea: "1 / 1", ...second, opacity: showCode ? 0 : 0.6, transition: "opacity 260ms ease" }}>Accounting</span>
+            <span aria-hidden={!showCode} style={{ gridArea: "1 / 1", ...second, opacity: showCode ? 0.85 : 0, transition: "opacity 260ms ease" }}>{courseCode}</span>
+          </span>
         </span>
       ) : (
         <span style={{ ...second, opacity: 0.6 }}>Accounting</span>

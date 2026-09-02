@@ -18,7 +18,9 @@
 // icon envelope → title → description → button → support line, each slot the same height on
 // both sides. Any change to one card's structure must go through the shared pieces so the two
 // can never drift apart.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
@@ -43,13 +45,13 @@ import { rememberStudentEmail } from "@/lib/student-email";
 import { readTestSession } from "@/lib/test-mode";
 import { CHAPTER_BTN, DOOR_CARD_CSS, DOOR_CTA_VARS, DOOR_BTN_CLASS, SOLO_BTN } from "./DoorCard";
 import { GreekLettersIcon, HOME_FOLD_CSS, HomeDoorCard, HomeDoorRow, SoloBoltIcon } from "./HomeFold";
-import { MapPin } from "lucide-react";
+import { ArrowLeftRight } from "lucide-react";
 
 import { SchoolPickerSheet } from "./SchoolPickerSheet";
 import type { School as PickerSchool } from "@/lib/schools";
 
 import { CAMPUS_LINE_CSS } from "./campus-line";
-import { homeCourseCode, soloButtonLabel, soloSupport } from "./two-door-copy";
+import { soloButtonLabel } from "./two-door-copy";
 import { nbspCode } from "@/lib/course-code";
 
 /** The doors section's anchor. Also aliased by the legacy #exam1 anchor below it, because every
@@ -111,6 +113,10 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   // THE PICKER GATE (p1 §2): either door opens the school picker first; the hero swap opens the
   // same sheet. `pickerFor` records which flow to continue into once a school is chosen.
   const [pickerFor, setPickerFor] = useState<null | "switch" | "solo" | "chapter">(null);
+  // THE REBRAND FLOURISH (p6 §12) — a sub-400ms campus-colour flash on a pure school switch. Keyed
+  // by an incrementing id so a second switch remounts it (cancels the first, no backlog).
+  const [switchFx, setSwitchFx] = useState<null | { id: number; code: string; school: string; c1: string; c2: string }>(null);
+  const fxId = useRef(0);
 
   // Shared analytics context — attach what the page knows, never more.
   const ctx = () => ({ campus_id: campus.school?.id, course_code: campus.code ?? undefined });
@@ -137,6 +143,16 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
     setPickerFor(null);
     if (mode === "solo") setWaitlistOpen(true);
     else if (mode === "chapter") setFinderOpen(true);
+    else if (mode === "switch") {
+      // The rebrand flourish — switch mode only (the "flip through schools for fun" case; the door
+      // flows open a modal instead). Skipped under reduced motion, where the page just swaps.
+      const reduced = typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (!reduced) {
+        const c = boltFor(school.id);
+        fxId.current += 1;
+        setSwitchFx({ id: fxId.current, code: school.courseCode ? nbspCode(school.courseCode) : "", school: school.name, c1: c.c1, c2: c.c2 });
+      }
+    }
   };
 
   // WORDMARK-FOLLOWS-THE-COURSE (p4 §4) — once a course is resolved and the school badge scrolls
@@ -166,19 +182,22 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
         />
 
         {/* PROOF DIRECTLY UNDER THE CLAIM (p4 §2): the three checks sit right below the subhead,
-            above the doors — proof belongs next to the promise. */}
-        <div className="mb-7 sm:mb-8">
+            above the doors. Centered under the centered hero (p6 §3) — TrustChips left-aligns at
+            lg by default, which read as off-axis here. */}
+        <div className="sa-home-chips mb-7 sm:mb-8">
           <TrustChips onBio={() => setBioOpen(true)} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} />
         </div>
 
         {/* Legacy compatibility: every other page's navbar still links "/#exam1". */}
         <div id="exam1" className="sa-anchor" />
 
-        {/* THE SCHOOL BADGE (p4 §3) — the campus control, directly above the cards. */}
-        <SchoolBadge
+        {/* THE CAMPUS LINE (p6 §2 — reverted from the pill badge): "for ARKANSAS students ⇄", the
+            name in the campus colour with the switcher after it. Its id is the scroll anchor the
+            nav wordmark watches to morph "ACCOUNTING" into the course code. */}
+        <HomeCampusLine
           schoolName={campus.school?.name ?? null}
           schoolId={campus.school?.id ?? null}
-          onOpen={openSwitch}
+          onSwitch={openSwitch}
         />
 
         <TwoDoorCards
@@ -218,11 +237,16 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
             in Lee's voice, the three cards, then the SECONDARY Exam-1 catch (amber outline, never a
             second full-width primary competing with the hero's "Start cramming"). */}
         <section className="pt-16">
-          <h2 className="mx-auto max-w-[620px] text-center text-[24px] font-black leading-tight sm:text-[30px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
-            The exam looks nothing like the homework.
-          </h2>
-          <p className="mx-auto mt-4 max-w-[600px] text-center text-[15px] leading-relaxed sm:text-[16px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-secondary)" }}>
-            That&apos;s what students tell me every semester — the textbook, the quizzes, the lectures, and then exam day feels like a different course. Survive exists so exam day is the second time you&apos;ve seen the problem, not the first.
+          {/* p6 §7 — the headline reads stronger as something a student said: a quotation with
+              attribution, then the supporting paragraph with its now-redundant opening clause cut. */}
+          <blockquote className="mx-auto max-w-[620px] text-center" style={{ margin: 0 }}>
+            <p className="text-[24px] font-black leading-tight sm:text-[30px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+              &ldquo;The exam looks nothing like the homework.&rdquo;
+            </p>
+            <footer className="mt-2 text-[13.5px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>— what students tell me every semester</footer>
+          </blockquote>
+          <p className="mx-auto mt-5 max-w-[600px] text-center text-[15px] leading-relaxed sm:text-[16px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-secondary)" }}>
+            The textbook, the quizzes, the lectures — and then exam day feels like a different course. Survive exists so exam day is the second time you&apos;ve seen the problem, not the first.
           </p>
           <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} />
           <div className="mt-3 flex justify-center">
@@ -259,9 +283,10 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       <Footer onLanding />
 
       {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
-      {/* The Text-Lee bubble waits until the DOORS (the fold) have scrolled away, so it can never
-          overlap the chapter card's support copy (spec §11). */}
-      <FloatingContact heroId={DOORS_ID} tel={TEL} phone={PHONE} />
+      {/* The Text-Lee bubble waits until the DOORS scroll away, and sits in the very corner (p6 §1)
+          — no practice-stage bar here, so the 84px lift only pushed it into the CTA reading zone
+          where it covered "Send your syllabus →". 16px keeps it clear of that. */}
+      <FloatingContact heroId={DOORS_ID} tel={TEL} phone={PHONE} bottomOffset={16} />
       {waitlistOpen && (
         <Exam1LaunchModal
           campusId={schoolObj?.campusId ?? null}
@@ -288,6 +313,38 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
         />
       )}
       {syllabusOpen && <SyllabusModal school={schoolObj} onClose={() => setSyllabusOpen(false)} />}
+      {/* The rebrand flourish (p6 §12). Keyed by id so a rapid re-switch cancels the previous one. */}
+      {switchFx && (
+        <SwitchFlourish key={switchFx.id} code={switchFx.code} school={switchFx.school} c1={switchFx.c1} c2={switchFx.c2} onDone={() => setSwitchFx(null)} />
+      )}
+    </div>
+  );
+}
+
+/** THE SCHOOL-SWITCH FLOURISH (p6 §12) — a sub-400ms overlay: the campus-coloured bolt boils in the
+ *  centre with the DESTINATION beneath it ("ACCT 2013 · Arkansas", never "Loading" — nothing loads,
+ *  it is a client rebrand), and the campus colour washes through behind it as the bolt fades. The
+ *  overlay never blocks: pointer-events none, so the page stays interactive underneath. */
+function SwitchFlourish({ code, school, c1, c2, onDone }: {
+  code: string;
+  school: string;
+  c1: string;
+  c2: string;
+  onDone: () => void;
+}) {
+  useEffect(() => {
+    const t = window.setTimeout(onDone, 380);
+    return () => window.clearTimeout(t);
+  }, [onDone]);
+  return (
+    <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 200, pointerEvents: "none", display: "grid", placeItems: "center" }}>
+      <div className="sa-switchfx-wash" style={{ position: "absolute", inset: 0, background: `radial-gradient(60% 50% at 50% 44%, ${c1} 0%, transparent 72%)` }} />
+      <div className="sa-switchfx-core" style={{ position: "relative", display: "grid", justifyItems: "center", gap: 12 }}>
+        <BoltBoil height={96} red={c1} blue={c2} />
+        <span style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: 16, letterSpacing: "0.02em", color: "var(--brand-cream)" }}>
+          {code ? `${code} · ${school}` : school}
+        </span>
+      </div>
     </div>
   );
 }
@@ -320,37 +377,48 @@ function TwoDoorHero({ code, schoolName }: {
   );
 }
 
-/** THE SCHOOL BADGE (p4 §3) — the campus control, made visible, directly above the cards. Selecting
- *  a school rebrands the page in place (code, colours, bolt tint); the mechanism is unchanged, this
- *  is just a legible pill instead of a near-invisible text link. Its id is the scroll anchor the
- *  nav wordmark watches to morph "ACCOUNTING" into the course code (p4 §4). */
-function SchoolBadge({ schoolName, schoolId, onOpen }: {
+/** THE CAMPUS LINE (p6 §2) — "for ARKANSAS students ⇄". The name wears the school's own colour; the
+ *  switcher sits right after it. Reverted from the pill badge, which added chrome without clarity.
+ *  Its id is the scroll anchor the nav wordmark watches (p4 §4). */
+function HomeCampusLine({ schoolName, schoolId, onSwitch }: {
   schoolName: string | null;
   schoolId: string | null;
-  onOpen: () => void;
+  onSwitch: () => void;
 }) {
   const known = !!schoolName;
-  const pin = schoolId ? boltFor(schoolId).c1 : "var(--accent)";
+  const color = schoolId ? boltFor(schoolId).c1 : undefined;
   return (
     <div id={HERO_CAMPUS_LINE_ID} className="flex justify-center pb-4">
-      <button
-        type="button"
-        onClick={onOpen}
-        className="sa-school-badge inline-flex items-center gap-2 rounded-full focus-visible:ring-2"
-        style={{ minHeight: 38, paddingInline: 16, background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS, fontSize: 14 }}
-        aria-label={known ? `${schoolName} — change school` : "Pick your school"}
-      >
-        <MapPin size={15} aria-hidden style={{ color: pin, flex: "none" }} />
-        {known ? (
-          <>
-            <span className="font-black" style={{ color: "var(--brand-cream)" }}>{schoolName}</span>
-            <span aria-hidden style={{ opacity: 0.4 }}>·</span>
-            <span style={{ color: "var(--text-muted)" }}>change</span>
-          </>
-        ) : (
-          <span className="font-black" style={{ color: "var(--brand-cream)" }}>Pick your school →</span>
-        )}
-      </button>
+      <span className="inline-flex items-center gap-1">
+        <p className="sa-campus-line" style={{ fontFamily: BRAND_DISPLAY }}>
+          {known ? (
+            <>
+              <span className="sa-campus-line-for">for </span>
+              <span className="sa-campus-line-em" style={color ? { color } : undefined}>{schoolName!.toUpperCase()}</span>
+              <span className="sa-campus-line-for"> students</span>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onSwitch}
+              className="sa-campus-pick"
+              style={{ background: "none", border: 0, padding: 0, font: "inherit", color: "inherit", cursor: "pointer" }}
+            >
+              <span className="sa-campus-line-for">pick your school </span>
+            </button>
+          )}
+        </p>
+        <button
+          type="button"
+          onClick={onSwitch}
+          aria-label="Change school"
+          title="Change school"
+          className="sa-hero-swap inline-flex items-center justify-center rounded-full"
+          style={{ color: "var(--text-muted)", width: 34, height: 34 }}
+        >
+          <ArrowLeftRight size={13} aria-hidden />
+        </button>
+      </span>
     </div>
   );
 }
@@ -394,8 +462,10 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
           }
           support={
             <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch" }}>
-              <span style={{ color: "var(--text-muted)" }}>{soloSupport(code).muted}</span>{" "}
-              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>{soloSupport(code).strong}</span>
+              {/* Names who it's for; the course code is dropped (the headline carries it). Kept close
+                  in length to the chapter line so the two cards stay the same height (p6 §5). */}
+              <span style={{ color: "var(--text-muted)" }}>Cram-style videos and practice exams, built for the night before.</span>{" "}
+              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Exam 1 is free.</span>
             </span>
           }
         />
@@ -417,10 +487,10 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
           }
           support={
             <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch", color: "var(--text-muted)" }}>
-              {/* Course code is dynamic per campus (same source the hero headline uses); falls back
-                  to the flagship code when no campus is resolved. */}
-              Get <span className="font-bold" style={{ color: "var(--brand-cream)" }}>{homeCourseCode(code)}</span> exam prep for your sorority or fraternity.{" "}
-              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Exam 1 is free for every member.</span>
+              {/* "also" depends on the solo card being read first — true on mobile (solo stacks
+                  first) and on desktop left-to-right (p6 §5). If the order ever changes, so must this. */}
+              Exam prep for your sorority or fraternity.{" "}
+              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Exam 1, also free.</span>
             </span>
           }
         />
@@ -576,8 +646,16 @@ ${CAMPUS_LINE_CSS}
 .sa-cta-secondary:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 @media (prefers-reduced-motion: reduce) { .sa-cta-secondary { transition: none; } }
 
-/* SCHOOL BADGE (p4) — a quiet pill; on hover the hairline warms toward amber. */
-.sa-school-badge { transition: background-color 140ms ease, border-color 140ms ease; }
-.sa-school-badge:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--bg-surface)); }
+/* CHIPS CENTERED (p6 §3) — TrustChips left-aligns at lg by default; under the centered hero it
+   should stay on the same axis. Higher specificity than its own lg:justify-start. */
+.sa-home-chips .sa-proof-row { justify-content: center; }
+
+/* SCHOOL-SWITCH FLOURISH (p6 §12) — under 400ms total. The wash blooms and clears; the bolt + label
+   scale-and-fade in, hold a beat, then fade. */
+@keyframes sa-switchfx-wash { 0% { opacity: 0; } 32% { opacity: 0.42; } 100% { opacity: 0; } }
+@keyframes sa-switchfx-core { 0% { opacity: 0; transform: scale(0.72); } 24% { opacity: 1; transform: scale(1); } 66% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.05); } }
+.sa-switchfx-wash { animation: sa-switchfx-wash 380ms ease forwards; }
+.sa-switchfx-core { animation: sa-switchfx-core 380ms ease forwards; }
+@media (prefers-reduced-motion: reduce) { .sa-switchfx-wash, .sa-switchfx-core { animation: none; opacity: 0; } }
 
 `;
