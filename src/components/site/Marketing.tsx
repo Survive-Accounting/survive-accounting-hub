@@ -253,11 +253,11 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
 // ── TRUST CHIPS ───────────────────────────────────────────────────────────────────────────────
 /** Three small credibility chips, whole-chip clickable — no visible "→ Reviews" explainers.
  *  They are trust badges, not CTAs: quiet by default, a shade brighter on hover, clear focus. */
-export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; onReviews: () => void; onPlayer: () => void }) {
+export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; onReviews: () => void; /** Omit to drop the third chip. The two-door home does: above the fold every extra row costs the first card its place on a 390px screen, and "Built for exam week" is the one claim the two doors underneath already make. Pages with room keep all three. */ onPlayer?: () => void }) {
   const CHIPS: Array<{ label: string; onClick: () => void }> = [
     { label: "Created by a pro tutor", onClick: onBio },
     { label: "1,000+ students helped", onClick: onReviews },
-    { label: "Built for exam week", onClick: onPlayer },
+    ...(onPlayer ? [{ label: "Built for exam week", onClick: onPlayer }] : []),
   ];
   // A PROOF STRIP, NOT A THIRD ROW OF BUTTONS. One hierarchy step below both hero CTAs: smaller
   // type, thinner border, muted fill, no lift, default cursor. They stay activatable (each one

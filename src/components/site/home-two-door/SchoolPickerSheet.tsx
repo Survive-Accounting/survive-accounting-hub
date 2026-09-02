@@ -13,7 +13,7 @@
 // BoltBadge pattern: boilFrame=undefined animates, a number pins a static frame — so exactly one
 // row animates and prefers-reduced-motion still collapses it to a still frame). Long names get a
 // native tooltip and wrap to two lines on a phone, where there is no hover to reveal them.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -77,6 +77,23 @@ export function SchoolPickerSheet({ onClose, onPick, title = "Which school are y
   const results = useMemo(() => (searching ? searchSchools(q, ALL_SCHOOLS) : ALL_SCHOOLS), [q, searching]);
   const { sections, other } = useMemo(() => sectionsFor(results), [results]);
   const currentId = campus.school?.id ?? null;
+  // LAND WHERE YOU ALREADY ARE. Reopening the sheet from Penn State and being shown the top of the
+  // list means scrolling past Ole Miss every time you want to flip campuses — the one thing this
+  // sheet exists to make cheap. The current row is scrolled to the middle on open, and only on
+  // open: once you start typing, the results are the answer and moving the list would fight you.
+  const currentRow = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!currentId) return;
+    const el = currentRow.current;
+    if (!el) return;
+    // "nearest ancestor only" — the sheet, never the page behind it (see lib/ui-scroll's header).
+    const box = el.closest(".sa-sp-list") as HTMLElement | null;
+    if (!box) return;
+    // Measured from RECTS, not offsetTop: the rows sit inside conference groups, so their
+    // offsetParent is the group, not the scroll box, and offsetTop would land short.
+    const br = box.getBoundingClientRect(), er = el.getBoundingClientRect();
+    box.scrollTop += (er.top - br.top) - (br.height / 2 - er.height / 2);
+  }, [currentId]);
 
   const Row = (s: School) => {
     const code = codeByCampus.get(s.campusId) || s.courseCode || "";
@@ -86,6 +103,7 @@ export function SchoolPickerSheet({ onClose, onPick, title = "Which school are y
       <button
         key={s.id}
         type="button"
+        ref={s.id === currentId ? currentRow : undefined}
         className={`sa-sp-row${s.id === currentId ? " sa-sp-row--on" : ""}`}
         title={s.name}
         onClick={() => onPick(s)}
@@ -213,7 +231,9 @@ export const PICKER_CSS = `
   transition: background-color 130ms ease;
 }
 .sa-sp-row:hover, .sa-sp-row:focus-visible { background: rgba(245,239,230,0.08); outline: none; }
-.sa-sp-row--on { background: rgba(245,239,230,0.06); }
+/* WHERE YOU ARE NOW — the sheet scrolls here on open, so the row has to be findable at a glance
+   rather than a barely-there tint. An inset rule on the leading edge, in the brand accent. */
+.sa-sp-row--on { background: rgba(245,239,230,0.08); box-shadow: inset 3px 0 0 0 var(--accent); }
 .sa-sp-bolt { display: grid; place-items: center; width: 22px; height: 22px; }
 .sa-sp-name {
   min-width: 0; font-size: 15px; font-weight: 700;
