@@ -53,6 +53,29 @@ export const SEC_SCHOOL_TABLE: SecSchool[] = GENERATED_SCHOOLS.filter((s) => s.i
 /** Non-SEC seeded schools, alphabetical. */
 export const OTHER_SCHOOLS: School[] = GENERATED_SCHOOLS.filter((s) => !s.isSec);
 
+/** Conference sections, in the order the picker shows them. "Other" is always last. */
+export const CONFERENCE_ORDER = ["SEC", "Big Ten", "Big 12", "ACC", "Other"] as const;
+const CONFERENCE_RANK = new Map(CONFERENCE_ORDER.map((c, i) => [c as string, i]));
+
+/** The picker's canonical order: by conference (CONFERENCE_ORDER), then WITHIN a group by name —
+ *  except SEC, where Ole Miss is pinned to the top (Lee's call). The generated table is already
+ *  alphabetical, so this only reshuffles across conferences and floats Ole Miss; every other row
+ *  keeps its A→Z order. Returns a NEW array; callers map it straight into grouped picker items. */
+export function orderedSchoolsForPicker(pool: School[] = ALL_SCHOOLS): School[] {
+  return [...pool].sort((a, b) => {
+    const ra = CONFERENCE_RANK.get(a.conference) ?? CONFERENCE_RANK.get("Other")!;
+    const rb = CONFERENCE_RANK.get(b.conference) ?? CONFERENCE_RANK.get("Other")!;
+    if (ra !== rb) return ra - rb;
+    // Ole Miss first in the SEC group; everything else stays alphabetical.
+    if (a.conference === "SEC") {
+      const ao = a.id === "ole-miss" || a.slug === "university-of-mississippi";
+      const bo = b.id === "ole-miss" || b.slug === "university-of-mississippi";
+      if (ao !== bo) return ao ? -1 : 1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+}
+
 const BY_ID = new Map(ALL_SCHOOLS.map((s) => [s.id, s]));
 const BY_CAMPUS = new Map(ALL_SCHOOLS.map((s) => [s.campusId, s]));
 const BY_SLUG = new Map(ALL_SCHOOLS.map((s) => [s.slug, s]));
@@ -71,7 +94,7 @@ const BY_SLUG = new Map(ALL_SCHOOLS.map((s) => [s.slug, s]));
 // carried by the loaders, and putting a guess here would collide with a real campus.
 const TEST_SCHOOL: School = {
   id: TEST_CAMPUS_SLUG, campusId: "", slug: TEST_CAMPUS_SLUG, name: TEST_CAMPUS_NAME,
-  isSec: false, courseCode: TEST_COURSE_CODE,
+  isSec: false, conference: "Other", courseCode: TEST_COURSE_CODE,
   // The fixture's own colourway, matching the campus page, so no test screenshot can be mistaken
   // for a real school's.
   c1: "#2E7D32", c2: "#00695C", aliases: [],

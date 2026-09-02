@@ -18,7 +18,9 @@
 // icon envelope → title → description → button → support line, each slot the same height on
 // both sides. Any change to one card's structure must go through the shared pieces so the two
 // can never drift apart.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
@@ -36,20 +38,20 @@ import { track } from "@/lib/analytics";
 import { pathStarted } from "@/lib/exam-path";
 import { scrollToId } from "@/lib/ui-scroll";
 import { useDismiss } from "@/lib/use-dismiss";
-import { contactKind, EXAM1_LAUNCH_LABEL, HOME_CAMPUS } from "@/lib/launch";
+import { contactKind, EXAM1_LAUNCH_LABEL } from "@/lib/launch";
 import { submitNotify } from "@/lib/syllabus.functions";
 import { examRequest, notifyNote } from "@/lib/notify-request";
 import { rememberStudentEmail } from "@/lib/student-email";
 import { readTestSession } from "@/lib/test-mode";
 import { CHAPTER_BTN, DOOR_CARD_CSS, DOOR_CTA_VARS, DOOR_BTN_CLASS, SOLO_BTN } from "./DoorCard";
-import { ChapterBuildingIcon, HOME_FOLD_CSS, HomeDoorCard, HomeDoorRow, SoloBoltIcon } from "./HomeFold";
+import { GreekLettersIcon, HOME_FOLD_CSS, HomeDoorCard, HomeDoorRow, SoloBoltIcon } from "./HomeFold";
 import { ArrowLeftRight } from "lucide-react";
 
 import { SchoolPickerSheet } from "./SchoolPickerSheet";
 import type { School as PickerSchool } from "@/lib/schools";
 
-import { CAMPUS_LINE_CSS, CampusEm, CampusFor, CampusLine } from "./campus-line";
-import { homeCourseCode, soloButtonLabel, soloSupport } from "./two-door-copy";
+import { CAMPUS_LINE_CSS } from "./campus-line";
+import { soloButtonLabel } from "./two-door-copy";
 import { nbspCode } from "@/lib/course-code";
 
 /** The doors section's anchor. Also aliased by the legacy #exam1 anchor below it, because every
@@ -111,6 +113,10 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   // THE PICKER GATE (p1 §2): either door opens the school picker first; the hero swap opens the
   // same sheet. `pickerFor` records which flow to continue into once a school is chosen.
   const [pickerFor, setPickerFor] = useState<null | "switch" | "solo" | "chapter">(null);
+  // THE REBRAND FLOURISH (p6 §12) — a sub-400ms campus-colour flash on a pure school switch. Keyed
+  // by an incrementing id so a second switch remounts it (cancels the first, no backlog).
+  const [switchFx, setSwitchFx] = useState<null | { id: number; code: string; school: string; c1: string; c2: string }>(null);
+  const fxId = useRef(0);
 
   // Shared analytics context — attach what the page knows, never more.
   const ctx = () => ({ campus_id: campus.school?.id, course_code: campus.code ?? undefined });
@@ -137,12 +143,23 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
     setPickerFor(null);
     if (mode === "solo") setWaitlistOpen(true);
     else if (mode === "chapter") setFinderOpen(true);
+    else if (mode === "switch") {
+      // The rebrand flourish — switch mode only (the "flip through schools for fun" case; the door
+      // flows open a modal instead). Skipped under reduced motion, where the page just swaps.
+      const reduced = typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (!reduced) {
+        const c = boltFor(school.id);
+        fxId.current += 1;
+        setSwitchFx({ id: fxId.current, code: school.courseCode ? nbspCode(school.courseCode) : "", school: school.name, c1: c.c1, c2: c.c2 });
+      }
+    }
   };
 
-  // HEADER CONTEXT PILL (spec §7) — only when a course is actually resolved. On the generic home,
-  // where no course is selected, the pill renders nothing (the prop is undefined).
-  const contextPill = campus.code && campus.school
-    ? { code: nbspCode(campus.code), school: campus.school.name, onClick: openSwitch, anchorId: HERO_CAMPUS_LINE_ID }
+  // WORDMARK-FOLLOWS-THE-COURSE (p4 §4) — once a course is resolved and the school badge scrolls
+  // out of view, the nav wordmark's second word crossfades from "ACCOUNTING" to the course code.
+  // With no campus, it stays "survive ACCOUNTING".
+  const courseWordmark = campus.code
+    ? { code: nbspCode(campus.code), anchorId: HERO_CAMPUS_LINE_ID }
     : undefined;
 
   return (
@@ -156,31 +173,39 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       <style>{TWO_DOOR_CSS}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
-      <SiteHeader homeNav onLanding contextPill={contextPill} />
+      <SiteHeader homeNav onLanding courseWordmark={courseWordmark} />
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
         <TwoDoorHero
           code={campus.code}
           schoolName={campus.school?.name ?? null}
-          schoolId={campus.school?.id ?? null}
-          onSwitchSchool={openSwitch}
         />
+
+        {/* PROOF DIRECTLY UNDER THE CLAIM (p4 §2): the three checks sit right below the subhead,
+            above the doors. Centered under the centered hero (p6 §3) — TrustChips left-aligns at
+            lg by default, which read as off-axis here. */}
+        <div className="sa-home-chips mb-7 sm:mb-8">
+          <TrustChips onBio={() => setBioOpen(true)} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} />
+        </div>
 
         {/* Legacy compatibility: every other page's navbar still links "/#exam1". */}
         <div id="exam1" className="sa-anchor" />
-        <div className="pt-2 sm:pt-4" />
+
+        {/* THE CAMPUS LINE (p6 §2 — reverted from the pill badge): "for ARKANSAS students ⇄", the
+            name in the campus colour with the switcher after it. Its id is the scroll anchor the
+            nav wordmark watches to morph "ACCOUNTING" into the course code. */}
+        <HomeCampusLine
+          schoolName={campus.school?.name ?? null}
+          schoolId={campus.school?.id ?? null}
+          onSwitch={openSwitch}
+        />
+
         <TwoDoorCards
           code={campus.code}
           onSolo={openSolo}
           soloHref={previewSoloHref}
           onChapter={openChapter}
         />
-
-        {/* THE PROOF STRIP moves BELOW the doors (spec §5/§6): the doors are the instruction and
-            must reach the fold first; the three checks back the claim once a door is chosen. */}
-        <div className="mt-6 sm:mt-7">
-          <TrustChips onBio={() => setBioOpen(true)} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} />
-        </div>
 
         {/* COURSE SCOPE — one quiet line, because students have genuinely asked whether Survive
             covers Intermediate. A tiny modal answers; the hero stays out of it. */}
@@ -208,14 +233,21 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           />
         </div>
 
-        {/* WHAT YOU'LL GET — the three value points under a header, closed by a SECONDARY Exam-1
-            catch. It is deliberately NOT a second full-width amber primary (that competed with the
-            hero's "Start cramming"): an amber OUTLINE button, so the eye still lands on the card
-            buttons first and this reads as the catch for a reader who scrolled past them (p2). */}
+        {/* THE VALUE SECTION (p4 §6) — a header that says something a student feels, a short note
+            in Lee's voice, the three cards, then the SECONDARY Exam-1 catch (amber outline, never a
+            second full-width primary competing with the hero's "Start cramming"). */}
         <section className="pt-16">
-          <h2 className="text-center text-[22px] font-black sm:text-[26px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
-            What you&apos;ll get
-          </h2>
+          {/* p6 §7 — the headline reads stronger as something a student said: a quotation with
+              attribution, then the supporting paragraph with its now-redundant opening clause cut. */}
+          <blockquote className="mx-auto max-w-[620px] text-center" style={{ margin: 0 }}>
+            <p className="text-[24px] font-black leading-tight sm:text-[30px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+              &ldquo;The exam looks nothing like the homework.&rdquo;
+            </p>
+            <footer className="mt-2 text-[13.5px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>— what students tell me every semester</footer>
+          </blockquote>
+          <p className="mx-auto mt-5 max-w-[600px] text-center text-[15px] leading-relaxed sm:text-[16px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-secondary)" }}>
+            The textbook, the quizzes, the lectures — and then exam day feels like a different course. Survive exists so exam day is the second time you&apos;ve seen the problem, not the first.
+          </p>
           <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} />
           <div className="mt-3 flex justify-center">
             <button
@@ -239,15 +271,22 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
         </section>
 
         <SectionDivider />
-        <Faq />
+        {/* FAQ links reuse existing flows — the chapter door's picker→waitlist, the syllabus modal,
+            the school picker — rather than wiring new routes (p5). */}
+        <Faq
+          onSyllabus={() => setSyllabusOpen(true)}
+          onFindChapter={openChapter}
+          onNotListed={openSwitch}
+        />
       </main>
 
       <Footer onLanding />
 
       {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
-      {/* The Text-Lee bubble waits until the DOORS (the fold) have scrolled away, so it can never
-          overlap the chapter card's support copy (spec §11). */}
-      <FloatingContact heroId={DOORS_ID} tel={TEL} phone={PHONE} />
+      {/* The Text-Lee bubble waits until the DOORS scroll away, and sits in the very corner (p6 §1)
+          — no practice-stage bar here, so the 84px lift only pushed it into the CTA reading zone
+          where it covered "Send your syllabus →". 16px keeps it clear of that. */}
+      <FloatingContact heroId={DOORS_ID} tel={TEL} phone={PHONE} bottomOffset={16} />
       {waitlistOpen && (
         <Exam1LaunchModal
           campusId={schoolObj?.campusId ?? null}
@@ -274,19 +313,48 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
         />
       )}
       {syllabusOpen && <SyllabusModal school={schoolObj} onClose={() => setSyllabusOpen(false)} />}
+      {/* The rebrand flourish (p6 §12). Keyed by id so a rapid re-switch cancels the previous one. */}
+      {switchFx && (
+        <SwitchFlourish key={switchFx.id} code={switchFx.code} school={switchFx.school} c1={switchFx.c1} c2={switchFx.c2} onDone={() => setSwitchFx(null)} />
+      )}
+    </div>
+  );
+}
+
+/** THE SCHOOL-SWITCH FLOURISH (p6 §12) — a sub-400ms overlay: the campus-coloured bolt boils in the
+ *  centre with the DESTINATION beneath it ("ACCT 2013 · Arkansas", never "Loading" — nothing loads,
+ *  it is a client rebrand), and the campus colour washes through behind it as the bolt fades. The
+ *  overlay never blocks: pointer-events none, so the page stays interactive underneath. */
+function SwitchFlourish({ code, school, c1, c2, onDone }: {
+  code: string;
+  school: string;
+  c1: string;
+  c2: string;
+  onDone: () => void;
+}) {
+  useEffect(() => {
+    const t = window.setTimeout(onDone, 380);
+    return () => window.clearTimeout(t);
+  }, [onDone]);
+  return (
+    <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 200, pointerEvents: "none", display: "grid", placeItems: "center" }}>
+      <div className="sa-switchfx-wash" style={{ position: "absolute", inset: 0, background: `radial-gradient(60% 50% at 50% 44%, ${c1} 0%, transparent 72%)` }} />
+      <div className="sa-switchfx-core" style={{ position: "relative", display: "grid", justifyItems: "center", gap: 12 }}>
+        <BoltBoil height={96} red={c1} blue={c2} />
+        <span style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: 16, letterSpacing: "0.02em", color: "var(--brand-cream)" }}>
+          {code ? `${code} · ${school}` : school}
+        </span>
+      </div>
     </div>
   );
 }
 
 // ── HERO — CENTERED, QUIET ────────────────────────────────────────────────────────────────────
-/** Headline → promise → campus line, all on one centered axis. No CTA, no bolt, and (since the
- *  mobile-fold pass) no proof chips: the doors immediately below are the only instruction and must
- *  reach the fold, so the three checks now sit BELOW the doors instead of ahead of them. */
-function TwoDoorHero({ code, schoolName, schoolId, onSwitchSchool }: {
+/** Headline → subhead. The campus control moved out to the SchoolBadge (directly above the cards),
+ *  and the proof chips sit right under the subhead now (p4). */
+function TwoDoorHero({ code, schoolName }: {
   code: string | null;
   schoolName: string | null;
-  schoolId: string | null;
-  onSwitchSchool: () => void;
 }) {
   // Same honesty rule as every hero before it: the campus version needs BOTH a school and a
   // VERIFIED course code; anything less renders the generic page, never an invented code.
@@ -294,86 +362,67 @@ function TwoDoorHero({ code, schoolName, schoolId, onSwitchSchool }: {
     ? <><span style={{ color: "var(--accent)" }}>{nbspCode(code)}</span> at {schoolName} is where GPAs quietly slip.</>
     : <>Intro accounting is where GPAs quietly slip.</>;
   return (
-    <section id={MARKETING_HERO_ID} className="sa-two-door-hero flex flex-col items-center pb-9 pt-10 text-center sm:pt-14" style={{ fontFamily: BRAND_SANS }}>
+    <section id={MARKETING_HERO_ID} className="sa-two-door-hero flex flex-col items-center pb-5 pt-10 text-center sm:pt-14" style={{ fontFamily: BRAND_SANS }}>
       <h1
         className="mx-auto max-w-[600px] text-[30px] font-black leading-[1.12] sm:text-[40px] lg:text-[44px]"
         style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}
       >
         {headline}
       </h1>
-      <p className="mt-4 text-[19px] font-extrabold leading-snug sm:text-[22px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
-        Practice what gets tested. Score higher.
+      {/* SUBHEAD — supports the headline, doesn't compete: medium weight, muted (p4 §1). */}
+      <p className="mt-3.5 text-[17px] font-medium leading-snug sm:text-[19px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--text-secondary)" }}>
+        Cram what&apos;s on your exam. Skip everything else.
       </p>
-      {/* THE CAMPUS LINE (FINAL MILE H3) — restored from homepage v1's bolt plate ("for ACCY 201
-          · OLE MISS"), updated to current tokens. The campus name wears the school color; both
-          change, and a visitor's own resolved campus still wins. An UNRESOLVED campus names no
-          school at all — see HomeCampusLine. */}
-      <HomeCampusLine schoolName={schoolName} schoolId={schoolId} onSwitch={onSwitchSchool} />
     </section>
   );
 }
 
-/** THE HOMEPAGE'S CAMPUS LINE — "for ALABAMA students", the v1 bolt-plate treatment on the
- *  hero's centered axis. Name colored by the school's own primary (config-driven default).
- *
- *  IT NAMES THE CAMPUS, NOT THE COURSE. The headline one line above already says the code, in
- *  the accent colour the solo button repeats; saying it twice in two type sizes made the hero
- *  read as a form field rather than a sentence. The chapter page uses the same component to say
- *  "for ALPHA DELTA CHI · ALABAMA" in this exact slot. */
+/** THE CAMPUS LINE (p6 §2) — "for ARKANSAS students ⇄". The name wears the school's own colour; the
+ *  switcher sits right after it. Reverted from the pill badge, which added chrome without clarity.
+ *  Its id is the scroll anchor the nav wordmark watches (p4 §4). */
 function HomeCampusLine({ schoolName, schoolId, onSwitch }: {
   schoolName: string | null;
   schoolId: string | null;
   onSwitch: () => void;
 }) {
-  // AN UNPLACED VISITOR IS NOT TOLD THEY GO TO THE FLAGSHIP. The line used to fall back to
-  // HOME_CAMPUS whenever the campus was unresolved, which put "for OLE MISS students" directly
-  // under a headline that had just said the honest, generic "Intro accounting is where GPAs
-  // quietly slip." — the page contradicting itself in two consecutive lines. When we do not know
-  // the school, the line stops claiming one and becomes the invitation to tell us; the swap
-  // control beside it is then the answer to a question the page actually asked.
   const known = !!schoolName;
-  const color = schoolId ? boltFor(schoolId).c1 : HOME_CAMPUS.colors.primary;
+  const color = schoolId ? boltFor(schoolId).c1 : undefined;
   return (
-    // id: the header context pill (spec §7) observes this line — it fades the "AC 210 · Alabama"
-    // pill in once this scrolls out of view, and back out when it returns.
-    <span id={HERO_CAMPUS_LINE_ID} className="mt-4 inline-flex items-center gap-0.5">
-      <CampusLine className="">
-        {known ? (
-          <>
-            <CampusFor>for </CampusFor>
-            <CampusEm color={color}>{schoolName.toUpperCase()}</CampusEm>
-            <CampusFor> students</CampusFor>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={onSwitch}
-            className="sa-campus-pick"
-            style={{ background: "none", border: 0, padding: 0, font: "inherit", color: "inherit", cursor: "pointer" }}
-          >
-            <CampusFor>pick your school </CampusFor>
-          </button>
-        )}
-      </CampusLine>
-      {/* THE SWAP, RIGHT WHERE THE CLAIM IS. This line asserts which school the visitor goes to,
-          and the assertion is a guess (a cookie, or the flagship default). The control that
-          corrects it belongs against the word it corrects — not in a menu, and not in a player
-          this page does not have. Same icon and same affordance the campus pages use under their
-          bolt plate, so it means the same thing in both places. Deliberately NOT an ✕: nothing is
-          being closed or removed, one school is being exchanged for another. */}
-      <button
-        type="button"
-        onClick={onSwitch}
-        aria-label="Change school"
-        title="Change school"
-        className="sa-hero-swap inline-flex items-center justify-center rounded-full"
-        style={{ color: "var(--text-muted)", width: 34, height: 34 }}
-      >
-        <ArrowLeftRight size={13} aria-hidden />
-      </button>
-    </span>
+    <div id={HERO_CAMPUS_LINE_ID} className="flex justify-center pb-4">
+      <span className="inline-flex items-center gap-1">
+        <p className="sa-campus-line" style={{ fontFamily: BRAND_DISPLAY }}>
+          {known ? (
+            <>
+              <span className="sa-campus-line-for">for </span>
+              <span className="sa-campus-line-em" style={color ? { color } : undefined}>{schoolName!.toUpperCase()}</span>
+              <span className="sa-campus-line-for"> students</span>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onSwitch}
+              className="sa-campus-pick"
+              style={{ background: "none", border: 0, padding: 0, font: "inherit", color: "inherit", cursor: "pointer" }}
+            >
+              <span className="sa-campus-line-for">pick your school </span>
+            </button>
+          )}
+        </p>
+        <button
+          type="button"
+          onClick={onSwitch}
+          aria-label="Change school"
+          title="Change school"
+          className="sa-hero-swap inline-flex items-center justify-center rounded-full"
+          style={{ color: "var(--text-muted)", width: 34, height: 34 }}
+        >
+          <ArrowLeftRight size={13} aria-hidden />
+        </button>
+      </span>
+    </div>
   );
 }
+
 
 // ── THE TWO DOORS ─────────────────────────────────────────────────────────────────────────────
 function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
@@ -413,8 +462,10 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
           }
           support={
             <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch" }}>
-              <span style={{ color: "var(--text-muted)" }}>{soloSupport(code).muted}</span>{" "}
-              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>{soloSupport(code).strong}</span>
+              {/* Names who it's for; the course code is dropped (the headline carries it). Kept close
+                  in length to the chapter line so the two cards stay the same height (p6 §5). */}
+              <span style={{ color: "var(--text-muted)" }}>Cram-style videos and practice exams, built for the night before.</span>{" "}
+              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Exam 1 is free.</span>
             </span>
           }
         />
@@ -423,7 +474,7 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
             house — that read as real-estate, not a Greek chapter). Clicking opens the same picker,
             then the chapter waitlist. */}
         <HomeDoorCard
-          icon={<ChapterBuildingIcon />}
+          icon={<GreekLettersIcon />}
           button={
             <button
               type="button"
@@ -436,10 +487,10 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
           }
           support={
             <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch", color: "var(--text-muted)" }}>
-              {/* Course code is dynamic per campus (same source the hero headline uses); falls back
-                  to the flagship code when no campus is resolved. */}
-              Get <span className="font-bold" style={{ color: "var(--brand-cream)" }}>{homeCourseCode(code)}</span> exam prep for your sorority or fraternity.{" "}
-              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Exam 1 is free for every member.</span>
+              {/* "also" depends on the solo card being read first — true on mobile (solo stacks
+                  first) and on desktop left-to-right (p6 §5). If the order ever changes, so must this. */}
+              Exam prep for your sorority or fraternity.{" "}
+              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Exam 1, also free.</span>
             </span>
           }
         />
@@ -594,5 +645,17 @@ ${CAMPUS_LINE_CSS}
 .sa-cta-secondary { transition: background-color 160ms ease, border-color 160ms ease; }
 .sa-cta-secondary:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 @media (prefers-reduced-motion: reduce) { .sa-cta-secondary { transition: none; } }
+
+/* CHIPS CENTERED (p6 §3) — TrustChips left-aligns at lg by default; under the centered hero it
+   should stay on the same axis. Higher specificity than its own lg:justify-start. */
+.sa-home-chips .sa-proof-row { justify-content: center; }
+
+/* SCHOOL-SWITCH FLOURISH (p6 §12) — under 400ms total. The wash blooms and clears; the bolt + label
+   scale-and-fade in, hold a beat, then fade. */
+@keyframes sa-switchfx-wash { 0% { opacity: 0; } 32% { opacity: 0.42; } 100% { opacity: 0; } }
+@keyframes sa-switchfx-core { 0% { opacity: 0; transform: scale(0.72); } 24% { opacity: 1; transform: scale(1); } 66% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.05); } }
+.sa-switchfx-wash { animation: sa-switchfx-wash 380ms ease forwards; }
+.sa-switchfx-core { animation: sa-switchfx-core 380ms ease forwards; }
+@media (prefers-reduced-motion: reduce) { .sa-switchfx-wash, .sa-switchfx-core { animation: none; opacity: 0; } }
 
 `;

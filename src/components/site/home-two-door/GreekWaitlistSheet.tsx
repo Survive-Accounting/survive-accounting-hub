@@ -35,7 +35,7 @@ import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { listGoChapters } from "@/lib/greek-go.functions";
-import { ALL_SCHOOLS, boltForSlug, schoolBySlug } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug, orderedSchoolsForPicker, schoolBySlug } from "@/lib/schools";
 import { submitNotify } from "@/lib/syllabus.functions";
 import { readTestSession } from "@/lib/test-mode";
 
@@ -83,10 +83,11 @@ export function GreekWaitlistSheet({ onClose, initialSchoolSlug }: {
 
   const schoolItems = useMemo(() => {
     const codeByCampus = new Map((codesQ.data ?? []).map((r) => [r.campusId, r.code]));
-    return ALL_SCHOOLS.map((s) => ({
+    return orderedSchoolsForPicker().map((s) => ({
       value: s.slug,
       label: s.name,
       meta: codeByCampus.get(s.campusId) ?? "",
+      group: s.conference,
       icon: <span className="block shrink-0" style={{ width: 15 }} aria-hidden><Bolt {...boltForSlug(s.slug)} /></span>,
     }));
   }, [codesQ.data]);

@@ -45,24 +45,70 @@ const EXTRA_ALIASES: Record<string, string[]> = {
   "mississippi-state-university": ["MSU", "Miss State", "Bulldogs", "Starkville"],
 };
 
+/** CONFERENCE grouping for the picker. SEC is derived from is_sec (colours come from brand.tsx);
+ *  the non-SEC Power Four is a hand-verified slug→conference map (the list is fixed for the 2026
+ *  season). Anything not listed and not is_sec falls to "Other" (alphabetical in the picker).
+ *  Slugs are the CANONICAL campus rows — validated to exist; see SCHOOL_PICKER_STRATEGY.md.
+ *  Add a school to a conference by adding its slug here and regenerating. */
+const CONFERENCE_BY_SLUG: Record<string, string> = {
+  // Big Ten
+  "university-of-southern-california": "Big Ten", "university-of-illinois-urbana-champaign": "Big Ten",
+  "university-of-iowa": "Big Ten", "university-of-maryland": "Big Ten", "university-of-michigan": "Big Ten",
+  "michigan-state-university": "Big Ten", "university-of-minnesota": "Big Ten", "university-of-nebraska-lincoln": "Big Ten",
+  "northwestern-university": "Big Ten", "ohio-state-university": "Big Ten", "university-of-oregon": "Big Ten",
+  "pennsylvania-state-university": "Big Ten", "purdue-university": "Big Ten", "rutgers-university": "Big Ten",
+  "university-of-california-los-angeles-r": "Big Ten", "university-of-washington": "Big Ten", "university-of-wisconsin-madison": "Big Ten",
+  // Big 12
+  "university-of-cincinnati": "Big 12", "university-of-central-florida": "Big 12", "university-of-arizona": "Big 12",
+  "university-of-colorado-boulder": "Big 12", "arizona-state-university": "Big 12", "baylor-university": "Big 12",
+  "university-of-houston": "Big 12", "iowa-state-university": "Big 12", "university-of-kansas": "Big 12",
+  "kansas-state-university": "Big 12", "oklahoma-state-university": "Big 12", "texas-christian-university": "Big 12",
+  "texas-tech-university": "Big 12", "university-of-utah": "Big 12", "west-virginia-university": "Big 12",
+  // ACC
+  "clemson-university": "ACC", "north-carolina-state-university": "ACC", "university-of-north-carolina-at-chapel-hill": "ACC",
+  "university-of-california-berkeley": "ACC", "duke-university": "ACC", "florida-state-university": "ACC",
+  "georgia-institute-of-technology": "ACC", "university-of-louisville": "ACC", "university-of-miami": "ACC",
+  "university-of-pittsburgh": "ACC", "southern-methodist-university": "ACC", "stanford-university": "ACC",
+  "syracuse-university": "ACC", "university-of-virginia": "ACC", "virginia-tech": "ACC", "wake-forest-university": "ACC",
+};
+
 const hasAliases = !(await db.from("campuses").select("search_aliases").limit(1)).error;
-const cols = `id,name,slug,short_name,state,color_primary,color_secondary,course_family_codes_json,is_sec${hasAliases ? ",search_aliases" : ""}`;
+const cols = `id,name,slug,short_name,state,color_primary,color_secondary,course_family_codes_json,is_sec,campus_status${hasAliases ? ",search_aliases" : ""}`;
 
+const code = (c: any) => { const r = c.course_family_codes_json; const j = typeof r === "string" ? JSON.parse(r || "{}") : (r ?? {}); return ((j?.intro_1 ?? "") as string).trim() || null; };
 
-// THE PICKER IS THE LIVE SET (campus_status='live') AND NOTHING ELSE — the curated,
-// serve-able schools. archived_at is retired; campus_status is the single source of truth
-// (see the canonical-status work). A campus needs a slug + colours to render in the picker.
-// FAIL-SOFT: if the live set is empty (e.g. the semester pre-build hasn't been committed yet,
-// so no flagship is promoted to 'live'), keep the last-good committed file rather than blank
-// the homepage — the picker flips to the live set on the first build after live is populated.
-const { data: liveRows, error: liveErr } = await db.from("campuses").select(cols)
-  .eq("campus_status", "live").not("slug", "is", null).not("color_primary", "is", null);
-if (liveErr || !liveRows?.length) {
-  console.warn("gen_schools: live set empty/unreadable -- keeping committed schools.generated.ts (no blank picker).");
+// THE PICKER IS THE DISPLAY-READY SET — every campus we can render BRANDED, not only the
+// content-ready ('live') set. campus_status is the single source of truth for HIDING: an
+// 'excluded' row never appears. A campus qualifies when it is not excluded, has a slug, and
+// EITHER is SEC (colours from brand.tsx) OR has an intro-1 course code + a stored colour + >=1
+// Greek chapter. That is the ~200 curated set (see SCHOOL_PICKER_STRATEGY.md) — decoupled from
+// exam-content readiness on purpose, so a branded campus can be picked before its exams exist.
+// FAIL-SOFT: if the read comes back empty/unreadable, keep the last-good committed file.
+const { data: allRows, error: allErr } = await db.from("campuses").select(cols)
+  .neq("campus_status", "excluded").not("slug", "is", null);
+if (allErr || !allRows?.length) {
+  console.warn("gen_schools: campus read empty/unreadable -- keeping committed schools.generated.ts (no blank picker).");
   process.exit(0);
 }
+// Greek chapter counts — >=1 is required for non-SEC display-readiness (personalised branding).
+const chapCount = new Map<string, number>();
+{ let from = 0; for (;;) { const { data } = await db.from("campus_greek_chapters").select("campus_id").range(from, from + 999); (data ?? []).forEach((r: any) => chapCount.set(r.campus_id, (chapCount.get(r.campus_id) ?? 0) + 1)); if (!data || data.length < 1000) break; from += 1000; } }
+const displayReady = (c: any) => !!c.slug && (c.is_sec || (!!code(c) && !!c.color_primary && (chapCount.get(c.id) ?? 0) >= 1));
 const seen = new Set<string>();
-const rows: any[] = (liveRows as any[]).filter((c) => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+let rows: any[] = (allRows as any[]).filter((c) => { if (seen.has(c.id) || !displayReady(c)) return false; seen.add(c.id); return true; });
+
+// DEDUPE rows for the SAME school (merge artifacts like '...-merged' / '...-r'). Keep the most
+// complete row, drop the rest LOUDLY — one row per school. Belt-and-suspenders with the dedupe
+// SQL in the strategy; the picker can never show two of the same school even if that SQL lags.
+const dkey = (slug: string) => (slug || "").replace(/-(merged|r|\d+)$/g, "").replace(/[^a-z0-9]/g, "");
+const dscore = (c: any) => (c.is_sec ? 1000 : 0) + (c.campus_status === "live" ? 100 : c.campus_status === "ready" ? 50 : 20) + (code(c) ? 10 : 0) + (c.color_primary ? 10 : 0) + Math.min(chapCount.get(c.id) ?? 0, 80) - (/-(merged|r)$/.test(c.slug) ? 500 : 0);
+{
+  const best = new Map<string, any>();
+  for (const c of rows) { const k = dkey(c.slug); const b = best.get(k); if (!b || dscore(c) > dscore(b)) best.set(k, c); }
+  const kept = new Set([...best.values()].map((c) => c.id));
+  for (const c of rows) if (!kept.has(c.id)) console.warn(`gen_schools: dedupe drop '${c.slug}' (kept '${best.get(dkey(c.slug)).slug}' for the same school)`);
+  rows = rows.filter((c) => kept.has(c.id));
+}
 
 /** slug -> brand.tsx id. Explicit, because the DISPLAY name is not the brand id: Missouri
  *  displays as "Mizzou" but its brand entry is keyed "missouri", and deriving the key from the
@@ -78,7 +124,6 @@ const BRAND_ID_BY_SLUG: Record<string, string> = {
   "university-of-texas-at-austin": "texas", "vanderbilt-university": "vanderbilt",
 };
 const brandById = new Map((BRAND_SEC as any[]).map((b) => [b.id, b]));
-const code = (c: any) => { const r = c.course_family_codes_json; const j = typeof r === "string" ? JSON.parse(r || "{}") : (r ?? {}); return ((j?.intro_1 ?? "") as string).trim() || null; };
 // Curated schools (SEC + the original seed set) keep their marketing short form ("Bama", "Mizzou").
 // Ready-added campuses use the FULL institution name -- a raw DB short_name is often a terse, ambiguous
 // abbreviation ("AU", "A-State", "SSU") that reads badly as a homepage tile.
@@ -99,7 +144,8 @@ const table = rows.map((c: any) => {
   if (csv && csv.slug !== c.slug) al.add(csv.slug.replace(/-/g, " "));
   if (norm(c.name) !== norm(nameFor(c))) al.add(c.name);
   return {
-    id, campusId: c.id, slug: c.slug, name: nameFor(c), state: (c.state ?? "") as string, isSec: !!c.is_sec, courseCode: code(c),
+    id, campusId: c.id, slug: c.slug, name: nameFor(c), state: (c.state ?? "") as string, isSec: !!c.is_sec,
+    conference: c.is_sec ? "SEC" : (CONFERENCE_BY_SLUG[c.slug] ?? "Other"), courseCode: code(c),
     // SEC keeps brand.tsx; everyone else reads from the database.
     c1: brand?.c1 ?? c.color_primary ?? null, c2: brand?.c2 ?? c.color_secondary ?? null,
     aliases: [...al].filter((a) => norm(a) !== norm(nameFor(c))),
@@ -133,12 +179,15 @@ if (table.length < 8) { console.warn(`gen_schools: only ${table.length} schools 
 
 await Bun.write("src/lib/schools.generated.ts", `// GENERATED by migration/supabase-migrations/gen_schools.ts -- DO NOT EDIT BY HAND.
 // The database is the source of truth. Regenerate after any campus seed change.
-// ${table.length} campuses (${table.filter((t) => t.isSec).length} SEC). SEC colours come from brand.tsx by design -- see the generator header.
+// ${table.length} campuses. By conference: ${["SEC", "Big Ten", "Big 12", "ACC", "Other"].map((k) => `${k} ${table.filter((t) => t.conference === k).length}`).join(", ")}. SEC colours come from brand.tsx by design -- see the generator header.
 // Aliases source: ${hasAliases ? "database (search_aliases)" : "seed CSV (search_aliases column not yet applied)"}.
 
 export type GeneratedSchool = {
   id: string; campusId: string; slug: string; name: string;
-  isSec: boolean; courseCode: string | null;
+  isSec: boolean;
+  /** "SEC" | "Big Ten" | "Big 12" | "ACC" | "Other" — the picker's grouping. */
+  conference: string;
+  courseCode: string | null;
   c1: string | null; c2: string | null;
   /** Matched in search, NEVER displayed. */
   aliases: string[];
@@ -146,7 +195,7 @@ export type GeneratedSchool = {
 
 export const GENERATED_SCHOOLS: GeneratedSchool[] = ${JSON.stringify(table.map(({ state, ...t }) => t), null, 2)};
 `);
-console.log(`wrote ${table.length} schools (${table.filter((t) => t.isSec).length} SEC, ${table.filter((t) => !t.isSec).length} other)`);
+console.log(`wrote ${table.length} schools — ${["SEC", "Big Ten", "Big 12", "ACC", "Other"].map((k) => `${k}:${table.filter((t) => t.conference === k).length}`).join("  ")}`);
 console.log(`  missing course code: ${table.filter((t) => !t.courseCode).length}   missing colours: ${table.filter((t) => !t.c1).length}`);
 console.log(`  total aliases: ${table.reduce((s, t) => s + t.aliases.length, 0)}   aliases from: ${hasAliases ? "DB" : "CSV fallback"}`);
 console.log(`  no id or display-name collisions`);

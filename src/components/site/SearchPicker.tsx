@@ -20,7 +20,7 @@
 //
 // Keyboard: ArrowUp/Down move, Home/End jump, Enter picks, Escape closes. aria-activedescendant
 // keeps a screen reader on the highlighted row without moving DOM focus out of the search field.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
@@ -37,9 +37,13 @@ export type PickerItem = {
   icon?: React.ReactNode;
   /** Matched in search, NEVER displayed — nicknames, formal names, abbreviations. */
   aliases?: string[];
+  /** Section this row belongs to (e.g. a conference). When items carry groups AND the list is
+   *  unfiltered, a header is drawn each time the group changes. Ignored while searching — a query
+   *  returns one flat ranked list. Callers must pre-order items by group for headers to be right. */
+  group?: string;
 };
 
-export function SearchPicker({ items, value, placeholder, searchPlaceholder, disabled, disabledHint, onPick, ariaLabel, renderEmpty }: {
+export function SearchPicker({ items, value, placeholder, searchPlaceholder, disabled, disabledHint, onPick, ariaLabel, renderEmpty, footer }: {
   items: PickerItem[];
   value: string | null;
   placeholder: string;
@@ -51,6 +55,8 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
   ariaLabel?: string;
   /** Custom empty state (e.g. "Request your school"), given the current query. */
   renderEmpty?: (query: string) => React.ReactNode;
+  /** Pinned below the scrolling list — the v1 "Don't see your school?" escape hatch. */
+  footer?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -200,32 +206,55 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
             style={{ fontSize: 16, minHeight: 48, background: "transparent", borderColor: "var(--border-default)", color: "var(--brand-cream)" }}
           />
           <ul id={listId} ref={listRef} role="listbox" className="min-h-0 flex-1 overflow-y-auto py-1">
-            {results.map((it, i) => (
-              <li key={it.value} role="option" id={`${listId}-${it.value}`} aria-selected={i === active} data-active={i === active ? "1" : undefined}>
-                <button
-                  type="button"
-                  onMouseEnter={() => setActive(i)}
-                  onClick={() => choose(it.value)}
-                  className="flex w-full items-center justify-between gap-3 px-3.5 text-left"
-                  style={{ minHeight: 46, color: "var(--brand-cream)", background: i === active ? "rgba(252,163,17,0.14)" : "transparent" }}
-                >
-                  <span className="flex min-w-0 items-center gap-2.5">
-                    {it.icon}
-                    <span className="truncate text-[14.5px] font-bold">{it.label}</span>
-                  </span>
-                  {it.meta && <span className="shrink-0 text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>{it.meta}</span>}
-                </button>
-              </li>
-            ))}
+            {results.map((it, i) => {
+              // Section header: only when unfiltered (a search is one flat ranked list) and the
+              // group changes. `role="presentation"` keeps it out of the listbox's option set, so
+              // arrow-key navigation and aria-activedescendant still count only real rows.
+              const header = !needle && it.group && it.group !== results[i - 1]?.group ? it.group : null;
+              return (
+                <Fragment key={it.value}>
+                  {header && (
+                    <li role="presentation" className="sa-picker-group">{header}</li>
+                  )}
+                  <li role="option" id={`${listId}-${it.value}`} aria-selected={i === active} data-active={i === active ? "1" : undefined}>
+                    <button
+                      type="button"
+                      onMouseEnter={() => setActive(i)}
+                      onClick={() => choose(it.value)}
+                      className="flex w-full items-center justify-between gap-3 px-3.5 text-left"
+                      style={{ minHeight: 46, color: "var(--brand-cream)", background: i === active ? "rgba(252,163,17,0.14)" : "transparent" }}
+                    >
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        {it.icon}
+                        <span className="truncate text-[14.5px] font-bold">{it.label}</span>
+                      </span>
+                      {it.meta && <span className="shrink-0 text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>{it.meta}</span>}
+                    </button>
+                  </li>
+                </Fragment>
+              );
+            })}
             {!results.length && (
               <li className="px-3.5 py-3 text-[13px]" style={{ color: "var(--text-muted)" }}>
                 {renderEmpty ? renderEmpty(q) : <span className="italic">No matches.</span>}
               </li>
             )}
           </ul>
+          {footer && <div className="sa-picker-foot">{footer}</div>}
         </div>,
         </>, document.body,
       )}
     </>
+  );
+}
+
+/** The v1 student-player escape hatch — an orange, full-width row pinned under the list. Pass it
+ *  to SearchPicker's `footer` so every school picker shows the same "Don't see your school?" line
+ *  in the same place and style. Uses the shared .sa-row / .sa-row-name styles from styles.css. */
+export function PickerNotListed({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" className="sa-row sa-row--plain" onClick={onClick}>
+      <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>{label}</span>
+    </button>
   );
 }

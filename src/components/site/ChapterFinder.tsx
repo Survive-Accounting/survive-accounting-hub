@@ -18,9 +18,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { Bolt } from "@/components/canvas/brand";
-import { ALL_SCHOOLS, boltForSlug, schoolBySlug } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug, CONFERENCE_ORDER, schoolBySlug } from "@/lib/schools";
 import { listCampusIntroCodes, type CampusIntroCode } from "@/lib/default-map.functions";
-import { SearchPicker } from "@/components/site/SearchPicker";
+import { PickerNotListed, SearchPicker } from "@/components/site/SearchPicker";
 import { ChapterSelfCreate } from "@/components/site/ChapterSelfCreate";
 import { NotListedForm } from "@/components/site/NotListedForm";
 import { listGoChapters } from "@/lib/greek-go.functions";
@@ -85,10 +85,22 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   // Bolt element, and SearchPicker filters the SAME array reference on every character typed.
   const schoolItems = useMemo(() => {
     const codeByCampus = new Map(codeData.map((r) => [r.campusId, r.code]));
-    return schools.map((s) => ({
+    // Group by conference, same order and Ole-Miss-first-in-SEC rule as every other school picker
+    // (see orderedSchoolsForPicker in schools.ts). Conference is looked up per slug because the
+    // FinderSchool prop only carries slug + name; an unresolved slug sorts to the end as "Other".
+    const rank = (slug: string) => { const i = CONFERENCE_ORDER.indexOf((schoolBySlug(slug)?.conference ?? "Other") as (typeof CONFERENCE_ORDER)[number]); return i < 0 ? CONFERENCE_ORDER.length : i; };
+    const isOle = (slug: string) => slug === "university-of-mississippi";
+    const ordered = [...schools].sort((a, b) => {
+      const ra = rank(a.slug), rb = rank(b.slug);
+      if (ra !== rb) return ra - rb;
+      if (schoolBySlug(a.slug)?.conference === "SEC" && isOle(a.slug) !== isOle(b.slug)) return isOle(a.slug) ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    return ordered.map((s) => ({
       value: s.slug,
       label: s.name,
       meta: codeByCampus.get(schoolBySlug(s.slug)?.campusId ?? "") ?? "",
+      group: schoolBySlug(s.slug)?.conference,
       // The bolt is the school's own colourway — the row reads as that school at a glance
       // rather than as a line of text in a list.
       icon: <span className="block shrink-0" style={{ width: 15 }} aria-hidden><Bolt {...boltForSlug(s.slug)} /></span>,
@@ -132,6 +144,7 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
             placeholder="Pick your school to start"
             searchPlaceholder={`Search ${schools.length} schools…`}
             onPick={(v) => { setSchool(v); setChapter(""); }}
+            footer={escapeHatches ? <PickerNotListed label="Don't see your school?" onClick={() => setNotListed("school")} /> : undefined}
           />
 
           {/* The control stays mounted and in place while its options load — only its label
@@ -148,6 +161,7 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
               setChapter(v);
               if (autoPick) { const c = chapters.find((x) => x.slug === v); if (c) onPick(school, c.slug, c.name); }
             }}
+            footer={escapeHatches && school ? <PickerNotListed label="Don't see your chapter?" onClick={() => setNotListed("chapter")} /> : undefined}
           />
 
           {/* An empty list is stated, not hidden. A school whose roster we don't have yet is a real
@@ -170,17 +184,9 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
             </button>
           )}
 
-          {/* ONE escape hatch, not two. The pair said the same thing twice and stacked on a phone;
-              this is a single quiet line, and what it opens depends on how far they got: a school
-              already picked means the gap is the CHAPTER (self-create), otherwise the write-in
-              takes both. Smaller than the controls above it — it is the exception, not the path. */}
-          {escapeHatches && (
-            <div className="mt-1 flex items-center justify-center">
-              <button type="button" onClick={() => setNotListed(school ? "chapter" : "school")} className="px-1 text-[13px] underline underline-offset-4" style={{ color: "var(--text-muted)", minHeight: 44 }}>
-                Don&apos;t see your school or chapter?
-              </button>
-            </div>
-          )}
+          {/* The escape hatches now live INSIDE each picker as the orange v1 "Don't see your
+              school?" / "Don't see your chapter?" footer row (see the SearchPicker footer props
+              above), so there is no separate stacked link here any more. */}
 
           {note && <p className="text-center text-[12px]" style={{ color: "var(--text-muted)" }}>{note}</p>}
         </>

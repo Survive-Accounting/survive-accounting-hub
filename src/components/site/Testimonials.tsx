@@ -31,6 +31,23 @@ const TESTIMONIALS: Testimonial[] = [
 ];
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
+/** Truncate to whole SENTENCES within a character budget — never mid-word (p6 §11). Most people
+ *  never expand, so the visible portion has to read as the whole testimonial. Returns whether
+ *  anything was cut, so "Read more" only shows when it genuinely adds. */
+function truncateAtSentence(text: string, budget: number): { shown: string; truncated: boolean } {
+  const full = text.trim();
+  if (full.length <= budget) return { shown: full, truncated: false };
+  const sentences = full.match(/[^.!?]+[.!?]+(?:\s|$)/g) ?? [full];
+  let out = "";
+  for (const s of sentences) {
+    if (out && (out + s).trim().length > budget) break;
+    out += s;
+  }
+  out = out.trim();
+  if (!out) out = sentences[0].trim(); // a first sentence longer than the budget stays whole
+  return { shown: out, truncated: out.length < full.length };
+}
+
 // Avatar: our re-hosted image when present, initials otherwise (and on any load error — never a
 // hotlink, never a broken image).
 function TestimonialAvatar({ name, src }: { name: string; src?: string }) {
@@ -71,6 +88,9 @@ export function TestimonialsSlider() {
   const [page, setPage] = useState(0);
   const [auto, setAuto] = useState(!reduce);
   const [hover, setHover] = useState(false);
+  // "Read more" opens the FULL quote in a focused modal rather than growing the card in place — a
+  // long testimonial made the card enormous and left the 3-up row ragged. Cards stay uniform.
+  const [modalT, setModalT] = useState<Testimonial | null>(null);
   const stop = () => setAuto(false);
   const go = (d: -1 | 1) => setPage((p) => (p + d + pages) % pages);
   useEffect(() => { setPage((p) => Math.min(p, pages - 1)); }, [pages]);
@@ -91,18 +111,32 @@ export function TestimonialsSlider() {
     <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <div className="mb-4 flex items-center gap-2 text-[14px]" style={{ color: "var(--brand-cream)" }}>
         <span aria-hidden style={{ color: "var(--accent)", letterSpacing: "0.08em" }}>★★★★★</span>
-        <span style={{ opacity: 0.7 }}>1,000+ students helped</span>
+        <span style={{ opacity: 0.7 }}>1,000+ students helped since 2015</span>
       </div>
 
       <div className="relative select-none overflow-hidden" style={{ touchAction: "pan-y" }}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={end} onPointerLeave={() => { if (start.current != null) { start.current = null; setDx(0); } }}>
         <div className="flex" style={{ width: `${(total / per) * 100}%`, transform: `translateX(calc(-${page * (per / total) * 100}% + ${dx}px))`, transition: start.current != null ? "none" : "transform 420ms ease" }}>
-          {track.map((t, i) => (
+          {track.map((t, i) => {
+            // Clean truncation at a sentence boundary (never the old mid-word CSS clamp). Cards stay
+            // uniform; the full quote opens in a modal so a long one never blows out the row.
+            const { shown, truncated } = truncateAtSentence(t.quote, 185);
+            return (
             // Index in the key: a wrapped card appears twice in the track and names are not unique.
             <figure key={`${t.name}-${i}`} className="px-1.5" style={{ width: `${100 / total}%` }} aria-hidden={i >= n ? true : undefined}>
               <div className="flex h-full flex-col rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", minHeight: 168 }}>
-                <blockquote className="text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
-                  “{t.quote}”
+                <blockquote className="text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)" }}>
+                  &ldquo;{shown}&rdquo;
+                  {truncated && (
+                    <button
+                      type="button"
+                      onClick={() => { setModalT(t); stop(); }}
+                      className="ml-1 whitespace-nowrap font-bold underline underline-offset-2"
+                      style={{ color: "var(--accent)", background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit" }}
+                    >
+                      Read more
+                    </button>
+                  )}
                 </blockquote>
                 <figcaption className="mt-auto flex items-center gap-2.5 pt-3">
                   <TestimonialAvatar name={t.name} src={t.avatar} />
@@ -113,7 +147,8 @@ export function TestimonialsSlider() {
                 </figcaption>
               </div>
             </figure>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -136,6 +171,42 @@ export function TestimonialsSlider() {
           <button onClick={() => { go(1); stop(); }} className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[20px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid var(--border-default)" }} aria-label="Next reviews">›</button>
         </div>
       )}
+
+      {modalT && <TestimonialModal t={modalT} onClose={() => setModalT(null)} />}
+    </div>
+  );
+}
+
+/** The full testimonial, in a focused modal — a long quote reads cleanly here instead of blowing
+ *  out its card. Scrolls internally if very long; closes on backdrop, ×, or Escape. */
+function TestimonialModal({ t, onClose }: { t: Testimonial; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.documentElement.style.overflow = prev; };
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-[300] grid place-items-center overflow-y-auto p-4" style={{ background: "rgba(5,8,16,0.72)" }} onClick={onClose} role="dialog" aria-modal="true" aria-label={`Review from ${t.name}`}>
+      <div
+        className="relative w-full max-w-[520px] rounded-2xl p-6 sm:p-7"
+        style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS, maxHeight: "min(84vh, 640px)", overflowY: "auto" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted)" }}>
+          <span aria-hidden style={{ fontSize: 20 }}>×</span>
+        </button>
+        <span aria-hidden className="text-[13px]" style={{ color: "var(--accent)", letterSpacing: "0.08em" }}>★★★★★</span>
+        <blockquote className="mt-3 pr-4 text-[15.5px] leading-relaxed" style={{ color: "var(--brand-cream)" }}>&ldquo;{t.quote}&rdquo;</blockquote>
+        <figcaption className="mt-5 flex items-center gap-3">
+          <TestimonialAvatar name={t.name} src={t.avatar} />
+          <span className="min-w-0 text-left">
+            <span className="block text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>{t.name}</span>
+            <span className="block text-[12px]" style={{ color: "var(--text-muted)" }}>{[t.school, t.code].filter(Boolean).join(" · ")}</span>
+          </span>
+        </figcaption>
+      </div>
     </div>
   );
 }
