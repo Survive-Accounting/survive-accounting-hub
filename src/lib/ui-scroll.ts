@@ -15,6 +15,12 @@
 // does nothing at all — which is the correct behaviour, because "the row is already as visible as
 // its container can make it" should never be resolved by moving the whole page under the user.
 
+/** A same-page nav press announces WHERE it sent you, so the destination can mark itself. Landing
+ *  on a two-column row ("Reviews" and "Meet your tutor" sit side by side, level with each other)
+ *  otherwise gives the eye no signal about which half was asked for. `detail` is the anchor id.
+ *  Lives here rather than in SiteHeader so a listener never has to import the navbar. */
+export const SA_NAV_FOCUS_EVENT = "sa-nav-focus";
+
 /** Smooth-scroll the PAGE to an element by id — the deliberate kind, for a CTA the visitor just
  *  pressed. Distinct from revealInContainer below, which must never move the page.
  *

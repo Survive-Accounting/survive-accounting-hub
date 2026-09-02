@@ -26,7 +26,7 @@ describe("capture sizing math (C1)", () => {
 
 describe("the stable-wrapper fullscreen + capture window (C1 source pins)", () => {
   test("fullscreen targets the film-mode container that never unmounts — frames swap INSIDE it", () => {
-    expect(previewer).toContain('<div ref={filmRootRef} className="film-mode"');
+    expect(previewer).toContain("<div ref={filmRootRef} className={`film-mode${altHeld ? \" sa-alt\" : \"\"}`}");
     expect(previewer).toContain("el.requestFullscreen()");
   });
   test("F toggles it at the film-controller level, film windows only", () => {

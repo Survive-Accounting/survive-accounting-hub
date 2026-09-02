@@ -41,6 +41,7 @@ import { Route as BlastoffDemoRouteImport } from './routes/blastoff-demo'
 import { Route as BlastOffRouteImport } from './routes/blast-off'
 import { Route as BeyondRouteImport } from './routes/beyond'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as V3IndexRouteImport } from './routes/v3.index'
 import { Route as UIndexRouteImport } from './routes/u.index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as SchoolIndexRouteImport } from './routes/$school.index'
@@ -101,11 +102,13 @@ import { Route as AdminRepsRouteImport } from './routes/admin.reps'
 import { Route as AdminIdeasRouteImport } from './routes/admin.ideas'
 import { Route as AdminGrowthRouteImport } from './routes/admin.growth'
 import { Route as SchoolRepRouteImport } from './routes/$school.rep'
+import { Route as V3TopicIndexRouteImport } from './routes/v3.$topic.index'
 import { Route as SCampusIndexRouteImport } from './routes/s.$campus.index'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
 import { Route as GoSchoolIndexRouteImport } from './routes/go.$school.index'
 import { Route as AdminRepsIndexRouteImport } from './routes/admin.reps.index'
 import { Route as AdminGrowthIndexRouteImport } from './routes/admin.growth.index'
+import { Route as V3TopicSetRouteImport } from './routes/v3.$topic.$set'
 import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
 import { Route as SCampusCouncilRouteImport } from './routes/s.$campus.council'
 import { Route as SCampusChapterRouteImport } from './routes/s.$campus.$chapter'
@@ -320,6 +323,11 @@ const BeyondRoute = BeyondRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V3IndexRoute = V3IndexRouteImport.update({
+  id: '/v3/',
+  path: '/v3/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UIndexRoute = UIndexRouteImport.update({
@@ -626,6 +634,11 @@ const SchoolRepRoute = SchoolRepRouteImport.update({
   path: '/$school/rep',
   getParentRoute: () => rootRouteImport,
 } as any)
+const V3TopicIndexRoute = V3TopicIndexRouteImport.update({
+  id: '/v3/$topic/',
+  path: '/v3/$topic/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SCampusIndexRoute = SCampusIndexRouteImport.update({
   id: '/s/$campus/',
   path: '/s/$campus/',
@@ -650,6 +663,11 @@ const AdminGrowthIndexRoute = AdminGrowthIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminGrowthRoute,
+} as any)
+const V3TopicSetRoute = V3TopicSetRouteImport.update({
+  id: '/v3/$topic/$set',
+  path: '/v3/$topic/$set',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const StudyScenariosSlugRoute = StudyScenariosSlugRouteImport.update({
   id: '/study_/scenarios/$slug',
@@ -1035,6 +1053,7 @@ export interface FileRoutesByFullPath {
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
+  '/v3/': typeof V3IndexRoute
   '/admin/growth/activity': typeof AdminGrowthActivityRoute
   '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
@@ -1075,11 +1094,13 @@ export interface FileRoutesByFullPath {
   '/s/$campus/$chapter': typeof SCampusChapterRoute
   '/s/$campus/council': typeof SCampusCouncilRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
+  '/v3/$topic/$set': typeof V3TopicSetRoute
   '/admin/growth/': typeof AdminGrowthIndexRoute
   '/admin/reps/': typeof AdminRepsIndexRoute
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/s/$campus/': typeof SCampusIndexRoute
+  '/v3/$topic/': typeof V3TopicIndexRoute
   '/admin/growth/coldoutreach/activity': typeof AdminGrowthColdoutreachActivityRoute
   '/admin/growth/coldoutreach/engaged': typeof AdminGrowthColdoutreachEngagedRoute
   '/admin/growth/coldoutreach/feedback': typeof AdminGrowthColdoutreachFeedbackRoute
@@ -1186,6 +1207,7 @@ export interface FileRoutesByTo {
   '/$school': typeof SchoolIndexRoute
   '/outreach': typeof OutreachIndexRoute
   '/u': typeof UIndexRoute
+  '/v3': typeof V3IndexRoute
   '/admin/growth/activity': typeof AdminGrowthActivityRoute
   '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
@@ -1225,11 +1247,13 @@ export interface FileRoutesByTo {
   '/s/$campus/$chapter': typeof SCampusChapterRoute
   '/s/$campus/council': typeof SCampusCouncilRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
+  '/v3/$topic/$set': typeof V3TopicSetRoute
   '/admin/growth': typeof AdminGrowthIndexRoute
   '/admin/reps': typeof AdminRepsIndexRoute
   '/go/$school': typeof GoSchoolIndexRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
   '/s/$campus': typeof SCampusIndexRoute
+  '/v3/$topic': typeof V3TopicIndexRoute
   '/admin/growth/coldoutreach/activity': typeof AdminGrowthColdoutreachActivityRoute
   '/admin/growth/coldoutreach/engaged': typeof AdminGrowthColdoutreachEngagedRoute
   '/admin/growth/coldoutreach/feedback': typeof AdminGrowthColdoutreachFeedbackRoute
@@ -1340,6 +1364,7 @@ export interface FileRoutesById {
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
+  '/v3/': typeof V3IndexRoute
   '/admin/growth/activity': typeof AdminGrowthActivityRoute
   '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
@@ -1380,11 +1405,13 @@ export interface FileRoutesById {
   '/s/$campus/$chapter': typeof SCampusChapterRoute
   '/s/$campus/council': typeof SCampusCouncilRoute
   '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
+  '/v3/$topic/$set': typeof V3TopicSetRoute
   '/admin/growth/': typeof AdminGrowthIndexRoute
   '/admin/reps/': typeof AdminRepsIndexRoute
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/s/$campus/': typeof SCampusIndexRoute
+  '/v3/$topic/': typeof V3TopicIndexRoute
   '/admin/growth/coldoutreach/activity': typeof AdminGrowthColdoutreachActivityRoute
   '/admin/growth/coldoutreach/engaged': typeof AdminGrowthColdoutreachEngagedRoute
   '/admin/growth/coldoutreach/feedback': typeof AdminGrowthColdoutreachFeedbackRoute
@@ -1496,6 +1523,7 @@ export interface FileRouteTypes {
     | '/$school/'
     | '/outreach/'
     | '/u/'
+    | '/v3/'
     | '/admin/growth/activity'
     | '/admin/growth/campaigns'
     | '/admin/growth/campuses'
@@ -1536,11 +1564,13 @@ export interface FileRouteTypes {
     | '/s/$campus/$chapter'
     | '/s/$campus/council'
     | '/study/scenarios/$slug'
+    | '/v3/$topic/$set'
     | '/admin/growth/'
     | '/admin/reps/'
     | '/go/$school/'
     | '/outreach/leadfinder/'
     | '/s/$campus/'
+    | '/v3/$topic/'
     | '/admin/growth/coldoutreach/activity'
     | '/admin/growth/coldoutreach/engaged'
     | '/admin/growth/coldoutreach/feedback'
@@ -1647,6 +1677,7 @@ export interface FileRouteTypes {
     | '/$school'
     | '/outreach'
     | '/u'
+    | '/v3'
     | '/admin/growth/activity'
     | '/admin/growth/campaigns'
     | '/admin/growth/campuses'
@@ -1686,11 +1717,13 @@ export interface FileRouteTypes {
     | '/s/$campus/$chapter'
     | '/s/$campus/council'
     | '/study/scenarios/$slug'
+    | '/v3/$topic/$set'
     | '/admin/growth'
     | '/admin/reps'
     | '/go/$school'
     | '/outreach/leadfinder'
     | '/s/$campus'
+    | '/v3/$topic'
     | '/admin/growth/coldoutreach/activity'
     | '/admin/growth/coldoutreach/engaged'
     | '/admin/growth/coldoutreach/feedback'
@@ -1800,6 +1833,7 @@ export interface FileRouteTypes {
     | '/$school/'
     | '/outreach/'
     | '/u/'
+    | '/v3/'
     | '/admin/growth/activity'
     | '/admin/growth/campaigns'
     | '/admin/growth/campuses'
@@ -1840,11 +1874,13 @@ export interface FileRouteTypes {
     | '/s/$campus/$chapter'
     | '/s/$campus/council'
     | '/study_/scenarios/$slug'
+    | '/v3/$topic/$set'
     | '/admin/growth/'
     | '/admin/reps/'
     | '/go/$school/'
     | '/outreach/leadfinder/'
     | '/s/$campus/'
+    | '/v3/$topic/'
     | '/admin/growth/coldoutreach/activity'
     | '/admin/growth/coldoutreach/engaged'
     | '/admin/growth/coldoutreach/feedback'
@@ -1925,6 +1961,7 @@ export interface RootRouteChildren {
   VaTokenRoute: typeof VaTokenRoute
   SchoolIndexRoute: typeof SchoolIndexRoute
   UIndexRoute: typeof UIndexRoute
+  V3IndexRoute: typeof V3IndexRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
   ApiCronChapterReportsRoute: typeof ApiCronChapterReportsRoute
   ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
@@ -1940,8 +1977,10 @@ export interface RootRouteChildren {
   SCampusChapterRoute: typeof SCampusChapterRoute
   SCampusCouncilRoute: typeof SCampusCouncilRoute
   StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
+  V3TopicSetRoute: typeof V3TopicSetRoute
   GoSchoolIndexRoute: typeof GoSchoolIndexRoute
   SCampusIndexRoute: typeof SCampusIndexRoute
+  V3TopicIndexRoute: typeof V3TopicIndexRoute
   ApiChapterKitSchoolChapterRoute: typeof ApiChapterKitSchoolChapterRoute
   ApiFlyerSchoolChapterRoute: typeof ApiFlyerSchoolChapterRoute
   ApiOgSchoolChapterRoute: typeof ApiOgSchoolChapterRoute
@@ -2175,6 +2214,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v3/': {
+      id: '/v3/'
+      path: '/v3'
+      fullPath: '/v3/'
+      preLoaderRoute: typeof V3IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/u/': {
@@ -2597,6 +2643,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SchoolRepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/v3/$topic/': {
+      id: '/v3/$topic/'
+      path: '/v3/$topic'
+      fullPath: '/v3/$topic/'
+      preLoaderRoute: typeof V3TopicIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/s/$campus/': {
       id: '/s/$campus/'
       path: '/s/$campus'
@@ -2631,6 +2684,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/growth/'
       preLoaderRoute: typeof AdminGrowthIndexRouteImport
       parentRoute: typeof AdminGrowthRoute
+    }
+    '/v3/$topic/$set': {
+      id: '/v3/$topic/$set'
+      path: '/v3/$topic/$set'
+      fullPath: '/v3/$topic/$set'
+      preLoaderRoute: typeof V3TopicSetRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/study_/scenarios/$slug': {
       id: '/study_/scenarios/$slug'
@@ -3291,6 +3351,7 @@ const rootRouteChildren: RootRouteChildren = {
   VaTokenRoute: VaTokenRoute,
   SchoolIndexRoute: SchoolIndexRoute,
   UIndexRoute: UIndexRoute,
+  V3IndexRoute: V3IndexRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
   ApiCronChapterReportsRoute: ApiCronChapterReportsRoute,
   ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,
@@ -3306,8 +3367,10 @@ const rootRouteChildren: RootRouteChildren = {
   SCampusChapterRoute: SCampusChapterRoute,
   SCampusCouncilRoute: SCampusCouncilRoute,
   StudyScenariosSlugRoute: StudyScenariosSlugRoute,
+  V3TopicSetRoute: V3TopicSetRoute,
   GoSchoolIndexRoute: GoSchoolIndexRoute,
   SCampusIndexRoute: SCampusIndexRoute,
+  V3TopicIndexRoute: V3TopicIndexRoute,
   ApiChapterKitSchoolChapterRoute: ApiChapterKitSchoolChapterRoute,
   ApiFlyerSchoolChapterRoute: ApiFlyerSchoolChapterRoute,
   ApiOgSchoolChapterRoute: ApiOgSchoolChapterRoute,

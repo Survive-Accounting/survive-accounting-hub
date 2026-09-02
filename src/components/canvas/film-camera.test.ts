@@ -224,7 +224,8 @@ describe("capture-window wiring (source pins)", () => {
 
   test("the film camera is NOT welded shut any more", () => {
     // These three were `false`. That was the cage.
-    expect(filmRf).toContain("panOnDrag={PAN_BUTTONS}");
+    // Alt freezes the shot so a drag moves the CARD, never the camera.
+    expect(filmRf).toContain("panOnDrag={altHeld ? false : PAN_BUTTONS}");
     expect(filmRf).toContain("zoomOnScroll\n");
     expect(filmRf).toContain("zoomOnPinch\n");
     expect(filmRf).not.toContain("panOnDrag={false}");
@@ -284,8 +285,13 @@ describe("capture-window wiring (source pins)", () => {
   });
 
   test("` and a question change are the ONLY things that re-home", () => {
-    // Both backtick sweeps force a re-home…
-    expect(src.split("fitFilmRef.current(0, true)").length).toBe(3); // 2 sweep sites
+    // Both backtick sweeps force a re-home, plus ONE on mount (onFilmInstance),
+    // which is the surface's first framing rather than something yanking a
+    // camera Lee is already holding — there is no held shot before mount.
+    expect(src.split("fitFilmRef.current(0, true)").length).toBe(4); // 2 sweeps + 1 mount
+    const at = src.indexOf("const onFilmInstance");
+    expect(at).toBeGreaterThan(0);
+    expect(src.slice(at, at + 400)).toContain("fitFilmRef.current(0, true)");
     // …and the question-change effect releases the camera then forces the fit.
     const q = src.slice(src.indexOf("useEffect(() => {\n    if (!filmWin) return;\n    releaseCamera();"), src.indexOf("// CAPTURE WINDOW (C1)"));
     expect(q).toContain("releaseCamera();");

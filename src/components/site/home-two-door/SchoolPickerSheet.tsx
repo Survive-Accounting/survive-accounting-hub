@@ -13,7 +13,7 @@
 // BoltBadge pattern: boilFrame=undefined animates, a number pins a static frame — so exactly one
 // row animates and prefers-reduced-motion still collapses it to a still frame). Long names get a
 // native tooltip and wrap to two lines on a phone, where there is no hover to reveal them.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -54,6 +54,11 @@ export function SchoolPickerSheet({ onClose, onPick, title = "Which school are y
   const [q, setQ] = useState("");
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [showOther, setShowOther] = useState(false);
+  // Read after mount (never during render — this sheet is reachable from a server-rendered page).
+  const [autoFocusSearch, setAutoFocusSearch] = useState(false);
+  useEffect(() => {
+    setAutoFocusSearch(!!window.matchMedia?.("(hover: hover) and (pointer: fine)").matches);
+  }, []);
 
   // Same query key + staleTime as /chapters and the campus context, so the codes come from a warm
   // cache and rows never flash without them.
@@ -131,7 +136,11 @@ export function SchoolPickerSheet({ onClose, onPick, title = "Which school are y
         </div>
 
         <input
-          autoFocus
+          // AUTOFOCUS ON A POINTER DEVICE ONLY. On a phone, focusing this opened the keyboard the
+          // instant the sheet did, which covered most of the list the visitor came here to read —
+          // and nearly everyone picks their school by scrolling, not typing. Desktop still gets to
+          // type immediately.
+          autoFocus={autoFocusSearch}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={`Search ${ALL_SCHOOLS.length} schools…`}

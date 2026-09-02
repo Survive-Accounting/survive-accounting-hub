@@ -119,6 +119,15 @@ export interface BoothStatus {
   recording: boolean;
   /** Live (interim) text of the sentence being spoken right now. */
   interim: string;
+  /** FINALISED words of the chunk in progress — everything SpeechRecognition has
+   *  committed since this chunk began, before it ships as a segment.
+   *
+   *  Exposed (2026-09-01) so the booth can render a flowing paragraph instead of
+   *  one interim sentence: the readable tail of a dictation is
+   *  `…shipped segments… + liveFinal + interim`, and without this the middle
+   *  term was invisible — text appeared to vanish and reappear a chunk later,
+   *  which is what made it feel segment-at-a-time rather than continuous. */
+  liveFinal: string;
   liveAvailable: boolean;
   /** Chunks awaiting upload (in-memory) / awaiting Whisper (retryable forever). */
   uploadQueue: number;
@@ -167,6 +176,7 @@ export class TalkthroughRecorder {
     return {
       recording: !!this.rec,
       interim: this.interim,
+      liveFinal: this.liveFinal,
       liveAvailable: speechRecognitionAvailable(),
       uploadQueue: this.uploadQ.length,
       transcribeQueue: pendingWhisper,
