@@ -20,7 +20,7 @@ import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { useCampus } from "@/lib/campus-context";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
-import { ALL_SCHOOLS, boltForSlug, schoolBySlug } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug, orderedSchoolsForPicker, schoolBySlug } from "@/lib/schools";
 import { useQuery } from "@tanstack/react-query";
 
 export function SchoolSwitchSheet({ onClose }: { onClose: () => void }) {
@@ -37,10 +37,11 @@ export function SchoolSwitchSheet({ onClose }: { onClose: () => void }) {
 
   const items = useMemo(() => {
     const codeByCampus = new Map((codesQ.data ?? []).map((r) => [r.campusId, r.code]));
-    return ALL_SCHOOLS.map((s) => ({
+    return orderedSchoolsForPicker().map((s) => ({
       value: s.slug,
       label: s.name,
       meta: codeByCampus.get(s.campusId) ?? "",
+      group: s.conference,
       icon: <span className="block shrink-0" style={{ width: 15 }} aria-hidden><Bolt {...boltForSlug(s.slug)} /></span>,
     }));
   }, [codesQ.data]);
