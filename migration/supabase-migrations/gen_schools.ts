@@ -93,7 +93,11 @@ if (allErr || !allRows?.length) {
 // Greek chapter counts — >=1 is required for non-SEC display-readiness (personalised branding).
 const chapCount = new Map<string, number>();
 { let from = 0; for (;;) { const { data } = await db.from("campus_greek_chapters").select("campus_id").range(from, from + 999); (data ?? []).forEach((r: any) => chapCount.set(r.campus_id, (chapCount.get(r.campus_id) ?? 0) + 1)); if (!data || data.length < 1000) break; from += 1000; } }
-const displayReady = (c: any) => !!c.slug && (c.is_sec || (!!code(c) && !!c.color_primary && (chapCount.get(c.id) ?? 0) >= 1));
+// Two-year / community colleges never belong in this picker — it is the curated four-year set.
+// Name-based and deliberately narrow ("Community/Junior/Technical College"), so a four-year name
+// like "College of Charleston" or "Boston College" is untouched. Excludes future ones too.
+const isTwoYearCollege = (name: string) => /\b(community|junior|technical)\s+college\b/i.test(name || "");
+const displayReady = (c: any) => !!c.slug && !isTwoYearCollege(c.name) && (c.is_sec || (!!code(c) && !!c.color_primary && (chapCount.get(c.id) ?? 0) >= 1));
 const seen = new Set<string>();
 let rows: any[] = (allRows as any[]).filter((c) => { if (seen.has(c.id) || !displayReady(c)) return false; seen.add(c.id); return true; });
 
