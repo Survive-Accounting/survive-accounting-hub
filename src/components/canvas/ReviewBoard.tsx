@@ -98,9 +98,10 @@ function ItemShell({ item, children, onRegen, printable, film }: {
   const [pinned, setPinned] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const saveComment = () => { if (comment !== item.comment) putBoardItem(touchRow(item, { comment } as Partial<BoardItem>)); };
-  const setStatus = (s: "approved" | "archived") =>
+  const setStatus = (s: "approved" | "archived" | "in_production") =>
     putBoardItem(touchRow(item, { status: item.status === s ? "suggested" : s } as Partial<BoardItem>));
   const archived = item.status === "archived";
+  const queued = item.status === "in_production";
   return (
     <div className="mb-2 rounded-2xl p-4 tt-item" style={{ background: PANEL, border: `1px solid ${item.status === "approved" ? "rgba(59,245,160,0.4)" : EDGE}`, opacity: archived ? 0.55 : 1 }}>
       <div className="flex items-center gap-2">
@@ -125,6 +126,14 @@ function ItemShell({ item, children, onRegen, printable, film }: {
             style={item.status === "approved" ? { background: "#3BF5A0", color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: "#3BF5A0" }}
             onClick={() => setStatus("approved")}>
             {item.status === "approved" ? "✓ approved" : "approve"}
+          </button>
+          {/* → QUEUE (Lee, 2026-09-02): push an idea to the production queue
+              on /v3 — status "in production", the bank's own lifecycle step. */}
+          <button className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+            title={queued ? "In the production queue (/v3) — click to take it back out" : "Push to the production queue on /v3"}
+            style={queued ? { background: GOLD, color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: GOLD }}
+            onClick={() => setStatus("in_production")}>
+            {queued ? "✓ queued" : "→ queue"}
           </button>
           <button className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
             style={archived ? { background: "#F87171", color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: NEON.muted }}

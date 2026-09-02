@@ -19,7 +19,7 @@ function V3Topic() {
   const topic = topics ? findTopic(topics, topicKey) : undefined;
 
   return (
-    <V3Shell crumbs={[{ label: "Home", to: "/v3" }, { label: topic?.name ?? topicKey }]}>
+    <V3Shell crumbs={[{ label: "The Queue", to: "/v3" }, { label: topic?.name ?? topicKey }]}>
       {error && <V3Note tone="bad">Could not load the bank: {error}</V3Note>}
       {!topics && !error && <V3Note>Loading…</V3Note>}
       {topics && !topic && <V3Note tone="bad">No topic called “{topicKey}” in the live bank.</V3Note>}

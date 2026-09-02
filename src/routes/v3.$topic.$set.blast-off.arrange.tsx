@@ -26,7 +26,7 @@ function V3Arrange() {
   const { topics, error, topic, set } = useV3Set(topicKey, setKey);
 
   const crumbs = [
-    { label: "Home", to: "/v3" },
+    { label: "The Queue", to: "/v3" },
     { label: topic?.name ?? topicKey, to: `/v3/${topicKey}` },
     { label: set?.name ?? setKey, to: `/v3/${topicKey}/${setKey}` },
     { label: "Blast Off", to: `/v3/${topicKey}/${setKey}/blast-off` },

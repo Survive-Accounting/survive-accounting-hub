@@ -13,12 +13,12 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AdminGate } from "@/components/AdminGate";
 import { SessionView } from "@/components/talkthrough/SessionView";
-import { listSessions } from "@/components/canvas/talkthrough";
+import { listSessions, sessionMeta } from "@/components/canvas/talkthrough";
 import { startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
 import { StepBar } from "@/components/v3/StepBar";
 import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
-import { V3Shell, V3Note } from "@/components/v3/Shell";
+import { V3Shell, V3Note, V3_CREAM, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/results")({
   component: () => <AdminGate><V3Results /></AdminGate>,
@@ -40,11 +40,15 @@ function V3Results() {
     return () => { unReview(); unTT(); };
   }, []);
 
-  // The set's newest session — open or ended. listSessions is newest first.
-  const session = useMemo(() => (set ? listSessions(tt.doc).find((x) => x.setId === set.id) ?? null : null), [tt.doc, set]);
+  // Every session on this set, newest first — a CEQ sitting and an exhibit
+  // sitting are separate sessions with separate boards, so Lee picks which
+  // one he is reviewing. Newest by default.
+  const sessions = useMemo(() => (set ? listSessions(tt.doc).filter((x) => x.setId === set.id) : []), [tt.doc, set]);
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const session = sessions.find((s) => s.id === pickedId) ?? sessions[0] ?? null;
 
   const crumbs = [
-    { label: "Home", to: "/v3" },
+    { label: "The Queue", to: "/v3" },
     { label: topic?.name ?? topicKey, to: `/v3/${topicKey}` },
     { label: set?.name ?? setKey, to: `/v3/${topicKey}/${setKey}` },
     { label: "Blast Off", to: `/v3/${topicKey}/${setKey}/blast-off` },
@@ -64,6 +68,26 @@ function V3Results() {
             <V3Note>
               Nothing captured for this set yet — {tt.loadedRemote ? "start with Step 1." : "syncing your sessions…"}
             </V3Note>
+          )}
+          {sessions.length > 1 && (
+            <div className="flex items-center gap-2" style={{ marginBottom: 14, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: V3_MUTED }}>Session</span>
+              {sessions.map((s) => {
+                const on = s.id === session?.id;
+                const m = sessionMeta(tt.doc, s);
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => setPickedId(s.id)}
+                    className="rounded-lg px-2.5 py-1"
+                    style={{ border: `1px solid ${on ? V3_GOLD : V3_EDGE}`, background: on ? "rgba(252,163,17,0.12)" : "transparent", color: on ? V3_CREAM : V3_MUTED, fontSize: 11.5, cursor: "pointer" }}
+                    title={`${m.segments} segments · ${m.words} words${s.endedAt ? "" : " · still open"}`}
+                  >
+                    {new Date(s.startedAt).toLocaleString()} · {m.words} words{s.endedAt ? "" : " · open"}
+                  </button>
+                );
+              })}
+            </div>
           )}
           {session && (
             <SessionView

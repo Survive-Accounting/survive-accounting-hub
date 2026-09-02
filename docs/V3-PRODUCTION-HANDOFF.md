@@ -84,6 +84,16 @@ detour card on the canvas.
   verified: a real recording under the new chunking (Lee's mic), Generate
   review from Step 2 (blocked in the test browser).
 
+**Third pass:** `/v3` IS THE QUEUE (and the home). Every Exam 1 set grouped by
+topic, a live status chip from its newest session (talking · session open ·
+results ready · …) and three icon buttons straight to Step 1/2/3. Below it,
+IDEAS IN PRODUCTION: board items with status `in_production` — pushed from a
+results board with the new "→ queue" button (ReviewBoardV2), marked "done"
+from the queue. Step 2 got a session picker (newest first) because a CEQ
+sitting and an exhibit sitting are separate sessions with separate boards.
+Sessions are per SET: exhibit-mode talk goes into whichever session is open
+on that set — end the CEQ session first to keep the sittings apart.
+
 ## The route shape Lee wants
 
 Today V3 stops at three doors. He wants it to keep nesting:

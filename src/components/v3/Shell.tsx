@@ -48,7 +48,7 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
           className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5"
           style={{ color: V3_CREAM, border: `1px solid ${V3_EDGE}`, fontSize: 12.5, fontWeight: 700, textDecoration: "none" }}
         >
-          <Home style={{ width: 13, height: 13 }} /> Home
+          <Home style={{ width: 13, height: 13 }} /> The Queue
         </Link>
         {/* A NEW TAB, not a navigation: Exhibit Lab is its own surface, and
             leaving V3 for it lost the breadcrumb trail (Lee got stuck). The
