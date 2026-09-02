@@ -28,7 +28,7 @@
 // A start/stop timer times the run. Practice + spotlight state are LOCAL — they never
 // dirty the real CEQ, and reset when you switch questions.
 import { Component, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, useStore, ViewportPortal, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
+import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, useReactFlow, useStore, ViewportPortal, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import { Clapperboard, ChevronDown, ChevronRight, Eye, Grid3x3, LayoutGrid, Maximize2, Plus, Rows3, Save, Spline, X } from "lucide-react";
 
 import { Bolt, BOLT_PRESETS, BOLT_RATIO, boltColorById, BRAND_DISPLAY } from "./brand";
@@ -144,6 +144,16 @@ export const PV_CSS = `
    (Kept ABOVE the V2 keyframes on purpose: film-v2.test.ts reads the block
    BETWEEN sa-ceq-v2-fade and BOSS MOMENT and requires it to be movement-free.) */
 .react-flow__node:has(> .sa-ceq-pinned) { z-index: 12 !important; }
+/* ALT = REARRANGE (Lee, 09-01). Film hides every resize handle (FILM_LOCK_CSS),
+   which is right on camera and wrong the moment Lee wants to fix a frame. While
+   Alt is held the surface flips into a rearrange state: the handles come back at
+   the corners, the body reads as grabbable, and the camera is frozen (panOnDrag
+   off) so a drag moves the CARD and never the shot. Let go and it is a locked
+   film surface again. Nothing here persists — see filmNodes. */
+.film-mode.sa-alt .react-flow__resize-control { display: block !important; }
+.film-mode.sa-alt .react-flow__node { cursor: grab; }
+.film-mode.sa-alt .react-flow__node:active { cursor: grabbing; }
+.film-mode.sa-alt .react-flow__resize-control.handle { cursor: nwse-resize; }
 /* FILM V2 — the one-frame crossfade: pure opacity, zero movement. */
 @keyframes sa-ceq-v2-fade { from { opacity: 0; } to { opacity: 1; } }
 ${BOSS_REVEAL_CSS}
@@ -286,6 +296,19 @@ const PAN_BUTTONS = [0, 1];
  *  browser, so the most important surface in the app was also the only one that
  *  could not be reviewed without sitting at Lee's desk. Do not film off it —
  *  its size is whatever the browser window happens to be. */
+/** Hands the film ReactFlow's instance up on EVERY mount.
+ *
+ *  `onInit` fires once and, in practice, not at all on some remounts (switching
+ *  FilmShell between popout and inline, and HMR). When it misses, filmFitRef
+ *  stays null — which silently killed both the home shot the CEQ pin anchors to
+ *  and the O key, while the surface itself looked perfectly fine. A child that
+ *  reads the context on mount cannot miss. */
+function FilmInstanceBridge({ onReady }: { onReady: (i: ReactFlowInstance) => void }) {
+  const inst = useReactFlow();
+  useEffect(() => { onReady(inst as ReactFlowInstance); }, [inst, onReady]);
+  return null;
+}
+
 function FilmShell({ inline, win, onReturn, children }: {
   inline: boolean; win: Window; onReturn: () => void; children: ReactNode;
 }) {
@@ -1080,10 +1103,16 @@ function PerfArrowLayer({ arrows, add, sel, setSel }: { arrows: PerfArrow[]; add
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [armed, setArmed] = useState(false);
   const [draw, setDraw] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
-  // TAP-TAP MODE (Lee): first Alt+click anchors, the preview follows the cursor
-  // while Alt stays down, the second Alt+click sets the arrow. Releasing Alt
-  // cancels the pending anchor.
+  // F1 TAP-TAP (Lee, 2026-09-01) — this tool used to be armed by ALT, which made
+  // Alt unusable for anything else and meant a stray alt-drag drew a line across
+  // a take. Alt now belongs to picking cards up; the arrow tool moved to F1.
+  //
+  // F1 drops one end at the cursor, the preview follows the mouse, F1 again sets
+  // the arrow. Esc or ` cancels a pending anchor. The layer is pointer-inert
+  // unless an anchor is pending, so it can never intercept a card gesture.
   const pendingRef = useRef<{ x: number; y: number } | null>(null);
+  /** Last known cursor position, so F1 (a KEY) knows where to put the end. */
+  const cursorRef = useRef<{ x: number; y: number } | null>(null);
   useEffect(() => {
     const el = ref.current; if (!el) return;
     const measure = () => { const r = el.getBoundingClientRect(); setSize({ w: r.width, h: r.height }); };
@@ -1093,46 +1122,42 @@ function PerfArrowLayer({ arrows, add, sel, setSel }: { arrows: PerfArrow[]; add
   useEffect(() => {
     const doc = ref.current?.ownerDocument ?? document;
     const win = doc.defaultView ?? window;
-    const kd = (e: KeyboardEvent) => setArmed(e.altKey && !e.ctrlKey && !e.metaKey);
-    const ku = (e: KeyboardEvent) => { if (!e.altKey) { setArmed(false); pendingRef.current = null; setDraw(null); } }; // Alt up = disarm + cancel any pending anchor
-    const blur = () => setArmed(false);
-    doc.addEventListener("keydown", kd); doc.addEventListener("keyup", ku); win.addEventListener("blur", blur);
-    return () => { doc.removeEventListener("keydown", kd); doc.removeEventListener("keyup", ku); win.removeEventListener("blur", blur); };
+    const cancel = () => { setArmed(false); pendingRef.current = null; setDraw(null); };
+    const kd = (e: KeyboardEvent) => {
+      if (e.key === "Escape" || e.key === "`" || e.code === "Backquote") { if (pendingRef.current) cancel(); return; }
+      if (e.key !== "F1" || e.ctrlKey || e.metaKey || e.altKey) return;
+      e.preventDefault();                       // F1 is the browser's help key
+      const c = cursorRef.current;
+      if (!c) return;                           // no cursor seen yet — nothing to anchor to
+      const pending = pendingRef.current;
+      if (!pending) { pendingRef.current = c; setArmed(true); setDraw({ x1: c.x, y1: c.y, x2: c.x, y2: c.y }); return; }
+      if (Math.hypot(c.x - pending.x, c.y - pending.y) > CLICK_EPS) add({ x1: pending.x, y1: pending.y, x2: c.x, y2: c.y });
+      cancel();
+    };
+    // The cursor is tracked on the DOCUMENT, not the layer: while the layer is
+    // pointer-inert (the normal state) it receives no pointer events at all.
+    const pm = (e: PointerEvent) => {
+      const r = ref.current?.getBoundingClientRect();
+      if (r) cursorRef.current = { x: (e.clientX - r.left) / (r.width || 1), y: (e.clientY - r.top) / (r.height || 1) };
+      const pending = pendingRef.current;
+      if (pending && cursorRef.current) setDraw({ x1: pending.x, y1: pending.y, x2: cursorRef.current.x, y2: cursorRef.current.y });
+    };
+    doc.addEventListener("keydown", kd); doc.addEventListener("pointermove", pm); win.addEventListener("blur", cancel);
+    return () => { doc.removeEventListener("keydown", kd); doc.removeEventListener("pointermove", pm); win.removeEventListener("blur", cancel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const frac = (cx: number, cy: number) => { const r = ref.current?.getBoundingClientRect(); return r ? { x: (cx - r.left) / (r.width || 1), y: (cy - r.top) / (r.height || 1) } : { x: 0, y: 0 }; };
-  // TWO WAYS, ONE RESULT (Lee, arrow rework): (1) Alt+DRAG — the arrow extends
-  // from the press point in real time and PERSISTS on release. (2) Alt+CLICK a
-  // point, keep Alt held, Alt+CLICK another — the arrow sets between them. Every
-  // set arrow persists; select+Delete removes one, ` clears all. (Shift no
-  // longer means anything here — persistence is the default, not a mode.)
-  const CLICK_EPS = 0.012; // under this movement a press counts as a click
+  // Every set arrow persists; select+Delete removes one, ` clears all.
+  const CLICK_EPS = 0.012; // under this movement two taps count as the same point
+  // A CLICK while an anchor is pending sets the arrow — the mouse can finish what
+  // F1 started. With nothing pending the layer is inert and this never fires.
   const onDown = (e: React.PointerEvent) => {
-    if (!e.altKey || e.ctrlKey || e.metaKey) return;
+    const pending = pendingRef.current;
+    if (!pending) return;
     e.preventDefault(); e.stopPropagation();
     const p = frac(e.clientX, e.clientY);
-    const pending = pendingRef.current;
-    if (pending) {
-      // second tap of tap-tap mode: set the arrow between the two points
-      if (Math.hypot(p.x - pending.x, p.y - pending.y) > CLICK_EPS) add({ x1: pending.x, y1: pending.y, x2: p.x, y2: p.y });
-      pendingRef.current = null; setDraw(null);
-      return;
-    }
-    setDraw({ x1: p.x, y1: p.y, x2: p.x, y2: p.y });
-    const move = (ev: PointerEvent) => { const q = frac(ev.clientX, ev.clientY); setDraw((d) => (d ? { ...d, x2: q.x, y2: q.y } : d)); };
-    const up = (ev: PointerEvent) => {
-      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
-      const q = frac(ev.clientX, ev.clientY);
-      const moved = Math.hypot(q.x - p.x, q.y - p.y) > CLICK_EPS;
-      if (moved) { add({ x1: p.x, y1: p.y, x2: q.x, y2: q.y }); setDraw(null); }
-      else { pendingRef.current = p; setDraw({ x1: p.x, y1: p.y, x2: p.x, y2: p.y }); } // enter tap-tap mode
-    };
-    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
-  };
-  // while a tap-tap anchor is pending, the preview tracks the cursor
-  const onHover = (e: React.PointerEvent) => {
-    const pending = pendingRef.current; if (!pending) return;
-    const q = frac(e.clientX, e.clientY);
-    setDraw({ x1: pending.x, y1: pending.y, x2: q.x, y2: q.y });
+    if (Math.hypot(p.x - pending.x, p.y - pending.y) > CLICK_EPS) add({ x1: pending.x, y1: pending.y, x2: p.x, y2: p.y });
+    pendingRef.current = null; setArmed(false); setDraw(null);
   };
   const { w, h } = size;
   const geom = (a: { x1: number; y1: number; x2: number; y2: number }) => {
@@ -1143,7 +1168,7 @@ function PerfArrowLayer({ arrows, add, sel, setSel }: { arrows: PerfArrow[]; add
   };
   const COL = "#FCA311";
   return (
-    <div ref={ref} onPointerDown={onDown} onPointerMove={onHover} style={{ position: "absolute", inset: 0, zIndex: 40, pointerEvents: armed ? "auto" : "none", cursor: armed ? "crosshair" : "default" }}>
+    <div ref={ref} onPointerDown={onDown} style={{ position: "absolute", inset: 0, zIndex: 40, pointerEvents: armed ? "auto" : "none", cursor: armed ? "crosshair" : "default" }}>
       <svg width="100%" height="100%" style={{ position: "absolute", inset: 0, overflow: "visible" }}>
         {arrows.map((a) => { const g = geom(a); const on = sel === a.id; return (
           <g key={a.id}>
@@ -1770,6 +1795,13 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // NOT on `nodes` changes, else dragging a card in film would snap the view back.
   // (filmWin state is declared up beside activeYOff — the film stack needs it.)
   const filmFitRef = useRef<ReactFlowInstance | null>(null);
+  /** Every film-ReactFlow mount hands its instance here (see FilmInstanceBridge),
+   *  then takes the home shot — so the pin and the O key can never be left
+   *  pointing at a null instance because onInit happened not to fire. */
+  const onFilmInstance = useCallback((inst: ReactFlowInstance) => {
+    filmFitRef.current = inst;
+    window.setTimeout(() => fitFilmRef.current(0, true), 60);
+  }, []);
   // PREPARING GATE (A2): the popout is its OWN document — its fonts and images
   // load on first use, which used to happen at TRANSITION time. Hold a cover over
   // the pane until the whole mounted set is warm (fonts.ready + every image
@@ -2457,7 +2489,12 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // (Recording Mode's R hotkey is DEPRECATED (Lee, 08-14) — the film popout "\"
       // is the one filming surface. The recording SURFACE itself survives: Rehearse
       // still mounts it via startRehearse, and exits with Esc.)
-      if (!filmWindow && !engagedRef.current) return;
+      // ENGAGEMENT GATE: keys only fire when the pointer is over the previewer,
+      // so typing elsewhere on the canvas never drives a take. The INLINE film
+      // surface is exempt — it covers the page, so `engagedRef` (which tracks
+      // the editor pane's mouseenter) is usually false there and every film key
+      // was dead. Same shape of bug as the filmWindow-only gate on L and O.
+      if (!filmWindow && !filmInline && !engagedRef.current) return;
       if (typing) return;
       // MEMO SELECTION keys (authoring): Delete removes (in-app confirm upstream),
       // Esc clears, arrows nudge the INSTANCE geometry only (never the template).
@@ -2497,8 +2534,33 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       }
       if ((filmWindow || filmInline) && (e.key === "o" || e.key === "O") && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault(); e.stopImmediatePropagation();
+        // PULL BACK AROUND THIS FRAME — not fitView.
+        //
+        // fitView fits EVERY node, and in the film stack that is all 17 frames
+        // spread down ~13,000px, so O collapsed the whole video into a speck in
+        // the middle of a black screen (Lee, 09-01). What "see the whole board"
+        // actually means here is this frame plus whatever spills outside it.
+        //
+        // So: hold the frame's centre and back off to a fraction of the home
+        // zoom. Deterministic, never a speck, and ` puts it straight back.
         markCameraManual(); // an overview IS a manual shot — nothing may snap it back
-        filmFitRef.current?.fitView({ padding: 0.12, duration: 260 });
+        {
+          const inst = filmFitRef.current;
+          const r = filmRootRef.current?.getBoundingClientRect();
+          if (inst && r?.width && r?.height) {
+            // Pull back about the SCREEN CENTRE, from wherever the camera is.
+            // Deliberately independent of the home shot: home is recorded by
+            // fitFilm and is briefly null right after the surface mounts, and an
+            // overview key that silently does nothing is worse than one that is
+            // slightly less clever. Repeat presses keep pulling back.
+            const OUT = 0.42;                       // ~2.4x more of the world in view
+            const v = inst.getViewport();
+            const zoom = Math.max(0.02, v.zoom * OUT);
+            const cx = (r.width / 2 - v.x) / v.zoom;   // screen centre, in canvas space
+            const cy = (r.height / 2 - v.y) / v.zoom;
+            void inst.setViewport({ x: r.width / 2 - cx * zoom, y: r.height / 2 - cy * zoom, zoom }, { duration: 260 });
+          }
+        }
         return;
       }
       // EXHIBIT MODES (cycle-modes): same film-controller keys as the recording
@@ -2898,7 +2960,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                   {/* FILM_LOCK_CSS (A1): this window never had FILM_MODE_CSS, so staged
                       cards showed hover chrome + live resize handles ON CAMERA. */}
                   <style>{FLAME_CSS}{PV_CSS}{FILM_LOCK_CSS}</style>
-                  <div ref={filmRootRef} className="film-mode" style={{ position: "relative", width: "100%", height: "100%", background: "#000" }}>
+                  <div ref={filmRootRef} className={`film-mode${altHeld ? " sa-alt" : ""}`} style={{ position: "relative", width: "100%", height: "100%", background: "#000" }}>
                     <ReactFlowProvider>
                       <ReactFlow
                         nodes={filmNodes}
@@ -2943,7 +3005,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                         // the arrow-head and card performance gestures the film
                         // lock deliberately keeps live (film-lock.ts prong 1) are
                         // untouched by this.
-                        panOnDrag={PAN_BUTTONS}
+                        panOnDrag={altHeld ? false : PAN_BUTTONS}
                         // CARD GESTURES BEAT THE PAN (2026-09-01). Left-drag
                         // panning made a pointerdown anywhere — including on an
                         // exhibit step — start a pane pan, which swallowed the
@@ -2976,7 +3038,9 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                         // surface: it IS the whole window.
                         preventScrolling
                         style={{ width: "100%", height: "100%", background: "#05070d" }}
-                      />
+                      >
+                        <FilmInstanceBridge onReady={onFilmInstance} />
+                      </ReactFlow>
                     </ReactFlowProvider>
                     {/* No in-app film watermark for now (Lee) — the brand watermark will be
                         added later in the actual HTML player, not baked into the take. */}
