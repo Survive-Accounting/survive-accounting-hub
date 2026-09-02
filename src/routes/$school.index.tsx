@@ -55,10 +55,11 @@ export const Route = createFileRoute("/$school/")({
       : HOME_OG;
     return {
       meta: [
-        // The TAB/search title is the searchable one — course code, campus, brand. The og:title
-        // above is the hero line, which is the better hook in a text message.
-        ...(d.courseCode ? [{ title: `${d.courseCode} at ${short} — Survive Accounting` }] : []),
         ...ogMeta({ ...copy, path: `/${d.slug}`, image: campusOgImage(d.slug) }),
+        // AFTER ogMeta, not before: ogMeta emits its own { title } (the hero line, which is the
+        // better hook in a text message) and the LAST entry for a key wins. The tab and the
+        // search result want the searchable form — course code, campus, brand — so it goes last.
+        ...(d.courseCode ? [{ title: `${d.courseCode} at ${short} — Survive Accounting` }] : []),
       ],
       links: [{ rel: "canonical", href: `${ORIGIN}/${d.slug}` }],
     };
