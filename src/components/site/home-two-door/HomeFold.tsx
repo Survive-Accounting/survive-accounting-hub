@@ -33,11 +33,14 @@ export function SoloBoltIcon() {
 // Once we know the visitor's OWN chapter the cycle stops and the card simply wears their letters.
 
 /** Chapter's icon: real chapter letters that boil and glow, cycling until we know your house. */
-export function GreekLettersIcon({ pinned, cycle }: { 
+export function GreekLettersIcon({ pinned, cycle, frozen }: {
   /** The visitor's own chapter letters. Present → the rotation stops and this stays. */
   pinned?: string | null;
   /** The letters to rotate through. Campus-specific where we have the roster. */
   cycle: string[];
+  /** ONE INVITATION AT A TIME. While the solo door's bolt is cycling campuses this holds still —
+   *  two doors moving at once is not twice as inviting, it is noise. */
+  frozen?: boolean;
 }) {
   // Stable, page-unique filter id (hashed, not useId(), to dodge the hydration-mismatch the hero
   // boundary caused elsewhere — see AnimatedCampusBolt).
@@ -64,14 +67,14 @@ export function GreekLettersIcon({ pinned, cycle }: {
   const [idx, setIdx] = useState(0);
   const [vis, setVis] = useState(true);
   useEffect(() => {
-    if (reduced || pin || run.length < 2) return;
+    if (reduced || pin || frozen || run.length < 2) return;
     let swap = 0;
     const tick = window.setInterval(() => {
       setVis(false);
       swap = window.setTimeout(() => { setIdx((i) => (i + 1) % run.length); setVis(true); }, 230);
     }, 2100);
     return () => { window.clearInterval(tick); window.clearTimeout(swap); };
-  }, [reduced, pin, run.length]);
+  }, [reduced, pin, frozen, run.length]);
 
   // The run can shrink under a live index (campus switch), so wrap rather than render undefined.
   const word = pin ?? run[idx % run.length] ?? "";
@@ -79,11 +82,23 @@ export function GreekLettersIcon({ pinned, cycle }: {
   // CREAM, not campus-tinted: school colours belong to the campus; chapter letters belong to
   // chapters, and tinting them in school colours implies the chapter IS the school.
   const color = "var(--brand-cream, #F5EFE6)";
-  // Real letters run two to four glyphs, so the type is sized to the WORD rather than fixed —
-  // otherwise ΚΑ sits tiny in the box and ΠΒΦ overruns it.
-  const sizeFor = (w: string) => { const n = [...w].length; return n <= 2 ? 60 : n === 3 ? 50 : 40; };
+  // CAP HEIGHT, NOT FONT SIZE (icon-alignment prompt §3). Type carries empty space above the cap
+  // and below the baseline inside its em box, so a font-size picked to "look like" the bolt's
+  // height always undershoots — the glyphs come out smaller than the bolt and, because the extra
+  // space is not symmetric, sitting higher than it too. Rubik's cap height is ~0.72em, so the size
+  // is derived from the cap height we actually want and the glyphs are centred on the box's middle
+  // (dominant-baseline central) rather than sitting on a baseline guessed by eye.
+  const CAP_RATIO = 0.72;
+  // The bolt fills its 112px slot; the letters read as its equal at ~78% of that, because a solid
+  // silhouette carries more weight than three outlined glyphs of identical height.
+  const TARGET_CAP = 58;                       // viewBox units, box is 100
+  const FONT = Math.round(TARGET_CAP / CAP_RATIO);
+  // Three glyphs at that size overrun 100 units, so the trio is squeezed to fit horizontally —
+  // vertical size is what the eye compares, and textLength preserves it while fitting the width.
+  const sizeFor = (w: string) => { const n = [...w].length; return n <= 2 ? FONT : n === 3 ? Math.round(FONT * 0.82) : Math.round(FONT * 0.62); };
   const textProps = (w: string) => ({
-    textAnchor: "middle" as const, x: 50, y: 68, fontSize: sizeFor(w), letterSpacing: 2,
+    textAnchor: "middle" as const, dominantBaseline: "central" as const, x: 50, y: 52,
+    fontSize: sizeFor(w), letterSpacing: [...w].length >= 3 ? 0 : 2,
     style: { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 800 } as React.CSSProperties,
   });
 
@@ -110,7 +125,7 @@ export function GreekLettersIcon({ pinned, cycle }: {
           </defs>
         )}
         <g fill={color} filter={reduced ? undefined : `url(#${fid})`}>
-          {reduced || pin ? (
+          {reduced || pin || frozen ? (
             <text {...textProps(word)}>{word}</text>
           ) : (
             <text {...textProps(word)} style={{ ...textProps(word).style, opacity: vis ? 1 : 0, transition: "opacity 210ms ease" }}>{word}</text>
@@ -150,9 +165,11 @@ export function HomeDoorCard({ icon, switcher, button, support }: {
     <div className="sa-home-door" style={HOME_DOOR_CARD}>
       {/* The large icon — a fixed envelope so both cards' icons sit on the same baseline. */}
       <div className="sa-home-door-icon grid place-items-center" style={{ height: SOLO_ICON_H }}>{icon}</div>
-      {/* Fixed slot whether or not a line is in it, so a card with context and a card without are
-          never different heights mid-transition. */}
-      <div className="grid w-full place-items-center" style={{ minHeight: switcher ? 30 : 0 }}>{switcher}</div>
+      {/* The slot reserves its height WHETHER OR NOT a line is in it. One card carrying context
+          while the other does not is normal here (the solo door cycles campuses before you have
+          picked one), and a collapsing slot would drop that card's button half a line below its
+          neighbour's — the two buttons have to sit on one line to read as two equal choices. */}
+      <div className="grid w-full place-items-center" style={{ minHeight: 30 }}>{switcher}</div>
       <div className="mt-4 w-full">{button}</div>
       <div className="sa-door-support mt-3 grid w-full place-items-center" style={{ minHeight: 34, fontFamily: BRAND_SANS }}>{support}</div>
       <div className="flex-1" />
@@ -165,7 +182,10 @@ export function HomeDoorCard({ icon, switcher, button, support }: {
 export function HomeDoorRow({ id, label, children }: { id?: string; label: string; children: React.ReactNode }) {
   return (
     <section id={id} aria-label={label} className="sa-anchor" style={{ fontFamily: BRAND_SANS }}>
-      <div className="mx-auto grid w-full max-w-[880px] gap-3 sm:grid-cols-2 sm:gap-6">
+      {/* MORE AIR BETWEEN THE DOORS ON A PHONE. Stacked, a 12px gap read as one tall panel with a
+          hairline through it; the two choices need to look like two choices. Desktop is unchanged —
+          side by side they were already clearly separate. */}
+      <div className="mx-auto grid w-full max-w-[880px] gap-7 sm:grid-cols-2 sm:gap-6">
         {children}
       </div>
     </section>

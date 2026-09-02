@@ -22,6 +22,9 @@ export type StoredChapter = {
   name: string;
   /** Greek letters when the roster has them; many rows do not, so callers must handle null. */
   letters: string | null;
+  /** What students actually call the house ("ADPi"). Optional: values stored before this
+   *  existed will not have it, so every reader must tolerate its absence. */
+  nickname?: string | null;
 };
 
 /** Remember (or forget, with null) the visitor's chapter. Never throws — storage can be denied. */
@@ -42,6 +45,6 @@ export function readStoredChapter(forSchoolSlug: string | null | undefined): Sto
     const v = JSON.parse(raw) as Partial<StoredChapter>;
     if (!v || typeof v.slug !== "string" || typeof v.schoolSlug !== "string") return null;
     if (v.schoolSlug !== forSchoolSlug) return null;
-    return { schoolSlug: v.schoolSlug, slug: v.slug, name: typeof v.name === "string" ? v.name : v.slug, letters: typeof v.letters === "string" ? v.letters : null };
+    return { schoolSlug: v.schoolSlug, slug: v.slug, name: typeof v.name === "string" ? v.name : v.slug, letters: typeof v.letters === "string" ? v.letters : null, nickname: typeof v.nickname === "string" ? v.nickname : null };
   } catch { return null; }
 }

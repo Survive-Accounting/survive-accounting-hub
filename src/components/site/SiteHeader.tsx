@@ -97,45 +97,26 @@ export function FitWordmark({ size, subline, className, style }: { size: number;
  *  Pass 2 makes this the ONLY wordmark on the page — the hero no longer carries one — so it is
  *  also the brand statement, not just a way home. Kept as its own component because
  *  FitWordmark's subline is proportional to the fitted size and would render ~3.4px here. */
-export function CompactLockup({ size = 19, showBolt = false }: { size?: number; /** Show the animated, campus-tinted bolt to the LEFT of the wordmark. The two-door home turns this on only once the page has scrolled past its own big door bolt, so the page never shows two large bolts at once. */ showBolt?: boolean } = {}) {
-  // PLAIN TEXT at navbar scale (08-25). The bolt-as-"i" wordmark is the brand's signature at
-  // hero/card sizes, but at 19px the bolt reads as a glyph error and costs legibility. Here the
-  // name is set as one clean horizontal line — the expressive bolt lives on in the hero,
-  // loading reveal and topic rail. SurviveWordmark stays exported for the large surfaces.
+export function CompactLockup({ size = 19 }: { size?: number } = {}) {
+  // THE BOLT IS THE "i" — the real wordmark, as the footer and every large surface draw it, rather
+  // than plain text with a bolt bolted on beside it (2026-09-02).
   //
-  // JUST "survive" (2026-09-02). The second word is gone from the MARK: the headline directly
-  // under it already says what the product is for, and up here the bolt is what should catch the
-  // eye. "Survive Accounting" still does its search work in <title> and the meta description —
-  // that is where those words belong, not in the logo.
-  // reduced-motion read in an effect (SSR-safe first paint) — under it the bolt just appears, no
-  // flash and no boil.
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    if (!mq) return;
-    const read = () => setReduced(mq.matches); read();
-    mq.addEventListener?.("change", read);
-    return () => mq.removeEventListener?.("change", read);
-  }, []);
-  // THE BOLT LEADS THE LOCKUP and OVERSHOOTS it — ~1.55x the cap height, so it breaks past the
-  // letterforms like the footer logo rather than sitting inside them like a bullet. It overshoots
-  // without growing the bar: the layout box is only cap-height tall, and the larger bolt is centred
-  // inside it and painted past its edges (overflow visible), so the nav height never changes.
-  const boltH = Math.round(size * 1.55);
-  const boltW = Math.round(boltH * 0.74);
-  const capH = Math.round(size * 0.72);
+  // MONOCHROME on purpose. The two-tone brand bolt at 19px, boiling, next to a headline is a second
+  // thing moving in the corner of the eye the whole way down the page; the previous version flashed
+  // it in on scroll, which was worse — motion arriving in the chrome while you are reading the body
+  // is exactly the kind of thing that makes a page hard to scan. Here it is one cream silhouette
+  // with its seam cut out in the bar's own colour: the mark is still the mark, and it sits still.
   return (
-    <span style={{ display: "inline-flex", alignItems: "baseline", gap: size * 0.26, lineHeight: 1, whiteSpace: "nowrap", overflow: "visible" }}>
-      <style>{`@keyframes sa-wm-flash{from{opacity:0;transform:scale(0.35)}to{opacity:1;transform:scale(1)}}.sa-wm-bolt{animation:sa-wm-flash 260ms ease}@media (prefers-reduced-motion: reduce){.sa-wm-bolt{animation:none}}`}</style>
-      {showBolt && (
-        <span className="sa-wm-bolt" aria-hidden style={{ position: "relative", display: "inline-block", width: boltW, height: capH, alignSelf: "center", marginRight: Math.round(size * 0.04), overflow: "visible" }}>
-          <span style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: boltW, height: boltH, display: "block" }}>
-            <BoltBoil height={boltH} boilFrame={reduced ? 0 : undefined} />
-          </span>
-        </span>
-      )}
-      <span style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, letterSpacing: "-0.01em", color: "var(--brand-cream, #F5EFE6)" }}>survive</span>
-    </span>
+    <SurviveWordmark
+      size={size}
+      red="var(--brand-cream, #F5EFE6)"
+      blue="var(--sa-surface-nav, #0D1730)"
+      boltCream="none"
+      // AND IT HOLDS STILL. The boil is a four-frame flipbook running forever; at 15px in the corner
+      // of every screen it is not readable as craft, only as something twitching while you read.
+      // One pinned frame keeps the drawn look and drops the movement.
+      boilFrame={0}
+    />
   );
 }
 /** A nav destination. `href` starting with "#" is a SAME-PAGE anchor: it smooth-scrolls in place
@@ -334,43 +315,8 @@ const homeMenuLinks = (): NavItem[] => [
   { label: "Contact", href: "", contact: true },
 ];
 
-export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = false, boltAnchorId }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. */ homeNav?: boolean; /** THE NAV BOLT (two-door home): the id of the element carrying the page's own big bolt (the doors). While that element is on screen the navbar shows no bolt — two large bolts at once is one too many — and once it scrolls away the animated, campus-tinted bolt flashes in to the left of the wordmark. Omit it and the bar is always plain "survive Accounting". */ boltAnchorId?: string } = {}) {
+export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = false }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. */ homeNav?: boolean; } = {}) {
   const bar = useRef<HTMLElement>(null);
-  // The nav bolt appears only once the watched element (the page's own bolt) has scrolled ABOVE the
-  // viewport. Default false so SSR and the top-of-page state never flash it.
-  //
-  // BOTH MECHANISMS, deliberately — the same belt-and-braces FitWordmark uses for its measurement.
-  // IntersectionObserver is the efficient primary, but its delivery rides the rendering lifecycle
-  // and a non-compositing tab can silence it indefinitely; a passive scroll listener reading the
-  // rect covers that case. Either one alone has a way to leave the bolt permanently hidden, and a
-  // brand mark that never appears is a bug the visitor sees.
-  const [showBolt, setShowBolt] = useState(false);
-  useEffect(() => {
-    if (!boltAnchorId) return;
-    const read = () => {
-      const el = document.getElementById(boltAnchorId);
-      if (!el) return;
-      // Hand over the moment the page bolt slides UNDER the bar, not when its whole section has
-      // gone: the nav bolt should take over exactly as the card bolt disappears behind the header,
-      // so the mark never leaves the screen and the two are never both large at once.
-      const headerH = bar.current?.getBoundingClientRect().height ?? 0;
-      setShowBolt(el.getBoundingClientRect().bottom <= headerH);
-    };
-    read();
-    window.addEventListener("scroll", read, { passive: true });
-    window.addEventListener("resize", read);
-    let io: IntersectionObserver | null = null;
-    const el = document.getElementById(boltAnchorId);
-    if (el && typeof IntersectionObserver !== "undefined") {
-      io = new IntersectionObserver(() => read(), { threshold: 0 });
-      io.observe(el);
-    }
-    return () => {
-      window.removeEventListener("scroll", read);
-      window.removeEventListener("resize", read);
-      io?.disconnect();
-    };
-  }, [boltAnchorId]);
   // The Greek link carries the known campus. One source (campus context), so the navbar can never
   // name a different school from the hero beside it; pages outside a provider get the bare link.
   const campus = useCampus();
@@ -408,7 +354,10 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
   return (
     <header
       ref={bar}
-      className="sticky top-0 z-[200] w-full"
+      /* NOT STICKY (2026-09-02). A bar pinned over the page while you read costs a strip of every
+         screen and keeps a second focal point in view the whole way down; scanning got harder, not
+         easier. It scrolls away with everything else now. */
+      className="relative z-[200] w-full"
       style={{
         background: "color-mix(in srgb, var(--sa-surface-nav) 92%, transparent)",
         backdropFilter: "blur(8px)",
@@ -424,7 +373,7 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
             so the small one is pure duplication. Every OTHER page keeps it, because there
             it is the only route home. */}
         {wordmark
-          ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup showBolt={showBolt} /></a>
+          ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup /></a>
           : <span style={{ minHeight: 44, display: "inline-flex" }} />}
         <span className="flex-1" />
 
