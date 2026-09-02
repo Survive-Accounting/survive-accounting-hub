@@ -43,6 +43,18 @@ const ls = {
 
 type CtaState = "A" | "B" | "C" | "D" | "F";
 
+// ── OPENED FROM ELSEWHERE (09-02) ─────────────────────────────────────────────────────────────
+// The header's Share button, the feed's "Share with a friend", and the header's "which chapter are
+// you in?" all land in this bar's sheets. They dispatch one window event rather than threading
+// callbacks through the route: "share" opens the share sheet when a chapter is picked (else the
+// picker), "pick" opens the picker. A dismissed bar un-dismisses.
+export const CTA_OPEN_EVENT = "sa-learn-cta";
+/** Fired when a chapter is picked, so the header (which reads the same localStorage key) re-reads. */
+export const CTA_CHAPTER_EVENT = "sa-learn-chapter";
+export function openLearnCta(view: "share" | "pick"): void {
+  window.dispatchEvent(new CustomEvent(CTA_OPEN_EVENT, { detail: view }));
+}
+
 /** ?test=A|B|C|D|F renders a state from a fixture, no DB reads or writes — mirrors /learn?demo=1.
  *  Returns the forced state + a fixture chapter, or null when not testing. */
 function testFixture(test: string | undefined): { state: CtaState; chapter: string; name: string; members: number } | null {
@@ -89,6 +101,17 @@ export function LearnCta({
   }, [campusSlug, testing]);
 
   const chapterSlug = fixture?.chapter || picked;
+
+  useEffect(() => {
+    const on = (e: Event) => {
+      const want = (e as CustomEvent<"share" | "pick">).detail;
+      setDismissed(false);
+      if (!testing) ls.del(kDismiss(campusSlug));
+      setView(want === "share" && chapterSlug ? "share" : "pick");
+    };
+    window.addEventListener(CTA_OPEN_EVENT, on);
+    return () => window.removeEventListener(CTA_OPEN_EVENT, on);
+  }, [campusSlug, chapterSlug, testing]);
 
   // The one public read: claim status + member count for the picked chapter (no names). Skipped in
   // test mode (the fixture supplies both).
@@ -144,6 +167,7 @@ export function LearnCta({
   const pick = (slug: string) => {
     setPicked(slug);
     if (!testing) ls.set(kPick(campusSlug), slug);
+    window.dispatchEvent(new CustomEvent(CTA_CHAPTER_EVENT));
     // Picking a chapter is the chair's path to the deliverable: go straight to the share sheet
     // (what-you-get + the link), not back to the bar.
     setView("share");
