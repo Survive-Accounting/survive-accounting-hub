@@ -247,7 +247,13 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
         </section>
 
         <SectionDivider />
-        <Faq />
+        {/* FAQ links reuse existing flows — the chapter door's picker→waitlist, the syllabus modal,
+            the school picker — rather than wiring new routes (p5). */}
+        <Faq
+          onSyllabus={() => setSyllabusOpen(true)}
+          onFindChapter={openChapter}
+          onNotListed={openSwitch}
+        />
       </main>
 
       <Footer onLanding />
