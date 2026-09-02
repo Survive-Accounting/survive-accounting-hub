@@ -17,7 +17,7 @@
 import { useMemo } from "react";
 
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
-import { SearchPicker } from "@/components/site/SearchPicker";
+import { PickerNotListed, SearchPicker } from "@/components/site/SearchPicker";
 import { useCampus } from "@/lib/campus-context";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { ALL_SCHOOLS, boltForSlug, orderedSchoolsForPicker, schoolBySlug } from "@/lib/schools";
@@ -79,6 +79,10 @@ export function SchoolSwitchSheet({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
+        {/* THE WAY OUT OF A WRONG GUESS lives in the picker's footer now — same orange v1 row as
+            every other school picker. Without it, a visitor whose campus we inferred could pick a
+            different one but never get back to the neutral page, which is the honest state for
+            someone whose school we do not actually know. */}
         <SearchPicker
           items={items}
           value={current}
@@ -90,21 +94,8 @@ export function SchoolSwitchSheet({ onClose }: { onClose: () => void }) {
             if (s) campus.setSessionSchool(s.id);
             onClose();
           }}
+          footer={campus.known ? <PickerNotListed label="Don't see your school?" onClick={() => { campus.clearSchool(); onClose(); }} /> : undefined}
         />
-
-        {/* THE WAY OUT OF A WRONG GUESS. Without this, a visitor whose campus we inferred can pick
-            a different one but can never get back to the neutral page — and the neutral page is
-            the honest state for someone whose school we do not actually know. */}
-        {campus.known && (
-          <button
-            type="button"
-            onClick={() => { campus.clearSchool(); onClose(); }}
-            className="mt-3 w-full text-[13px] underline underline-offset-4"
-            style={{ color: "var(--text-muted)", background: "none", border: 0, minHeight: 44, cursor: "pointer" }}
-          >
-            I&apos;m not at any of these
-          </button>
-        )}
       </div>
     </div>
   );

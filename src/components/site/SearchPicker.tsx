@@ -43,7 +43,7 @@ export type PickerItem = {
   group?: string;
 };
 
-export function SearchPicker({ items, value, placeholder, searchPlaceholder, disabled, disabledHint, onPick, ariaLabel, renderEmpty }: {
+export function SearchPicker({ items, value, placeholder, searchPlaceholder, disabled, disabledHint, onPick, ariaLabel, renderEmpty, footer }: {
   items: PickerItem[];
   value: string | null;
   placeholder: string;
@@ -55,6 +55,8 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
   ariaLabel?: string;
   /** Custom empty state (e.g. "Request your school"), given the current query. */
   renderEmpty?: (query: string) => React.ReactNode;
+  /** Pinned below the scrolling list — the v1 "Don't see your school?" escape hatch. */
+  footer?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -212,13 +214,7 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
               return (
                 <Fragment key={it.value}>
                   {header && (
-                    <li
-                      role="presentation"
-                      className="px-3.5 pb-1 pt-2.5 text-[11px] font-black uppercase tracking-[0.08em]"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      {header}
-                    </li>
+                    <li role="presentation" className="sa-picker-group">{header}</li>
                   )}
                   <li role="option" id={`${listId}-${it.value}`} aria-selected={i === active} data-active={i === active ? "1" : undefined}>
                     <button
@@ -244,9 +240,21 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
               </li>
             )}
           </ul>
+          {footer && <div className="sa-picker-foot">{footer}</div>}
         </div>,
         </>, document.body,
       )}
     </>
+  );
+}
+
+/** The v1 student-player escape hatch — an orange, full-width row pinned under the list. Pass it
+ *  to SearchPicker's `footer` so every school picker shows the same "Don't see your school?" line
+ *  in the same place and style. Uses the shared .sa-row / .sa-row-name styles from styles.css. */
+export function PickerNotListed({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" className="sa-row sa-row--plain" onClick={onClick}>
+      <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>{label}</span>
+    </button>
   );
 }
