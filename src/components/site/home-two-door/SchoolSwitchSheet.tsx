@@ -88,6 +88,7 @@ export function SchoolSwitchSheet({ onClose }: { onClose: () => void }) {
           value={current}
           placeholder="Pick your school"
           searchPlaceholder={`Search ${ALL_SCHOOLS.length} schools…`}
+          collapsibleGroup="Other"
           ariaLabel="Your school"
           onPick={(slug) => {
             const s = schoolBySlug(slug);

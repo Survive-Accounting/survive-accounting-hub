@@ -93,7 +93,32 @@ if (allErr || !allRows?.length) {
 // Greek chapter counts — >=1 is required for non-SEC display-readiness (personalised branding).
 const chapCount = new Map<string, number>();
 { let from = 0; for (;;) { const { data } = await db.from("campus_greek_chapters").select("campus_id").range(from, from + 999); (data ?? []).forEach((r: any) => chapCount.set(r.campus_id, (chapCount.get(r.campus_id) ?? 0) + 1)); if (!data || data.length < 1000) break; from += 1000; } }
-const displayReady = (c: any) => !!c.slug && (c.is_sec || (!!code(c) && !!c.color_primary && (chapCount.get(c.id) ?? 0) >= 1));
+// REVIEWED HIDE LIST (idea-vault: "Hide non-viable campuses from the student picker"). slug ->
+// reason. These campuses stay fully in the DB, the growth dashboard and batches — they are only
+// kept OUT OF THE STUDENT PICKER. Reversible by deleting a line. This is a HAND-REVIEWED list, NOT
+// an automatic chapter-count rule: HBCUs (low NPHC chapter counts, high engagement) are deliberately
+// NOT here. Add a school only after review. (A DB `hidden_from_picker` flag + dashboard toggle is
+// the planned upgrade so this can be curated without a deploy.)
+const HIDDEN_FROM_PICKER: Record<string, string> = {
+  // Community colleges — two-year schools, different course sequences and culture.
+  "community-college-of-baltimore-county": "community college",
+  "oakland-community-college": "community college",
+  "suffolk-county-community-college": "community college",
+  "tulsa-community-college": "community college",
+  // Minimal Greek presence (<=3 chapters) — not a Greek system for the chapter channel.
+  "canisius-college": "minimal greek presence",
+  "champlain-college": "minimal greek presence",
+  "university-of-st-thomas": "minimal greek presence",
+  "angelo-state-university": "minimal greek presence",
+  "delaware-valley-university": "minimal greek presence",
+  "wilmington-college": "minimal greek presence",
+  "woodbury-university": "minimal greek presence",
+  "liberty-university": "minimal greek presence",
+  "spalding-university": "minimal greek presence",
+  "suffolk-university": "minimal greek presence",
+  "university-of-mary-washington": "minimal greek presence",
+};
+const displayReady = (c: any) => !!c.slug && !HIDDEN_FROM_PICKER[c.slug] && (c.is_sec || (!!code(c) && !!c.color_primary && (chapCount.get(c.id) ?? 0) >= 1));
 const seen = new Set<string>();
 let rows: any[] = (allRows as any[]).filter((c) => { if (seen.has(c.id) || !displayReady(c)) return false; seen.add(c.id); return true; });
 
