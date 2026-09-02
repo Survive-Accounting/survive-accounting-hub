@@ -83,7 +83,9 @@ export function GreekLettersIcon({ letters }: { letters?: string[] } = {}) {
   const color = "var(--brand-cream, #F5EFE6)";
   const trioA = letters ?? GREEK_TRIOS[cf.a];
   const trioB = letters ?? GREEK_TRIOS[cf.b];
-  const textProps = { textAnchor: "middle" as const, x: 50, y: 66, fontSize: 46, letterSpacing: 3, style: { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 800 } };
+  // SIZED AGAINST THE BOLT, not against the box. The bolt is a solid silhouette and three outlined
+  // letters read lighter at the same nominal size, so the type runs larger to land at equal weight.
+  const textProps = { textAnchor: "middle" as const, x: 50, y: 70, fontSize: 58, letterSpacing: 1, style: { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 800 } };
 
   return (
     <span aria-hidden style={{ display: "inline-block", width: SOLO_ICON_H * 1.05, height: SOLO_ICON_H }}>
@@ -137,9 +139,13 @@ const HOME_DOOR_CARD: React.CSSProperties = {
   boxShadow: "0 24px 60px -30px rgba(0,0,0,0.7), 0 4px 24px -4px rgba(0,0,0,0.45)",
 };
 
-export function HomeDoorCard({ icon, button, support }: {
+export function HomeDoorCard({ icon, switcher, button, support }: {
   /** The large icon (SoloBoltIcon / GreekLettersIcon). */
   icon: React.ReactNode;
+  /** The context line between icon and button ("for OLE MISS students ⇄"). Rendered only when
+   *  there IS context — a switcher with nothing to switch from is clutter — and both cards are
+   *  given the same level of it, so they stay the same height at every state. */
+  switcher?: React.ReactNode;
   button: React.ReactNode;
   support: React.ReactNode;
 }) {
@@ -147,7 +153,10 @@ export function HomeDoorCard({ icon, button, support }: {
     <div className="sa-home-door" style={HOME_DOOR_CARD}>
       {/* The large icon — a fixed envelope so both cards' icons sit on the same baseline. */}
       <div className="sa-home-door-icon grid place-items-center" style={{ height: SOLO_ICON_H }}>{icon}</div>
-      <div className="mt-5 w-full">{button}</div>
+      {/* Fixed slot whether or not a line is in it, so a card with context and a card without are
+          never different heights mid-transition. */}
+      <div className="grid w-full place-items-center" style={{ minHeight: switcher ? 30 : 0 }}>{switcher}</div>
+      <div className="mt-4 w-full">{button}</div>
       <div className="sa-door-support mt-3 grid w-full place-items-center" style={{ minHeight: 34, fontFamily: BRAND_SANS }}>{support}</div>
       <div className="flex-1" />
     </div>

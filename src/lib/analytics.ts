@@ -88,6 +88,12 @@ export const SA_EVENTS = [
   // Counted apart from homepage_study_solo_clicked so we can see how much conversion the
   // scroll-back-free CTA actually earns. Same {campus_id, course_code} context.
   "homepage_secondary_cta_clicked",
+  // THE CHAPTER SWITCHER (09-02). Counted apart from the chapter DOOR: opening the picker from the
+  // card's context line is a student telling us which house they are in, which is worth knowing on
+  // its own — and a high open-rate with few selections would mean our roster is missing chapters.
+  // Properties: {campus_id, course_code} plus {chapter_slug} on the selection.
+  "homepage_chapter_switch_opened",
+  "homepage_chapter_selected",
   // Player V2 "Tonight's Plan" beta (08-27, /preview/exam1 only). Properties:
   // {mode, goal, estimated_minutes, included_step_count, from_mode, to_mode, from_goal, to_goal,
   //  topic, added_depth, estimated_minutes_added}.
