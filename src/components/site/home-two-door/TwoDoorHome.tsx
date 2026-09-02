@@ -19,10 +19,13 @@
 // both sides. Any change to one card's structure must go through the shared pieces so the two
 // can never drift apart.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { readableCampusInk } from "@/lib/campus-color";
 import { readStoredChapter, rememberChapter, type StoredChapter } from "@/lib/chapter-prefs";
+import { buildGreekCycle, OLE_MISS_GREEK_CYCLE } from "@/lib/greek-cycle";
+import { listGoChapters } from "@/lib/greek-go.functions";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
@@ -123,6 +126,22 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   const schoolSlug = campus.school?.slug ?? null;
   useEffect(() => { setChapter(readStoredChapter(schoolSlug)); }, [schoolSlug]);
   const [chapterPickerOpen, setChapterPickerOpen] = useState(false);
+
+  // THE CHAPTER-LETTER RUN. Real houses, from THIS campus where we have its roster: a student
+  // should see their own letters go by, not a campus they don't attend. Falls back to the Ole Miss
+  // default before the roster arrives, when no school is chosen, and for any campus whose roster
+  // can't support an alternating run — see lib/greek-cycle.
+  const chaptersQ = useQuery({
+    queryKey: ["go-chapters", schoolSlug],
+    queryFn: () => listGoChapters({ data: { schoolSlug: schoolSlug! } }),
+    enabled: !!schoolSlug,
+    staleTime: 300_000,
+    networkMode: "always",
+  });
+  const greekCycle = useMemo(() => {
+    const built = buildGreekCycle(chaptersQ.data ?? []);
+    return built.length ? built : OLE_MISS_GREEK_CYCLE;
+  }, [chaptersQ.data]);
 
   // AFTER A SWITCH, POINT AT THE DOOR (p11 §4). Changing school or chapter rebrands the page in
   // place and nothing else moves, so the next step can be easy to miss; the card whose context just
@@ -227,6 +246,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           campusId={campus.school?.id ?? null}
           schoolName={campus.school?.name ?? null}
           chapter={chapter}
+          greekCycle={greekCycle}
           onSolo={openSolo}
           soloHref={previewSoloHref}
           onChapter={openChapter}
@@ -483,13 +503,15 @@ function TwoDoorHero({ code, schoolName }: {
 
 
 // ── THE TWO DOORS ─────────────────────────────────────────────────────────────────────────────
-function TwoDoorCards({ code, campusId, schoolName, chapter, onSolo, soloHref, onChapter, onSwitchSchool, onSwitchChapter, pulse }: {
+function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo, soloHref, onChapter, onSwitchSchool, onSwitchChapter, pulse }: {
   code: string | null;
   /** Keys the bolt's arrival pop and decides whether the bolt wears the school's colours. */
   campusId: string | null;
   schoolName: string | null;
   /** The remembered chapter, when the visitor has told us one. */
   chapter: StoredChapter | null;
+  /** Real chapter letters to rotate through until we know the visitor's own house. */
+  greekCycle: string[];
   onSolo: () => void;
   /** Preview only: makes the solo CTA a link into Player V2 (onSolo still fires for tracking). */
   soloHref?: string;
@@ -547,7 +569,7 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, onSolo, soloHref, o
         {/* RIGHT DOOR — Greek chapters. Its icon is the Greek trio, pinned to the visitor's own
             letters once we know their house. */}
         <HomeDoorCard
-          icon={<GreekLettersIcon letters={chapterLetters(chapter)} />}
+          icon={<GreekLettersIcon pinned={chapter?.letters ?? null} cycle={greekCycle} />}
           switcher={
             known
               ? (chapter
@@ -570,15 +592,6 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, onSolo, soloHref, o
   );
 }
 
-/** The chapter's letters for the icon, when the roster has them. Many chapter rows carry no
- *  letters at all, and inventing some would be putting words in a real house's mouth — those
- *  visitors keep the cycling trio. */
-function chapterLetters(c: StoredChapter | null): string[] | undefined {
-  const raw = c?.letters?.trim();
-  if (!raw) return undefined;
-  const glyphs = [...raw].filter((ch) => ch.trim().length > 0);
-  return glyphs.length ? glyphs : undefined;
-}
 
 /** What the chapter line calls the house: its letters when we have them, else its name. */
 function chapterDisplay(c: StoredChapter): string {
