@@ -341,14 +341,14 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
     {
       icon: Play,
       title: "Quick cram videos",
-      lead: "Nothing like your lecture videos—each is ~two minutes or less.",
-      body: "Just the basics needed to answer a question, plus the tips and cheat codes that make it click.",
+      lead: "Two minutes or less, every one.",
+      body: "Just what you need to answer the question, plus the tricks that make it click. Nothing like your lecture videos.",
     },
     {
       icon: ClipboardCheck,
       title: "Practice exams",
       lead: "Exam-style problems, not textbook ones.",
-      body: "Going from a B to an A starts here. Learn to recognize patterns and get shown simpler approaches to the correct answer.",
+      body: "Going from a B to an A is mostly pattern recognition — learn to spot the type of problem and the simpler route to the answer shows up with it.",
     },
   ];
   // 48px icons centered above each heading, with generous vertical room for the longer copy.
@@ -389,8 +389,10 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
         <button type="button" onClick={onSyllabus} className={`${card} transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={actionableStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>Built around your course</p>
-          <p className={bodyCls} style={bodyStyle}>I make videos for everyone.</p>
-          <p className="mt-2.5 text-[14px] leading-relaxed" style={bodyStyle}>Send your syllabus and I&apos;ll match my content to your course.</p>
+          {/* NOT "I make videos for everyone" — that argues against the card's own headline. The
+              breadth is the reassurance; the syllabus is the personalisation on top of it. */}
+          <p className={bodyCls} style={bodyStyle}>These work for any intro course.</p>
+          <p className="mt-2.5 text-[14px] leading-relaxed" style={bodyStyle}>Send your syllabus and I&apos;ll make sure yours is covered.</p>
           <span className="mt-3 text-[14px] font-black" style={{ color: "var(--accent)" }}>Send your syllabus →</span>
         </button>
       )}
@@ -508,26 +510,48 @@ export function LeePortrait({ width = 200, caption = true }: { width?: number; c
 }
 
 /** The COMPACT tutor card — facts only, one door to the full bio. Sits beside the reviews. */
+/** THE CREDENTIAL ROW — the amber check the trust chips already use, so the two read as one voice. */
+function TutorCheck({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2 text-[13.5px] leading-snug" style={{ opacity: 0.85 }}>
+      <span aria-hidden style={{ color: "var(--accent)", fontWeight: 900, lineHeight: 1.35 }}>✓</span>
+      <span>{children}</span>
+    </li>
+  );
+}
+
 export function TutorCard({ onMore }: { onMore: () => void }) {
+  // THE DEAD SPACE WAS THE BUG. The card is as tall as the photo, but the text column ran out a
+  // third of the way down and left "Learn more" stranded at the bottom-left under a block of
+  // nothing. The checks are what fill that column — four short credentials instead of three grey
+  // lines — and the link now sits under them rather than floating alone below the whole card.
   return (
     <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
       <div className="flex items-start gap-5">
         <LeePortrait width={112} caption={false} />
-        <div className="min-w-0" style={{ color: "var(--brand-cream)" }}>
+        {/* The column stretches to the photo's height and distributes its own rows, so the card
+            sizes to the TALLER of the two and neither side leaves a gap. */}
+        <div className="flex min-w-0 flex-1 flex-col self-stretch" style={{ color: "var(--brand-cream)" }}>
           <p className="text-[16px] font-bold">Lee Ingram</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>Two accounting degrees</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>Tutor since 2015</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>1,000+ students tutored</p>
+          <ul className="mt-2 flex flex-1 flex-col justify-center gap-1.5">
+            {/* "Ole Miss alum" rather than "Two accounting degrees": same fact, with a real school
+                attached. It stays as-is on every campus page — it is the credential, not a
+                greeting, and localising it would be inventing a biography. */}
+            <TutorCheck>Ole Miss alum — BAccy · MAccy</TutorCheck>
+            <TutorCheck>Tutor since 2015</TutorCheck>
+            <TutorCheck>1,000+ students tutored</TutorCheck>
+            <TutorCheck>Every video filmed by me</TutorCheck>
+          </ul>
+          <button
+            type="button"
+            onClick={onMore}
+            className="mt-3 inline-flex items-center self-start text-[14px] font-bold focus-visible:ring-2"
+            style={{ color: "var(--accent)", minHeight: 44 }}
+          >
+            Learn more about Lee →
+          </button>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onMore}
-        className="mt-4 inline-flex items-center text-[14px] font-bold focus-visible:ring-2"
-        style={{ color: "var(--accent)", minHeight: 44 }}
-      >
-        Learn more about Lee →
-      </button>
     </div>
   );
 }
@@ -564,19 +588,21 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
             <h2 className="text-[24px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
               Hey, I&apos;m Lee.
             </h2>
-            {/* Credentials (p6 §10). Ole Miss awards the BAccy / MAccy — not BAcc / MAcc. */}
-            <div className="mt-3 text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
-              <p><span className="font-black">BAccy · MAccy</span> — University of Mississippi</p>
-              <p>Tutor since 2015</p>
-              <p>1,000+ students</p>
-            </div>
+            {/* THE SAME CHECK ROWS AS THE CARD, so the two surfaces read as one person rather than
+                two differently-formatted bios. Ole Miss awards the BAccy / MAccy — not BAcc/MAcc. */}
+            <ul className="mt-3 flex flex-col gap-1.5 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
+              <TutorCheck><span className="font-black">BAccy · MAccy</span> — University of Mississippi</TutorCheck>
+              <TutorCheck>Tutor since 2015</TutorCheck>
+              <TutorCheck>1,000+ students tutored</TutorCheck>
+            </ul>
           </div>
         </div>
         <div className="mt-4">
-          <P>I built Survive because accounting exams are a lot easier when you&apos;ve already practiced the kinds of problems you&apos;re about to see.</P>
-          {/* The music/travel line stays — it's disarming and it works. Contact goes last. */}
-          <P>Outside Survive, I&apos;m usually traveling, seeing live music, playing live music, or working on Survive.</P>
-          <P>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a> if you have any questions or just want to introduce yourself.</P>
+          <P>I built Survive because accounting exams get a lot easier once you&apos;ve already seen the kinds of problems you&apos;re about to get. Every video on here is me — no team, no scripts, just what I&apos;d tell you at the whiteboard.</P>
+          {/* The music/travel line stays — it's disarming and it works. The joke lands as its own
+              short sentence rather than as a fourth item buried in the list. */}
+          <P>Outside Survive I&apos;m usually traveling, seeing live music, or playing live music. Or working on Survive.</P>
+          <P>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a> if you have a question or just want to say hi. I read every one.</P>
         </div>
       </div>
     </div>

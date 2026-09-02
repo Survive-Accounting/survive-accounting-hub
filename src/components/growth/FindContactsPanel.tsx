@@ -44,11 +44,13 @@ export function FindContactsPanel({ campusId, campusName, onImported, autoStart 
   const [showFallback, setShowFallback] = useState(false);
   const [showUrls, setShowUrls] = useState(false);
   const [paste, setPaste] = useState("");
+  const [manual, setManual] = useState(false); // came in via "Add manually", not a failed scrape
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const flags = useMemo(() => flagRows(rows, existing), [rows, existing]);
   const summary = useMemo(() => importSummary(rows, flags), [rows, flags]);
-  const noNames = phase === "review" && rows.length > 0 && !rows.some((r) => r.name && r.name.trim());
+  // The "scrape came up short" banner is only for an actual scrape that returned no names.
+  const noNames = !manual && phase === "review" && rows.length > 0 && !rows.some((r) => r.name && r.name.trim());
 
   const patch = (id: string, p: Partial<OfficerRow>) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r)));
   const remove = (id: string) => setRows((rs) => rs.filter((r) => r.id !== id));
@@ -64,7 +66,7 @@ export function FindContactsPanel({ campusId, campusName, onImported, autoStart 
   };
 
   const run = async () => {
-    setPhase("working"); setErr(null); setProgress("Finding the official council pages…");
+    setPhase("working"); setErr(null); setManual(false); setProgress("Finding the official council pages…");
     try {
       const r = await findCouncilPagesFn({ data: { campusId } });
       if (!r.ok) { setErr(r.error); setShowFallback(true); setPhase("review"); return; }
@@ -73,6 +75,10 @@ export function FindContactsPanel({ campusId, campusName, onImported, autoStart 
     } catch (e) { setErr((e as Error).message); setShowFallback(true); setPhase("review"); }
   };
   const reScrape = async () => { setErr(null); setPhase("working"); try { await scrapeInto(pages); } catch (e) { setErr((e as Error).message); setPhase("review"); } };
+
+  // Skip the scrape entirely — open a blank table with a President + Scholarship-chair row per council
+  // to fill by hand. The scrape only ever gets ~40% of the roster; this is the other 60%.
+  const addManually = () => { setErr(null); setManual(true); setRows(MANUAL_COUNCILS.flatMap((c) => [emptyRow(c, "Scholarship Chair"), emptyRow(c, "President")])); setPhase("review"); };
 
   // Scrape-contacts entry point: kick the scrape off the moment the modal opens.
   const started = useRef(false);
@@ -131,7 +137,7 @@ export function FindContactsPanel({ campusId, campusName, onImported, autoStart 
     try {
       const r = await sendToDmQueueFn({ data: { campusId, rows } });
       if (!r.ok) { setErr(r.error ?? "Couldn't submit."); return; }
-      toast.success(`${r.imported} sent to the Instagram DM queue.`, { description: "This campus is queued for outreach." });
+      toast.success(`Saved ${r.imported} contact${r.imported === 1 ? "" : "s"}.`, { description: "Added to this campus and its DM queue." });
       onImported?.();
       setPhase("idle"); setRows([]); setPages([]); setCost(0);
     } catch (e) { setErr((e as Error).message); }
@@ -154,8 +160,11 @@ export function FindContactsPanel({ campusId, campusName, onImported, autoStart 
             </>
           )}
           {phase === "idle"
-            ? <button type="button" onClick={() => void run()} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-[12.5px] font-bold text-primary-foreground"><Search className="size-4" /> Find contacts</button>
-            : <button type="button" onClick={() => { setPhase("idle"); setRows([]); setPages([]); setErr(null); setShowFallback(false); }} className="rounded-lg border border-border px-3 py-2 text-[12.5px] font-medium">Start over</button>}
+            ? <>
+                <button type="button" onClick={addManually} className="rounded-lg border border-border px-3 py-2 text-[12.5px] font-medium hover:bg-muted">Add manually</button>
+                <button type="button" onClick={() => void run()} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-[12.5px] font-bold text-primary-foreground"><Search className="size-4" /> Find contacts</button>
+              </>
+            : <button type="button" onClick={() => { setPhase("idle"); setRows([]); setPages([]); setErr(null); setShowFallback(false); setManual(false); }} className="rounded-lg border border-border px-3 py-2 text-[12.5px] font-medium">Start over</button>}
         </div>
       </div>
 
@@ -270,7 +279,7 @@ export function FindContactsPanel({ campusId, campusName, onImported, autoStart 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2.5">
             <p className="text-[12px] text-muted-foreground">{summary.importing} of {summary.total} will be sent{summary.excluded.length > 0 && <> · {summary.excluded.map((e) => `${e.count} ${e.reason}`).join(" · ")}</>}</p>
             <button type="button" disabled={submitting || summary.importing === 0} onClick={() => void submit()} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-[12.5px] font-bold text-primary-foreground disabled:opacity-40">
-              {submitting ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />} Send {summary.importing} to Instagram DM queue
+              {submitting ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />} Save {summary.importing} contact{summary.importing === 1 ? "" : "s"}
             </button>
           </div>
         </div>

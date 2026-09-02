@@ -55,6 +55,7 @@ import { ArrowLeftRight } from "lucide-react";
 
 import { SchoolPickerSheet } from "./SchoolPickerSheet";
 import { ChapterPickerSheet } from "./ChapterPickerSheet";
+import { ExamReminder } from "./ExamReminder";
 import type { School as PickerSchool } from "@/lib/schools";
 
 import { CAMPUS_LINE_CSS } from "./campus-line";
@@ -302,7 +303,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
             <footer className="mt-2 text-[13.5px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>— what students tell me every semester</footer>
           </blockquote>
           <p className="mx-auto mt-5 max-w-[600px] text-center text-[15px] leading-relaxed sm:text-[16px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-secondary)" }}>
-            The textbook, the quizzes, the lectures — and then exam day feels like a different course. Survive exists so exam day is the second time you&apos;ve seen the problem, not the first.
+            That&apos;s the whole problem. Survive makes exam day the second time you&apos;ve seen the problem, not the first.
           </p>
           <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} />
           <div className="mt-3 flex justify-center">
@@ -334,6 +335,10 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           onFindChapter={openChapter}
           onNotListed={openSwitch}
         />
+
+        {/* THE END CAP — a student who has read the whole page is deciding. One text, on a day they
+            pick, is the smallest useful thing to offer them at the bottom of it. */}
+        <ExamReminder campusId={campus.school?.campusId ?? null} courseCode={campus.code} />
       </main>
 
       <Footer onLanding />

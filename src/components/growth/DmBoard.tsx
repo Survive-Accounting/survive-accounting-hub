@@ -7,9 +7,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Copy, Check, Square, Link as LinkIcon, Landmark, MessageSquare, Send, CornerDownRight, ExternalLink, Loader2, X } from "lucide-react";
+import { Copy, Check, Square, Link as LinkIcon, Landmark, MessageSquare, Send, CornerDownRight, ExternalLink, Loader2, X, UserPlus, ArrowLeft, Pencil, Trash2 } from "lucide-react";
 
 import { BottomSheet } from "@/components/growth/BottomSheet";
+import { FindContactsPanel } from "@/components/growth/FindContactsPanel";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { schoolByCampusId, boltForSlug } from "@/lib/schools";
 import { buildDmMessage } from "@/lib/dm-template";
@@ -17,6 +18,7 @@ import {
   growthIgCampus, growthIgMarkSent, growthIgAddMessage, growthIgPopMessage,
   type IgCampus, type IgContact, type ThreadMsg,
 } from "@/lib/growth-ig-dm.functions";
+import { growthUpdateContact, growthDeleteContact } from "@/lib/growth-reach.functions";
 import { renderQueryState } from "@/components/growth/QueryState";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +31,8 @@ export function DmBoard({ campusId, campusName, onClose }: { campusId: string; c
   const { c1, c2 } = boltForSlug(slug);
   const primary = c?.colorPrimary || c1;
   const secondary = c?.colorSecondary || c2;
+  const qc = useQueryClient();
+  const [showAdd, setShowAdd] = useState(false);
 
   return (
     <BottomSheet open onClose={onClose} title={<span className="sa-admin-display text-sm font-semibold">{campusName}</span>}>
@@ -50,6 +54,18 @@ export function DmBoard({ campusId, campusName, onClose }: { campusId: string; c
             </aside>
 
             <main className="min-w-0 flex-1 space-y-3">
+              {/* Add / scrape more contacts — works even after a campus is "done". */}
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground">{c.metrics.contacts} contact{c.metrics.contacts === 1 ? "" : "s"}</span>
+                <button onClick={() => setShowAdd((v) => !v)} className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-medium hover:bg-muted">
+                  {showAdd ? <><ArrowLeft className="size-3.5" /> Back to board</> : <><UserPlus className="size-3.5" /> Add / scrape contacts</>}
+                </button>
+              </div>
+
+              {showAdd ? (
+                <FindContactsPanel campusId={campusId} campusName={campusName} onImported={() => { qc.invalidateQueries({ queryKey: ["ig-campus", campusId] }); setShowAdd(false); }} />
+              ) : (
+              <>
               {/* campus funnel */}
               <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                 <Stat label="DMs sent" value={c.metrics.dmsSent} />
@@ -59,7 +75,7 @@ export function DmBoard({ campusId, campusName, onClose }: { campusId: string; c
               </div>
 
               {c.councils.length === 0 && (
-                <p className="rounded-lg border border-dashed border-border p-4 text-center text-[12px] text-muted-foreground">No reachable handles yet — add contacts first.</p>
+                <p className="rounded-lg border border-dashed border-border p-4 text-center text-[12px] text-muted-foreground">No reachable handles yet — use Add / scrape contacts above.</p>
               )}
 
               {c.councils.map((council) => (
@@ -77,6 +93,8 @@ export function DmBoard({ campusId, campusName, onClose }: { campusId: string; c
                   </div>
                 </div>
               ))}
+              </>
+              )}
             </main>
           </div>
         )}
@@ -104,6 +122,22 @@ export function ContactRow({ contact, councilKey, slug, courseCode, campusId }: 
   const markSent = useMutation({
     mutationFn: (sent: boolean) => growthIgMarkSent({ data: { contactId: contact.contactId, sent } }),
     onSuccess: invalidate,
+  });
+
+  // Edit / delete an existing contact — fix a wrong handle, a typo'd name, or remove a bad row,
+  // even after the campus is "done" (King's ask).
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(contact.name ?? "");
+  const [draftHandle, setDraftHandle] = useState(contact.handle);
+  const save = useMutation({
+    mutationFn: () => growthUpdateContact({ data: { qcId: contact.contactId, name: draftName.trim() || null, instagram: draftHandle.trim() || null } }),
+    onSuccess: () => { setEditing(false); invalidate(); toast.success("Saved."); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't save"),
+  });
+  const del = useMutation({
+    mutationFn: () => growthDeleteContact({ data: { qcId: contact.contactId } }),
+    onSuccess: () => { invalidate(); toast.success("Removed."); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't remove"),
   });
 
   const copyDm = () => {
@@ -136,8 +170,18 @@ export function ContactRow({ contact, councilKey, slug, courseCode, campusId }: 
             className={cn("inline-flex items-center gap-1 rounded px-2 py-1 text-[10.5px] font-medium", contact.repliedAt ? "bg-amber-500/15 text-amber-400" : "border border-border hover:bg-muted")}>
             <MessageSquare className="size-3" /> {contact.repliedAt ? "replied" : "reply"}{contact.thread.length > 0 && ` (${contact.thread.length})`}
           </button>
+          <button onClick={() => { setDraftName(contact.name ?? ""); setDraftHandle(contact.handle); setEditing((v) => !v); }} title="Edit contact" className="grid size-6 place-items-center rounded border border-border text-muted-foreground hover:bg-muted"><Pencil className="size-3" /></button>
         </div>
       </div>
+      {editing && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-border bg-muted/20 p-2">
+          <input value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="name (blank = org)" className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1 text-[11px]" style={{ minWidth: 120 }} />
+          <input value={draftHandle} onChange={(e) => setDraftHandle(e.target.value.replace(/^@+/, "").replace(/.*instagram\.com\//, "").replace(/\/+$/, ""))} placeholder="@handle" className="min-w-0 flex-1 rounded border border-pink-500/40 bg-background px-2 py-1 text-[11px]" style={{ minWidth: 120 }} />
+          <button onClick={() => save.mutate()} disabled={save.isPending} className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[10.5px] font-semibold text-primary-foreground disabled:opacity-40">{save.isPending ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />} Save</button>
+          <button onClick={() => { if (window.confirm("Remove this contact?")) del.mutate(); }} disabled={del.isPending} title="Remove contact" className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-red-500/15 hover:text-red-400"><Trash2 className="size-3.5" /></button>
+          <button onClick={() => setEditing(false)} title="Cancel" className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted"><X className="size-3.5" /></button>
+        </div>
+      )}
       {openThread && <Thread contact={contact} councilKey={councilKey} slug={slug} courseCode={courseCode} onChanged={invalidate} />}
     </div>
   );
