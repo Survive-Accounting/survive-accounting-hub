@@ -14,7 +14,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
-import { scrollToId } from "@/lib/ui-scroll";
+import { SA_NAV_FOCUS_EVENT, scrollToId } from "@/lib/ui-scroll";
 import { useCampus } from "@/lib/campus-context";
 
 /** The page navy. One constant so the CSS, the meta theme-color and any inline use agree —
@@ -97,17 +97,16 @@ export function FitWordmark({ size, subline, className, style }: { size: number;
  *  Pass 2 makes this the ONLY wordmark on the page — the hero no longer carries one — so it is
  *  also the brand statement, not just a way home. Kept as its own component because
  *  FitWordmark's subline is proportional to the fitted size and would render ~3.4px here. */
-export function CompactLockup({ size = 19, courseCode, morphed = false }: { size?: number; courseCode?: string | null; morphed?: boolean } = {}) {
+export function CompactLockup({ size = 19, showBolt = false }: { size?: number; /** Show the animated, campus-tinted bolt to the LEFT of the wordmark. The two-door home turns this on only once the page has scrolled past its own big door bolt, so the page never shows two large bolts at once. */ showBolt?: boolean } = {}) {
   // PLAIN TEXT at navbar scale (08-25). The bolt-as-"i" wordmark is the brand's signature at
   // hero/card sizes, but at 19px the bolt reads as a glyph error and costs legibility. Here the
   // name is set as one clean horizontal line — the expressive bolt lives on in the hero,
   // loading reveal and topic rail. SurviveWordmark stays exported for the large surfaces.
   //
-  // WORDMARK FOLLOWS THE COURSE (p4 §4): when a course is resolved and the page is scrolled past
-  // the hero (morphed), the SECOND word crossfades "ACCOUNTING" → the course code. "survive" never
-  // moves; the two second-words are stacked in one grid cell so the lockup width never jumps.
-  const second: React.CSSProperties = { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 700, fontSize: Math.max(9, size * 0.62), letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--brand-cream, #F5EFE6)" };
-  const showCode = morphed && !!courseCode;
+  // ONE TYPEFACE. "Accounting" used to be set as spaced uppercase, which read as a different
+  // brand's tagline bolted onto ours. It is the same Rubik 900 as "survive" now, a step smaller and
+  // dimmer — hierarchy by size and weight, not by switching type treatments.
+  const second: React.CSSProperties = { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: Math.max(11, size * 0.74), letterSpacing: "-0.005em", color: "var(--brand-cream, #F5EFE6)", opacity: 0.5 };
   // reduced-motion read in an effect (SSR-safe first paint) — under it the bolt just appears, no
   // flash and no boil.
   const [reduced, setReduced] = useState(false);
@@ -118,37 +117,25 @@ export function CompactLockup({ size = 19, courseCode, morphed = false }: { size
     mq.addEventListener?.("change", read);
     return () => mq.removeEventListener?.("change", read);
   }, []);
-  // The bolt OVERSHOOTS the wordmark like the footer logo — ~1.5x the cap height, so it breaks past
-  // the letterforms rather than sitting inside them like a bullet. It overshoots without growing the
-  // line: the layout box is only cap-height tall, and the larger bolt is centred inside it and
-  // painted past its edges (overflow visible), so the nav height never changes.
-  const boltH = Math.round(size * 1.05);
+  // THE BOLT LEADS THE LOCKUP and OVERSHOOTS it — ~1.55x the cap height, so it breaks past the
+  // letterforms like the footer logo rather than sitting inside them like a bullet. It overshoots
+  // without growing the bar: the layout box is only cap-height tall, and the larger bolt is centred
+  // inside it and painted past its edges (overflow visible), so the nav height never changes.
+  const boltH = Math.round(size * 1.55);
   const boltW = Math.round(boltH * 0.74);
-  const capH = Math.round(size * 0.62);
-  const boltPad = Math.round(size * 0.1); // tighter than the text gap — a bigger bolt with the old
-  return (                                //   gaps reads as three separate elements, not one lockup.
-    <span style={{ display: "inline-flex", alignItems: "baseline", gap: size * 0.3, lineHeight: 1, whiteSpace: "nowrap", overflow: "visible" }}>
-      <style>{`@keyframes sa-wm-flash{from{opacity:0;transform:scale(0.4)}to{opacity:1;transform:scale(1)}}.sa-wm-bolt{animation:sa-wm-flash 240ms ease}@media (prefers-reduced-motion: reduce){.sa-wm-bolt{animation:none}}`}</style>
-      <span style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, letterSpacing: "-0.01em", color: "var(--brand-cream, #F5EFE6)" }}>survive</span>
-      {courseCode ? (
-        <span style={{ display: "inline-flex", alignItems: "baseline", overflow: "visible" }}>
-          {/* THE BOLT between the words (p6 §9) — appears only with the code, campus-tinted, flashes
-              in with a quick scale-and-fade, and overshoots the letterforms. */}
-          {showCode && (
-            <span className="sa-wm-bolt" aria-hidden style={{ position: "relative", display: "inline-block", width: boltW, height: capH, alignSelf: "center", margin: `0 ${boltPad}px`, overflow: "visible" }}>
-              <span style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: boltW, height: boltH, display: "block" }}>
-                <BoltBoil height={boltH} boilFrame={reduced ? 0 : undefined} />
-              </span>
-            </span>
-          )}
-          <span style={{ display: "inline-grid", alignItems: "baseline" }}>
-            <span aria-hidden={showCode} style={{ gridArea: "1 / 1", ...second, opacity: showCode ? 0 : 0.6, transition: "opacity 260ms ease" }}>Accounting</span>
-            <span aria-hidden={!showCode} style={{ gridArea: "1 / 1", ...second, opacity: showCode ? 0.85 : 0, transition: "opacity 260ms ease" }}>{courseCode}</span>
+  const capH = Math.round(size * 0.72);
+  return (
+    <span style={{ display: "inline-flex", alignItems: "baseline", gap: size * 0.26, lineHeight: 1, whiteSpace: "nowrap", overflow: "visible" }}>
+      <style>{`@keyframes sa-wm-flash{from{opacity:0;transform:scale(0.35)}to{opacity:1;transform:scale(1)}}.sa-wm-bolt{animation:sa-wm-flash 260ms ease}@media (prefers-reduced-motion: reduce){.sa-wm-bolt{animation:none}}`}</style>
+      {showBolt && (
+        <span className="sa-wm-bolt" aria-hidden style={{ position: "relative", display: "inline-block", width: boltW, height: capH, alignSelf: "center", marginRight: Math.round(size * 0.04), overflow: "visible" }}>
+          <span style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: boltW, height: boltH, display: "block" }}>
+            <BoltBoil height={boltH} boilFrame={reduced ? 0 : undefined} />
           </span>
         </span>
-      ) : (
-        <span style={{ ...second, opacity: 0.6 }}>Accounting</span>
       )}
+      <span style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, letterSpacing: "-0.01em", color: "var(--brand-cream, #F5EFE6)" }}>survive</span>
+      <span style={second}>Accounting</span>
     </span>
   );
 }
@@ -201,6 +188,7 @@ const onNavClick = (href: string) => (e: React.MouseEvent) => {
     if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
     el.focus({ preventScroll: true });
   }
+  window.dispatchEvent(new CustomEvent(SA_NAV_FOCUS_EVENT, { detail: id }));
 };
 
 /** The site menu (M2.2). Holds the broad navigation that used to have nowhere to live —
@@ -347,20 +335,39 @@ const homeMenuLinks = (): NavItem[] => [
   { label: "Contact", href: "", contact: true },
 ];
 
-export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = false, courseWordmark }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. */ homeNav?: boolean; /** WORDMARK FOLLOWS THE COURSE (p4 §4, two-door home, campus-resolved only): once the element `anchorId` scrolls out of view, the wordmark's second word crossfades "ACCOUNTING" → `code`. Omit it — the generic home does — and the wordmark stays "survive ACCOUNTING". */ courseWordmark?: { code: string; anchorId: string } } = {}) {
+export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = false, boltAnchorId }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. */ homeNav?: boolean; /** THE NAV BOLT (two-door home): the id of the element carrying the page's own big bolt (the doors). While that element is on screen the navbar shows no bolt — two large bolts at once is one too many — and once it scrolls away the animated, campus-tinted bolt flashes in to the left of the wordmark. Omit it and the bar is always plain "survive Accounting". */ boltAnchorId?: string } = {}) {
   const bar = useRef<HTMLElement>(null);
-  // The wordmark holds "ACCOUNTING" until the watched hero anchor leaves the viewport, then morphs
-  // to the course code. Default false so SSR and the top-of-page state never flash the code.
-  const [morphed, setMorphed] = useState(false);
-  const morphAnchor = courseWordmark?.anchorId;
+  // The nav bolt appears only once the watched element (the page's own bolt) has scrolled ABOVE the
+  // viewport. Default false so SSR and the top-of-page state never flash it.
+  //
+  // BOTH MECHANISMS, deliberately — the same belt-and-braces FitWordmark uses for its measurement.
+  // IntersectionObserver is the efficient primary, but its delivery rides the rendering lifecycle
+  // and a non-compositing tab can silence it indefinitely; a passive scroll listener reading the
+  // rect covers that case. Either one alone has a way to leave the bolt permanently hidden, and a
+  // brand mark that never appears is a bug the visitor sees.
+  const [showBolt, setShowBolt] = useState(false);
   useEffect(() => {
-    if (!morphAnchor || typeof IntersectionObserver === "undefined") return;
-    const el = document.getElementById(morphAnchor);
-    if (!el) return;
-    const io = new IntersectionObserver(([e]) => setMorphed(!e.isIntersecting), { threshold: 0 });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [morphAnchor]);
+    if (!boltAnchorId) return;
+    const read = () => {
+      const el = document.getElementById(boltAnchorId);
+      if (!el) return;
+      setShowBolt(el.getBoundingClientRect().bottom <= 0);
+    };
+    read();
+    window.addEventListener("scroll", read, { passive: true });
+    window.addEventListener("resize", read);
+    let io: IntersectionObserver | null = null;
+    const el = document.getElementById(boltAnchorId);
+    if (el && typeof IntersectionObserver !== "undefined") {
+      io = new IntersectionObserver(() => read(), { threshold: 0 });
+      io.observe(el);
+    }
+    return () => {
+      window.removeEventListener("scroll", read);
+      window.removeEventListener("resize", read);
+      io?.disconnect();
+    };
+  }, [boltAnchorId]);
   // The Greek link carries the known campus. One source (campus context), so the navbar can never
   // name a different school from the hero beside it; pages outside a provider get the bare link.
   const campus = useCampus();
@@ -414,7 +421,7 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
             so the small one is pure duplication. Every OTHER page keeps it, because there
             it is the only route home. */}
         {wordmark
-          ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup courseCode={courseWordmark?.code} morphed={morphed} /></a>
+          ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup showBolt={showBolt} /></a>
           : <span style={{ minHeight: 44, display: "inline-flex" }} />}
         <span className="flex-1" />
 

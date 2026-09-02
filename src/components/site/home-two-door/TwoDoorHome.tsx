@@ -21,6 +21,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { readableCampusInk } from "@/lib/campus-color";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
@@ -59,10 +60,12 @@ import { nbspCode } from "@/lib/course-code";
  *  player that no longer exists here. */
 const DOORS_ID = "doors";
 
-/** The hero campus line's anchor. The SiteHeader context pill watches this element to know when
- *  "for ALABAMA students" has scrolled away (spec §7). Exported so there is ONE id, not two that
- *  can drift apart. */
+/** The hero campus line's anchor. Exported so there is ONE id, not two that can drift apart. */
 export const HERO_CAMPUS_LINE_ID = "sa-hero-campus-line";
+
+/** The solo door's bolt slot — the switch flourish measures this to know where to throw the new
+ *  campus bolt, and the bolt that lands there is the same one. */
+const SOLO_BOLT_ID = "sa-solo-bolt";
 
 // ── PAGE ──────────────────────────────────────────────────────────────────────────────────────
 export function TwoDoorHome({ storedCampusId, initialCode, previewSoloHref }: {
@@ -140,27 +143,21 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   const onPickSchool = (school: PickerSchool) => {
     const mode = pickerFor;
     campus.setSessionSchool(school.id);
-    setPickerFor(null);
-    if (mode === "solo") setWaitlistOpen(true);
-    else if (mode === "chapter") setFinderOpen(true);
+    if (mode === "solo") { setPickerFor(null); setWaitlistOpen(true); }
+    else if (mode === "chapter") { setPickerFor(null); setFinderOpen(true); }
     else if (mode === "switch") {
       // The rebrand flourish — switch mode only (the "flip through schools for fun" case; the door
       // flows open a modal instead). Skipped under reduced motion, where the page just swaps.
       const reduced = typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      if (!reduced) {
-        const c = boltFor(school.id);
-        fxId.current += 1;
-        setSwitchFx({ id: fxId.current, code: school.courseCode ? nbspCode(school.courseCode) : "", school: school.name, c1: c.c1, c2: c.c2 });
-      }
+      if (reduced) { setPickerFor(null); return; }
+      const c = boltFor(school.id);
+      fxId.current += 1;
+      // The PICKER STAYS MOUNTED behind the flourish and closes when it finishes: the flash plays
+      // OVER the open sheet, so the picker is simply the backdrop the new campus arrives on rather
+      // than a panel that blinks out and leaves a hole before the page rebrands.
+      setSwitchFx({ id: fxId.current, code: school.courseCode ? nbspCode(school.courseCode) : "", school: school.name, c1: c.c1, c2: c.c2 });
     }
   };
-
-  // WORDMARK-FOLLOWS-THE-COURSE (p4 §4) — once a course is resolved and the school badge scrolls
-  // out of view, the nav wordmark's second word crossfades from "ACCOUNTING" to the course code.
-  // With no campus, it stays "survive ACCOUNTING".
-  const courseWordmark = campus.code
-    ? { code: nbspCode(campus.code), anchorId: HERO_CAMPUS_LINE_ID }
-    : undefined;
 
   return (
     <div style={{
@@ -173,7 +170,8 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       <style>{TWO_DOOR_CSS}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
-      <SiteHeader homeNav onLanding courseWordmark={courseWordmark} />
+      {/* The nav bolt appears only once the DOORS (and their big bolt) have scrolled away. */}
+      <SiteHeader homeNav onLanding boltAnchorId={DOORS_ID} />
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
         <TwoDoorHero
@@ -202,6 +200,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
 
         <TwoDoorCards
           code={campus.code}
+          campusId={campus.school?.id ?? null}
           onSolo={openSolo}
           soloHref={previewSoloHref}
           onChapter={openChapter}
@@ -239,7 +238,9 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
         <section className="pt-16">
           {/* p6 §7 — the headline reads stronger as something a student said: a quotation with
               attribution, then the supporting paragraph with its now-redundant opening clause cut. */}
-          <blockquote className="mx-auto max-w-[620px] text-center" style={{ margin: 0 }}>
+          {/* marginInline auto, NOT `margin: 0` — the shorthand was overriding Tailwind's mx-auto,
+              which is why the quote sat left of the paragraph under it instead of on its axis. */}
+          <blockquote className="max-w-[620px] text-center" style={{ marginBlock: 0, marginInline: "auto" }}>
             <p className="text-[24px] font-black leading-tight sm:text-[30px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
               &ldquo;The exam looks nothing like the homework.&rdquo;
             </p>
@@ -265,7 +266,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
                 border: "1.5px solid var(--accent)",
               }}
             >
-              Start Exam 1 free →
+              Try Exam 1 free →
             </button>
           </div>
         </section>
@@ -283,10 +284,10 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       <Footer onLanding />
 
       {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
-      {/* The Text-Lee bubble waits until the DOORS scroll away, and sits in the very corner (p6 §1)
-          — no practice-stage bar here, so the 84px lift only pushed it into the CTA reading zone
-          where it covered "Send your syllabus →". 16px keeps it clear of that. */}
-      <FloatingContact heroId={DOORS_ID} tel={TEL} phone={PHONE} bottomOffset={16} />
+      {/* The Text-Lee bubble now waits for the BIO to scroll past, not the doors — so it appears
+          only once you've met Lee, and it can't sit on top of the value cards' "Send your syllabus"
+          on the way down. Framed photo above it: the same face you just read about, offering help. */}
+      <FloatingContact heroId="lee" tel={TEL} phone={PHONE} bottomOffset={16} photo="/lee-sunrise.jpg" />
       {waitlistOpen && (
         <Exam1LaunchModal
           campusId={schoolObj?.campusId ?? null}
@@ -315,16 +316,30 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       {syllabusOpen && <SyllabusModal school={schoolObj} onClose={() => setSyllabusOpen(false)} />}
       {/* The rebrand flourish (p6 §12). Keyed by id so a rapid re-switch cancels the previous one. */}
       {switchFx && (
-        <SwitchFlourish key={switchFx.id} code={switchFx.code} school={switchFx.school} c1={switchFx.c1} c2={switchFx.c2} onDone={() => setSwitchFx(null)} />
+        <SwitchFlourish
+          key={switchFx.id}
+          code={switchFx.code}
+          school={switchFx.school}
+          c1={switchFx.c1}
+          c2={switchFx.c2}
+          onDone={() => { setSwitchFx(null); setPickerFor(null); }}
+        />
       )}
     </div>
   );
 }
 
-/** THE SCHOOL-SWITCH FLOURISH (p6 §12) — a sub-400ms overlay: the campus-coloured bolt boils in the
- *  centre with the DESTINATION beneath it ("ACCT 2013 · Arkansas", never "Loading" — nothing loads,
- *  it is a client rebrand), and the campus colour washes through behind it as the bolt fades. The
- *  overlay never blocks: pointer-events none, so the page stays interactive underneath. */
+/** THE SCHOOL-SWITCH FLOURISH — the new campus arrives, then BLASTS INTO THE DOOR.
+ *
+ *  Two beats, ~380ms total. First the campus-coloured bolt boils up in the centre of the viewport
+ *  over the still-open picker (which is now just the backdrop) with the DESTINATION beneath it —
+ *  "ACCT 2013 · Arkansas", never "Loading", because nothing loads: this is a client-side rebrand and
+ *  announcing work that isn't happening is a small dishonesty people register without naming. Then
+ *  the bolt flies to the solo door's bolt slot and vanishes into it, and the door's own bolt pops in
+ *  wearing the new colours — so the page doesn't just change, the change visibly lands somewhere.
+ *
+ *  It never blocks: pointer-events none throughout, and a second switch remounts it by key, which
+ *  cancels the first outright rather than queueing a backlog of animations. */
 function SwitchFlourish({ code, school, c1, c2, onDone }: {
   code: string;
   school: string;
@@ -332,18 +347,53 @@ function SwitchFlourish({ code, school, c1, c2, onDone }: {
   c2: string;
   onDone: () => void;
 }) {
+  // The destination text has to stay legible on navy even when the school's colours are dark.
+  const ink = readableCampusInk(c1, c2);
+  const [fly, setFly] = useState<{ dx: number; dy: number; scale: number } | null>(null);
+  // onDone is a fresh closure on every parent render, and the parent re-renders mid-flourish (the
+  // campus just changed). Held in a ref so the timers below are armed exactly once — depending on
+  // the prop directly would tear down and restart the sequence on each repaint.
+  const doneRef = useRef(onDone);
+  doneRef.current = onDone;
   useEffect(() => {
-    const t = window.setTimeout(onDone, 380);
-    return () => window.clearTimeout(t);
-  }, [onDone]);
+    // Measure the door's bolt slot and fly there. If the doors are off-screen (a switch made from
+    // far down the page) there is nothing to fly into, so the bolt just fades in place.
+    const target = document.getElementById(SOLO_BOLT_ID)?.getBoundingClientRect();
+    const t1 = window.setTimeout(() => {
+      if (target && target.width > 0) {
+        const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+        setFly({
+          dx: Math.round(target.left + target.width / 2 - cx),
+          dy: Math.round(target.top + target.height / 2 - cy),
+          scale: Math.max(0.25, Math.min(1, target.height / 96)),
+        });
+      } else {
+        setFly({ dx: 0, dy: 0, scale: 0.8 });
+      }
+    }, 130);
+    const t2 = window.setTimeout(() => doneRef.current(), 380);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
+  }, []);
   return (
-    <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 200, pointerEvents: "none", display: "grid", placeItems: "center" }}>
-      <div className="sa-switchfx-wash" style={{ position: "absolute", inset: 0, background: `radial-gradient(60% 50% at 50% 44%, ${c1} 0%, transparent 72%)` }} />
-      <div className="sa-switchfx-core" style={{ position: "relative", display: "grid", justifyItems: "center", gap: 12 }}>
-        <BoltBoil height={96} red={c1} blue={c2} />
-        <span style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: 16, letterSpacing: "0.02em", color: "var(--brand-cream)" }}>
-          {code ? `${code} · ${school}` : school}
-        </span>
+    <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 260, pointerEvents: "none", display: "grid", placeItems: "center" }}>
+      <div className="sa-switchfx-wash" style={{ position: "absolute", inset: 0, background: `radial-gradient(60% 50% at 50% 44%, ${ink} 0%, transparent 72%)` }} />
+      {/* Two elements on purpose: the OUTER one flies (inline transform), the INNER one pops in
+          (keyframes). Putting both on one element would have the animation and the inline transform
+          fighting for the same property. */}
+      <div
+        style={{
+          position: "relative",
+          transform: fly ? `translate(${fly.dx}px, ${fly.dy}px) scale(${fly.scale})` : "translate(0,0) scale(1)",
+          opacity: fly ? 0 : 1,
+          transition: "transform 250ms cubic-bezier(.5,0,.75,0), opacity 250ms ease-in",
+        }}
+      >
+        <div className="sa-switchfx-core" style={{ display: "grid", justifyItems: "center", gap: 12 }}>
+          <BoltBoil height={96} red={c1} blue={c2} />
+          <span style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: 16, letterSpacing: "0.02em", color: "var(--brand-cream)", whiteSpace: "nowrap" }}>
+            {code ? `${code} · ${school}` : school}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -386,7 +436,10 @@ function HomeCampusLine({ schoolName, schoolId, onSwitch }: {
   onSwitch: () => void;
 }) {
   const known = !!schoolName;
-  const color = schoolId ? boltFor(schoolId).c1 : undefined;
+  // READABLE, not merely correct: Ole Miss's primary is a navy on a navy page and vanished. This
+  // falls back to the school's SECONDARY before it ever lightens — see lib/campus-color.
+  const c = schoolId ? boltFor(schoolId) : null;
+  const color = c ? readableCampusInk(c.c1, c.c2) : undefined;
   return (
     <div id={HERO_CAMPUS_LINE_ID} className="flex justify-center pb-4">
       <span className="inline-flex items-center gap-1">
@@ -425,8 +478,11 @@ function HomeCampusLine({ schoolName, schoolId, onSwitch }: {
 
 
 // ── THE TWO DOORS ─────────────────────────────────────────────────────────────────────────────
-function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
+function TwoDoorCards({ code, campusId, onSolo, soloHref, onChapter }: {
   code: string | null;
+  /** Keys the bolt's arrival pop and decides whether it sits dim (no campus yet) or full-strength
+   *  in the school's colours. */
+  campusId: string | null;
   onSolo: () => void;
   /** Preview only: makes the solo CTA a link into Player V2 (onSolo still fires for tracking). */
   soloHref?: string;
@@ -438,7 +494,18 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
             the boiling, campus-tinted Survive bolt; the heading is "survive Solo". Clicking opens
             the school picker first (p1 §2), then the Exam-1 flow. */}
         <HomeDoorCard
-          icon={<SoloBoltIcon />}
+          icon={
+            // Keyed by campus so a switch remounts it and replays the arrival pop — the bolt the
+            // flourish threw at this slot is the bolt that appears in it.
+            <span
+              id={SOLO_BOLT_ID}
+              key={campusId ?? "none"}
+              className={`sa-door-bolt${campusId ? " sa-door-bolt--arrive" : " sa-door-bolt--dim"}`}
+              style={{ display: "inline-block" }}
+            >
+              <SoloBoltIcon />
+            </span>
+          }
           button={
             soloHref ? (
               <a
@@ -650,12 +717,21 @@ ${CAMPUS_LINE_CSS}
    should stay on the same axis. Higher specificity than its own lg:justify-start. */
 .sa-home-chips .sa-proof-row { justify-content: center; }
 
-/* SCHOOL-SWITCH FLOURISH (p6 §12) — under 400ms total. The wash blooms and clears; the bolt + label
-   scale-and-fade in, hold a beat, then fade. */
+/* SCHOOL-SWITCH FLOURISH — under 400ms total. The wash blooms and clears; the bolt + label pop in
+   (here), then the whole group flies into the door slot (inline transform on the parent). */
 @keyframes sa-switchfx-wash { 0% { opacity: 0; } 32% { opacity: 0.42; } 100% { opacity: 0; } }
-@keyframes sa-switchfx-core { 0% { opacity: 0; transform: scale(0.72); } 24% { opacity: 1; transform: scale(1); } 66% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.05); } }
+@keyframes sa-switchfx-core { 0% { opacity: 0; transform: scale(0.7); } 100% { opacity: 1; transform: scale(1); } }
 .sa-switchfx-wash { animation: sa-switchfx-wash 380ms ease forwards; }
-.sa-switchfx-core { animation: sa-switchfx-core 380ms ease forwards; }
+.sa-switchfx-core { animation: sa-switchfx-core 150ms ease-out both; }
 @media (prefers-reduced-motion: reduce) { .sa-switchfx-wash, .sa-switchfx-core { animation: none; opacity: 0; } }
+
+/* THE DOOR BOLT. With no campus it sits back into the navy — present, but not asserting a school
+   we don't know yet. When a campus arrives it pops to full strength in that school's colours,
+   catching the bolt the flourish just threw at it. */
+.sa-door-bolt { transition: opacity 260ms ease; }
+.sa-door-bolt--dim { opacity: 0.5; }
+@keyframes sa-bolt-arrive { 0% { opacity: 0.15; transform: scale(0.72); } 62% { transform: scale(1.06); } 100% { opacity: 1; transform: scale(1); } }
+.sa-door-bolt--arrive { animation: sa-bolt-arrive 320ms cubic-bezier(.2,.9,.3,1.2) both; }
+@media (prefers-reduced-motion: reduce) { .sa-door-bolt--arrive { animation: none; } }
 
 `;
