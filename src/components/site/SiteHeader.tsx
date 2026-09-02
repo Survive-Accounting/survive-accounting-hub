@@ -103,10 +103,10 @@ export function CompactLockup({ size = 19, showBolt = false }: { size?: number; 
   // name is set as one clean horizontal line — the expressive bolt lives on in the hero,
   // loading reveal and topic rail. SurviveWordmark stays exported for the large surfaces.
   //
-  // ONE TYPEFACE. "Accounting" used to be set as spaced uppercase, which read as a different
-  // brand's tagline bolted onto ours. It is the same Rubik 900 as "survive" now, a step smaller and
-  // dimmer — hierarchy by size and weight, not by switching type treatments.
-  const second: React.CSSProperties = { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: Math.max(11, size * 0.74), letterSpacing: "-0.005em", color: "var(--brand-cream, #F5EFE6)", opacity: 0.5 };
+  // JUST "survive" (2026-09-02). The second word is gone from the MARK: the headline directly
+  // under it already says what the product is for, and up here the bolt is what should catch the
+  // eye. "Survive Accounting" still does its search work in <title> and the meta description —
+  // that is where those words belong, not in the logo.
   // reduced-motion read in an effect (SSR-safe first paint) — under it the bolt just appears, no
   // flash and no boil.
   const [reduced, setReduced] = useState(false);
@@ -135,7 +135,6 @@ export function CompactLockup({ size = 19, showBolt = false }: { size?: number; 
         </span>
       )}
       <span style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, letterSpacing: "-0.01em", color: "var(--brand-cream, #F5EFE6)" }}>survive</span>
-      <span style={second}>Accounting</span>
     </span>
   );
 }
@@ -351,7 +350,11 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
     const read = () => {
       const el = document.getElementById(boltAnchorId);
       if (!el) return;
-      setShowBolt(el.getBoundingClientRect().bottom <= 0);
+      // Hand over the moment the page bolt slides UNDER the bar, not when its whole section has
+      // gone: the nav bolt should take over exactly as the card bolt disappears behind the header,
+      // so the mark never leaves the screen and the two are never both large at once.
+      const headerH = bar.current?.getBoundingClientRect().height ?? 0;
+      setShowBolt(el.getBoundingClientRect().bottom <= headerH);
     };
     read();
     window.addEventListener("scroll", read, { passive: true });

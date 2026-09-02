@@ -36,6 +36,7 @@ import { SearchPicker } from "@/components/site/SearchPicker";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { listGoChapters } from "@/lib/greek-go.functions";
 import { ALL_SCHOOLS, boltForSlug, orderedSchoolsForPicker, schoolBySlug } from "@/lib/schools";
+import { EXAM1_LAUNCH_LABEL } from "@/lib/launch";
 import { submitNotify } from "@/lib/syllabus.functions";
 import { readTestSession } from "@/lib/test-mode";
 
@@ -158,7 +159,7 @@ export function GreekWaitlistSheet({ onClose, initialSchoolSlug }: {
         ) : (
           <div className="flex w-full flex-col gap-2">
             <p className="text-[13px] leading-snug" style={{ color: "var(--text-muted)" }}>
-              Exam 1 opens September 1. Tell me where you are and you&apos;re first to know.
+              Exam 1 opens {EXAM1_LAUNCH_LABEL.toLowerCase()}. Tell me where you are and you&apos;re first to know.
             </p>
 
             <SearchPicker

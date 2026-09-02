@@ -14,12 +14,12 @@ export const LAUNCH_WINDOW = "Fall 2026";
 /** The full launch line: "Coming Fall 2026". */
 export const LAUNCH_LINE = `Coming ${LAUNCH_WINDOW}`;
 
-/** EXAM 1'S PUBLIC RELAUNCH DATE (2026-08-27, two-door homepage spec). The new Exam 1 prep is
- *  being rebuilt privately; the public homepage promises it for September 1 by explicit product
- *  decision. A named day is back for THIS surface only because the spec pins it — one constant
- *  here so the door card, the notify record and any future email can never disagree. If the date
- *  moves, change it here and nowhere else. */
-export const EXAM1_LAUNCH_LABEL = "September 1";
+/** EXAM 1S PUBLIC RELAUNCH WINDOW. The new Exam 1 prep is being rebuilt privately, and the public
+ *  homepage promises it here. A WINDOW, not a named day (2026-09-02): the pinned September 1 came
+ *  and went while the rebuild was still private, and a promise the page has already missed costs
+ *  more trust than a vaguer one keeps. One constant, so the door card, the notify record and any
+ *  future email can never disagree. If the window moves, change it here and nowhere else. */
+export const EXAM1_LAUNCH_LABEL = "Early September";
 
 /** THE FLAGSHIP CAMPUS (homepage-final-mile, 2026-08-28). The homepage leads with ONE campus
  *  story; campus #2 is a data change here, not a redesign. Display strings + colors only —

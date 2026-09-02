@@ -770,7 +770,7 @@ function SchoolTicker({ size = 14, className = "mt-3 w-full max-w-md", onPick }:
 function studentFaqs(cb: { onSyllabus?: () => void; onFindChapter?: () => void; onNotListed?: () => void }): Array<{ q: string; a: React.ReactNode }> {
   return [
     {
-      q: "Is it really free?",
+      q: "Is Exam 1 really free?",
       a: "Exam 1 is free — every video, every practice question. Just click and start cramming. I make money when students want Survive for their whole semester.",
     },
     {
@@ -873,8 +873,11 @@ export function Faq({ greek, onSyllabus, onFindChapter, onNotListed }: { greek?:
   // whole program in one paragraph.
   const list: Array<{ q: string; a: React.ReactNode }> = greek ? GREEK_FAQS : studentFaqs({ onSyllabus, onFindChapter, onNotListed });
   const [open, setOpen] = useState(false);
-  // The student page keeps the first THREE questions expanded (the ones that block the decision);
-  // Greek keeps one. The rest sit behind Show more.
+  // NOTHING EXPANDED ON LOAD (2026-09-02). Three open answers put a wall of prose between the page
+  // and its next section; a row of questions the reader picks from is the faster read. The first
+  // three still sit OUTSIDE "Show more" — they are the ones that block the decision — they simply
+  // start closed. Greek pages keep their one open answer: there, "How does this work?" IS the
+  // program and an exec needs it without a click.
   const upFront = greek ? 1 : 3;
   const shown = list.slice(0, upFront);
   const rest = list.slice(upFront);
@@ -888,7 +891,7 @@ export function Faq({ greek, onSyllabus, onFindChapter, onNotListed }: { greek?:
             which is a paragraph nobody asked for; and one question alone read as though there
             were only one. Greek pages still open their first answer — "How does this work?"
             IS the program, and an exec needs it without a click. */}
-        {shown.map((f, i) => <FaqCard key={f.q} f={f} defaultOpen={greek ? i === 0 : true} />)}
+        {shown.map((f, i) => <FaqCard key={f.q} f={f} defaultOpen={!!greek && i === 0} />)}
         {open && rest.map((f) => <FaqCard key={f.q} f={f} />)}
         <div className="text-center">
           <button

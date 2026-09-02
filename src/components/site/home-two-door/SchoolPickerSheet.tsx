@@ -193,7 +193,7 @@ export function SchoolPickerSheet({ onClose, onPick, title = "Which school are y
   );
 }
 
-const PICKER_CSS = `
+export const PICKER_CSS = `
 .sa-sp-search {
   width: 100%; min-height: 46px; padding: 0 14px; margin-bottom: 8px;
   background: rgba(0,0,0,0.30); border: 1px solid var(--border-default); border-radius: 12px;
@@ -240,6 +240,8 @@ const PICKER_CSS = `
   font-size: 15px; font-weight: 700; color: var(--accent);
 }
 .sa-sp-notlisted:hover { text-decoration: underline; text-underline-offset: 4px; }
+/* Empty / loading states sit on the same rhythm as a row, so the list never jumps. */
+.sa-sp-empty { padding: 14px 10px; font-size: 13.5px; color: var(--text-muted); text-wrap: balance; }
 /* PHONE: no hover to reveal a truncated name, so let it wrap to two lines instead of clipping. */
 @media (max-width: 639px) {
   .sa-sp-name {

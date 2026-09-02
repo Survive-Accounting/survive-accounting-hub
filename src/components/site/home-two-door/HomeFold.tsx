@@ -23,27 +23,22 @@ export function SoloBoltIcon() {
   return <BoltBoil height={SOLO_ICON_H} />;
 }
 
-// ── GREEK LETTERS ICON (p4 §5) ──────────────────────────────────────────────────────────────────
-// Three Greek letters as a group, in campus colour, with the same feTurbulence "boil" the bolt has
-// plus a slow glow pulse. Only letters that UNMISTAKABLY read Greek — the other half of the
-// alphabet has Latin lookalikes (Α Β Ε Ζ Η Ι Κ Μ Ν Ο Ρ Τ Υ Χ) and reads as English.
-const GREEK_POOL_NOTE = "safe set: Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω";
-// Trios chosen for shape contrast (one triangular, one angular, one round). We CYCLE them: any one
-// trio is some real chapter's letters, and pinning it reads as repping that house — cycling avoids
-// implying we favour any single organisation.
-const GREEK_TRIOS: string[][] = [
-  ["Φ", "Δ", "Σ"], // round · triangular · angular (the default)
-  ["Θ", "Λ", "Ξ"], // round · triangular · angular
-  ["Ω", "Ψ", "Γ"], // round · forked · angular
-  ["Π", "Δ", "Θ"], // angular · triangular · round
-  ["Σ", "Λ", "Ω"], // angular · triangular · round
-];
-void GREEK_POOL_NOTE;
+// ── GREEK LETTERS ICON ──────────────────────────────────────────────────────────────────────────
+// REAL chapter letters, cycling. The trios this used to rotate (ΦΔΣ, ΘΛΞ…) were invented for shape
+// contrast, and read as decoration because that is what they were — no house anywhere has them.
+// Real letters do the opposite: a student sees their own house go by, or their roommate's, and the
+// card stops being a graphic and starts being about them. The run alternates sorority/fraternity
+// and carries an NPHC chapter; see lib/greek-cycle for how it is built and why.
+//
+// Once we know the visitor's OWN chapter the cycle stops and the card simply wears their letters.
 
-/** Chapter's icon: a cycling trio of Greek letters that boil and glow in the campus colour. Pass
- *  `letters` to pin a specific trio (the seam for a returning visitor's real chapter letters —
- *  not built yet); omitted, it cycles GREEK_TRIOS with a slow crossfade. */
-export function GreekLettersIcon({ letters }: { letters?: string[] } = {}) {
+/** Chapter's icon: real chapter letters that boil and glow, cycling until we know your house. */
+export function GreekLettersIcon({ pinned, cycle }: { 
+  /** The visitor's own chapter letters. Present → the rotation stops and this stays. */
+  pinned?: string | null;
+  /** The letters to rotate through. Campus-specific where we have the roster. */
+  cycle: string[];
+}) {
   // Stable, page-unique filter id (hashed, not useId(), to dodge the hydration-mismatch the hero
   // boundary caused elsewhere — see AnimatedCampusBolt).
   const rawId = useId();
@@ -61,29 +56,36 @@ export function GreekLettersIcon({ letters }: { letters?: string[] } = {}) {
     return () => mq.removeEventListener?.("change", read);
   }, []);
 
-  // Crossfade cycler: two stacked layers swap trios. The BACK layer (opacity 0) takes the next trio,
-  // then flips to front — so one fades in exactly as the other fades out.
-  const pinned = !!(letters && letters.length);
-  const [cf, setCf] = useState({ a: 0, b: 1, aFront: true });
+  const run = cycle.length ? cycle : [""];
+  const pin = pinned?.trim() || null;
+  // DISSOLVE THROUGH, never cross-fade. Two houses fading past each other put ΧΩ on top of ΣΑΕ for
+  // a quarter of every cycle, and two different words at the same centre read as a smudge rather
+  // than as letters. One layer: fade out, swap, fade back in.
+  const [idx, setIdx] = useState(0);
+  const [vis, setVis] = useState(true);
   useEffect(() => {
-    if (reduced || pinned) return;
-    const t = window.setInterval(() => {
-      setCf((s) => {
-        const frontIdx = s.aFront ? s.a : s.b;
-        const next = (frontIdx + 1) % GREEK_TRIOS.length;
-        return s.aFront ? { a: s.a, b: next, aFront: false } : { a: next, b: s.b, aFront: true };
-      });
-    }, 4200);
-    return () => window.clearInterval(t);
-  }, [reduced, pinned]);
+    if (reduced || pin || run.length < 2) return;
+    let swap = 0;
+    const tick = window.setInterval(() => {
+      setVis(false);
+      swap = window.setTimeout(() => { setIdx((i) => (i + 1) % run.length); setVis(true); }, 230);
+    }, 2100);
+    return () => { window.clearInterval(tick); window.clearTimeout(swap); };
+  }, [reduced, pin, run.length]);
 
-  // CREAM, not campus-tinted (p6 §4): school colours belong to the campus; Greek letters belong to
-  // chapters, so tinting them in school colours implies the chapter IS the school. Bigger, too, to
-  // match the bolt's optical weight on the solo card.
+  // The run can shrink under a live index (campus switch), so wrap rather than render undefined.
+  const word = pin ?? run[idx % run.length] ?? "";
+
+  // CREAM, not campus-tinted: school colours belong to the campus; chapter letters belong to
+  // chapters, and tinting them in school colours implies the chapter IS the school.
   const color = "var(--brand-cream, #F5EFE6)";
-  const trioA = letters ?? GREEK_TRIOS[cf.a];
-  const trioB = letters ?? GREEK_TRIOS[cf.b];
-  const textProps = { textAnchor: "middle" as const, x: 50, y: 66, fontSize: 46, letterSpacing: 3, style: { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 800 } };
+  // Real letters run two to four glyphs, so the type is sized to the WORD rather than fixed —
+  // otherwise ΚΑ sits tiny in the box and ΠΒΦ overruns it.
+  const sizeFor = (w: string) => { const n = [...w].length; return n <= 2 ? 60 : n === 3 ? 50 : 40; };
+  const textProps = (w: string) => ({
+    textAnchor: "middle" as const, x: 50, y: 68, fontSize: sizeFor(w), letterSpacing: 2,
+    style: { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 800 } as React.CSSProperties,
+  });
 
   return (
     <span aria-hidden style={{ display: "inline-block", width: SOLO_ICON_H * 1.05, height: SOLO_ICON_H }}>
@@ -91,7 +93,7 @@ export function GreekLettersIcon({ letters }: { letters?: string[] } = {}) {
         {!reduced && (
           <defs>
             {/* The BOIL (feTurbulence + displacement, seed cycled discretely like the bolt's flipbook)
-                and a slow GLOW pulse (blur of the campus-coloured letters). Unique id per instance. */}
+                and a slow GLOW pulse. Unique id per instance. */}
             <filter id={fid} x="-40%" y="-40%" width="180%" height="180%">
               <feTurbulence type="turbulence" baseFrequency="0.03" numOctaves="1" seed="2" result="noise">
                 <animate attributeName="seed" values="2;6;9;4;2" dur="0.9s" calcMode="discrete" repeatCount="indefinite" />
@@ -108,13 +110,10 @@ export function GreekLettersIcon({ letters }: { letters?: string[] } = {}) {
           </defs>
         )}
         <g fill={color} filter={reduced ? undefined : `url(#${fid})`}>
-          {reduced ? (
-            <text {...textProps}>{(letters ?? GREEK_TRIOS[0]).join("  ")}</text>
+          {reduced || pin ? (
+            <text {...textProps(word)}>{word}</text>
           ) : (
-            <>
-              <text {...textProps} style={{ ...textProps.style, opacity: cf.aFront ? 1 : 0, transition: "opacity 800ms ease" }}>{trioA.join("  ")}</text>
-              <text {...textProps} style={{ ...textProps.style, opacity: cf.aFront ? 0 : 1, transition: "opacity 800ms ease" }}>{trioB.join("  ")}</text>
-            </>
+            <text {...textProps(word)} style={{ ...textProps(word).style, opacity: vis ? 1 : 0, transition: "opacity 210ms ease" }}>{word}</text>
           )}
         </g>
       </svg>
@@ -137,9 +136,13 @@ const HOME_DOOR_CARD: React.CSSProperties = {
   boxShadow: "0 24px 60px -30px rgba(0,0,0,0.7), 0 4px 24px -4px rgba(0,0,0,0.45)",
 };
 
-export function HomeDoorCard({ icon, button, support }: {
+export function HomeDoorCard({ icon, switcher, button, support }: {
   /** The large icon (SoloBoltIcon / GreekLettersIcon). */
   icon: React.ReactNode;
+  /** The context line between icon and button ("for OLE MISS students ⇄"). Rendered only when
+   *  there IS context — a switcher with nothing to switch from is clutter — and both cards are
+   *  given the same level of it, so they stay the same height at every state. */
+  switcher?: React.ReactNode;
   button: React.ReactNode;
   support: React.ReactNode;
 }) {
@@ -147,7 +150,10 @@ export function HomeDoorCard({ icon, button, support }: {
     <div className="sa-home-door" style={HOME_DOOR_CARD}>
       {/* The large icon — a fixed envelope so both cards' icons sit on the same baseline. */}
       <div className="sa-home-door-icon grid place-items-center" style={{ height: SOLO_ICON_H }}>{icon}</div>
-      <div className="mt-5 w-full">{button}</div>
+      {/* Fixed slot whether or not a line is in it, so a card with context and a card without are
+          never different heights mid-transition. */}
+      <div className="grid w-full place-items-center" style={{ minHeight: switcher ? 30 : 0 }}>{switcher}</div>
+      <div className="mt-4 w-full">{button}</div>
       <div className="sa-door-support mt-3 grid w-full place-items-center" style={{ minHeight: 34, fontFamily: BRAND_SANS }}>{support}</div>
       <div className="flex-1" />
     </div>

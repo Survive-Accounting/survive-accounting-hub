@@ -94,7 +94,7 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
   );
 }
 
-function ContactRow({ contact, councilKey, slug, courseCode, campusId }: {
+export function ContactRow({ contact, councilKey, slug, courseCode, campusId }: {
   contact: IgContact; councilKey: string; slug: string; courseCode: string | null; campusId: string;
 }) {
   const qc = useQueryClient();
@@ -115,12 +115,13 @@ function ContactRow({ contact, councilKey, slug, courseCode, campusId }: {
     );
   };
 
-  const label = contact.name?.trim() || contact.roleLabel;
+  // Org rows show just the badge + handle — the name would only repeat "Organization".
+  const label = contact.name?.trim() || "";
   return (
     <div className="px-3 py-2">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className={cn("rounded px-1.5 py-0.5 text-[8.5px] font-semibold uppercase", contact.isOrg ? "bg-muted text-muted-foreground" : "bg-primary/15 text-primary")}>{contact.roleLabel}</span>
-        <span className="text-[12px] font-medium">{label}</span>
+        {label && <span className="text-[12px] font-medium">{label}</span>}
         <a href={`https://instagram.com/${contact.handle}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-[11px] text-pink-400 hover:underline">@{contact.handle} <ExternalLink className="size-2.5" /></a>
 
         <div className="ml-auto flex items-center gap-1.5">
