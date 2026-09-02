@@ -5,7 +5,7 @@
 // When the scrape gets org accounts but no officer NAMES (a common case — many council pages list a
 // handle and nothing else), there's nobody to DM yet, so we say so plainly and lay out the empty
 // President / Scholarship-chair rows for each council to fill by hand. Nothing saves until submit.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Search, Download, Upload, Check, Loader2, Plus, Trash2, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 
@@ -30,8 +30,8 @@ const emptyRow = (council: CouncilKey, position: string | null): OfficerRow => (
   include: true, igVerified: false, sourceChecked: false,
 });
 
-export function FindContactsPanel({ campusId, campusName, onImported }: {
-  campusId: string; campusName: string; onImported?: () => void;
+export function FindContactsPanel({ campusId, campusName, onImported, autoStart }: {
+  campusId: string; campusName: string; onImported?: () => void; autoStart?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState("");
@@ -73,6 +73,10 @@ export function FindContactsPanel({ campusId, campusName, onImported }: {
     } catch (e) { setErr((e as Error).message); setShowFallback(true); setPhase("review"); }
   };
   const reScrape = async () => { setErr(null); setPhase("working"); try { await scrapeInto(pages); } catch (e) { setErr((e as Error).message); setPhase("review"); } };
+
+  // Scrape-contacts entry point: kick the scrape off the moment the modal opens.
+  const started = useRef(false);
+  useEffect(() => { if (autoStart && !started.current) { started.current = true; void run(); } }, [autoStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setUrl = async (council: CouncilKey, url: string) => {
     setPages((ps) => ps.map((p) => (p.council === council ? { ...p, url, probe: null } : p)));
