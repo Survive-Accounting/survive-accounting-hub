@@ -376,7 +376,8 @@ function LearnShell() {
     const out: SpineTopic[] = [];
     for (const c of courses) for (const u of c.units) for (const t of u.topics) {
       out.push({
-        id: t.id, label: campusId && t.number != null ? `Ch ${t.number} · ${t.name}` : t.name,
+        // NO CHAPTER PREFIX (Lee, 09-03): topics only, until syllabi map textbook chapters properly.
+        id: t.id, label: t.name,
         groupId: u.id, groupLabel: u.name,
         total: t.sets.filter(isPlayable).length || t.sets.length,
         done: t.sets.filter((x) => progress[x.id]?.state === "complete").length,
@@ -384,7 +385,7 @@ function LearnShell() {
       });
     }
     return out;
-  }, [courses, campusId, progress, unlockedTopics]);
+  }, [courses, progress, unlockedTopics]);
   const spinePosition = useMemo(() => { const i = spineTopics.findIndex((t) => t.id === activeTopicId); return i >= 0 ? { index: i + 1, total: spineTopics.length } : null; }, [spineTopics, activeTopicId]);
   const pendingJump = useRef<string | null>(null);
   const jumpToTopic = (topicId: string) => {
