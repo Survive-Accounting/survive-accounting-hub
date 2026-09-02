@@ -1,23 +1,20 @@
-// THE TWO-DOOR CARDS (rebuilt p1, 2026-09-01).
+// THE TWO-DOOR CARDS (rebuilt p1/p4, 2026-09-01).
 //
-// Each card is a tall panel: a large ~112px icon, then the heading, then the CTA, then a support
-// line. The icons differ per door and carry the meaning before a word is read:
+// Each card is a tall panel: a large ~112px icon, then the CTA, then a support line. No heading —
+// the icon carries the meaning, the CTA names the action. The icons differ per door:
 //   • Solo    — the full-colour Survive bolt, boiling (campus-tinted on a campus page).
-//   • Chapter — a classical columned building (pediment + columns). NOT a house: a house read as
-//               real-estate, not a Greek chapter.
-// Both headings are the "survive" wordmark (the bolt is the "i") + the door's word, sentence-case:
-// "survive Solo" / "survive Fraternities & Sororities". The separate ⚡ glyph is gone — the icon
-// above (solo) and the wordmark's own bolt already carry it.
+//   • Chapter — three GREEK LETTERS as a group, campus-coloured, with the same boil + a glow pulse
+//               (p4 §5). NOT a classical building (that read institutional/bank, the opposite of a
+//               chapter) and NOT a house.
 //
 // This is HOME-scoped on purpose: the shared DoorCard (chapter promo / council / share surfaces)
 // and its geometry test stay untouched.
-import { Landmark } from "lucide-react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 
-/** The large icon size. Bolt and building are tuned to roughly equal optical weight — the building
- *  is an outline so it renders a touch smaller than the filled bolt would at the same box. */
+/** The large icon size — bolt and Greek trio share this box for equal optical weight. */
 export const SOLO_ICON_H = 112;
 
 /** Solo's icon: the boiling, campus-tinted bolt. Colours come from --bolt-primary/secondary (set
@@ -26,9 +23,100 @@ export function SoloBoltIcon() {
   return <BoltBoil height={SOLO_ICON_H} />;
 }
 
-/** Chapter's icon: the classical columned building (Tabler ti-building-bank equivalent). */
-export function ChapterBuildingIcon() {
-  return <Landmark size={104} strokeWidth={1.4} style={{ color: "var(--brand-cream)" }} aria-hidden />;
+// ── GREEK LETTERS ICON (p4 §5) ──────────────────────────────────────────────────────────────────
+// Three Greek letters as a group, in campus colour, with the same feTurbulence "boil" the bolt has
+// plus a slow glow pulse. Only letters that UNMISTAKABLY read Greek — the other half of the
+// alphabet has Latin lookalikes (Α Β Ε Ζ Η Ι Κ Μ Ν Ο Ρ Τ Υ Χ) and reads as English.
+const GREEK_POOL_NOTE = "safe set: Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω";
+// Trios chosen for shape contrast (one triangular, one angular, one round). We CYCLE them: any one
+// trio is some real chapter's letters, and pinning it reads as repping that house — cycling avoids
+// implying we favour any single organisation.
+const GREEK_TRIOS: string[][] = [
+  ["Φ", "Δ", "Σ"], // round · triangular · angular (the default)
+  ["Θ", "Λ", "Ξ"], // round · triangular · angular
+  ["Ω", "Ψ", "Γ"], // round · forked · angular
+  ["Π", "Δ", "Θ"], // angular · triangular · round
+  ["Σ", "Λ", "Ω"], // angular · triangular · round
+];
+void GREEK_POOL_NOTE;
+
+/** Chapter's icon: a cycling trio of Greek letters that boil and glow in the campus colour. Pass
+ *  `letters` to pin a specific trio (the seam for a returning visitor's real chapter letters —
+ *  not built yet); omitted, it cycles GREEK_TRIOS with a slow crossfade. */
+export function GreekLettersIcon({ letters }: { letters?: string[] } = {}) {
+  // Stable, page-unique filter id (hashed, not useId(), to dodge the hydration-mismatch the hero
+  // boundary caused elsewhere — see AnimatedCampusBolt).
+  const rawId = useId();
+  const uid = useMemo(() => { let h = 0; for (let i = 0; i < rawId.length; i++) h = (h * 31 + rawId.charCodeAt(i)) >>> 0; return h.toString(36); }, [rawId]);
+  const fid = `greek-boil-${uid}`;
+
+  // reduced-motion read in an effect (SSR-safe first paint), same as the bolt conveyor.
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!mq) return;
+    const read = () => setReduced(mq.matches);
+    read();
+    mq.addEventListener?.("change", read);
+    return () => mq.removeEventListener?.("change", read);
+  }, []);
+
+  // Crossfade cycler: two stacked layers swap trios. The BACK layer (opacity 0) takes the next trio,
+  // then flips to front — so one fades in exactly as the other fades out.
+  const pinned = !!(letters && letters.length);
+  const [cf, setCf] = useState({ a: 0, b: 1, aFront: true });
+  useEffect(() => {
+    if (reduced || pinned) return;
+    const t = window.setInterval(() => {
+      setCf((s) => {
+        const frontIdx = s.aFront ? s.a : s.b;
+        const next = (frontIdx + 1) % GREEK_TRIOS.length;
+        return s.aFront ? { a: s.a, b: next, aFront: false } : { a: next, b: s.b, aFront: true };
+      });
+    }, 4200);
+    return () => window.clearInterval(t);
+  }, [reduced, pinned]);
+
+  const color = "var(--bolt-primary, #C62828)";
+  const trioA = letters ?? GREEK_TRIOS[cf.a];
+  const trioB = letters ?? GREEK_TRIOS[cf.b];
+  const textProps = { textAnchor: "middle" as const, x: 50, y: 63, fontSize: 34, letterSpacing: 5, style: { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 800 } };
+
+  return (
+    <span aria-hidden style={{ display: "inline-block", width: SOLO_ICON_H * 1.05, height: SOLO_ICON_H }}>
+      <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ display: "block", overflow: "visible" }}>
+        {!reduced && (
+          <defs>
+            {/* The BOIL (feTurbulence + displacement, seed cycled discretely like the bolt's flipbook)
+                and a slow GLOW pulse (blur of the campus-coloured letters). Unique id per instance. */}
+            <filter id={fid} x="-40%" y="-40%" width="180%" height="180%">
+              <feTurbulence type="turbulence" baseFrequency="0.03" numOctaves="1" seed="2" result="noise">
+                <animate attributeName="seed" values="2;6;9;4;2" dur="0.9s" calcMode="discrete" repeatCount="indefinite" />
+              </feTurbulence>
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.6" result="wob" />
+              <feGaussianBlur in="wob" stdDeviation="1.2" result="glow">
+                <animate attributeName="stdDeviation" values="0.8;2.8;0.8" dur="3.4s" repeatCount="indefinite" />
+              </feGaussianBlur>
+              <feMerge>
+                <feMergeNode in="glow" />
+                <feMergeNode in="wob" />
+              </feMerge>
+            </filter>
+          </defs>
+        )}
+        <g fill={color} filter={reduced ? undefined : `url(#${fid})`}>
+          {reduced ? (
+            <text {...textProps}>{(letters ?? GREEK_TRIOS[0]).join("  ")}</text>
+          ) : (
+            <>
+              <text {...textProps} style={{ ...textProps.style, opacity: cf.aFront ? 1 : 0, transition: "opacity 800ms ease" }}>{trioA.join("  ")}</text>
+              <text {...textProps} style={{ ...textProps.style, opacity: cf.aFront ? 0 : 1, transition: "opacity 800ms ease" }}>{trioB.join("  ")}</text>
+            </>
+          )}
+        </g>
+      </svg>
+    </span>
+  );
 }
 
 /** ONE frame for both home doors — the panel. No heading: the large icon carries the meaning and
@@ -47,7 +135,7 @@ const HOME_DOOR_CARD: React.CSSProperties = {
 };
 
 export function HomeDoorCard({ icon, button, support }: {
-  /** The large icon (SoloBoltIcon / ChapterBuildingIcon). */
+  /** The large icon (SoloBoltIcon / GreekLettersIcon). */
   icon: React.ReactNode;
   button: React.ReactNode;
   support: React.ReactNode;

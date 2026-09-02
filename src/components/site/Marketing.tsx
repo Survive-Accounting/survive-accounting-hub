@@ -332,47 +332,68 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
    *  isn't in the room. */
   variant?: "home" | "chapter" | "council";
 }) {
+  // p4 §6: real copy a student feels, and more vertical room to hold it. `clip` marks the slot for
+  // an example clip in the cram-videos card (placeholder only, home surface).
   const CARDS = [
-    { icon: Play, title: "Quick cram videos", body: "Nothing like your lecture videos." },
-    { icon: ClipboardCheck, title: "Practice exams", body: "See the problems that matter." },
+    {
+      icon: Play,
+      title: "Quick cram videos",
+      body: "Two minutes or less. The basics you actually need to answer a question, plus the tips and cheat codes that make it click. Nothing like your lecture videos.",
+      clip: variant === "home",
+    },
+    {
+      icon: ClipboardCheck,
+      title: "Practice exams",
+      body: "Exam-style problems, not textbook problems. Going from a B to an A is mostly recognizing the type of problem before it shows up on the test.",
+    },
   ];
-  // p2: real 48px icons centered above each heading, with room to breathe (was a 20px corner icon
-  // on a tight p-4 card). The three read as a set, centred.
-  const card = "flex flex-col items-center rounded-2xl px-5 py-7 text-center";
+  // 48px icons centered above each heading, with generous vertical room for the longer copy.
+  const card = "flex flex-col items-center rounded-2xl px-5 py-8 text-center";
   const cardStyle = { background: "var(--bg-surface)", border: "1px solid var(--border-default)" } as const;
   // The ONE actionable card keeps its distinctness with an amber hairline — not a full restyle.
   const actionableStyle = { background: "var(--bg-surface)", border: "1px solid var(--accent)" } as const;
-  const H = "mt-4 text-[15px] font-black";
+  const H = "mt-4 text-[15.5px] font-black";
   const hStyle = { fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" } as const;
+  const bodyCls = "mt-2 text-[14px] leading-relaxed";
+  const bodyStyle = { color: "var(--brand-cream)", opacity: 0.7 } as const;
   const iconCls = "h-12 w-12";
   const iconStyle = { color: "var(--accent)" } as const;
   return (
-    <section className="mx-auto grid w-full max-w-[880px] gap-4 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
-      {CARDS.map(({ icon: Icon, title, body }) => (
+    <section className="mx-auto grid w-full max-w-[900px] items-stretch gap-4 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
+      {CARDS.map(({ icon: Icon, title, body, clip }) => (
         <div key={title} className={card} style={cardStyle}>
           <Icon className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>{title}</p>
-          <p className="mt-1.5 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
+          <p className={bodyCls} style={bodyStyle}>{body}</p>
+          {clip && (
+            // PLACEHOLDER for an example clip (p4 §6) — a marked slot only, not a real player yet.
+            <div className="mt-4 grid w-full place-items-center rounded-lg" style={{ aspectRatio: "16 / 9", background: "rgba(0,0,0,0.28)", border: "1px dashed var(--border-default)" }}>
+              <span className="inline-flex items-center gap-1.5 text-[12px]" style={{ color: "var(--text-muted)" }}>
+                <Play className="h-3.5 w-3.5" aria-hidden /> Example clip — coming soon
+              </span>
+            </div>
+          )}
         </div>
       ))}
       {variant === "council" ? (
         <div className={card} style={cardStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your campus"}</p>
-          <p className="mt-1.5 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>Matched to the course your chapters actually take.</p>
+          <p className={bodyCls} style={bodyStyle}>Matched to the course your chapters actually take.</p>
         </div>
       ) : variant === "chapter" ? (
         <div className={card} style={cardStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your course"}</p>
-          <p className="mt-1.5 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>Matched to your exact course.</p>
+          <p className={bodyCls} style={bodyStyle}>Matched to your exact course.</p>
         </div>
       ) : (
-        /* HOME: card 3 is the ONE actionable card — amber hairline keeps it distinct (p2). */
+        /* HOME: card 3 is the ONE actionable card — amber hairline keeps it distinct. */
         <button type="button" onClick={onSyllabus} className={`${card} transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={actionableStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>Built around your course</p>
-          <p className="mt-1.5 text-[14px] leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus. I&apos;ll match it →</p>
+          <p className={bodyCls} style={bodyStyle}>Send your syllabus and I&apos;ll match my content to your course.</p>
+          <span className="mt-3 text-[14px] font-black" style={{ color: "var(--accent)" }}>Send your syllabus →</span>
         </button>
       )}
     </section>

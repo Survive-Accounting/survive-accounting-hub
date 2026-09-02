@@ -97,15 +97,28 @@ export function FitWordmark({ size, subline, className, style }: { size: number;
  *  Pass 2 makes this the ONLY wordmark on the page — the hero no longer carries one — so it is
  *  also the brand statement, not just a way home. Kept as its own component because
  *  FitWordmark's subline is proportional to the fitted size and would render ~3.4px here. */
-export function CompactLockup({ size = 19 }: { size?: number } = {}) {
+export function CompactLockup({ size = 19, courseCode, morphed = false }: { size?: number; courseCode?: string | null; morphed?: boolean } = {}) {
   // PLAIN TEXT at navbar scale (08-25). The bolt-as-"i" wordmark is the brand's signature at
   // hero/card sizes, but at 19px the bolt reads as a glyph error and costs legibility. Here the
   // name is set as one clean horizontal line — the expressive bolt lives on in the hero,
   // loading reveal and topic rail. SurviveWordmark stays exported for the large surfaces.
+  //
+  // WORDMARK FOLLOWS THE COURSE (p4 §4): when a course is resolved and the page is scrolled past
+  // the hero (morphed), the SECOND word crossfades "ACCOUNTING" → the course code. "survive" never
+  // moves; the two second-words are stacked in one grid cell so the lockup width never jumps.
+  const second: React.CSSProperties = { fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 700, fontSize: Math.max(9, size * 0.62), letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--brand-cream, #F5EFE6)" };
+  const showCode = morphed && !!courseCode;
   return (
     <span style={{ display: "inline-flex", alignItems: "baseline", gap: size * 0.38, lineHeight: 1, whiteSpace: "nowrap" }}>
       <span style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, letterSpacing: "-0.01em", color: "var(--brand-cream, #F5EFE6)" }}>survive</span>
-      <span style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 700, fontSize: Math.max(9, size * 0.62), letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--brand-cream, #F5EFE6)", opacity: 0.6 }}>Accounting</span>
+      {courseCode ? (
+        <span style={{ display: "inline-grid", alignItems: "baseline" }}>
+          <span aria-hidden={showCode} style={{ gridArea: "1 / 1", ...second, opacity: showCode ? 0 : 0.6, transition: "opacity 260ms ease" }}>Accounting</span>
+          <span aria-hidden={!showCode} style={{ gridArea: "1 / 1", ...second, opacity: showCode ? 0.85 : 0, transition: "opacity 260ms ease" }}>{courseCode}</span>
+        </span>
+      ) : (
+        <span style={{ ...second, opacity: 0.6 }}>Accounting</span>
+      )}
     </span>
   );
 }
@@ -304,20 +317,20 @@ const homeMenuLinks = (): NavItem[] => [
   { label: "Contact", href: "", contact: true },
 ];
 
-export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = false, contextPill }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. */ homeNav?: boolean; /** CONTEXT PILL (two-door home, campus-resolved only): fades a "AC 210 · Alabama" pill into the bar once the element `anchorId` scrolls out of view, and back out when it returns. Tapping it runs `onClick` (the campus switcher). Omit it — the generic home does — and no pill renders. The `code` always shows; the `school` name ellipsizes when the bar is tight, so a long name never overruns the wordmark. */ contextPill?: { code: string; school: string; onClick: () => void; anchorId: string } } = {}) {
+export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = false, courseWordmark }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. */ homeNav?: boolean; /** WORDMARK FOLLOWS THE COURSE (p4 §4, two-door home, campus-resolved only): once the element `anchorId` scrolls out of view, the wordmark's second word crossfades "ACCOUNTING" → `code`. Omit it — the generic home does — and the wordmark stays "survive ACCOUNTING". */ courseWordmark?: { code: string; anchorId: string } } = {}) {
   const bar = useRef<HTMLElement>(null);
-  // The pill is hidden until the watched hero line leaves the viewport. Default hidden so SSR and
-  // the top-of-page state never flash it.
-  const [pillShown, setPillShown] = useState(false);
-  const pillAnchor = contextPill?.anchorId;
+  // The wordmark holds "ACCOUNTING" until the watched hero anchor leaves the viewport, then morphs
+  // to the course code. Default false so SSR and the top-of-page state never flash the code.
+  const [morphed, setMorphed] = useState(false);
+  const morphAnchor = courseWordmark?.anchorId;
   useEffect(() => {
-    if (!pillAnchor || typeof IntersectionObserver === "undefined") return;
-    const el = document.getElementById(pillAnchor);
+    if (!morphAnchor || typeof IntersectionObserver === "undefined") return;
+    const el = document.getElementById(morphAnchor);
     if (!el) return;
-    const io = new IntersectionObserver(([e]) => setPillShown(!e.isIntersecting), { threshold: 0 });
+    const io = new IntersectionObserver(([e]) => setMorphed(!e.isIntersecting), { threshold: 0 });
     io.observe(el);
     return () => io.disconnect();
-  }, [pillAnchor]);
+  }, [morphAnchor]);
   // The Greek link carries the known campus. One source (campus context), so the navbar can never
   // name a different school from the hero beside it; pages outside a provider get the bare link.
   const campus = useCampus();
@@ -371,7 +384,7 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
             so the small one is pure duplication. Every OTHER page keeps it, because there
             it is the only route home. */}
         {wordmark
-          ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup /></a>
+          ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup courseCode={courseWordmark?.code} morphed={morphed} /></a>
           : <span style={{ minHeight: 44, display: "inline-flex" }} />}
         <span className="flex-1" />
 
@@ -407,45 +420,6 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
           >
             {cta.label}
           </a>
-        )}
-
-        {/* CONTEXT PILL (spec §7). Present only when the page passes a resolved course; fades in
-            once the hero campus line has scrolled away, and taps through to the campus switcher.
-            Right-aligned (never beside the wide "survive ACCOUNTING" lockup, which it would overlap
-            on a phone) — it rides in the space the hero's own campus line just vacated. */}
-        {contextPill && (
-          <button
-            type="button"
-            onClick={contextPill.onClick}
-            aria-hidden={!pillShown}
-            tabIndex={pillShown ? 0 : -1}
-            aria-label={`${contextPill.code} · ${contextPill.school} — change course or school`}
-            className="sa-context-pill ml-2 inline-flex min-w-0 items-center gap-1 rounded-full focus-visible:ring-2"
-            style={{
-              flexShrink: 1,
-              // Capped so a long school name ("Mississippi State") ellipsizes instead of overrunning
-              // the wide "survive ACCOUNTING" lockup; the flagship "AC 210 · Alabama" fits whole.
-              maxWidth: 130,
-              height: 27,
-              paddingInline: 9,
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border-default)",
-              color: "var(--brand-cream)",
-              fontFamily: "'Rubik', system-ui, sans-serif",
-              fontSize: 11,
-              fontWeight: 800,
-              overflow: "hidden",
-              opacity: pillShown ? 1 : 0,
-              transform: pillShown ? "translateY(0)" : "translateY(-4px)",
-              pointerEvents: pillShown ? "auto" : "none",
-              transition: "opacity 200ms ease, transform 200ms ease",
-            }}
-          >
-            {/* The course code is the context that changed — it never truncates. */}
-            <span style={{ flexShrink: 0, whiteSpace: "nowrap" }}>{contextPill.code}</span>
-            {/* The school name gives way first: ellipsis on a tight bar, never an overrun. */}
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.85 }}>· {contextPill.school}</span>
-          </button>
         )}
 
         {/* Hidden entirely at >=1024px — everything it holds is now inline. */}
