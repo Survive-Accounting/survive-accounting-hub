@@ -9,7 +9,7 @@
 // 0105). No checkout exists yet — paid exams show topics + a mapping-gated line, not purchasable.
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, GraduationCap, Lock, MessageCircle, MoreHorizontal, RotateCcw, X } from "lucide-react";
 
@@ -105,12 +105,14 @@ export const TEL = "+16625658818";
 // so everything else goes through "My school isn't listed".
 export type School = {
   campusId: string; id: string; name: string; slug: string; isSec: boolean;
+  /** "SEC" | "Big Ten" | "Big 12" | "ACC" | "Other" — the picker's conference grouping. */
+  conference: string;
   /** Matched in search, NEVER displayed. */
   aliases: string[];
   code?: string; codeVerified?: boolean;
 };
 export const SCHOOLS: School[] = ALL_SCHOOLS.map((s) => ({
-  campusId: s.campusId, id: s.id, name: s.name, slug: s.slug, isSec: s.isSec, aliases: s.aliases,
+  campusId: s.campusId, id: s.id, name: s.name, slug: s.slug, isSec: s.isSec, conference: s.conference, aliases: s.aliases,
   // The generated code is a build snapshot shown immediately; listCampusIntroCodes still
   // overrides it at runtime, so a mid-semester change never needs a deploy.
   code: s.courseCode ?? undefined, codeVerified: !!s.courseCode,
@@ -1045,13 +1047,20 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
        : schools.filter((s) => !!s.codeVerified && !!s.code && s.code.toLowerCase().includes(needle)))
     : schools;
 
-  // GROUPING. Ole Miss is pinned above the headers as the launch campus, and is NOT repeated
-  // inside SEC — one row per school, so the count in the placeholder and the rows on screen
-  // agree. Headers survive filtering, so a search result still says which group it came from.
-  const PINNED = "ole-miss";
-  const pinned = results.filter((s) => s.id === PINNED);
-  const secGroup = results.filter((s) => s.id !== PINNED && s.isSec);
-  const otherGroup = results.filter((s) => s.id !== PINNED && !s.isSec);
+  // GROUPING BY FOOTBALL CONFERENCE. Fixed order — SEC → Big Ten → Big 12 → ACC → Other schools;
+  // Ole Miss is pinned to the TOP OF SEC (under the SEC header, not above it — Lee's call), and
+  // everything else is alphabetical within its group. Headers survive filtering, so a search
+  // result still says which group it came from; empty groups drop out.
+  const P4 = ["SEC", "Big Ten", "Big 12", "ACC"];
+  const groups = ["SEC", "Big Ten", "Big 12", "ACC", "Other schools"].map((label) => ({
+    label,
+    rows: results
+      .filter((s) => (label === "Other schools" ? !P4.includes(s.conference) : s.conference === label))
+      .sort((a, b) => {
+        if (label === "SEC") { const ao = a.id === "ole-miss", bo = b.id === "ole-miss"; if (ao !== bo) return ao ? -1 : 1; }
+        return a.name.localeCompare(b.name);
+      }),
+  })).filter((g) => g.rows.length > 0);
 
   return (
     <div className="relative">
@@ -1095,29 +1104,18 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
           {results.length === 0 && <p className="sa-picker-empty">No school by that name — try &ldquo;My school isn&rsquo;t listed&rdquo; below.</p>}
           {/* The code cell is ALWAYS rendered, empty string and all: it holds its grid track
               open so the row does not jump sideways when listCampusIntroCodes resolves. */}
-          {pinned.map((s) => { const c = boltFor(s.id); return (
-            <button key={s.id} type="button" className="sa-row" onClick={() => { onPick(s); close(); }}>
-              <span className="sa-row-bolt" aria-hidden><Bolt c1={c.c1} c2={c.c2} /></span>
-              <span className="sa-row-name">{s.name}</span>
-              <span className="sa-row-code">{s.codeVerified && s.code ? s.code : ""}</span>
-            </button>
-          ); })}
-          {secGroup.length > 0 && <p className="sa-picker-group">SEC</p>}
-          {secGroup.map((s) => { const c = boltFor(s.id); return (
-            <button key={s.id} type="button" className="sa-row" onClick={() => { onPick(s); close(); }}>
-              <span className="sa-row-bolt" aria-hidden><Bolt c1={c.c1} c2={c.c2} /></span>
-              <span className="sa-row-name">{s.name}</span>
-              <span className="sa-row-code">{s.codeVerified && s.code ? s.code : ""}</span>
-            </button>
-          ); })}
-          {otherGroup.length > 0 && <p className="sa-picker-group">Other schools</p>}
-          {otherGroup.map((s) => { const c = boltFor(s.id); return (
-            <button key={s.id} type="button" className="sa-row" onClick={() => { onPick(s); close(); }}>
-              <span className="sa-row-bolt" aria-hidden><Bolt c1={c.c1} c2={c.c2} /></span>
-              <span className="sa-row-name">{s.name}</span>
-              <span className="sa-row-code">{s.codeVerified && s.code ? s.code : ""}</span>
-            </button>
-          ); })}
+          {groups.map((g) => (
+            <Fragment key={g.label}>
+              <p className="sa-picker-group">{g.label}</p>
+              {g.rows.map((s) => { const c = boltFor(s.id); return (
+                <button key={s.id} type="button" className="sa-row" onClick={() => { onPick(s); close(); }}>
+                  <span className="sa-row-bolt" aria-hidden><Bolt c1={c.c1} c2={c.c2} /></span>
+                  <span className="sa-row-name">{s.name}</span>
+                  <span className="sa-row-code">{s.codeVerified && s.code ? s.code : ""}</span>
+                </button>
+              ); })}
+            </Fragment>
+          ))}
         </PickerSheet>
       )}
     </div>
