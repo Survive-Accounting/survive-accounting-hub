@@ -7,12 +7,13 @@
 // Inserted cheat codes, phrases and exhibits preview as DETOUR cards — dark,
 // gold label, key phrase highlighted — the same flag the sync writes into the
 // set, so what Lee arranges here is what the film surface shows.
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 
 import { AdminGate } from "@/components/AdminGate";
 import { BlastOffEditor } from "@/components/blastoff/BlastOffEditor";
+import { StepBar } from "@/components/v3/StepBar";
 import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
-import { V3Shell, V3Note, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
+import { V3Shell, V3Note, V3_EDGE, V3_MUTED } from "@/components/v3/Shell";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/arrange")({
   component: () => <AdminGate><V3Arrange /></AdminGate>,
@@ -40,12 +41,21 @@ function V3Arrange() {
 
       {set && topic && (
         <>
-          <div className="flex items-center gap-3" style={{ marginBottom: 16, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: V3_GOLD }}>Step 2 · Arrange</span>
-            <span style={{ fontSize: 12.5, color: V3_MUTED }}>
-              Drop what you banked between the set's cards. Inserts film as dark detour cards. Then send it to film.
-            </span>
-          </div>
+          <StepBar
+            topic={topic}
+            set={set}
+            active="arrange"
+            right={
+              <Link
+                to={blastOffPath(topic, set, "film")}
+                className="rounded-lg px-2.5 py-1"
+                style={{ border: `1px solid ${V3_EDGE}`, color: V3_MUTED, fontSize: 11.5, textDecoration: "none", whiteSpace: "nowrap" }}
+                title="Capture in this window instead of the canvas — one frame at a time"
+              >
+                Capture in-page →
+              </Link>
+            }
+          />
           <BlastOffEditor
             set={set}
             topicName={topic.name}

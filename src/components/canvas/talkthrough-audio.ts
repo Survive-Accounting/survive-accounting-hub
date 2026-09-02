@@ -11,13 +11,17 @@
 //     (durable) → transcribeTake (existing server fn, keyed by the staged
 //     path, idempotent) → the segment upgrades live → whisper.
 //
-// CHUNKING: MediaRecorder has no "pause boundary", so the engine watches the
-// mic with an AnalyserNode. ~0.9s of RMS below threshold after real speech —
-// or a 45s hard cap, or a CEQ focus change (a natural boundary: the words
-// belong to what Lee was looking at) — stops the recorder, which yields ONE
-// COMPLETE container (valid file; timeslice fragments are not), and instantly
-// restarts it on the same stream. Clicking through CEQs never touches the
-// stream itself.
+// CHUNKING — A SEGMENT IS PRESS-TO-PRESS (Lee, 2026-09-02: "can we just have
+// a segment be any time I start talking then stop?"). A chunk ends when Lee
+// stops the mic, changes focus (a natural boundary: the words belong to what
+// he was looking at) or fires a stamp — never on a pause. The engine used to
+// cut on ~0.9s of silence, which chopped one thought into many segments; that
+// gate is gone. The AnalyserNode still runs, but only to know whether real
+// voice happened at all (near-silent chunks are what make Whisper hallucinate,
+// so those never ship). A hard cap keeps one chunk a size Whisper accepts.
+// Stopping the recorder yields ONE COMPLETE container (valid file; timeslice
+// fragments are not), and it restarts instantly on the same stream. Clicking
+// through CEQs never touches the stream itself.
 //
 // FAILURE MODEL: a chunk that fails to upload stays in an in-memory retry
 // queue for the life of the page (audio blobs cannot go to localStorage);
@@ -50,10 +54,9 @@ const srCtor = (): SRCtor | null => {
 export const speechRecognitionAvailable = (): boolean => srCtor() !== null;
 
 // ---- tuning ----------------------------------------------------------------
-const SILENCE_MS = 900;         // this long below threshold = a natural pause
 const SILENCE_RMS = 0.014;      // speech sits well above; room tone below
-const MIN_CHUNK_MS = 2500;      // never cut mid-word on a breath
-const MAX_CHUNK_MS = 45_000;    // hard cap — text must land within seconds
+const MIN_CHUNK_MS = 2500;      // a focus/stamp boundary never cuts mid-word
+const MAX_CHUNK_MS = 300_000;   // hard cap — 5 min keeps a WAV inside Whisper's limit
 const TICK_MS = 120;
 // A chunk ships to Whisper only after this much ACCUMULATED loud time. One
 // keyboard clack or a chair creak crosses SILENCE_RMS for a tick or two;
@@ -306,11 +309,8 @@ export class TalkthroughRecorder {
     const rms = Math.sqrt(sum / buf.length);
     const now = Date.now();
     if (rms >= SILENCE_RMS) { this.lastLoudAt = now; this.spokeThisChunk = true; this.voicedMs += TICK_MS; }
-    const dur = now - this.chunkStartedAt;
-    const quiet = now - this.lastLoudAt;
-    if ((this.spokeThisChunk && quiet >= SILENCE_MS && dur >= MIN_CHUNK_MS) || dur >= MAX_CHUNK_MS) {
-      this.cutChunk();
-    }
+    // No silence cut: a segment runs until Lee stops, refocuses or stamps.
+    if (now - this.chunkStartedAt >= MAX_CHUNK_MS) this.cutChunk();
   }
 
   private finishChunk(): void {

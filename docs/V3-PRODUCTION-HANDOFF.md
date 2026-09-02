@@ -65,6 +65,25 @@ Still unverified (needs Lee): everything in "NOT verified" below, plus the
 first Arrange save, the first transcript import, and "Send to film" with a
 detour card on the canvas.
 
+**Second pass, same evening (Lee's feedback after testing on production):**
+- Step bar on every step screen — Step 1 Talkthrough · Step 2 Generate results
+  · Step 3 Send to filming (`components/v3/StepBar.tsx`, one `STEPS` list also
+  drives the doors). The "Talkthrough studio ↗" link that broke the trail is
+  gone; the shell's Exhibit Lab link opens a new tab.
+- Step 2 = the studio's SessionView, extracted to
+  `components/talkthrough/SessionView.tsx` and mounted at `/blast-off/results`
+  (Generate review, board, exhibit prompts, resume talking).
+- Booth: transcript moved to the TOP LEFT above the path; Start over (archives
+  every segment + stamp, confirm first); CEQ MODE / EXHIBIT MODE toggle —
+  exhibit mode lists the shipped exhibits, focus anchors segments to
+  `exhibit:<id>`, Tab surfs exhibits.
+- Recorder: a segment is PRESS-TO-PRESS — the ~0.9s silence cut is gone; a
+  chunk ends on stop / focus change / stamp, hard cap 5 min. The voiced-time
+  gate that keeps near-silence away from Whisper stays.
+- Verified by DOM: all three steps, exhibit mode, the shell link target. NOT
+  verified: a real recording under the new chunking (Lee's mic), Generate
+  review from Step 2 (blocked in the test browser).
+
 ## The route shape Lee wants
 
 Today V3 stops at three doors. He wants it to keep nesting:

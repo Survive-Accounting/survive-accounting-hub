@@ -10,7 +10,7 @@
 // "End Session → Review" runs the usual pre-flight and queues the AI review;
 // the review itself is read in the Talkthrough studio (/talkthrough), which
 // stays the place for sessions, boards and the bank.
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 
 import { AdminGate } from "@/components/AdminGate";
@@ -19,8 +19,9 @@ import { PreFlight } from "@/components/canvas/ReviewBoard";
 import { queueReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
 import { listSessions, makeSession, touchRow, type TalkSession } from "@/components/canvas/talkthrough";
 import { putSession, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
+import { StepBar } from "@/components/v3/StepBar";
 import { blastOffPath, topicOfSet, useV3Set } from "@/components/v3/use-bank";
-import { V3Shell, V3Note, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
+import { V3Shell, V3Note } from "@/components/v3/Shell";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/talkthrough")({
   component: () => <AdminGate><V3Talkthrough /></AdminGate>,
@@ -72,20 +73,7 @@ function V3Talkthrough() {
 
   return (
     <V3Shell crumbs={crumbs} wide>
-      <div className="flex items-center gap-3" style={{ marginBottom: 14, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: V3_GOLD }}>Step 1 · Talkthrough</span>
-        <span style={{ fontSize: 12.5, color: V3_MUTED }}>
-          Look through the set and stamp out ideas. Nothing is arranged here — that is step 2.
-        </span>
-        <Link
-          to="/talkthrough"
-          className="ml-auto rounded-lg px-2.5 py-1"
-          style={{ border: `1px solid ${V3_EDGE}`, color: V3_MUTED, fontSize: 11.5, textDecoration: "none", whiteSpace: "nowrap" }}
-          title="Sessions, reviews, the bank — the full studio"
-        >
-          Talkthrough studio ↗
-        </Link>
-      </div>
+      <StepBar topic={topic} set={set} active="talkthrough" />
 
       {!session && <V3Note>{settled ? "Starting a session…" : "Syncing your sessions…"}</V3Note>}
 
@@ -115,8 +103,8 @@ function V3Talkthrough() {
             setPreflight(null);
             putSession(touchRow(ses, { endedAt: new Date().toISOString() } as Partial<TalkSession>));
             queueReview({ session: ses, ceqs: set.ceqs.map(boothToPassCeq), excludedKinds, wantVibePlan });
-            // Back to the step menu — arrange is next.
-            void navigate({ to: blastOffPath(topic, set) });
+            // Step 2 — the results land there as the pass finishes.
+            void navigate({ to: blastOffPath(topic, set, "results") });
           }}
         />
       )}

@@ -83,7 +83,7 @@ export function topicOfSet(topics: BoothTopic[], setId: string): BoothTopic | un
   return topics.find((t) => t.sets.some((s) => s.id === setId));
 }
 
-export type BlastOffStep = "talkthrough" | "arrange" | "film";
+export type BlastOffStep = "talkthrough" | "results" | "arrange" | "film";
 
 /** /v3/$topic/$set/blast-off[/step] — the one place the nested URL is spelled. */
 export function blastOffPath(topic: BoothTopic, set: BoothSetInfo, step?: BlastOffStep): string {

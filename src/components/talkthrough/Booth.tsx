@@ -15,13 +15,20 @@
 // and become segments, with stamps parsed from the spoken keywords
 // (canvas/talkthrough-import.ts).
 //
+// Later the same day: the transcript moved to the TOP LEFT ("like a box in the
+// top left"), a Start over button, and TWO MODES — CEQ mode and Exhibit mode.
+// Same booth, same session, same stamps; only what is focused changes: a
+// question, or one of the shipped exhibits. Exhibit talk anchors to
+// `exhibit:<id>` so Step 2 can draft the Claude Code prompt from exactly what
+// was said about it.
+//
 // Everything else is the booth Lee already knows: Space starts/stops the mic,
-// Tab surfs questions, the stamp board opens click-in/click-out contexts, the
-// flowing paragraph grows as he talks.
+// Tab surfs questions (or exhibits), the stamp board opens click-in/click-out
+// contexts, the flowing paragraph grows as he talks.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, FileText, Mic, Square, Undo2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Mic, RotateCcw, Square, Undo2, X } from "lucide-react";
 
-import { runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
+import { EXHIBIT_REGISTRY, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import {
   EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, canonicalStamp, contextOfSegment, ghostSegments, makeTag, newTTId, openContext,
   segmentsInContext, sessionBoard, sessionSegments, sessionTags, stampLabel, styleNotesFor, touchRow,
@@ -192,6 +199,8 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const [importOpen, setImportOpen] = useState(false);
   const [importNote, setImportNote] = useState<string | null>(null);
   const [lastDeleted, setLastDeleted] = useState<TalkSegment | null>(null);
+  const [mode, setMode] = useState<BoothMode>("ceq");
+  const [exhibitId, setExhibitId] = useState<string | null>(null);
   const status: BoothStatus = rec.status();
 
   useEffect(() => { void drainWhisperQueue(session.id).then(bump); }, [session.id, bump]);
@@ -200,7 +209,15 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const ceqs = set?.ceqs ?? null;
   const focused = ceqs?.find((c) => c.id === focusId) ?? null;
   const focusIndex = focused && ceqs ? ceqs.indexOf(focused) : -1;
-  const focusPayload = { ceqId: focused?.id ?? null, label: focused ? `Q${focusIndex + 1} · ${focused.label}` : null };
+  const exhibit = mode === "exhibit" && exhibitId ? (EXHIBIT_REGISTRY.find((e) => e.id === exhibitId) ?? null) : null;
+  /** The question on screen — only in CEQ mode; exhibit mode shows the exhibit. */
+  const showCeq = mode === "ceq" ? focused : null;
+  const focusPayload = exhibit
+    ? { ceqId: `exhibit:${exhibit.id}`, label: `Exhibit · ${exhibit.label}` }
+    : showCeq ? { ceqId: showCeq.id, label: `Q${focusIndex + 1} · ${showCeq.label}` } : { ceqId: null, label: null };
+  // The recorder follows whatever is focused — a question, an exhibit, or
+  // nothing — and a change is a chunk boundary, never a stream interruption.
+  useEffect(() => { rec.setFocus(focusPayload.ceqId, focusPayload.label); }, [rec, focusPayload.ceqId, focusPayload.label]);
   // The topic name is the kicker the real card prints above a question stem.
   const topicName = topics?.find((t) => t.sets.some((s) => s.id === session.setId))?.name ?? null;
   // "Q 3/8" — questions only; a note frame is breath and is not counted.
@@ -222,10 +239,22 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const [selStamp, setSelStamp] = useState<StampKind | null>(null);
   const pendingEdits = sessionBoard(tt.doc, session.id).filter((b) => b.kind === "ceq_edit");
 
-  const clickCeq = (c: BoothCeq | null) => {
-    setFocusId(c?.id ?? null);
-    const idx = c && ceqs ? ceqs.indexOf(c) : -1;
-    rec.setFocus(c?.id ?? null, c ? `Q${idx + 1} · ${c.label}` : null); // never interrupts the stream
+  const clickCeq = (c: BoothCeq | null) => setFocusId(c?.id ?? null);
+  const clickExhibit = (id: string | null) => setExhibitId(id);
+  const switchMode = (m: BoothMode) => { rec.markBoundary(); setMode(m); };
+
+  /** START OVER — every segment and stamp in this session is archived (soft,
+   *  recoverable, syncs like any edit). The session stays open and empty. */
+  const startOver = () => {
+    const n = segs.length + allTags.length;
+    if (!n) return;
+    if (!window.confirm(`Start over? ${segs.length} segment${segs.length === 1 ? "" : "s"} and ${allTags.length} stamp${allTags.length === 1 ? "" : "s"} will be archived — recoverable, never deleted.`)) return;
+    rec.markBoundary();
+    const at = new Date().toISOString();
+    for (const s of segs) putSegment(touchRow(s, { archivedAt: at } as Partial<TalkSegment>));
+    for (const t of allTags) putTag(touchRow(t, { archivedAt: at } as Partial<TalkTag>));
+    setLastDeleted(null);
+    setImportNote(`✓ started over — ${segs.length} segments archived`);
   };
 
   /** B2 — closing an EDIT context fires the background micro draft. Capture is
@@ -306,6 +335,12 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   /** Tab / Shift+Tab CEQ surfing. dir=+1 walks Q1→Qn and stops at the end;
    *  dir=-1 walks back and lands on General set brainstorm before Q1. */
   const surfCeq = (dir: 1 | -1) => {
+    if (mode === "exhibit") {
+      const i = EXHIBIT_REGISTRY.findIndex((e) => e.id === exhibitId);
+      const next = dir === 1 ? Math.min(i + 1, EXHIBIT_REGISTRY.length - 1) : i - 1;
+      setExhibitId(next < 0 ? null : EXHIBIT_REGISTRY[next].id);
+      return;
+    }
     if (!ceqs?.length) return;
     if (dir === 1) clickCeq(ceqs[Math.min(focusIndex + 1, ceqs.length - 1)]);
     else if (focusIndex <= 0) clickCeq(null);
@@ -350,63 +385,10 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
 
   return (
     <div className="flex gap-4" style={{ alignItems: "stretch", minHeight: "78vh" }}>
-      {/* LEFT — the Exam 1 path, exactly the player's shape */}
-      <div style={{ width: 330, flexShrink: 0 }}>
-        <PathTree topics={topics} activeSetId={session.setId} activeCeqs={ceqs} focusId={focusId} onSet={(x) => { rec.stop(); onSwitchSet(x); }} onCeq={clickCeq} stampedCeqIds={stampedCeqIds} />
-        {!set && <div style={{ color: NEON.muted, fontSize: 12, marginTop: 8 }}>Set not in the live bank — you can still talk; segments anchor to the session.</div>}
-      </div>
-
-      {/* CENTER — the focused question, drawn by THE REAL CARD Blast Off films */}
-      <div className="flex-1 rounded-2xl p-5" style={{ background: PANEL, border: `1px solid ${EDGE}`, overflowY: "auto", maxHeight: "82vh", minWidth: 0 }}>
-        <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
-          <span style={{ color: NEON.muted, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase" }}>{setLabel(session.setName)}</span>
-          {focused ? (
-            <span className="rounded-full px-2.5 py-0.5" style={{ background: GOLD, color: "#0B1322", fontFamily: BIG_FONT, fontWeight: 800, fontSize: 12 }}>
-              Q{focusIndex + 1} / {ceqs?.length ?? "?"}
-            </span>
-          ) : (
-            <span style={{ color: GOLD, fontSize: 11, fontWeight: 700 }}>GENERAL SET BRAINSTORM</span>
-          )}
-          {focused?.draft && <DraftChip />}
-          {focused && pendingEdits.some((b) => (b.payload as { ceqId?: string }).ceqId === focused.id) && (
-            <span style={{ fontSize: 10, color: "#7DD3FC" }}>
-              {pendingEdits.filter((b) => (b.payload as { ceqId?: string }).ceqId === focused.id).map((b) => (b.payload as { state?: string }).state === "drafting" ? "✎ drafting…" : "✎ edit ready").join(" · ")}
-            </span>
-          )}
-          <span className="ml-auto" style={{ fontSize: 10.5, color: stars.length ? GOLD : NEON.muted }}>★ {stars.length}</span>
-        </div>
-
-        {focused && (
-          <>
-            {/* The frame Lee will film — the /blast-off preview, same component,
-                same kicker rule (note frames say FOUND ON YOUR EXAM), same Q x/y. */}
-            <div style={{ display: "flex", justifyContent: "center" }}>
-              <SetCard
-                id={focused.id}
-                stem={focused.stem}
-                choices={focused.choices}
-                topic={focused.noteOnly ? NOTE_EYEBROW : topicName}
-                progress={qProgress}
-                scale={0.78}
-              />
-            </div>
-            {(focused.needsExhibit || focused.masterNotes) && (
-              <div className="mt-3 rounded-xl px-3 py-2" style={{ border: `1px dashed ${EDGE}` }}>
-                {focused.needsExhibit && <div style={{ fontSize: 11, color: GOLD }}>needs_exhibit: {focused.needsExhibit}</div>}
-                {focused.masterNotes && <div style={{ fontSize: 11, color: NEON.muted }}>notes: {focused.masterNotes}</div>}
-              </div>
-            )}
-          </>
-        )}
-
-        {importOpen && (
-          <ImportPanel
-            setName={session.setName}
-            ceqCount={ceqs?.length ?? 0}
-            onClose={() => setImportOpen(false)}
-            onImport={importBlocks}
-          />
-        )}
+      {/* LEFT — the transcript first (Lee: "a box in the top left"), then what
+          can be focused: the set's questions, or the shipped exhibits. */}
+      <div className="flex flex-col gap-3" style={{ width: 360, flexShrink: 0, minWidth: 0 }}>
+        <ModeToggle mode={mode} onChange={switchMode} />
 
         {/* THE FLOWING PARAGRAPH — one paragraph that grows as you talk. Each
             committed segment is a span with its own ×, so trashing one idea is
@@ -420,7 +402,7 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
           onDelete={deleteSeg}
         />
         {(lastDeleted || importNote) && (
-          <div className="mt-2 flex items-center gap-3" style={{ fontSize: 11, color: NEON.muted }}>
+          <div className="flex items-center gap-3" style={{ fontSize: 11, color: NEON.muted, marginTop: -6 }}>
             {lastDeleted && (
               <button className="flex items-center gap-1" style={{ color: GOLD, background: "none", border: "none", cursor: "pointer", fontSize: 11 }} onClick={undoDelete}>
                 <Undo2 className="h-3 w-3" /> undo delete
@@ -429,9 +411,8 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
             {importNote && <span style={{ color: "#3BF5A0" }}>{importNote}</span>}
           </div>
         )}
-
         {/* the record, by segment — still the audit trail, now secondary */}
-        <details className="mt-4">
+        <details style={{ marginTop: -4 }}>
           <summary style={{ color: NEON.muted, fontSize: 11, cursor: "pointer" }}>
             by segment ({segs.length}) — context chips, [S#] anchors, Whisper status
           </summary>
@@ -445,6 +426,79 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
             {recent.map((s) => <SegmentLine key={s.id} seg={s} ctx={contextOfSegment(s, allTags)} onDelete={deleteSeg} />)}
           </div>
         </details>
+
+        {mode === "ceq" ? (
+          <>
+            <PathTree topics={topics} activeSetId={session.setId} activeCeqs={ceqs} focusId={focusId} onSet={(x) => { rec.stop(); onSwitchSet(x); }} onCeq={clickCeq} stampedCeqIds={stampedCeqIds} />
+            {!set && <div style={{ color: NEON.muted, fontSize: 12 }}>Set not in the live bank — you can still talk; segments anchor to the session.</div>}
+          </>
+        ) : (
+          <ExhibitList activeId={exhibitId} stampedIds={stampedCeqIds} onPick={clickExhibit} />
+        )}
+      </div>
+
+      {/* CENTER — the focused question, drawn by THE REAL CARD Blast Off films */}
+      <div className="flex-1 rounded-2xl p-5" style={{ background: PANEL, border: `1px solid ${EDGE}`, overflowY: "auto", maxHeight: "82vh", minWidth: 0 }}>
+        <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
+          <span style={{ color: NEON.muted, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase" }}>{setLabel(session.setName)}</span>
+          {exhibit ? (
+            <span className="rounded-full px-2.5 py-0.5" style={{ background: GOLD, color: "#0B1322", fontFamily: BIG_FONT, fontWeight: 800, fontSize: 12 }}>EXHIBIT</span>
+          ) : mode === "exhibit" ? (
+            <span style={{ color: GOLD, fontSize: 11, fontWeight: 700 }}>PICK AN EXHIBIT</span>
+          ) : showCeq ? (
+            <span className="rounded-full px-2.5 py-0.5" style={{ background: GOLD, color: "#0B1322", fontFamily: BIG_FONT, fontWeight: 800, fontSize: 12 }}>
+              Q{focusIndex + 1} / {ceqs?.length ?? "?"}
+            </span>
+          ) : (
+            <span style={{ color: GOLD, fontSize: 11, fontWeight: 700 }}>GENERAL SET BRAINSTORM</span>
+          )}
+          {showCeq?.draft && <DraftChip />}
+          {showCeq && pendingEdits.some((b) => (b.payload as { ceqId?: string }).ceqId === showCeq.id) && (
+            <span style={{ fontSize: 10, color: "#7DD3FC" }}>
+              {pendingEdits.filter((b) => (b.payload as { ceqId?: string }).ceqId === showCeq.id).map((b) => (b.payload as { state?: string }).state === "drafting" ? "✎ drafting…" : "✎ edit ready").join(" · ")}
+            </span>
+          )}
+          <span className="ml-auto" style={{ fontSize: 10.5, color: stars.length ? GOLD : NEON.muted }}>★ {stars.length}</span>
+        </div>
+
+        {showCeq && (
+          <>
+            {/* The frame Lee will film — the /blast-off preview, same component,
+                same kicker rule (note frames say FOUND ON YOUR EXAM), same Q x/y. */}
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <SetCard
+                id={showCeq.id}
+                stem={showCeq.stem}
+                choices={showCeq.choices}
+                topic={showCeq.noteOnly ? NOTE_EYEBROW : topicName}
+                progress={qProgress}
+                scale={0.78}
+              />
+            </div>
+            {(showCeq.needsExhibit || showCeq.masterNotes) && (
+              <div className="mt-3 rounded-xl px-3 py-2" style={{ border: `1px dashed ${EDGE}` }}>
+                {showCeq.needsExhibit && <div style={{ fontSize: 11, color: GOLD }}>needs_exhibit: {showCeq.needsExhibit}</div>}
+                {showCeq.masterNotes && <div style={{ fontSize: 11, color: NEON.muted }}>notes: {showCeq.masterNotes}</div>}
+              </div>
+            )}
+          </>
+        )}
+        {exhibit && <ExhibitFocus exhibit={exhibit} />}
+        {mode === "exhibit" && !exhibit && (
+          <div style={{ color: NEON.muted, fontSize: 13, marginTop: 10 }}>
+            Pick an exhibit on the left, then talk about what you want it to do and what you would change. Step 2 turns that into a Claude Code prompt.
+          </div>
+        )}
+
+        {importOpen && (
+          <ImportPanel
+            setName={session.setName}
+            ceqCount={ceqs?.length ?? 0}
+            onClose={() => setImportOpen(false)}
+            onImport={importBlocks}
+          />
+        )}
+
       </div>
 
       {/* RIGHT — recorder, import, THE STAMP BOARD */}
@@ -465,6 +519,14 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
           onClick={() => { setImportNote(null); setImportOpen((v) => !v); }}
         >
           <FileText className="h-3.5 w-3.5" /> {importOpen ? "Close import" : "Import transcript"}
+        </button>
+        <button
+          className="flex items-center justify-center gap-2 rounded-xl px-3 py-1.5"
+          style={{ border: `1px solid ${EDGE}`, color: NEON.muted, background: "transparent", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}
+          title="Archive every segment and stamp in this session and start clean — recoverable, nothing is deleted"
+          onClick={startOver}
+        >
+          <RotateCcw className="h-3 w-3" /> Start over
         </button>
         {paused && !status.recording && <div style={{ color: NEON.muted, fontSize: 10.5 }}>Paused — mic released. Resume continues this session exactly here (survives reloads).</div>}
         {micError && <div style={{ color: "#F87171", fontSize: 12 }}>{micError}</div>}
@@ -692,9 +754,8 @@ function LiveParagraph({ segments, liveFinal, interim, recording, liveAvailable,
   const empty = !shown.length && !liveFinal && !interim;
   return (
     <div
-      className="mt-4"
       style={{
-        maxHeight: "34vh", overflowY: "auto",
+        maxHeight: "38vh", overflowY: "auto",
         background: "rgba(9,13,26,0.55)", border: `1px solid ${NEON.borderSoft}`,
         borderRadius: 14, padding: "12px 14px",
       }}
@@ -738,6 +799,89 @@ export function SegmentLine({ seg, ctx, onDelete }: { seg: TalkSegment; ctx?: Ta
           ×
         </button>
       )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------- modes
+
+export type BoothMode = "ceq" | "exhibit";
+type ExhibitEntry = (typeof EXHIBIT_REGISTRY)[number];
+
+/** CEQ MODE · EXHIBIT MODE — two pills, one booth. */
+function ModeToggle({ mode, onChange }: { mode: BoothMode; onChange: (m: BoothMode) => void }) {
+  const pill = (m: BoothMode, label: string) => {
+    const on = mode === m;
+    return (
+      <button
+        key={m}
+        className="flex-1 rounded-lg px-3 py-1.5"
+        style={{ background: on ? GOLD : "transparent", color: on ? "#0B1322" : NEON.muted, fontFamily: BIG_FONT, fontWeight: 800, fontSize: 11.5, letterSpacing: "0.06em", border: "none", cursor: "pointer" }}
+        onClick={() => onChange(m)}
+      >
+        {label}
+      </button>
+    );
+  };
+  return (
+    <div className="flex gap-1 rounded-xl p-1" style={{ border: `1px solid ${EDGE}`, background: PANEL }}>
+      {pill("ceq", "CEQ MODE")}
+      {pill("exhibit", "EXHIBIT MODE")}
+    </div>
+  );
+}
+
+/** The shipped exhibits (EXHIBIT_REGISTRY), as the thing to focus and talk
+ *  about — the same shape as the question list, so the muscle memory holds. */
+function ExhibitList({ activeId, stampedIds, onPick }: { activeId: string | null; stampedIds: Set<string>; onPick: (id: string | null) => void }) {
+  return (
+    <div className="flex flex-col gap-1" style={{ overflowY: "auto", maxHeight: "40vh", paddingRight: 4 }}>
+      <div style={{ fontSize: 10, letterSpacing: "0.2em", color: NEON.muted, textTransform: "uppercase", fontWeight: 900, padding: "2px 8px" }}>Exhibits</div>
+      <button
+        className="rounded-md px-2.5 py-1.5 text-left"
+        style={{ background: activeId === null ? "rgba(252,163,17,0.14)" : "transparent", border: "none", color: activeId === null ? GOLD : NEON.muted, fontSize: 11.5 }}
+        onClick={() => onPick(null)}
+      >
+        Exhibits in general — a new one, or the family
+      </button>
+      {EXHIBIT_REGISTRY.map((e) => {
+        const on = activeId === e.id;
+        const stamped = stampedIds.has(`exhibit:${e.id}`);
+        return (
+          <button
+            key={e.id}
+            className="rounded-md px-2.5 py-1.5 text-left"
+            style={{ background: on ? "rgba(252,163,17,0.14)" : "transparent", border: `1px solid ${on ? GOLD : "transparent"}`, color: on || stamped ? CREAM : NEON.muted, fontSize: 12 }}
+            onClick={() => onPick(e.id)}
+          >
+            <span style={{ fontWeight: 700, color: stamped ? GOLD : undefined }}>{e.label}</span>
+            {stamped && <span title="Has stamped data this session" style={{ color: GOLD, marginLeft: 4 }}>●</span>}
+          </button>
+        );
+      })}
+      <div style={{ fontSize: 10.5, color: NEON.muted, padding: "6px 8px", lineHeight: 1.5 }}>
+        Say what it should show, what to keep, what to change. Step 2 drafts the Claude Code prompt from your words; the exhibit itself still ships through Exhibit Lab.
+      </div>
+    </div>
+  );
+}
+
+/** The focused exhibit, in the centre — a dark card naming it, so the screen
+ *  says what the words are about the way the question card does in CEQ mode. */
+function ExhibitFocus({ exhibit }: { exhibit: ExhibitEntry }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 560, borderRadius: 14, border: "1.5px solid rgba(252,163,17,0.6)", background: "#14213D", padding: "18px 22px 20px", position: "relative" }}>
+        <span aria-hidden style={{ position: "absolute", top: -1, right: -1, width: 26, height: 26, background: GOLD, clipPath: "polygon(100% 0, 0 0, 100% 100%)", borderTopRightRadius: 13, opacity: 0.9 }} />
+        <div style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 900, letterSpacing: "0.12em", color: GOLD, background: "rgba(252,163,17,0.14)", border: "1px solid rgba(252,163,17,0.27)", marginBottom: 8 }}>EXHIBIT</div>
+        <div style={{ fontFamily: BIG_FONT, fontSize: 26, fontWeight: 800, lineHeight: 1.2, color: "#F5EFE6" }}>{exhibit.label}</div>
+        <div style={{ fontSize: 12, color: "rgba(245,239,230,0.62)", marginTop: 10, lineHeight: 1.5 }}>
+          Talk about this exhibit: what it should show, the reveal, what you would keep and what you would change. Everything you say here is anchored to it.
+        </div>
+        <a href="/exhibit-lab" target="_blank" rel="noopener" style={{ display: "inline-block", marginTop: 12, fontSize: 11.5, color: GOLD, textDecoration: "none", border: `1px solid rgba(252,163,17,0.4)`, borderRadius: 8, padding: "4px 10px" }}>
+          Open it in Exhibit Lab ↗ (new tab)
+        </a>
+      </div>
     </div>
   );
 }

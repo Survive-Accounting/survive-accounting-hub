@@ -50,12 +50,18 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
         >
           <Home style={{ width: 13, height: 13 }} /> Home
         </Link>
+        {/* A NEW TAB, not a navigation: Exhibit Lab is its own surface, and
+            leaving V3 for it lost the breadcrumb trail (Lee got stuck). The
+            booth's Exhibit Mode is where exhibits get talked about. */}
         <Link
           to="/exhibit-lab"
+          target="_blank"
+          rel="noopener"
           className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5"
           style={{ color: V3_GOLD, border: `1px solid ${V3_EDGE}`, fontSize: 12.5, fontWeight: 700, textDecoration: "none" }}
+          title="Opens in a new tab"
         >
-          <FlaskConical style={{ width: 13, height: 13 }} /> Exhibit Lab
+          <FlaskConical style={{ width: 13, height: 13 }} /> Exhibit Lab ↗
         </Link>
 
         {/* BREADCRUMB — the only way back, and the reason each screen is a URL. */}

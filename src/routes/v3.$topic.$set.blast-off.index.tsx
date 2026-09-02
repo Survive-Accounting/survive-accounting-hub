@@ -12,16 +12,20 @@
 // Every step is its own URL so browser back works and a step can be linked to.
 // Nothing here loads the canvas; it is a menu.
 import { createFileRoute } from "@tanstack/react-router";
-import { Clapperboard, LayoutList, Mic } from "lucide-react";
+import { Clapperboard, Mic, Wand2 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { Door } from "@/components/v3/Door";
-import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
+import { STEPS } from "@/components/v3/StepBar";
+import { blastOffPath, useV3Set, type BlastOffStep } from "@/components/v3/use-bank";
 import { V3Shell, V3Note, V3_DISPLAY, V3_MUTED } from "@/components/v3/Shell";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/")({
   component: V3BlastOff,
   head: () => ({ meta: [{ title: "⚡ Survive — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
+
+const STEP_ICON: Record<BlastOffStep, LucideIcon> = { talkthrough: Mic, results: Wand2, arrange: Clapperboard, film: Clapperboard };
 
 function V3BlastOff() {
   const { topic: topicKey, set: setKey } = Route.useParams();
@@ -53,28 +57,19 @@ function V3BlastOff() {
             Which step are you on?
           </h2>
 
+          {/* The same three steps the StepBar shows on every step screen —
+              one list, so the doors and the bar can never disagree. */}
           <div className="flex flex-wrap gap-3">
-            <Door
-              kicker="Step 1"
-              icon={Mic}
-              title="Talkthrough"
-              blurb="Look through the set and stamp out ideas — phrases, cheat codes, tips, real-world examples, exhibits."
-              to={blastOffPath(topic, set, "talkthrough")}
-            />
-            <Door
-              kicker="Step 2"
-              icon={LayoutList}
-              title="Arrange"
-              blurb="The running order. Drop what you banked between the set's cards, then send it to film."
-              to={blastOffPath(topic, set, "arrange")}
-            />
-            <Door
-              kicker="Step 3"
-              icon={Clapperboard}
-              title="Film"
-              blurb="One frame at a time, spacebar forward. Talk."
-              to={blastOffPath(topic, set, "film")}
-            />
+            {STEPS.map((s) => (
+              <Door
+                key={s.step}
+                kicker={`Step ${s.n}`}
+                icon={STEP_ICON[s.step]}
+                title={s.label}
+                blurb={s.blurb}
+                to={blastOffPath(topic, set, s.step)}
+              />
+            ))}
           </div>
         </>
       )}

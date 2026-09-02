@@ -547,8 +547,9 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "v3.$topic.$set.index.tsx": "V3 menu (noindex) — what are you making?",
   "v3.$topic.$set.blast-off.index.tsx": "V3 Blast Off (noindex) — which step are you on?",
   "v3.$topic.$set.blast-off.talkthrough.tsx": "V3 Blast Off step 1 (AdminGate, noindex) — the booth on one set",
-  "v3.$topic.$set.blast-off.arrange.tsx": "V3 Blast Off step 2 (AdminGate, noindex) — the running order",
-  "v3.$topic.$set.blast-off.film.tsx": "V3 Blast Off step 3 (AdminGate, noindex) — capture",
+  "v3.$topic.$set.blast-off.results.tsx": "V3 Blast Off step 2 (AdminGate, noindex) — generate results (the session's review board)",
+  "v3.$topic.$set.blast-off.arrange.tsx": "V3 Blast Off step 3 (AdminGate, noindex) — the running order, send to film",
+  "v3.$topic.$set.blast-off.film.tsx": "V3 Blast Off (AdminGate, noindex) — in-page capture, reached from Arrange",
   "study_.canvas.tsx": "internal authoring lab (noindex)",
   "study_.dashboard.tsx": "prototype (noindex)",
   // Two-portal home experiment (08-26). Register go.demo as a real template if it graduates
