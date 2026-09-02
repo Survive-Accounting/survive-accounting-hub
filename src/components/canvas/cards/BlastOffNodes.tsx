@@ -147,29 +147,6 @@ export function BlastTipNode({ id, data, selected }: NodeProps) {
   );
 }
 
-/** THE BIO CARD — the outro's matched pair. Deliberately the same lockup, so
- *  the cut bio → outro changes the lines under a wordmark that does not move. */
-export function BlastBioNode({ id, data, selected }: NodeProps) {
-  const d = data as unknown as BlastBioElement;
-  const { update } = useCardActions(id);
-  const w = d.w ?? 540, h = d.h ?? 960;
-  return (
-    <BlastShell id={id} w={w} h={h} posLock={d.posLock} selected={selected}
-      toolbar={<>
-        <input {...field} style={{ ...field.style, width: 190 }} value={d.credentials ?? ""} placeholder="BAccy • MAccy — Ole Miss"
-          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ credentials: e.target.value })} />
-        <input {...field} style={{ ...field.style, width: 190 }} value={d.proof ?? ""} placeholder="1,000+ students tutored since 2015"
-          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ proof: e.target.value })} />
-        <input {...field} style={{ ...field.style, width: 110 }} value={d.tutor ?? ""} placeholder="tutor"
-          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ tutor: e.target.value })} />
-        <KeyBtn on={d.transparent} onClick={() => update({ transparent: !d.transparent })} />
-      </>}>
-      <SurviveBio credentials={d.credentials || undefined} proof={d.proof ?? undefined} tutor={d.tutor || undefined}
-        transparent={d.transparent} scale={w / V.w} />
-    </BlastShell>
-  );
-}
-
 export function BlastOutroNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as BlastOutroElement;
   const { update } = useCardActions(id);
@@ -182,6 +159,31 @@ export function BlastOutroNode({ id, data, selected }: NodeProps) {
         <KeyBtn on={d.transparent} onClick={() => update({ transparent: !d.transparent })} />
       </>}>
       <SurviveOutro tagline={d.tagline || undefined} domain={d.domain || undefined} transparent={d.transparent} scale={w / V.w} />
+    </BlastShell>
+  );
+}
+
+/** THE BIO SLOT. Four fields, all optional — blank means SurviveBio's default,
+ *  which is where the cleared claims live. Lee edits them here when a frame
+ *  needs different words, and nowhere else. */
+export function BlastBioNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as BlastBioElement;
+  const { update } = useCardActions(id);
+  const w = d.w ?? 540, h = d.h ?? 960;
+  return (
+    <BlastShell id={id} w={w} h={h} posLock={d.posLock} selected={selected}
+      toolbar={<>
+        <input {...field} style={{ ...field.style, width: 120 }} value={d.name ?? ""} placeholder="Lee Ingram"
+          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ name: e.target.value })} />
+        <input {...field} style={{ ...field.style, width: 180 }} value={d.credentials ?? ""} placeholder="BAccy · MAccy — Ole Miss"
+          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ credentials: e.target.value })} />
+        <input {...field} style={{ ...field.style, width: 210 }} value={d.claim ?? ""} placeholder="1,000+ students tutored since 2015"
+          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ claim: e.target.value })} />
+        <KeyBtn on={d.transparent} onClick={() => update({ transparent: !d.transparent })} />
+      </>}>
+      <SurviveBio name={d.name || undefined} credentials={d.credentials || undefined}
+        claim={d.claim || undefined} domain={d.domain || undefined}
+        transparent={d.transparent} scale={w / V.w} />
     </BlastShell>
   );
 }

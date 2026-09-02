@@ -13,8 +13,11 @@
 //
 // If the intent really was to replace the full page, that is a routing change — this screen is a
 // component and would serve either path unchanged.
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { useState } from "react";
+
+import { CHAIR_LANDS_ON_PLATFORM } from "@/lib/site-config";
+import { chairLearnPath } from "@/lib/chair-landing";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { ShareButton, ShareFootnote, ShareHeading, ShareScreen } from "@/components/site/share/ShareScreen";
@@ -26,10 +29,22 @@ import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { currentContactRef, withRef } from "@/lib/contact-ref";
 import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { nbspCode } from "@/lib/course-code";
+import { LEE_SIGNOFF } from "@/lib/partners";
 
 const ORIGIN = "https://surviveaccounting.com";
 
 export const Route = createFileRoute("/s/$campus/$chapter")({
+  // BUILD 2 · SECTION 1 — the one-line switch. When the platform is worth showing, a chair link
+  // lands her on /learn (branded to this chapter) with the share panel over it, instead of on the
+  // bare share screen. Off by default; see CHAIR_LANDS_ON_PLATFORM. The redirect runs before the
+  // loader so the share-screen data is never fetched on the platform path.
+  beforeLoad: ({ params }) => {
+    if (CHAIR_LANDS_ON_PLATFORM) {
+      throw redirect({
+        href: chairLearnPath({ mode: "chapter", school: params.campus, chapter: params.chapter, council: null }),
+      });
+    }
+  },
   loader: async ({ params }) => {
     const school = schoolBySlug(params.campus);
     if (!school) throw notFound();
@@ -76,6 +91,11 @@ function ChapterSharePage() {
     `Free prep for ${course} — the entire first exam is free.`,
     `Videos, practice questions, full walkthroughs.`,
     tagged,
+    ``,
+    // A PERSON, WITH A NUMBER, ON EVERY PASTEABLE MESSAGE. Whoever pastes this is putting their
+    // own credibility behind it, and "text Lee Ingram, the tutor behind it" is what makes the
+    // thing they pasted answerable by a human rather than by a brand.
+    LEE_SIGNOFF,
   ].join("\n");
 
   const copy = async (what: "link" | "message", text: string) => {

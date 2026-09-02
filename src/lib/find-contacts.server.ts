@@ -103,6 +103,7 @@ export type OfficerDraft = {
   instagram: string | null;
   instagramSource: "listed" | "found" | null;
   instagramConfidence: "high" | "low" | null;
+  chapter: string | null;
   sourceUrl: string | null;
 };
 
@@ -117,7 +118,7 @@ export async function scrapeOfficers(campusName: string, urls: Array<{ council: 
   const user = [
     officerPrompt(campusName, urls),
     "",
-    'Respond as JSON: {"officers":[{"council":"ifc|panhellenic|nphc|mgc|fsl|wib","position":"...","name":"...","email":null,"phone":null,"instagram":null,"instagram_source":"listed|found|null","instagram_confidence":"high|low|null","source_url":"https://..."}]}',
+    'Respond as JSON: {"officers":[{"council":"ifc|panhellenic|nphc|mgc|fsl|wib","position":"...","name":"...","email":null,"phone":null,"instagram":null,"instagram_source":"listed|found|null","instagram_confidence":"high|low|null","chapter":null,"source_url":"https://..."}]}',
   ].join("\n");
   const r = await callGateway(user, 4000);
   const raw = (r.data as { officers?: unknown[] })?.officers ?? [];
@@ -138,10 +139,53 @@ export async function scrapeOfficers(campusName: string, urls: Array<{ council: 
       // benefit of the doubt always goes to "a person still has to look at this".
       instagramSource: instagram ? (igSourceRaw === "listed" ? "listed" : "found") : null,
       instagramConfidence: instagram ? (str(o.instagram_confidence) === "high" ? "high" : "low") : null,
+      chapter: str(o.chapter),
       sourceUrl: str(o.source_url),
     });
   }
   return { data: out, usage: r.usage };
+}
+
+// ── SerpAPI personal-Instagram prefill (§step 3) ─────────────────────────────────────────────
+// The scrape is good at emails and org accounts, unreliable at personal handles. So for a person
+// with no handle listed on the page, we run one Google search — "<name> <university> instagram",
+// the query that finds a personal account far more often than adding a role or council — and take
+// the first real instagram.com/<handle>. It's a PREFILL for a human to confirm, never truth: the
+// row still comes back as source "found", low confidence, unverified.
+const IG_RESERVED = new Set(["p", "reel", "reels", "explore", "stories", "tv", "accounts", "about", "directory", "developer", "legal", "privacy"]);
+
+export function extractIgHandle(url: string): string | null {
+  const m = (url ?? "").match(/instagram\.com\/([A-Za-z0-9._]{2,40})\/?/i);
+  if (!m) return null;
+  const h = m[1].toLowerCase().replace(/\.$/, "");
+  return IG_RESERVED.has(h) ? null : h;
+}
+
+const SERP = "https://serpapi.com/search.json";
+
+/** One cached Google search for a person's Instagram. Returns a bare handle or null. */
+export async function searchPersonalInstagram(name: string, campusName: string): Promise<string | null> {
+  const key = process.env.SERPAPI_API_KEY;
+  if (!key || !name.trim()) return null;
+  const query = `${name} ${campusName} instagram`;
+  try {
+    const { cached } = await import("@/lib/scrape-cache");
+    return await cached("serp", `personig:v1:${query.toLowerCase()}`, 24 * 30, async () => {
+      const url = `${SERP}?engine=google&num=8&q=${encodeURIComponent(query)}&api_key=${encodeURIComponent(key)}`;
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 15_000);
+      try {
+        const res = await fetch(url, { signal: ctl.signal });
+        if (!res.ok) return null;
+        const j = await res.json() as { organic_results?: Array<{ link?: string; title?: string }> };
+        for (const r of j.organic_results ?? []) {
+          const h = extractIgHandle(typeof r.link === "string" ? r.link : "");
+          if (h) return h;
+        }
+        return null;
+      } catch { return null; } finally { clearTimeout(t); }
+    });
+  } catch { return null; }
 }
 
 // ── the URL probe ────────────────────────────────────────────────────────────────────────────

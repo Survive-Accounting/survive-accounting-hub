@@ -602,6 +602,7 @@ const ContactInput = z.object({
   role: z.string().trim().max(160).nullable().optional(),
   email: z.string().trim().max(200).nullable().optional(),
   instagram: z.string().trim().max(300).nullable().optional(),
+  chapter: z.string().trim().max(160).nullable().optional(),
 });
 
 /** Bulk-save a campus's contacts from the Add-contacts modal. Creates clubs on the fly.
@@ -681,6 +682,7 @@ export const growthSaveCampusContacts = createServerFn({ method: "POST" })
           role: c.role ?? null,
           email: c.email ?? null,
           instagram: c.instagram ?? null,
+          chapter: c.chapter ?? null,
           isRoleAccount: c.isRoleAccount ?? false,
           igRoleAccount: c.igRoleAccount ?? false,
         },

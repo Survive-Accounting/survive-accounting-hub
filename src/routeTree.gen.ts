@@ -88,7 +88,6 @@ import { Route as OutreachActiveRosterRouteImport } from './routes/outreach.acti
 import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
 import { Route as OfferMckenzieRouteImport } from './routes/offer.mckenzie'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
-import { Route as LabBrandRouteImport } from './routes/lab.brand'
 import { Route as LabBoltRouteImport } from './routes/lab.bolt'
 import { Route as JeSplatRouteImport } from './routes/je.$'
 import { Route as GoDemoRouteImport } from './routes/go.demo'
@@ -154,7 +153,9 @@ import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_
 import { Route as ApiPartnerKitSchoolCouncilRouteImport } from './routes/api.partner-kit.$school.$council'
 import { Route as ApiOgSchoolChapterRouteImport } from './routes/api.og.$school.$chapter'
 import { Route as ApiFlyerSchoolChapterRouteImport } from './routes/api.flyer.$school.$chapter'
+import { Route as ApiChapterKitSchoolChapterRouteImport } from './routes/api.chapter-kit.$school.$chapter'
 import { Route as AdminRepsViewPartnerIdRouteImport } from './routes/admin.reps.view.$partnerId'
+import { Route as AdminGrowthColdoutreachVaPreviewRouteImport } from './routes/admin.growth.coldoutreach.va-preview'
 import { Route as AdminGrowthColdoutreachTeamRouteImport } from './routes/admin.growth.coldoutreach.team'
 import { Route as AdminGrowthColdoutreachScheduleRouteImport } from './routes/admin.growth.coldoutreach.schedule'
 import { Route as AdminGrowthColdoutreachFeedbackRouteImport } from './routes/admin.growth.coldoutreach.feedback'
@@ -560,11 +561,6 @@ const OShortRefRoute = OShortRefRouteImport.update({
   path: '/o/$shortRef',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LabBrandRoute = LabBrandRouteImport.update({
-  id: '/lab/brand',
-  path: '/lab/brand',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LabBoltRoute = LabBoltRouteImport.update({
   id: '/lab/bolt',
   path: '/lab/bolt',
@@ -898,11 +894,23 @@ const ApiFlyerSchoolChapterRoute = ApiFlyerSchoolChapterRouteImport.update({
   path: '/api/flyer/$school/$chapter',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChapterKitSchoolChapterRoute =
+  ApiChapterKitSchoolChapterRouteImport.update({
+    id: '/api/chapter-kit/$school/$chapter',
+    path: '/api/chapter-kit/$school/$chapter',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminRepsViewPartnerIdRoute = AdminRepsViewPartnerIdRouteImport.update({
   id: '/view/$partnerId',
   path: '/view/$partnerId',
   getParentRoute: () => AdminRepsRoute,
 } as any)
+const AdminGrowthColdoutreachVaPreviewRoute =
+  AdminGrowthColdoutreachVaPreviewRouteImport.update({
+    id: '/va-preview',
+    path: '/va-preview',
+    getParentRoute: () => AdminGrowthColdoutreachRoute,
+  } as any)
 const AdminGrowthColdoutreachTeamRoute =
   AdminGrowthColdoutreachTeamRouteImport.update({
     id: '/team',
@@ -980,7 +988,6 @@ export interface FileRoutesByFullPath {
   '/go/demo': typeof GoDemoRouteWithChildren
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
-  '/lab/brand': typeof LabBrandRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/offer/mckenzie': typeof OfferMckenzieRoute
   '/order/$shortRef': typeof OrderShortRefRoute
@@ -1078,7 +1085,9 @@ export interface FileRoutesByFullPath {
   '/admin/growth/coldoutreach/feedback': typeof AdminGrowthColdoutreachFeedbackRoute
   '/admin/growth/coldoutreach/schedule': typeof AdminGrowthColdoutreachScheduleRoute
   '/admin/growth/coldoutreach/team': typeof AdminGrowthColdoutreachTeamRoute
+  '/admin/growth/coldoutreach/va-preview': typeof AdminGrowthColdoutreachVaPreviewRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
+  '/api/chapter-kit/$school/$chapter': typeof ApiChapterKitSchoolChapterRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
@@ -1130,7 +1139,6 @@ export interface FileRoutesByTo {
   '/go/demo': typeof GoDemoRouteWithChildren
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
-  '/lab/brand': typeof LabBrandRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/offer/mckenzie': typeof OfferMckenzieRoute
   '/order/$shortRef': typeof OrderShortRefRoute
@@ -1227,7 +1235,9 @@ export interface FileRoutesByTo {
   '/admin/growth/coldoutreach/feedback': typeof AdminGrowthColdoutreachFeedbackRoute
   '/admin/growth/coldoutreach/schedule': typeof AdminGrowthColdoutreachScheduleRoute
   '/admin/growth/coldoutreach/team': typeof AdminGrowthColdoutreachTeamRoute
+  '/admin/growth/coldoutreach/va-preview': typeof AdminGrowthColdoutreachVaPreviewRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
+  '/api/chapter-kit/$school/$chapter': typeof ApiChapterKitSchoolChapterRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
@@ -1283,7 +1293,6 @@ export interface FileRoutesById {
   '/go/demo': typeof GoDemoRouteWithChildren
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
-  '/lab/brand': typeof LabBrandRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/offer/mckenzie': typeof OfferMckenzieRoute
   '/order/$shortRef': typeof OrderShortRefRoute
@@ -1381,7 +1390,9 @@ export interface FileRoutesById {
   '/admin/growth/coldoutreach/feedback': typeof AdminGrowthColdoutreachFeedbackRoute
   '/admin/growth/coldoutreach/schedule': typeof AdminGrowthColdoutreachScheduleRoute
   '/admin/growth/coldoutreach/team': typeof AdminGrowthColdoutreachTeamRoute
+  '/admin/growth/coldoutreach/va-preview': typeof AdminGrowthColdoutreachVaPreviewRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
+  '/api/chapter-kit/$school/$chapter': typeof ApiChapterKitSchoolChapterRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
@@ -1438,7 +1449,6 @@ export interface FileRouteTypes {
     | '/go/demo'
     | '/je/$'
     | '/lab/bolt'
-    | '/lab/brand'
     | '/o/$shortRef'
     | '/offer/mckenzie'
     | '/order/$shortRef'
@@ -1536,7 +1546,9 @@ export interface FileRouteTypes {
     | '/admin/growth/coldoutreach/feedback'
     | '/admin/growth/coldoutreach/schedule'
     | '/admin/growth/coldoutreach/team'
+    | '/admin/growth/coldoutreach/va-preview'
     | '/admin/reps/view/$partnerId'
+    | '/api/chapter-kit/$school/$chapter'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
     | '/api/partner-kit/$school/$council'
@@ -1588,7 +1600,6 @@ export interface FileRouteTypes {
     | '/go/demo'
     | '/je/$'
     | '/lab/bolt'
-    | '/lab/brand'
     | '/o/$shortRef'
     | '/offer/mckenzie'
     | '/order/$shortRef'
@@ -1685,7 +1696,9 @@ export interface FileRouteTypes {
     | '/admin/growth/coldoutreach/feedback'
     | '/admin/growth/coldoutreach/schedule'
     | '/admin/growth/coldoutreach/team'
+    | '/admin/growth/coldoutreach/va-preview'
     | '/admin/reps/view/$partnerId'
+    | '/api/chapter-kit/$school/$chapter'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
     | '/api/partner-kit/$school/$council'
@@ -1740,7 +1753,6 @@ export interface FileRouteTypes {
     | '/go/demo'
     | '/je/$'
     | '/lab/bolt'
-    | '/lab/brand'
     | '/o/$shortRef'
     | '/offer/mckenzie'
     | '/order/$shortRef'
@@ -1838,7 +1850,9 @@ export interface FileRouteTypes {
     | '/admin/growth/coldoutreach/feedback'
     | '/admin/growth/coldoutreach/schedule'
     | '/admin/growth/coldoutreach/team'
+    | '/admin/growth/coldoutreach/va-preview'
     | '/admin/reps/view/$partnerId'
+    | '/api/chapter-kit/$school/$chapter'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
     | '/api/partner-kit/$school/$council'
@@ -1892,7 +1906,6 @@ export interface RootRouteChildren {
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   GoDemoRoute: typeof GoDemoRouteWithChildren
   LabBoltRoute: typeof LabBoltRoute
-  LabBrandRoute: typeof LabBrandRoute
   OShortRefRoute: typeof OShortRefRoute
   OfferMckenzieRoute: typeof OfferMckenzieRoute
   PartnersCampusCouncilsRoute: typeof PartnersCampusCouncilsRoute
@@ -1929,6 +1942,7 @@ export interface RootRouteChildren {
   StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
   GoSchoolIndexRoute: typeof GoSchoolIndexRoute
   SCampusIndexRoute: typeof SCampusIndexRoute
+  ApiChapterKitSchoolChapterRoute: typeof ApiChapterKitSchoolChapterRoute
   ApiFlyerSchoolChapterRoute: typeof ApiFlyerSchoolChapterRoute
   ApiOgSchoolChapterRoute: typeof ApiOgSchoolChapterRoute
   ApiPartnerKitSchoolCouncilRoute: typeof ApiPartnerKitSchoolCouncilRoute
@@ -2492,13 +2506,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OShortRefRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lab/brand': {
-      id: '/lab/brand'
-      path: '/lab/brand'
-      fullPath: '/lab/brand'
-      preLoaderRoute: typeof LabBrandRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/lab/bolt': {
       id: '/lab/bolt'
       path: '/lab/bolt'
@@ -2954,12 +2961,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFlyerSchoolChapterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/chapter-kit/$school/$chapter': {
+      id: '/api/chapter-kit/$school/$chapter'
+      path: '/api/chapter-kit/$school/$chapter'
+      fullPath: '/api/chapter-kit/$school/$chapter'
+      preLoaderRoute: typeof ApiChapterKitSchoolChapterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/reps/view/$partnerId': {
       id: '/admin/reps/view/$partnerId'
       path: '/view/$partnerId'
       fullPath: '/admin/reps/view/$partnerId'
       preLoaderRoute: typeof AdminRepsViewPartnerIdRouteImport
       parentRoute: typeof AdminRepsRoute
+    }
+    '/admin/growth/coldoutreach/va-preview': {
+      id: '/admin/growth/coldoutreach/va-preview'
+      path: '/va-preview'
+      fullPath: '/admin/growth/coldoutreach/va-preview'
+      preLoaderRoute: typeof AdminGrowthColdoutreachVaPreviewRouteImport
+      parentRoute: typeof AdminGrowthColdoutreachRoute
     }
     '/admin/growth/coldoutreach/team': {
       id: '/admin/growth/coldoutreach/team'
@@ -3115,6 +3136,7 @@ interface AdminGrowthColdoutreachRouteChildren {
   AdminGrowthColdoutreachFeedbackRoute: typeof AdminGrowthColdoutreachFeedbackRoute
   AdminGrowthColdoutreachScheduleRoute: typeof AdminGrowthColdoutreachScheduleRoute
   AdminGrowthColdoutreachTeamRoute: typeof AdminGrowthColdoutreachTeamRoute
+  AdminGrowthColdoutreachVaPreviewRoute: typeof AdminGrowthColdoutreachVaPreviewRoute
   AdminGrowthColdoutreachIndexRoute: typeof AdminGrowthColdoutreachIndexRoute
 }
 
@@ -3125,6 +3147,8 @@ const AdminGrowthColdoutreachRouteChildren: AdminGrowthColdoutreachRouteChildren
     AdminGrowthColdoutreachFeedbackRoute: AdminGrowthColdoutreachFeedbackRoute,
     AdminGrowthColdoutreachScheduleRoute: AdminGrowthColdoutreachScheduleRoute,
     AdminGrowthColdoutreachTeamRoute: AdminGrowthColdoutreachTeamRoute,
+    AdminGrowthColdoutreachVaPreviewRoute:
+      AdminGrowthColdoutreachVaPreviewRoute,
     AdminGrowthColdoutreachIndexRoute: AdminGrowthColdoutreachIndexRoute,
   }
 
@@ -3248,7 +3272,6 @@ const rootRouteChildren: RootRouteChildren = {
   ChaptersDashboardRoute: ChaptersDashboardRoute,
   GoDemoRoute: GoDemoRouteWithChildren,
   LabBoltRoute: LabBoltRoute,
-  LabBrandRoute: LabBrandRoute,
   OShortRefRoute: OShortRefRoute,
   OfferMckenzieRoute: OfferMckenzieRoute,
   PartnersCampusCouncilsRoute: PartnersCampusCouncilsRoute,
@@ -3285,6 +3308,7 @@ const rootRouteChildren: RootRouteChildren = {
   StudyScenariosSlugRoute: StudyScenariosSlugRoute,
   GoSchoolIndexRoute: GoSchoolIndexRoute,
   SCampusIndexRoute: SCampusIndexRoute,
+  ApiChapterKitSchoolChapterRoute: ApiChapterKitSchoolChapterRoute,
   ApiFlyerSchoolChapterRoute: ApiFlyerSchoolChapterRoute,
   ApiOgSchoolChapterRoute: ApiOgSchoolChapterRoute,
   ApiPartnerKitSchoolCouncilRoute: ApiPartnerKitSchoolCouncilRoute,

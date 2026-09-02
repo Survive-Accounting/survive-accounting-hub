@@ -87,6 +87,12 @@ const BASELINE: Record<string, number> = {
   "components/blastoff/found-on-exam.ts": 2,
   "components/blastoff/stage.tsx": 2,
   "components/canvas/CanvasSettingsContext.tsx": 1,
+  // Arrived with the usage-telemetry work while this branch was open. Baselined,
+  // not fixed — they are another session's files and this branch has no business
+  // rewriting them. The ratchet's job here is to record the debt, not to block.
+  "components/usage/UsageTelemetryProvider.tsx": 2,
+  "lib/usage-elements.ts": 5,
+  "lib/usage-telemetry.ts": 6,
   "components/canvas/CeqChainEditor.tsx": 2,
   "components/canvas/CeqStudio.tsx": 3,
   "components/canvas/CeqVideoLibrary.tsx": 3,

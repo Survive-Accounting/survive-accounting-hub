@@ -276,6 +276,16 @@ function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard
         </p>
       )}
 
+      {/* HOW MANY CHECKED THE SPONSORSHIP BOX (Build 2, section 4). A separate signal from signups —
+          these members asked the chapter to cover the rest of the semester for them. Shown only
+          when at least one has, so a chapter with none is never nudged by an empty stat. */}
+      {data.sponsorInterest > 0 && (
+        <p className="mt-2 text-center text-[12.5px]" style={{ color: "var(--brand-cream)" }}>
+          <span className="font-black" style={{ color: "var(--accent)" }}>{data.sponsorInterest}</span>{" "}
+          member{data.sponsorInterest === 1 ? "" : "s"} asked the chapter to sponsor their seat.
+        </p>
+      )}
+
       {/* TERM SEATS — the offer, the purchase flow and (once a pool is active) seat management.
           Placed under the aggregate numbers and above the roster, because it is the decision the
           numbers argue for. The free roster below is untouched. */}
@@ -286,10 +296,15 @@ function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard
           dashboard look empty rather than gated, and the exec would never know what they'd get. */}
       {!data.sponsored && <LockedPanels chapterName={data.chapterName} onSponsor={() => scrollToId("seats")} />}
 
-      <div className="mt-3 overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", ...(data.sponsored ? {} : { display: "none" }) }}>
+      {/* THE ROSTER — NAMES AS THEY ARRIVE (Build 2, section 4). Reverses the earlier K4.1 rule that
+          hid the member list behind sponsorship: a claimed chair now sees who signed up, by name,
+          with when they joined — that is the whole reason she claimed. The richer per-member
+          ACTIVITY (sets completed) and the SEAT toggle stay sponsor-gated: those are the paying
+          chapter's tools, and unlocking names does not unlock seat management. */}
+      <div className="mt-3 overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
-          <span className="text-[12px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>Roster</span>
-          <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>{data.roster.length} members</span>
+          <span className="text-[12px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>Who signed up</span>
+          <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>{data.roster.length} member{data.roster.length === 1 ? "" : "s"}</span>
         </div>
         {data.roster.length === 0 && <div className="px-4 py-4 text-center text-[12.5px] italic" style={{ color: "var(--text-muted)" }}>No members yet — share your link.</div>}
         <div className="max-h-72 overflow-y-auto">
@@ -297,20 +312,21 @@ function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard
             <div key={m.id} className="flex items-center gap-2 border-b px-4 py-2 text-[12.5px]" style={{ borderColor: "rgba(245,239,230,0.06)", color: "var(--brand-cream)" }}>
               <span className="min-w-0 flex-1 truncate">{m.name}</span>
               <span className="shrink-0" style={{ color: "var(--text-muted)" }}>{fmtDate(m.joinedAt)}</span>
-              <span className="shrink-0 tabular-nums" style={{ color: "var(--text-muted)" }}>{m.setsCompleted} sets</span>
-              {/* Disabled rather than hidden when no seats remain: hiding it would leave the exec
-                  wondering whether the feature exists, and the title says which case this is. */}
-              <button
-                onClick={() => void onSeat(m.id, !m.hasSeat)}
-                disabled={seatBusy === m.id || (!m.hasSeat && seatsLeft <= 0)}
-                title={!m.hasSeat && seatsLeft <= 0 ? "No seats left" : m.hasSeat ? "Remove this seat" : "Give this member a seat"}
-                className="shrink-0 rounded-lg px-2 py-1 text-[11.5px] font-black disabled:opacity-35"
-                style={m.hasSeat
-                  ? { background: "var(--accent)", color: "#0B1220" }
-                  : { background: "rgba(245,239,230,0.08)", color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.16)" }}
-              >
-                {m.hasSeat ? "Seat ✓" : "Seat"}
-              </button>
+              {/* Sponsor-only: per-member activity + the seat toggle. Names above are ungated. */}
+              {data.sponsored && <span className="shrink-0 tabular-nums" style={{ color: "var(--text-muted)" }}>{m.setsCompleted} sets</span>}
+              {data.sponsored && (
+                <button
+                  onClick={() => void onSeat(m.id, !m.hasSeat)}
+                  disabled={seatBusy === m.id || (!m.hasSeat && seatsLeft <= 0)}
+                  title={!m.hasSeat && seatsLeft <= 0 ? "No seats left" : m.hasSeat ? "Remove this seat" : "Give this member a seat"}
+                  className="shrink-0 rounded-lg px-2 py-1 text-[11.5px] font-black disabled:opacity-35"
+                  style={m.hasSeat
+                    ? { background: "var(--accent)", color: "#0B1220" }
+                    : { background: "rgba(245,239,230,0.08)", color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.16)" }}
+                >
+                  {m.hasSeat ? "Seat ✓" : "Seat"}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -380,8 +396,10 @@ function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard
  *  and this dashboard's whole promise is that its numbers are real. The lock is honest about
  *  being a lock. */
 function LockedPanels({ chapterName, onSponsor }: { chapterName: string; onSponsor: () => void }) {
+  // "Who signed up" is no longer here — a claimed chair sees member names ungated now (Build 2,
+  // section 4). What stays locked is the PAYING chapter's toolset: per-member study activity and
+  // exam management.
   const ROWS: Array<{ title: string; note: string }> = [
-    { title: "Who signed up", note: "Every member by name, with when they joined." },
     { title: "Who's actually studying", note: "Practice attempts and sets completed, per member." },
     { title: "Exams 2, 3 & the Final", note: "Assign and manage access for your members." },
   ];

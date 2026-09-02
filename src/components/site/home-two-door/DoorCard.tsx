@@ -56,16 +56,22 @@ export const DOOR_CTA_VARS = {
  *  can never respond differently from each other. */
 export const DOOR_BTN_CLASS = "transition-transform hover:scale-[1.02] focus-visible:ring-2";
 
-export function DoorCard({ icon, title, button, support }: {
+export function DoorCard({ icon, title, button, support, iconHeight = 118 }: {
   icon: React.ReactNode;
   title: string;
   button: React.ReactNode;
   support: React.ReactNode;
+  /** THE ICON ENVELOPE. 118 is the badge-sized default the chapter page still uses; the HOME PAGE
+   *  passes ~190, because there the icon's job is to explain the card before a word is read and a
+   *  118px box holding a 52px glyph cannot do that. A prop rather than a global change: the
+   *  chapter page's doors sit under a hero and a headline and are not the first thing on screen,
+   *  so they are not the same design problem. */
+  iconHeight?: number;
 }) {
   return (
     <div className="sa-door-card" style={DOOR_CARD}>
-      {/* Icon envelope — same box on every door, whatever lives inside it. */}
-      <div className="grid place-items-center" style={{ height: 118 }}>{icon}</div>
+      {/* Icon envelope — same box on both doors of a given row, whatever lives inside it. */}
+      <div className="grid place-items-center" style={{ height: iconHeight }}>{icon}</div>
       {/* Fixed two-line envelope so a wrapped title never pushes the buttons out of line. */}
       <h3
         className="mt-3 grid place-items-center text-[20px] font-black uppercase leading-tight"

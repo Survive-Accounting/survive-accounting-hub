@@ -47,10 +47,11 @@ export type OfficerRow = {
   position: string | null;
   name: string | null;
   email: string | null;
-  phone: string | null;
+  phone: string | null;        // dormant — collected historically, not surfaced or used
   instagram: string | null;
   instagramSource: IgSource;
   instagramConfidence: "high" | "low" | null;
+  chapter: string | null;      // the officer's own Greek chapter, when the source lists it
   sourceUrl: string | null;
   /** unchecked rows are excluded from the import */
   include: boolean;
@@ -198,15 +199,20 @@ export function councilPrompt(campusName: string): string {
 export function officerPrompt(campusName: string, urls: Array<{ council: CouncilKey; url: string }>): string {
   const list = urls.map((u) => `${COUNCIL_LABEL[u.council]}: ${u.url}`).join("\n");
   return [
-    `From these ${campusName} council pages, list the current officers.`,
+    `From these ${campusName} council pages, return two things per council: the council's own Instagram account, and its Scholarship Chair and President.`,
     "",
     list,
     "",
-    "Roles wanted, in priority order: Scholarship / Academic Chair, President, Vice President, Treasurer.",
-    "For each officer return: council, position, name, email, phone, instagram, source_url.",
+    "Only these two roles per council, in priority order: Scholarship / Academic Chair, then President. Accept common equivalents for the chair (academic chair, VP of scholarship, VP of academic affairs, chapter development). Ignore every other officer — we do not use vice presidents, treasurers, secretaries, recruitment, or advisors.",
     "",
-    "If an email or phone is unavailable, return null. Never substitute the council's or Greek Life office's general address.",
-    "Try to find each officer's personal Instagram (search their name plus the university plus their role), but only return a handle when there is specific evidence it belongs to that person — their name in the bio, the council tagged, the university in the profile. Never construct a handle from a name. Never return a council or chapter account as a person's Instagram. When unsure, return null.",
+    "Also return one row per council for the council's OWN organization Instagram — position \"Organization\", no personal name, the council account's handle in the instagram field.",
+    "",
+    "For each row return: council, position, name, email, instagram, chapter, source_url. (Do not return phone numbers — we do not use them.)",
+    "",
+    "chapter is the officer's OWN Greek chapter when the page states it (e.g. an IFC officer listed as Sigma Chi). Return it only when it's on the page — never search for it, null otherwise.",
+    "",
+    "Email is opportunistic: if the page lists a personal email return it, otherwise null. Never substitute the council's or Greek Life office's general address as a person's email.",
+    "Personal Instagram is the priority. For the chair and president, search their name plus the university plus their role, but only return a handle when there is specific evidence it belongs to that person — their name in the bio, the council tagged, the university in the profile. Never construct a handle from a name. Never return a council or chapter account as a person's Instagram — the council account belongs only on the \"Organization\" row. When unsure, return null.",
     "Include source_url for every officer.",
   ].join("\n");
 }
@@ -223,12 +229,14 @@ const HEADER_ALIASES: Record<string, keyof PastedRow> = {
   email: "email", "e-mail": "email",
   phone: "phone", mobile: "phone", tel: "phone",
   instagram: "instagram", ig: "instagram", handle: "instagram",
+  chapter: "chapter", "chapter affiliation": "chapter", affiliation: "chapter",
   source: "sourceUrl", source_url: "sourceUrl", "source url": "sourceUrl", url: "sourceUrl",
 };
 
 export type PastedRow = {
   council: string | null; position: string | null; name: string | null;
-  email: string | null; phone: string | null; instagram: string | null; sourceUrl: string | null;
+  email: string | null; phone: string | null; instagram: string | null;
+  chapter: string | null; sourceUrl: string | null;
 };
 
 function splitLine(line: string): string[] {
@@ -263,7 +271,7 @@ export function parsePastedContacts(text: string): PastedRow[] {
   for (const line of lines.slice(1)) {
     const cells = splitLine(line);
     if (isSeparatorRow(cells)) continue;
-    const r: PastedRow = { council: null, position: null, name: null, email: null, phone: null, instagram: null, sourceUrl: null };
+    const r: PastedRow = { council: null, position: null, name: null, email: null, phone: null, instagram: null, chapter: null, sourceUrl: null };
     let any = false;
     map.forEach((field, i) => {
       if (!field) return;

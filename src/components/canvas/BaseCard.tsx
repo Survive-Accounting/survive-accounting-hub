@@ -299,6 +299,7 @@ export function BaseCard({
 
   return (
     <div
+      data-sa-el={`node-${data.kind}`}
       onPointerDownCapture={toFront}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}

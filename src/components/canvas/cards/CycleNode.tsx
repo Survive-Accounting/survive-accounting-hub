@@ -151,7 +151,7 @@ export function CycleNode({ id, data, selected }: NodeProps) {
   const toggleDashed = (i: number) => { const next = new Set(dashed); if (next.has(i)) next.delete(i); else next.add(i); update({ dashedArrows: [...next].sort((a, b) => a - b) }); };
 
   return (
-    <ExhibitShell id={id} decl={decl} posLock={d.posLock} selected={selected} width={w} minHeight={h}>
+    <ExhibitShell id={id} kind="cycle" decl={decl} posLock={d.posLock} selected={selected} width={w} minHeight={h}>
       {!film && (
         <div
           className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}

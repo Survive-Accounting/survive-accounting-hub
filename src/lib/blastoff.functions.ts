@@ -18,15 +18,11 @@ function rethrow(e: { code?: string; message: string }): never { throw new Error
 
 const frameSchema = z.object({
   id: z.string().min(1).max(80),
-  kind: z.enum(["intro", "foye", "ceq", "phrase", "cheat", "tip", "exhibit", "blank", "outro"]),
+  kind: z.enum(["ceq", "phrase", "cheat", "tip", "exhibit", "blank"]),
   ceqId: z.string().max(130).optional(),
   text: z.string().max(4000).optional(),
   title: z.string().max(400).optional(),
   body: z.string().max(4000).optional(),
-  topic: z.string().max(300).optional(),
-  tagline: z.string().max(300).optional(),
-  canonical: z.string().max(600).optional(),
-  variations: z.array(z.string().max(600)).max(8).optional(),
   exhibitRef: z.string().max(60).optional(),
   bankItemId: z.string().max(130).optional(),
 });

@@ -304,8 +304,20 @@ const homeMenuLinks = (): NavItem[] => [
   { label: "Contact", href: "", contact: true },
 ];
 
-export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = false }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. */ homeNav?: boolean } = {}) {
+export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = false, contextPill }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. */ homeNav?: boolean; /** CONTEXT PILL (two-door home, campus-resolved only): fades a "AC 210 · Alabama" pill into the bar once the element `anchorId` scrolls out of view, and back out when it returns. Tapping it runs `onClick` (the campus switcher). Omit it — the generic home does — and no pill renders. The `code` always shows; the `school` name ellipsizes when the bar is tight, so a long name never overruns the wordmark. */ contextPill?: { code: string; school: string; onClick: () => void; anchorId: string } } = {}) {
   const bar = useRef<HTMLElement>(null);
+  // The pill is hidden until the watched hero line leaves the viewport. Default hidden so SSR and
+  // the top-of-page state never flash it.
+  const [pillShown, setPillShown] = useState(false);
+  const pillAnchor = contextPill?.anchorId;
+  useEffect(() => {
+    if (!pillAnchor || typeof IntersectionObserver === "undefined") return;
+    const el = document.getElementById(pillAnchor);
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setPillShown(!e.isIntersecting), { threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [pillAnchor]);
   // The Greek link carries the known campus. One source (campus context), so the navbar can never
   // name a different school from the hero beside it; pages outside a provider get the bare link.
   const campus = useCampus();
@@ -395,6 +407,45 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
           >
             {cta.label}
           </a>
+        )}
+
+        {/* CONTEXT PILL (spec §7). Present only when the page passes a resolved course; fades in
+            once the hero campus line has scrolled away, and taps through to the campus switcher.
+            Right-aligned (never beside the wide "survive ACCOUNTING" lockup, which it would overlap
+            on a phone) — it rides in the space the hero's own campus line just vacated. */}
+        {contextPill && (
+          <button
+            type="button"
+            onClick={contextPill.onClick}
+            aria-hidden={!pillShown}
+            tabIndex={pillShown ? 0 : -1}
+            aria-label={`${contextPill.code} · ${contextPill.school} — change course or school`}
+            className="sa-context-pill ml-2 inline-flex min-w-0 items-center gap-1 rounded-full focus-visible:ring-2"
+            style={{
+              flexShrink: 1,
+              // Capped so a long school name ("Mississippi State") ellipsizes instead of overrunning
+              // the wide "survive ACCOUNTING" lockup; the flagship "AC 210 · Alabama" fits whole.
+              maxWidth: 130,
+              height: 27,
+              paddingInline: 9,
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border-default)",
+              color: "var(--brand-cream)",
+              fontFamily: "'Rubik', system-ui, sans-serif",
+              fontSize: 11,
+              fontWeight: 800,
+              overflow: "hidden",
+              opacity: pillShown ? 1 : 0,
+              transform: pillShown ? "translateY(0)" : "translateY(-4px)",
+              pointerEvents: pillShown ? "auto" : "none",
+              transition: "opacity 200ms ease, transform 200ms ease",
+            }}
+          >
+            {/* The course code is the context that changed — it never truncates. */}
+            <span style={{ flexShrink: 0, whiteSpace: "nowrap" }}>{contextPill.code}</span>
+            {/* The school name gives way first: ellipsis on a tight bar, never an overrun. */}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.85 }}>· {contextPill.school}</span>
+          </button>
         )}
 
         {/* Hidden entirely at >=1024px — everything it holds is now inline. */}

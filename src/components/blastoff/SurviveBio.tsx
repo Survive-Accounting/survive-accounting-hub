@@ -1,71 +1,84 @@
-// THE BIO CARD — second to last, immediately before the outro.
+// THE BIO SLOT — the end slate that sits after the answer and before the
+// sign-off, in the same position on every Blast Off. Spec: Lee, 2026-09-01.
 //
-// LEE'S SPEC (2026-09-01): it is NOT a "Lee Ingram" title card. It is the SAME
-// survive lockup the outro uses, with the credentials underneath — so cutting
-// bio → outro reads as the lines changing while the wordmark holds still,
-// rather than as two different slides.
+// WHY THE POSITION IS FIXED. It is the slot, not the card, that matters: once
+// every video has a beat here, the same beat can later hold the chapter ask, the
+// rep ask or the syllabus ask, filmed separately and dropped in at the edit
+// without reshooting anything. Keep any replacement the same length as this.
 //
-// That effect is entirely a matter of geometry, so this file deliberately
-// borrows the outro's numbers instead of picking its own: same WORD size, same
-// UPPER_THIRD_Y, same first-line offset. Change one and change both, or the
-// wordmark jumps on the cut — which is the exact thing this replaces (the old
-// bio slide was a hand-made frame holding an empty note, which filmed white).
+// FOUR LINES, NOTHING MORE. Low-key by design — "the people who read it are the
+// ones who'll care". No wordmark and no bolt here: this card is the one place in
+// the family that is a person rather than a brand, and the sign-off frame right
+// after it carries the lockup.
 //
-// ONE BOLT, and it is the "i" in surv[bolt]ve — SurviveWordmark is the whole
-// lockup; nothing else here draws a bolt.
-import { SurviveWordmark, BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
-import { UPPER_THIRD_Y, VStage, boilAt, reveal, riseIn } from "./stage";
+// MIDDLE THIRD, not the upper third the intro and outro use. Shorts and Reels
+// overlay captions along the bottom and their own UI in the top corners, so the
+// vertical centre is the only band that survives on both.
+//
+// DELIBERATELY STATIC. It takes `progress` like every card in this family, and
+// ignores it. Lee: "Don't animate the text in line by line; it's the last thing
+// before the sign-off and motion there reads as a commercial." Holding it ~4
+// seconds is a timeline decision, not something this card should perform.
+//
+// THE CLAIMS ARE LOAD-BEARING. "1,000+ students tutored since 2015" is across
+// intro accounting overall — never a thousand in any one course. Do not add a
+// grade promise or a guarantee that any specific exam is fully covered.
+import { BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
+import { DISPLAY_FONT, VStage, V } from "./stage";
 
-/** MUST match SurviveOutro's WORD. The two cards are a matched pair; the
- *  wordmark holding its exact size and position across the cut is the effect. */
-const WORD = 190;
+const NAME = 92;  // cap-height px for the name — read at a glance, not shouted
 
 export function SurviveBio({
-  credentials = "BAccy • MAccy — Ole Miss",
-  proof = "1,000+ students tutored since 2015",
-  tutor = "Lee Ingram",
-  progress,
+  name = "Lee Ingram",
+  credentials = "BAccy · MAccy — Ole Miss",
+  claim = "1,000+ students tutored since 2015",
+  domain = "surviveaccounting.com",
   scale = 1,
   transparent = false,
 }: {
-  /** The degrees line. */
+  name?: string;
   credentials?: string;
-  /** The one number that earns trust. Blank to drop the line entirely. */
-  proof?: string;
-  /** Reads as "tutored by ___" — where the outro puts its domain. */
-  tutor?: string;
-  /** 0..1 through the card's hold. Omit for the finished still. */
+  claim?: string;
+  domain?: string;
+  /** Accepted for parity with the rest of the family, and deliberately unused —
+   *  see the note above about motion in this slot. */
   progress?: number;
   scale?: number;
   transparent?: boolean;
 }) {
-  const cred = reveal(progress, 0.10);
-  const pf = reveal(progress, 0.20);
-  const by = reveal(progress, 0.30);
   return (
     <VStage scale={scale} transparent={transparent}>
       <div style={{
-        position: "absolute", left: 0, right: 0, top: UPPER_THIRD_Y,
+        position: "absolute", left: 0, right: 0,
+        // Vertically centred: the middle third is the band Shorts and Reels
+        // leave alone at both ends.
+        top: "50%", transform: "translateY(-50%)",
         display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center",
+        paddingLeft: Math.round(V.w * 0.10), paddingRight: Math.round(V.w * 0.10),
       }}>
-        <SurviveWordmark size={WORD} boilFrame={boilAt(progress)} />
-
-        {/* Same 44px first-line offset and 0.30 size as the outro's tagline, so
-            the credentials land exactly where "Cram what's on your exam." does. */}
-        <div style={{ marginTop: 44, fontWeight: 600, fontSize: Math.round(WORD * 0.30), color: BRAND_CREAM, lineHeight: 1.15, ...riseIn(cred) }}>
+        <div style={{
+          fontFamily: DISPLAY_FONT, fontWeight: 900, fontSize: NAME, lineHeight: 1,
+          letterSpacing: "0.02em", textTransform: "uppercase", color: BRAND_CREAM,
+        }}>
+          {name}
+        </div>
+        <div style={{
+          marginTop: 52, fontWeight: 600, fontSize: Math.round(NAME * 0.46),
+          lineHeight: 1.35, color: BRAND_CREAM, opacity: 0.9,
+        }}>
           {credentials}
         </div>
-
-        {proof ? (
-          <div style={{ marginTop: 18, fontWeight: 500, fontSize: Math.round(WORD * 0.22), color: BRAND_CREAM, opacity: pf * 0.78, lineHeight: 1.2, transform: riseIn(pf).transform }}>
-            {proof}
-          </div>
-        ) : null}
-
-        {/* Where the outro puts surviveaccounting.com — same offset, same size,
-            same muted weight, so the two swap cleanly. */}
-        <div style={{ marginTop: 26, fontWeight: 600, fontSize: Math.round(WORD * 0.19), color: BRAND_CREAM, letterSpacing: "0.01em", lineHeight: 1, opacity: by * 0.6, transform: riseIn(by).transform }}>
-          tutored by {tutor}
+        <div style={{
+          marginTop: 14, fontWeight: 600, fontSize: Math.round(NAME * 0.46),
+          lineHeight: 1.35, color: BRAND_CREAM, opacity: 0.9,
+        }}>
+          {claim}
+        </div>
+        <div style={{
+          marginTop: 58, fontWeight: 600, fontSize: Math.round(NAME * 0.38),
+          lineHeight: 1, letterSpacing: "0.01em", color: BRAND_CREAM, opacity: 0.6,
+        }}>
+          {domain}
         </div>
       </div>
     </VStage>

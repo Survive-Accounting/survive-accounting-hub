@@ -84,6 +84,10 @@ export const SA_EVENTS = [
   // the cookie/flagship default resolves is WRONG often, which is a data problem wearing a UI
   // costume. Same properties as its siblings.
   "homepage_school_switch_opened",
+  // The SECOND Exam-1 door at the foot of the "What you'll get" list (09-01 mobile-fold pass).
+  // Counted apart from homepage_study_solo_clicked so we can see how much conversion the
+  // scroll-back-free CTA actually earns. Same {campus_id, course_code} context.
+  "homepage_secondary_cta_clicked",
   // Player V2 "Tonight's Plan" beta (08-27, /preview/exam1 only). Properties:
   // {mode, goal, estimated_minutes, included_step_count, from_mode, to_mode, from_goal, to_goal,
   //  topic, added_depth, estimated_minutes_added}.

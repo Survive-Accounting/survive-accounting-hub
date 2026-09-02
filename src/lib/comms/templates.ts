@@ -466,6 +466,11 @@ export const confirmTemplateFor = (kind: IntakeKind): TemplateKey => {
     // intake runs with skipConfirmation, so this mapping is a never-sent
     // fallback — the generic school_request confirmation is the safe shape.
     case "practice_pack": return "confirm_school_request";
+    // A TICKED CHECKBOX IS NOT SOMETHING TO EMAIL SOMEONE ABOUT. The member already gets the
+    // greek_member welcome from the same submit; a second mail saying "you ticked a box" is
+    // noise. Its caller passes skipConfirmation, so this is a never-sent fallback and reuses the
+    // member confirmation rather than inventing a template nobody will read.
+    case "greek_sponsor_interest": return "confirm_greek_member";
   }
 };
 

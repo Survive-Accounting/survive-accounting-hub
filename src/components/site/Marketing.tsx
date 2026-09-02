@@ -15,7 +15,6 @@ import { ArrowLeftRight, ClipboardCheck, Play, Target, MessageCircle } from "luc
 
 import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/canvas/brand";
 import { AnimatedCampusBolt, type BoltCampus } from "@/components/site/bolt";
-import { GREEK_HOUSE_CSS } from "@/components/site/chapter/GreekHouseMark";
 import { CAMPUS_LINE_CSS, CampusDot, CampusEm, CampusFor, CampusLine } from "@/components/site/home-two-door/campus-line";
 import { CompactLockup } from "@/components/site/SiteHeader";
 import { NotListedForm } from "@/components/site/NotListedForm";
@@ -284,7 +283,6 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
 /** Chip hover/focus styling — subtle brightness + a hair of lift, quick, reduced-motion safe. */
 export const MARKETING_CSS = `
 ${CAMPUS_LINE_CSS}
-${GREEK_HOUSE_CSS}
 /* CHANGE-SCHOOL SWAP. A 44px touch target around a 16px glyph, so it is quiet to look at and still
    comfortably tappable on a phone. It brightens rather than growing — nothing under the bolt should
    move on hover except the bolt. */
@@ -338,37 +336,43 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
     { icon: Play, title: "Quick cram videos", body: "Nothing like your lecture videos." },
     { icon: ClipboardCheck, title: "Practice exams", body: "See the problems that matter." },
   ];
-  const card = "rounded-2xl p-4";
+  // p2: real 48px icons centered above each heading, with room to breathe (was a 20px corner icon
+  // on a tight p-4 card). The three read as a set, centred.
+  const card = "flex flex-col items-center rounded-2xl px-5 py-7 text-center";
   const cardStyle = { background: "var(--bg-surface)", border: "1px solid var(--border-default)" } as const;
-  const H = "mt-2.5 text-[15px] font-black";
+  // The ONE actionable card keeps its distinctness with an amber hairline — not a full restyle.
+  const actionableStyle = { background: "var(--bg-surface)", border: "1px solid var(--accent)" } as const;
+  const H = "mt-4 text-[15px] font-black";
   const hStyle = { fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" } as const;
+  const iconCls = "h-12 w-12";
+  const iconStyle = { color: "var(--accent)" } as const;
   return (
-    <section className="mx-auto grid w-full max-w-[880px] gap-3 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
+    <section className="mx-auto grid w-full max-w-[880px] gap-4 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
       {CARDS.map(({ icon: Icon, title, body }) => (
         <div key={title} className={card} style={cardStyle}>
-          <Icon className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
+          <Icon className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>{title}</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
+          <p className="mt-1.5 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
         </div>
       ))}
       {variant === "council" ? (
         <div className={card} style={cardStyle}>
-          <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
+          <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your campus"}</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>Matched to the course your chapters actually take.</p>
+          <p className="mt-1.5 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>Matched to the course your chapters actually take.</p>
         </div>
       ) : variant === "chapter" ? (
         <div className={card} style={cardStyle}>
-          <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
+          <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your course"}</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>Matched to your exact course.</p>
+          <p className="mt-1.5 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>Matched to your exact course.</p>
         </div>
       ) : (
-        /* HOME: card 3 is the ONE actionable card — it opens the existing syllabus flow. */
-        <button type="button" onClick={onSyllabus} className={`${card} text-left transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={cardStyle}>
-          <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
+        /* HOME: card 3 is the ONE actionable card — amber hairline keeps it distinct (p2). */
+        <button type="button" onClick={onSyllabus} className={`${card} transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={actionableStyle}>
+          <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>Built around your course</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus. I&apos;ll match it →</p>
+          <p className="mt-1.5 text-[14px] leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus. I&apos;ll match it →</p>
         </button>
       )}
     </section>

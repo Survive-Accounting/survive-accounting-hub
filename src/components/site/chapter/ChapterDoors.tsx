@@ -20,12 +20,11 @@
 // worry about. This card used to read "Anyone in the house can share it. No account, no
 // permission needed."; it now says what sharing DOES: everyone taking the course gets the help,
 // and the house GPA goes up. Applies to every student-facing string on this page.
-import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import {
   CHAPTER_BTN, DOOR_BTN_CLASS, DoorCard, DoorRow, SOLO_BTN,
 } from "@/components/site/home-two-door/DoorCard";
 import { nbspCode } from "@/lib/course-code";
-import { GreekHouseMark } from "./GreekHouseMark";
+import { BoltBadge } from "@/components/site/BoltBadge";
 
 /** The share-kit section's anchor — the right door's destination. */
 export const SHARE_ANCHOR = "share-kit";
@@ -62,7 +61,7 @@ export function ChapterDoors({ code, letters, sponsored, onStartExam, onShare }:
     <DoorRow label="Study or spread the word">
       {/* LEFT DOOR — the member here to study. First in DOM, so it stacks first on mobile. */}
       <DoorCard
-        icon={<span aria-hidden style={{ display: "block" }}><BoltBoil height={112} /></span>}
+        icon={<BoltBadge glyph="cap" tint="var(--cta-solo-bg)" size={112} />}
         title={code ? `Survive · ${nbspCode(code)}` : "Start studying"}
         button={
           <button type="button" onClick={onStartExam} className={DOOR_BTN_CLASS} style={SOLO_BTN}>
@@ -79,7 +78,7 @@ export function ChapterDoors({ code, letters, sponsored, onStartExam, onShare }:
 
       {/* RIGHT DOOR — spreading it. Deliberately open to every member, not just exec. */}
       <DoorCard
-        icon={<GreekHouseMark height={112} variant="chapter" />}
+        icon={<BoltBadge glyph="house" tint="var(--cta-chapter-bg)" size={112} />}
         title="Spread the word"
         button={
           <button type="button" onClick={onShare} className={DOOR_BTN_CLASS} style={CHAPTER_BTN}>

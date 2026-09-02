@@ -22,7 +22,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
-import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import {
   FeatureValueStrip, FloatingContact, MARKETING_CSS, MARKETING_HERO_ID, SocialProofSection,
   TrustChips, TutorBioModal, TutorCard,
@@ -42,20 +41,26 @@ import { submitNotify } from "@/lib/syllabus.functions";
 import { examRequest, notifyNote } from "@/lib/notify-request";
 import { rememberStudentEmail } from "@/lib/student-email";
 import { readTestSession } from "@/lib/test-mode";
-import { CHAPTER_BTN, DOOR_CARD_CSS, DOOR_CTA_VARS, DoorCard, DoorRow, DOOR_BTN_CLASS, SOLO_BTN } from "./DoorCard";
+import { CHAPTER_BTN, DOOR_CARD_CSS, DOOR_CTA_VARS, DOOR_BTN_CLASS, SOLO_BTN } from "./DoorCard";
+import { ChapterBuildingIcon, HOME_FOLD_CSS, HomeDoorCard, HomeDoorRow, SoloBoltIcon } from "./HomeFold";
 import { ArrowLeftRight } from "lucide-react";
 
-import { GREEK_HOUSE_CSS, GreekHouseMark } from "@/components/site/chapter/GreekHouseMark";
-import { SchoolSwitchSheet } from "./SchoolSwitchSheet";
+import { SchoolPickerSheet } from "./SchoolPickerSheet";
+import type { School as PickerSchool } from "@/lib/schools";
 
 import { CAMPUS_LINE_CSS, CampusEm, CampusFor, CampusLine } from "./campus-line";
-import { soloButtonLabel, soloSupport } from "./two-door-copy";
+import { homeCourseCode, soloButtonLabel, soloSupport } from "./two-door-copy";
 import { nbspCode } from "@/lib/course-code";
 
 /** The doors section's anchor. Also aliased by the legacy #exam1 anchor below it, because every
  *  other page's navbar still links "/#exam1" — those visitors should land at the doors, not at a
  *  player that no longer exists here. */
 const DOORS_ID = "doors";
+
+/** The hero campus line's anchor. The SiteHeader context pill watches this element to know when
+ *  "for ALABAMA students" has scrolled away (spec §7). Exported so there is ONE id, not two that
+ *  can drift apart. */
+export const HERO_CAMPUS_LINE_ID = "sa-hero-campus-line";
 
 // ── PAGE ──────────────────────────────────────────────────────────────────────────────────────
 export function TwoDoorHome({ storedCampusId, initialCode, previewSoloHref }: {
@@ -102,20 +107,43 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [finderOpen, setFinderOpen] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
-  const [switchOpen, setSwitchOpen] = useState(false);
   const [syllabusOpen, setSyllabusOpen] = useState(false);
+  // THE PICKER GATE (p1 §2): either door opens the school picker first; the hero swap opens the
+  // same sheet. `pickerFor` records which flow to continue into once a school is chosen.
+  const [pickerFor, setPickerFor] = useState<null | "switch" | "solo" | "chapter">(null);
 
   // Shared analytics context — attach what the page knows, never more.
   const ctx = () => ({ campus_id: campus.school?.id, course_code: campus.code ?? undefined });
 
-  // On the live "/" the solo door opens the public waitlist; on /preview/home it navigates into
-  // the private Player V2 instead (same event, `preview` property tells them apart).
+  // Either door opens the picker first. On /preview/home the solo door still NAVIGATES straight
+  // into Player V2 (dev path), so it keeps its link and skips the picker.
   const openSolo = () => {
     track("homepage_study_solo_clicked", { ...ctx(), returning, preview: !!previewSoloHref });
-    if (!previewSoloHref) setWaitlistOpen(true);
+    if (!previewSoloHref) setPickerFor("solo");
   };
-  const openChapter = () => { track("homepage_chapter_clicked", ctx()); setFinderOpen(true); };
+  const openChapter = () => { track("homepage_chapter_clicked", ctx()); setPickerFor("chapter"); };
   const openScope = () => { track("homepage_course_scope_opened", ctx()); setScopeOpen(true); };
+  const openSwitch = () => { track("homepage_school_switch_opened", ctx()); setPickerFor("switch"); };
+  // The SECOND Exam-1 door, at the foot of the feature list — a reader who scrolled the whole
+  // list can convert without scrolling back up. Same waitlist the solo door opens.
+  const openExam1Free = () => { track("homepage_secondary_cta_clicked", ctx()); setWaitlistOpen(true); };
+
+  // A school was chosen in the picker: remember it (the page repaints for that campus), then
+  // continue into whichever flow opened the picker. State updates batch, so the flow's modal
+  // reads the just-picked campus on the next render.
+  const onPickSchool = (school: PickerSchool) => {
+    const mode = pickerFor;
+    campus.setSessionSchool(school.id);
+    setPickerFor(null);
+    if (mode === "solo") setWaitlistOpen(true);
+    else if (mode === "chapter") setFinderOpen(true);
+  };
+
+  // HEADER CONTEXT PILL (spec §7) — only when a course is actually resolved. On the generic home,
+  // where no course is selected, the pill renders nothing (the prop is undefined).
+  const contextPill = campus.code && campus.school
+    ? { code: nbspCode(campus.code), school: campus.school.name, onClick: openSwitch, anchorId: HERO_CAMPUS_LINE_ID }
+    : undefined;
 
   return (
     <div style={{
@@ -124,18 +152,18 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
     }}>
       <style>{MARKETING_CSS}</style>
       <style>{DOOR_CARD_CSS}</style>
+      <style>{HOME_FOLD_CSS}</style>
       <style>{TWO_DOOR_CSS}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
-      <SiteHeader homeNav onLanding />
+      <SiteHeader homeNav onLanding contextPill={contextPill} />
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
         <TwoDoorHero
           code={campus.code}
           schoolName={campus.school?.name ?? null}
           schoolId={campus.school?.id ?? null}
-          onOpenBio={() => setBioOpen(true)}
-          onSwitchSchool={() => { track("homepage_school_switch_opened", ctx()); setSwitchOpen(true); }}
+          onSwitchSchool={openSwitch}
         />
 
         {/* Legacy compatibility: every other page's navbar still links "/#exam1". */}
@@ -147,6 +175,12 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           soloHref={previewSoloHref}
           onChapter={openChapter}
         />
+
+        {/* THE PROOF STRIP moves BELOW the doors (spec §5/§6): the doors are the instruction and
+            must reach the fold first; the three checks back the claim once a door is chosen. */}
+        <div className="mt-6 sm:mt-7">
+          <TrustChips onBio={() => setBioOpen(true)} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} />
+        </div>
 
         {/* COURSE SCOPE — one quiet line, because students have genuinely asked whether Survive
             covers Intermediate. A tiny modal answers; the hero stays out of it. */}
@@ -163,18 +197,47 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           </button>
         </p>
 
-        {/* WHAT IT IS, then WHETHER IT IS REAL. The three value points sit right under the
-            scope line — they finish the sentence the doors started — and the proof follows. */}
-        <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} />
-
+        {/* PROOF BEFORE THE FEATURE LIST (p2 reorder): someone who just read the headline wants to
+            know whether to trust it BEFORE they read what's included. So What-students-are-saying +
+            Meet-your-tutor now sits directly under the scope line, and the feature list follows. */}
         <div id="reviews" className="sa-anchor" />
-        {/* Air above the proof block: it is a new thought, not a continuation of the strip. */}
-        <div className="pt-10 sm:pt-14">
+        <div className="pt-12 sm:pt-16">
           <SocialProofSection
             testimonials={<TestimonialsSlider />}
             tutor={<TutorCard onMore={() => setBioOpen(true)} />}
           />
         </div>
+
+        {/* WHAT YOU'LL GET — the three value points under a header, closed by a SECONDARY Exam-1
+            catch. It is deliberately NOT a second full-width amber primary (that competed with the
+            hero's "Start cramming"): an amber OUTLINE button, so the eye still lands on the card
+            buttons first and this reads as the catch for a reader who scrolled past them (p2). */}
+        <section className="pt-16">
+          <h2 className="text-center text-[22px] font-black sm:text-[26px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+            What you&apos;ll get
+          </h2>
+          <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} />
+          <div className="mt-3 flex justify-center">
+            <button
+              type="button"
+              onClick={openExam1Free}
+              className="sa-cta-secondary inline-flex items-center justify-center rounded-xl focus-visible:ring-2"
+              style={{
+                minHeight: 44,
+                paddingInline: 22,
+                fontSize: 14.5,
+                fontWeight: 900,
+                fontFamily: BRAND_SANS,
+                background: "transparent",
+                color: "var(--accent)",
+                border: "1.5px solid var(--accent)",
+              }}
+            >
+              Start Exam 1 free →
+            </button>
+          </div>
+        </section>
+
         <SectionDivider />
         <Faq />
       </main>
@@ -182,7 +245,9 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       <Footer onLanding />
 
       {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
-      <FloatingContact heroId={MARKETING_HERO_ID} tel={TEL} phone={PHONE} />
+      {/* The Text-Lee bubble waits until the DOORS (the fold) have scrolled away, so it can never
+          overlap the chapter card's support copy (spec §11). */}
+      <FloatingContact heroId={DOORS_ID} tel={TEL} phone={PHONE} />
       {waitlistOpen && (
         <Exam1LaunchModal
           campusId={schoolObj?.campusId ?? null}
@@ -200,20 +265,27 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
         />
       )}
       {scopeOpen && <CourseScopeModal onClose={() => setScopeOpen(false)} />}
-      {switchOpen && <SchoolSwitchSheet onClose={() => setSwitchOpen(false)} />}
+      {pickerFor && (
+        <SchoolPickerSheet
+          onClose={() => setPickerFor(null)}
+          onPick={onPickSchool}
+          showClear={pickerFor === "switch"}
+          title={pickerFor === "chapter" ? "Which school is your chapter at?" : "Which school are you at?"}
+        />
+      )}
       {syllabusOpen && <SyllabusModal school={schoolObj} onClose={() => setSyllabusOpen(false)} />}
     </div>
   );
 }
 
 // ── HERO — CENTERED, QUIET ────────────────────────────────────────────────────────────────────
-/** Headline → promise → proof chips, all on one centered axis. No CTA here and no bolt: the
- *  doors immediately below are the only instruction, and the bolt lives in the left one. */
-function TwoDoorHero({ code, schoolName, schoolId, onOpenBio, onSwitchSchool }: {
+/** Headline → promise → campus line, all on one centered axis. No CTA, no bolt, and (since the
+ *  mobile-fold pass) no proof chips: the doors immediately below are the only instruction and must
+ *  reach the fold, so the three checks now sit BELOW the doors instead of ahead of them. */
+function TwoDoorHero({ code, schoolName, schoolId, onSwitchSchool }: {
   code: string | null;
   schoolName: string | null;
   schoolId: string | null;
-  onOpenBio: () => void;
   onSwitchSchool: () => void;
 }) {
   // Same honesty rule as every hero before it: the campus version needs BOTH a school and a
@@ -237,9 +309,6 @@ function TwoDoorHero({ code, schoolName, schoolId, onOpenBio, onSwitchSchool }: 
           change, and a visitor's own resolved campus still wins. An UNRESOLVED campus names no
           school at all — see HomeCampusLine. */}
       <HomeCampusLine schoolName={schoolName} schoolId={schoolId} onSwitch={onSwitchSchool} />
-      {/* The three proof points — the "small credibility layer" between promise and doors.
-          "Built for exam week" points at the doors: they are what backs the claim now. */}
-      <TrustChips onBio={onOpenBio} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} />
     </section>
   );
 }
@@ -265,7 +334,9 @@ function HomeCampusLine({ schoolName, schoolId, onSwitch }: {
   const known = !!schoolName;
   const color = schoolId ? boltFor(schoolId).c1 : HOME_CAMPUS.colors.primary;
   return (
-    <span className="mt-4 inline-flex items-center gap-0.5">
+    // id: the header context pill (spec §7) observes this line — it fades the "AC 210 · Alabama"
+    // pill in once this scrolls out of view, and back out when it returns.
+    <span id={HERO_CAMPUS_LINE_ID} className="mt-4 inline-flex items-center gap-0.5">
       <CampusLine className="">
         {known ? (
           <>
@@ -313,14 +384,12 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
   onChapter: () => void;
 }) {
   return (
-    <DoorRow id={DOORS_ID} label="Choose how you want to study">
-        {/* LEFT DOOR — solo students. First in DOM so it stacks first on mobile. */}
-        {/* H3: THE BOILING BOLT — the exact same BoltBoil the footer wordmark's "i" uses (one
-            shared implementation, one speed). It is the only living thing on screen; the temple
-            opposite stays still. prefers-reduced-motion serves BoltBoil's built-in static frame. */}
-        <DoorCard
-          icon={<span aria-hidden style={{ display: "block" }}><BoltBoil height={112} /></span>}
-          title="Study solo"
+    <HomeDoorRow id={DOORS_ID} label="Choose how you want to study">
+        {/* LEFT DOOR — solo students. First in DOM so it stacks first on mobile. Its large icon is
+            the boiling, campus-tinted Survive bolt; the heading is "survive Solo". Clicking opens
+            the school picker first (p1 §2), then the Exam-1 flow. */}
+        <HomeDoorCard
+          icon={<SoloBoltIcon />}
           button={
             soloHref ? (
               <a
@@ -350,11 +419,11 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
           }
         />
 
-        {/* RIGHT DOOR — Greek chapters. Same frame, equal-weight CTA; generic chapter-house
-            visual (never one org's letters as the site's default branding). */}
-        <DoorCard
-          icon={<GreekHouseMark height={96} variant="home" />}
-          title="Study with your chapter"
+        {/* RIGHT DOOR — Greek chapters. Its large icon is the classical columned building (NOT a
+            house — that read as real-estate, not a Greek chapter). Clicking opens the same picker,
+            then the chapter waitlist. */}
+        <HomeDoorCard
+          icon={<ChapterBuildingIcon />}
           button={
             <button
               type="button"
@@ -362,20 +431,19 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
               className={DOOR_BTN_CLASS}
               style={CHAPTER_BTN}
             >
-              Find your chapter →
+              Study with your chapter →
             </button>
           }
           support={
-            <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch" }}>
-              <span style={{ color: "var(--text-muted)" }}>
-                Get Survive through your{" "}
-                <span className="font-bold" style={{ color: "var(--brand-cream)" }}>fraternity or sorority</span>.{" "}
-              </span>
-              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Boost GPAs.</span>
+            <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch", color: "var(--text-muted)" }}>
+              {/* Course code is dynamic per campus (same source the hero headline uses); falls back
+                  to the flagship code when no campus is resolved. */}
+              Get <span className="font-bold" style={{ color: "var(--brand-cream)" }}>{homeCourseCode(code)}</span> exam prep for your sorority or fraternity.{" "}
+              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Exam 1 is free for every member.</span>
             </span>
           }
         />
-    </DoorRow>
+    </HomeDoorRow>
   );
 }
 
@@ -513,7 +581,6 @@ const TWO_DOOR_CSS = `
 
 /* CAMPUS LINE (H3) — the v1 bolt-plate type treatment on the hero axis. */
 ${CAMPUS_LINE_CSS}
-${GREEK_HOUSE_CSS}
 
 /* DOOR CARDS — one hover response for both: a hair of lift, nothing else moves. */
 .sa-door-card { transition: transform 180ms ease, box-shadow 180ms ease; }
@@ -521,5 +588,11 @@ ${GREEK_HOUSE_CSS}
 @media (prefers-reduced-motion: reduce) {
   .sa-door-card, .sa-door-card:hover { transform: none; transition: none; }
 }
+
+/* SECONDARY CTA (p2) — amber outline; on hover the fill warms a touch. Never a solid amber, so it
+   stays a step below the hero's primary. */
+.sa-cta-secondary { transition: background-color 160ms ease, border-color 160ms ease; }
+.sa-cta-secondary:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+@media (prefers-reduced-motion: reduce) { .sa-cta-secondary { transition: none; } }
 
 `;

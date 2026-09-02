@@ -246,6 +246,100 @@ async function shellChapterId(db: DB, ch: GoChapter): Promise<string | null> {
  *  visit, a re-scanned QR, a link forwarded back to someone already in — updates one row instead of
  *  creating a second person. Anonymous tags (no account yet) carry name/phone only and are
  *  reconciled to an account when the student signs in. */
+/** JOIN AS A MEMBER — name, email, and one optional checkbox. The whole /go gate.
+ *
+ *  ── WHY THIS IS NOT THE MAGIC-LINK GATE ─────────────────────────────────────────────────────
+ *  ChapterGate sent a Supabase OTP and told the student to go and check their email, because a
+ *  seat is an `entitlements` row and an entitlement needs a user_id. That reasoning is still
+ *  true, and seat grants are blocked on 0118 regardless — so today the magic link buys nothing
+ *  and costs the student the exact moment they were about to start studying. This captures who
+ *  they are and lets them straight in. When seats unblock, the account can be created from the
+ *  captured email; nothing here forecloses that.
+ *
+ *  ── THREE RECORDS, ON PURPOSE ───────────────────────────────────────────────────────────────
+ *    greek_chapter_members    — THE COUNT a scholarship chair is shown. De-duplicated (see
+ *                               tagChapterMember); no email column exists on it.
+ *    campus_waitlist greek_member          — the email, and the welcome.
+ *    campus_waitlist greek_sponsor_interest — ONLY when the box was ticked.
+ *
+ *  The interest is a SEPARATE ROW rather than a flag on the signup, so "14 members want this"
+ *  can never be produced by counting signups. That distinction is the whole reason the box is
+ *  unchecked by default, and it has to survive into storage or the default is decoration.
+ *
+ *  ── ATTRIBUTION ─────────────────────────────────────────────────────────────────────────────
+ *  `ref` rides in on the URL and is written into sourcePath, which is the field that already
+ *  means "where this came from". greek_chapter_members has no ref column and this pass may not
+ *  add one, so the attributable record is the campus_waitlist row plus the contact_ref_visit the
+ *  page logs on arrival — joined on the contact id. Stated plainly in the report. */
+export const joinChapterAsMember = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    schoolSlug: z.string().trim().min(1).max(80),
+    chapterSlug: z.string().trim().min(1).max(60),
+    name: z.string().trim().min(1).max(120),
+    email: z.string().trim().email().max(200),
+    /** The checkbox. Never defaulted true — see the note above. */
+    wantsSponsor: z.boolean().default(false),
+    /** The contact ref this browser is carrying, when it has one. */
+    ref: z.string().uuid().nullable().optional(),
+    /** sa_anon — the de-dup handle. */
+    deviceId: z.string().trim().max(80).nullable().optional(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; members: number }> => {
+    const ch = await getGoChapter({ data: { schoolSlug: data.schoolSlug, chapterSlug: data.chapterSlug } });
+    if (!ch) return { ok: false, members: 0 };
+
+    const path = goPath(ch.schoolSlug, ch.chapterSlug);
+    const sourcePath = data.ref ? `${path}?ref=${data.ref}` : path;
+
+    // 1. THE COUNT. Same de-duplicated path every other caller uses.
+    const tagged = await tagChapterMember({
+      data: {
+        schoolSlug: data.schoolSlug, chapterSlug: data.chapterSlug,
+        name: data.name, deviceId: data.deviceId ?? null, source: "link",
+      },
+    });
+
+    const { isTestRequest } = await import("@/lib/test-mode.functions");
+    const isTest = await isTestRequest();
+    const { runIntake } = await import("@/lib/comms/intake.server");
+
+    // 2. THE EMAIL + the welcome. runIntake already de-dupes greek_member by email, so a member
+    //    who comes back through the gate is not welcomed twice.
+    try {
+      await runIntake({
+        kind: "greek_member",
+        email: data.email, name: data.name,
+        campusId: ch.campusId, campusName: ch.schoolName, campusSlug: ch.schoolSlug,
+        chapter: ch.chapterName,
+        chapterLink: `https://surviveaccounting.com${path}`,
+        sourcePath, isTest,
+      });
+    } catch (e) {
+      // Said out loud in the log, but never to the student: they are already through the gate and
+      // an intake failure must not stand between them and the exam.
+      console.warn("greek_member intake failed (member counted)", (e as Error).message);
+    }
+
+    // 3. THE INTEREST — its own row, only when asked for. skipConfirmation because a checkbox is
+    //    not something to email someone about; the founder digest still picks it up.
+    if (data.wantsSponsor) {
+      try {
+        await runIntake({
+          kind: "greek_sponsor_interest",
+          email: data.email, name: data.name,
+          campusId: ch.campusId, campusName: ch.schoolName, campusSlug: ch.schoolSlug,
+          chapter: ch.chapterName,
+          note: `Member asked ${ch.chapterName} to sponsor ${ch.schoolName}'s intro accounting course.`,
+          sourcePath, isTest, skipConfirmation: true,
+        });
+      } catch (e) {
+        console.warn("greek_sponsor_interest intake failed", (e as Error).message);
+      }
+    }
+
+    return { ok: true, members: tagged.members };
+  });
+
 export const tagChapterMember = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
     schoolSlug: z.string().trim().min(1).max(80),
@@ -253,6 +347,10 @@ export const tagChapterMember = createServerFn({ method: "POST" })
     userId: z.string().uuid().nullable().optional(),
     name: z.string().trim().min(1).max(120).nullable().optional(),
     phone: z.string().trim().max(20).nullable().optional(),
+    /** A random first-party browser id (the sa_anon cookie). NOT an identifier of a person — it
+     *  exists so a repeat tap from one device counts as one member instead of five. See the
+     *  ladder in the handler. */
+    deviceId: z.string().trim().max(80).nullable().optional(),
     source: z.enum(["link", "self_report", "exec_invite"]).default("link"),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; members: number }> => {
@@ -290,15 +388,49 @@ export const tagChapterMember = createServerFn({ method: "POST" })
         }
       } catch (e) { console.warn("greek_member intake failed (member tagged)", (e as Error).message); }
     } else {
-      // No account yet. Without a user_id the unique index does not apply, so de-dupe on phone —
-      // the only stable handle an anonymous student has — rather than banking the same person twice.
+      // ── NO ACCOUNT: DE-DUPE ON THE STRONGEST HANDLE AVAILABLE (2026-08-31) ─────────────────
+      //
+      // This branch used to de-dupe on phone alone, and fall through to an unconditional INSERT
+      // when there was no phone — which is every anonymous "Start cramming" tap. Live evidence:
+      // 15 rows, 0 with a user_id, and two chapters holding 5 each, four of which arrived inside
+      // nine seconds of one another. One person, five members.
+      //
+      // That number is what a scholarship chair gets shown, so it has to survive her comparing it
+      // to her own roster. The ladder below is strongest-first:
+      //
+      //   1. phone   — a real handle a person typed.
+      //   2. deviceId — a random first-party id this browser already carries (sa_anon, the same
+      //      cookie the ref system uses). Not derived from anything about the person. It is
+      //      weaker than a phone: two members sharing a laptop collapse into one row, and one
+      //      member on a phone and a laptop is two. Both are far better than one tap = one member.
+      //   3. neither — RECORD NOTHING. This is the important one. A tap we cannot attribute to a
+      //      person is a visit, not a member, and greek_page_events already counts visits. The
+      //      old code called it a member, which is how five became a plausible-looking number.
+      //
+      // The device id is stored in `phone` prefixed `dev:` because there is no column for it and
+      // this pass may not write a migration. It is namespaced so it can never be mistaken for a
+      // dialable number, and normalizePhoneE164 is never applied to it. LISTED IN THE REPORT as
+      // the one piece of shape-borrowing here; a device_id column is the real fix.
       const phone = (data.phone ?? "").trim();
-      const { data: dupe } = phone
-        ? await db.from("greek_chapter_members").select("id").eq("chapter_id", chapterId).eq("phone", phone).maybeSingle()
-        : { data: null };
-      if (!dupe?.id) {
+      const device = (data.deviceId ?? "").trim();
+      const handle = phone || (device ? `dev:${device.slice(0, 64)}` : "");
+
+      if (!handle) {
+        // Nothing to de-dupe on. Counting this as a member is what produced the duplicates.
+        const { count: c0 } = await db.from("greek_chapter_members").select("*", { count: "exact", head: true }).eq("chapter_id", chapterId);
+        return { ok: true, members: c0 ?? 0 };
+      }
+
+      const { data: dupe } = await db.from("greek_chapter_members")
+        .select("id,name").eq("chapter_id", chapterId).eq("phone", handle).maybeSingle();
+      if (dupe?.id) {
+        // A returning member who has since given a name upgrades the row rather than adding one.
+        if (data.name && !dupe.name) {
+          await db.from("greek_chapter_members").update({ name: data.name }).eq("id", dupe.id);
+        }
+      } else {
         await db.from("greek_chapter_members").insert({
-          chapter_id: chapterId, name: data.name ?? null, phone: phone || null, source: data.source,
+          chapter_id: chapterId, name: data.name ?? null, phone: handle, source: data.source,
         });
       }
     }
