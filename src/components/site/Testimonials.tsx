@@ -31,6 +31,23 @@ const TESTIMONIALS: Testimonial[] = [
 ];
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
+/** Truncate to whole SENTENCES within a character budget — never mid-word (p6 §11). Most people
+ *  never expand, so the visible portion has to read as the whole testimonial. Returns whether
+ *  anything was cut, so "Read more" only shows when it genuinely adds. */
+function truncateAtSentence(text: string, budget: number): { shown: string; truncated: boolean } {
+  const full = text.trim();
+  if (full.length <= budget) return { shown: full, truncated: false };
+  const sentences = full.match(/[^.!?]+[.!?]+(?:\s|$)/g) ?? [full];
+  let out = "";
+  for (const s of sentences) {
+    if (out && (out + s).trim().length > budget) break;
+    out += s;
+  }
+  out = out.trim();
+  if (!out) out = sentences[0].trim(); // a first sentence longer than the budget stays whole
+  return { shown: out, truncated: out.length < full.length };
+}
+
 // Avatar: our re-hosted image when present, initials otherwise (and on any load error — never a
 // hotlink, never a broken image).
 function TestimonialAvatar({ name, src }: { name: string; src?: string }) {
@@ -71,6 +88,9 @@ export function TestimonialsSlider() {
   const [page, setPage] = useState(0);
   const [auto, setAuto] = useState(!reduce);
   const [hover, setHover] = useState(false);
+  // Expanded quotes, keyed by TRACK INDEX (a wrapped card appears twice; keying by name would
+  // expand both copies). Once open, it stays open — collapsing is optional (p6 §11).
+  const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
   const stop = () => setAuto(false);
   const go = (d: -1 | 1) => setPage((p) => (p + d + pages) % pages);
   useEffect(() => { setPage((p) => Math.min(p, pages - 1)); }, [pages]);
@@ -97,12 +117,27 @@ export function TestimonialsSlider() {
       <div className="relative select-none overflow-hidden" style={{ touchAction: "pan-y" }}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={end} onPointerLeave={() => { if (start.current != null) { start.current = null; setDx(0); } }}>
         <div className="flex" style={{ width: `${(total / per) * 100}%`, transform: `translateX(calc(-${page * (per / total) * 100}% + ${dx}px))`, transition: start.current != null ? "none" : "transform 420ms ease" }}>
-          {track.map((t, i) => (
+          {track.map((t, i) => {
+            // Clean truncation at a sentence boundary (never the old mid-word CSS clamp). The card
+            // grows in place on expand; on mobile per=1 so there is no neighbour to shift.
+            const { shown, truncated } = truncateAtSentence(t.quote, 185);
+            const open = expanded.has(i);
+            return (
             // Index in the key: a wrapped card appears twice in the track and names are not unique.
             <figure key={`${t.name}-${i}`} className="px-1.5" style={{ width: `${100 / total}%` }} aria-hidden={i >= n ? true : undefined}>
               <div className="flex h-full flex-col rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", minHeight: 168 }}>
-                <blockquote className="text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
-                  “{t.quote}”
+                <blockquote className="text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)" }}>
+                  &ldquo;{open ? t.quote : shown}&rdquo;
+                  {truncated && !open && (
+                    <button
+                      type="button"
+                      onClick={() => { setExpanded((s) => new Set(s).add(i)); stop(); }}
+                      className="ml-1 whitespace-nowrap font-bold underline underline-offset-2"
+                      style={{ color: "var(--accent)", background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit" }}
+                    >
+                      Read more
+                    </button>
+                  )}
                 </blockquote>
                 <figcaption className="mt-auto flex items-center gap-2.5 pt-3">
                   <TestimonialAvatar name={t.name} src={t.avatar} />
@@ -113,7 +148,8 @@ export function TestimonialsSlider() {
                 </figcaption>
               </div>
             </figure>
-          ))}
+            );
+          })}
         </div>
       </div>
 

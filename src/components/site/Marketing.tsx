@@ -332,47 +332,59 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
    *  isn't in the room. */
   variant?: "home" | "chapter" | "council";
 }) {
+  // p4 §6: real copy a student feels, and more vertical room to hold it. `clip` marks the slot for
+  // an example clip in the cram-videos card (placeholder only, home surface).
   const CARDS = [
-    { icon: Play, title: "Quick cram videos", body: "Nothing like your lecture videos." },
-    { icon: ClipboardCheck, title: "Practice exams", body: "See the problems that matter." },
+    {
+      icon: Play,
+      title: "Quick cram videos",
+      body: "Two minutes or less. The basics you actually need to answer a question, plus the tips and cheat codes that make it click. Nothing like your lecture videos.",
+    },
+    {
+      icon: ClipboardCheck,
+      title: "Practice exams",
+      body: "Exam-style problems, not textbook problems. Going from a B to an A is mostly recognizing the type of problem before it shows up on the test.",
+    },
   ];
-  // p2: real 48px icons centered above each heading, with room to breathe (was a 20px corner icon
-  // on a tight p-4 card). The three read as a set, centred.
-  const card = "flex flex-col items-center rounded-2xl px-5 py-7 text-center";
+  // 48px icons centered above each heading, with generous vertical room for the longer copy.
+  const card = "flex flex-col items-center rounded-2xl px-5 py-8 text-center";
   const cardStyle = { background: "var(--bg-surface)", border: "1px solid var(--border-default)" } as const;
   // The ONE actionable card keeps its distinctness with an amber hairline — not a full restyle.
   const actionableStyle = { background: "var(--bg-surface)", border: "1px solid var(--accent)" } as const;
-  const H = "mt-4 text-[15px] font-black";
+  const H = "mt-4 text-[15.5px] font-black";
   const hStyle = { fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" } as const;
+  const bodyCls = "mt-2 text-[14px] leading-relaxed";
+  const bodyStyle = { color: "var(--brand-cream)", opacity: 0.7 } as const;
   const iconCls = "h-12 w-12";
   const iconStyle = { color: "var(--accent)" } as const;
   return (
-    <section className="mx-auto grid w-full max-w-[880px] gap-4 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
+    <section className="mx-auto grid w-full max-w-[900px] items-stretch gap-4 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
       {CARDS.map(({ icon: Icon, title, body }) => (
         <div key={title} className={card} style={cardStyle}>
           <Icon className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>{title}</p>
-          <p className="mt-1.5 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
+          <p className={bodyCls} style={bodyStyle}>{body}</p>
         </div>
       ))}
       {variant === "council" ? (
         <div className={card} style={cardStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your campus"}</p>
-          <p className="mt-1.5 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>Matched to the course your chapters actually take.</p>
+          <p className={bodyCls} style={bodyStyle}>Matched to the course your chapters actually take.</p>
         </div>
       ) : variant === "chapter" ? (
         <div className={card} style={cardStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your course"}</p>
-          <p className="mt-1.5 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>Matched to your exact course.</p>
+          <p className={bodyCls} style={bodyStyle}>Matched to your exact course.</p>
         </div>
       ) : (
-        /* HOME: card 3 is the ONE actionable card — amber hairline keeps it distinct (p2). */
+        /* HOME: card 3 is the ONE actionable card — amber hairline keeps it distinct. */
         <button type="button" onClick={onSyllabus} className={`${card} transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={actionableStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>Built around your course</p>
-          <p className="mt-1.5 text-[14px] leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus. I&apos;ll match it →</p>
+          <p className={bodyCls} style={bodyStyle}>Send your syllabus and I&apos;ll match my content to your course.</p>
+          <span className="mt-3 text-[14px] font-black" style={{ color: "var(--accent)" }}>Send your syllabus →</span>
         </button>
       )}
     </section>
@@ -483,16 +495,23 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
         </button>
         <div className="flex items-start gap-5">
           <LeePortrait width={104} caption={false} />
-          <h2 className="text-[24px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", marginTop: 8 }}>
-            Hey, I&apos;m Lee.
-          </h2>
+          <div className="min-w-0" style={{ marginTop: 8 }}>
+            <h2 className="text-[24px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+              Hey, I&apos;m Lee.
+            </h2>
+            {/* Credentials (p6 §10). Ole Miss awards the BAccy / MAccy — not BAcc / MAcc. */}
+            <div className="mt-3 text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
+              <p><span className="font-black">BAccy · MAccy</span> — University of Mississippi</p>
+              <p>Tutor since 2015</p>
+              <p>1,000+ students</p>
+            </div>
+          </div>
         </div>
-        {/* PHOTO ROW — today just the portrait above; when live-music shots exist, add more
-            <img>s beside the portrait and this strip becomes a small gallery without a redesign. */}
-        <div className="mt-2">
-          <P>I&apos;ve been helping students get through Intro Accounting since 2015 and have worked with more than 1,000 students.</P>
+        <div className="mt-4">
           <P>I built Survive because accounting exams are a lot easier when you&apos;ve already practiced the kinds of problems you&apos;re about to see.</P>
+          {/* The music/travel line stays — it's disarming and it works. Contact goes last. */}
           <P>Outside Survive, I&apos;m usually traveling, seeing live music, playing live music, or working on Survive.</P>
+          <P>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a> if you have any questions or just want to introduce yourself.</P>
         </div>
       </div>
     </div>
@@ -503,7 +522,7 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
  *  full-width sticky bar (which duplicated the navbar). Hidden until the hero scrolls away and
  *  when the real footer is on screen — same show logic the old bar used, kept because it stops
  *  the pill from stacking on the footer's own Text-Lee link. */
-export function FloatingContact({ heroId, tel, phone, onText, onEmail }: { heroId: string; tel: string; phone: string; onText?: () => void; onEmail?: () => void }) {
+export function FloatingContact({ heroId, tel, phone, onText, onEmail, bottomOffset = 84 }: { heroId: string; tel: string; phone: string; onText?: () => void; onEmail?: () => void; /** px above the safe-area. 84 clears the practice stage's Next bar; a page with no such bar (the two-door home) passes a small value so the pill sits in the corner, out of the zone where CTAs rest and get read (p6 §1). */ bottomOffset?: number }) {
   const [pastHero, setPastHero] = useState(false);
   const [footerSeen, setFooterSeen] = useState(false);
   useEffect(() => {
@@ -525,10 +544,8 @@ export function FloatingContact({ heroId, tel, phone, onText, onEmail }: { heroI
       tabIndex={show ? 0 : -1}
       className="fixed z-[190] inline-flex items-center gap-2 rounded-full px-4 shadow-lg transition-all"
       style={{
-        // Mobile: sit ABOVE the practice stage's fixed Next bar (~64px tall) so answers and the
-        // primary control stay clear. Desktop: classic bottom-right.
         right: 14,
-        bottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+        bottom: `calc(${bottomOffset}px + env(safe-area-inset-bottom, 0px))`,
         opacity: show ? 1 : 0,
         transform: show ? "translateY(0)" : "translateY(12px)",
         pointerEvents: show ? "auto" : "none",

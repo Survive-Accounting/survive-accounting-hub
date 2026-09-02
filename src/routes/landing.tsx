@@ -757,32 +757,81 @@ function SchoolTicker({ size = 14, className = "mt-3 w-full max-w-md", onPick }:
  *  section closes on a person, not a policy. The CTA is gone on purpose — the answer to Q1 tells
  *  the student to use the player ABOVE, so a button here would send them past the thing it is
  *  pointing at. Lee's voice, two sentences max, and the list is built to grow. */
-const FAQS: { q: string; a: string }[] = [
-  {
-    q: "Will this match my professor's exam?",
-    a: "That's the whole point — pick your school and professor above, send what you've got, and I'll match my videos to your course.",
-  },
-  {
-    q: "Do you do 1-on-1 tutoring?",
-    a: "A little — most of my week goes to filming new cram videos, but I keep 10 hours open for Zoom sessions at $120/hr. Text me and we'll find a time.",
-  },
-  {
-    q: "When do Exams 2, 3, and the Final come out?",
-    a: "I film through the semester, ahead of each exam. Drop your email on any exam tab and I'll tell you the day it lands.",
-  },
-  {
-    q: "Is this allowed?",
-    a: "Yes — this is tutoring, same as any campus tutor or study guide. I teach you how to do the problems; exam day is still all you.",
-  },
-  {
-    q: "What if you don't have my school?",
-    a: "Intro accounting is nearly the same course everywhere, so these videos will still carry you — and I add schools as students ask. Hit \"Don't see your school?\" and tell me.",
-  },
-  {
-    q: "What if I watch everything and still feel lost?",
-    a: "Text me. I read every message myself — I'll do everything I can to get you from lost to confident.",
-  },
-];
+// THE STUDENT FAQ (rewritten 2026-09-01). Ordered by what BLOCKS the decision, not by what is easy
+// to answer. First three open by default; the rest sit behind "Show more". First person throughout
+// — this is the one page on the site that sounds like a person, which is why it works. The phone
+// number appears in exactly ONE answer (the persistent Text-Lee button covers the rest).
+//
+// Callbacks come from the page so a link reuses the existing flow (the chapter finder, the syllabus
+// modal, the picker) rather than wiring a new route. When a page passes none, links fall back to a
+// real href so the FAQ still works wherever it renders.
+function studentFaqs(cb: { onSyllabus?: () => void; onFindChapter?: () => void; onNotListed?: () => void }): Array<{ q: string; a: React.ReactNode }> {
+  return [
+    {
+      q: "Is it really free?",
+      a: "Exam 1 is free — every video, every practice question. Just click and start cramming. I make money when students want Survive for their whole semester.",
+    },
+    {
+      q: "My exam is tomorrow. Is this still worth it?",
+      a: "Absolutely. In fact, that's exactly what Survive is built for. Start in cram mode — every video is two minutes or less, and you can get through a whole exam's worth tonight. If you've got more time after that, the practice questions and walkthrough videos are where it sticks.",
+    },
+    {
+      q: "How do you make your content?",
+      a: (
+        <>
+          <p>Ten years of tutoring means I&apos;ve watched professors spin the same topic five different ways — where they hide the curveball, what they make tricky on purpose. So instead of memorizing one version of a problem, I teach you to recognize the <em>type</em> of question and see it coming.</p>
+          <p className="mt-2.5">That&apos;s most of the gap between a B and an A. The exam is hard when you&apos;ve never seen the shape of the question before. It gets a lot easier when you have.</p>
+          <p className="mt-2.5"><FaqLink onClick={cb.onSyllabus} href="/chapters">Send me your syllabus</FaqLink> and I&apos;ll match my content to your course.</p>
+        </>
+      ),
+    },
+    {
+      q: "I'm not in a fraternity or sorority. Can I still use this?",
+      a: "For sure — everything works exactly the same. Chapters have a group option, but Exam 1 is free for anyone, Greek or not.",
+    },
+    {
+      q: "How does this work with fraternities and sororities?",
+      a: (
+        <>
+          <p>Your chapter gets its own page, and Exam 1 is free for every member. Chapters that want the rest of the semester can sponsor seats for the house for $100/each.</p>
+          <p className="mt-2.5"><FaqLink onClick={cb.onFindChapter} href="/chapters">→ Find your chapter</FaqLink></p>
+        </>
+      ),
+    },
+    {
+      q: "Do you do live tutoring?",
+      a: (
+        <>
+          <p>I did, in person, from 2015 on. When the pandemic hit I tried it over Zoom, and got so busy that I started making videos instead — and never went back. Turns out I like the making videos part as much as the teaching. The response from my students has been amazing.</p>
+          <p className="mt-2.5">Most of my week now goes to filming for students all over the country. I keep a few tutoring hours open at $120/hr — contact me if you&apos;re interested.</p>
+          <FaqNotify topic="1-on-1 tutoring" cta="Contact me" />
+          <p className="mt-3">I&apos;m also thinking about running live test-prep streams before big exams. These would be much more affordable for college budgets. Drop your email if you&apos;re interested!</p>
+          <FaqNotify topic="Live test-prep streams" cta="Notify me" />
+        </>
+      ),
+    },
+    {
+      q: "Will this replace my lectures?",
+      a: "No. This is exam prep — the fastest way to know what's on the test and be ready for it. Go to class. Use this when it's time to actually get ready.",
+    },
+    {
+      q: "What if you don't have my school?",
+      a: (
+        <>
+          <p>Intro accounting is close to the same course almost everywhere, so these will still carry you. Tell me your school and I&apos;ll add it. Also, send me your syllabus, and I&apos;ll make sure my content covers everything you need.</p>
+          <p className="mt-2.5 flex flex-col gap-1">
+            <FaqLink onClick={cb.onNotListed} href="/chapters">→ Don&apos;t see your school?</FaqLink>
+            <FaqLink onClick={cb.onSyllabus} href="/chapters">→ Send your syllabus</FaqLink>
+          </p>
+        </>
+      ),
+    },
+    {
+      q: "What if I watch everything and still feel lost?",
+      a: "Text me at (662) 565-8818. I read every message myself, and I'll do what I can to get you from lost to confident. Helping students learn accounting is my lifelong passion, so be warned: I absolutely love talking about this stuff and am always down to give a pep talk.",
+    },
+  ];
+}
 
 
 // THE GREEK FAQ — the questions an exec, an advisor or a member actually has about the CHAPTER
@@ -815,15 +864,16 @@ const GREEK_FAQS: Array<{ q: string; a: string }> = [
   },
 ];
 
-export function Faq({ greek }: { greek?: string }) {
+export function Faq({ greek, onSyllabus, onFindChapter, onNotListed }: { greek?: string; onSyllabus?: () => void; onFindChapter?: () => void; onNotListed?: () => void }) {
   // One question open on load, the rest behind a toggle. Seven stacked cards was a wall of text
   // between the player and the testimonials, and the first question is the one nearly everybody
   // actually has. On a chapter page that first question is "How does this work?", which is the
   // whole program in one paragraph.
-  const list = greek ? GREEK_FAQS : FAQS;
+  const list: Array<{ q: string; a: React.ReactNode }> = greek ? GREEK_FAQS : studentFaqs({ onSyllabus, onFindChapter, onNotListed });
   const [open, setOpen] = useState(false);
-  // Greek keeps one question up front; the student page shows two.
-  const upFront = greek ? 1 : 2;
+  // The student page keeps the first THREE questions expanded (the ones that block the decision);
+  // Greek keeps one. The rest sit behind Show more.
+  const upFront = greek ? 1 : 3;
   const shown = list.slice(0, upFront);
   const rest = list.slice(upFront);
   return (
@@ -836,7 +886,7 @@ export function Faq({ greek }: { greek?: string }) {
             which is a paragraph nobody asked for; and one question alone read as though there
             were only one. Greek pages still open their first answer — "How does this work?"
             IS the program, and an exec needs it without a click. */}
-        {shown.map((f, i) => <FaqCard key={f.q} f={f} defaultOpen={!!greek && i === 0} />)}
+        {shown.map((f, i) => <FaqCard key={f.q} f={f} defaultOpen={greek ? i === 0 : true} />)}
         {open && rest.map((f) => <FaqCard key={f.q} f={f} />)}
         <div className="text-center">
           <button
@@ -861,7 +911,7 @@ export function Faq({ greek }: { greek?: string }) {
  *
  *  The whole header is the control (a <button>, so Enter/Space, focus rings and screen-reader
  *  semantics come free), and aria-expanded/aria-controls tie it to the panel. */
-function FaqCard({ f, defaultOpen = false }: { f: { q: string; a: string }; defaultOpen?: boolean }) {
+function FaqCard({ f, defaultOpen = false }: { f: { q: string; a: React.ReactNode }; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   const id = `faq-${f.q.replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 40)}`;
   return (
@@ -878,8 +928,50 @@ function FaqCard({ f, defaultOpen = false }: { f: { q: string; a: string }; defa
         <span aria-hidden className="shrink-0 transition-transform" style={{ color: "var(--accent)", transform: open ? "rotate(180deg)" : "none", fontSize: 12 }}>▾</span>
       </button>
       {open && (
-        <p id={id} className="px-4 pb-3.5 text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.72 }}>{f.a}</p>
+        // A DIV, not a P: answers can now hold multiple paragraphs, links and inline email captures.
+        <div id={id} className="px-4 pb-3.5 text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.72 }}>{f.a}</div>
       )}
+    </div>
+  );
+}
+
+/** An inline FAQ link. A button when the page hands down a handler (opens the existing flow — the
+ *  chapter finder, the syllabus modal, the picker), else a plain link to a real route so the FAQ
+ *  still works wherever it renders. Never wires a new route. */
+function FaqLink({ onClick, href, children }: { onClick?: () => void; href?: string; children: React.ReactNode }) {
+  const style = { color: "var(--accent)", background: "none", border: 0, padding: 0, cursor: "pointer", font: "inherit" } as const;
+  if (onClick) return <button type="button" onClick={onClick} className="text-left font-bold underline underline-offset-4" style={style}>{children}</button>;
+  return <a href={href ?? "#"} className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>{children}</a>;
+}
+
+/** A small inline email capture for the FAQ. The two in "Do you do live tutoring?" store under
+ *  DISTINCT topics ("1-on-1 tutoring" vs "Live test-prep streams") so the two lists stay separate. */
+function FaqNotify({ topic, cta }: { topic: string; cta: string }) {
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
+  const ok = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+  const send = async () => {
+    if (!ok || state === "busy" || state === "done") return;
+    setState("busy");
+    try { await submitNotify({ data: { contact: email.trim(), topic } }); setState("done"); }
+    catch { setState("error"); }
+  };
+  if (state === "done") return <p className="mt-2 text-[13.5px] font-bold" style={{ color: "var(--accent)" }}>Got it — I&apos;ll be in touch. ✓</p>;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <input
+        type="email" inputMode="email" autoComplete="email" placeholder="you@email.com"
+        value={email}
+        onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("idle"); }}
+        onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
+        aria-label={cta}
+        className="min-w-0 flex-1 rounded-lg px-3 text-[14px] outline-none"
+        style={{ minHeight: 42, background: "rgba(0,0,0,0.3)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
+      />
+      <button type="button" onClick={() => void send()} disabled={!ok || state === "busy"} className="rounded-lg px-4 text-[13.5px] font-black disabled:opacity-45" style={{ minHeight: 42, background: "var(--accent)", color: "#0B1220" }}>
+        {state === "busy" ? "…" : cta}
+      </button>
+      {state === "error" && <span className="text-[12px]" style={{ color: "#F3C6CC" }}>Try again?</span>}
     </div>
   );
 }
