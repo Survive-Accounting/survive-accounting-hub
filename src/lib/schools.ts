@@ -71,7 +71,7 @@ const BY_SLUG = new Map(ALL_SCHOOLS.map((s) => [s.slug, s]));
 // carried by the loaders, and putting a guess here would collide with a real campus.
 const TEST_SCHOOL: School = {
   id: TEST_CAMPUS_SLUG, campusId: "", slug: TEST_CAMPUS_SLUG, name: TEST_CAMPUS_NAME,
-  isSec: false, courseCode: TEST_COURSE_CODE,
+  isSec: false, conference: "Other", courseCode: TEST_COURSE_CODE,
   // The fixture's own colourway, matching the campus page, so no test screenshot can be mistaken
   // for a real school's.
   c1: "#2E7D32", c2: "#00695C", aliases: [],
