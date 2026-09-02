@@ -429,8 +429,8 @@ export function LeePortrait({ width = 200, caption = true }: { width?: number; c
     <figure className="mx-auto sm:mx-0" style={{ width, transform: "rotate(1.5deg)" }}>
       <div style={{ width, aspectRatio: "4 / 5", borderRadius: 16, border: "3px solid var(--brand-cream)", overflow: "hidden" }}>
         <img
-          src="/lee-beach.webp" alt="Lee Ingram"
-          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 20%", transform: "scale(1.42)", transformOrigin: "50% 22%", display: "block" }}
+          src="/lee-sunrise.jpg" alt="Lee Ingram"
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "37% 34%", transform: "scale(1.7)", transformOrigin: "37% 30%", display: "block" }}
         />
       </div>
       {caption && (
