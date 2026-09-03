@@ -17,7 +17,7 @@ import { armIdeas, listIdeas, organizeIdea, saveIdea, sendIdeaSummary, setUrgent
 import { hasPromptSections, ideaUpdateText, promptSection, replacePromptSection } from "@/lib/ideas-prompt";
 import {
   CATEGORIES, CATEGORY_LABEL, FOCUS_LABEL, QUEUE_PRIORITIES, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
-  buildFailed, isArmed, isBuilding, isBuilt, isDraft, isTodoIdea, isUrgent, prioritize, priorityOf, queuePriorityOf, rankIdeas, rankQueue, summaryOf, testChecklistOf, tldrOf,
+  buildFailed, isArmed, isBuilding, isBuilt, isDraft, isProduction, isTodoIdea, isUrgent, prioritize, priorityOf, queuePriorityOf, rankIdeas, rankQueue, summaryOf, testChecklistOf, tldrOf,
   type Focus, type Idea, type QueuePriority, type Recommendation, type TimeBox,
 } from "@/components/ideas/model";
 
@@ -46,7 +46,7 @@ const APP_URL = "https://surviveaccounting.com/admin/ideas";
 
 function IdeasRoute() { return <AdminGate><Ideas /></AdminGate>; }
 
-type FoldKey = "urgent" | "queue" | "built" | "drafts" | "open" | "todos" | "reviewed" | "archived";
+type FoldKey = "urgent" | "production" | "queue" | "built" | "drafts" | "open" | "todos" | "reviewed" | "archived";
 const PRIORITY_COLOR: Record<QueuePriority, string> = { urgent: "#FF7A59", high: "#FCA311", medium: "#7DD3FC", low: "#9AA3B8" };
 
 function Ideas() {
@@ -55,7 +55,7 @@ function Ideas() {
   const [open, setOpen] = useState<string | null>(null);
   const [prio, setPrio] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [folds, setFolds] = useState<Record<FoldKey, boolean>>({ urgent: true, queue: true, built: true, drafts: true, open: true, todos: false, reviewed: false, archived: false });
+  const [folds, setFolds] = useState<Record<FoldKey, boolean>>({ urgent: true, production: true, queue: true, built: true, drafts: true, open: true, todos: false, reviewed: false, archived: false });
   const toggle = (k: FoldKey) => setFolds((f) => ({ ...f, [k]: !f[k] }));
   // ADD TO BUILD QUEUE (Lee, 2026-09-03): tick some, pick a priority, add.
   // The runner on the build machine takes it from there — unattended.
@@ -84,8 +84,9 @@ function Ideas() {
     const working = live.filter((i) => i.status !== "APPROVED");
     const queued = working.filter((i) => isArmed(i) && !isBuilt(i) && !isTodoIdea(i));
     const built = working.filter((i) => isBuilt(i) && !isTodoIdea(i));
-    const rest = working.filter((i) => !isArmed(i) && !isBuilt(i));
+    const rest = working.filter((i) => !isArmed(i) && !isBuilt(i) && !isProduction(i));
     return {
+      production: rankIdeas(working.filter((i) => isProduction(i) && !isTodoIdea(i))),
       urgent: rankIdeas(rest.filter((i) => isUrgent(i) && !isTodoIdea(i))),
       queue: rankQueue(queued),
       built: rankQueue(built),
@@ -168,6 +169,14 @@ function Ideas() {
       {ideas.length === 0 && <div style={{ color: MUTED, fontSize: 13 }}>Nothing here yet. Press Ctrl/⌘ I on any page, or upload a prompt you already wrote.</div>}
 
       {fold("urgent", "🔥 Urgent", sections.urgent, URGENT)}
+      {/* THE PRODUCTION QUEUE — content to film. The 25 Blast Offs (one per
+          Exam 1 set) are the standing head of it and live on /v3, the queue
+          itself; the ideas here are the slides, exhibits and new CEQs routed
+          from review boards with "→ production". Order = Prioritize's. */}
+      <div style={{ fontSize: 12, color: MUTED, margin: "2px 0 -8px 20px" }}>
+        🎬 The 25 Exam 1 Blast Offs head the production queue — <a href="/v3" style={{ color: GOLD }}>they live on /v3 →</a>. Below: the slides, exhibits and CEQs sent to production from review boards.
+      </div>
+      {fold("production", "🎬 Production queue", sections.production, "#3BF5A0", "content to film — sent from a review board; drag in Prioritize to reorder")}
       {fold("queue", "⚙ Build queue", sections.queue, GOLD, "armed — the build machine works these in priority order, unattended")}
       {fold("built", "✅ Built — test these", sections.built, "#3BF5A0", "a preview link and a checklist per idea; tick reviewed when it checks out")}
       {fold("drafts", "✎ Drafts", sections.drafts, "#7DD3FC", "words not finished — Ctrl+I to continue one")}

@@ -20,7 +20,7 @@ import { queueReview, sweepStrandedReviews } from "@/components/canvas/talkthrou
 import { listSessions, makeSession, touchRow, type TalkSession } from "@/components/canvas/talkthrough";
 import { putSession, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { StepBar } from "@/components/v3/StepBar";
-import { blastOffPath, topicOfSet, useV3Set } from "@/components/v3/use-bank";
+import { blastOffPath, nextSetAfter, topicOfSet, useV3Set } from "@/components/v3/use-bank";
 import { V3Shell, V3Note } from "@/components/v3/Shell";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/talkthrough")({
@@ -103,8 +103,11 @@ function V3Talkthrough() {
             setPreflight(null);
             putSession(touchRow(ses, { endedAt: new Date().toISOString() } as Partial<TalkSession>));
             queueReview({ session: ses, ceqs: set.ceqs.map(boothToPassCeq), excludedKinds, wantVibePlan });
-            // Step 2 — the results land there as the pass finishes.
-            void navigate({ to: blastOffPath(topic, set, "results") });
+            // ON TO THE NEXT SET (Lee, 2026-09-03): generation runs in the
+            // background — the dock bottom-right tracks it and links to the
+            // results when ready. After the last set, back to the queue.
+            const next = nextSetAfter(topics, set.id);
+            void navigate({ to: next ? blastOffPath(next.topic, next.set, "talkthrough") : "/v3" });
           }}
         />
       )}

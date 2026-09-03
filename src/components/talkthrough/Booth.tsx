@@ -30,7 +30,7 @@ import { ChevronDown, ChevronRight, FileText, Mic, RotateCcw, Square, Undo2, X }
 
 import { EXHIBIT_REGISTRY, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import {
-  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, VISUAL_KINDS, canonicalStamp, contextOfSegment, ghostSegments, makeTag, newTTId, openContext,
+  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, VISUAL_KINDS, canonicalStamp, contextsOfSegment, ghostSegments, makeTag, newTTId, openContexts,
   segmentsInContext, sessionBoard, sessionSegments, sessionTags, stampLabel, styleNotesFor, touchRow,
   type BoardItem, type StampKind, type TTDoc, type TalkSegment, type TalkSession, type TalkTag,
 } from "@/components/canvas/talkthrough";
@@ -224,7 +224,10 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const questions = useMemo(() => (ceqs ?? []).filter((c) => !c.noteOnly), [ceqs]);
   const qProgress = focused && !focused.noteOnly ? { x: questions.indexOf(focused) + 1, y: questions.length } : null;
   const allTags = sessionTags(tt.doc, session.id);
-  const ctx = openContext(allTags, session.id);
+  // MULTI-STAMP: every open context; `ctx` is the newest, for the follow-ups.
+  const openCtxs = openContexts(allTags, session.id);
+  const ctx = openCtxs[0] ?? null;
+  const [stack, setStack] = useState(false);
   const segs = sessionSegments(tt.doc, session.id);
   const recent = segs.slice(-showCount);
   const stars = allTags.filter((t) => t.starred && !t.archivedAt);
@@ -295,17 +298,22 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
     }, 1400);
   };
 
-  /** B1 — stamps are click-IN/click-OUT contexts. Same stamp closes; a
-   *  different stamp auto-closes the current and opens the new one. */
-  const stamp = (kind: StampKind) => {
-    const now = new Date().toISOString();
+  const closeCtx = (t: TalkTag) => {
+    const closed = touchRow(t, { endedAt: new Date().toISOString() } as Partial<TalkTag>);
+    putTag(closed);
+    fireEditDraft(closed);
+  };
+  /** B1 — stamps are click-IN/click-OUT contexts. A plain click swaps: the
+   *  open ones close, the new one opens. MULTI-STAMP (Lee, 2026-09-03:
+   *  "apply two or more stamps at once — reword and revise choices at the
+   *  same time"): Shift+click, or the Stack toggle, opens the new one BESIDE
+   *  the open ones; the words said while several are open belong to all of
+   *  them, and the review pass sees each. Clicking a lit stamp closes just it. */
+  const stamp = (kind: StampKind, multi = false) => {
     rec.markBoundary(); // words never straddle a context edge
-    if (ctx) {
-      const closed = touchRow(ctx, { endedAt: now } as Partial<TalkTag>);
-      putTag(closed);
-      fireEditDraft(closed);
-      if (canonicalStamp(ctx.tag) === kind && ctx.focusedCeqId === focusPayload.ceqId) return; // toggled off
-    }
+    const same = openCtxs.find((t) => canonicalStamp(t.tag) === kind && t.focusedCeqId === focusPayload.ceqId);
+    if (same) { closeCtx(same); return; }
+    if (!multi) for (const t of openCtxs) closeCtx(t);
     putTag({ ...makeTag(session.id, kind, focusPayload), endedAt: null });
   };
   /** B1.2 — star = a bookmark on {stamp, ceq}; no context opened. */
@@ -320,7 +328,7 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const importBlocks = (blocks: ImportBlock[]) => {
     const now = new Date().toISOString();
     rec.markBoundary();
-    if (ctx) putTag(touchRow(ctx, { endedAt: now } as Partial<TalkTag>));
+    for (const t of openCtxs) putTag(touchRow(t, { endedAt: now } as Partial<TalkTag>));
     const startSeq = rec.reserveSeqs(blocks.length);
     const rows = buildImportRows(blocks, { sessionId: session.id, startSeq, ceqs: (ceqs ?? []).map((c) => ({ id: c.id, label: c.label })) });
     for (const s of rows.segments) putSegment(s);
@@ -368,7 +376,7 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
       };
       if (e.key === "ArrowDown" || e.key === "ArrowRight") move(1);
       else if (e.key === "ArrowUp" || e.key === "ArrowLeft") move(-1);
-      else if (e.key === "Enter") { if (k.selStamp) { e.preventDefault(); k.stamp(k.selStamp); } }
+      else if (e.key === "Enter") { if (k.selStamp) { e.preventDefault(); k.stamp(k.selStamp, e.shiftKey); } }
       // SPACE = START / STOP TALKING (Lee, 2026-09-01). A toggle, not push-to-
       // talk: press once and talk for as long as you like, press again to stop.
       // SPACE = NEXT QUESTION, SHIFT+SPACE = BACK (Lee, 2026-09-03, the
@@ -429,7 +437,7 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
                 earlier ↑ ({segs.length - showCount} more)
               </button>
             )}
-            {recent.map((s) => <SegmentLine key={s.id} seg={s} ctx={contextOfSegment(s, allTags)} onDelete={deleteSeg} />)}
+            {recent.map((s) => <SegmentLine key={s.id} seg={s} ctxs={contextsOfSegment(s, allTags)} onDelete={deleteSeg} />)}
           </div>
         </details>
 
@@ -547,10 +555,14 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
         {/* open-context banner */}
         {ctx && (
           <div className="rounded-xl px-3 py-2" style={{ background: "rgba(252,163,17,0.12)", border: `1.5px solid ${GOLD}` }}>
-            <div style={{ fontSize: 10, letterSpacing: "0.18em", color: GOLD, textTransform: "uppercase", fontWeight: 900 }}>context open</div>
-            <div style={{ fontSize: 12.5, color: CREAM, marginTop: 2 }}>
-              {stampLabel(ctx.tag)}{ctx.focusedCeqLabel ? ` · ${ctx.focusedCeqLabel}` : " · set"} — click the stamp again to close
-            </div>
+            <div style={{ fontSize: 10, letterSpacing: "0.18em", color: GOLD, textTransform: "uppercase", fontWeight: 900 }}>{openCtxs.length > 1 ? `${openCtxs.length} stamps open` : "context open"}</div>
+            {openCtxs.map((t) => (
+              <div key={t.id} className="flex items-center gap-2" style={{ fontSize: 12.5, color: CREAM, marginTop: 2 }}>
+                <span>{stampLabel(t.tag)}{t.focusedCeqLabel ? ` · ${t.focusedCeqLabel}` : " · set"}</span>
+                <button onClick={() => closeCtx(t)} title="Close this one" style={{ marginLeft: "auto", background: "none", border: "none", color: NEON.muted, cursor: "pointer", fontSize: 13, lineHeight: 1 }}>×</button>
+              </div>
+            ))}
+            <div style={{ fontSize: 10, color: NEON.muted, marginTop: 3 }}>click a lit stamp to close it · Shift+click adds another at the same time</div>
             {/* VISUAL FOLLOW-UP (Lee, 2026-09-03): "it needs to pop down asking
                 what kind of visual" — and which visual it is like. Saved on
                 the stamp; the review pass reads it. */}
@@ -593,7 +605,7 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
             {g.label && <div style={{ fontSize: 9.5, letterSpacing: "0.22em", color: NEON.muted, textTransform: "uppercase", fontWeight: 900, marginBottom: 4 }}>{g.label}</div>}
             <div className="flex flex-wrap gap-1.5">
               {g.kinds.map((k) => {
-                const active = !!ctx && canonicalStamp(ctx.tag) === k;
+                const active = openCtxs.some((t) => canonicalStamp(t.tag) === k);
                 const selected = selStamp === k;
                 return (
                   <div
@@ -609,7 +621,7 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
                     <button
                       className="px-2.5 py-1.5"
                       style={{ background: active ? GOLD : PANEL, color: active ? "#0B1322" : CREAM, fontFamily: BIG_FONT, fontWeight: 800, fontSize: 11 }}
-                      onClick={() => { setSelStamp(k); stamp(k); }}
+                      onClick={(e) => { setSelStamp(k); stamp(k, e.shiftKey || stack); }}
                     >
                       {STAMP_LABELS[k]}
                     </button>
@@ -627,8 +639,12 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
             </div>
           </div>
         ))}
+        <label className="flex items-center gap-2" style={{ fontSize: 11, color: stack ? GOLD : NEON.muted, cursor: "pointer" }} title="Every stamp you click adds to the open ones instead of replacing them — same as holding Shift">
+          <input type="checkbox" checked={stack} onChange={(e) => setStack(e.target.checked)} style={{ accentColor: GOLD }} />
+          Stack stamps (two or more at once)
+        </label>
         <div style={{ color: NEON.muted, fontSize: 9.5, lineHeight: 1.5 }}>
-          ⌨ Space next Q · Shift+Space back · ↑↓←→ pick a stamp · Enter stamp in/out · R start/stop recording
+          ⌨ Space next Q · Shift+Space back · ↑↓←→ pick a stamp · Enter stamp in/out (Shift+Enter stacks) · R start/stop recording
         </div>
 
         <div className="mt-auto flex flex-col gap-2">
@@ -824,12 +840,13 @@ function LiveParagraph({ segments, liveFinal, interim, recording, liveAvailable,
   );
 }
 
-export function SegmentLine({ seg, ctx, onDelete }: { seg: TalkSegment; ctx?: TalkTag | null; onDelete?: (s: TalkSegment) => void }) {
+export function SegmentLine({ seg, ctx, ctxs, onDelete }: { seg: TalkSegment; ctx?: TalkTag | null; ctxs?: TalkTag[]; onDelete?: (s: TalkSegment) => void }) {
   if (!seg.text) return null;
+  const chips = ctxs ?? (ctx ? [ctx] : []);
   return (
     <div style={{ fontSize: 12, lineHeight: 1.5, color: TRANSCRIPT_INK }}>
       <span style={{ color: NEON.muted, fontSize: 10.5 }}>[S{seg.seq}]{seg.focusedCeqLabel ? ` ${seg.focusedCeqLabel} · ` : " "}</span>
-      {ctx && <StampChip label={stampLabel(ctx.tag)} />}
+      {chips.map((c) => <StampChip key={c.id} label={stampLabel(c.tag)} />)}
       {seg.text}
       {seg.whisperPending && <span title="Live text — Whisper canonical copy pending" style={{ color: GOLD, fontSize: 10, marginLeft: 6 }}>◌ pending</span>}
       {onDelete && (

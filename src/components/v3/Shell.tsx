@@ -19,6 +19,8 @@ import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { FlaskConical, Home } from "lucide-react";
 
+import { GenerationDock } from "@/components/talkthrough/GenerationDock";
+
 export const V3_NAVY = "#14213D";
 export const V3_CREAM = "#F5EFE6";
 export const V3_GOLD = "#FCA311";
@@ -84,6 +86,8 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
       </header>
 
       <main style={{ padding: "34px 20px 90px", maxWidth: wide ? 1440 : 1080, margin: "0 auto" }}>{children}</main>
+      {/* THE GENERATION DOCK — bottom right on every V3 screen (Lee, 2026-09-03). */}
+      <GenerationDock />
     </div>
   );
 }

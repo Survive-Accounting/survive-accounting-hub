@@ -83,6 +83,16 @@ export function topicOfSet(topics: BoothTopic[], setId: string): BoothTopic | un
   return topics.find((t) => t.sets.some((s) => s.id === setId));
 }
 
+/** THE NEXT SET after this one, in the order the bank lists them — topics in
+ *  order, sets in order, across topic boundaries. Null after the last set.
+ *  (Lee, 2026-09-03: "after submitting my final stamps for a set, go ahead
+ *  and navigate to the next set.") */
+export function nextSetAfter(topics: BoothTopic[], setId: string): { topic: BoothTopic; set: BoothSetInfo } | null {
+  const flat = topics.flatMap((t) => t.sets.map((s) => ({ topic: t, set: s })));
+  const i = flat.findIndex((x) => x.set.id === setId);
+  return i >= 0 && i + 1 < flat.length ? flat[i + 1] : null;
+}
+
 export type BlastOffStep = "talkthrough" | "results" | "arrange" | "film";
 
 /** /v3/$topic/$set/blast-off[/step] — the one place the nested URL is spelled. */

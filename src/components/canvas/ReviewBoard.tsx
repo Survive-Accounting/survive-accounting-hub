@@ -109,9 +109,13 @@ function ItemShell({ item, children, onRegen, printable, film }: {
   // files it, Obsidian gets the note, the production queue sees it. The
   // board item is untouched; the bank entry remembers where it came from.
   const [banked, setBanked] = useState<"no" | "busy" | "yes" | "err">("no");
-  const toBank = () => {
-    if (banked !== "no") return;
-    setBanked("busy");
+  // → PRODUCTION (Lee, 2026-09-03): the same idea, flagged as content to
+  // film — it shows under 🎬 Production queue in the bank, not Open.
+  const [produced, setProduced] = useState<"no" | "busy" | "yes" | "err">("no");
+  const toBank = (production = false) => {
+    const setState = production ? setProduced : setBanked;
+    if ((production ? produced : banked) !== "no") return;
+    setState("busy");
     const p = item.payload as Record<string, unknown>;
     const detail = String(p.body ?? p.proposal ?? p.pitch ?? p.summary ?? p.meaning ?? p.instruction ?? "");
     const id = `idea-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -123,13 +127,13 @@ function ItemShell({ item, children, onRegen, printable, film }: {
       subcategory: String(p.kind ?? item.kind).replace(/_/g, " "),
       status: "IDEA",
       sourcePath: typeof location !== "undefined" ? location.pathname : "/talkthrough",
-      context: { title: typeof document !== "undefined" ? document.title : "", fromBoardItem: item.id, boardKind: String(p.kind ?? item.kind), origin: "talkthrough-review" },
+      context: { title: typeof document !== "undefined" ? document.title : "", fromBoardItem: item.id, boardKind: String(p.kind ?? item.kind), origin: "talkthrough-review", ...(production ? { production: "1" } : {}) },
       promptMd: null, promptFilename: null,
       createdBy: getAdminWho() ?? "",
       sourceKind: "web", attachments: [], audioPath: null, transcriptStatus: null,
     } })
-      .then(() => { setBanked("yes"); organizeIdea({ data: { id } }).catch(() => { /* the idea is saved; organise again from the bank */ }); })
-      .catch(() => setBanked("err"));
+      .then(() => { setState("yes"); organizeIdea({ data: { id, draftPrompt: !production } }).catch(() => { /* the idea is saved; organise again from the bank */ }); })
+      .catch(() => setState("err"));
   };
   return (
     <div className="mb-2 rounded-2xl p-4 tt-item" style={{ background: PANEL, border: `1px solid ${item.status === "approved" ? "rgba(59,245,160,0.4)" : EDGE}`, opacity: archived ? 0.55 : 1 }}>
@@ -167,8 +171,14 @@ function ItemShell({ item, children, onRegen, printable, film }: {
           <button className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
             title={banked === "yes" ? "In the Idea Bank — AI is naming and filing it; Obsidian gets the note" : "Send to the Idea Bank (and Obsidian) as an idea to build"}
             style={banked === "yes" ? { background: "#7DD3FC", color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: banked === "err" ? "#F87171" : "#7DD3FC" }}
-            onClick={toBank}>
+            onClick={() => toBank(false)}>
             {banked === "busy" ? "…" : banked === "yes" ? "✓ in the bank" : banked === "err" ? "bank failed" : "→ idea bank"}
+          </button>
+          <button className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+            title={produced === "yes" ? "In the production queue (Idea Bank → 🎬 Production queue)" : "Send to the production queue — content to film"}
+            style={produced === "yes" ? { background: "#3BF5A0", color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: produced === "err" ? "#F87171" : "#3BF5A0" }}
+            onClick={() => toBank(true)}>
+            {produced === "busy" ? "…" : produced === "yes" ? "✓ in production" : produced === "err" ? "failed" : "→ production"}
           </button>
           <button className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
             style={archived ? { background: "#F87171", color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: NEON.muted }}

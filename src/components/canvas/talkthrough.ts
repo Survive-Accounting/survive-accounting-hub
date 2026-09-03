@@ -191,6 +191,24 @@ export const openContext = (tags: TalkTag[], sessionId: string): TalkTag | null 
   tags.filter((t) => t.sessionId === sessionId && !t.archivedAt && isContextTag(t) && t.endedAt == null)
     .sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
 
+/** EVERY open context, newest first — MULTI-STAMP (Lee, 2026-09-03): two or
+ *  more stamps can be open at once ("reword and revise choices at the same
+ *  time"); the words said while both are open belong to both. */
+export const openContexts = (tags: TalkTag[], sessionId: string): TalkTag[] =>
+  tags.filter((t) => t.sessionId === sessionId && !t.archivedAt && isContextTag(t) && t.endedAt == null)
+    .sort((a, b) => b.at.localeCompare(a.at));
+
+/** Every context whose window contains the segment's start, newest first. */
+export function contextsOfSegment(seg: TalkSegment, tags: TalkTag[]): TalkTag[] {
+  const s = new Date(seg.startedAt).getTime();
+  return tags.filter((t) => {
+    if (!isContextTag(t) || t.archivedAt) return false;
+    const a = new Date(t.at).getTime();
+    const b = t.endedAt ? new Date(t.endedAt).getTime() : Number.POSITIVE_INFINITY;
+    return s >= a && s < b;
+  }).sort((a, b) => b.at.localeCompare(a.at));
+}
+
 /** The context a segment belongs to: the latest-opened window containing its
  *  start. Untagged talk (no window) stays general set talk. */
 export function contextOfSegment(seg: TalkSegment, tags: TalkTag[]): TalkTag | null {

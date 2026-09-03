@@ -143,6 +143,10 @@ export const isUnsorted = (i: Idea): boolean => i.categories.length === 0;
 export const isUrgent = (i: Idea): boolean => i.context?.urgent === "1";
 /** Saved to come back to — the words are not finished. */
 export const isDraft = (i: Idea): boolean => i.context?.draft === "1";
+/** PRODUCTION QUEUE (content to film — slides, exhibits, new CEQs), routed
+ *  here from a review board with "→ production". Separate from the build
+ *  queue, which is code. */
+export const isProduction = (i: Idea): boolean => i.context?.production === "1";
 /** A to-do (work/personal) — Terry's, not the build queue. */
 export const isTodoIdea = (i: Idea): boolean => !!i.context?.todo;
 /** THE BUILD QUEUE (2026-09-03). Armed = Lee added it to the queue from the
