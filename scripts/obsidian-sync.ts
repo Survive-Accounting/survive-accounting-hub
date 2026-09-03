@@ -27,6 +27,7 @@
 //
 // USAGE (from the repo root, .env supplies Supabase + AI keys):
 //   bun run obsidian:sync                 # mirror + push status changes back
+//   bun run obsidian:sync -- --organize   # backfill AI title/TLDR/summary/categories where missing
 //   bun run obsidian:sync -- --draft      # also draft missing prompts
 //   bun run obsidian:sync -- --redraft --only=<idea id>   # replace one prompt (old one kept)
 //   bun run obsidian:sync -- --dry        # say what would happen, write nothing
@@ -35,8 +36,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { STATUSES, type Status } from "../src/components/ideas/model";
-import { buildIdeaPromptMessages, hasPromptSections } from "../src/lib/ideas-prompt";
+import { CATEGORIES, STATUSES, type Status } from "../src/components/ideas/model";
+import { buildIdeaPromptMessages, buildOrganizeMessages, hasPromptSections, suggestSession } from "../src/lib/ideas-prompt";
 
 const VAULT = process.env.OBSIDIAN_VAULT ?? "C:/Users/lee/Documents/Obsidian Vault";
 const DIR = path.join(VAULT, "Survive", "Ideas");
@@ -65,6 +66,10 @@ const DRY = args.has("--dry");
 // --watch: keep running, syncing every few minutes — Lee (2026-09-03) was not
 // seeing new ideas in Obsidian because nothing ran the sync. Leave this going
 // in a terminal on the build machine and the vault is never stale.
+// --organize: backfill the AI title / TLDR / summary / categories / session
+// for ideas saved before the app did this on save (or where it failed).
+// The same micro call the app makes; cheap; skips anything already done.
+const ORGANIZE = args.has("--organize");
 const WATCH = args.has("--watch");
 const WATCH_MS = Number([...args].find((a) => a.startsWith("--every="))?.slice(8) ?? 5) * 60_000;
 
@@ -300,6 +305,36 @@ async function main(): Promise<void> {
   const log = (s: string) => console.log(`${DRY ? "[dry] " : ""}${s}`);
 
   for (const r of rows) {
+    // --organize: title · TLDR · summary · categories · session, once.
+    if (ORGANIZE && !r.context?.organizedAt && (r.body?.trim() || r.title?.trim()) && (!ONLY || ONLY === r.id)) {
+      log(`organize ${r.title}`);
+      if (!DRY) {
+        const { runAiTask } = await import("../src/lib/ai.server");
+        const org = buildOrganizeMessages({
+          title: r.title || (r.body ?? "").slice(0, 80), body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
+          sourcePath: r.source_path ?? "", pageTitle: r.context?.title ?? "", existingPrompt: r.prompt_md,
+        });
+        const res = await runAiTask("micro", { system: org.system, user: org.user, maxOutput: 700 });
+        const m = res.text.match(/\{[\s\S]*\}/);
+        const ctx: Record<string, string> = { ...(r.context ?? {}) };
+        if (m) {
+          const j = JSON.parse(m[0]) as { title?: unknown; tldr?: unknown; summary?: unknown; categories?: unknown; urgent?: unknown };
+          if (typeof j.title === "string" && j.title.trim()) r.title = j.title.trim().slice(0, 120);
+          if (typeof j.tldr === "string") ctx.tldr = j.tldr.trim();
+          if (typeof j.summary === "string") ctx.summary = j.summary.trim();
+          if (!(r.categories ?? []).length && Array.isArray(j.categories)) {
+            r.categories = j.categories.filter((c): c is string => typeof c === "string" && (CATEGORIES as readonly string[]).includes(c)).slice(0, 2);
+          }
+          if (j.urgent === true && !ctx.urgent) ctx.urgentSuggested = "1";
+        }
+        ctx.session = suggestSession(r.source_path ?? "", r.categories ?? []);
+        ctx.organizedAt = new Date().toISOString();
+        r.context = ctx;
+        const { error: e } = await db.from("ideas").update({ title: r.title, categories: r.categories ?? [], context: ctx, updated_at: ctx.organizedAt }).eq("id", r.id);
+        if (e) throw new Error(`organize ${r.id}: ${e.message}`);
+      }
+    }
+
     // --draft: a missing prompt gets one, saved to the app first.
     // --redraft: an existing one is replaced, the old one kept.
     const eligible = (r.status === "IDEA" || r.status === "DRAFTED") && (!ONLY || ONLY === r.id);
