@@ -22,6 +22,7 @@ import { extractJsonObject, parsePass } from "@/components/canvas/talkthrough-pa
 import { ReviewBoardV2 } from "@/components/canvas/ReviewBoard";
 import { FilmPicksTray, openFilmMode } from "@/components/canvas/FilmPicks";
 import { queueReview, regenerateReviewItem, reviewStateOf } from "@/components/canvas/talkthrough-review";
+import { setActivePhraseSession, startPhraseBank } from "@/components/canvas/phrase-bank";
 import { sumUsage, type AiUsage } from "@/lib/ai-registry";
 import { BIG_FONT, NEON } from "@/components/canvas/theme";
 import { CREAM, EDGE, GOLD, GhostSweep, PANEL, SegmentLine, archiveSegment, boothToPassCeq, setLabel } from "./Booth";
@@ -89,6 +90,10 @@ export function SessionView({ tt, session, set, onResume }: { tt: TTState; sessi
   const [perCeq, setPerCeq] = useState<string | null>(null);
 
   useEffect(() => { void drainWhisperQueue(session.id); }, [session.id]);
+
+  // The teleprompter window mirrors whichever results board was opened last,
+  // so it follows Lee from set to set without being told.
+  useEffect(() => { startPhraseBank(); setActivePhraseSession(session.id); }, [session.id]);
 
   // B3 — honest review status + the B0 cost line (studio-only).
   const rs = reviewStateOf(tt.doc, session);
@@ -159,6 +164,14 @@ export function SessionView({ tt, session, set, onResume }: { tt: TTState; sessi
         )}
         <button className="rounded-xl px-3 py-1.5 text-xs font-bold" style={{ border: `1px solid ${GOLD}`, color: GOLD }} onClick={() => openFilmMode(session.setId)}>
           Open film mode →
+        </button>
+        <button
+          className="rounded-xl px-3 py-1.5 text-xs font-bold"
+          style={{ border: `1px solid #FDE68A`, color: "#FDE68A" }}
+          title="A second window showing only the SAY IT lines you clicked yellow — Enter next, Shift+Enter back, ` to the top"
+          onClick={() => window.open("/v3/teleprompter", "sa-teleprompter", "width=560,height=940")}
+        >
+          ▶ Teleprompter ↗
         </button>
         {rs.state === "ready" && <AttachTake session={session} doc={tt.doc} />}
         <div className="ml-auto flex items-center gap-3">

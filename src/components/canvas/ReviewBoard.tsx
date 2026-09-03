@@ -5,7 +5,7 @@
 // per-item regeneration. APPROVE on a CEQ edit applies to the live bank
 // (Lee's click is the authorization); OVERRIDE edits inline through the same
 // door. The script card doubles as the printable/side-screen read view.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Printer, RefreshCw, X } from "lucide-react";
 
 import { applyCeqEdit } from "@/lib/talkthrough.functions";
@@ -18,6 +18,10 @@ import {
 } from "./talkthrough";
 import { putBoardItem } from "./talkthrough-sync";
 import { filmPickOf, toggleFilmPick } from "./FilmPicks";
+import {
+  clearSessionPhrases, markOf, markPhrase, phraseBankDoc, phraseBankError, sayPhrases, scriptLineId,
+  setActivePhraseSession, startPhraseBank, subscribePhraseBank, type PhraseBankDoc,
+} from "./phrase-bank";
 import { pinStyleNote } from "./talkthrough-review";
 import type { MicroEditProposal, PassCeq } from "./talkthrough-pass";
 
@@ -215,16 +219,91 @@ function ItemShell({ item, children, onRegen, printable, film }: {
 
 // ────────────────────────────────────────────────────────── kind renders
 
+// SAY IT / SHOW THIS — the marking layer on the script's spoken lines.
+// Click a line = SAY IT (yellow); it banks, in click order, and appears in
+// the teleprompter window. Shift-click = SHOW THIS (blue); a visual note that
+// NEVER reaches the prompter. Marks live in phrase-bank.ts, which the
+// /v3/teleprompter window mirrors.
+const SAY_BG = "#FDE68A";
+const SHOW_BG = "#BFDBFE";
+
 function ScriptCard({ item, onRegen, film }: { item: BoardItem; onRegen: (c: string) => Promise<void>; film?: { doc: TTDoc; setId: string } }) {
   const p = item.payload as { beats?: { title: string; coversCeqIds: string[]; voice: string[]; emphasize: string; notes: string }[]; triggerWords?: string[]; compareContrasts?: string[] };
+  const [bank, setBank] = useState<PhraseBankDoc>(() => phraseBankDoc());
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  useEffect(() => {
+    startPhraseBank();
+    setActivePhraseSession(item.sessionId);
+    return subscribePhraseBank(setBank);
+  }, [item.sessionId]);
+
+  const banked = sayPhrases(bank, item.sessionId);
+  const err = phraseBankError();
+
+  const clickLine = (id: string, text: string, shift: boolean) =>
+    markPhrase({ id, sessionId: item.sessionId, text, mark: shift ? "show" : "say" });
+
   return (
     <ItemShell item={item} onRegen={onRegen} printable film={film}>
+      <div className="tt-chrome mb-2 flex flex-wrap items-center gap-2 rounded-xl px-3 py-2" style={{ border: `1px dashed ${EDGE}` }}>
+        <span style={{ fontSize: 11, color: NEON.muted }}>
+          Click a line → <b style={{ color: SAY_BG }}>SAY IT</b> (banks for the teleprompter) · Shift-click → <b style={{ color: SHOW_BG }}>SHOW THIS</b> (visual only, never banked)
+        </span>
+        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider" style={{ background: banked.length ? GOLD : "transparent", color: banked.length ? "#0B1322" : NEON.muted, border: banked.length ? "none" : `1px solid ${EDGE}` }}>
+          {banked.length} banked
+        </span>
+        <button
+          className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+          style={{ border: `1px solid ${GOLD}`, color: GOLD }}
+          title="Open the mirrored teleprompter in its own window — Enter next, Shift+Enter back, ` to the top"
+          onClick={() => window.open("/v3/teleprompter", "sa-teleprompter", "width=560,height=940")}
+        >
+          ▶ Teleprompter ↗
+        </button>
+        <button
+          className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+          style={{ border: `1px solid ${confirmClear ? "#F87171" : EDGE}`, color: confirmClear ? "#F87171" : NEON.muted }}
+          title="Empty this session's banked phrases so the next video starts clean"
+          onClick={() => {
+            if (!confirmClear) { setConfirmClear(true); return; }
+            clearSessionPhrases(item.sessionId);
+            setConfirmClear(false);
+          }}
+        >
+          {confirmClear ? "click again to empty the bank" : "empty bank"}
+        </button>
+      </div>
+      {err && <div className="tt-chrome mb-2" style={{ color: "#F87171", fontSize: 11.5 }}>⚠ {err}</div>}
       {(p.beats ?? []).map((b, i) => (
         <div key={i} style={{ marginBottom: 12 }}>
           <div style={{ fontFamily: BIG_FONT, fontWeight: 800, fontSize: 14.5 }}>{i + 1}. {b.title} <span style={{ color: NEON.muted, fontSize: 11, fontWeight: 400 }}>({b.coversCeqIds.length} CEQs)</span></div>
-          {b.voice.map((v, j) => (
-            <div key={j} style={{ fontSize: 13.5, margin: "3px 0 3px 10px", borderLeft: `2px solid ${GOLD}`, paddingLeft: 8 }}>“{v}”</div>
-          ))}
+          {b.voice.map((v, j) => {
+            const id = scriptLineId(item.id, i, j);
+            const m = markOf(bank, id);
+            const order = m === "say" ? banked.findIndex((x) => x.id === id) + 1 : 0;
+            return (
+              <div
+                key={j}
+                role="button"
+                tabIndex={0}
+                title={m === "say" ? "SAY IT — banked for the teleprompter. Shift-click to make it SHOW THIS instead." : m === "show" ? "SHOW THIS — a visual, not spoken. Click to bank it as SAY IT instead." : "Click to bank as SAY IT · Shift-click to mark SHOW THIS"}
+                onClick={(e) => clickLine(id, v, e.shiftKey)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); clickLine(id, v, e.shiftKey); } }}
+                style={{
+                  fontSize: 13.5, margin: "3px 0 3px 10px", borderLeft: `2px solid ${GOLD}`, paddingLeft: 8,
+                  cursor: "pointer", borderRadius: 4,
+                  background: m === "say" ? SAY_BG : m === "show" ? SHOW_BG : "transparent",
+                  color: m ? "#0B1322" : CREAM,
+                  fontWeight: m === "say" ? 700 : 400,
+                  paddingTop: m ? 2 : 0, paddingRight: m ? 6 : 0, paddingBottom: m ? 2 : 0,
+                }}
+              >
+                {order > 0 && <span className="tt-chrome" style={{ fontSize: 10, fontWeight: 900, marginRight: 5, opacity: 0.55 }}>{order}.</span>}
+                “{v}”
+              </div>
+            );
+          })}
           {b.emphasize && <div style={{ color: GOLD, fontSize: 12, marginLeft: 10 }}>▲ emphasize: {b.emphasize}</div>}
           {b.notes && <div style={{ color: NEON.muted, fontSize: 12, marginLeft: 10 }}>{b.notes}</div>}
         </div>

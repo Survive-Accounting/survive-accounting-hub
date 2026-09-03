@@ -551,6 +551,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "v3.$topic.$set.blast-off.results.tsx": "V3 Blast Off step 2 (AdminGate, noindex) — generate results (the session's review board)",
   "v3.$topic.$set.blast-off.arrange.tsx": "V3 Blast Off step 3 (AdminGate, noindex) — the running order, send to film",
   "v3.$topic.$set.blast-off.film.tsx": "V3 Blast Off (AdminGate, noindex) — in-page capture, reached from Arrange",
+  "v3.teleprompter.tsx": "Teleprompter mirror (AdminGate, noindex) — a second window showing the banked SAY IT phrases while Lee films",
   "study_.canvas.tsx": "internal authoring lab (noindex)",
   "study_.dashboard.tsx": "prototype (noindex)",
   // Two-portal home experiment (08-26). Register go.demo as a real template if it graduates

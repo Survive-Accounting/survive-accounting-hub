@@ -46,6 +46,7 @@ import { Route as UIndexRouteImport } from './routes/u.index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as SchoolIndexRouteImport } from './routes/$school.index'
 import { Route as VaTokenRouteImport } from './routes/va.$token'
+import { Route as V3TeleprompterRouteImport } from './routes/v3.teleprompter'
 import { Route as UTokenRouteImport } from './routes/u.$token'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
@@ -354,6 +355,11 @@ const SchoolIndexRoute = SchoolIndexRouteImport.update({
 const VaTokenRoute = VaTokenRouteImport.update({
   id: '/va/$token',
   path: '/va/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V3TeleprompterRoute = V3TeleprompterRouteImport.update({
+  id: '/v3/teleprompter',
+  path: '/v3/teleprompter',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UTokenRoute = UTokenRouteImport.update({
@@ -1088,6 +1094,7 @@ export interface FileRoutesByFullPath {
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/v3/teleprompter': typeof V3TeleprompterRoute
   '/va/$token': typeof VaTokenRoute
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
@@ -1248,6 +1255,7 @@ export interface FileRoutesByTo {
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/v3/teleprompter': typeof V3TeleprompterRoute
   '/va/$token': typeof VaTokenRoute
   '/$school': typeof SchoolIndexRoute
   '/outreach': typeof OutreachIndexRoute
@@ -1411,6 +1419,7 @@ export interface FileRoutesById {
   '/study_/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/v3/teleprompter': typeof V3TeleprompterRoute
   '/va/$token': typeof VaTokenRoute
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
@@ -1576,6 +1585,7 @@ export interface FileRouteTypes {
     | '/study/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/v3/teleprompter'
     | '/va/$token'
     | '/$school/'
     | '/outreach/'
@@ -1736,6 +1746,7 @@ export interface FileRouteTypes {
     | '/study/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/v3/teleprompter'
     | '/va/$token'
     | '/$school'
     | '/outreach'
@@ -1898,6 +1909,7 @@ export interface FileRouteTypes {
     | '/study_/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/v3/teleprompter'
     | '/va/$token'
     | '/$school/'
     | '/outreach/'
@@ -2033,6 +2045,7 @@ export interface RootRouteChildren {
   StudyFoundationsRoute: typeof StudyFoundationsRoute
   TSlugRoute: typeof TSlugRoute
   UTokenRoute: typeof UTokenRoute
+  V3TeleprompterRoute: typeof V3TeleprompterRoute
   VaTokenRoute: typeof VaTokenRoute
   SchoolIndexRoute: typeof SchoolIndexRoute
   UIndexRoute: typeof UIndexRoute
@@ -2329,6 +2342,13 @@ declare module '@tanstack/react-router' {
       path: '/va/$token'
       fullPath: '/va/$token'
       preLoaderRoute: typeof VaTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v3/teleprompter': {
+      id: '/v3/teleprompter'
+      path: '/v3/teleprompter'
+      fullPath: '/v3/teleprompter'
+      preLoaderRoute: typeof V3TeleprompterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/u/$token': {
@@ -3472,6 +3492,7 @@ const rootRouteChildren: RootRouteChildren = {
   StudyFoundationsRoute: StudyFoundationsRoute,
   TSlugRoute: TSlugRoute,
   UTokenRoute: UTokenRoute,
+  V3TeleprompterRoute: V3TeleprompterRoute,
   VaTokenRoute: VaTokenRoute,
   SchoolIndexRoute: SchoolIndexRoute,
   UIndexRoute: UIndexRoute,
