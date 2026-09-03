@@ -36,7 +36,27 @@ const REPO = path.resolve(process.cwd());
 const QUEUE_DIR = process.env.QUEUE_DIR ?? path.resolve(REPO, "..", "build-queue");
 const LOG_DIR = path.join(QUEUE_DIR, "logs");
 const GH_REPO = "Survive-Accounting/survive-accounting-hub";
-const CLAUDE_BIN = process.env.CLAUDE_BIN ?? (process.platform === "win32" ? path.join(process.env.APPDATA ?? "", "npm", "claude.cmd") : "claude");
+/** THE CLI, called through node on its JavaScript entry rather than the npm
+ *  `.cmd` wrapper: launched from a double-clicked .cmd, bun's shell could
+ *  not run the wrapper ("not recognized as an internal or external
+ *  command") even though it ran fine from Git Bash. node + cli.js works from
+ *  anywhere. CLAUDE_BIN overrides both. */
+function resolveClaude(): { cmd: string; args: string[] } {
+  if (process.env.CLAUDE_BIN) return { cmd: process.env.CLAUDE_BIN, args: [] };
+  const pkgDir = path.join(process.env.APPDATA ?? "", "npm", "node_modules", "@anthropic-ai", "claude-code");
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(pkgDir, "package.json"), "utf8")) as { bin?: string | Record<string, string> };
+    const bin = typeof pkg.bin === "string" ? pkg.bin : pkg.bin?.claude;
+    if (bin) {
+      const binPath = path.join(pkgDir, bin);
+      // A native exe (bin/claude.exe) runs as-is; a JS entry runs under node.
+      return /\.(c|m)?js$/i.test(bin) ? { cmd: "node", args: [binPath] } : { cmd: binPath, args: [] };
+    }
+  } catch { /* not installed globally under APPDATA — fall through to PATH */ }
+  return { cmd: "claude", args: [] };
+}
+const CLAUDE = resolveClaude();
+const CLAUDE_BIN = `${CLAUDE.cmd} ${CLAUDE.args.join(" ")}`.trim();
 const MAX_TURNS = Number(process.env.QUEUE_MAX_TURNS ?? 80);
 const BUILD_TIMEOUT_MS = Number(process.env.QUEUE_BUILD_MINUTES ?? 45) * 60_000;
 const DEPLOY_WAIT_MS = Number(process.env.QUEUE_DEPLOY_MINUTES ?? 15) * 60_000;
@@ -58,12 +78,15 @@ interface Row {
 const log = (s: string) => console.log(`[queue ${new Date().toISOString().slice(11, 19)}] ${s}`);
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "idea";
 
-function sh(cmd: string, cmdArgs: string[], cwd: string, opts: { env?: NodeJS.ProcessEnv; quiet?: boolean } = {}): { ok: boolean; out: string } {
-  const r = spawnSync(cmd, cmdArgs, { cwd, env: { ...process.env, ...(opts.env ?? {}) }, encoding: "utf8", shell: process.platform === "win32", maxBuffer: 64 * 1024 * 1024 });
+function sh(cmd: string, cmdArgs: string[], cwd: string, opts: { env?: NodeJS.ProcessEnv; quiet?: boolean; shell?: boolean } = {}): { ok: boolean; out: string } {
+  const r = spawnSync(cmd, cmdArgs, { cwd, env: { ...process.env, ...(opts.env ?? {}) }, encoding: "utf8", shell: opts.shell ?? process.platform === "win32", maxBuffer: 64 * 1024 * 1024 });
   const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
   if (!opts.quiet && r.status !== 0) log(`  ! ${cmd} ${cmdArgs.join(" ")} → exit ${r.status}\n${out.slice(-1500)}`);
   return { ok: r.status === 0, out };
 }
+
+/** Run the CLI (no shell — node + cli.js takes its arguments straight). */
+const claude = (cmdArgs: string[], cwd: string, quiet = true) => sh(CLAUDE.cmd, [...CLAUDE.args, ...cmdArgs], cwd, { quiet, shell: false });
 
 /** The prompt sent to Claude Code, with the house rules and the required
  *  closing sections. The checklist is written AFTER the build, from what was
@@ -155,8 +178,8 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
     const prompt = buildPrompt(r, branch);
     fs.writeFileSync(path.join(dir, ".build-queue-prompt.md"), prompt, "utf8");
     const out = await new Promise<{ code: number | null; text: string }>((resolve) => {
-      const child = spawn(CLAUDE_BIN, ["-p", "--output-format", "text", "--dangerously-skip-permissions", "--max-turns", String(MAX_TURNS)], {
-        cwd: dir, env: { ...process.env, CI: "1" }, shell: process.platform === "win32",
+      const child = spawn(CLAUDE.cmd, [...CLAUDE.args, "-p", "--output-format", "text", "--dangerously-skip-permissions", "--max-turns", String(MAX_TURNS)], {
+        cwd: dir, env: { ...process.env, CI: "1" }, shell: false,
       });
       let text = "";
       const timer = setTimeout(() => { note("  ! build timed out — killing"); child.kill(); }, BUILD_TIMEOUT_MS);
@@ -224,13 +247,14 @@ async function pass(): Promise<boolean> {
 
 async function main(): Promise<void> {
   if (!fs.existsSync(path.join(REPO, ".env"))) throw new Error("run from the repo root (no .env here)");
-  if (!DRY && !sh(CLAUDE_BIN, ["--version"], REPO, { quiet: true }).ok) throw new Error(`claude CLI not found at ${CLAUDE_BIN} — npm i -g @anthropic-ai/claude-code, or set CLAUDE_BIN`);
-  // Unattended means logged in. One tiny call proves it before any build
-  // starts; "Not logged in" here is a one-time `claude` → /login on this PC.
   if (!DRY) {
-    const probe = sh(CLAUDE_BIN, ["-p", "Reply with exactly: OK", "--output-format", "text", "--max-turns", "1"], REPO, { quiet: true });
-    if (!probe.ok || /not logged in|please run \/login/i.test(probe.out)) throw new Error("claude CLI is not logged in on this machine — open a terminal, run `claude`, then `/login` once (or set ANTHROPIC_API_KEY in .env)");
-    log(`claude CLI ready (${sh(CLAUDE_BIN, ["--version"], REPO, { quiet: true }).out.trim()})`);
+    const v = claude(["--version"], REPO);
+    if (!v.ok || !/\d+\.\d+/.test(v.out)) throw new Error(`claude CLI not found (${CLAUDE_BIN}) — double-click scripts\\claude-login.cmd once, or npm i -g @anthropic-ai/claude-code. Output: ${v.out.slice(0, 200)}`);
+    // Unattended means logged in. One tiny call proves it before any build
+    // starts; "Not logged in" here is the one-time claude-login.cmd on this PC.
+    const probe = claude(["-p", "Reply with exactly: OK", "--output-format", "text", "--max-turns", "1"], REPO);
+    if (!probe.ok || /not logged in|please run \/login/i.test(probe.out)) throw new Error("claude CLI is not logged in on this machine — double-click scripts\\claude-login.cmd, type /login, finish in the browser, then start this again");
+    log(`claude CLI ready (${v.out.trim()})`);
   }
   for (;;) {
     try { await pass(); }
