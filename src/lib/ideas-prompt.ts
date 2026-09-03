@@ -44,12 +44,23 @@ export const PHASED_PREAMBLE = [
   "> them in one pass only if he says so. Do not split silently, and do not skip a phase.",
 ].join("\n");
 
-/** Prepend the phase instruction, once. Re-running organise (or a redraft) must
- *  not stack three copies of it on the same prompt. */
+/** Prepend the phase instruction, once.
+ *
+ *  IT GOES INSIDE `## Prompt`, not above the document. Everything that hands a
+ *  prompt to Claude Code — the vault's prompt box, the summary email, the
+ *  Obsidian note — takes the `## Prompt` SECTION, so an instruction sitting
+ *  above `## TLDR` would be silently dropped on the way to the only reader who
+ *  needs it. A prompt with no sections (a pasted one) gets it up top.
+ *
+ *  Idempotent: re-running organise, or a redraft, must not stack three copies. */
 export function withPhasedPreamble(md: string | null | undefined): string {
   const body = (md ?? "").trim();
-  if (body.startsWith(PHASED_MARKER)) return body;
-  return `${PHASED_PREAMBLE}\n\n${body}`;
+  if (!hasPromptSections(body)) {
+    return body.startsWith(PHASED_MARKER) ? body : `${PHASED_PREAMBLE}\n\n${body}`;
+  }
+  const prompt = promptSection(body, "## Prompt");
+  if (prompt.startsWith(PHASED_MARKER)) return body;
+  return replacePromptSection(body, `${PHASED_PREAMBLE}\n\n${prompt}`);
 }
 
 export function buildOrganizeMessages(idea: IdeaForPrompt & { existingPrompt?: string | null; intent?: string; other?: string }): { system: string; user: string } {

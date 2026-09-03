@@ -105,6 +105,8 @@ export function IdeasDock() {
   const [draftErr, setDraftErr] = useState<string | null>(null);
   const lastWritten = useRef<string>("");
   const snap = (d: IdeaDraft) => JSON.stringify({ ...d, updatedAt: "" });
+  const draftRef = useRef<IdeaDraft | null>(null);
+  draftRef.current = draft;
 
   useEffect(() => { try { setDismissed(sessionStorage.getItem(DISMISS_KEY) === "1"); } catch { /* private mode */ } }, []);
 
@@ -127,7 +129,13 @@ export function IdeasDock() {
     setDraftErr(r.error);
     const loaded = r.draft ?? emptyDraft();
     const reopen = shouldReopen(r.draft) && (isInternalPath(pathname) || isAdminUnlocked());
-    const next: IdeaDraft = { ...loaded, open: reopen };
+    // WHO CHANGES AT UNLOCK, and with it which draft key is ours. Two things
+    // must survive that: words already typed (they beat an empty stored
+    // draft), and an open window — which must not slam shut the instant Lee
+    // types the password.
+    const prev = draftRef.current;
+    const base = prev && hasContent(prev) && !hasContent(loaded) ? prev : loaded;
+    const next: IdeaDraft = { ...base, open: !!prev?.open || reopen };
     lastWritten.current = snap(next);
     setDraft(next);
     // pathname is deliberately NOT a dependency: re-reading on every navigation
@@ -147,6 +155,10 @@ export function IdeasDock() {
   }, [draft, who]);
 
   const patch = useCallback((p: Partial<IdeaDraft>) => setDraft((d) => (d ? { ...d, ...p } : d)), []);
+  /** The same, computed FROM the live draft — an upload that finishes while
+   *  Lee keeps typing must append to the list as it is now, not as it was when
+   *  the upload started. */
+  const patchWith = useCallback((fn: (d: IdeaDraft) => Partial<IdeaDraft>) => setDraft((d) => (d ? { ...d, ...fn(d) } : d)), []);
   const openBank = useCallback(() => setDraft((d) => ({ ...(d ?? emptyDraft()), open: true, collapsed: false })), []);
   const discard = useCallback(() => {
     clearDraft(who);
@@ -241,6 +253,7 @@ export function IdeasDock() {
           draftErr={draftErr}
           who={who}
           patch={patch}
+          patchWith={patchWith}
           discard={discard}
           locked={!unlocked && !isInternalPath(pathname)}
           onUnlocked={() => { setUnlocked(true); setWho(getAdminWho()); refresh(); }}
@@ -254,10 +267,12 @@ export function IdeasDock() {
 
 // ------------------------------------------------------- the floating window
 
-function Drawer({ pathname, ideas, loadErr, draft, draftErr, who, patch, discard, locked, onUnlocked, onClose, onSaved }: {
+function Drawer({ pathname, ideas, loadErr, draft, draftErr, patch, patchWith, discard, locked, onUnlocked, onClose, onSaved }: {
   pathname: string; ideas: Idea[]; loadErr: string | null;
   draft: IdeaDraft; draftErr: string | null; who: AdminWho | null;
-  patch: (p: Partial<IdeaDraft>) => void; discard: () => void;
+  patch: (p: Partial<IdeaDraft>) => void;
+  patchWith: (fn: (d: IdeaDraft) => Partial<IdeaDraft>) => void;
+  discard: () => void;
   locked: boolean; onUnlocked: () => void;
   onClose: () => void; onSaved: (kind: SavedKind) => void;
 }) {
@@ -434,8 +449,10 @@ function Drawer({ pathname, ideas, loadErr, draft, draftErr, who, patch, discard
     try {
       const r = await transcribeIdeaAudio(blob);
       const judged = judgeTranscript(r.text, voicedMs);
-      const appended = judged.text ? (text.trim() ? `${text.trimEnd()}\n${judged.text}` : judged.text) : text;
-      patch({ audio: { path: r.path, status: r.error ? "failed" : judged.status }, text: appended });
+      patchWith((d) => ({
+        audio: { path: r.path, status: r.error ? "failed" : judged.status },
+        text: judged.text ? (d.text.trim() ? `${d.text.trimEnd()}\n${judged.text}` : judged.text) : d.text,
+      }));
       setVoiceMsg(judged.text
         ? "Transcribed — edit it if you like."
         : judged.status === "rejected" ? "That came back as noise — audio saved, type the idea."
@@ -445,13 +462,13 @@ function Drawer({ pathname, ideas, loadErr, draft, draftErr, who, patch, discard
   };
 
   const addFiles = useCallback(async (list: Iterable<File>) => {
+    const added: Attachment[] = [];
     for (const f of Array.from(list)) {
-      try {
-        const a = await uploadIdeaFile(f);
-        patch({ files: [...(draft.files ?? []), a] });
-      } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+      try { added.push(await uploadIdeaFile(f)); }
+      catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     }
-  }, [draft.files, patch]);
+    if (added.length) patchWith((d) => ({ files: [...d.files, ...added] }));
+  }, [patchWith]);
 
   // ---- ADD SCREENSHOT. Freeze one frame, then drag a box over it. When the
   // browser will not capture, it SAYS SO and offers the paste route — it never
