@@ -486,23 +486,47 @@ const FOCUS_CSS = `
 // ── TUTOR CARD + FULL BIO ────────────────────────────────────────────────────────────────────
 // Lee's real photo — 4:5 crop centered on the face (moved here from landing.tsx unchanged; the
 // old cream SVG portrait stays retired for video frames).
-export function LeePortrait({ width = 200, caption = true }: { width?: number; caption?: boolean }) {
+export function LeePortrait({ width = 200, caption = true, variant = "sunrise" }: {
+  width?: number;
+  caption?: boolean;
+  /** WHICH LEE. The card and the modal deliberately show different photographs — meeting the same
+   *  posed headshot twice in two clicks reads as a stock asset, whereas a second, different picture
+   *  reads as a person. "kid" is the childhood Journal of Accountancy shot and carries its own
+   *  caption, because without one it is a photo of a stranger's child. */
+  variant?: "sunrise" | "kid";
+}) {
+  // Each photo needs its own crop: the sunrise frame is a 4:3 landscape whose subject sits low, the
+  // kid photo is a near-4:5 portrait whose subject sits in the LEFT third with the magazine — the
+  // thing the caption is about — just under his hands. One shared crop would ruin one of them.
+  const art = variant === "kid"
+    ? {
+        src: "/lee-kid-joa.jpg",
+        alt: "Lee as a kid, reading the Journal of Accountancy",
+        // The subject is in the LEFT column and object-position has nothing to give here — the
+        // source is 0.75 against a 0.8 frame, so width fills exactly and only ~6% of height is
+        // croppable. The zoom has to be anchored instead: scaling about the default centre framed
+        // the CAT. Origin at the top-left quarter puts the face and the masthead in the window.
+        objectPosition: "50% 50%",
+        transformOrigin: "0% 25%",
+        transform: "scale(1.9)",
+      }
+    : {
+        src: "/lee-sunrise.jpg",
+        alt: "Lee Ingram",
+        objectPosition: "20% 50%",
+        transformOrigin: "center",
+        // THE FACE SITS HIGHER than a plain cover crop puts it. The source is 4:3 into a 4:5 frame,
+        // so cover fills the height EXACTLY and object-position has no vertical travel to give. A
+        // 14% scale buys ~7% of headroom each side; shifting up 5% spends part of it, so the frame
+        // stays covered and the hair and arm stay in shot.
+        transform: "scale(1.14) translateY(-5%)",
+      };
   return (
     <figure className="mx-auto sm:mx-0" style={{ width, transform: "rotate(1.5deg)" }}>
       <div style={{ width, aspectRatio: "4 / 5", borderRadius: 16, border: "3px solid var(--brand-cream)", overflow: "hidden" }}>
-        {/* NO extra zoom. The source is 4:3 landscape and the frame is 4:5, so `cover` already fills
-            the height exactly — the whole figure is in shot top to bottom (all of the hair, and the
-            outstretched arm entering bottom-left). Only the horizontal window is a choice, and 20%
-            keeps the arm in frame without cutting the sunrise off his right. Scaling up here was
-            what cropped the hair and the arm away. */}
-        {/* THE FACE SITS HIGHER than a plain cover crop puts it. The source is 4:3 into a 4:5
-            frame, so cover fills the height EXACTLY and object-position has no vertical travel to
-            give — the only way to raise the face is to make the image slightly taller than the box
-            and shift it up. A 14% scale buys ~7% of headroom each side; translating up 5% stays
-            inside that, so the frame is still fully covered and the hair and arm are still in. */}
         <img
-          src="/lee-sunrise.jpg" alt="Lee Ingram"
-          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "20% 50%", transform: "scale(1.14) translateY(-5%)", display: "block" }}
+          src={art.src} alt={art.alt}
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: art.objectPosition, transformOrigin: art.transformOrigin, transform: art.transform, display: "block" }}
         />
       </div>
       {caption && (
@@ -588,7 +612,15 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
           <span aria-hidden style={{ fontSize: 20 }}>×</span>
         </button>
         <div className="flex items-start gap-5">
-          <LeePortrait width={104} caption={false} />
+          {/* A DIFFERENT PHOTO FROM THE CARD, on purpose: the same headshot twice in two clicks
+              reads as a stock asset. The caption is not decoration — without it this is a picture
+              of a stranger's child, and with it it is the joke that makes the whole bio land. */}
+          <figure className="shrink-0" style={{ width: 104 }}>
+            <LeePortrait width={104} caption={false} variant="kid" />
+            <figcaption className="mt-2 text-[11px] leading-snug" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
+              Just reading the Journal of Accountancy as a kid, vibing.
+            </figcaption>
+          </figure>
           <div className="min-w-0" style={{ marginTop: 8 }}>
             <h2 className="text-[24px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
               Hey, I&apos;m Lee.
