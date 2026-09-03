@@ -1,13 +1,6 @@
 @echo off
-rem ONE-TIME LOGIN for the build queue. Double-click this. When Claude Code
-rem opens in this window, type   /login   and press Enter, finish in the
-rem browser, then type   /exit   and press Enter. That's it.
-title Claude Code — one-time login for the build queue
-echo.
-echo   When the prompt appears below, type  /login  and press Enter.
-echo   Finish the sign-in in your browser, come back here, type  /exit  and press Enter.
-echo.
-"%APPDATA%\npm\claude.cmd"
-echo.
-echo   Done. You can close this window and double-click build-queue-watch.cmd.
-pause
+rem ONE-TIME LOGIN for the build queue. Double-click this. A PowerShell window
+rem opens with Claude Code inside it. Type   /login   then Enter, finish in the
+rem browser, come back, type   /exit   then Enter. The window stays open either
+rem way, so if something goes wrong the message is still on screen.
+start "Claude Code — one-time login" powershell -NoExit -ExecutionPolicy Bypass -Command "Write-Host ''; Write-Host '  When the prompt appears, type  /login  and press Enter. After the browser sign-in, type  /exit  and press Enter.' -ForegroundColor Yellow; Write-Host ''; & \"$env:APPDATA\npm\claude.cmd\""
