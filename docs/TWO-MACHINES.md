@@ -23,10 +23,18 @@ now the build machine's problem.
 
 ## King — ideas from anywhere, updates by email
 
-King unlocks the admin gate once (passcode, identity **King**) and then
-**Ctrl+I works on every page for him too** — the growth dashboard mostly, but
-any page he is testing. Voice or text, same modal. His ideas land in the same
-vault, tagged `by: king`, captured from the page he was on.
+Ctrl+I works on **every page of the site** for anyone who knows the password.
+The first time on a device the modal asks for it (and whether you are Lee or
+King); after that the device is remembered and it never asks again. Students
+never see a pill — it only appears once a device is unlocked. King's ideas
+land in the same vault, tagged `by: king`, captured from the page he was on.
+
+**Preview before saving.** Type or dictate, then **Preview →**: the prompt is
+drafted (nothing saved yet) and shown as folded sections — TLDR, Summary,
+Prompt (editable; paste one back if you fixed it elsewhere), Testing
+checklist, and the email exactly as the other person will see it. Then
+**↻ Regenerate** (it keeps your edits), **Save**, or **Save & send to …**.
+Plain **Save** without previewing still works and is still ten seconds.
 
 - In his modal the checkbox says **Send summary to Lee**. Ticked, Lee gets the
   TLDR · summary · prompt · testing checklist by email (the prompt is drafted
