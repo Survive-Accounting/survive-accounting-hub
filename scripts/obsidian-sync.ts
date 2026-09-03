@@ -73,7 +73,14 @@ const ORGANIZE = args.has("--organize");
 // --import=<file>: notes dictated elsewhere on the build machine become ONE
 // idea in the bank (then --organize / --draft treat it like any other).
 const IMPORT = [...args].find((a) => a.startsWith("--import="))?.slice(9) ?? null;
-const IMPORT_PAGE = [...args].find((a) => a.startsWith("--page="))?.slice(7) ?? "/v3";
+// Git Bash rewrites a value that starts with "/" into a Windows path
+// (MSYS path conversion) — so `--page=v3/...` without the slash is safest;
+// either form is accepted, and a mangled "C:/Program Files/Git/..." is undone.
+const IMPORT_PAGE = (() => {
+  const raw = [...args].find((a) => a.startsWith("--page="))?.slice(7) ?? "v3";
+  const fixed = raw.replace(/^[A-Za-z]:[\\/]Program Files[\\/]Git[\\/]/i, "").replace(/\\/g, "/");
+  return fixed.startsWith("/") ? fixed : `/${fixed}`;
+})();
 const WATCH = args.has("--watch");
 const WATCH_MS = Number([...args].find((a) => a.startsWith("--every="))?.slice(8) ?? 5) * 60_000;
 
@@ -302,6 +309,8 @@ async function main(): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as unknown as { from: (t: string) => any };
 
+  const log = (s: string) => console.log(`${DRY ? "[dry] " : ""}${s}`);
+
   // --import: a text file → one idea, saved before anything else runs.
   if (IMPORT) {
     const text = fs.readFileSync(IMPORT, "utf8").replace(/\r\n/g, "\n").trim();
@@ -338,7 +347,6 @@ async function main(): Promise<void> {
   }
 
   let created = 0, refreshed = 0, pushed = 0, drafted = 0, kept = 0;
-  const log = (s: string) => console.log(`${DRY ? "[dry] " : ""}${s}`);
 
   for (const r of rows) {
     // --organize: title · TLDR · summary · categories · session, once.
