@@ -393,9 +393,17 @@ async function main(): Promise<void> {
       pushed++;
     }
     const front2 = { ...front, status: r.status };
-    if (!noteEdited && fileStatus !== r.status) {
-      log(`status ${r.title}: note ${fileStatus || "?"} → ${r.status} (from the app)`);
-      if (!DRY) fs.writeFileSync(existing, renderFront(noteFront(r, front2)) + "\n" + body.replace(/^\n/, ""), "utf8");
+    // GENERATED FRONTMATTER FOLLOWS THE APP. Everything except `status` and
+    // `reviewed` is the app's (AI title, TLDR, session, categories, urgent,
+    // priority) — when any of it changed, refresh the frontmatter and leave
+    // the body alone. The one status case: the app moved on and the note
+    // did not (see above).
+    const fresh = noteFront(r, front2);
+    const stale = (!noteEdited && fileStatus !== r.status)
+      || Object.entries(fresh).some(([k, v]) => k !== "status" && k !== "reviewed" && k !== "synced" && JSON.stringify(front[k] ?? (Array.isArray(v) ? [] : typeof v === "boolean" ? false : "")) !== JSON.stringify(v));
+    if (stale) {
+      log(`front  ${r.title}${!noteEdited && fileStatus !== r.status ? ` — status ${fileStatus || "?"} → ${r.status} (from the app)` : " — refreshed from the app"}`);
+      if (!DRY) fs.writeFileSync(existing, renderFront(fresh) + "\n" + body.replace(/^\n/, ""), "utf8");
     }
 
     // The note was waiting for a prompt and the app now has one — or this run
