@@ -138,6 +138,10 @@ function noteFront(r: Row, keep: Front): Front {
     synced: r.status,
     reviewed: typeof keep.reviewed === "boolean" ? keep.reviewed : false,
     urgent: r.context?.urgent === "1",
+    queued: r.context?.armed === "1",
+    queuePriority: r.context?.queuePriority ?? "",
+    built: r.context?.built === "1",
+    preview: r.context?.previewUrl ?? "",
     priority: String(Number(r.context?.priority ?? 0) || 0),
     draft: r.context?.draft === "1",
     tldr: r.context?.tldr ?? "",
@@ -198,6 +202,14 @@ function noteBody(r: Row): string {
     out.push("## Summary", "", "_not drafted yet_", "");
     out.push("## Prompt", "", PENDING, "");
     out.push("## Testing checklist", "", "- [ ] _(drafted with the prompt)_", "");
+  }
+  if (r.context?.built === "1") {
+    out.push("## Built — test it", "");
+    out.push(`Branch \`${r.context.branch ?? "?"}\`${r.context.previewUrl ? ` · [open the preview](${r.context.previewUrl})` : ` · preview ${r.context.previewState ?? "pending"}`}`, "");
+    let checks: string[] = [];
+    try { const v = JSON.parse(r.context.testChecklist ?? "[]"); checks = Array.isArray(v) ? v.map(String) : []; } catch { /* none */ }
+    out.push(...(checks.length ? checks.map((c) => { const m = c.match(/^(.*?)\s+—\s+(https?:\/\/\S+)\s*$/); return m ? `- [ ] ${m[1]} — [${m[2].replace(/^https?:\/\/[^/]+/, "") || "/"}](${m[2]})` : `- [ ] ${c}`; }) : ["- [ ] _(no checklist came back — see the report)_"]), "");
+    if (r.context.report) out.push("### Build report", "", r.context.report, "");
   }
   if (r.context?.lastSentTo) out.push(`_Summary last sent to ${r.context.lastSentTo}${r.context.lastSentAt ? ` on ${day(r.context.lastSentAt)}` : ""}._`, "");
   if (r.context?.previousPromptMd) out.push("## Previous prompt (kept)", "", r.context.previousPromptMd, "");
@@ -353,13 +365,18 @@ async function main(): Promise<void> {
   if (fs.existsSync(queueFile)) {
     const ticks = new Map<string, { sent: boolean; reviewed: boolean }>();
     for (const l of fs.readFileSync(queueFile, "utf8").split(/\r?\n/)) {
+      // today's line: "- [ ] reviewed — …"; yesterday's: "- [ ] sent [ ] reviewed — …"
+      const m1 = l.match(/^- \[([ xX])\] reviewed .*<!--\s*(\S+)\s*-->/);
+      if (m1) { ticks.set(m1[2], { sent: true, reviewed: m1[1] !== " " }); continue; }
       const m = l.match(/^- \[([ xX])\] sent \[([ xX])\] reviewed .*<!--\s*(\S+)\s*-->/);
       if (m) ticks.set(m[3], { sent: m[1] !== " ", reviewed: m[2] !== " " });
     }
     for (const r of rows) {
       const t = ticks.get(r.id);
       if (!t) continue;
-      const want = t.reviewed ? "APPROVED" : t.sent ? "SUBMITTED" : (r.status === "SUBMITTED" || r.status === "APPROVED") ? "DRAFTED" : r.status;
+      // Only REVIEWED moves things now (armed/built are the runner's). Un-ticking
+      // a reviewed item reopens it; nothing else changes from the list.
+      const want = t.reviewed ? "APPROVED" : r.status === "APPROVED" ? (r.context?.armed === "1" ? "SUBMITTED" : "DRAFTED") : r.status;
       if (want !== r.status) {
         log(`queue  ${r.title}: ${r.status} → ${want} (from the checklist)`);
         if (!DRY) {
@@ -481,8 +498,10 @@ async function main(): Promise<void> {
     }
 
     // The note was waiting for a prompt and the app now has one — or this run
-    // redrafted it: refresh the body, keep the frontmatter Lee may have touched.
-    if ((body.includes(PENDING) && r.prompt_md?.trim()) || redrawn) {
+    // redrafted it — or a build landed and the note has no "Built" section yet:
+    // refresh the body, keep the frontmatter Lee may have touched.
+    const buildLanded = r.context?.built === "1" && !body.includes("## Built — test it");
+    if ((body.includes(PENDING) && r.prompt_md?.trim()) || redrawn || buildLanded) {
       log(`prompt ${path.basename(existing)} — ${redrawn ? "redrafted (previous kept below)" : "prompt landed"}`);
       if (!DRY) fs.writeFileSync(existing, renderFront(noteFront(r, front2)) + "\n" + noteBody(r), "utf8");
       refreshed++;
@@ -512,26 +531,44 @@ async function main(): Promise<void> {
     if (!DRY) fs.writeFileSync(path.join(PROMPTS, `${promptName(r)}.md`), `${body}\n`, "utf8");
   }
   const projKey = (r: Row) => r.context?.project ?? suggestProject(r.source_path ?? "", r.categories ?? []).key;
+  const checklistOf = (r: Row): string[] => { try { const v = JSON.parse(r.context?.testChecklist ?? "[]"); return Array.isArray(v) ? v.map(String) : []; } catch { return []; } };
   const line = (r: Row) => {
-    const sent = r.status === "SUBMITTED" || r.status === "APPROVED";
     const reviewed = r.status === "APPROVED";
     const title = `[[${noteName(r)}|${r.title.replace(/[[\]|]/g, " ")}]]`;
     const prompt = r.prompt_md?.trim() ? ` · [[${promptName(r)}|⬇ prompt]]` : " · _no prompt yet_";
-    return `- [${sent ? "x" : " "}] sent [${reviewed ? "x" : " "}] reviewed — ${reviewed ? `~~${title}~~` : title}${prompt} · #project/${projKey(r)} <!-- ${r.id} -->`;
+    const pri = r.context?.armed === "1" ? ` · **${r.context.queuePriority ?? "medium"}**` : "";
+    const preview = r.context?.built === "1" && r.context?.previewUrl ? ` · [open the preview](${r.context.previewUrl})` : "";
+    return `- [${reviewed ? "x" : " "}] reviewed — ${reviewed ? `~~${title}~~` : title}${pri}${preview}${prompt} · #project/${projKey(r)} <!-- ${r.id} -->`;
   };
-  const urgentRows = rows.filter((r) => r.context?.urgent === "1" && r.status !== "PARKED" && r.status !== "APPROVED").sort(rank);
-  const openRows = rows.filter((r) => r.context?.urgent !== "1" && r.status !== "PARKED" && r.status !== "APPROVED" && r.context?.draft !== "1").sort(rank);
-  const draftRows = rows.filter((r) => r.context?.draft === "1" && r.status !== "PARKED").sort(rank);
+  const withChecks = (r: Row) => [line(r), ...checklistOf(r).map((c) => {
+    const m = c.match(/^(.*?)\s+—\s+(https?:\/\/\S+)\s*$/);
+    return m ? `  - [ ] ${m[1]} — [${m[2].replace(/^https?:\/\/[^/]+/, "") || "/"}](${m[2]})` : `  - [ ] ${c}`;
+  })].join("\n");
+  const Q_RANK: Record<string, number> = { urgent: 4, high: 3, medium: 2, low: 1 };
+  const byQueue = (a: Row, b: Row) => (Q_RANK[b.context?.queuePriority ?? "medium"] ?? 2) - (Q_RANK[a.context?.queuePriority ?? "medium"] ?? 2) || (a.context?.armedAt ?? a.updated_at).localeCompare(b.context?.armedAt ?? b.updated_at);
+  const live = rows.filter((r) => r.status !== "PARKED" && r.status !== "APPROVED");
+  const builtRows = live.filter((r) => r.context?.built === "1").sort(byQueue);
+  const buildingRows = live.filter((r) => r.context?.armed === "1" && r.context?.built !== "1" && r.context?.runStartedAt && r.context?.runFailed !== "1").sort(byQueue);
+  const failedRows = live.filter((r) => r.context?.runFailed === "1").sort(byQueue);
+  const armedRows = live.filter((r) => r.context?.armed === "1" && r.context?.built !== "1" && !r.context?.runStartedAt && r.context?.runFailed !== "1").sort(byQueue);
+  const unarmed = live.filter((r) => r.context?.armed !== "1" && r.context?.built !== "1" && r.context?.runFailed !== "1");
+  const urgentRows = unarmed.filter((r) => r.context?.urgent === "1" && r.context?.draft !== "1").sort(rank);
+  const openRows = unarmed.filter((r) => r.context?.urgent !== "1" && r.context?.draft !== "1").sort(rank);
+  const draftRows = unarmed.filter((r) => r.context?.draft === "1").sort(rank);
   const doneRows = rows.filter((r) => r.status === "APPROVED").sort(rank);
   const parkedRows = rows.filter((r) => r.status === "PARKED").sort(rank);
-  const list = (l: Row[]) => (l.length ? l.map(line).join("\n") : "_none_");
+  const list = (l: Row[], f: (r: Row) => string = line) => (l.length ? l.map(f).join("\n") : "_none_");
   const index = [
-    "# Survive — prompts",
+    "# Survive — the build queue",
     "",
-    `_Synced ${new Date().toISOString()}. Tick **sent** when it is in Claude Code, **reviewed** when it shipped and you checked it — both flow to the app on the next sync. Reviewed lines strike through and can be archived from the Idea Bank. Rewritten every sync; edit the notes, not this list._`,
+    `_Synced ${new Date().toISOString()}. Ideas get added to the queue from the Idea Bank; the build machine works them by priority and writes each one's **testing checklist** here with real preview links. Tick **reviewed** when a build checks out — it flows to the app on the next sync and strikes through. Rewritten every sync; edit the notes, not this list._`,
     "",
-    "## 🔥 Urgent", "", list(urgentRows), "",
-    "## Prompts, in order", "", list(openRows), "",
+    "## ✅ Built — test these", "", list(builtRows, withChecks), "",
+    ...(buildingRows.length ? ["## ⚙ Building now", "", list(buildingRows), ""] : []),
+    "## ⚙ Queued (armed, by priority)", "", list(armedRows), "",
+    ...(failedRows.length ? ["## ✗ Build failed (re-queue from the Idea Bank)", "", list(failedRows), ""] : []),
+    "## 🔥 Urgent, not queued", "", list(urgentRows), "",
+    "## Ideas, not queued", "", list(openRows), "",
     ...(draftRows.length ? ["## Drafts (words not finished)", "", list(draftRows), ""] : []),
     ...(doneRows.length ? ["## Reviewed", "", list(doneRows), ""] : []),
     ...(parkedRows.length ? ["## Archived", "", parkedRows.map((r) => `- ~~${r.title}~~`).join("\n"), ""] : []),

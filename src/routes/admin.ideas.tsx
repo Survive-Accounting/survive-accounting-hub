@@ -13,12 +13,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminGate, getAdminWho } from "@/components/AdminGate";
-import { listIdeas, organizeIdea, saveIdea, sendIdeaSummary, setUrgent } from "@/lib/ideas.functions";
+import { armIdeas, listIdeas, organizeIdea, saveIdea, sendIdeaSummary, setUrgent } from "@/lib/ideas.functions";
 import { hasPromptSections, ideaUpdateText, promptSection, replacePromptSection } from "@/lib/ideas-prompt";
 import {
-  CATEGORIES, CATEGORY_LABEL, FOCUS_LABEL, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
-  isDraft, isTodoIdea, isUrgent, prioritize, priorityOf, rankIdeas, summaryOf, tldrOf,
-  type Focus, type Idea, type Recommendation, type TimeBox,
+  CATEGORIES, CATEGORY_LABEL, FOCUS_LABEL, QUEUE_PRIORITIES, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
+  buildFailed, isArmed, isBuilding, isBuilt, isDraft, isTodoIdea, isUrgent, prioritize, priorityOf, queuePriorityOf, rankIdeas, rankQueue, summaryOf, testChecklistOf, tldrOf,
+  type Focus, type Idea, type QueuePriority, type Recommendation, type TimeBox,
 } from "@/components/ideas/model";
 
 export const Route = createFileRoute("/admin/ideas")({
@@ -46,7 +46,8 @@ const APP_URL = "https://surviveaccounting.com/admin/ideas";
 
 function IdeasRoute() { return <AdminGate><Ideas /></AdminGate>; }
 
-type FoldKey = "urgent" | "drafts" | "open" | "todos" | "reviewed" | "archived";
+type FoldKey = "urgent" | "queue" | "built" | "drafts" | "open" | "todos" | "reviewed" | "archived";
+const PRIORITY_COLOR: Record<QueuePriority, string> = { urgent: "#FF7A59", high: "#FCA311", medium: "#7DD3FC", low: "#9AA3B8" };
 
 function Ideas() {
   const [ideas, setIdeas] = useState<Idea[]>([]);
@@ -54,8 +55,21 @@ function Ideas() {
   const [open, setOpen] = useState<string | null>(null);
   const [prio, setPrio] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [folds, setFolds] = useState<Record<FoldKey, boolean>>({ urgent: true, drafts: true, open: true, todos: false, reviewed: false, archived: false });
+  const [folds, setFolds] = useState<Record<FoldKey, boolean>>({ urgent: true, queue: true, built: true, drafts: true, open: true, todos: false, reviewed: false, archived: false });
   const toggle = (k: FoldKey) => setFolds((f) => ({ ...f, [k]: !f[k] }));
+  // ADD TO BUILD QUEUE (Lee, 2026-09-03): tick some, pick a priority, add.
+  // The runner on the build machine takes it from there — unattended.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [queuePrio, setQueuePrio] = useState<QueuePriority>("medium");
+  const [arming, setArming] = useState(false);
+  const toggleSelect = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const arm = (ids: string[], armed: boolean, priority: QueuePriority) => {
+    setArming(true);
+    return armIdeas({ data: { ids, armed, priority } })
+      .then(() => { setSelected(new Set()); refresh(); })
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setArming(false));
+  };
 
   const refresh = useCallback(() => {
     listIdeas().then((r) => { setIdeas(r.ideas); setErr(null); })
@@ -68,10 +82,15 @@ function Ideas() {
     const live = ideas.filter((i) => i.status !== "PARKED");
     const reviewed = live.filter((i) => i.status === "APPROVED");
     const working = live.filter((i) => i.status !== "APPROVED");
+    const queued = working.filter((i) => isArmed(i) && !isBuilt(i) && !isTodoIdea(i));
+    const built = working.filter((i) => isBuilt(i) && !isTodoIdea(i));
+    const rest = working.filter((i) => !isArmed(i) && !isBuilt(i));
     return {
-      urgent: rankIdeas(working.filter((i) => isUrgent(i) && !isTodoIdea(i))),
-      drafts: rankIdeas(working.filter((i) => !isUrgent(i) && isDraft(i) && !isTodoIdea(i))),
-      open: rankIdeas(working.filter((i) => !isUrgent(i) && !isDraft(i) && !isTodoIdea(i))),
+      urgent: rankIdeas(rest.filter((i) => isUrgent(i) && !isTodoIdea(i))),
+      queue: rankQueue(queued),
+      built: rankQueue(built),
+      drafts: rankIdeas(rest.filter((i) => !isUrgent(i) && isDraft(i) && !isTodoIdea(i))),
+      open: rankIdeas(rest.filter((i) => !isUrgent(i) && !isDraft(i) && !isTodoIdea(i))),
       todos: rankIdeas(working.filter(isTodoIdea)),
       reviewed: rankIdeas(reviewed),
       archived: rankIdeas(ideas.filter((i) => i.status === "PARKED")),
@@ -118,6 +137,8 @@ function Ideas() {
           : <div className="flex flex-col" style={{ gap: 4, maxWidth: 1040 }}>
               {list.map((i) => (
                 <Row key={i.id} idea={i} expanded={open === i.id}
+                  selected={selected.has(i.id)} onSelect={() => toggleSelect(i.id)}
+                  onArm={(armed, p) => arm([i.id], armed, p)}
                   onToggle={() => setOpen(open === i.id ? null : i.id)} onPatch={(p) => patch(i, p)} onChanged={refresh} />
               ))}
             </div>
@@ -147,11 +168,31 @@ function Ideas() {
       {ideas.length === 0 && <div style={{ color: MUTED, fontSize: 13 }}>Nothing here yet. Press Ctrl/⌘ I on any page, or upload a prompt you already wrote.</div>}
 
       {fold("urgent", "🔥 Urgent", sections.urgent, URGENT)}
+      {fold("queue", "⚙ Build queue", sections.queue, GOLD, "armed — the build machine works these in priority order, unattended")}
+      {fold("built", "✅ Built — test these", sections.built, "#3BF5A0", "a preview link and a checklist per idea; tick reviewed when it checks out")}
       {fold("drafts", "✎ Drafts", sections.drafts, "#7DD3FC", "words not finished — Ctrl+I to continue one")}
       {fold("open", "Open", sections.open, GOLD, "in order — urgent first, then Prioritize's order, then newest")}
       {fold("todos", "☐ To-dos", sections.todos, "#3BF5A0", "Terry's list — in Obsidian too")}
       {fold("reviewed", "Reviewed", sections.reviewed, MUTED, "shipped and checked — archive when done with them")}
       {fold("archived", "Archived", sections.archived, MUTED, "parked, never deleted — reopen any time")}
+
+      {/* THE ARM BAR — appears when something is ticked. */}
+      {selected.size > 0 && (
+        <div style={{ position: "fixed", left: "50%", bottom: 18, transform: "translateX(-50%)", zIndex: 50, background: "#101A2E", border: `1px solid ${GOLD}`, borderRadius: 14, padding: "10px 14px", display: "flex", gap: 10, alignItems: "center", boxShadow: "0 18px 50px -14px rgba(0,0,0,0.9)", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700 }}>{selected.size} ticked</span>
+          {QUEUE_PRIORITIES.map((p) => (
+            <button key={p} onClick={() => setQueuePrio(p)}
+              style={{ background: queuePrio === p ? PRIORITY_COLOR[p] : "transparent", color: queuePrio === p ? "#0B1322" : PRIORITY_COLOR[p], border: `1px solid ${PRIORITY_COLOR[p]}`, borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "capitalize" }}>
+              {p}
+            </button>
+          ))}
+          <button onClick={() => arm([...selected], true, queuePrio)} disabled={arming}
+            style={{ background: GOLD, color: "#0B1322", border: "none", borderRadius: 10, padding: "7px 14px", fontSize: 13, fontWeight: 800, cursor: "pointer", opacity: arming ? 0.6 : 1 }}>
+            {arming ? "Adding…" : `⚙ Add to build queue`}
+          </button>
+          <button onClick={() => setSelected(new Set())} style={{ background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 12 }}>clear</button>
+        </div>
+      )}
 
       {uploading && <UploadPrompt onClose={() => setUploading(false)} onSaved={refresh} />}
       {prio && <Prioritize ideas={ideas} onClose={() => setPrio(false)} onSaveOrder={saveOrder} />}
@@ -161,9 +202,17 @@ function Ideas() {
 
 // -------------------------------------------------------------------- row
 
-function Row({ idea, expanded, onToggle, onPatch, onChanged }: {
-  idea: Idea; expanded: boolean; onToggle: () => void; onPatch: (p: Partial<Idea>) => Promise<void> | void; onChanged: () => void;
+function Row({ idea, expanded, selected, onSelect, onArm, onToggle, onPatch, onChanged }: {
+  idea: Idea; expanded: boolean; selected: boolean; onSelect: () => void;
+  onArm: (armed: boolean, priority: QueuePriority) => Promise<void> | void;
+  onToggle: () => void; onPatch: (p: Partial<Idea>) => Promise<void> | void; onChanged: () => void;
 }) {
+  const armed = isArmed(idea);
+  const built = isBuilt(idea);
+  const building = isBuilding(idea);
+  const failed = buildFailed(idea);
+  const qp = queuePriorityOf(idea);
+  const checklist = testChecklistOf(idea);
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -214,10 +263,17 @@ function Row({ idea, expanded, onToggle, onPatch, onChanged }: {
     <div className="rounded-xl" style={{ background: PANEL, border: `1px solid ${urgent ? URGENT + "88" : expanded ? GOLD + "55" : EDGE}`, opacity: archived ? 0.6 : 1 }}>
       {/* THE TITLE LINE — the only thing shown until it is clicked. */}
       <div className="flex items-center gap-3" style={{ padding: "8px 12px" }}>
+        {!todo && !archived && !reviewed && (
+          <input type="checkbox" checked={selected} onChange={onSelect} title="Tick to add to the build queue" style={{ accentColor: GOLD, width: 15, height: 15, cursor: "pointer" }} />
+        )}
         <span onClick={onToggle} style={{ color: urgent ? URGENT : GOLD, fontSize: 14, cursor: "pointer" }}>{urgent ? "🔥" : todo ? "☐" : draft ? "✎" : "⚡"}</span>
         <div onClick={onToggle} className="min-w-0" style={{ flex: 1, cursor: "pointer", fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: reviewed ? "line-through" : "none", color: reviewed ? MUTED : CREAM }}>
           {idea.title || "(untitled — organising…)"}
-          {idea.status === "SUBMITTED" && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#7DD3FC" }}>SENT</span>}
+          {built && <a href={idea.context?.previewUrl || "#"} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#3BF5A0", textDecoration: idea.context?.previewUrl ? "underline" : "none" }}>BUILT{idea.context?.previewUrl ? " → test it ↗" : ""}</a>}
+          {building && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: GOLD }}>BUILDING…</span>}
+          {armed && !built && !building && !failed && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: PRIORITY_COLOR[qp] }}>QUEUED · {qp}</span>}
+          {failed && <span title={idea.context?.runError} style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#F87171" }}>BUILD FAILED</span>}
+          {idea.status === "SUBMITTED" && !armed && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#7DD3FC" }}>SENT</span>}
           {idea.context?.mergedInto && <span title={idea.context.mergedWhy ?? "merged into another idea"} style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: MUTED }}>↳ MERGED</span>}
           {idea.context?.mergedFrom && <span title="another capture was folded into this one" style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#3BF5A0" }}>+{idea.context.mergedFrom.split(",").length}</span>}
           {idea.context?.stalePrompt === "1" && <span title="a capture was merged in since the prompt was drafted — the watch sync redrafts it, or Redraft with AI" style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: GOLD }}>PROMPT STALE</span>}
@@ -225,9 +281,10 @@ function Row({ idea, expanded, onToggle, onPatch, onChanged }: {
         </div>
         {/* quick actions: sent · reviewed · archive — the same three states
             the Obsidian checklist writes */}
-        {!archived && !todo && (
-          <button title={idea.status === "SUBMITTED" ? "Sent to Claude Code — click to un-send" : "Mark sent to Claude Code"} style={tiny(idea.status === "SUBMITTED", "#7DD3FC")}
-            onClick={() => void onPatch({ status: idea.status === "SUBMITTED" ? "DRAFTED" : "SUBMITTED" })}>sent</button>
+        {!archived && !todo && !reviewed && (
+          armed
+            ? <button title={built || failed ? "Build it again (a fresh branch)" : "Take it out of the build queue"} style={tiny(false, GOLD)} onClick={() => void onArm(!(built || failed) ? false : true, qp)}>{built || failed ? "re-queue" : "un-queue"}</button>
+            : <button title="Add to the build queue (medium priority — tick several and use the bar to set a priority)" style={tiny(false, GOLD)} onClick={() => void onArm(true, "medium")}>⚙ queue</button>
         )}
         {!archived && (
           <button title={reviewed ? "Reviewed — click to reopen" : "Mark reviewed: shipped and checked (strikethrough)"} style={tiny(reviewed, "#3BF5A0")}
@@ -240,6 +297,35 @@ function Row({ idea, expanded, onToggle, onPatch, onChanged }: {
 
       {expanded && (
         <div style={{ padding: "0 14px 14px", borderTop: `1px solid ${EDGE}` }}>
+          {/* THE BUILD — what the closet machine did, and how to check it. */}
+          {(built || failed || building) && (
+            <div style={{ marginTop: 12, border: `1px solid ${built ? "#3BF5A055" : failed ? "#F8717155" : EDGE}`, borderRadius: 12, padding: "10px 12px" }}>
+              {building && <div style={{ fontSize: 12.5, color: GOLD }}>Building on the build machine since {idea.context?.runStartedAt ? new Date(idea.context.runStartedAt).toLocaleTimeString() : "just now"}…</div>}
+              {failed && <div style={{ fontSize: 12.5, color: "#F87171" }}>Build failed: {idea.context?.runError ?? "unknown"} — fix the prompt if it was the prompt, then re-queue.</div>}
+              {built && (
+                <>
+                  <div style={{ fontSize: 12.5, color: "#3BF5A0", fontWeight: 700 }}>
+                    Built on branch <code style={{ fontSize: 11.5 }}>{idea.context?.branch}</code>
+                    {idea.context?.previewUrl ? <> · <a href={idea.context.previewUrl} target="_blank" rel="noreferrer" style={{ color: "#3BF5A0" }}>open the preview ↗</a></> : ` · preview ${idea.context?.previewState ?? "pending"}`}
+                  </div>
+                  <div style={{ fontSize: 11, color: GOLD, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", margin: "10px 0 4px" }}>Testing checklist</div>
+                  {checklist.length ? (
+                    <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.6, color: CREAM }}>
+                      {checklist.map((c, k) => {
+                        const m = c.match(/^(.*?)\s+—\s+(https?:\/\/\S+)\s*$/);
+                        return <li key={k}>{m ? <>{m[1]} — <a href={m[2]} target="_blank" rel="noreferrer" style={{ color: "#7DD3FC" }}>{m[2].replace(/^https?:\/\/[^/]+/, "")}</a></> : c}</li>;
+                      })}
+                    </ol>
+                  ) : <div style={{ fontSize: 12, color: MUTED }}>no checklist came back — see the report</div>}
+                  <details style={{ marginTop: 8 }}>
+                    <summary style={{ fontSize: 11.5, color: MUTED, cursor: "pointer" }}>Build report</summary>
+                    <pre style={{ marginTop: 6, background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 10, padding: 12, fontSize: 11.5, lineHeight: 1.5, whiteSpace: "pre-wrap", color: CREAM, maxHeight: 320, overflowY: "auto" }}>{idea.context?.report || "—"}</pre>
+                  </details>
+                  <div style={{ fontSize: 11, color: MUTED, marginTop: 8 }}>When it checks out, click <b style={{ color: CREAM }}>✓ reviewed</b> above. Merging the branch to main is still a person's call.</div>
+                </>
+              )}
+            </div>
+          )}
           {idea.context?.mergedInto && (
             <div style={{ fontSize: 12, color: MUTED, marginTop: 12 }}>
               Merged into another idea{idea.context.mergedWhy ? ` — ${idea.context.mergedWhy}` : ""}. Its words were added there; this row is parked. Wrong call? Reopen it above.

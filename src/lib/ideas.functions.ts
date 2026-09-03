@@ -262,6 +262,40 @@ export const organizeIdea = createServerFn({ method: "POST" })
     return { idea: toIdea(out as Row), drafted };
   });
 
+/** ADD TO BUILD QUEUE (Lee, 2026-09-03): "pick and choose what I'd like to
+ *  queue up … automatically armed … urgent, high, medium, low priority."
+ *  Arming sets the priority and status SUBMITTED; the runner on the build
+ *  machine does the rest. Un-arming takes it back to DRAFTED. Re-arming a
+ *  failed or built idea clears the old run so it builds again. */
+export const armIdeas = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    ids: z.array(z.string().min(1).max(80)).min(1).max(100),
+    armed: z.boolean(),
+    priority: z.enum(["urgent", "high", "medium", "low"]).default("medium"),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true; count: number }> => {
+    const db = await admin();
+    const { data: rows, error } = await db.from("ideas").select("id,status,context").in("id", data.ids);
+    if (error) rethrow(error);
+    const now = new Date().toISOString();
+    for (const r of (rows ?? []) as Pick<Row, "id" | "status" | "context">[]) {
+      const ctx: Record<string, string> = { ...(r.context ?? {}) };
+      for (const k of ["built", "builtAt", "runStartedAt", "runFailed", "runError", "sha", "previewUrl", "previewState", "report", "testChecklist"]) delete ctx[k];
+      let status = r.status;
+      if (data.armed) {
+        ctx.armed = "1"; ctx.queuePriority = data.priority; ctx.armedAt = now;
+        if (data.priority === "urgent") ctx.urgent = "1";
+        status = "SUBMITTED";
+      } else {
+        delete ctx.armed; delete ctx.queuePriority; delete ctx.armedAt; delete ctx.branch;
+        if (status === "SUBMITTED") status = "DRAFTED";
+      }
+      const { error: e } = await db.from("ideas").update({ context: ctx, status, updated_at: now }).eq("id", r.id);
+      if (e) rethrow(e);
+    }
+    return { ok: true, count: (rows ?? []).length };
+  });
+
 /** Lee's number for urgent texts. Env first; the fallback is the number he
  *  gave for exactly this (2026-09-03). */
 const LEE_URGENT_PHONE = process.env.LEE_URGENT_PHONE ?? "6012018759";

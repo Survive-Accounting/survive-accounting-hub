@@ -145,6 +145,27 @@ export const isUrgent = (i: Idea): boolean => i.context?.urgent === "1";
 export const isDraft = (i: Idea): boolean => i.context?.draft === "1";
 /** A to-do (work/personal) — Terry's, not the build queue. */
 export const isTodoIdea = (i: Idea): boolean => !!i.context?.todo;
+/** THE BUILD QUEUE (2026-09-03). Armed = Lee added it to the queue from the
+ *  bank; the runner on the build machine picks armed ideas up by priority.
+ *  Built = the branch is pushed and the testing checklist is written back. */
+export const QUEUE_PRIORITIES = ["urgent", "high", "medium", "low"] as const;
+export type QueuePriority = (typeof QUEUE_PRIORITIES)[number];
+export const isArmed = (i: Idea): boolean => i.context?.armed === "1";
+export const isBuilt = (i: Idea): boolean => i.context?.built === "1";
+export const isBuilding = (i: Idea): boolean => isArmed(i) && !isBuilt(i) && !!i.context?.runStartedAt && !i.context?.runFailed;
+export const buildFailed = (i: Idea): boolean => i.context?.runFailed === "1";
+export const queuePriorityOf = (i: Idea): QueuePriority =>
+  (QUEUE_PRIORITIES as readonly string[]).includes(i.context?.queuePriority ?? "") ? (i.context!.queuePriority as QueuePriority) : "medium";
+export const testChecklistOf = (i: Idea): string[] => {
+  try { const v = JSON.parse(i.context?.testChecklist ?? "[]"); return Array.isArray(v) ? v.map(String) : []; } catch { return []; }
+};
+const Q_RANK: Record<QueuePriority, number> = { urgent: 4, high: 3, medium: 2, low: 1 };
+/** Queue order: priority, then armed first. */
+export function rankQueue(ideas: readonly Idea[]): Idea[] {
+  return [...ideas].sort((a, b) => Q_RANK[queuePriorityOf(b)] - Q_RANK[queuePriorityOf(a)]
+    || (a.context?.armedAt ?? a.updatedAt).localeCompare(b.context?.armedAt ?? b.updatedAt));
+}
+
 /** Set by Prioritize's drag-and-drop; higher first. 0 = never ranked. */
 export const priorityOf = (i: Idea): number => Number(i.context?.priority ?? 0) || 0;
 export const tldrOf = (i: Idea): string => i.context?.tldr ?? "";

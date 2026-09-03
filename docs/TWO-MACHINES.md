@@ -87,6 +87,32 @@ Later, the same vault is where the accounting automations, reports and the
 important business documents go — `Survive/` is the first folder, not the
 only one.
 
+## The build queue — the laptop in a closet
+
+Bank → review in the Idea Bank → tick the ones to build → **⚙ Add to build
+queue** with a priority (urgent · high · medium · low). Nothing else to do;
+this PC does the rest, unattended, one at a time in priority order:
+
+1. `scripts\build-queue-watch.cmd` (double-click, or a Startup shortcut)
+   polls the bank every 3 minutes for armed ideas.
+2. Each one gets a fresh worktree on a fresh branch `queue/<name>` off main,
+   `bun install`, and Claude Code headless (`claude -p`) builds it under the
+   house rules — additive only, never main, no migrations run, no weakened
+   tests, protected zones off limits, fail loud.
+3. It commits, the runner pushes the **branch** (never main), Vercel builds a
+   preview, and the runner reads the preview URL back from GitHub.
+4. The builder's closing **TESTING CHECKLIST** — plain-English checks, each
+   with the route it happens on — is written back with full preview links,
+   onto the idea (Idea Bank → "✅ Built — test these") and into Obsidian
+   (`_Queue.md`, and the idea's note under "Built — test it").
+5. You test from the checklist at the end of the day (or a VA does), tick
+   **reviewed** in Obsidian or the bank, and merge the branch when it's good.
+   Merging is still a person's call.
+
+Setup once on this PC: `npm i -g @anthropic-ai/claude-code`, then run
+`claude` in a terminal and `/login`. A failed build marks the idea BUILD
+FAILED with the reason and moves on; fix the prompt and re-queue.
+
 ## Terry — the to-do count
 
 A Ctrl+I note that is a **to-do**, not a build idea: click **Work to-do** or
