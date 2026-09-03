@@ -18,7 +18,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { getCampusPage } from "@/lib/campus-page.functions";
 import { readCampusPrefs } from "@/lib/campus-prefs.functions";
-import { campusOgImage, HOME_OG, ogMeta } from "@/lib/og";
+import { campusOgImageV, campusShareOg, ogMeta } from "@/lib/og";
 import { schoolBySlug } from "@/lib/schools";
 import { TEST_CAMPUS_SLUG } from "@/lib/test-mode";
 import { LandingPage } from "./landing";
@@ -42,16 +42,22 @@ export const Route = createFileRoute("/$school/")({
   },
   head: ({ loaderData: d }) => {
     if (!d) return {};
-    // Missing course code ⇒ HOME copy rather than an empty token; the campus-colorway card still
-    // applies because the campus itself is known.
-    const copy = d.courseCode
-      ? {
-          title: `Survive your ${d.courseCode} exams.`,
-          description: `Cram videos + practice exams built for ${d.courseCode}. Get help from a tutor who's helped 1,000+ students. Start for free, no account needed.`,
-        }
-      : HOME_OG;
+    // THE CARD SAYS THE STUDENT'S OWN COURSE. A texted link should show their school before they
+    // tap it — the og:title is the page's own hero line, so the preview and the page agree. Missing
+    // course code ⇒ HOME copy rather than an empty token; the campus colourway card still applies
+    // because the campus itself is known.
+    const short = d.name || d.slug;
+    // The SHARE copy, not the hero line: a texted link leads with what is free and where, because
+    // the title is often the only text that renders beside the image.
+    const copy = campusShareOg(d.courseCode, short);
     return {
-      meta: ogMeta({ ...copy, path: `/${d.slug}`, image: campusOgImage(d.slug) }),
+      meta: [
+        ...ogMeta({ ...copy, path: `/${d.slug}`, image: campusOgImageV(d.slug) }),
+        // AFTER ogMeta, not before: ogMeta emits its own { title } (the hero line, which is the
+        // better hook in a text message) and the LAST entry for a key wins. The tab and the
+        // search result want the searchable form — course code, campus, brand — so it goes last.
+        ...(d.courseCode ? [{ title: `${d.courseCode} at ${short} — Survive Accounting` }] : []),
+      ],
       links: [{ rel: "canonical", href: `${ORIGIN}/${d.slug}` }],
     };
   },

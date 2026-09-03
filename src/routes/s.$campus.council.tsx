@@ -7,12 +7,9 @@
 //
 // STATIC SEGMENT, DYNAMIC SIBLING: this route and /s/$campus/$chapter share a level. TanStack
 // matches the static "council" first, so a chapter can never be slugged into shadowing it.
-import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-
-import { CHAIR_LANDS_ON_PLATFORM } from "@/lib/site-config";
-import { chairLearnPath } from "@/lib/chair-landing";
 
 import { ShareFootnote, ShareHeading, ShareScreen } from "@/components/site/share/ShareScreen";
 import { SHARE_ICONS, ShareOption, useCopyRow } from "@/components/site/council/CouncilShareOptions";
@@ -37,17 +34,6 @@ export const Route = createFileRoute("/s/$campus/council")({
   // is recoverable, a silently wrong one is not.
   validateSearch: (s: Record<string, unknown>): { c?: string } =>
     typeof s.c === "string" && s.c ? { c: s.c } : {},
-  // BUILD 2 · SECTION 1 — same one-line switch as the chapter share. A council exec lands on the
-  // platform, branded to her council (?c= carries which one), with the share panel over it. Off by
-  // default; see CHAIR_LANDS_ON_PLATFORM.
-  beforeLoad: ({ params, search }) => {
-    if (CHAIR_LANDS_ON_PLATFORM) {
-      const council = typeof search.c === "string" ? search.c : null;
-      throw redirect({
-        href: chairLearnPath({ mode: "council", school: params.campus, council, chapter: null }),
-      });
-    }
-  },
   loader: async ({ params }) => {
     const school = schoolBySlug(params.campus);
     if (!school) throw notFound();

@@ -94,14 +94,16 @@ export function ExamRail({ exams, activeNum, onPick, campusId, campusName, cours
 }
 
 /** ONE FIELD. The whole reason this converts is that it asks for nothing else — no name, no
- *  campus, no "tell us about yourself". The campus rides along from context when we have it. */
-function ExamWaitlist({ examNum, label, campusId, campusName, courseCode, onClose }: {
+ *  campus, no "tell us about yourself". The campus rides along from context when we have it.
+ *  Exported (09-02): the cram feed's finish card and right rail reuse it inline — no `onClose`
+ *  there, so the "Not now" button and the focus-steal are both off. */
+export function ExamWaitlist({ examNum, label, campusId, campusName, courseCode, onClose }: {
   examNum: number;
   label: string;
   campusId?: string | null;
   campusName?: string | null;
   courseCode?: string | null;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -150,7 +152,7 @@ function ExamWaitlist({ examNum, label, campusId, campusName, courseCode, onClos
           </p>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <input
-              autoFocus
+              autoFocus={!!onClose}
               value={email}
               onChange={(e) => { setEmail(e.target.value); setErr(null); }}
               onKeyDown={(e) => { if (e.key === "Enter") void submit(); }}
@@ -174,14 +176,16 @@ function ExamWaitlist({ examNum, label, campusId, campusName, courseCode, onClos
             >
               <Mail className="h-4 w-4" /> {busy ? "Sending…" : "Email me"}
             </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="shrink-0 rounded-lg px-3 text-[12.5px] font-bold"
-              style={{ minHeight: 44, color: "var(--lm-muted)", background: "none", border: 0, cursor: "pointer" }}
-            >
-              Not now
-            </button>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="shrink-0 rounded-lg px-3 text-[12.5px] font-bold"
+                style={{ minHeight: 44, color: "var(--lm-muted)", background: "none", border: 0, cursor: "pointer" }}
+              >
+                Not now
+              </button>
+            )}
           </div>
           {err && <p role="alert" className="mt-1.5 text-[12px]" style={{ color: "#F3C6CC" }}>{err}</p>}
         </>

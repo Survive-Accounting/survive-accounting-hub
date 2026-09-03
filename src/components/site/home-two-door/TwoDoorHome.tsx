@@ -23,6 +23,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { readableCampusInk } from "@/lib/campus-color";
+import { CAMPUS_CYCLE, type CampusStop } from "@/lib/campus-cycle";
 import { readStoredChapter, rememberChapter, type StoredChapter } from "@/lib/chapter-prefs";
 import { buildGreekCycle, OLE_MISS_GREEK_CYCLE } from "@/lib/greek-cycle";
 import { listGoChapters } from "@/lib/greek-go.functions";
@@ -49,11 +50,12 @@ import { examRequest, notifyNote } from "@/lib/notify-request";
 import { rememberStudentEmail } from "@/lib/student-email";
 import { readTestSession } from "@/lib/test-mode";
 import { CHAPTER_BTN, DOOR_CARD_CSS, DOOR_CTA_VARS, DOOR_BTN_CLASS, SOLO_BTN } from "./DoorCard";
-import { GreekLettersIcon, HOME_FOLD_CSS, HomeDoorCard, HomeDoorRow, SoloBoltIcon } from "./HomeFold";
+import { GreekLettersIcon, HOME_FOLD_CSS, HomeDoorCard, HomeDoorRow, SoloBoltIcon, SOLO_ICON_H } from "./HomeFold";
 import { ArrowLeftRight } from "lucide-react";
 
 import { SchoolPickerSheet } from "./SchoolPickerSheet";
 import { ChapterPickerSheet } from "./ChapterPickerSheet";
+import { ExamReminder } from "./ExamReminder";
 import type { School as PickerSchool } from "@/lib/schools";
 
 import { CAMPUS_LINE_CSS } from "./campus-line";
@@ -218,9 +220,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       <style>{TWO_DOOR_CSS}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
-      {/* The nav bolt takes over the instant the SOLO CARD BOLT slides under the bar, so the mark
-          hands off rather than vanishing for a stretch of scroll. */}
-      <SiteHeader homeNav onLanding boltAnchorId={SOLO_BOLT_ID} />
+      <SiteHeader homeNav onLanding />
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
         <TwoDoorHero
@@ -232,7 +232,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
             above the doors. Centered under the centered hero (p6 §3) — TrustChips left-aligns at
             lg by default, which read as off-axis here. */}
         <div className="sa-home-chips mb-7 sm:mb-8">
-          <TrustChips onBio={() => setBioOpen(true)} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} />
+          <TrustChips onBio={() => setBioOpen(true)} onReviews={() => scrollToId("reviews")} />
         </div>
 
         {/* Legacy compatibility: every other page's navbar still links "/#exam1". */}
@@ -300,10 +300,10 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
             <p className="text-[24px] font-black leading-tight sm:text-[30px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
               &ldquo;The exam looks nothing like the homework.&rdquo;
             </p>
-            <footer className="mt-2 text-[13.5px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>— what students tell me every semester</footer>
+            <footer className="mt-2 text-[13.5px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>(what students tell me every semester)</footer>
           </blockquote>
           <p className="mx-auto mt-5 max-w-[600px] text-center text-[15px] leading-relaxed sm:text-[16px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-secondary)" }}>
-            The textbook, the quizzes, the lectures — and then exam day feels like a different course. Survive exists so exam day is the second time you&apos;ve seen the problem, not the first.
+            Walk into your test confident. Survive makes exam day the second time you&apos;ve seen the problems&mdash;not the first.
           </p>
           <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} />
           <div className="mt-3 flex justify-center">
@@ -335,6 +335,10 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           onFindChapter={openChapter}
           onNotListed={openSwitch}
         />
+
+        {/* THE END CAP — a student who has read the whole page is deciding. One text, on a day they
+            pick, is the smallest useful thing to offer them at the bottom of it. */}
+        <ExamReminder campusId={campus.school?.campusId ?? null} courseCode={campus.code} />
       </main>
 
       <Footer onLanding />
@@ -376,7 +380,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           hasChapter={!!chapter}
           onClose={() => setChapterPickerOpen(false)}
           onPick={(c) => {
-            const picked = { schoolSlug: campus.school!.slug, slug: c.slug, name: c.name, letters: c.letters };
+            const picked = { schoolSlug: campus.school!.slug, slug: c.slug, name: c.name, letters: c.letters, nickname: c.nickname };
             rememberChapter(picked);
             setChapter(picked);
             setChapterPickerOpen(false);
@@ -492,9 +496,13 @@ function TwoDoorHero({ code, schoolName }: {
       >
         {headline}
       </h1>
-      {/* SUBHEAD — supports the headline, doesn't compete: medium weight, muted (p4 §1). */}
+      {/* SUBHEAD — supports the headline, doesn't compete: medium weight, muted (p4 §1).
+          TWO LINES BY DECREE, not by wrap: the break belongs after "exam", where the sentence
+          turns. Letting it fall wherever the viewport runs out put it somewhere different on
+          every screen. */}
       <p className="mt-3.5 text-[17px] font-medium leading-snug sm:text-[19px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--text-secondary)" }}>
-        Cram what&apos;s on your exam. Skip everything else.
+        <span className="block">Cram what&apos;s on your exam.</span>
+        <span className="block">Skip everything else.</span>
       </p>
     </section>
   );
@@ -521,10 +529,24 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo,
   /** Which door just had its context changed — that button pulses once (p11 §4). */
   pulse: null | "solo" | "chapter";
 }) {
-  // PROGRESSIVE DISCLOSURE (p11 §2). No school known → neither card shows a line, because a
-  // switcher with nothing to switch from is clutter. Once a school is known BOTH cards show it, so
-  // the pair stays symmetrical; the chapter card upgrades to the house only when we know one.
+  // Read after mount so the first server paint never assumes motion is welcome.
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!mq) return;
+    const read = () => setReduced(mq.matches); read();
+    mq.addEventListener?.("change", read);
+    return () => mq.removeEventListener?.("change", read);
+  }, []);
+  const carousel = useCampusCarousel(!schoolName && !reduced);
+
+  // PROGRESSIVE DISCLOSURE, plus an INVITATION when there is nothing to disclose. With a school
+  // known both cards carry its line. With none, the solo door does not go quiet — its bolt and line
+  // cycle real campuses together, which previews what picking gets you instead of instructing you
+  // to pick. The chapter card holds still meanwhile: see "one invitation at a time" below.
   const known = !!schoolName;
+  const cycling = !known && !reduced && CAMPUS_CYCLE.length > 1;
+  const stop = CAMPUS_CYCLE[carousel.labelIdx % CAMPUS_CYCLE.length];
   // The course code is worth repeating in the support lines — it has scrolled out of the headline
   // by the time anyone reads them. With no campus we say the honest generic thing, never a guess.
   const courseWord = code ? nbspCode(code) : "intro accounting";
@@ -535,18 +557,41 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo,
         {/* LEFT DOOR — solo students. First in DOM so it stacks first on mobile. */}
         <HomeDoorCard
           icon={
-            // Keyed by campus so a switch remounts it and replays the arrival pop — the bolt the
-            // flourish threw at this slot is the bolt that appears in it.
-            <span
-              id={SOLO_BOLT_ID}
-              key={campusId ?? "none"}
-              className={`sa-door-bolt${campusId ? " sa-door-bolt--arrive" : ""}`}
-              style={{ display: "inline-block" }}
+            // THE BOLT IS A DOOR HANDLE, not a picture: it opens the picker, same as the line under
+            // it. Wrapped in a real button so keyboard and screen-reader users get the same target.
+            <button
+              type="button"
+              onClick={onSwitchSchool}
+              className="sa-bolt-target"
+              aria-label={known ? "Change school" : "Pick your school"}
+              title={known ? "Change school" : "Pick your school"}
             >
-              <SoloBoltIcon />
-            </span>
+              {cycling ? (
+                <CampusBolt a={CAMPUS_CYCLE[carousel.a]} b={CAMPUS_CYCLE[carousel.b]} aFront={carousel.aFront} />
+              ) : (
+                // Keyed by campus so a switch remounts it and replays the arrival pop — the bolt the
+                // flourish threw at this slot is the bolt that appears in it.
+                <span
+                  id={SOLO_BOLT_ID}
+                  key={campusId ?? "none"}
+                  className={`sa-door-bolt${campusId ? " sa-door-bolt--arrive" : ""}`}
+                  style={{ display: "inline-block" }}
+                >
+                  <SoloBoltIcon />
+                </span>
+              )}
+            </button>
           }
-          switcher={known ? <CardSwitcher label="for" name={schoolName!.toUpperCase()} tail="students" campusId={campusId} onClick={onSwitchSchool} aria="Change school" /> : undefined}
+          switcher={
+            known
+              ? <CardSwitcher label="for" name={schoolName!.toUpperCase()} tail="students" campusId={campusId} onClick={onSwitchSchool} aria="Change school" />
+              : cycling
+                // The line names whichever campus the bolt is currently wearing, and dips through
+                // the swap so the two read as one change rather than two.
+                ? <CardSwitcher label="for" name={stop.name.toUpperCase()} tail="students" color={readableCampusInk(stop.c1, stop.c2)} dim={!carousel.labelVis} onClick={onSwitchSchool} aria="Pick your school" />
+                // Reduced motion (or a one-campus run): the invitation is words, not movement.
+                : <CardSwitcher label="" name="pick your school" tail="" onClick={onSwitchSchool} aria="Pick your school" />
+          }
           button={
             soloHref ? (
               <a href={soloHref} onClick={onSolo} className={`inline-flex items-center justify-center ${btnCls("solo")}`} style={SOLO_BTN}>
@@ -560,21 +605,26 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo,
           }
           support={
             <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch", color: "var(--text-muted)" }}>
-              Cram-style videos and practice exams for{" "}
-              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>{courseWord}</span>, built for the night before.
+              {/* The course code is NOT bolded. Two cards each shouting one word in cream pulled the
+                  eye away from the buttons above them, which are the things to press. */}
+              Cram videos and practice exams for {courseWord}.
             </span>
           }
         />
 
-        {/* RIGHT DOOR — Greek chapters. Its icon is the Greek trio, pinned to the visitor's own
-            letters once we know their house. */}
+        {/* RIGHT DOOR — Greek chapters. ONE INVITATION AT A TIME: while the solo bolt is cycling
+            campuses these letters hold still, and they only start rotating once the bolt has
+            settled on a school. Two doors moving at once is not twice as inviting, it is noise. */}
         <HomeDoorCard
-          icon={<GreekLettersIcon pinned={chapter?.letters ?? null} cycle={greekCycle} />}
+          icon={<GreekLettersIcon pinned={chapter?.letters ?? null} cycle={greekCycle} frozen={cycling} />}
           switcher={
             known
               ? (chapter
                   ? <CardSwitcher label="for" name={chapterDisplay(chapter)} tail={`at ${schoolName!.toUpperCase()}`} campusId={campusId} onClick={onSwitchChapter} aria="Change chapter" />
-                  : <CardSwitcher label="for" name={schoolName!.toUpperCase()} tail="students" campusId={campusId} onClick={onSwitchChapter} aria="Pick your chapter" />)
+                  // "chapters", not "students": the two lines sat side by side saying the identical
+                  // sentence, which made the pair look like a rendering mistake rather than two
+                  // doors. Each names what its own door is for.
+                  : <CardSwitcher label="for" name={schoolName!.toUpperCase()} tail="chapters" campusId={campusId} onClick={onSwitchChapter} aria="Pick your chapter" />)
               : undefined
           }
           button={
@@ -584,7 +634,7 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo,
           }
           support={
             <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch", color: "var(--text-muted)" }}>
-              Get <span className="font-bold" style={{ color: "var(--brand-cream)" }}>{courseWord}</span> exam prep for your sorority or fraternity.
+              Get {courseWord} exam prep for your sorority or fraternity.
             </span>
           }
         />
@@ -592,26 +642,87 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo,
   );
 }
 
+/** THE CAROUSEL CLOCK. One timer drives both halves so the bolt and the line can never disagree
+ *  about which campus is showing: on each beat the bolt starts its colour crossfade and the label
+ *  dips out, and the label comes back with the new name partway through the fade. Paused entirely
+ *  when it isn't running, so a settled card costs nothing. */
+function useCampusCarousel(enabled: boolean) {
+  const [cf, setCf] = useState({ a: 0, b: 1, aFront: true });
+  const [labelIdx, setLabelIdx] = useState(0);
+  const [labelVis, setLabelVis] = useState(true);
+  useEffect(() => {
+    if (!enabled || CAMPUS_CYCLE.length < 2) return;
+    let swap = 0;
+    const tick = window.setInterval(() => {
+      setLabelVis(false);
+      setCf((s) => {
+        const front = s.aFront ? s.a : s.b;
+        const next = (front + 1) % CAMPUS_CYCLE.length;
+        return s.aFront ? { a: s.a, b: next, aFront: false } : { a: next, b: s.b, aFront: true };
+      });
+      swap = window.setTimeout(() => {
+        setLabelIdx((i) => (i + 1) % CAMPUS_CYCLE.length);
+        setLabelVis(true);
+      }, 240);
+    }, 1500);
+    return () => { window.clearInterval(tick); window.clearTimeout(swap); };
+  }, [enabled]);
+  return { a: cf.a, b: cf.b, aFront: cf.aFront, labelIdx, labelVis };
+}
+
+/** THE CYCLING BOLT — two identical bolts in the same box, crossfading between two campuses'
+ *  colours. Two layers rather than one recoloured layer because a `fill` cannot be transitioned
+ *  from a CSS variable, and a hard colour cut is exactly the thing this is meant to avoid. Both
+ *  layers run the same wall-clock boil animation with the same per-frame delays, so they are always
+ *  on the SAME boil frame — the crossfade reads as one bolt changing colour, not two bolts. */
+function CampusBolt({ a, b, aFront }: { a: CampusStop; b: CampusStop; aFront: boolean }) {
+  const fade: React.CSSProperties = { transition: "opacity 460ms ease" };
+  return (
+    <span style={{ position: "relative", display: "inline-block" }}>
+      {/* Layer A sits in flow and sizes the box; B overlays it. */}
+      <span style={{ display: "block", opacity: aFront ? 1 : 0, ...fade }}>
+        <BoltBoil height={SOLO_ICON_H} red={a.c1} blue={a.c2} />
+      </span>
+      <span style={{ position: "absolute", left: 0, top: 0, opacity: aFront ? 0 : 1, ...fade }}>
+        <BoltBoil height={SOLO_ICON_H} red={b.c1} blue={b.c2} />
+      </span>
+    </span>
+  );
+}
+
 
 /** What the chapter line calls the house: its letters when we have them, else its name. */
 function chapterDisplay(c: StoredChapter): string {
-  return c.letters?.trim() || c.name.toUpperCase();
+  // THE ORG'S NAME, never its Greek letters and never a chapter designation. The line is a
+  // sentence a student reads ("for ALPHA DELTA PI at OLE MISS"), and letters there read as a code;
+  // the letters already do their work as the card's icon directly above it. Nickname first,
+  // because that is what people call the house.
+  // The FULL name, not the nickname: this line is set in caps, and caps turn "ADPi" into "ADPI",
+  // which is not what anyone calls that house. "ALPHA DELTA PI" survives the treatment.
+  return c.name.toUpperCase();
 }
 
 /** THE CARD'S CONTEXT LINE — "for OLE MISS students ⇄". The same type treatment the hero line used
  *  before it moved in here, so nothing about the page's voice changed, only where it speaks from.
  *  It is its OWN control: the card body does nothing, the button is the door, and this opens a
  *  picker that rebrands in place (p11 §1/§2). */
-function CardSwitcher({ label, name, tail, campusId, onClick, aria }: {
+function CardSwitcher({ label, name, tail, campusId, color, dim, onClick, aria }: {
   label: string;
   name: string;
   tail: string;
-  campusId: string | null;
+  /** Derive the ink from a known campus. Ignored when `color` is given. */
+  campusId?: string | null;
+  /** Explicit ink — the carousel passes the campus it is currently showing, which is not the
+   *  campus the page is themed for. */
+  color?: string;
+  /** Dip to transparent through a carousel swap, so the name changes with the bolt rather than
+   *  snapping a beat apart from it. */
+  dim?: boolean;
   onClick: () => void;
   aria: string;
 }) {
   const c = campusId ? boltFor(campusId) : null;
-  const color = c ? readableCampusInk(c.c1, c.c2) : undefined;
+  const ink = color ?? (c ? readableCampusInk(c.c1, c.c2) : undefined);
   return (
     <button
       type="button"
@@ -621,10 +732,15 @@ function CardSwitcher({ label, name, tail, campusId, onClick, aria }: {
       className="sa-card-switch inline-flex items-center gap-1 rounded-full focus-visible:ring-2"
       style={{ background: "none", border: 0, cursor: "pointer", paddingInline: 6, minHeight: 30 }}
     >
-      <span className="sa-campus-line" style={{ fontFamily: BRAND_DISPLAY, margin: 0 }}>
-        <span className="sa-campus-line-for">{label} </span>
-        <span className="sa-campus-line-em" style={color ? { color } : undefined}>{name}</span>
-        <span className="sa-campus-line-for"> {tail}</span>
+      <span
+        className="sa-campus-line"
+        // DIPS, never disappears. Fading the name fully out for the swap left the line blank for a
+        // sixth of every cycle, and a label that vanishes reads as a glitch rather than a change.
+        style={{ fontFamily: BRAND_DISPLAY, margin: 0, opacity: dim ? 0.15 : 1, transition: "opacity 210ms ease" }}
+      >
+        {label ? <span className="sa-campus-line-for">{label} </span> : null}
+        <span className="sa-campus-line-em" style={ink ? { color: ink } : undefined}>{name}</span>
+        {tail ? <span className="sa-campus-line-for"> {tail}</span> : null}
       </span>
       <ArrowLeftRight size={12} aria-hidden style={{ color: "var(--text-muted)", flex: "none" }} />
     </button>

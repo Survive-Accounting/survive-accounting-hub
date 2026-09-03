@@ -13,11 +13,9 @@
 //
 // If the intent really was to replace the full page, that is a routing change — this screen is a
 // component and would serve either path unchanged.
-import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
+import { chapterOgImage, chapterShareOg, ogMeta } from "@/lib/og";
 import { useState } from "react";
-
-import { CHAIR_LANDS_ON_PLATFORM } from "@/lib/site-config";
-import { chairLearnPath } from "@/lib/chair-landing";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { ShareButton, ShareFootnote, ShareHeading, ShareScreen } from "@/components/site/share/ShareScreen";
@@ -34,17 +32,8 @@ import { LEE_SIGNOFF } from "@/lib/partners";
 const ORIGIN = "https://surviveaccounting.com";
 
 export const Route = createFileRoute("/s/$campus/$chapter")({
-  // BUILD 2 · SECTION 1 — the one-line switch. When the platform is worth showing, a chair link
-  // lands her on /learn (branded to this chapter) with the share panel over it, instead of on the
-  // bare share screen. Off by default; see CHAIR_LANDS_ON_PLATFORM. The redirect runs before the
-  // loader so the share-screen data is never fetched on the platform path.
-  beforeLoad: ({ params }) => {
-    if (CHAIR_LANDS_ON_PLATFORM) {
-      throw redirect({
-        href: chairLearnPath({ mode: "chapter", school: params.campus, chapter: params.chapter, council: null }),
-      });
-    }
-  },
+  // THE SHARE BLOCK — a chapter's link + copy-message, reached from the CTA bar's "Pick your
+  // chapter" step (learn-share-flow). This is the deliverable: they came for a link and here it is.
   loader: async ({ params }) => {
     const school = schoolBySlug(params.campus);
     if (!school) throw notFound();
@@ -59,10 +48,29 @@ export const Route = createFileRoute("/s/$campus/$chapter")({
       chapterSlug: params.chapter,
       chapterName: chapter.chapterName,
       letters: (chapter.letters ?? "").trim() || chapterShortName(chapter.chapterName, chapter.letters, chapter.nickname),
+      // The TITLE name, which is NOT the letters. A title is the half that has to read as plain
+      // text at full size — "for ΑΔΠ" asks the reader to decode a monogram, and /go/ says "ADPi"
+      // for the same chapter, so the two share links disagreed about what the house is called.
+      shortName: chapterShortName(chapter.chapterName, chapter.letters, chapter.nickname),
     };
   },
   staleTime: 600_000,
-  head: () => ({ meta: [{ name: "robots", content: "noindex" }] }),
+  // THIS IS THE PAGE PEOPLE SEND. It rendered with no card at all, so the one link most likely
+  // to be pasted into GroupMe previewed as the generic site tile — the least useful version of
+  // itself. noindex STAYS (a share page has no business in search results); noindex governs
+  // crawlers indexing the page, not the preview a chat app builds from its tags.
+  head: ({ loaderData: d }) => ({
+    meta: [
+      ...(d
+        ? ogMeta({
+            ...chapterShareOg(d.code, d.shortName || d.chapterName),
+            path: `/s/${d.schoolSlug}/${d.chapterSlug}`,
+            image: chapterOgImage(d.schoolSlug, d.chapterSlug),
+          })
+        : []),
+      { name: "robots", content: "noindex" },
+    ],
+  }),
   component: ChapterSharePage,
   notFoundComponent: () => (
     <ShareScreen>

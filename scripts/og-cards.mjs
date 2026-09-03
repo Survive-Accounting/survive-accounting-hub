@@ -72,10 +72,10 @@ function defaultCard() {
     <text x="${boltX + boltW + gapR}" y="${baseline}">ve</text>
   </g>
   ${bolt(boltX, boltY, boltH)}
-  <text x="${W / 2}" y="365" text-anchor="middle" font-family="Rubik" font-weight="900"
-        font-size="40" letter-spacing="15" fill="${CREAM}" opacity="0.62">ACCOUNTING</text>
-  <text x="${W / 2}" y="472" text-anchor="middle" font-family="Inter" font-weight="600"
-        font-size="42" fill="${CREAM}">Cram what&apos;s on your exam.</text>
+  <!-- NO "ACCOUNTING" SUBLINE: it was a second, quieter copy of the word already set above it,
+       competing with the one line that actually sells the page. -->
+  <text x="${W / 2}" y="410" text-anchor="middle" font-family="Inter" font-weight="600"
+        font-size="44" fill="${CREAM}">Cram what&apos;s on your exam.</text>
 </svg>`;
 }
 
@@ -90,19 +90,21 @@ function fitName(name) {
   return { text: name.slice(0, max) + "…", fs: 58 };
 }
 
-function campusCard({ name, courseCode, c1, c2 }) {
+function campusCard({ name, courseCode, c1, c2, ink }) {
   const boltH = 190;
   const boltW = boltH * (VB.w / VB.h);
   const { text, fs } = fitName(name);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${NAVY}"/>
   ${bolt((W - boltW) / 2, 64, boltH, c1, c2)}
+  <!-- The page's own campus line, in the campus's own readable ink; the course code drops to a
+       small supporting line beneath it rather than competing with the school's name. -->
   <text x="${W / 2}" y="${348 + fs * 0.36}" text-anchor="middle" font-family="Rubik" font-weight="900"
-        font-size="${fs}" letter-spacing="-1" fill="${CREAM}">${esc(text)}</text>
-  <text x="${W / 2}" y="482" text-anchor="middle" font-family="Rubik" font-weight="900"
-        font-size="52" fill="${GOLD}">${esc(courseCode ?? "Intro Accounting")}</text>
-  <text x="${W / 2}" y="548" text-anchor="middle" font-family="Inter" font-weight="600"
-        font-size="30" fill="${CREAM}" opacity="0.72">Cram videos + practice exams. Exam 1 is free.</text>
+        font-size="${fs}" letter-spacing="-1" fill="${CREAM}">for <tspan fill="${ink || GOLD}">${esc(text.toUpperCase())}</tspan> students</text>
+  <text x="${W / 2}" y="470" text-anchor="middle" font-family="Rubik" font-weight="900"
+        font-size="38" fill="${CREAM}" opacity="0.82">${esc(courseCode ?? "Intro Accounting")}</text>
+  <text x="${W / 2}" y="540" text-anchor="middle" font-family="Inter" font-weight="600"
+        font-size="30" fill="${CREAM}" opacity="0.72">Cram what&apos;s on your exam. Exam 1 is free.</text>
 </svg>`;
 }
 

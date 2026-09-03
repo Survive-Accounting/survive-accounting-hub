@@ -88,14 +88,19 @@ export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, classNam
 /** "surv[bolt]ve" — the wordmark with the boiling bolt standing in for the "i". `size` is
  *  the cap-height in px; the bolt tracks it and drops slightly to sit on the baseline.
  *  Colours default to the active BoltSpec (so a loaded preset carries through). */
-export function SurviveWordmark({ size, cream = BRAND_CREAM, style, boilFrame }: { size: number; cream?: string; style?: CSSProperties; boilFrame?: number }) {
+export function SurviveWordmark({ size, cream = BRAND_CREAM, style, boilFrame, red, blue, boltCream }: { size: number; cream?: string; style?: CSSProperties; boilFrame?: number;
+  /** Recolour the bolt-as-"i". Left off it keeps the brand red/blue. A MONOCHROME lockup passes the
+   *  text colour as red, the surface behind it as blue and "none" as boltCream, which turns the
+   *  two-tone mark into one silhouette with its seam cut out — the navbar wants the wordmark to
+   *  read as type, not as a piece of art competing with the page. */
+  red?: string; blue?: string; boltCream?: string }) {
   // Bolt-as-"i" placement baked from Lee's FINAL Logo Lab wordmark params so the cards match
   // /logo-lab exactly (previously the bolt was oversized): boltScale 0.8, baseline drop 0.13,
   // kerning 0.005 + overlap L -0.02 / R 0.025, offX -1px@wordSize96, rotate 2°, pivot 100%/51%.
   return (
     <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "-0.01em", color: cream, whiteSpace: "nowrap", ...style }}>
       surv
-      <BoltBoil height={size * 0.8} boilFrame={boilFrame} style={{ marginLeft: size * -0.015, marginRight: size * 0.03, transform: `translate(${size * (-1 / 96)}px, ${size * 0.13}px) rotate(2deg)`, transformOrigin: "100% 51%" }} />
+      <BoltBoil height={size * 0.8} boilFrame={boilFrame} red={red} blue={blue} cream={boltCream} style={{ marginLeft: size * -0.015, marginRight: size * 0.03, transform: `translate(${size * (-1 / 96)}px, ${size * 0.13}px) rotate(2deg)`, transformOrigin: "100% 51%" }} />
       ve
     </span>
   );

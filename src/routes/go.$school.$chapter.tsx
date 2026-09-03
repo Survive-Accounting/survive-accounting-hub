@@ -52,7 +52,7 @@ import { chapterShortName, chapterUrl } from "@/components/site/ChapterShare";
 import { ChapterDoors, SHARE_ANCHOR } from "@/components/site/chapter/ChapterDoors";
 import { scrollToId } from "@/lib/ui-scroll";
 import { canonicalSchoolName } from "@/lib/schools";
-import { HOME_OG, ogMeta } from "@/lib/og";
+import { chapterOgImage, chapterShareOg, HOME_OG, ogMeta } from "@/lib/og";
 import { LandingPage } from "./landing";
 
 /** Where both hero buttons scroll to. Ids live here so the hero and the sections agree. */
@@ -91,10 +91,11 @@ export const Route = createFileRoute("/go/$school/$chapter")({
     const course = data?.code ?? "Intro Accounting";
     return {
       meta: ogMeta({
-        title: `${short} at ${campus} — get ${course} help.`,
-        description: `Cram videos + practice exams for every ${short} member. Instant access. Exam 1 is free.`,
+        // THE TITLE STANDS ALONE. It renders as real text at full size and is often all that
+        // shows beside the image in a DM, so it leads with what is free and for whom.
+        ...chapterShareOg(data?.code ?? null, short),
         path: goPath(ch.schoolSlug, ch.chapterSlug),
-        image: `https://surviveaccounting.com/api/og/${ch.schoolSlug}/${ch.chapterSlug}`,
+        image: chapterOgImage(ch.schoolSlug, ch.chapterSlug),
       }),
     };
   },

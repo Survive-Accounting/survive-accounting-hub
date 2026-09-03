@@ -253,11 +253,11 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
 // ── TRUST CHIPS ───────────────────────────────────────────────────────────────────────────────
 /** Three small credibility chips, whole-chip clickable — no visible "→ Reviews" explainers.
  *  They are trust badges, not CTAs: quiet by default, a shade brighter on hover, clear focus. */
-export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; onReviews: () => void; onPlayer: () => void }) {
+export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; onReviews: () => void; /** Omit to drop the third chip. The two-door home does: above the fold every extra row costs the first card its place on a 390px screen, and "Built for exam week" is the one claim the two doors underneath already make. Pages with room keep all three. */ onPlayer?: () => void }) {
   const CHIPS: Array<{ label: string; onClick: () => void }> = [
     { label: "Created by a pro tutor", onClick: onBio },
     { label: "1,000+ students helped", onClick: onReviews },
-    { label: "Built for exam week", onClick: onPlayer },
+    ...(onPlayer ? [{ label: "Built for exam week", onClick: onPlayer }] : []),
   ];
   // A PROOF STRIP, NOT A THIRD ROW OF BUTTONS. One hierarchy step below both hero CTAs: smaller
   // type, thinner border, muted fill, no lift, default cursor. They stay activatable (each one
@@ -341,14 +341,14 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
     {
       icon: Play,
       title: "Quick cram videos",
-      lead: "Nothing like your lecture videos—each is ~two minutes or less.",
-      body: "Just the basics needed to answer a question, plus the tips and cheat codes that make it click.",
+      lead: "Two minutes or less, every one.",
+      body: "Just what you need to answer the question, plus the tricks that make it click. Nothing like your lecture videos.",
     },
     {
       icon: ClipboardCheck,
       title: "Practice exams",
       lead: "Exam-style problems, not textbook ones.",
-      body: "Going from a B to an A starts here. Learn to recognize patterns and get shown simpler approaches to the correct answer.",
+      body: "Going from a B to an A is mostly pattern recognition — learn to spot the type of problem and the simpler route to the answer shows up with it.",
     },
   ];
   // 48px icons centered above each heading, with generous vertical room for the longer copy.
@@ -389,8 +389,10 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
         <button type="button" onClick={onSyllabus} className={`${card} transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={actionableStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
           <p className={H} style={hStyle}>Built around your course</p>
-          <p className={bodyCls} style={bodyStyle}>I make videos for everyone.</p>
-          <p className="mt-2.5 text-[14px] leading-relaxed" style={bodyStyle}>Send your syllabus and I&apos;ll match my content to your course.</p>
+          {/* NOT "I make videos for everyone" — that argues against the card's own headline. The
+              breadth is the reassurance; the syllabus is the personalisation on top of it. */}
+          <p className={bodyCls} style={bodyStyle}>These work for any intro course.</p>
+          <p className="mt-2.5 text-[14px] leading-relaxed" style={bodyStyle}>Send your syllabus and I&apos;ll make sure yours is covered.</p>
           <span className="mt-3 text-[14px] font-black" style={{ color: "var(--accent)" }}>Send your syllabus →</span>
         </button>
       )}
@@ -484,18 +486,47 @@ const FOCUS_CSS = `
 // ── TUTOR CARD + FULL BIO ────────────────────────────────────────────────────────────────────
 // Lee's real photo — 4:5 crop centered on the face (moved here from landing.tsx unchanged; the
 // old cream SVG portrait stays retired for video frames).
-export function LeePortrait({ width = 200, caption = true }: { width?: number; caption?: boolean }) {
+export function LeePortrait({ width = 200, caption = true, variant = "sunrise" }: {
+  width?: number;
+  caption?: boolean;
+  /** WHICH LEE. The card and the modal deliberately show different photographs — meeting the same
+   *  posed headshot twice in two clicks reads as a stock asset, whereas a second, different picture
+   *  reads as a person. "kid" is the childhood Journal of Accountancy shot and carries its own
+   *  caption, because without one it is a photo of a stranger's child. */
+  variant?: "sunrise" | "kid";
+}) {
+  // Each photo needs its own crop: the sunrise frame is a 4:3 landscape whose subject sits low, the
+  // kid photo is a near-4:5 portrait whose subject sits in the LEFT third with the magazine — the
+  // thing the caption is about — just under his hands. One shared crop would ruin one of them.
+  const art = variant === "kid"
+    ? {
+        src: "/lee-kid-joa.jpg",
+        alt: "Lee as a kid, reading the Journal of Accountancy",
+        // The subject is in the LEFT column and object-position has nothing to give here — the
+        // source is 0.75 against a 0.8 frame, so width fills exactly and only ~6% of height is
+        // croppable. The zoom has to be anchored instead: scaling about the default centre framed
+        // the CAT. Origin at the top-left quarter puts the face and the masthead in the window.
+        objectPosition: "50% 50%",
+        transformOrigin: "0% 25%",
+        transform: "scale(1.9)",
+      }
+    : {
+        src: "/lee-sunrise.jpg",
+        alt: "Lee Ingram",
+        objectPosition: "20% 50%",
+        transformOrigin: "center",
+        // THE FACE SITS HIGHER than a plain cover crop puts it. The source is 4:3 into a 4:5 frame,
+        // so cover fills the height EXACTLY and object-position has no vertical travel to give. A
+        // 14% scale buys ~7% of headroom each side; shifting up 5% spends part of it, so the frame
+        // stays covered and the hair and arm stay in shot.
+        transform: "scale(1.14) translateY(-5%)",
+      };
   return (
     <figure className="mx-auto sm:mx-0" style={{ width, transform: "rotate(1.5deg)" }}>
       <div style={{ width, aspectRatio: "4 / 5", borderRadius: 16, border: "3px solid var(--brand-cream)", overflow: "hidden" }}>
-        {/* NO extra zoom. The source is 4:3 landscape and the frame is 4:5, so `cover` already fills
-            the height exactly — the whole figure is in shot top to bottom (all of the hair, and the
-            outstretched arm entering bottom-left). Only the horizontal window is a choice, and 20%
-            keeps the arm in frame without cutting the sunrise off his right. Scaling up here was
-            what cropped the hair and the arm away. */}
         <img
-          src="/lee-sunrise.jpg" alt="Lee Ingram"
-          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "20% 50%", display: "block" }}
+          src={art.src} alt={art.alt}
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: art.objectPosition, transformOrigin: art.transformOrigin, transform: art.transform, display: "block" }}
         />
       </div>
       {caption && (
@@ -508,26 +539,48 @@ export function LeePortrait({ width = 200, caption = true }: { width?: number; c
 }
 
 /** The COMPACT tutor card — facts only, one door to the full bio. Sits beside the reviews. */
+/** THE CREDENTIAL ROW — the amber check the trust chips already use, so the two read as one voice. */
+function TutorCheck({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2 text-[13.5px] leading-snug" style={{ opacity: 0.85 }}>
+      <span aria-hidden style={{ color: "var(--accent)", fontWeight: 900, lineHeight: 1.35 }}>✓</span>
+      <span>{children}</span>
+    </li>
+  );
+}
+
 export function TutorCard({ onMore }: { onMore: () => void }) {
+  // THE DEAD SPACE WAS THE BUG. The card is as tall as the photo, but the text column ran out a
+  // third of the way down and left "Learn more" stranded at the bottom-left under a block of
+  // nothing. The checks are what fill that column — four short credentials instead of three grey
+  // lines — and the link now sits under them rather than floating alone below the whole card.
   return (
     <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
       <div className="flex items-start gap-5">
         <LeePortrait width={112} caption={false} />
-        <div className="min-w-0" style={{ color: "var(--brand-cream)" }}>
+        {/* The column stretches to the photo's height and distributes its own rows, so the card
+            sizes to the TALLER of the two and neither side leaves a gap. */}
+        <div className="flex min-w-0 flex-1 flex-col self-stretch" style={{ color: "var(--brand-cream)" }}>
           <p className="text-[16px] font-bold">Lee Ingram</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>Two accounting degrees</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>Tutor since 2015</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>1,000+ students tutored</p>
+          <ul className="mt-2 flex flex-1 flex-col justify-center gap-1.5">
+            {/* "Ole Miss alum" rather than "Two accounting degrees": same fact, with a real school
+                attached. It stays as-is on every campus page — it is the credential, not a
+                greeting, and localising it would be inventing a biography. */}
+            <TutorCheck>Ole Miss alum — BAccy · MAccy</TutorCheck>
+            <TutorCheck>Tutor since 2015</TutorCheck>
+            <TutorCheck>1,000+ students tutored</TutorCheck>
+            <TutorCheck>Every video filmed by me</TutorCheck>
+          </ul>
+          <button
+            type="button"
+            onClick={onMore}
+            className="mt-3 inline-flex items-center self-start text-[14px] font-bold focus-visible:ring-2"
+            style={{ color: "var(--accent)", minHeight: 44 }}
+          >
+            Learn more about Lee →
+          </button>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={onMore}
-        className="mt-4 inline-flex items-center text-[14px] font-bold focus-visible:ring-2"
-        style={{ color: "var(--accent)", minHeight: 44 }}
-      >
-        Learn more about Lee →
-      </button>
     </div>
   );
 }
@@ -559,24 +612,34 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
           <span aria-hidden style={{ fontSize: 20 }}>×</span>
         </button>
         <div className="flex items-start gap-5">
-          <LeePortrait width={104} caption={false} />
+          {/* A DIFFERENT PHOTO FROM THE CARD, on purpose: the same headshot twice in two clicks
+              reads as a stock asset. The caption is not decoration — without it this is a picture
+              of a stranger's child, and with it it is the joke that makes the whole bio land. */}
+          <figure className="shrink-0" style={{ width: 104 }}>
+            <LeePortrait width={104} caption={false} variant="kid" />
+            <figcaption className="mt-2 text-[11px] leading-snug" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
+              Just reading the Journal of Accountancy as a kid, vibing.
+            </figcaption>
+          </figure>
           <div className="min-w-0" style={{ marginTop: 8 }}>
             <h2 className="text-[24px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
               Hey, I&apos;m Lee.
             </h2>
-            {/* Credentials (p6 §10). Ole Miss awards the BAccy / MAccy — not BAcc / MAcc. */}
-            <div className="mt-3 text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
-              <p><span className="font-black">BAccy · MAccy</span> — University of Mississippi</p>
-              <p>Tutor since 2015</p>
-              <p>1,000+ students</p>
-            </div>
+            {/* THE SAME CHECK ROWS AS THE CARD, so the two surfaces read as one person rather than
+                two differently-formatted bios. Ole Miss awards the BAccy / MAccy — not BAcc/MAcc. */}
+            <ul className="mt-3 flex flex-col gap-1.5 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
+              <TutorCheck><span className="font-black">BAccy · MAccy</span> — University of Mississippi</TutorCheck>
+              <TutorCheck>Tutor since 2015</TutorCheck>
+              <TutorCheck>1,000+ students tutored</TutorCheck>
+            </ul>
           </div>
         </div>
         <div className="mt-4">
-          <P>I built Survive because accounting exams are a lot easier when you&apos;ve already practiced the kinds of problems you&apos;re about to see.</P>
-          {/* The music/travel line stays — it's disarming and it works. Contact goes last. */}
-          <P>Outside Survive, I&apos;m usually traveling, seeing live music, playing live music, or working on Survive.</P>
-          <P>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a> if you have any questions or just want to introduce yourself.</P>
+          <P>I built Survive because accounting exams get a lot easier once you&apos;ve already seen the kinds of problems you&apos;re about to get. Every video on here is me — no team, no scripts, just what I&apos;d tell you at the whiteboard.</P>
+          {/* The music/travel line stays — it's disarming and it works. The joke lands as its own
+              short sentence rather than as a fourth item buried in the list. */}
+          <P>Outside Survive I&apos;m usually traveling, seeing live music, or playing live music. Or working on Survive.</P>
+          <P>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a> if you have a question or just want to say hi. I read every one.</P>
         </div>
       </div>
     </div>

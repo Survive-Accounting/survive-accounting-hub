@@ -260,3 +260,57 @@ export const setContactFlag = createServerFn({ method: "POST" })
     if (error) throw new Error(`could not set ${data.field}: ${error.message}`);
     return { ok: true };
   });
+
+// ── SHARE-CONTACT RESOLVER (learn-share-flow, Phase 3) ─────────────────────────────────────────
+// Turns a `?by=<uuid>` sharer id into the vouching line "Sarah Chen · Panhellenic scholarship
+// chair · shared this with you". Returns ONLY the vouching fields — name, role, campus, and the
+// council TYPE — never an email or phone. That is the deliberate boundary: the banner exists to
+// vouch a shared link, so it exposes exactly what a person would put on the message they forwarded,
+// and nothing a stranger could misuse. The id is an unguessable UUID minted when THAT person
+// shared, so this only ever surfaces someone's own vouching.
+export interface ShareContact {
+  name: string | null;
+  role: string | null;
+  campusName: string | null;
+  /** ifc | panhellenic | nphc | mgc | other — the enum, not a display name. */
+  councilType: string | null;
+  /** True when this contact sits on a council (drives CTA state B — "get this to your chapter"). */
+  isCouncil: boolean;
+}
+
+export const resolveShareContact = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<ShareContact | null> => {
+    const db = await admin();
+    // Best-effort, like every read on a share surface: a resolver failure means no banner, never a
+    // broken page.
+    try {
+      const { data: row } = await db.from("growth_contact_qc")
+        .select("name,role,campus_id,council_type,contact_type,entity_type").eq("id", data.id).maybeSingle();
+      if (!row) return null;
+      let campusName: string | null = null;
+      if (row.campus_id) {
+        const { data: camp } = await db.from("campuses").select("name").eq("id", row.campus_id).maybeSingle();
+        campusName = (camp?.name ?? "").toString().trim() || null;
+      }
+      const councilType = (row.council_type ?? "").toString().trim() || null;
+      const role = (row.role ?? "").toString().trim() || null;
+      const isCouncil = !!councilType
+        || row.entity_type === "council"
+        || /council|panhellenic|ifc|nphc|mgc/i.test(role ?? "");
+      return { name: (row.name ?? "").toString().trim() || null, role, campusName, councilType, isCouncil };
+    } catch {
+      return null;
+    }
+  });
+
+/** Display name for a council type, for the banner's fallback org line. */
+export function councilTypeLabel(t: string | null | undefined): string | null {
+  switch ((t ?? "").toLowerCase()) {
+    case "ifc": return "IFC";
+    case "panhellenic": return "Panhellenic";
+    case "nphc": return "NPHC";
+    case "mgc": return "MGC";
+    default: return null;
+  }
+}
