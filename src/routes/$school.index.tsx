@@ -18,7 +18,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { getCampusPage } from "@/lib/campus-page.functions";
 import { readCampusPrefs } from "@/lib/campus-prefs.functions";
-import { campusOgImage, HOME_OG, ogMeta } from "@/lib/og";
+import { campusOgImageV, campusShareOg, ogMeta } from "@/lib/og";
 import { schoolBySlug } from "@/lib/schools";
 import { TEST_CAMPUS_SLUG } from "@/lib/test-mode";
 import { LandingPage } from "./landing";
@@ -47,15 +47,12 @@ export const Route = createFileRoute("/$school/")({
     // course code ⇒ HOME copy rather than an empty token; the campus colourway card still applies
     // because the campus itself is known.
     const short = d.name || d.slug;
-    const copy = d.courseCode
-      ? {
-          title: `${d.courseCode} at ${short} is where GPAs quietly slip.`,
-          description: "Cram what's on your exam. Exam 1 is free.",
-        }
-      : HOME_OG;
+    // The SHARE copy, not the hero line: a texted link leads with what is free and where, because
+    // the title is often the only text that renders beside the image.
+    const copy = campusShareOg(d.courseCode, short);
     return {
       meta: [
-        ...ogMeta({ ...copy, path: `/${d.slug}`, image: campusOgImage(d.slug) }),
+        ...ogMeta({ ...copy, path: `/${d.slug}`, image: campusOgImageV(d.slug) }),
         // AFTER ogMeta, not before: ogMeta emits its own { title } (the hero line, which is the
         // better hook in a text message) and the LAST entry for a key wins. The tab and the
         // search result want the searchable form — course code, campus, brand — so it goes last.

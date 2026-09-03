@@ -14,6 +14,7 @@
 // If the intent really was to replace the full page, that is a routing change — this screen is a
 // component and would serve either path unchanged.
 import { createFileRoute, notFound } from "@tanstack/react-router";
+import { chapterOgImage, chapterShareOg, ogMeta } from "@/lib/og";
 import { useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
@@ -50,7 +51,22 @@ export const Route = createFileRoute("/s/$campus/$chapter")({
     };
   },
   staleTime: 600_000,
-  head: () => ({ meta: [{ name: "robots", content: "noindex" }] }),
+  // THIS IS THE PAGE PEOPLE SEND. It rendered with no card at all, so the one link most likely
+  // to be pasted into GroupMe previewed as the generic site tile — the least useful version of
+  // itself. noindex STAYS (a share page has no business in search results); noindex governs
+  // crawlers indexing the page, not the preview a chat app builds from its tags.
+  head: ({ loaderData: d }) => ({
+    meta: [
+      ...(d
+        ? ogMeta({
+            ...chapterShareOg(d.code, d.letters || d.chapterName),
+            path: `/s/${d.schoolSlug}/${d.chapterSlug}`,
+            image: chapterOgImage(d.schoolSlug, d.chapterSlug),
+          })
+        : []),
+      { name: "robots", content: "noindex" },
+    ],
+  }),
   component: ChapterSharePage,
   notFoundComponent: () => (
     <ShareScreen>
