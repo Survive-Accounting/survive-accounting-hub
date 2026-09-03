@@ -453,12 +453,13 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
             {drafts.length > 0 && !editingId && (
               <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
                 <span style={{ fontSize: 11, color: MUTED }}>Your drafts</span>
-                {drafts.slice(0, 6).map((d) => (
+                {drafts.slice(0, 12).map((d) => (
                   <button key={d.id} onClick={() => resume(d)} title={d.body.slice(0, 200)}
                     style={{ background: "transparent", border: `1px dashed ${GOLD}88`, color: CREAM, borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     ✎ {d.title || d.body.slice(0, 40) || "(draft)"}
                   </button>
                 ))}
+                {drafts.length > 12 && <a href="/admin/ideas" style={{ fontSize: 11, color: GOLD, textDecoration: "underline" }}>+{drafts.length - 12} more in the bank →</a>}
               </div>
             )}
             <label style={{ fontSize: 11.5, color: MUTED, display: "block", marginBottom: 6 }}>What's up?</label>
