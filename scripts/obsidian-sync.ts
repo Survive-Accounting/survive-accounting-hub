@@ -410,8 +410,8 @@ async function main(): Promise<void> {
     // --redraft: an existing one is replaced, the old one kept.
     const eligible = (r.status === "IDEA" || r.status === "DRAFTED") && (!ONLY || ONLY === r.id);
     // A stale prompt (another capture was merged in) redrafts on --draft too.
-    const stale = r.context?.stalePrompt === "1";
-    const wantDraft = eligible && ((DRAFT && (!r.prompt_md?.trim() || stale)) || REDRAFT);
+    const promptStale = r.context?.stalePrompt === "1";
+    const wantDraft = eligible && ((DRAFT && (!r.prompt_md?.trim() || promptStale)) || REDRAFT);
     let redrawn = false;
     if (wantDraft) {
       log(`${r.prompt_md?.trim() ? "redraft" : "draft  "} ${r.title}`);
