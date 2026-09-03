@@ -33,6 +33,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { buildSplitMessages } from "../src/lib/ideas-prompt";
+import { PRODUCT_PRIMER } from "../src/lib/product-primer";
 
 const REPO = path.resolve(process.cwd());
 const QUEUE_DIR = process.env.QUEUE_DIR ?? path.resolve(REPO, "..", "build-queue");
@@ -109,6 +110,10 @@ function buildPrompt(r: Row, branch: string, resuming: boolean): string {
       "",
       "CONTINUE, DON'T RESTART: run `git log --oneline origin/main..HEAD` and `git diff --stat origin/main` first to see what the earlier build already did, then finish the task from there. Keep what works; fix what is broken; do not redo finished parts.",
     ] : []),
+    "",
+    PRODUCT_PRIMER,
+    "",
+    "STUDY BEFORE YOU BUILD (this is not optional): spend your first turns reading — the two docs named in the primer, then the actual files behind the surface you are changing, then a neighbouring feature that does something similar. Say in the REPORT what you read. A build that hardcodes one set's route, invents a parallel store, or misuses a product word (CEQ, set, stamp, session, board) is a failed build even if it runs.",
     "",
     "HARD RULES",
     "- Additive only. New files, new routes, new fields, new tables via a numbered additive migration FILE under migration/supabase-migrations/ — never run it; list it under SQL LEE MUST RUN.",

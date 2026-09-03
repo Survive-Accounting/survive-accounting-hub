@@ -127,6 +127,18 @@ What the runner does to keep a build from dying (learned the hard way on
   next start pushes whatever the dead build left and marks it resumable.
 - Runs on Opus 5 (`QUEUE_MODEL` to change); 45-minute clock per build.
 
+**Refinement notes from the first real day (2026-09-03), for the next pass:**
+- The builder did not know what a CEQ was and hardcoded one set's route.
+  Fixed the same day: every prompt — drafter, splitter, builder — now opens
+  with `src/lib/product-primer.ts`, and the builder is told to read the docs
+  and the real files before touching anything. Keep the primer true.
+- The splitter over-cut a 4,000-character prompt into five (symmetric halves
+  and a "verify schema" slice). Split rules added: slices are things a tester
+  can see; never split mirror halves; 2–3 is normal.
+- The queue is right for well-scoped features. A big product surface (the
+  review-step editor Lee described) is better built with him in the loop,
+  then refined through the queue in small follow-ups.
+
 Turn OFF Vercel's deployment protection for previews (Vercel → project →
 Settings → Deployment Protection) so the checklist links open without a
 Vercel login — for you and for a VA.

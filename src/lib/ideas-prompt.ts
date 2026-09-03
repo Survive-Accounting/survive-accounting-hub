@@ -8,6 +8,7 @@
 //   ## Testing checklist  — what he ticks on the laptop after the deploy
 //
 // Pure: no network, no React. The caller runs it through runAiTask.
+import { PRODUCT_PRIMER } from "./product-primer";
 
 export interface IdeaForPrompt {
   title: string;
@@ -79,8 +80,10 @@ export function buildMergeMessages(
 export function buildSplitMessages(idea: { title: string; body: string; promptMd: string | null }): { system: string; user: string } {
   const system = [
     "You prepare work for an unattended Claude Code build in the Survive Accounting repo. A build succeeds when it is ONE feature that fits in about 30 minutes; it fails when it is a research project, a list of features, or a vision.",
+    PRODUCT_PRIMER,
     "Decide: is this prompt ONE buildable feature (a single screen or behaviour a tester can check in a few clicks)? If yes: {\"single\": true}. If not: split it into 2–6 slices, in build order, each a complete testable change on its own that does not depend on a later slice. Drop anything that is a question, a musing, or 'defer to later' — say so in \"dropped\".",
-    "Each slice: {\"title\": str (≤ 60 chars, specific), \"spec\": str (the Claude Code prompt for just this slice — CONTEXT, WHAT TO BUILD numbered and concrete, WHERE, ACCEPTANCE, OUT OF SCOPE; 150–350 words; keep the author's decisions and wording; never invent features)}",
+    "SPLIT RULES (learned 2026-09-03): a slice is something a tester can SEE — never a 'verify', 'document', 'investigate' or 'confirm schema' slice. Never split symmetric halves (Current/Proposed, left/right, add/remove) into separate slices — one builder does both sides together. Never split a screen from the route that shows it. 2–3 slices is normal; 6 is the ceiling. Every slice must work for every $topic/$set, never one set.",
+    "Each slice: {\"title\": str (≤ 60 chars, specific), \"spec\": str (the Claude Code prompt for just this slice — CONTEXT naming the real files and routes from the primer, WHAT TO BUILD numbered and concrete, WHERE, ACCEPTANCE, OUT OF SCOPE; 150–350 words; keep the author's decisions and wording; never invent features)}",
     "Return ONLY JSON: {\"single\": bool, \"slices\": [ … ], \"dropped\": [str]}",
   ].join("\n");
   const user = [
@@ -194,6 +197,8 @@ export function ideaUpdateText(idea: IdeaForPrompt & { promptMd: string | null; 
 export function buildIdeaPromptMessages(idea: IdeaForPrompt): { system: string; user: string } {
   const system = [
     "You turn ONE product idea into ONE Claude Code prompt for the Survive Accounting repo (survive-accounting-hub): TanStack Start + React 19 + TypeScript, Supabase (Postgres, storage), Bun tests, deployed on Vercel from main. Lee is the sole developer-owner; Claude Code sessions do the building on his build machine; he tests on his filming laptop after the deploy.",
+    PRODUCT_PRIMER,
+    "USE THE PRIMER: name the real routes (parameterised — $topic/$set, never one set), the real components and stores, and the real words (CEQ, set, topic, stamp, session, board). If the idea mentions a page, the prompt's WHERE names the file behind it. A prompt that would only work for one set is wrong.",
     "House rules the prompt MUST carry: additive changes only (new fields, new routes, new tables via numbered additive migrations listed under 'SQL LEE MUST RUN', never auto-run); fail loud, no silent fallbacks; never weaken or delete a passing test; nothing that changes what students see unless the idea says so; protected zones (element/frame parent membership, scene serialization internals, command bus, space walk) are off limits — if the idea needs them, the prompt says STOP and report.",
     "Format, in markdown, EXACTLY these four H2 sections and nothing before the first:",
     "## TLDR — ONE sentence a teammate can read in a glance: what changes for whom.",
