@@ -226,7 +226,9 @@ function LearnShell() {
   const shareCtx = useShareContext({ by: search.by, ref: search.ref, test: search.test });
   const [campusId, setCampusId] = useState<string | null>(() => { if (search.campus) return search.campus; try { return localStorage.getItem("sa-learn-campus"); } catch { return null; } });
   useEffect(() => { try { if (campusId) localStorage.setItem("sa-learn-campus", campusId); else localStorage.removeItem("sa-learn-campus"); } catch { /* ignore */ } }, [campusId]);
-  useEffect(() => { if (!campusId && search.g) { const s = schoolBySlug(search.g); if (s?.campusId) setCampusId(s.campusId); } }, [campusId, search.g]);
+  // THE LINK WINS. A shared /s/<campus> link carries ?g; it must beat whatever campus this browser
+  // last studied (a Bama link opened by someone who once looked at Ole Miss is a Bama link).
+  useEffect(() => { if (search.g) { const s = schoolBySlug(search.g); if (s?.campusId && s.campusId !== campusId) setCampusId(s.campusId); } }, [campusId, search.g]);
   const campusesQ = useQuery({ queryKey: ["override-campuses"], queryFn: () => listOverrideCampuses(), staleTime: 300_000, networkMode: "always", enabled: !demo });
   const campuses: CampusOpt[] = campusesQ.data ?? [];
   const q = useQuery({ queryKey: ["student-tree", campusId], queryFn: () => fetchStudentTree({ data: { campusId: campusId ?? undefined } }), staleTime: 120_000, networkMode: "always", enabled: !demo });
@@ -240,7 +242,7 @@ function LearnShell() {
   const [railOpen, setRailOpen] = useState(false);
   const [pickedExam, setExamNum] = useState<number | null>(null);
 
-  const school = schoolByCampusId(campusId) ?? schoolBySlug(search.g);
+  const school = schoolBySlug(search.g) ?? schoolByCampusId(campusId);
   const campusSlug = search.g ?? school?.slug ?? null;
   const campusName = school?.name ?? campuses.find((c) => c.id === campusId)?.name ?? null;
   const theme = useMemo(() => themeFor(school), [school]);
@@ -378,6 +380,10 @@ function LearnShell() {
   const chapter = usePickedChapter(campusSlug, !demo);
   const sender = search.by || (search.test ?? "").toLowerCase() === "banner" ? shareCtx.contact : null;
   const ctaMounted = !demo && (!!campusSlug || !!search.test);
+  // WHO OWNS THE BOTTOM OF THE PAGE. Once a chapter is picked (or ?test forces one), the CTA bar's
+  // own state machine (C set-up / D join / F you're in) is the ask, so it renders its bar. Until
+  // then the asks bar carries the A/B copy and opens the picker.
+  const ctaOwnBar = ctaMounted && (!!chapter.slug || /^[cdf]$/i.test(search.test ?? ""));
   const share = async () => {
     if (ctaMounted) { openLearnCta("share"); return; }
     const ok = await copyToClipboard(`${window.location.origin}/learn`);
@@ -451,7 +457,7 @@ function LearnShell() {
       </div>
 
       {!inPlayer && !isLoading && !isError && sets.length > 0 && (
-        <LearnAsksBar theme={theme} campusName={campusName} campusId={campusId} campusSlug={campusSlug} courseCode={school?.courseCode ?? null} greekEnabled={ctaMounted} onGreek={() => openLearnCta("pick")} narrow={isNarrow} demo={demo} />
+        <LearnAsksBar theme={theme} campusName={campusName} campusId={campusId} campusSlug={campusSlug} courseCode={school?.courseCode ?? null} greekEnabled={ctaMounted && !ctaOwnBar} council={shareCtx.isCouncil} onGreek={() => openLearnCta("pick")} narrow={isNarrow} demo={demo} />
       )}
       {isNarrow && !inPlayer && <LearnTabs active={rail} onPick={pickRail} />}
 
@@ -473,7 +479,7 @@ function LearnShell() {
           <button type="button" style={{ background: "transparent", border: 0, color: INK.muted, cursor: "pointer" }} onClick={() => setNote(null)}>✕</button>
         </div>
       )}
-      {ctaMounted && <LearnCta bare campusSlug={campusSlug ?? "your-campus"} campusName={campusName ?? campusSlug ?? "your campus"} sharerBy={contactRef} sharerIsCouncil={shareCtx.isCouncil} test={search.test} />}
+      {ctaMounted && <LearnCta bare={!ctaOwnBar} campusSlug={campusSlug ?? "your-campus"} campusName={campusName ?? campusSlug ?? "your campus"} sharerBy={contactRef} sharerIsCouncil={shareCtx.isCouncil} test={search.test} />}
       {!demo && <LearnStateSwitcher current={search.test} onSelect={(test) => void navigate({ search: (p: LearnSearch) => ({ ...p, test }), replace: true })} />}
     </div>
   );

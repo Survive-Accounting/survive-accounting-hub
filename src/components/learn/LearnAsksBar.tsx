@@ -14,15 +14,20 @@ import { INK, type LearnTheme } from "@/components/learn/learn-theme";
 import { submitIntake } from "@/lib/intake.functions";
 
 type Ask = { key: "greek" | "rep" | "syllabus"; title: string; sub: string; cta: string };
-const asks = (campusName: string | null): Ask[] => [
-  { key: "greek", title: "In a fraternity or sorority?", sub: "Exam 1 is free for your whole chapter.", cta: "Pick your chapter →" },
+const asks = (campusName: string | null, council: boolean): Ask[] => [
+  // A vs B: a council contact (the person we DM'd, or the one who forwarded) gets the chair's copy.
+  council
+    ? { key: "greek", title: "Get this to your chapter.", sub: "Pick yours — a link to send in about 30 seconds.", cta: "Pick your chapter →" }
+    : { key: "greek", title: "In a fraternity or sorority?", sub: "Exam 1 is free for your whole chapter.", cta: "Pick your chapter →" },
   { key: "rep", title: `Want to run Survive at ${campusName ?? "your campus"}?`, sub: "Campus reps get paid per chapter they sign.", cta: "Become a campus rep →" },
   { key: "syllabus", title: "Got your syllabus?", sub: "Send me the chapter list and I'll line these videos up with your professor.", cta: "Send my syllabus →" },
 ];
 
 const DISMISS_KEY = "sa-asks-dismissed";
 
-export function LearnAsksBar({ theme, campusName, campusId, campusSlug, courseCode, greekEnabled, onGreek, narrow, demo }: {
+export function LearnAsksBar({ theme, campusName, campusId, campusSlug, courseCode, greekEnabled, council = false, onGreek, narrow, demo }: {
+  /** The visitor is (or was sent by) a council contact — CTA state B copy. */
+  council?: boolean;
   theme: LearnTheme;
   campusName: string | null;
   campusId: string | null;
@@ -38,7 +43,7 @@ export function LearnAsksBar({ theme, campusName, campusId, campusSlug, courseCo
   const [i, setI] = useState(0);
   const [syllabus, setSyllabus] = useState(false);
   useEffect(() => { try { setHidden(sessionStorage.getItem(DISMISS_KEY) === "1"); } catch { setHidden(false); } }, []);
-  const list = asks(campusName).filter((a) => a.key !== "greek" || greekEnabled);
+  const list = asks(campusName, council).filter((a) => a.key !== "greek" || greekEnabled);
   useEffect(() => {
     if (list.length < 2) return;
     const iv = window.setInterval(() => setI((n) => n + 1), 10_000);
