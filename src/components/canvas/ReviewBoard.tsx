@@ -23,6 +23,7 @@ import {
   setActivePhraseSession, startPhraseBank, subscribePhraseBank, type PhraseBankDoc,
 } from "./phrase-bank";
 import { pinStyleNote } from "./talkthrough-review";
+import { editHref, type CeqEditSide } from "./ceq-edit-link";
 import type { MicroEditProposal, PassCeq } from "./talkthrough-pass";
 
 const CREAM = "#F4EFE6";
@@ -314,13 +315,28 @@ function ScriptCard({ item, onRegen, film }: { item: BoardItem; onRegen: (c: str
   );
 }
 
-/** The standalone edit screen for ONE SIDE of a CEQ edit card. Only the URL
- *  is spelled here — the /edit route itself is a later slice, so this link
- *  lands on "not found" until that ships. */
-function editHref(base: string, side: "current" | "proposed", item: BoardItem): string {
-  const q = new URLSearchParams({ side, item: item.id });
-  if (item.ceqIds[0]) q.set("ceq", item.ceqIds[0]);
-  return `${base}?${q.toString()}`;
+/** The heading over ONE column of a CEQ edit card — CURRENT or PROPOSED —
+ *  with its own Edit link to the standalone edit screen for that side.
+ *  Both columns render through this, so the two sides stay symmetrical: the
+ *  only difference is the label, its colour, and `side` in the URL. */
+function ColumnHead({ label, color, side, item, editBase }: {
+  label: string; color: string; side: CeqEditSide; item: BoardItem; editBase?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <div style={{ fontSize: 9.5, letterSpacing: "0.18em", color, textTransform: "uppercase", fontWeight: 900 }}>{label}</div>
+      {editBase && (
+        <a
+          className="tt-chrome rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+          href={editHref(editBase, side, item)}
+          title={`Edit the ${label.toUpperCase()} question on its own screen`}
+          style={{ border: `1px solid ${EDGE}`, color: NEON.muted, textDecoration: "none", lineHeight: 1.6 }}
+        >
+          Edit
+        </a>
+      )}
+    </div>
+  );
 }
 
 function CeqEditCard({ item, ceq, onRegen, editBase }: { item: BoardItem; ceq: PassCeq | null; onRegen: (c: string) => Promise<void>; editBase?: string }) {
@@ -350,26 +366,14 @@ function CeqEditCard({ item, ceq, onRegen, editBase }: { item: BoardItem; ceq: P
       {(p.state === "ready" || p.state === "applied" || p.proposed) && p.proposed && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <div className="flex items-center gap-2">
-              <div style={{ fontSize: 9.5, letterSpacing: "0.18em", color: NEON.muted, textTransform: "uppercase", fontWeight: 900 }}>Current</div>
-              {editBase && (
-                <a
-                  className="tt-chrome rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                  href={editHref(editBase, "current", item)}
-                  title="Edit the CURRENT question on its own screen"
-                  style={{ border: `1px solid ${EDGE}`, color: NEON.muted, textDecoration: "none", lineHeight: 1.6 }}
-                >
-                  Edit
-                </a>
-              )}
-            </div>
+            <ColumnHead label="Current" color={NEON.muted} side="current" item={item} editBase={editBase} />
             <div style={{ fontSize: 12.5, marginTop: 3 }}>{p.current?.stem ?? ceq?.stem}</div>
             {(p.current?.choices ?? ceq?.choices ?? []).map((c, i) => (
               <div key={i} style={{ fontSize: 11.5, color: c.correct ? "#3BF5A0" : NEON.muted }}>{String.fromCharCode(65 + i)}. {c.text}{c.correct ? " ✓" : ""}</div>
             ))}
           </div>
           <div>
-            <div style={{ fontSize: 9.5, letterSpacing: "0.18em", color: GOLD, textTransform: "uppercase", fontWeight: 900 }}>Proposed</div>
+            <ColumnHead label="Proposed" color={GOLD} side="proposed" item={item} editBase={editBase} />
             {!editing ? (
               <>
                 <div style={{ fontSize: 12.5, marginTop: 3, cursor: "pointer" }} title="Click to override" onClick={() => setEditing(true)}>
@@ -463,8 +467,9 @@ export function ReviewBoardV2({ items, ceqs, onRegen, film, editBase }: {
   film?: { doc: TTDoc; setId: string };
   /** Base path of the standalone edit screen, e.g.
    *  /v3/<topic>/<set>/blast-off/edit. When given, every CEQ edit card shows
-   *  an Edit link above its Current column. Omitted (studio /talkthrough) =
-   *  no link, because there is no set-scoped URL to send Lee to. */
+   *  an Edit link above BOTH its Current and its Proposed column (?side=
+   *  current / proposed). Omitted (studio /talkthrough) = no links, because
+   *  there is no set-scoped URL to send Lee to. */
   editBase?: string;
 }) {
   const script = items.filter((b) => b.kind === "script");
