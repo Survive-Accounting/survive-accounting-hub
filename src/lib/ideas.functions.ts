@@ -125,3 +125,67 @@ export const draftIdeaPrompt = createServerFn({ method: "POST" })
     const r = await runAiTask("synthesis", { system, user, maxOutput: 3500 });
     return { text: r.text.trim(), model: r.usage.model, costUsd: r.usage.costUsd };
   });
+
+/** SEND A SUMMARY (Lee, 2026-09-02): "Send summary to Lee / Send summary to
+ *  King … I want King to get updates on what all I'm building. Have the TLDR,
+ *  then the summary, prompt, etc."
+ *
+ *  Lee's ideas go to King as build updates; King's ideas (he captures with
+ *  Ctrl+I too) go to Lee. An idea with no prompt yet is drafted first, so the
+ *  email always carries the four sections, and the draft is saved to the
+ *  vault (IDEA → DRAFTED) — one call, one artifact, both places. Uses the
+ *  existing Resend helper; a missing key surfaces as the error, never as a
+ *  silent no-send. The send is recorded on the idea (context.lastSentTo/At). */
+export const sendIdeaSummary = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    id: z.string().min(1).max(80),
+    to: z.enum(["lee", "king"]),
+    note: z.string().max(2000).optional(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true; drafted: boolean; to: string; id?: string }> => {
+    const db = await admin();
+    const { data: row, error } = await db.from("ideas").select("*").eq("id", data.id).single();
+    if (error) rethrow(error);
+    const r = row as Row;
+    const now = new Date().toISOString();
+
+    let drafted = false;
+    if (!r.prompt_md?.trim()) {
+      const { runAiTask } = await import("@/lib/ai.server");
+      const { buildIdeaPromptMessages } = await import("@/lib/ideas-prompt");
+      const { system, user } = buildIdeaPromptMessages({
+        title: r.title, body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
+        sourcePath: r.source_path ?? "", pageTitle: r.context?.title ?? "",
+      });
+      const ai = await runAiTask("synthesis", { system, user, maxOutput: 3500 });
+      r.prompt_md = ai.text.trim();
+      r.prompt_filename = r.prompt_filename || `${(r.title || "prompt").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60)}.md`;
+      if (r.status === "IDEA") r.status = "DRAFTED";
+      const { error: e } = await db.from("ideas").update({ prompt_md: r.prompt_md, prompt_filename: r.prompt_filename, status: r.status, updated_at: now }).eq("id", r.id);
+      if (e) rethrow(e);
+      drafted = true;
+    }
+
+    const { ideaUpdateText } = await import("@/lib/ideas-prompt");
+    const { adminEmailFor } = await import("@/components/AdminGate");
+    const { sendResendEmail } = await import("@/lib/email.server");
+    const to = adminEmailFor(data.to);
+    const from = (r.created_by || "").toLowerCase() || "lee";
+    const text = [
+      data.note ? `${data.note}\n` : "",
+      ideaUpdateText({
+        title: r.title, body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
+        sourcePath: r.source_path ?? "", pageTitle: r.context?.title ?? "", promptMd: r.prompt_md,
+        createdBy: from, appUrl: "https://surviveaccounting.com/admin/ideas",
+      }),
+    ].filter(Boolean).join("\n");
+    const subject = `[Survive idea] ${r.title || "(untitled)"} — from ${from === "king" ? "King" : "Lee"}`;
+    const sent = await sendResendEmail({ to, subject, text });
+    if (!sent.ok) throw new Error(`email to ${to} failed: ${sent.error}`);
+
+    // Remembered on the idea, so the vault shows who has seen it.
+    const context = { ...(r.context ?? {}), lastSentTo: to, lastSentAt: now };
+    const { error: e2 } = await db.from("ideas").update({ context, updated_at: now }).eq("id", r.id);
+    if (e2) rethrow(e2);
+    return { ok: true, drafted, to, id: sent.id };
+  });

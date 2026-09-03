@@ -20,8 +20,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 
-import { listIdeas, saveIdea } from "@/lib/ideas.functions";
-import { getAdminWho, isAdminUnlocked } from "@/components/AdminGate";
+import { listIdeas, saveIdea, sendIdeaSummary } from "@/lib/ideas.functions";
+import { getAdminWho, isAdminUnlocked, type AdminWho } from "@/components/AdminGate";
 import { IdeaRecorder, judgeTranscript, shouldTranscribe } from "./voice";
 import { uploadIdeaFile, transcribeIdeaAudio } from "./upload";
 import {
@@ -149,6 +149,13 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
   const [audio, setAudio] = useState<{ path: string; status: string } | null>(null);
   const [files, setFiles] = useState<Attachment[]>([]);
   const [, bump] = useState(0);
+  // SEND A SUMMARY (Lee, 2026-09-02): "Show Lee for everyone but me. Just show
+  // King for me." Lee's ideas go to King as build updates; anyone else's go
+  // to Lee. Off by default — capture stays ten seconds.
+  const me = getAdminWho();
+  const other: AdminWho = me === "lee" ? "king" : "lee";
+  const [sendTo, setSendTo] = useState(false);
+  const [phase, setPhase] = useState<string | null>(null);
 
   useEffect(() => { ta.current?.focus(); }, []);
   const subs = useMemo(() => knownSubcategories(ideas), [ideas]);
@@ -185,8 +192,9 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
     // Audio alone is a valid idea: a failed transcript must not lose it.
     if ((!body && !audio) || busy) return;
     setBusy(true); setErr(null);
+    const id = newIdeaId();
     saveIdea({ data: {
-      id: newIdeaId(),
+      id,
       title: deriveTitle(body) || (audio ? "Voice note" : ""),
       body,
       categories: cats,
@@ -206,9 +214,18 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
       audioPath: audio?.path ?? null,
       transcriptStatus: audio?.status ?? null,
     } })
-      .then(() => { onSaved(); onClose(); })
-      .catch((e) => { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); });
-  }, [text, cats, sub, pathname, busy, audio, files, onSaved, onClose]);
+      .then(async () => {
+        onSaved();
+        if (!sendTo) { onClose(); return; }
+        // The idea is saved either way; the summary (drafted first if it
+        // has no prompt) is the extra step, and its failure is shown, not
+        // swallowed — the idea itself is already safe in the vault.
+        setPhase(`Saved. Drafting the prompt and sending to ${other === "king" ? "King" : "Lee"}…`);
+        await sendIdeaSummary({ data: { id, to: other } });
+        onClose();
+      })
+      .catch((e) => { setErr(e instanceof Error ? e.message : String(e)); setPhase(null); setBusy(false); });
+  }, [text, cats, sub, pathname, busy, audio, files, onSaved, onClose, sendTo, other]);
 
   /** HOLD to talk, or tap-tap for a longer note. Both gestures, one handler. */
   const startRec = async () => {
@@ -368,9 +385,16 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
         />
         <datalist id="sa-idea-subs">{subs.map((s) => <option key={s} value={s} />)}</datalist>
 
+        <label className="flex items-center" style={{ gap: 8, marginTop: 14, cursor: "pointer", fontSize: 12.5, color: CREAM }}>
+          <input type="checkbox" checked={sendTo} onChange={(e) => setSendTo(e.target.checked)} style={{ accentColor: GOLD, width: 15, height: 15 }} />
+          Send summary to {other === "king" ? "King" : "Lee"}
+          <span style={{ fontSize: 10.5, color: MUTED }}>— TLDR · summary · prompt · checklist, by email (drafts the prompt first)</span>
+        </label>
+
         <div style={{ fontSize: 10.5, color: MUTED, marginTop: 12 }}>
-          Saved from <span style={{ color: CREAM }}>{pathname}</span> — captured automatically.
+          Saved from <span style={{ color: CREAM }}>{pathname}</span> — captured automatically{me ? ` · as ${me}` : ""}.
         </div>
+        {phase && <div style={{ color: "#3BF5A0", fontSize: 11.5, marginTop: 8 }}>{phase}</div>}
         {loadErr && <div style={{ color: "#F87171", fontSize: 11, marginTop: 8 }}>{loadErr}</div>}
         {err && <div style={{ color: "#F87171", fontSize: 11.5, marginTop: 8 }}>{err}</div>}
       </div>

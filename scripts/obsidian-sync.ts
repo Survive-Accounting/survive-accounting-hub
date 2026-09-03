@@ -28,6 +28,7 @@
 // USAGE (from the repo root, .env supplies Supabase + AI keys):
 //   bun run obsidian:sync                 # mirror + push status changes back
 //   bun run obsidian:sync -- --draft      # also draft missing prompts
+//   bun run obsidian:sync -- --redraft --only=<idea id>   # replace one prompt (old one kept)
 //   bun run obsidian:sync -- --dry        # say what would happen, write nothing
 //   OBSIDIAN_VAULT="D:/Vault" bun run obsidian:sync   # a different vault
 import fs from "node:fs";
@@ -43,6 +44,12 @@ const PENDING = "<!-- survive:prompt pending — run `bun run obsidian:sync -- -
 
 const args = new Set(process.argv.slice(2));
 const DRAFT = args.has("--draft");
+// --redraft: draft even where a prompt exists (a hand-written spec, an old
+// three-section draft). The previous prompt is kept on the idea
+// (context.previousPromptMd) and in the note under "Previous prompt".
+const REDRAFT = args.has("--redraft");
+// --only=<idea id>: limit --draft/--redraft to one idea.
+const ONLY = [...args].find((a) => a.startsWith("--only="))?.slice(7) ?? null;
 const DRY = args.has("--dry");
 
 interface Row {
@@ -125,6 +132,8 @@ function noteBody(r: Row): string {
     out.push("## Prompt", "", PENDING, "");
     out.push("## Testing checklist", "", "- [ ] _(drafted with the prompt)_", "");
   }
+  if (r.context?.lastSentTo) out.push(`_Summary last sent to ${r.context.lastSentTo}${r.context.lastSentAt ? ` on ${day(r.context.lastSentAt)}` : ""}._`, "");
+  if (r.context?.previousPromptMd) out.push("## Previous prompt (kept)", "", r.context.previousPromptMd, "");
   return out.join("\n");
 }
 
@@ -154,20 +163,29 @@ async function main(): Promise<void> {
 
   for (const r of rows) {
     // --draft: a missing prompt gets one, saved to the app first.
-    if (DRAFT && !r.prompt_md?.trim() && (r.status === "IDEA" || r.status === "DRAFTED")) {
-      log(`draft  ${r.title}`);
+    // --redraft: an existing one is replaced, the old one kept.
+    const eligible = (r.status === "IDEA" || r.status === "DRAFTED") && (!ONLY || ONLY === r.id);
+    const wantDraft = eligible && ((DRAFT && !r.prompt_md?.trim()) || REDRAFT);
+    let redrawn = false;
+    if (wantDraft) {
+      log(`${r.prompt_md?.trim() ? "redraft" : "draft  "} ${r.title}`);
       if (!DRY) {
         const { runAiTask } = await import("../src/lib/ai.server");
         const { system, user } = buildIdeaPromptMessages({
           title: r.title, body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "", sourcePath: r.source_path ?? "",
           pageTitle: r.context?.title ?? "",
+          // A hand-written prompt is Lee's spec — the redraft is grounded in it.
+          notes: r.prompt_md?.trim() ? `LEE'S EXISTING NOTES / SPEC FOR THIS (keep every decision in it):\n${r.prompt_md.trim().slice(0, 8000)}` : undefined,
         });
         const res = await runAiTask("synthesis", { system, user, maxOutput: 3500 });
+        const previous = r.prompt_md?.trim() ?? "";
         r.prompt_md = res.text.trim();
         r.prompt_filename = r.prompt_filename || `${slug(r.title).toLowerCase().replace(/\s+/g, "-")}.md`;
         if (r.status === "IDEA") r.status = "DRAFTED";
-        const { error: e } = await db.from("ideas").update({ prompt_md: r.prompt_md, prompt_filename: r.prompt_filename, status: r.status, updated_at: new Date().toISOString() }).eq("id", r.id);
+        if (previous) r.context = { ...(r.context ?? {}), previousPromptMd: previous };
+        const { error: e } = await db.from("ideas").update({ prompt_md: r.prompt_md, prompt_filename: r.prompt_filename, status: r.status, context: r.context, updated_at: new Date().toISOString() }).eq("id", r.id);
         if (e) throw new Error(`save prompt for ${r.id}: ${e.message}`);
+        redrawn = !!previous;
       }
       drafted++;
     }
@@ -196,10 +214,10 @@ async function main(): Promise<void> {
       pushed++;
     }
 
-    // The note was waiting for a prompt and the app now has one: refresh the
-    // body, keep the frontmatter Lee may have touched.
-    if (body.includes(PENDING) && r.prompt_md?.trim()) {
-      log(`prompt ${path.basename(existing)} — prompt landed`);
+    // The note was waiting for a prompt and the app now has one — or this run
+    // redrafted it: refresh the body, keep the frontmatter Lee may have touched.
+    if ((body.includes(PENDING) && r.prompt_md?.trim()) || redrawn) {
+      log(`prompt ${path.basename(existing)} — ${redrawn ? "redrafted (previous kept below)" : "prompt landed"}`);
       if (!DRY) fs.writeFileSync(existing, renderFront(noteFront(r, front)) + "\n" + noteBody(r), "utf8");
       refreshed++;
       continue;

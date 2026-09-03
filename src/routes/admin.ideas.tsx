@@ -10,7 +10,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminGate, getAdminWho } from "@/components/AdminGate";
-import { draftIdeaPrompt, listIdeas, saveIdea } from "@/lib/ideas.functions";
+import { draftIdeaPrompt, listIdeas, saveIdea, sendIdeaSummary } from "@/lib/ideas.functions";
 import {
   CATEGORIES, CATEGORY_LABEL, FOCUS_LABEL, PEOPLE, PERSON_LABEL, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
   filterIdeas, prioritize, sortIdeas,
@@ -175,6 +175,16 @@ function Row({ idea, expanded, onToggle, onPatch }: {
       .catch((e) => setDraftErr(e instanceof Error ? e.message : String(e)))
       .finally(() => setDrafting(false));
   };
+  /** SEND A SUMMARY — Lee's ideas go to King as build updates, King's to Lee.
+   *  Drafts the prompt first when there is none; the row refreshes after. */
+  const other = (getAdminWho() === "lee" ? "king" : "lee") as "lee" | "king";
+  const [sending, setSending] = useState<string | null>(null);
+  const send = () => {
+    setSending(`Sending to ${other === "king" ? "King" : "Lee"}…`); setDraftErr(null);
+    sendIdeaSummary({ data: { id: idea.id, to: other } })
+      .then((r) => { setSending(`✓ sent to ${r.to}${r.drafted ? " (prompt drafted)" : ""}`); onPatch({}); setTimeout(() => setSending(null), 2500); })
+      .catch((e) => { setSending(null); setDraftErr(e instanceof Error ? e.message : String(e)); });
+  };
   /** Copy the prompt — the other half of "write it here, paste it into Claude Code". */
   const copy = () => {
     navigator.clipboard.writeText(idea.promptMd ?? "").then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400); }).catch(() => setDraftErr("Clipboard blocked — use Download .md"));
@@ -264,6 +274,8 @@ function Row({ idea, expanded, onToggle, onPatch }: {
               {drafting ? "Drafting…" : idea.promptMd ? "✨ Redraft with AI" : "✨ Draft prompt with AI"}
             </button>
             {idea.promptMd && <Btn onClick={copy}>{copied ? "✓ Copied" : "Copy prompt"}</Btn>}
+            <Btn onClick={send}>{sending ?? `✉ Send summary to ${other === "king" ? "King" : "Lee"}`}</Btn>
+            {idea.context?.lastSentTo && !sending && <span style={{ fontSize: 11, color: MUTED }}>last sent to {idea.context.lastSentTo}{idea.context.lastSentAt ? ` · ${new Date(idea.context.lastSentAt).toLocaleDateString()}` : ""}</span>}
             <Btn onClick={() => file.current?.click()}>{idea.promptMd ? "Replace .md" : "Upload .md"}</Btn>
             <Btn onClick={() => setPaste((v) => !v)}>{paste ? "Cancel paste" : "Paste markdown"}</Btn>
             {idea.promptMd && <Btn onClick={download}>Download .md</Btn>}

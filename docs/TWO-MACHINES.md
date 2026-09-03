@@ -21,6 +21,21 @@ Rules for the laptop: no Claude Code, no `/admin/ideas`, no exhibit builds.
 If something is wrong or missing, **Ctrl+I it** and keep filming. The idea is
 now the build machine's problem.
 
+## King — ideas from anywhere, updates by email
+
+King unlocks the admin gate once (passcode, identity **King**) and then
+**Ctrl+I works on every page for him too** — the growth dashboard mostly, but
+any page he is testing. Voice or text, same modal. His ideas land in the same
+vault, tagged `by: king`, captured from the page he was on.
+
+- In his modal the checkbox says **Send summary to Lee**. Ticked, Lee gets the
+  TLDR · summary · prompt · testing checklist by email (the prompt is drafted
+  first if there is none).
+- In Lee's modal it says **Send summary to King** — that is how King gets
+  updates on what is being built, without the scattered email thread.
+- On `/admin/ideas` every idea has **✉ Send summary to …** for the same thing
+  after the fact, and shows who it was last sent to.
+
 ## This PC — Obsidian is the build queue
 
 The wall between the machines is Obsidian. Ideas accumulate in the app;
