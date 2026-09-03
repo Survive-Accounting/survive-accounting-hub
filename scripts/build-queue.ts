@@ -136,7 +136,10 @@ async function waitForPreview(sha: string): Promise<{ url: string | null; state:
   const started = Date.now();
   let last = "none";
   while (Date.now() - started < DEPLOY_WAIT_MS) {
-    const dep = sh("gh", ["api", `repos/${GH_REPO}/deployments?sha=${sha}&per_page=3`, "--jq", ".[] | select(.environment==\"Preview\") | .id"], REPO, { quiet: true });
+    // List recent deployments and match the commit ourselves — the API's
+    // `sha=` filter came back empty for the teleprompter build even though
+    // the deployment (ref = the same sha) was right there.
+    const dep = sh("gh", ["api", `repos/${GH_REPO}/deployments?per_page=30`, "--jq", `.[] | select(.environment=="Preview" and (.ref | startswith("${sha.slice(0, 12)}"))) | .id`], REPO, { quiet: true });
     const id = dep.out.trim().split(/\s+/)[0];
     if (id) {
       const st = sh("gh", ["api", `repos/${GH_REPO}/deployments/${id}/statuses?per_page=1`, "--jq", ".[0] | \"\\(.state) \\(.environment_url // \"\")\""], REPO, { quiet: true });
