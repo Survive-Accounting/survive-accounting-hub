@@ -27,7 +27,11 @@ export const IDEA_PROMPT_SECTIONS = ["## TLDR", "## Summary", "## Prompt", "## T
  *  categorises a raw capture so the vault is clean without anyone thinking. */
 export const IDEA_CATEGORY_KEYS = ["AUTHORING", "FILMING", "PUBLISHING", "MARKETING", "CUSTOMER_SUCCESS", "UI_UX", "INFRASTRUCTURE"] as const;
 
-export function buildOrganizeMessages(idea: IdeaForPrompt & { existingPrompt?: string | null }): { system: string; user: string } {
+export function buildOrganizeMessages(idea: IdeaForPrompt & { existingPrompt?: string | null; intent?: string; other?: string }): { system: string; user: string } {
+  const intentLine = idea.intent === "page" ? "THE AUTHOR PRESSED “IMPROVE THIS PAGE”: the idea is about the captured page; say so in the title and summary."
+    : idea.intent === "todo" ? "THE AUTHOR PRESSED “TO-DO”: this is a task, not a build idea — title it as an imperative."
+    : idea.intent === "other" && idea.other ? `THE AUTHOR LABELLED IT “${idea.other}”: keep that as the subcategory and let it steer the categories.`
+    : "THE AUTHOR PRESSED “GENERAL IDEA”: it may be about anything; if the words name a category, use it.";
   const system = [
     "You tidy ONE raw idea from Survive Accounting's team (Lee, the founder; King, the VA) into a clean vault entry. The idea may be dictated, rambling, or a pasted Claude Code prompt. Keep every decision in it; drop filler.",
     "Return ONLY a JSON object: {\"title\": str (≤ 60 chars, specific, noun phrase — what it is, not \"idea about\"), \"tldr\": str (ONE sentence: what changes for whom), \"summary\": str (2–3 sentences, plain words, Lee's intent), \"categories\": [str] (1–2 from: AUTHORING = Talk Box, exhibits, CEQs, content creation · FILMING = capture, frames, Studio · PUBLISHING = production queue, YouTube, the app · MARKETING = outreach, campaigns, campus reps, landing pages · CUSTOMER_SUCCESS = students, support, guarantees, onboarding, what a page DOES · UI_UX = how a page LOOKS · INFRASTRUCTURE = domains, inboxes, data, architecture), \"urgent\": bool (true only if the words say it blocks filming, launch, money, or a live bug for students)}",
@@ -36,7 +40,8 @@ export function buildOrganizeMessages(idea: IdeaForPrompt & { existingPrompt?: s
     `WORDS: ${idea.title}`,
     idea.body ? `BODY:\n${idea.body.slice(0, 6000)}` : "",
     idea.existingPrompt ? `A PROMPT ALREADY ATTACHED (summarise what it builds):\n${idea.existingPrompt.slice(0, 6000)}` : "",
-    idea.categories.length ? `CATEGORIES ALREADY CHOSEN BY THE AUTHOR (keep them; add at most one): ${idea.categories.join(", ")}` : "",
+    intentLine,
+    idea.categories.length ? `CATEGORIES LAST TIME (re-decide freely; the author may name a category in the words — that wins): ${idea.categories.join(", ")}` : "",
     idea.sourcePath ? `CAPTURED FROM: ${idea.sourcePath}${idea.pageTitle ? ` — “${idea.pageTitle}”` : ""}` : "",
   ].filter(Boolean).join("\n\n");
   return { system, user };

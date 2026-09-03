@@ -160,6 +160,7 @@ export const organizeIdea = createServerFn({ method: "POST" })
       const org = buildOrganizeMessages({
         title: r.title || words.slice(0, 80), body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
         sourcePath: r.source_path ?? "", pageTitle: ctx.title ?? "", existingPrompt: r.prompt_md,
+        intent: ctx.intent, other: ctx.other,
       });
       const res = await runAiTask("micro", { system: org.system, user: org.user, maxOutput: 700 });
       const m = res.text.match(/\{[\s\S]*\}/);
@@ -169,8 +170,12 @@ export const organizeIdea = createServerFn({ method: "POST" })
         if (title) r.title = title;
         if (typeof j.tldr === "string") ctx.tldr = j.tldr.trim();
         if (typeof j.summary === "string") ctx.summary = j.summary.trim();
-        if (!(r.categories ?? []).length && Array.isArray(j.categories)) {
-          r.categories = j.categories.filter((c): c is string => typeof c === "string" && (CATEGORIES as readonly string[]).includes(c)).slice(0, 2);
+        // CATEGORIES ARE AI'S, EVERY TIME (Lee, 2026-09-03: "let AI continuously
+        // update the tags/categories. Let it figure that out.") — the modal no
+        // longer offers chips; each organise re-decides.
+        if (Array.isArray(j.categories)) {
+          const cats = j.categories.filter((c): c is string => typeof c === "string" && (CATEGORIES as readonly string[]).includes(c)).slice(0, 2);
+          if (cats.length) r.categories = cats;
         }
         // AI may FLAG urgency but never un-flag what a person set.
         if (j.urgent === true && !ctx.urgent) ctx.urgentSuggested = "1";
