@@ -184,9 +184,23 @@ async function runClaimIntake(claimId: string | null, isTest: boolean): Promise<
     // the server-held tester session — never from anything the client sent. So a test claim cannot
     // land in the real intake table as a real lead, and a real claim cannot be hidden by a flag.
 
+    // ONE REF, ONE LINK. The exec gets the same sms_conversations row on the main line that every
+    // student who texts gets, so "#241 hey Jordan" reaches them through the relay that already
+    // exists, and /x/241 is the one page to approve, call or text. Letters are GSM-7-safe
+    // (greek-letters.ts) so the alert stays one segment.
+    const { ensureConversationRef, actionLink } = await import("@/lib/comms/refs.server");
+    const { chapterSmsLabel } = await import("@/lib/greek-letters");
+    const letters = chapterSmsLabel(ch.chapterName, ch.letters);
+    const intent = (claim.intent as "committed" | "curious" | "exploring" | null) ?? null;
+    const refRow = await ensureConversationRef(db, {
+      phone: claim.phone as string, campusId: ch.campusId, kind: "claim",
+      subject: `${letters} ${ch.schoolName} claim: ${claim.name as string}`, isTest,
+    });
+
     // UNIFIED INTAKE (greek_claim — a PRIORITY kind): the exec gets "Got your claim for
-    // <Chapter>" with the members' link; Lee gets the consolidated priority alert. The mobile
-    // field sits beside the SmsConsentNote in ChapterAccessForm, so phone = consent.
+    // <Chapter>" with the members' link; Lee gets the one-segment alert with the ref, the letters,
+    // the intent and the action link. The mobile field sits beside the SmsConsentNote in
+    // ChapterAccessForm, so phone = consent.
     const { runIntake } = await import("@/lib/comms/intake.server");
     await runIntake({
       kind: "greek_claim", name: claim.name as string, email: claim.email as string, phone: claim.phone as string,
@@ -194,58 +208,16 @@ async function runClaimIntake(claimId: string | null, isTest: boolean): Promise<
       chapterLink: `https://surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`,
       role: claim.position as string,
       note: `${ch.members} member${ch.members === 1 ? "" : "s"} banked at claim`,
-      // STRAIGHT TO THE DECISION, and deliberately NOT a one-tap approve URL: approving hands
-      // over a roster of student names and phone numbers, so it goes through the authenticated
-      // review screen. The query param just opens it on the right claim.
+      // The queue, deep-linked. Still NOT a one-tap approve URL: approving hands over a roster of
+      // student names and phone numbers, so both this and /x/ sit behind the admin session.
       adminLink: `https://surviveaccounting.com/outreach/greek-claims?claim=${claimId}`,
       sourcePath: goPath(ch.schoolSlug, ch.chapterSlug), smsConsent: true, isTest,
+      alertCtx: { ref: refRow?.shortRef ?? null, actionLink: actionLink(refRow?.shortRef), letters, intent, members: ch.members },
+      // "We're ready to sponsor seats" was promised a text within the hour. It is never held
+      // behind the hourly cap — this replaces the separate hot-lead ping that used to fire here
+      // (two texts for one claim) and bypassed the send layer entirely.
+      alertPriority: intent === "committed",
     });
-
-    // ── THE HOT LEAD (K3.3) ──────────────────────────────────────────────────────────────────
-    //
-    // A chapter that answered "We're ready to sponsor seats" is a different event from a chapter
-    // that is browsing, and the page has already promised them Lee will text WITHIN THE HOUR. So
-    // this is a second, deliberately louder alert on top of the standard intake one — to LEE,
-    // never to the chapter — carrying the number he needs to make that call.
-    //
-    // ┌─ STRIPE SEAM ───────────────────────────────────────────────────────────────────────────┐
-    // │ When payments go live this is where checkout joins (or replaces) the text-Lee promise:  │
-    // │ create a Checkout Session for SEAT_MINIMUM seats at SEAT_PRICE against this chapter,    │
-    // │ and return its URL so the confirmation can offer "Pay now" alongside "Lee will text     │
-    // │ you". Everything needed is already here: the chapter, the claimant, and the intent.     │
-    // │ Deliberately NOT enabled in this pass — no live checkout, no price is charged today.    │
-    // └─────────────────────────────────────────────────────────────────────────────────────────┘
-    if ((claim.intent as string | null) === "committed" && !isTest) {
-      try {
-        // RAW senders, not the template pipeline: this is an internal operator alert to Lee, not
-        // a templated message to a lead, and it must not be suppressed, capped or unsubscribed.
-        const { FOUNDER_EMAIL, FOUNDER_PHONE } = await import("@/lib/comms/send.server");
-        const { sendResendEmail } = await import("@/lib/email.server");
-        const { sendSms } = await import("@/lib/greek-chapters.functions");
-        const goUrl = `https://surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`;
-        const who = `${claim.name as string} (${claim.position as string})`;
-        const seats = `${ch.members} member${ch.members === 1 ? "" : "s"} banked`;
-        const line = `READY TO SPONSOR — ${ch.chapterName} at ${ch.schoolName}. ${who} · ${claim.phone as string} · ${seats}. They were told you'd text within the hour.`;
-        await sendResendEmail({
-          to: FOUNDER_EMAIL,
-          subject: `🔥 ${ch.chapterName} is ready to sponsor seats`,
-          text: `${line}
-${claim.email as string}
-${goUrl}`,
-          html: [
-            `<p><b>${ch.chapterName}</b> at <b>${ch.schoolName}</b> answered &quot;we&rsquo;re ready to sponsor seats&quot;.</p>`,
-            `<p>${who}<br><a href="tel:${claim.phone as string}">${claim.phone as string}</a><br>${claim.email as string}</p>`,
-            `<p>${seats}. <a href="${goUrl}">Chapter page</a></p>`,
-            `<p><b>They were told you would text within the hour.</b></p>`,
-          ].join(""),
-        }).catch(() => undefined);
-        if (FOUNDER_PHONE) await sendSms(FOUNDER_PHONE, line).catch(() => undefined);
-      } catch (e) {
-        // The claim and the standard intake already succeeded; a failed hot-lead ping must never
-        // undo them. It is logged so a silent miss is still a visible miss.
-        console.warn("hot-lead alert failed (claim saved, intake sent)", e instanceof Error ? e.message : e);
-      }
-    }
     return { ok: true };
   } catch (e) {
     console.warn("claim intake failed (claim saved)", e instanceof Error ? e.message : e);
@@ -360,75 +332,83 @@ export const decideChapterClaim = createServerFn({ method: "POST" })
     const who = await adminEmailFromToken(db, data.accessToken);
     if (!who) return { ok: false, error: "Not authorised." };
 
-    const { data: claim } = await db.from("greek_chapter_claims").select("*").eq("id", data.claimId).maybeSingle();
-    if (!claim) return { ok: false, error: "Claim not found." };
-    if (claim.status !== "pending") return { ok: false, error: `Already ${claim.status}.` };
-
-    const rosterId = claim.campus_greek_chapter_id as string;
-    const { data: roster } = await db.from("campus_greek_chapters").select("id,campus_id,slug,greek_org_id").eq("id", rosterId).maybeSingle();
-    if (!roster) return { ok: false, error: "That chapter no longer exists." };
-
-    if (data.decision === "rejected") {
-      await db.from("greek_chapter_claims").update({ status: "rejected", decided_at: new Date().toISOString() }).eq("id", data.claimId);
-      // Back to unclaimed, not left dangling on 'pending' — a rejected claim must not block the
-      // next person from claiming the same chapter.
-      await db.from("campus_greek_chapters").update({ claim_status: "unclaimed" }).eq("id", rosterId);
-      return { ok: true };
-    }
-
-    // APPROVE. The chapter record may already exist as an unclaimed shell (created by the first
-    // member to join from the /go/ page), so this attaches the admin to whatever is there rather
-    // than assuming a fresh insert — inserting blind would either fail on the unique index or
-    // orphan every member already banked against the shell.
-    const { data: campus } = roster.campus_id
-      ? await db.from("campuses").select("slug,name,short_name").eq("id", roster.campus_id).maybeSingle()
-      : { data: null };
-    const { data: org } = roster.greek_org_id
-      ? await db.from("greek_orgs").select("name").eq("id", roster.greek_org_id).maybeSingle()
-      : { data: null };
-    const chapterName = ((org?.name as string) ?? "").trim() || "Chapter";
-    const schoolName = (campus?.short_name as string) || (campus?.name as string) || "";
-
-    const adminFields = {
-      admin_name_role: `${claim.name}, ${claim.position}`,
-      admin_email: claim.email,
-      admin_phone: claim.phone,
-      claim_status: "claimed",
-      status: "active",
-      // Lee approving IS the verification — he answered this person. Leaving phone_verified_at null
-      // would lock the new admin out of their own dashboard.
-      phone_verified_at: new Date().toISOString(),
-    };
-
-    const { data: shell } = await db.from("greek_chapters").select("id").eq("campus_greek_chapter_id", rosterId).maybeSingle();
-    if (shell?.id) {
-      const { error } = await db.from("greek_chapters").update(adminFields).eq("id", shell.id);
-      if (error) return { ok: false, error: error.message };
-    } else {
-      const { error } = await db.from("greek_chapters").insert({
-        slug: `${campus?.slug ?? "chapter"}-${roster.slug ?? claim.id}`,
-        campus_id: roster.campus_id, campus_greek_chapter_id: rosterId,
-        school_name: schoolName, chapter_name: chapterName, greek_org_id: roster.greek_org_id,
-        ...adminFields,
-      });
-      if (error) return { ok: false, error: error.message };
-    }
-
-    await db.from("greek_chapter_claims").update({ status: "approved", decided_at: new Date().toISOString() }).eq("id", data.claimId);
-    await db.from("campus_greek_chapters").update({ claim_status: "claimed", claimed_at: new Date().toISOString() }).eq("id", rosterId);
-
-    // Tell the exec. Non-fatal: the approval already happened, and reporting a failed message is
-    // better than pretending it went out.
     const { isTestRequest } = await import("@/lib/test-mode.functions");
-    await sendChapterApproval({
-      name: claim.name as string, email: claim.email as string, phone: claim.phone as string,
-      chapterName, schoolName,
-      chapterLink: campus?.slug && roster.slug ? `https://surviveaccounting.com${goPath(campus.slug as string, roster.slug as string)}` : null,
-      isTest: await isTestRequest(),
-    });
-
-    return { ok: true };
+    return decideClaimCore(db, data.claimId, data.decision, await isTestRequest());
   });
+
+/** THE DECISION ITSELF, shared by the JWT-gated queue above and the admin-session /x/ action page
+ *  (action-card.functions.ts). Both gates are real server-side checks; this never trusts the
+ *  caller and is only reachable after one of them passed. */
+export async function decideClaimCore(db: DB, claimId: string, decision: "approved" | "rejected", isTest: boolean): Promise<{ ok: boolean; error?: string }> {
+  const { data: claim } = await db.from("greek_chapter_claims").select("*").eq("id", claimId).maybeSingle();
+  if (!claim) return { ok: false, error: "Claim not found." };
+  if (claim.status !== "pending") return { ok: false, error: `Already ${claim.status}.` };
+
+  const rosterId = claim.campus_greek_chapter_id as string;
+  const { data: roster } = await db.from("campus_greek_chapters").select("id,campus_id,slug,greek_org_id").eq("id", rosterId).maybeSingle();
+  if (!roster) return { ok: false, error: "That chapter no longer exists." };
+
+  if (decision === "rejected") {
+    await db.from("greek_chapter_claims").update({ status: "rejected", decided_at: new Date().toISOString() }).eq("id", claimId);
+    // Back to unclaimed, not left dangling on 'pending' — a rejected claim must not block the
+    // next person from claiming the same chapter.
+    await db.from("campus_greek_chapters").update({ claim_status: "unclaimed" }).eq("id", rosterId);
+    return { ok: true };
+  }
+
+  // APPROVE. The chapter record may already exist as an unclaimed shell (created by the first
+  // member to join from the /go/ page), so this attaches the admin to whatever is there rather
+  // than assuming a fresh insert — inserting blind would either fail on the unique index or
+  // orphan every member already banked against the shell.
+  const { data: campus } = roster.campus_id
+    ? await db.from("campuses").select("slug,name,short_name").eq("id", roster.campus_id).maybeSingle()
+    : { data: null };
+  const { data: org } = roster.greek_org_id
+    ? await db.from("greek_orgs").select("name").eq("id", roster.greek_org_id).maybeSingle()
+    : { data: null };
+  const chapterName = ((org?.name as string) ?? "").trim() || "Chapter";
+  const schoolName = (campus?.short_name as string) || (campus?.name as string) || "";
+
+  const adminFields = {
+    admin_name_role: `${claim.name}, ${claim.position}`,
+    admin_email: claim.email,
+    admin_phone: claim.phone,
+    claim_status: "claimed",
+    status: "active",
+    // Lee approving IS the verification — he answered this person. Leaving phone_verified_at null
+    // would lock the new admin out of their own dashboard.
+    phone_verified_at: new Date().toISOString(),
+  };
+
+  const { data: shell } = await db.from("greek_chapters").select("id").eq("campus_greek_chapter_id", rosterId).maybeSingle();
+  if (shell?.id) {
+    const { error } = await db.from("greek_chapters").update(adminFields).eq("id", shell.id);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    const { error } = await db.from("greek_chapters").insert({
+      slug: `${campus?.slug ?? "chapter"}-${roster.slug ?? claim.id}`,
+      campus_id: roster.campus_id, campus_greek_chapter_id: rosterId,
+      school_name: schoolName, chapter_name: chapterName, greek_org_id: roster.greek_org_id,
+      ...adminFields,
+    });
+    if (error) return { ok: false, error: error.message };
+  }
+
+  await db.from("greek_chapter_claims").update({ status: "approved", decided_at: new Date().toISOString() }).eq("id", claimId);
+  await db.from("campus_greek_chapters").update({ claim_status: "claimed", claimed_at: new Date().toISOString() }).eq("id", rosterId);
+
+  // Tell the exec. Non-fatal: the approval already happened, and reporting a failed message is
+  // better than pretending it went out.
+  
+  await sendChapterApproval({
+    name: claim.name as string, email: claim.email as string, phone: claim.phone as string,
+    chapterName, schoolName,
+    chapterLink: campus?.slug && roster.slug ? `https://surviveaccounting.com${goPath(campus.slug as string, roster.slug as string)}` : null,
+    isTest,
+  });
+
+  return { ok: true };
+}
 
 // ── the approval message ──────────────────────────────────────────────────────────────────────
 //

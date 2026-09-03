@@ -72,6 +72,7 @@ const SIDES: PortalSide[] = [
       { label: "Requests / Orders", href: "/outreach/orders", note: "Every inbound request and order." },
       { label: "Comms", href: "/outreach/comms", note: "Comms console, demand list, practice analytics." },
       { label: "Chapters Queue", href: "/outreach/chapters", note: "Pending chapter approvals." },
+      { label: "Alert Previews", href: "/x/preview", note: "Send yourself the claim / rep / call / voicemail alerts. Any alert's link opens /x/<ref>." },
       // PARKED HERE 2026-08-28: both pages were pulled out of the public footer while Lee keeps
       // iterating on them. They still render normally — they are just unlinked and noindexed, so
       // this portal is now the only way back to them.

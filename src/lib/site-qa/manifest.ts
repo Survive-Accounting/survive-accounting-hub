@@ -571,6 +571,14 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "api.cron.chapter-reports.tsx": "cron endpoint (chapter signup reports)",
   "api.og.$school.$chapter.tsx": "generated image endpoint",
   "api.stripe.webhook.tsx": "webhook endpoint",
+  "x.$ref.tsx": "Lee's action card for one #ref (AdminGate + admin session, noindex; linked only from founder alerts)",
+  "api.voice.inbound.tsx": "webhook — Twilio Voice URL for the main line (signature-verified)",
+  "api.voice.recorded.tsx": "webhook — Twilio <Record> action (signature-verified)",
+  "api.voice.transcript.tsx": "webhook — Twilio transcription callback (signature-verified)",
+  "api.voice.dial-through.tsx": "webhook — Twilio <Gather> action for Lee's dial-through (signature-verified)",
+  "api.voice.bridge.tsx": "webhook — TwiML for the bridge call Lee starts from /x/ (signature-verified)",
+  "api.voice.softphone.tsx": "webhook — TwiML App Voice URL for the browser softphone (signature-verified)",
+  "api.voice.recording.$sid.tsx": "admin-gated audio proxy for voicemail playback",
 };
 
 export const TEMPLATES_BY_ID: Record<string, TemplateDef> = Object.fromEntries(

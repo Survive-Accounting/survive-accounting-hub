@@ -167,5 +167,41 @@ export const submitRepOnboarding = createServerFn({ method: "POST" })
       meta: { reachable: reachCount(data.reach).total, roles }, is_test: rep.is_test,
     }).then(() => undefined, () => undefined);
 
+    // THE ALERT LEE REVIEWS FROM. The signup alert said "someone signed up"; this one carries the
+    // application: year, own chapter, roles, how many chapters they can reach, and their pitch —
+    // enough to decide on the /x/ page without opening the roster. Best-effort: the application
+    // is saved above and a failed alert must not make the rep think it was not.
+    try {
+      const reachable = reachCount(data.reach).total;
+      let school: string | null = null;
+      let campusSlug: string | null = null;
+      const { data: c } = await db.from("campuses").select("slug,name,short_name").eq("id", rep.campus_id).maybeSingle();
+      if (c?.slug) { campusSlug = c.slug as string; school = canonicalSchoolName(c.slug as string, (c.short_name as string) || (c.name as string)); }
+      let ownChapter: string | null = null;
+      if (data.ownChapterId) {
+        const { data: ch } = await db.from("campus_greek_chapters").select("greek_org_id,nickname").eq("id", data.ownChapterId).maybeSingle();
+        if (ch?.greek_org_id) { const { data: org } = await db.from("greek_orgs").select("name").eq("id", ch.greek_org_id).maybeSingle(); ownChapter = (org?.name as string) ?? (ch.nickname as string) ?? null; }
+      }
+      const roleLabels = roles.map((r) => CAMPUS_ROLE_CHIPS.find((c) => c.slug === r)?.label ?? r);
+      const detail = [
+        `Class of ${data.graduationYear}`,
+        ownChapter ? `in ${ownChapter}` : "not Greek",
+        `can reach ${reachable} chapter${reachable === 1 ? "" : "s"}`,
+        ...roleLabels,
+      ].join(", ");
+      const phone = (rep.phone as string | null) ?? null;
+      const { ensureConversationRef, actionLink } = await import("@/lib/comms/refs.server");
+      const refRow = phone ? await ensureConversationRef(db, { phone, campusId: rep.campus_id, kind: "rep", subject: `${school ?? "campus"} rep application: ${rep.name as string}`, isTest: !!rep.is_test }) : null;
+      const { founderAlert } = await import("@/lib/comms/send.server");
+      await founderAlert({
+        ctx: {
+          kind: "rep", name: rep.name as string, school, campusSlug, email: (rep.email as string | null) ?? null, phone,
+          ref: refRow?.shortRef ?? null, actionLink: actionLink(refRow?.shortRef), repStage: "applied", detail,
+          note: data.pitch?.trim() || null, applicationLink: "https://surviveaccounting.com/admin/reps/roster",
+        },
+        isTest: !!rep.is_test,
+      });
+    } catch (e) { console.warn("rep application alert not sent (application saved):", (e as Error).message); }
+
     return { ok: true, reachable: reachCount(data.reach).total };
   });

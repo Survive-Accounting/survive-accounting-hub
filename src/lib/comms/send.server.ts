@@ -199,20 +199,31 @@ export async function sendTemplateSms(opts: {
 }
 
 // ---- founder alerts -------------------------------------------------------------------------
-/** Priority alert to Lee — email + SMS, one consolidated format, 30/hour with held-count. */
-export async function founderAlert(opts: { db?: DB; ctx: TemplateCtx; leadId?: string | null; isTest?: boolean; toEmail?: string; toPhone?: string }): Promise<{ email: SendOutcome; sms: SendOutcome; held: number }> {
+export type FounderAlertKey = Extract<TemplateKey, "founder_priority" | "founder_call" | "founder_voicemail">;
+
+/** Priority alert to Lee — email + SMS, one consolidated format, 30/hour with held-count.
+ *  `priority` skips the hourly cap (a chapter ready to sponsor, someone calling right now);
+ *  `channels` narrows to one medium (a transcript arriving later is email-only, so the phone does
+ *  not buzz twice for one voicemail); `preview` is a real send Lee asked for, marked as such. */
+export async function founderAlert(opts: {
+  db?: DB; ctx: TemplateCtx; leadId?: string | null; isTest?: boolean; toEmail?: string; toPhone?: string;
+  key?: FounderAlertKey; priority?: boolean; channels?: { email?: boolean; sms?: boolean }; preview?: boolean;
+}): Promise<{ email: SendOutcome; sms: SendOutcome; held: number }> {
   const db = opts.db ?? (await adminDb());
   const isTest = !!opts.isTest;
+  const key: FounderAlertKey = opts.key ?? "founder_priority";
+  const wantEmail = opts.channels?.email ?? true;
+  const wantSms = opts.channels?.sms ?? true;
   const toEmail = opts.toEmail ?? FOUNDER_EMAIL;
   const toPhone = opts.toPhone ?? FOUNDER_PHONE;
-  // Rate limit (real alerts only): count sent founder alerts in the last hour.
+  // Rate limit (real, non-priority alerts only): count sent founder alerts in the last hour.
   let held = 0;
-  if (!isTest) {
+  if (!isTest && !opts.priority) {
     try {
       const hourAgo = new Date(Date.now() - 3600e3).toISOString();
       const { count: sentCount } = await db.from("comms_sends").select("id", { count: "exact", head: true }).eq("category", "founder").eq("medium", "email").eq("status", "sent").eq("is_test", false).gte("sent_at", hourAgo);
       if ((sentCount ?? 0) >= FOUNDER_RATE) {
-        await logSend(db, { lead_id: opts.leadId ?? null, to_email: toEmail, medium: "email", template: "founder_priority", category: "founder", is_test: false, status: "held", error: "rate_limit" });
+        await logSend(db, { lead_id: opts.leadId ?? null, to_email: toEmail, medium: "email", template: key, category: "founder", is_test: false, status: "held", error: "rate_limit" });
         return { email: { ok: false, status: "held", reason: "rate_limit" }, sms: { ok: false, status: "held", reason: "rate_limit" }, held: 0 };
       }
       // Held since the last alert that went out → reported on this one.
@@ -221,22 +232,25 @@ export async function founderAlert(opts: { db?: DB; ctx: TemplateCtx; leadId?: s
       held = heldCount ?? 0;
     } catch { /* counts are best-effort */ }
   }
-  const ctx: TemplateCtx = { ...opts.ctx, heldCount: held, isTest };
+  const ctx: TemplateCtx = { ...opts.ctx, heldCount: held, isTest, preview: !!opts.preview };
   // In a test run this lands in the TESTER's inbox, not Lee's — sendTemplateEmail reroutes it like
   // any other test message. That is deliberate: the person running the lifecycle is the person who
   // needs to see what the founder alert says, and a shared run must not page Lee for a fake claim.
-  const email = await sendTemplateEmail({ db, key: "founder_priority", ctx, to: toEmail, leadId: opts.leadId ?? null, isTest });
-  let sms: SendOutcome = { ok: false, status: "skipped", reason: "no_founder_phone" };
+  const email: SendOutcome = wantEmail
+    ? await sendTemplateEmail({ db, key, ctx, to: toEmail, leadId: opts.leadId ?? null, isTest })
+    : { ok: false, status: "skipped", reason: "channel_off" };
+  let sms: SendOutcome = { ok: false, status: "skipped", reason: wantSms ? "no_founder_phone" : "channel_off" };
+  if (!wantSms) return { email, sms, held };
   if (isTest) {
-    const r = renderTemplate("founder_priority", ctx);
-    await logSend(db, { lead_id: opts.leadId ?? null, to_phone: toPhone || null, medium: "sms", template: "founder_priority", category: "founder", subject: (r.sms ?? r.subject).slice(0, 80), is_test: true, status: "skipped", error: "test_sms_suppressed" });
+    const r = renderTemplate(key, ctx);
+    await logSend(db, { lead_id: opts.leadId ?? null, to_phone: toPhone || null, medium: "sms", template: key, category: "founder", subject: (r.sms ?? r.subject).slice(0, 80), is_test: true, status: "skipped", error: "test_sms_suppressed" });
     return { email, sms: { ok: false, status: "skipped", reason: "test_sms_suppressed" }, held };
   }
   if (toPhone) {
     const { sendSms } = await import("@/lib/greek-chapters.functions");
-    const r = renderTemplate("founder_priority", ctx);
+    const r = renderTemplate(key, ctx);
     const res = await sendSms(toPhone, r.sms ?? r.subject);
-    await logSend(db, { lead_id: opts.leadId ?? null, to_phone: toPhone, medium: "sms", template: "founder_priority", category: "founder", subject: (r.sms ?? r.subject).slice(0, 80), is_test: isTest, status: res.ok ? "sent" : "failed", error: res.ok ? null : res.error ?? "twilio" });
+    await logSend(db, { lead_id: opts.leadId ?? null, to_phone: toPhone, medium: "sms", template: key, category: "founder", subject: (r.sms ?? r.subject).slice(0, 80), is_test: isTest, status: res.ok ? "sent" : "failed", error: res.ok ? null : res.error ?? "twilio" });
     sms = res.ok ? { ok: true, status: "sent" } : { ok: false, status: "failed", reason: res.error };
   }
   return { email, sms, held };

@@ -44,6 +44,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as UIndexRouteImport } from './routes/u.index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as SchoolIndexRouteImport } from './routes/$school.index'
+import { Route as XRefRouteImport } from './routes/x.$ref'
 import { Route as VaTokenRouteImport } from './routes/va.$token'
 import { Route as UTokenRouteImport } from './routes/u.$token'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
@@ -121,6 +122,12 @@ import { Route as GoSchoolChapterRouteImport } from './routes/go.$school.$chapte
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
+import { Route as ApiVoiceTranscriptRouteImport } from './routes/api.voice.transcript'
+import { Route as ApiVoiceSoftphoneRouteImport } from './routes/api.voice.softphone'
+import { Route as ApiVoiceRecordedRouteImport } from './routes/api.voice.recorded'
+import { Route as ApiVoiceInboundRouteImport } from './routes/api.voice.inbound'
+import { Route as ApiVoiceDialThroughRouteImport } from './routes/api.voice.dial-through'
+import { Route as ApiVoiceBridgeRouteImport } from './routes/api.voice.bridge'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhook'
 import { Route as ApiIdeasSmsRouteImport } from './routes/api.ideas.sms'
 import { Route as ApiIdeasEmailRouteImport } from './routes/api.ideas.email'
@@ -151,6 +158,7 @@ import { Route as AdminGrowthColdoutreachIndexRouteImport } from './routes/admin
 import { Route as PartnersCouncilSchoolCouncilRouteImport } from './routes/partners.council.$school.$council'
 import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.council.$council'
 import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_.kit.$school.$chapter'
+import { Route as ApiVoiceRecordingSidRouteImport } from './routes/api.voice.recording.$sid'
 import { Route as ApiPartnerKitSchoolCouncilRouteImport } from './routes/api.partner-kit.$school.$council'
 import { Route as ApiOgSchoolChapterRouteImport } from './routes/api.og.$school.$chapter'
 import { Route as ApiFlyerSchoolChapterRouteImport } from './routes/api.flyer.$school.$chapter'
@@ -334,6 +342,11 @@ const OutreachIndexRoute = OutreachIndexRouteImport.update({
 const SchoolIndexRoute = SchoolIndexRouteImport.update({
   id: '/$school/',
   path: '/$school/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const XRefRoute = XRefRouteImport.update({
+  id: '/x/$ref',
+  path: '/x/$ref',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VaTokenRoute = VaTokenRouteImport.update({
@@ -729,6 +742,36 @@ const CeqCourseSlugChapterSlugRoute =
     path: '/$courseSlug/$chapterSlug',
     getParentRoute: () => CeqRoute,
   } as any)
+const ApiVoiceTranscriptRoute = ApiVoiceTranscriptRouteImport.update({
+  id: '/api/voice/transcript',
+  path: '/api/voice/transcript',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVoiceSoftphoneRoute = ApiVoiceSoftphoneRouteImport.update({
+  id: '/api/voice/softphone',
+  path: '/api/voice/softphone',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVoiceRecordedRoute = ApiVoiceRecordedRouteImport.update({
+  id: '/api/voice/recorded',
+  path: '/api/voice/recorded',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVoiceInboundRoute = ApiVoiceInboundRouteImport.update({
+  id: '/api/voice/inbound',
+  path: '/api/voice/inbound',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVoiceDialThroughRoute = ApiVoiceDialThroughRouteImport.update({
+  id: '/api/voice/dial-through',
+  path: '/api/voice/dial-through',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVoiceBridgeRoute = ApiVoiceBridgeRouteImport.update({
+  id: '/api/voice/bridge',
+  path: '/api/voice/bridge',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   id: '/api/stripe/webhook',
   path: '/api/stripe/webhook',
@@ -882,6 +925,11 @@ const ChaptersKitSchoolChapterRoute =
     path: '/chapters/kit/$school/$chapter',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiVoiceRecordingSidRoute = ApiVoiceRecordingSidRouteImport.update({
+  id: '/api/voice/recording/$sid',
+  path: '/api/voice/recording/$sid',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPartnerKitSchoolCouncilRoute =
   ApiPartnerKitSchoolCouncilRouteImport.update({
     id: '/api/partner-kit/$school/$council',
@@ -1025,6 +1073,7 @@ export interface FileRoutesByFullPath {
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
   '/va/$token': typeof VaTokenRoute
+  '/x/$ref': typeof XRefRoute
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
@@ -1054,6 +1103,12 @@ export interface FileRoutesByFullPath {
   '/api/ideas/email': typeof ApiIdeasEmailRoute
   '/api/ideas/sms': typeof ApiIdeasSmsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/api/voice/bridge': typeof ApiVoiceBridgeRoute
+  '/api/voice/dial-through': typeof ApiVoiceDialThroughRoute
+  '/api/voice/inbound': typeof ApiVoiceInboundRoute
+  '/api/voice/recorded': typeof ApiVoiceRecordedRoute
+  '/api/voice/softphone': typeof ApiVoiceSoftphoneRoute
+  '/api/voice/transcript': typeof ApiVoiceTranscriptRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -1082,6 +1137,7 @@ export interface FileRoutesByFullPath {
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
+  '/api/voice/recording/$sid': typeof ApiVoiceRecordingSidRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
@@ -1175,6 +1231,7 @@ export interface FileRoutesByTo {
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
   '/va/$token': typeof VaTokenRoute
+  '/x/$ref': typeof XRefRoute
   '/$school': typeof SchoolIndexRoute
   '/outreach': typeof OutreachIndexRoute
   '/u': typeof UIndexRoute
@@ -1203,6 +1260,12 @@ export interface FileRoutesByTo {
   '/api/ideas/email': typeof ApiIdeasEmailRoute
   '/api/ideas/sms': typeof ApiIdeasSmsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/api/voice/bridge': typeof ApiVoiceBridgeRoute
+  '/api/voice/dial-through': typeof ApiVoiceDialThroughRoute
+  '/api/voice/inbound': typeof ApiVoiceInboundRoute
+  '/api/voice/recorded': typeof ApiVoiceRecordedRoute
+  '/api/voice/softphone': typeof ApiVoiceSoftphoneRoute
+  '/api/voice/transcript': typeof ApiVoiceTranscriptRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -1231,6 +1294,7 @@ export interface FileRoutesByTo {
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
+  '/api/voice/recording/$sid': typeof ApiVoiceRecordingSidRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
@@ -1328,6 +1392,7 @@ export interface FileRoutesById {
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
   '/va/$token': typeof VaTokenRoute
+  '/x/$ref': typeof XRefRoute
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
@@ -1357,6 +1422,12 @@ export interface FileRoutesById {
   '/api/ideas/email': typeof ApiIdeasEmailRoute
   '/api/ideas/sms': typeof ApiIdeasSmsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/api/voice/bridge': typeof ApiVoiceBridgeRoute
+  '/api/voice/dial-through': typeof ApiVoiceDialThroughRoute
+  '/api/voice/inbound': typeof ApiVoiceInboundRoute
+  '/api/voice/recorded': typeof ApiVoiceRecordedRoute
+  '/api/voice/softphone': typeof ApiVoiceSoftphoneRoute
+  '/api/voice/transcript': typeof ApiVoiceTranscriptRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -1385,6 +1456,7 @@ export interface FileRoutesById {
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
+  '/api/voice/recording/$sid': typeof ApiVoiceRecordingSidRoute
   '/chapters_/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
@@ -1483,6 +1555,7 @@ export interface FileRouteTypes {
     | '/t/$slug'
     | '/u/$token'
     | '/va/$token'
+    | '/x/$ref'
     | '/$school/'
     | '/outreach/'
     | '/u/'
@@ -1512,6 +1585,12 @@ export interface FileRouteTypes {
     | '/api/ideas/email'
     | '/api/ideas/sms'
     | '/api/stripe/webhook'
+    | '/api/voice/bridge'
+    | '/api/voice/dial-through'
+    | '/api/voice/inbound'
+    | '/api/voice/recorded'
+    | '/api/voice/softphone'
+    | '/api/voice/transcript'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -1540,6 +1619,7 @@ export interface FileRouteTypes {
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
     | '/api/partner-kit/$school/$council'
+    | '/api/voice/recording/$sid'
     | '/chapters/kit/$school/$chapter'
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
@@ -1633,6 +1713,7 @@ export interface FileRouteTypes {
     | '/t/$slug'
     | '/u/$token'
     | '/va/$token'
+    | '/x/$ref'
     | '/$school'
     | '/outreach'
     | '/u'
@@ -1661,6 +1742,12 @@ export interface FileRouteTypes {
     | '/api/ideas/email'
     | '/api/ideas/sms'
     | '/api/stripe/webhook'
+    | '/api/voice/bridge'
+    | '/api/voice/dial-through'
+    | '/api/voice/inbound'
+    | '/api/voice/recorded'
+    | '/api/voice/softphone'
+    | '/api/voice/transcript'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -1689,6 +1776,7 @@ export interface FileRouteTypes {
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
     | '/api/partner-kit/$school/$council'
+    | '/api/voice/recording/$sid'
     | '/chapters/kit/$school/$chapter'
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
@@ -1785,6 +1873,7 @@ export interface FileRouteTypes {
     | '/t/$slug'
     | '/u/$token'
     | '/va/$token'
+    | '/x/$ref'
     | '/$school/'
     | '/outreach/'
     | '/u/'
@@ -1814,6 +1903,12 @@ export interface FileRouteTypes {
     | '/api/ideas/email'
     | '/api/ideas/sms'
     | '/api/stripe/webhook'
+    | '/api/voice/bridge'
+    | '/api/voice/dial-through'
+    | '/api/voice/inbound'
+    | '/api/voice/recorded'
+    | '/api/voice/softphone'
+    | '/api/voice/transcript'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -1842,6 +1937,7 @@ export interface FileRouteTypes {
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
     | '/api/partner-kit/$school/$council'
+    | '/api/voice/recording/$sid'
     | '/chapters_/kit/$school/$chapter'
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
@@ -1910,6 +2006,7 @@ export interface RootRouteChildren {
   TSlugRoute: typeof TSlugRoute
   UTokenRoute: typeof UTokenRoute
   VaTokenRoute: typeof VaTokenRoute
+  XRefRoute: typeof XRefRoute
   SchoolIndexRoute: typeof SchoolIndexRoute
   UIndexRoute: typeof UIndexRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
@@ -1921,6 +2018,12 @@ export interface RootRouteChildren {
   ApiIdeasEmailRoute: typeof ApiIdeasEmailRoute
   ApiIdeasSmsRoute: typeof ApiIdeasSmsRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
+  ApiVoiceBridgeRoute: typeof ApiVoiceBridgeRoute
+  ApiVoiceDialThroughRoute: typeof ApiVoiceDialThroughRoute
+  ApiVoiceInboundRoute: typeof ApiVoiceInboundRoute
+  ApiVoiceRecordedRoute: typeof ApiVoiceRecordedRoute
+  ApiVoiceSoftphoneRoute: typeof ApiVoiceSoftphoneRoute
+  ApiVoiceTranscriptRoute: typeof ApiVoiceTranscriptRoute
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
   PartnersNationalOrgRoute: typeof PartnersNationalOrgRoute
@@ -1932,6 +2035,7 @@ export interface RootRouteChildren {
   ApiFlyerSchoolChapterRoute: typeof ApiFlyerSchoolChapterRoute
   ApiOgSchoolChapterRoute: typeof ApiOgSchoolChapterRoute
   ApiPartnerKitSchoolCouncilRoute: typeof ApiPartnerKitSchoolCouncilRoute
+  ApiVoiceRecordingSidRoute: typeof ApiVoiceRecordingSidRoute
   ChaptersKitSchoolChapterRoute: typeof ChaptersKitSchoolChapterRoute
   GoSchoolCouncilCouncilRoute: typeof GoSchoolCouncilCouncilRoute
   PartnersCouncilSchoolCouncilRoute: typeof PartnersCouncilSchoolCouncilRoute
@@ -2182,6 +2286,13 @@ declare module '@tanstack/react-router' {
       path: '/$school'
       fullPath: '/$school/'
       preLoaderRoute: typeof SchoolIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/x/$ref': {
+      id: '/x/$ref'
+      path: '/x/$ref'
+      fullPath: '/x/$ref'
+      preLoaderRoute: typeof XRefRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/va/$token': {
@@ -2723,6 +2834,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CeqCourseSlugChapterSlugRouteImport
       parentRoute: typeof CeqRoute
     }
+    '/api/voice/transcript': {
+      id: '/api/voice/transcript'
+      path: '/api/voice/transcript'
+      fullPath: '/api/voice/transcript'
+      preLoaderRoute: typeof ApiVoiceTranscriptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/voice/softphone': {
+      id: '/api/voice/softphone'
+      path: '/api/voice/softphone'
+      fullPath: '/api/voice/softphone'
+      preLoaderRoute: typeof ApiVoiceSoftphoneRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/voice/recorded': {
+      id: '/api/voice/recorded'
+      path: '/api/voice/recorded'
+      fullPath: '/api/voice/recorded'
+      preLoaderRoute: typeof ApiVoiceRecordedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/voice/inbound': {
+      id: '/api/voice/inbound'
+      path: '/api/voice/inbound'
+      fullPath: '/api/voice/inbound'
+      preLoaderRoute: typeof ApiVoiceInboundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/voice/dial-through': {
+      id: '/api/voice/dial-through'
+      path: '/api/voice/dial-through'
+      fullPath: '/api/voice/dial-through'
+      preLoaderRoute: typeof ApiVoiceDialThroughRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/voice/bridge': {
+      id: '/api/voice/bridge'
+      path: '/api/voice/bridge'
+      fullPath: '/api/voice/bridge'
+      preLoaderRoute: typeof ApiVoiceBridgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/stripe/webhook': {
       id: '/api/stripe/webhook'
       path: '/api/stripe/webhook'
@@ -2931,6 +3084,13 @@ declare module '@tanstack/react-router' {
       path: '/chapters/kit/$school/$chapter'
       fullPath: '/chapters/kit/$school/$chapter'
       preLoaderRoute: typeof ChaptersKitSchoolChapterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/voice/recording/$sid': {
+      id: '/api/voice/recording/$sid'
+      path: '/api/voice/recording/$sid'
+      fullPath: '/api/voice/recording/$sid'
+      preLoaderRoute: typeof ApiVoiceRecordingSidRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/partner-kit/$school/$council': {
@@ -3266,6 +3426,7 @@ const rootRouteChildren: RootRouteChildren = {
   TSlugRoute: TSlugRoute,
   UTokenRoute: UTokenRoute,
   VaTokenRoute: VaTokenRoute,
+  XRefRoute: XRefRoute,
   SchoolIndexRoute: SchoolIndexRoute,
   UIndexRoute: UIndexRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
@@ -3277,6 +3438,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiIdeasEmailRoute: ApiIdeasEmailRoute,
   ApiIdeasSmsRoute: ApiIdeasSmsRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
+  ApiVoiceBridgeRoute: ApiVoiceBridgeRoute,
+  ApiVoiceDialThroughRoute: ApiVoiceDialThroughRoute,
+  ApiVoiceInboundRoute: ApiVoiceInboundRoute,
+  ApiVoiceRecordedRoute: ApiVoiceRecordedRoute,
+  ApiVoiceSoftphoneRoute: ApiVoiceSoftphoneRoute,
+  ApiVoiceTranscriptRoute: ApiVoiceTranscriptRoute,
   GoSchoolChapterRoute: GoSchoolChapterRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
   PartnersNationalOrgRoute: PartnersNationalOrgRoute,
@@ -3288,6 +3455,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFlyerSchoolChapterRoute: ApiFlyerSchoolChapterRoute,
   ApiOgSchoolChapterRoute: ApiOgSchoolChapterRoute,
   ApiPartnerKitSchoolCouncilRoute: ApiPartnerKitSchoolCouncilRoute,
+  ApiVoiceRecordingSidRoute: ApiVoiceRecordingSidRoute,
   ChaptersKitSchoolChapterRoute: ChaptersKitSchoolChapterRoute,
   GoSchoolCouncilCouncilRoute: GoSchoolCouncilCouncilRoute,
   PartnersCouncilSchoolCouncilRoute: PartnersCouncilSchoolCouncilRoute,

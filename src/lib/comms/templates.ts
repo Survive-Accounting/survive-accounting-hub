@@ -5,6 +5,7 @@
 // VOICE RULE (Lee, spec §0): from Lee, a person. First person, short, every one invites a
 // reply. No marketing chrome. Subjects are sentence case. [TEST] prefixes test sends.
 import type { IntakeKind } from "@/lib/comms/kinds";
+import { smsSegments, toGsm7 } from "@/lib/greek-letters";
 import { declineCopy } from "@/lib/rep-copy";
 
 export type TemplateKey =
@@ -14,7 +15,7 @@ export type TemplateKey =
   | "rep_declined"
   | "seq_exam_t10" | "seq_exam_t3" | "seq_exam_t1" | "seq_post_exam1_d1" | "seq_post_exam1_d7" | "seq_meet_lee"
   | "broadcast_exam_live"
-  | "founder_priority" | "founder_batched";
+  | "founder_priority" | "founder_call" | "founder_voicemail" | "founder_batched";
 
 export type TemplateCategory = "transactional" | "marketing" | "founder";
 
@@ -51,6 +52,27 @@ export interface TemplateCtx {
   term?: string | null;
   expiresLabel?: string | null;
   seats?: number | null;
+  // ---- founder alerts (one ref, one link) ----
+  /** sms_conversations.short_ref on the main line: "#241" in the text, and the /x/241 page. */
+  ref?: number | null;
+  /** https://surviveaccounting.com/x/241 — approve, call, text, listen. */
+  actionLink?: string | null;
+  /** GSM-7-safe chapter letters ("ΣX"), from greek-letters.ts. */
+  letters?: string | null;
+  intent?: "committed" | "curious" | "exploring" | null;
+  /** Members banked at the moment of the claim. */
+  members?: number | null;
+  /** Rep alerts: "signup" (4-field form) or "applied" (full application submitted, needs review). */
+  repStage?: "signup" | "applied" | null;
+  /** One short line of facts ("Jr, Sigma Chi, covers 6 chapters"). */
+  detail?: string | null;
+  applicationLink?: string | null;
+  /** Calls/voicemails: who the number resolved to ("Jordan Ellis, ΣX claim") or null when unknown. */
+  callerLabel?: string | null;
+  transcript?: string | null;
+  durationSeconds?: number | null;
+  /** A real send Lee asked for to check the copy — subject/SMS get a [PREVIEW] prefix. */
+  preview?: boolean;
 }
 
 export const ORIGIN = "https://surviveaccounting.com";
@@ -79,6 +101,61 @@ const sig: Block = { sig: true };
 
 /** Short URL for SMS — the campus page when known, else the root. */
 const smsLink = (c: TemplateCtx) => (c.campusSlug ? `surviveaccounting.com/${c.campusSlug}` : "surviveaccounting.com");
+
+// ---- founder-alert helpers ----------------------------------------------------------------
+const INTENT_LABEL: Record<string, string> = { committed: "READY TO SPONSOR", curious: "WANTS DETAILS", exploring: "EXPLORING" };
+/** Hard cap with no ellipsis (not GSM-7). Null in, null out, so filter(Boolean) drops it. */
+const cap = (s: string | null | undefined, n: number): string | null => {
+  const v = (s ?? "").trim();
+  if (!v) return null;
+  return v.length > n ? v.slice(0, n).trimEnd() : v;
+};
+/** A link with its scheme stripped: shorter in an SMS and still tappable on every phone. */
+const smsShort = (url: string | null | undefined): string => (url ?? "").replace(/^https?:\/\//, "");
+const prettyPhoneForSms = (e164: string): string => {
+  const d = e164.replace(/\D/g, "");
+  return d.length === 11 && d.startsWith("1") ? `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}` : e164;
+};
+/** Exec roles as they fit on a phone. Stored labels stay long; only the SMS shortens them. */
+const ROLE_SHORT: Record<string, string> = {
+  "Academic / Scholarship Chair": "Scholarship Chair", "Chapter / House Advisor": "Advisor",
+  "Other Exec / Advisor": "Exec", "Vice President": "VP", "New Member Educator": "New Member Ed",
+};
+const roleShort = (r: string | null | undefined): string | null => (r ? ROLE_SHORT[r] ?? r : null);
+/** ONE SEGMENT, GUARANTEED. Joins the lines, and if the body would exceed 160 GSM-7 units, trims
+ *  the one flexible line (a name, a detail, a transcript quote) by exactly the overflow — the ref,
+ *  the status and the link are never the part that gives. `flex` keeps its wrapper (the quote
+ *  marks around a transcript) when it is trimmed. */
+const oneSegment = (lines: (string | null | undefined)[], flexIdx: number, wrap: [string, string] = ["", ""]): string => {
+  const parts = lines.map((l) => (l ?? "").trim());
+  const flexText = parts[flexIdx];
+  const build = (flex: string) => {
+    const p = [...parts];
+    p[flexIdx] = flex ? `${wrap[0]}${flex}${wrap[1]}` : "";
+    return toGsm7(p.filter(Boolean).join("\n"));
+  };
+  let body = build(flexText);
+  let flex = flexText;
+  for (let guard = 0; guard < 6; guard++) {
+    const units = smsSegments(body).units;
+    if (units <= 160) break;
+    const over = units - 160;
+    flex = flex.length > over ? flex.slice(0, flex.length - over).trimEnd() : "";
+    body = build(flex);
+    if (!flex) break;
+  }
+  return body;
+};
+/** The email's link block, in the order Lee would use them. The action page first: it is the one
+ *  place that does everything; the rest are there for when he wants to go straight to one thing. */
+const founderLinks = (c: TemplateCtx): string[] => [
+  c.actionLink ? `Open: ${c.actionLink}` : "",
+  c.adminLink ? `Queue: ${c.adminLink}` : "",
+  c.chapterLink ? `Chapter page: ${c.chapterLink}` : "",
+  c.applicationLink ? `Application: ${c.applicationLink}` : "",
+  c.phone ? `Call from your phone: tel:${c.phone}` : "",
+  c.phone ? `Text from your phone: sms:${c.phone}` : "",
+].filter((b) => b !== "");
 
 // ---- the copy -----------------------------------------------------------------------------
 function blocksFor(key: TemplateKey, c: TemplateCtx): { subject: string; blocks: Block[]; sms?: string } {
@@ -336,50 +413,112 @@ function blocksFor(key: TemplateKey, c: TemplateCtx): { subject: string; blocks:
       };
 
     // ---- founder alerts ---------------------------------------------------------------------
+    //
+    // ONE GSM-7 SEGMENT, ONE LINK, ONE REF. "#241" is the sms_conversations short_ref on the main
+    // line, so "#241 hey Jordan" texted to that line reaches this person through the relay that
+    // already exists, and surviveaccounting.com/x/241 is the one page to approve, call, text or
+    // listen. Chapter letters arrive in ctx.letters already GSM-7-safe (greek-letters.ts). No em
+    // dashes, bolts, middle dots or ellipses in any SMS body here: one such character bills the
+    // message twice. toGsm7 at the end is the backstop for names and transcripts we do not control.
+    //
+    // Email subjects open with a bracketed tag ([SA CLAIM] [SA REP] [SA CALL] [SA VOICEMAIL]) so a
+    // mail filter can file each kind; the body repeats the facts and carries every link.
     case "founder_priority": {
-      const kindLabel = ({ syllabus: "SYLLABUS", greek_claim: "CHAPTER CLAIM", rep: "CAMPUS REP", purchase: "PURCHASE", question: `QUESTION ${c.topic ?? ""}`.trim() } as Record<string, string>)[c.kind ?? ""] ?? (c.kind ?? "LEAD").toUpperCase();
-      const line = [c.name, c.school, c.courseCode, c.professor ? `Prof. ${c.professor}` : null, c.chapter].filter(Boolean).join(" · ");
-      const smsLine = [c.name, c.school, c.courseCode, c.professor ? `Prof. ${c.professor}` : null, c.chapter].filter(Boolean).join(", ");
+      const held = c.heldCount ? ` (+${c.heldCount} held)` : "";
+      const ref = c.ref != null ? `#${c.ref} ` : "";
+      const links = founderLinks(c);
+      const shortLink = smsShort(c.actionLink ?? c.adminLink);
 
-      // A CHAPTER CLAIM IS A DECISION, not a notification, so it gets a shape built for deciding:
-      // who, at which chapter, in what role, reachable how — each on its own line, in the order
-      // you would check them. The generic one-line format above is fine for a lead and useless
-      // for an approval, because the role is the thing being verified and it was buried in note.
-      //
-      // The link goes to the AUTHENTICATED review screen, deep-linked to this claim. Deliberately
-      // not a one-tap approve URL: approving hands over a roster of student names and phone
-      // numbers, and a token in an inbox is not an admin session.
       if (c.kind === "greek_claim") {
-        const who = [c.name, c.role].filter(Boolean).join(" · ");
-        const where = [c.chapter, c.school].filter(Boolean).join(" · ");
+        const where = [c.letters ?? c.chapter, c.school].filter(Boolean).join(" ");
+        const whereLong = [c.chapter, c.school].filter(Boolean).join(" at ");
+        const who = [c.name, roleShort(c.role)].filter(Boolean).join(", ");
+        const intent = INTENT_LABEL[c.intent ?? ""] ?? "";
+        const banked = c.members != null ? `(${c.members} banked)` : "";
+        const status = [intent, banked].filter(Boolean).join(" ");
         return {
-          subject: `⚡ New chapter claim: ${where || c.name || "new"}`,
+          subject: `[SA CLAIM] ${where || "chapter"} - ${c.name ?? "someone"}${c.role ? ` (${c.role})` : ""}${intent ? ` - ${intent}` : ""}`,
           blocks: [
-            `New chapter claim${c.heldCount ? ` (+${c.heldCount} held)` : ""}`,
-            where || "(no chapter)",
-            who || "(no name)",
-            c.email ?? "",
-            c.phone ?? "",
-            c.note ? `"${c.note.slice(0, 280)}"` : "",
-            c.adminLink ? `Review claim: ${c.adminLink}` : "",
-            c.phone ? `Text back: sms:${c.phone}` : "",
+            `${ref}Chapter claim${held}: ${whereLong || where || "(no chapter)"}`,
+            [c.name, c.role].filter(Boolean).join(", ") || "(no name)",
+            status,
+            [c.email, c.phone].filter(Boolean).join("\n"),
+            ...links,
           ].filter((b) => b !== ""),
-          sms: `!! CHAPTER CLAIM${c.heldCount ? ` (+${c.heldCount} held)` : ""}: ${[c.chapter, c.school, c.name, c.role].filter(Boolean).join(", ")}${c.phone ? ` ${c.phone}` : ""}${c.adminLink ? ` ${c.adminLink}` : ""}`,
+          sms: oneSegment([`${ref}CLAIM ${cap(where, 34)}${held}`, who, status, shortLink], 1),
         };
       }
 
+      if (c.kind === "rep") {
+        const applied = c.repStage === "applied";
+        const stage = applied ? "REP APPLIED" : "REP SIGNUP";
+        return {
+          subject: `[SA REP] ${c.school ?? "campus"} - ${c.name ?? "someone"} - ${applied ? "applied, needs review" : "signed up"}`,
+          blocks: [
+            `${ref}${applied ? "Campus rep applied" : "Campus rep signed up"}${held}: ${c.school ?? "(no campus)"}`,
+            c.name ?? "(no name)",
+            c.detail ?? "",
+            [c.email, c.phone].filter(Boolean).join("\n"),
+            c.note ? `"${c.note.slice(0, 800)}"` : "",
+            ...links,
+          ].filter((b) => b !== ""),
+          sms: oneSegment([`${ref}${stage} ${cap(c.school, 34) ?? ""}${held}`.trimEnd(), cap(c.name, 40), c.detail, shortLink], 2),
+        };
+      }
+
+      // Everything else (syllabus, question, purchase) keeps the one-line shape.
+      const kindLabel = ({ syllabus: "SYLLABUS", purchase: "PURCHASE", question: `QUESTION ${c.topic ?? ""}`.trim() } as Record<string, string>)[c.kind ?? ""] ?? (c.kind ?? "LEAD").toUpperCase();
+      const line = [c.name, c.school, c.courseCode, c.professor ? `Prof. ${c.professor}` : null, c.chapter].filter(Boolean).join(" · ");
+      const smsLine = [c.name, c.school, c.courseCode, c.professor ? `Prof. ${c.professor}` : null, c.chapter].filter(Boolean).join(", ");
       return {
-        subject: `⚡ ${kindLabel}: ${line || c.email || c.phone || "new"}`,
+        subject: `[SA ${kindLabel}] ${line || c.email || c.phone || "new"}`,
         blocks: [
-          `${kindLabel}${c.heldCount ? ` (+${c.heldCount} held)` : ""}`,
+          `${ref}${kindLabel}${held}`,
           line || "(no context)",
           [c.email, c.phone].filter(Boolean).join(" · ") || "(no contact)",
           c.note ? `"${c.note.slice(0, 280)}"` : "",
-          c.adminLink ? `Open: ${c.adminLink}` : "",
-          c.phone ? `Text back: sms:${c.phone}` : "",
+          ...links,
         ].filter((b) => b !== ""),
         // GSM-7 on purpose (no bolt, no middle dots) so Lee's alert is one segment.
-        sms: `!! ${kindLabel}${c.heldCount ? ` (+${c.heldCount} held)` : ""}: ${smsLine || c.email || "new"}${c.phone ? ` ${c.phone}` : ""}${c.adminLink ? ` ${c.adminLink}` : ""}`,
+        sms: toGsm7(`${ref}${kindLabel}${held}: ${smsLine || c.email || "new"}${c.phone ? ` ${c.phone}` : ""}${shortLink ? ` ${shortLink}` : ""}`),
+      };
+    }
+
+    // Someone is calling the main line RIGHT NOW. Nothing rings Lee (his call: always call back,
+    // prepared). This text lands while they are hearing the greeting, so he knows who it was
+    // before the voicemail arrives; a second alert follows if they leave one.
+    case "founder_call": {
+      const ref = c.ref != null ? `#${c.ref} ` : "";
+      const who = c.callerLabel ?? c.name ?? "unknown number";
+      const where = c.school ? ` ${c.school}` : "";
+      return {
+        subject: `[SA CALL] ${who}${c.school ? ` - ${c.school}` : ""} is calling now`,
+        blocks: [
+          `${ref}Incoming call: ${who}${where}`,
+          c.phone ?? "",
+          "They are hearing the voicemail greeting. If they leave one, you get a second alert with the transcript.",
+          ...founderLinks(c),
+        ].filter((b) => b !== ""),
+        sms: oneSegment([`${ref}CALLING NOW ${[who, cap(c.school, 24)].filter(Boolean).join(" ")}`, c.callerLabel && c.phone ? prettyPhoneForSms(c.phone) : "", smsShort(c.actionLink)], 0),
+      };
+    }
+
+    case "founder_voicemail": {
+      const ref = c.ref != null ? `#${c.ref} ` : "";
+      const who = c.callerLabel ?? c.name ?? "unknown number";
+      const dur = c.durationSeconds != null ? `${Math.floor(c.durationSeconds / 60)}:${String(c.durationSeconds % 60).padStart(2, "0")}` : "";
+      const quote = c.transcript ? c.transcript.trim().replace(/\s+/g, " ") : null;
+      return {
+        subject: `[SA VOICEMAIL] ${who}${c.school ? ` - ${c.school}` : ""}${dur ? ` - ${dur}` : ""}`,
+        blocks: [
+          `${ref}Voicemail${dur ? ` (${dur})` : ""}: ${who}${c.school ? ` ${c.school}` : ""}`,
+          c.phone ?? "",
+          c.transcript ? `"${c.transcript.trim()}"` : "Transcript not ready yet; listen on the page.",
+          ...founderLinks(c),
+        ].filter((b) => b !== ""),
+        sms: quote
+          ? oneSegment([`${ref}VOICEMAIL ${dur} ${cap(who, 40)}`.replace(/\s+/g, " "), quote, smsShort(c.actionLink)], 1, ['"', '"'])
+          : oneSegment([`${ref}VOICEMAIL ${dur} ${cap(who, 40)}`.replace(/\s+/g, " "), "(no transcript yet)", smsShort(c.actionLink)], 0),
       };
     }
     case "founder_batched": {
@@ -398,11 +537,12 @@ const inline = (s: string) =>
     .replace(/\*([^*]+)\*/g, "<em>$1</em>")
     .replace(/(https?:\/\/[^\s<]+[^\s<.,)])/g, '<a href="$1" style="color:#14213D;">$1</a>')
     .replace(/(^|\s)(sms:\+?\d{7,15})/g, '$1<a href="$2" style="color:#14213D;">$2</a>')
+    .replace(/(^|\s)(tel:\+?\d{7,15})/g, '$1<a href="$2" style="color:#14213D;">$2</a>')
     .replace(/\n/g, "<br>");
 
 export function renderTemplate(key: TemplateKey, ctx: TemplateCtx): Rendered {
   const { subject: rawSubject, blocks, sms } = blocksFor(key, ctx);
-  const subject = (ctx.isTest ? "[TEST] " : "") + rawSubject;
+  const subject = (ctx.isTest ? "[TEST] " : ctx.preview ? "[PREVIEW] " : "") + rawSubject;
   const category = categoryOf(key);
   const textParts: string[] = [];
   const htmlParts: string[] = [];
@@ -428,7 +568,7 @@ export function renderTemplate(key: TemplateKey, ctx: TemplateCtx): Rendered {
     htmlParts.join("") +
     (footerHtml ? `<p style="margin:28px 0 0;font-size:12px;line-height:1.5;color:#777;">${footerHtml}</p>` : "") +
     `</div></body></html>`;
-  return { subject, text, html, sms: sms ? (ctx.isTest ? `[TEST] ${sms}` : sms) : undefined };
+  return { subject, text, html, sms: sms ? (ctx.isTest ? `[TEST] ${sms}` : ctx.preview ? `[PREVIEW] ${sms}` : sms) : undefined };
 }
 
 function footerFor(category: TemplateCategory, c: TemplateCtx, html: boolean): string {
@@ -490,6 +630,8 @@ export const ALL_TEMPLATES: { key: TemplateKey; label: string; group: "Confirmat
   { key: "seq_meet_lee", label: "C · Why I made Survive Accounting", group: "Sequences", hasSms: false },
   { key: "broadcast_exam_live", label: "Exam N videos are live", group: "Broadcast", hasSms: true },
   { key: "founder_priority", label: "Priority alert (syllabus / claim / rep / purchase)", group: "Founder alerts", hasSms: true },
+  { key: "founder_call", label: "Incoming call on the main line", group: "Founder alerts", hasSms: true },
+  { key: "founder_voicemail", label: "Voicemail left on the main line", group: "Founder alerts", hasSms: true },
 ];
 
 /** Realistic sample data for the harness + previews. */

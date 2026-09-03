@@ -18,7 +18,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { schoolBySlug } from "@/lib/schools";
+import { canonicalSchoolName, schoolBySlug } from "@/lib/schools";
 import { normalizeVenmo } from "@/lib/rep-portal";
 import type { RepStatus } from "@/lib/rep-shared";
 import type { RepRow } from "@/lib/rep-auth.server";
@@ -64,9 +64,11 @@ export const applyAsRep = createServerFn({ method: "POST" })
     if (!phone) return { ok: false, error: "That phone number doesn't look right — use a US number." };
 
     let campusId: string | null = null;
+    let campusLabel = data.campusSlug;
     if (schoolBySlug(data.campusSlug)) {
-      const { data: c } = await db.from("campuses").select("id").eq("slug", data.campusSlug).maybeSingle();
+      const { data: c } = await db.from("campuses").select("id,name,short_name").eq("slug", data.campusSlug).maybeSingle();
       campusId = (c?.id as string) ?? null;
+      campusLabel = canonicalSchoolName(data.campusSlug, (c?.short_name as string) || (c?.name as string) || data.campusSlug);
     }
     if (!campusId) return { ok: false, error: "Pick your school from the list." };
 
@@ -118,10 +120,22 @@ export const applyAsRep = createServerFn({ method: "POST" })
     });
     if (error) return { ok: false, error: error.message };
 
-    // Founder heads-up (informational — nothing waits on Lee). Best-effort.
+    // Founder heads-up (informational — nothing waits on Lee). Best-effort. Carries the school's
+    // display name (it used to send the slug) and the rep's #ref, so Lee can text back with
+    // "#242 …" and open /x/242. The full application, with details, alerts separately when it
+    // is submitted (rep-onboarding.functions.ts).
     try {
+      const { ensureConversationRef, actionLink } = await import("@/lib/comms/refs.server");
+      const refRow = await ensureConversationRef(db, { phone, campusId, kind: "rep", subject: `${campusLabel} rep signup: ${data.name}`, isTest });
       const { founderAlert } = await import("@/lib/comms/send.server");
-      await founderAlert({ ctx: { kind: "rep", name: data.name, school: data.campusSlug, email: data.email, phone }, isTest });
+      await founderAlert({
+        ctx: {
+          kind: "rep", name: data.name, school: campusLabel, campusSlug: data.campusSlug, email: data.email, phone,
+          ref: refRow?.shortRef ?? null, actionLink: actionLink(refRow?.shortRef), repStage: "signup",
+          applicationLink: "https://surviveaccounting.com/admin/reps/roster",
+        },
+        isTest,
+      });
     } catch { /* alert is never load-bearing */ }
     return { ok: true, state: "verify" };
   });

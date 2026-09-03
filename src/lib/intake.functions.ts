@@ -42,6 +42,20 @@ const IntakeInput = z.object({
   isTest: z.boolean().optional(),
   /** Skip the student confirmation (e.g. a second capture in the same session). Founder alert still fires. */
   skipConfirmation: z.boolean().optional(),
+  /** Extra facts for Lee's alert only (ref, letters, intent, members, action link). Never shown to
+   *  the student, never stored on the intake row — the alert is the only reader. */
+  alertCtx: z.object({
+    ref: z.number().int().optional().nullable(),
+    actionLink: z.string().max(300).optional().nullable(),
+    letters: z.string().max(40).optional().nullable(),
+    intent: z.enum(["committed", "curious", "exploring"]).optional().nullable(),
+    members: z.number().int().optional().nullable(),
+    repStage: z.enum(["signup", "applied"]).optional().nullable(),
+    detail: z.string().max(200).optional().nullable(),
+    applicationLink: z.string().max(300).optional().nullable(),
+  }).optional().nullable(),
+  /** Skip the founder-alert hourly cap: this one must reach Lee now (a chapter ready to sponsor). */
+  alertPriority: z.boolean().optional(),
 }).refine((d) => !!d.email || !!d.phone, { message: "email or phone required" });
 
 export type IntakeInput = z.infer<typeof IntakeInput>;

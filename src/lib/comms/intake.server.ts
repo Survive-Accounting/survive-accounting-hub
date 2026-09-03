@@ -63,6 +63,7 @@ export async function runIntake(data: IntakeInput): Promise<IntakeResult> {
       chapter: data.chapter, chapterLink: data.chapterLink, role: data.role,
       exam: data.exam, topic: data.topic, note: data.note,
       kind: data.kind, adminLink: data.adminLink || `${ORIGIN}/outreach/demand?lead=${id}`, isTest,
+      ...(data.alertCtx ?? {}),
     };
     const confirmation = { email: false, sms: false };
     try {
@@ -72,7 +73,7 @@ export async function runIntake(data: IntakeInput): Promise<IntakeResult> {
         if (email) confirmation.email = (await comms.sendTemplateEmail({ db, key, ctx, to: email, leadId: id, isTest })).ok;
         if (phone) confirmation.sms = (await comms.sendTemplateSms({ db, key, ctx, to: phone, leadId: id, isTest, consented: !!data.smsConsent })).ok;
       }
-      if (PRIORITY_KINDS.includes(data.kind)) await comms.founderAlert({ db, ctx, leadId: id, isTest });
+      if (PRIORITY_KINDS.includes(data.kind)) await comms.founderAlert({ db, ctx, leadId: id, isTest, priority: !!data.alertPriority });
     } catch (e) { console.warn("intake comms failed (row saved)", e instanceof Error ? e.message : e); }
 
     return { id, kind: data.kind, confirmation };
