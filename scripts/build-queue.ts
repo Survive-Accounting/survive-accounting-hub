@@ -58,6 +58,9 @@ function resolveClaude(): { cmd: string; args: string[] } {
 const CLAUDE = resolveClaude();
 const CLAUDE_BIN = `${CLAUDE.cmd} ${CLAUDE.args.join(" ")}`.trim();
 const MAX_TURNS = Number(process.env.QUEUE_MAX_TURNS ?? 80);
+/** The model each build runs on. Lee (2026-09-03): Opus 4.8. Override with
+ *  QUEUE_MODEL (an id like claude-opus-4-8, or an alias like opus/sonnet). */
+const MODEL = process.env.QUEUE_MODEL ?? "claude-opus-4-8";
 const BUILD_TIMEOUT_MS = Number(process.env.QUEUE_BUILD_MINUTES ?? 45) * 60_000;
 const DEPLOY_WAIT_MS = Number(process.env.QUEUE_DEPLOY_MINUTES ?? 15) * 60_000;
 const STALE_RUN_MS = 3 * 60 * 60_000;
@@ -174,11 +177,11 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
     if (!sh("bun", ["install", "--frozen-lockfile"], dir).ok && !sh("bun", ["install"], dir).ok) throw new Error("bun install failed");
 
     // 2. Claude Code, headless, in that worktree.
-    note("  claude -p … (this is the long part)");
+    note(`  claude -p on ${MODEL} … (this is the long part)`);
     const prompt = buildPrompt(r, branch);
     fs.writeFileSync(path.join(dir, ".build-queue-prompt.md"), prompt, "utf8");
     const out = await new Promise<{ code: number | null; text: string }>((resolve) => {
-      const child = spawn(CLAUDE.cmd, [...CLAUDE.args, "-p", "--output-format", "text", "--dangerously-skip-permissions", "--max-turns", String(MAX_TURNS)], {
+      const child = spawn(CLAUDE.cmd, [...CLAUDE.args, "-p", "--output-format", "text", "--dangerously-skip-permissions", "--model", MODEL, "--max-turns", String(MAX_TURNS)], {
         cwd: dir, env: { ...process.env, CI: "1" }, shell: false,
       });
       let text = "";
@@ -254,7 +257,7 @@ async function main(): Promise<void> {
     // starts; "Not logged in" here is the one-time claude-login.cmd on this PC.
     const probe = claude(["-p", "Reply with exactly: OK", "--output-format", "text", "--max-turns", "1"], REPO);
     if (!probe.ok || /not logged in|please run \/login/i.test(probe.out)) throw new Error("claude CLI is not logged in on this machine — double-click scripts\\claude-login.cmd, type /login, finish in the browser, then start this again");
-    log(`claude CLI ready (${v.out.trim()})`);
+    log(`claude CLI ready (${v.out.trim()}) · builds run on ${MODEL}`);
   }
   for (;;) {
     try { await pass(); }
