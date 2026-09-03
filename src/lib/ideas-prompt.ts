@@ -42,19 +42,55 @@ export function buildOrganizeMessages(idea: IdeaForPrompt & { existingPrompt?: s
   return { system, user };
 }
 
-/** WHICH CLAUDE CODE SESSION (worktree) an idea belongs in — from where it
- *  was captured, then its categories. Obsidian shows it in the note so Lee
- *  opens the right window. Deterministic: no AI guess about repo layout. */
-export function suggestSession(sourcePath: string, categories: readonly string[]): string {
+/** THE PROJECTS — plain names for the Claude Code sessions Lee pins (2026-09-03:
+ *  "give me a natural language term for the session … more about the tasks
+ *  and the projects I'm working on"). Each maps to a worktree, kept separate
+ *  so the git detail is there when a session needs it and invisible when not. */
+export const PROJECTS = [
+  { key: "filming", label: "Filming & talkthrough", worktree: "sa-film-camera (branch film/free-camera-pinned-ceq)", match: /^\/(v3|talkthrough|blast-off|blastoff-demo|study|callout-demo|intro-outro)/ },
+  { key: "exhibits", label: "Exhibits", worktree: "sa-exhibit-lab", match: /^\/(exhibit-lab|exhibit-demo)/ },
+  { key: "ideas", label: "Idea Bank & Obsidian", worktree: "sa-film-camera (branch film/free-camera-pinned-ceq)", match: /^\/admin\/ideas/ },
+  { key: "growth", label: "Growth & outreach", worktree: "sa-growth-dashboard (main)", match: /^\/(admin\/growth|outreach|admin\/reps|go\/|chapters|greek|rep\/)/ },
+  { key: "learn", label: "Learn & share links", worktree: "sa-learn-share", match: /^\/(learn|s\/)/ },
+  { key: "homepage", label: "Homepage", worktree: "sa-homepage-two-door", match: /^\/$|^\/(landing|preview)/ },
+] as const;
+export type ProjectKey = (typeof PROJECTS)[number]["key"];
+
+export function suggestProject(sourcePath: string, categories: readonly string[]): { key: ProjectKey; label: string; worktree: string } {
   const p = sourcePath || "";
-  if (/^\/(v3|talkthrough|blast-off|blastoff-demo|study|callout-demo|intro-outro)/.test(p)) return "sa-film-camera · branch film/free-camera-pinned-ceq — talkthrough, blast off, canvas";
-  if (/^\/(exhibit-lab|exhibit-demo)/.test(p)) return "sa-exhibit-lab — exhibits";
-  if (/^\/(admin\/growth|outreach|admin\/reps|go\/|chapters|greek)/.test(p)) return "sa-growth-dashboard · main — growth, outreach, reps, chapters";
-  if (/^\/(learn|s\/)/.test(p)) return "sa-learn-share — /learn and share links";
-  if (p === "/" || /^\/(landing|preview)/.test(p)) return "sa-homepage-two-door — the homepage";
-  if (categories.includes("MARKETING") || categories.includes("CUSTOMER_SUCCESS")) return "sa-growth-dashboard · main — growth, outreach, reps, chapters";
-  if (categories.includes("FILMING") || categories.includes("AUTHORING")) return "sa-film-camera · branch film/free-camera-pinned-ceq — talkthrough, blast off, canvas";
-  return "sa-growth-dashboard · main (the default worktree for anything else)";
+  const byPath = PROJECTS.find((x) => x.match.test(p));
+  const pick = byPath
+    ?? (categories.includes("MARKETING") || categories.includes("CUSTOMER_SUCCESS") ? PROJECTS.find((x) => x.key === "growth")
+      : categories.includes("FILMING") || categories.includes("AUTHORING") ? PROJECTS.find((x) => x.key === "filming")
+      : PROJECTS.find((x) => x.key === "growth"))!;
+  return { key: pick.key, label: pick.label, worktree: pick.worktree };
+}
+
+/** Kept for older callers: the project's plain name. */
+export function suggestSession(sourcePath: string, categories: readonly string[]): string {
+  return suggestProject(sourcePath, categories).label;
+}
+
+/** WHICH PAGE, in words — "Talkthrough · Internal vs external users", not a
+ *  URL. Used as the `page` field and the page filter in Obsidian. */
+export function pageLabel(sourcePath: string): string {
+  const p = (sourcePath || "").split("?")[0];
+  if (!p || p === "/") return "Homepage";
+  const nice = (s: string) => s.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const v3 = p.match(/^\/v3\/([^/]+)\/([^/]+)\/blast-off\/?(talkthrough|results|arrange|film)?/);
+  if (v3) return `${v3[3] ? nice(v3[3]) : "Blast Off"} · ${nice(v3[2])}`;
+  const v3set = p.match(/^\/v3\/([^/]+)\/([^/]+)\/?$/);
+  if (v3set) return `Set menu · ${nice(v3set[2])}`;
+  const v3topic = p.match(/^\/v3\/([^/]+)\/?$/);
+  if (v3topic) return `Topic · ${nice(v3topic[1])}`;
+  if (p === "/v3" || p === "/v3/") return "The Queue (/v3)";
+  const known: [RegExp, string][] = [
+    [/^\/admin\/ideas/, "Idea Bank"], [/^\/admin\/growth\/coldoutreach/, "Cold outreach"], [/^\/admin\/growth/, "Growth dashboard"],
+    [/^\/admin\/reps/, "Reps admin"], [/^\/outreach/, "Outreach"], [/^\/talkthrough/, "Talkthrough studio"], [/^\/blast-off/, "Blast Off (old)"],
+    [/^\/exhibit-lab/, "Exhibit Lab"], [/^\/study\/canvas/, "Canvas"], [/^\/learn/, "Learn"], [/^\/chapters/, "Chapters"], [/^\/leeportal/, "Lee's portal"],
+  ];
+  for (const [re, label] of known) if (re.test(p)) return label;
+  return nice(p.replace(/^\//, "").replace(/\//g, " › "));
 }
 
 /** Replace the ## Prompt section's body inside a drafted markdown (or the

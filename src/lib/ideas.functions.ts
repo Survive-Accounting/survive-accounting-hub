@@ -145,7 +145,7 @@ export const organizeIdea = createServerFn({ method: "POST" })
     if (error) rethrow(error);
     const r = row as Row;
     const { runAiTask } = await import("@/lib/ai.server");
-    const { buildIdeaPromptMessages, buildOrganizeMessages, suggestSession } = await import("@/lib/ideas-prompt");
+    const { buildIdeaPromptMessages, buildOrganizeMessages, pageLabel, suggestProject } = await import("@/lib/ideas-prompt");
     const now = new Date().toISOString();
     const ctx: Record<string, string> = { ...(r.context ?? {}) };
     const isTodo = !!ctx.todo;
@@ -172,7 +172,11 @@ export const organizeIdea = createServerFn({ method: "POST" })
         if (j.urgent === true && !ctx.urgent) ctx.urgentSuggested = "1";
       }
     }
-    ctx.session = suggestSession(r.source_path ?? "", r.categories ?? []);
+    const proj = suggestProject(r.source_path ?? "", r.categories ?? []);
+    ctx.session = proj.label;
+    ctx.project = proj.key;
+    ctx.worktree = proj.worktree;
+    ctx.page = pageLabel(r.source_path ?? "");
     ctx.organizedAt = now;
 
     // 2. The prompt — synthesis lane. Never for a to-do or a draft-in-progress.

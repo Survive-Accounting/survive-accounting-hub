@@ -37,7 +37,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { CATEGORIES, STATUSES, type Status } from "../src/components/ideas/model";
-import { buildIdeaPromptMessages, buildOrganizeMessages, hasPromptSections, suggestSession } from "../src/lib/ideas-prompt";
+import { buildIdeaPromptMessages, buildOrganizeMessages, hasPromptSections, pageLabel, suggestProject } from "../src/lib/ideas-prompt";
 
 const VAULT = process.env.OBSIDIAN_VAULT ?? "C:/Users/lee/Documents/Obsidian Vault";
 const DIR = path.join(VAULT, "Survive", "Ideas");
@@ -70,6 +70,10 @@ const DRY = args.has("--dry");
 // for ideas saved before the app did this on save (or where it failed).
 // The same micro call the app makes; cheap; skips anything already done.
 const ORGANIZE = args.has("--organize");
+// --import=<file>: notes dictated elsewhere on the build machine become ONE
+// idea in the bank (then --organize / --draft treat it like any other).
+const IMPORT = [...args].find((a) => a.startsWith("--import="))?.slice(9) ?? null;
+const IMPORT_PAGE = [...args].find((a) => a.startsWith("--page="))?.slice(7) ?? "/v3";
 const WATCH = args.has("--watch");
 const WATCH_MS = Number([...args].find((a) => a.startsWith("--every="))?.slice(8) ?? 5) * 60_000;
 
@@ -130,7 +134,20 @@ function noteFront(r: Row, keep: Front): Front {
     priority: String(Number(r.context?.priority ?? 0) || 0),
     draft: r.context?.draft === "1",
     tldr: r.context?.tldr ?? "",
-    session: r.context?.session ?? "",
+    // Plain names: the project (= the Claude Code session Lee pins), the page
+    // it is about, and the worktree behind the project for when it matters.
+    // Only trust a stored session name once it was written as a project;
+    // older rows carried the git-flavoured label and get the plain one.
+    project: r.context?.project ? (r.context.session ?? "") : suggestProject(r.source_path ?? "", r.categories ?? []).label,
+    page: r.context?.page ?? pageLabel(r.source_path ?? ""),
+    worktree: r.context?.worktree ?? suggestProject(r.source_path ?? "", r.categories ?? []).worktree,
+    // Obsidian's own tag pane filters on these.
+    tags: [
+      `project/${(r.context?.project ?? suggestProject(r.source_path ?? "", r.categories ?? []).key)}`,
+      `page/${(r.context?.page ?? pageLabel(r.source_path ?? "")).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`,
+      ...(r.categories ?? []).map((c) => `cat/${c.toLowerCase()}`),
+      ...(r.context?.urgent === "1" ? ["urgent"] : []),
+    ],
     categories: r.categories ?? [],
     subcategory: r.subcategory ?? "",
     source: r.source_path ?? "",
@@ -152,7 +169,9 @@ function noteBody(r: Row): string {
   out.push(`# ${r.context?.urgent === "1" ? "🔥 " : ""}${r.title || "(untitled)"}`, "");
   if (r.context?.tldr && !r.prompt_md?.trim()) out.push(`> ${r.context.tldr}`, "");
   if (r.context?.summary && !r.prompt_md?.trim()) out.push(r.context.summary, "");
-  if (r.context?.session) out.push(`_Claude Code session: ${r.context.session}_`, "");
+  const proj = (r.context?.project ? r.context.session ?? "" : "") || suggestProject(r.source_path ?? "", r.categories ?? []).label;
+  const page = r.context?.page ?? pageLabel(r.source_path ?? "");
+  out.push(`_Project: **${proj}** · Page: **${page}**${r.context?.worktree ? ` · worktree \`${r.context.worktree}\`` : ""}_`, "");
   out.push("## Idea (verbatim)", "");
   out.push(r.body?.trim() ? r.body.trim() : "_(no text — see the voice note)_", "");
   const extras: string[] = [];
@@ -283,6 +302,23 @@ async function main(): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as unknown as { from: (t: string) => any };
 
+  // --import: a text file → one idea, saved before anything else runs.
+  if (IMPORT) {
+    const text = fs.readFileSync(IMPORT, "utf8").replace(/\r\n/g, "\n").trim();
+    if (!text) throw new Error(`--import: ${IMPORT} is empty`);
+    const id = `idea-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const title = text.split("\n")[0].replace(/^#+\s*/, "").slice(0, 100);
+    log(`import ${path.basename(IMPORT)} → "${title}"`);
+    if (!DRY) {
+      const { error: e } = await db.from("ideas").insert({
+        id, title, body: text, categories: [], subcategory: "", status: "IDEA", source_path: IMPORT_PAGE,
+        context: { title: `Imported from ${path.basename(IMPORT)}`, importedFrom: path.basename(IMPORT) },
+        prompt_md: null, prompt_filename: null, created_by: "lee", source_kind: "web", attachments: [], audio_path: null, transcript_status: null,
+      });
+      if (e) throw new Error(`import: ${e.message}`);
+    }
+  }
+
   const { data, error } = await db.from("ideas").select("*").order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
   const all = (data ?? []) as Row[];
@@ -327,7 +363,9 @@ async function main(): Promise<void> {
           }
           if (j.urgent === true && !ctx.urgent) ctx.urgentSuggested = "1";
         }
-        ctx.session = suggestSession(r.source_path ?? "", r.categories ?? []);
+        const proj = suggestProject(r.source_path ?? "", r.categories ?? []);
+        ctx.session = proj.label; ctx.project = proj.key; ctx.worktree = proj.worktree;
+        ctx.page = pageLabel(r.source_path ?? "");
         ctx.organizedAt = new Date().toISOString();
         r.context = ctx;
         const { error: e } = await db.from("ideas").update({ title: r.title, categories: r.categories ?? [], context: ctx, updated_at: ctx.organizedAt }).eq("id", r.id);
@@ -424,18 +462,33 @@ async function main(): Promise<void> {
     const f = byId.get(r.id) ?? path.join(DIR, `${day(r.created_at)} ${slug(r.title)}.md`);
     return `[[${path.basename(f, ".md")}]]`;
   };
-  const table = (list: Row[]) => list.length
-    ? ["| # | idea | tldr | categories | session | captured | prompt |", "|---|---|---|---|---|---|---|", ...list.slice().sort(rank).map((r, k) => `| ${r.context?.urgent === "1" ? "🔥" : k + 1} | ${link(r)} | ${(r.context?.tldr ?? "").replace(/\|/g, "／").slice(0, 120)} | ${(r.categories ?? []).join(", ")} | ${(r.context?.session ?? "").split(" — ")[0]} | ${day(r.created_at)} | ${r.prompt_md?.trim() ? "✓" : "—"} |`)].join("\n")
+  const projOf = (r: Row) => (r.context?.project ? r.context.session ?? "" : "") || suggestProject(r.source_path ?? "", r.categories ?? []).label;
+  const pageOf = (r: Row) => r.context?.page ?? pageLabel(r.source_path ?? "");
+  const cell = (s: string) => s.replace(/\|/g, "／").replace(/\n/g, " ");
+  const table = (list: Row[], numbered = true) => list.length
+    ? ["| # | idea | tldr | project | page | categories | captured | prompt |", "|---|---|---|---|---|---|---|---|",
+      ...list.slice().sort(rank).map((r, k) => `| ${r.context?.urgent === "1" ? "🔥" : numbered ? k + 1 : "·"} | ${link(r)} | ${cell(r.context?.tldr ?? "").slice(0, 110)} | ${projOf(r)} | ${cell(pageOf(r))} | ${(r.categories ?? []).join(", ")} | ${day(r.created_at)} | ${r.prompt_md?.trim() ? "✓" : "—"} |`)].join("\n")
     : "_none_";
+  const open = rows.filter((r) => r.status === "IDEA" || r.status === "DRAFTED");
+  const groupBy = (list: Row[], key: (r: Row) => string): [string, Row[]][] => {
+    const m = new Map<string, Row[]>();
+    for (const r of list) m.set(key(r), [...(m.get(key(r)) ?? []), r]);
+    return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
+  };
+  const grouped = (list: Row[], key: (r: Row) => string, level = "###") =>
+    groupBy(list, key).flatMap(([g, rs]) => [`${level} ${g} (${rs.length})`, "", table(rs, false), ""]);
   const index = [
     "# Survive — the build queue",
     "",
-    `Synced ${new Date().toISOString()} from the app (${rows.length} ideas). This file is rewritten on every sync — edit the notes, not this table.`,
+    `Synced ${new Date().toISOString()} from the app (${rows.length} ideas · ${open.length} open). Rewritten on every sync — edit the notes, not this table. Filter by tag in Obsidian: \`#project/filming\`, \`#page/…\`, \`#cat/authoring\`, \`#urgent\`.`,
     "",
-    "Work an idea: open its note → read **Prompt** → paste into Claude Code on the build machine → after the deploy, tick **Testing checklist** on the laptop → set `status:` (SUBMITTED / APPROVED / PARKED) and `reviewed: true` in the note. The next sync pushes the status to the app.",
+    "Work an idea: open its note → read **Prompt** → paste into the Claude Code session named for its **project** → after the deploy, tick **Testing checklist** on the laptop → set `status:` (SUBMITTED / APPROVED / PARKED) and `reviewed: true` in the note. The next sync carries the status to the app.",
     "",
-    "## Ideas (no prompt yet)", "", table(groups.IDEA), "",
-    "## Drafted (prompt ready)", "", table(groups.DRAFTED), "",
+    "## 🔥 Urgent", "", table(open.filter((r) => r.context?.urgent === "1")), "",
+    "## Open — in order", "", table(open), "",
+    "## Open — by project", "", ...grouped(open, projOf),
+    "## Open — by page", "", ...grouped(open, pageOf),
+    "## Open — by category", "", ...grouped(open, (r) => (r.categories ?? [])[0] ?? "uncategorised"),
     "## Submitted (in Claude Code)", "", table(groups.SUBMITTED), "",
     "## Approved (shipped)", "", table(groups.APPROVED), "",
     "## Parked", "", table(groups.PARKED), "",

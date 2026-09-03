@@ -9,6 +9,8 @@ import { useMemo, useState } from "react";
 import { Check, Printer, RefreshCw, X } from "lucide-react";
 
 import { applyCeqEdit } from "@/lib/talkthrough.functions";
+import { organizeIdea, saveIdea } from "@/lib/ideas.functions";
+import { getAdminWho } from "@/components/AdminGate";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "./theme";
 import {
   STAMP_LABELS, canonicalStamp, sessionTags, stampLabel, touchRow,
@@ -102,6 +104,33 @@ function ItemShell({ item, children, onRegen, printable, film }: {
     putBoardItem(touchRow(item, { status: item.status === s ? "suggested" : s } as Partial<BoardItem>));
   const archived = item.status === "archived";
   const queued = item.status === "in_production";
+  // → IDEA BANK (Lee, 2026-09-03): a suggested slide, CEQ edit or content
+  // idea from the talkthrough becomes an idea in the bank — AI titles and
+  // files it, Obsidian gets the note, the production queue sees it. The
+  // board item is untouched; the bank entry remembers where it came from.
+  const [banked, setBanked] = useState<"no" | "busy" | "yes" | "err">("no");
+  const toBank = () => {
+    if (banked !== "no") return;
+    setBanked("busy");
+    const p = item.payload as Record<string, unknown>;
+    const detail = String(p.body ?? p.proposal ?? p.pitch ?? p.summary ?? p.meaning ?? p.instruction ?? "");
+    const id = `idea-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    saveIdea({ data: {
+      id,
+      title: item.title,
+      body: [item.title, detail, item.quote ? `In Lee's words: "${item.quote}"` : ""].filter(Boolean).join("\n\n"),
+      categories: ["AUTHORING"],
+      subcategory: String(p.kind ?? item.kind).replace(/_/g, " "),
+      status: "IDEA",
+      sourcePath: typeof location !== "undefined" ? location.pathname : "/talkthrough",
+      context: { title: typeof document !== "undefined" ? document.title : "", fromBoardItem: item.id, boardKind: String(p.kind ?? item.kind), origin: "talkthrough-review" },
+      promptMd: null, promptFilename: null,
+      createdBy: getAdminWho() ?? "",
+      sourceKind: "web", attachments: [], audioPath: null, transcriptStatus: null,
+    } })
+      .then(() => { setBanked("yes"); organizeIdea({ data: { id } }).catch(() => { /* the idea is saved; organise again from the bank */ }); })
+      .catch(() => setBanked("err"));
+  };
   return (
     <div className="mb-2 rounded-2xl p-4 tt-item" style={{ background: PANEL, border: `1px solid ${item.status === "approved" ? "rgba(59,245,160,0.4)" : EDGE}`, opacity: archived ? 0.55 : 1 }}>
       <div className="flex items-center gap-2">
@@ -134,6 +163,12 @@ function ItemShell({ item, children, onRegen, printable, film }: {
             style={queued ? { background: GOLD, color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: GOLD }}
             onClick={() => setStatus("in_production")}>
             {queued ? "✓ queued" : "→ queue"}
+          </button>
+          <button className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+            title={banked === "yes" ? "In the Idea Bank — AI is naming and filing it; Obsidian gets the note" : "Send to the Idea Bank (and Obsidian) as an idea to build"}
+            style={banked === "yes" ? { background: "#7DD3FC", color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: banked === "err" ? "#F87171" : "#7DD3FC" }}
+            onClick={toBank}>
+            {banked === "busy" ? "…" : banked === "yes" ? "✓ in the bank" : banked === "err" ? "bank failed" : "→ idea bank"}
           </button>
           <button className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
             style={archived ? { background: "#F87171", color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: NEON.muted }}

@@ -270,7 +270,13 @@ function Row({ idea, expanded, onToggle, onPatch, onChanged }: {
       {expanded && (
         <div style={{ padding: "0 14px 14px", borderTop: `1px solid ${EDGE}` }}>
           {summary && <div style={{ fontSize: 13, lineHeight: 1.55, color: CREAM, margin: "12px 0 0" }}>{summary}</div>}
-          {idea.context?.session && <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>Claude Code session: <span style={{ color: CREAM }}>{idea.context.session}</span></div>}
+          {(idea.context?.session || idea.context?.page) && (
+            <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>
+              {idea.context?.session && <>Project: <span style={{ color: CREAM }}>{idea.context.session}</span></>}
+              {idea.context?.page && <> · Page: <span style={{ color: CREAM }}>{idea.context.page}</span></>}
+              {idea.context?.worktree && <> · <span title="the git worktree behind that project">{idea.context.worktree}</span></>}
+            </div>
+          )}
 
           {/* IN THEIR WORDS — the transcript, folded. It is the source of truth
               but not the thing to read every time. */}

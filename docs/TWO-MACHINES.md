@@ -63,7 +63,11 @@ this PC mirrors them into the vault and works them there.
 
 | Where | For |
 | --- | --- |
-| `bun run obsidian:sync` (repo root) | Mirrors every idea into `Obsidian Vault/Survive/Ideas/` — one note each, plus `_Queue.md`, the index. Pushes a `status:` you changed in a note back to the app. |
+| `scripts\obsidian-watch.cmd` (double-click, or a shortcut in Startup) | **Keeps it all in step**, every 5 minutes, and names/files anything AI missed. Close the window to stop. |
+| `bun run obsidian:sync` (repo root) | One pass by hand. Mirrors every idea into `Obsidian Vault/Survive/Ideas/` — one note each, plus `_Queue.md`, the index. Two-way on `status:`. |
+| `bun run obsidian:sync -- --import=<file.txt>` | Notes dictated elsewhere → one idea in the bank (add `--organize --draft` to name, file and draft it in the same run). |
+| Every note's frontmatter | `project:` (the plain name of the Claude Code session to use — Filming & talkthrough, Growth & outreach, Exhibits, Idea Bank & Obsidian, Learn & share links, Homepage), `page:` (the screen it is about, in words), `worktree:` for when git matters, and `tags:` so Obsidian's tag pane filters by `#project/…`, `#page/…`, `#cat/…`, `#urgent`. |
+| `_Queue.md` | 🔥 Urgent, then open ideas in order, then the same ideas **by project**, **by page**, **by category**; Submitted / Approved / Parked at the bottom. |
 | `bun run obsidian:sync -- --draft` | Same, and drafts a prompt for every idea that has none (AI; costs money, so it is a flag). |
 | Each note | Frontmatter (`status`, `reviewed`, categories, source), the idea verbatim, then **Summary**, **Prompt**, **Testing checklist**. |
 | `_Queue.md` | The board: Ideas → Drafted → Submitted → Approved → Parked. Rewritten every sync; edit the notes, not this. |
