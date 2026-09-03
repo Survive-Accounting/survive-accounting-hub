@@ -730,9 +730,11 @@ function Drawer({ pathname, ideas, loadErr, draft, draftErr, patch, patchWith, d
                 <select value={draft.category ?? ""} onChange={(e) => patch({ category: e.target.value || null })}
                   title="Optional. Leave it on 'AI files it' and the organiser decides."
                   style={{ ...field, cursor: "pointer" }}>
-                  <option value="">AI files it</option>
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
-                  <option value={OTHER_CATEGORY}>Other (specify)</option>
+                  {/* Options carry their own colours — a native dropdown on a
+                      dark panel renders cream-on-white in some browsers. */}
+                  <option value="" style={{ background: PANEL, color: CREAM }}>AI files it</option>
+                  {CATEGORIES.map((c) => <option key={c} value={c} style={{ background: PANEL, color: CREAM }}>{CATEGORY_LABEL[c]}</option>)}
+                  <option value={OTHER_CATEGORY} style={{ background: PANEL, color: CREAM }}>Other (specify)</option>
                 </select>
                 {draft.category === OTHER_CATEGORY && (
                   <input value={draft.otherCategory} onChange={(e) => patch({ otherCategory: e.target.value })}
