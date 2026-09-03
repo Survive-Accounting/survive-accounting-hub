@@ -79,7 +79,12 @@ export function AttachTake({ session, doc }: { session: TalkSession; doc: TTDoc 
 
 // ----------------------------------------------------------------- session
 
-export function SessionView({ tt, session, set, onResume }: { tt: TTState; session: TalkSession; set: BoothSetInfo | null; onResume: () => void }) {
+export function SessionView({ tt, session, set, onResume, editBase }: {
+  tt: TTState; session: TalkSession; set: BoothSetInfo | null; onResume: () => void;
+  /** Base path of the standalone CEQ edit screen — passed through to the
+   *  review board's Edit links. V3 Results supplies it; /talkthrough does not. */
+  editBase?: string;
+}) {
   const segs = sessionSegments(tt.doc, session.id);
   const tags = sessionTags(tt.doc, session.id);
   const board = sessionBoard(tt.doc, session.id);
@@ -240,6 +245,7 @@ export function SessionView({ tt, session, set, onResume }: { tt: TTState; sessi
               ceqs={passCeqs}
               onRegen={(itemId, comment) => regenerateReviewItem(session.id, itemId, passCeqs, comment)}
               film={{ doc: tt.doc, setId: session.setId }}
+              editBase={editBase}
             />
           )}
           {board.length === 0 ? (
