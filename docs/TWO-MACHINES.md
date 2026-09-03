@@ -63,6 +63,24 @@ Later, the same vault is where the accounting automations, reports and the
 important business documents go — `Survive/` is the first folder, not the
 only one.
 
+## Terry — the to-do count
+
+A Ctrl+I note that is a **to-do**, not a build idea: click **Work to-do** or
+**Personal to-do**, or just say "put this on my to-do list" (and "personal" if
+it is). It never enters the build queue. The sync collects them in
+`Obsidian Vault/Terry/Todos.md`: each one summarised once by AI into a single
+checkbox line, grouped by category, then again by date.
+
+- Tick a box → next sync marks it done in the app (and it moves to **Done**).
+- Move a line under another heading, or add a heading (a new category) →
+  next sync learns it.
+- Ask a Claude Code session on this PC to "organise my to-dos" or "add a
+  category X and move these there": it edits `Terry/Todos.md` directly and
+  the sync carries the result back. The vault is local files; nothing stops it.
+
+Terry the character (the SMS line for Lee and his wife, money, dates, the
+dashboard) is saved for later as a prompt: `Terry/Terry — the prompt (later).md`.
+
 ## The loop
 
 ```

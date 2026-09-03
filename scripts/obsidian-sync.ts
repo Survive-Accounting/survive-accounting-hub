@@ -39,6 +39,16 @@ import { buildIdeaPromptMessages, hasPromptSections } from "../src/lib/ideas-pro
 
 const VAULT = process.env.OBSIDIAN_VAULT ?? "C:/Users/lee/Documents/Obsidian Vault";
 const DIR = path.join(VAULT, "Survive", "Ideas");
+// TERRY keeps the count of what Lee has to do. To-dos (context.todo set in the
+// Ctrl+I modal, or said out loud) never enter the build queue; they collect in
+// ONE note as checkboxes, summarised by AI once each, grouped by category and
+// again by date. Tick a box → next sync marks it done in the app. Move a line
+// under another heading (or add a heading) → next sync learns the category.
+// That is how a Claude Code session can "organise my to-dos": it edits this
+// file; the sync carries the result back.
+const TERRY_DIR = path.join(VAULT, "Terry");
+const TODOS_FILE = path.join(TERRY_DIR, "Todos.md");
+const BY_DATE_MARK = "## By date";
 const APP = "https://surviveaccounting.com/admin/ideas";
 const PENDING = "<!-- survive:prompt pending — run `bun run obsidian:sync -- --draft` on the build machine, or draft it in the app -->";
 
@@ -137,6 +147,102 @@ function noteBody(r: Row): string {
   return out.join("\n");
 }
 
+// ------------------------------------------------------------------ to-dos
+
+const isTodo = (r: Row): boolean => !!r.context?.todo;
+const cap = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** What the note says now: per id, ticked or not, and the heading it sits
+ *  under (categories section only — the by-date section is a view). */
+function readTodosNote(md: string): Map<string, { done: boolean; category: string | null }> {
+  const out = new Map<string, { done: boolean; category: string | null }>();
+  const cut = md.indexOf(BY_DATE_MARK);
+  const cats = cut < 0 ? md : md.slice(0, cut);
+  let heading: string | null = null;
+  for (const line of cats.split(/\r?\n/)) {
+    const h = line.match(/^## (.+?)\s*$/);
+    if (h) { heading = h[1].trim(); continue; }
+    const m = line.match(/^- \[([ xX])\] .*<!--\s*(\S+)\s*-->/);
+    if (m) out.set(m[2], { done: m[1] !== " ", category: heading && heading.toLowerCase() !== "done" ? heading.toLowerCase() : null });
+  }
+  // The by-date section can be ticked too.
+  if (cut >= 0) {
+    for (const line of md.slice(cut).split(/\r?\n/)) {
+      const m = line.match(/^- \[([xX])\] .*<!--\s*(\S+)\s*-->/);
+      if (m && out.has(m[2])) out.get(m[2])!.done = true;
+    }
+  }
+  return out;
+}
+
+/** One AI call for every to-do that has no summary yet: each becomes one
+ *  imperative checkbox line. Cached on the idea (context.todoSummary). */
+async function summariseTodos(db: { from: (t: string) => any }, todos: Row[], log: (s: string) => void): Promise<void> {
+  const need = todos.filter((r) => !r.context?.todoSummary && (r.body?.trim() || r.title?.trim()));
+  if (!need.length) return;
+  log(`summarise ${need.length} to-do${need.length === 1 ? "" : "s"}`);
+  if (DRY) return;
+  const { runAiTask } = await import("../src/lib/ai.server");
+  const system = "Lee dictates to-dos in a hurry. Rewrite EACH one as ONE checkbox line: imperative, at most 12 words, keep every name, date, amount and place, drop filler (\"put this on my to-do list\", \"remind me to\"). Return ONLY a JSON object mapping id to line.";
+  const user = need.map((r) => `${r.id}: ${(r.body?.trim() || r.title).replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
+  const res = await runAiTask("micro", { system, user, maxOutput: 2000 });
+  const m = res.text.match(/\{[\s\S]*\}/);
+  const map = m ? (JSON.parse(m[0]) as Record<string, string>) : {};
+  for (const r of need) {
+    const line = String(map[r.id] ?? "").trim() || (r.body?.trim() || r.title).split(/[.\n]/)[0].slice(0, 90);
+    r.context = { ...(r.context ?? {}), todoSummary: line };
+    const { error } = await db.from("ideas").update({ context: r.context, updated_at: new Date().toISOString() }).eq("id", r.id);
+    if (error) throw new Error(`save summary for ${r.id}: ${error.message}`);
+  }
+}
+
+async function syncTodos(db: { from: (t: string) => any }, todos: Row[], log: (s: string) => void): Promise<{ done: number; moved: number }> {
+  let done = 0, moved = 0;
+  // Read back what Lee (or a Claude Code session) changed in the note first.
+  const seen = fs.existsSync(TODOS_FILE) ? readTodosNote(fs.readFileSync(TODOS_FILE, "utf8")) : new Map();
+  for (const r of todos) {
+    const s = seen.get(r.id);
+    if (!s) continue;
+    const patch: Record<string, unknown> = {};
+    if (s.done && r.status !== "APPROVED") { r.status = "APPROVED"; patch.status = "APPROVED"; done++; log(`done   ${r.context?.todoSummary ?? r.title}`); }
+    if (!s.done && r.status === "APPROVED") { r.status = "DRAFTED"; patch.status = "DRAFTED"; log(`reopen ${r.context?.todoSummary ?? r.title}`); }
+    if (s.category && s.category !== (r.context?.todo ?? "").toLowerCase()) {
+      r.context = { ...(r.context ?? {}), todo: s.category };
+      patch.context = r.context; moved++;
+      log(`move   ${r.context?.todoSummary ?? r.title} → ${s.category}`);
+    }
+    if (Object.keys(patch).length && !DRY) {
+      const { error } = await db.from("ideas").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", r.id);
+      if (error) throw new Error(`push to-do ${r.id}: ${error.message}`);
+    }
+  }
+
+  await summariseTodos(db, todos, log);
+
+  const line = (r: Row) => `- [${r.status === "APPROVED" ? "x" : " "}] ${r.context?.todoSummary ?? r.title} <!-- ${r.id} --> · ${day(r.created_at)}${(r.created_by ?? "").toLowerCase() === "king" ? " · King" : ""}`;
+  const open = todos.filter((r) => r.status !== "APPROVED" && r.status !== "PARKED");
+  const finished = todos.filter((r) => r.status === "APPROVED");
+  const categories = [...new Set(["work", "personal", ...open.map((r) => (r.context?.todo ?? "work").toLowerCase())])];
+  const out: string[] = [
+    "# To-dos — Terry keeps the count",
+    "",
+    `_Synced ${new Date().toISOString()} · ${open.length} open · ${finished.length} done._ Tick a box to finish one. Move a line under another heading — or add a heading — to recategorise; the next sync learns it. The **By date** list is a view of the same items.`,
+    "",
+  ];
+  for (const c of categories) {
+    const list = open.filter((r) => (r.context?.todo ?? "work").toLowerCase() === c);
+    out.push(`## ${cap(c)}`, "", ...(list.length ? list.slice().reverse().map(line) : ["_nothing open_"]), "");
+  }
+  out.push("## Done", "", ...(finished.length ? finished.slice().reverse().slice(0, 40).map(line) : ["_none yet_"]), "");
+  out.push("---", "", BY_DATE_MARK, "");
+  const byDay = new Map<string, Row[]>();
+  for (const r of open.slice().reverse()) byDay.set(day(r.created_at), [...(byDay.get(day(r.created_at)) ?? []), r]);
+  for (const [d, list] of byDay) out.push(`### ${d}`, "", ...list.map((r) => `- [ ] (${cap((r.context?.todo ?? "work").toLowerCase())}) ${r.context?.todoSummary ?? r.title} <!-- ${r.id} -->`), "");
+  if (!byDay.size) out.push("_nothing open_", "");
+  if (!DRY) { fs.mkdirSync(TERRY_DIR, { recursive: true }); fs.writeFileSync(TODOS_FILE, out.join("\n"), "utf8"); }
+  return { done, moved };
+}
+
 // ------------------------------------------------------------------- main
 
 async function main(): Promise<void> {
@@ -145,7 +251,10 @@ async function main(): Promise<void> {
 
   const { data, error } = await db.from("ideas").select("*").order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
-  const rows = (data ?? []) as Row[];
+  const all = (data ?? []) as Row[];
+  // To-dos are Terry's; everything else is the build queue.
+  const todos = all.filter(isTodo);
+  const rows = all.filter((r) => !isTodo(r));
 
   if (!DRY) fs.mkdirSync(DIR, { recursive: true });
   // Existing notes, by the id in their frontmatter — a retitled idea keeps its file.
@@ -250,7 +359,9 @@ async function main(): Promise<void> {
   ].join("\n");
   if (!DRY) fs.writeFileSync(path.join(DIR, "_Queue.md"), index, "utf8");
 
-  console.log(`\n${DRY ? "[dry] " : ""}${rows.length} ideas → ${DIR}\n  created ${created} · prompt landed ${refreshed} · untouched ${kept} · status pushed to app ${pushed}${DRAFT ? ` · drafted ${drafted}` : ""}`);
+  const t = await syncTodos(db, todos, log);
+
+  console.log(`\n${DRY ? "[dry] " : ""}${rows.length} ideas → ${DIR}\n  created ${created} · prompt landed ${refreshed} · untouched ${kept} · status pushed to app ${pushed}${DRAFT || REDRAFT ? ` · drafted ${drafted}` : ""}\n${todos.length} to-dos → ${TODOS_FILE}\n  marked done ${t.done} · recategorised ${t.moved}`);
 }
 
 main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });

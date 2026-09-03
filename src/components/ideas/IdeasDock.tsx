@@ -156,6 +156,11 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
   const other: AdminWho = me === "lee" ? "king" : "lee";
   const [sendTo, setSendTo] = useState(false);
   const [phase, setPhase] = useState<string | null>(null);
+  // DO THIS LATER (Lee, 2026-09-02): a to-do, not a build idea. Work or
+  // personal. It lands in Obsidian under Terry/Todos.md as a checkbox, not in
+  // the build queue. Saying "this is for my to-do list" is enough — the words
+  // are read at save time when no chip was clicked.
+  const [todo, setTodo] = useState<"" | "work" | "personal">("");
 
   useEffect(() => { ta.current?.focus(); }, []);
   const subs = useMemo(() => knownSubcategories(ideas), [ideas]);
@@ -193,6 +198,11 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
     if ((!body && !audio) || busy) return;
     setBusy(true); setErr(null);
     const id = newIdeaId();
+    // Spoken tag: "put this on my to-do list", "do this later", "personal to-do".
+    const spokenTodo = !todo && /\bto[- ]?do\b|\bmy list\b|\bdo (this|it|that) later\b|\bremind me\b/i.test(body)
+      ? (/\bpersonal\b|\bhome\b|\bwife\b|\bfamily\b/i.test(body) ? "personal" : "work")
+      : "";
+    const todoTag = todo || spokenTodo;
     saveIdea({ data: {
       id,
       title: deriveTitle(body) || (audio ? "Voice note" : ""),
@@ -205,7 +215,11 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
       sourcePath: pathname,
       // The exact page, so a prompt drafted later can name the screen: the
       // path is the route, the title is what Lee saw in the tab.
-      context: { title: typeof document !== "undefined" ? document.title : "", href: typeof location !== "undefined" ? location.href : "" },
+      context: {
+        title: typeof document !== "undefined" ? document.title : "",
+        href: typeof location !== "undefined" ? location.href : "",
+        ...(todoTag ? { todo: todoTag } : {}),
+      },
       promptMd: null,
       promptFilename: null,
       createdBy: getAdminWho() ?? "",
@@ -225,7 +239,7 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
         onClose();
       })
       .catch((e) => { setErr(e instanceof Error ? e.message : String(e)); setPhase(null); setBusy(false); });
-  }, [text, cats, sub, pathname, busy, audio, files, onSaved, onClose, sendTo, other]);
+  }, [text, cats, sub, pathname, busy, audio, files, onSaved, onClose, sendTo, other, todo]);
 
   /** HOLD to talk, or tap-tap for a longer note. Both gestures, one handler. */
   const startRec = async () => {
@@ -358,6 +372,21 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
             {files.map((f) => <div key={f.id}>📎 {f.name}</div>)}
           </div>
         )}
+
+        <div className="flex items-center" style={{ gap: 6, marginTop: 14, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11.5, color: MUTED }}>Do this later?</span>
+          {(["work", "personal"] as const).map((k) => {
+            const on = todo === k;
+            return (
+              <button key={k} onClick={() => setTodo(on ? "" : k)}
+                title={k === "work" ? "A work to-do — Terry/Todos.md in Obsidian, not the build queue" : "A personal to-do — same note, its own section"}
+                style={{ background: on ? "#3BF5A0" : "transparent", color: on ? "#0B1322" : CREAM, border: `1px solid ${on ? "#3BF5A0" : EDGE}`, borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                ☐ {k === "work" ? "Work to-do" : "Personal to-do"}
+              </button>
+            );
+          })}
+          <span style={{ fontSize: 10.5, color: MUTED }}>or just say “to-do list”</span>
+        </div>
 
         <div style={{ fontSize: 11.5, color: MUTED, margin: "14px 0 6px" }}>Categories <span style={{ opacity: 0.6 }}>optional</span></div>
         <div className="flex flex-wrap" style={{ gap: 5 }}>
