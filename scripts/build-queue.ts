@@ -57,7 +57,9 @@ function resolveClaude(): { cmd: string; args: string[] } {
 }
 const CLAUDE = resolveClaude();
 const CLAUDE_BIN = `${CLAUDE.cmd} ${CLAUDE.args.join(" ")}`.trim();
-const MAX_TURNS = Number(process.env.QUEUE_MAX_TURNS ?? 80);
+// Turns are cheap to allow; the wall clock (QUEUE_BUILD_MINUTES) is the real
+// cap. 80 was too few — the first build hit it mid-work with nothing shipped.
+const MAX_TURNS = Number(process.env.QUEUE_MAX_TURNS ?? 400);
 /** The model each build runs on. Lee (2026-09-03): Opus 5. Override with
  *  QUEUE_MODEL (an id like claude-opus-4-8, or an alias like opus/sonnet). */
 const MODEL = process.env.QUEUE_MODEL ?? "claude-opus-5";
@@ -107,6 +109,9 @@ function buildPrompt(r: Row, branch: string): string {
     "- Nothing a student sees changes unless the task says so. No data rewriting.",
     "- Fail loud: no silent fallbacks, no stubs that pretend to work. Two failed attempts on an item → stub it LOUDLY, log it, move on.",
     "- Make it testable by a non-developer: if testing needs data or a mock (a test chapter, a test checkout, a sample student), build a safe test path behind an is_test flag or a clearly-named test route, and put the exact clicks in the checklist.",
+    "",
+    "- COMMIT AS YOU GO. After each working step, `git add -A && git commit` on this branch. If you run out of time or turns, committed work survives; uncommitted work does not.",
+    "- SCOPE: if the task reads as a research project or a list of many features, build the SMALLEST complete, testable slice first, commit it, and say in the REPORT what you left for a later pass. A finished small thing beats an unfinished big one.",
     "",
     "END YOUR FINAL MESSAGE WITH EXACTLY THESE TWO SECTIONS, nothing after them:",
     "## REPORT",
@@ -176,34 +181,72 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
     note("  bun install…");
     if (!sh("bun", ["install", "--frozen-lockfile"], dir).ok && !sh("bun", ["install"], dir).ok) throw new Error("bun install failed");
 
-    // 2. Claude Code, headless, in that worktree.
-    note(`  claude -p on ${MODEL} … (this is the long part)`);
+    // 2. Claude Code, headless, in that worktree. STREAMED: every assistant
+    // message and tool call goes to the log as it happens (the first run
+    // died at the turn limit with a blank log — text mode prints only at the
+    // end). The raw event stream is kept beside it as .jsonl.
+    note(`  claude -p on ${MODEL} … (this is the long part; transcript streams below)`);
     const prompt = buildPrompt(r, branch);
     fs.writeFileSync(path.join(dir, ".build-queue-prompt.md"), prompt, "utf8");
-    const out = await new Promise<{ code: number | null; text: string }>((resolve) => {
-      const child = spawn(CLAUDE.cmd, [...CLAUDE.args, "-p", "--output-format", "text", "--dangerously-skip-permissions", "--model", MODEL, "--max-turns", String(MAX_TURNS)], {
+    const jsonlFile = logFile.replace(/\.log$/, ".jsonl");
+    const out = await new Promise<{ code: number | null; text: string; turns: number }>((resolve) => {
+      const child = spawn(CLAUDE.cmd, [...CLAUDE.args, "-p", "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions", "--model", MODEL, "--max-turns", String(MAX_TURNS)], {
         cwd: dir, env: { ...process.env, CI: "1" }, shell: false,
       });
-      let text = "";
+      let buf = "", finalText = "", lastAssistant = "", turns = 0;
       const timer = setTimeout(() => { note("  ! build timed out — killing"); child.kill(); }, BUILD_TIMEOUT_MS);
-      child.stdout.on("data", (d) => { text += String(d); fs.appendFileSync(logFile, String(d)); });
+      const handle = (line: string) => {
+        if (!line.trim()) return;
+        fs.appendFileSync(jsonlFile, line + "\n");
+        let ev: { type?: string; subtype?: string; result?: string; num_turns?: number; message?: { content?: unknown } } = {};
+        try { ev = JSON.parse(line); } catch { fs.appendFileSync(logFile, line + "\n"); return; }
+        if (ev.type === "assistant") {
+          turns++;
+          const blocks = Array.isArray(ev.message?.content) ? (ev.message!.content as { type: string; text?: string; name?: string; input?: Record<string, unknown> }[]) : [];
+          for (const b of blocks) {
+            if (b.type === "text" && b.text?.trim()) { lastAssistant = b.text; note(`  💬 ${b.text.trim().replace(/\s+/g, " ").slice(0, 300)}`); }
+            else if (b.type === "tool_use") {
+              const inp = b.input ?? {};
+              const what = String(inp.command ?? inp.file_path ?? inp.pattern ?? inp.description ?? "").replace(/\s+/g, " ").slice(0, 160);
+              note(`  🔧 ${b.name}${what ? ` · ${what}` : ""}`);
+            }
+          }
+        } else if (ev.type === "result") {
+          if (typeof ev.result === "string") finalText = ev.result;
+          if (typeof ev.num_turns === "number") turns = ev.num_turns;
+          note(`  ⏹ result: ${ev.subtype ?? "?"} after ${turns} turns`);
+        }
+      };
+      child.stdout.on("data", (d) => { buf += String(d); const parts = buf.split("\n"); buf = parts.pop() ?? ""; for (const p of parts) handle(p); });
       child.stderr.on("data", (d) => { fs.appendFileSync(logFile, String(d)); });
-      child.on("close", (code) => { clearTimeout(timer); resolve({ code, text }); });
+      child.on("close", (code) => { clearTimeout(timer); if (buf.trim()) handle(buf); resolve({ code, text: finalText || lastAssistant, turns }); });
       child.stdin.write(prompt);
       child.stdin.end();
     });
     fs.rmSync(path.join(dir, ".build-queue-prompt.md"), { force: true });
-    if (out.code !== 0 && !out.text.includes("## REPORT")) throw new Error(`claude exited ${out.code} — see ${logFile}`);
-    const { report, checklist } = parseSections(out.text);
 
-    // 3. Commit whatever is left uncommitted, push the branch (never main).
+    // 3. SALVAGE FIRST, JUDGE SECOND. Commit whatever is in the worktree and
+    // push the branch (never main) even when the build stopped early — a
+    // half-built branch can be resumed; a deleted worktree cannot.
     sh("git", ["add", "-A"], dir, { quiet: true });
-    sh("git", ["-c", "core.safecrlf=false", "commit", "-q", "-m", `build queue: ${r.title}\n\nBuilt unattended from the Idea Bank (${r.id}).\n\nCo-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`], dir, { quiet: true });
+    const finished = out.code === 0 && out.text.includes("## REPORT");
+    sh("git", ["-c", "core.safecrlf=false", "commit", "-q", "-m", `${finished ? "build queue" : "build queue (stopped early)"}: ${r.title}\n\n${finished ? "Built" : "Partial work — the build stopped before it finished"} unattended from the Idea Bank (${r.id}).\n\nCo-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`], dir, { quiet: true });
     const ahead = sh("git", ["rev-list", "--count", "origin/main..HEAD"], dir, { quiet: true }).out.trim();
-    if (ahead === "0") throw new Error("the build made no commits — see the REPORT in the log");
-    if (!sh("git", ["push", "-u", "origin", branch], dir).ok) throw new Error("git push of the branch failed");
-    const sha = sh("git", ["rev-parse", "HEAD"], dir, { quiet: true }).out.trim();
-    note(`  pushed ${branch} @ ${sha.slice(0, 8)} (${ahead} commit${ahead === "1" ? "" : "s"}) — waiting for the Vercel preview…`);
+    let sha = "";
+    if (ahead !== "0") {
+      if (!sh("git", ["push", "-u", "origin", branch], dir).ok) throw new Error("git push of the branch failed");
+      sha = sh("git", ["rev-parse", "HEAD"], dir, { quiet: true }).out.trim();
+      note(`  pushed ${branch} @ ${sha.slice(0, 8)} (${ahead} commit${ahead === "1" ? "" : "s"})`);
+    }
+    if (!finished) {
+      const why = out.code !== 0 ? `claude exited ${out.code} after ${out.turns} turns` : "no REPORT section in the final message";
+      await mark({ runFailed: "1", runError: `${why}${ahead !== "0" ? ` — partial work is on ${branch}` : " — nothing to salvage"}`, sha: sha || undefined, runStartedAt: undefined });
+      note(`✗ stopped early: ${why}${ahead !== "0" ? ` (partial work pushed to ${branch})` : ""}`);
+      return;
+    }
+    if (ahead === "0") throw new Error("the build finished but made no commits — see the REPORT in the log");
+    const { report, checklist } = parseSections(out.text);
+    note("  waiting for the Vercel preview…");
 
     // 4. The preview URL, from GitHub's deployment record.
     const prev = await waitForPreview(sha);
