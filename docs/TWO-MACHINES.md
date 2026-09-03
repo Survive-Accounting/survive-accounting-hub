@@ -29,12 +29,24 @@ King); after that the device is remembered and it never asks again. Students
 never see a pill — it only appears once a device is unlocked. King's ideas
 land in the same vault, tagged `by: king`, captured from the page he was on.
 
-**Preview before saving.** Type or dictate, then **Preview →**: the prompt is
-drafted (nothing saved yet) and shown as folded sections — TLDR, Summary,
-Prompt (editable; paste one back if you fixed it elsewhere), Testing
-checklist, and the email exactly as the other person will see it. Then
-**↻ Regenerate** (it keeps your edits), **Save**, or **Save & send to …**.
-Plain **Save** without previewing still works and is still ten seconds.
+**Don't make me think.** Say it, Save, done — "Nice! Thanks for helping
+improve Survive." AI then titles it, writes the TLDR and summary, files it in a
+category (unless you picked one), names the Claude Code session it belongs to,
+and drafts the prompt — all in the background, about three cents an idea.
+**Save draft** keeps unfinished words; Ctrl+I shows your drafts to continue.
+**Preview →** (optional) shows the drafted prompt as folded sections — TLDR,
+Summary, Prompt (editable; paste one back if you fixed it elsewhere), Testing
+checklist — with **↻ Regenerate** that keeps your edits. Sending a summary to
+King/Lee lives on `/admin/ideas`, not in the modal.
+
+**The Idea Bank (`/admin/ideas`).** Pills with counts — All, each category,
+🔥 Urgent, ✎ Drafts, ☐ To-dos. Urgent is pinned to the top whatever the sort;
+**mark urgent** on any idea texts Lee. A row shows the AI title and TLDR; open
+it for the summary, the transcript folded under "in their words", and the
+**Prompt** in an editable box with Copy — that box is what goes into Claude
+Code. **↑ Upload a prompt** saves the file at once and AI names and files it.
+**Prioritize →** suggests an order for the week you describe; drag the rows,
+**Save this order**, and the bank and Obsidian's index both follow it.
 
 - In his modal the checkbox says **Send summary to Lee**. Ticked, Lee gets the
   TLDR · summary · prompt · testing checklist by email (the prompt is drafted

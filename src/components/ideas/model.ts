@@ -138,9 +138,37 @@ export function searchIdeas(ideas: readonly Idea[], q: string): Idea[] {
  *  not grow a slot that means "we did not ask". */
 export const isUnsorted = (i: Idea): boolean => i.categories.length === 0;
 
-export type SortKey = "date" | "category" | "status";
+// ---- the additive flags that live in `context` (no schema change) ----------
+/** Pinned to the top of every list; turning it on texts Lee. */
+export const isUrgent = (i: Idea): boolean => i.context?.urgent === "1";
+/** Saved to come back to — the words are not finished. */
+export const isDraft = (i: Idea): boolean => i.context?.draft === "1";
+/** A to-do (work/personal) — Terry's, not the build queue. */
+export const isTodoIdea = (i: Idea): boolean => !!i.context?.todo;
+/** Set by Prioritize's drag-and-drop; higher first. 0 = never ranked. */
+export const priorityOf = (i: Idea): number => Number(i.context?.priority ?? 0) || 0;
+export const tldrOf = (i: Idea): string => i.context?.tldr ?? "";
+export const summaryOf = (i: Idea): string => i.context?.summary ?? "";
+
+/** THE VAULT ORDER: urgent pinned, then Prioritize's order, then newest. */
+export function rankIdeas(ideas: readonly Idea[]): Idea[] {
+  return [...ideas].sort((a, b) =>
+    Number(isUrgent(b)) - Number(isUrgent(a))
+    || priorityOf(b) - priorityOf(a)
+    || b.updatedAt.localeCompare(a.updatedAt));
+}
+
+/** Count per category for the filter pills — an idea in two buckets counts in both. */
+export function countByCategory(ideas: readonly Idea[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const i of ideas) for (const c of i.categories) out[c] = (out[c] ?? 0) + 1;
+  return out;
+}
+
+export type SortKey = "priority" | "date" | "category" | "status";
 
 export function sortIdeas(ideas: readonly Idea[], key: SortKey): Idea[] {
+  if (key === "priority") return rankIdeas(ideas);
   const out = [...ideas];
   if (key === "date") return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   if (key === "status") return out.sort((a, b) => STATUSES.indexOf(a.status) - STATUSES.indexOf(b.status) || b.updatedAt.localeCompare(a.updatedAt));

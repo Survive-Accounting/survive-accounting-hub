@@ -126,6 +126,109 @@ export const draftIdeaPrompt = createServerFn({ method: "POST" })
     return { text: r.text.trim(), model: r.usage.model, costUsd: r.usage.costUsd };
   });
 
+/** ORGANISE (Lee, 2026-09-03): "let the ideas really flow and be beautifully
+ *  scattered and free … It's AI's job to get it organized and categorized and
+ *  triaged." Runs right after every save, in the background: one micro call
+ *  gives the idea a real title, a TLDR, a summary and categories (only when
+ *  the author chose none); then, unless told not to, the synthesis lane
+ *  drafts the Claude Code prompt. Idempotent — safe to re-run; `redraft`
+ *  replaces an existing prompt and keeps the old one on the idea. */
+export const organizeIdea = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    id: z.string().min(1).max(80),
+    draftPrompt: z.boolean().default(true),
+    redraft: z.boolean().default(false),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ idea: Idea; drafted: boolean }> => {
+    const db = await admin();
+    const { data: row, error } = await db.from("ideas").select("*").eq("id", data.id).single();
+    if (error) rethrow(error);
+    const r = row as Row;
+    const { runAiTask } = await import("@/lib/ai.server");
+    const { buildIdeaPromptMessages, buildOrganizeMessages, suggestSession } = await import("@/lib/ideas-prompt");
+    const now = new Date().toISOString();
+    const ctx: Record<string, string> = { ...(r.context ?? {}) };
+    const isTodo = !!ctx.todo;
+
+    // 1. Title · TLDR · summary · categories — the micro lane, cheap.
+    const words = r.body?.trim() || r.title || "";
+    if (words) {
+      const org = buildOrganizeMessages({
+        title: r.title || words.slice(0, 80), body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
+        sourcePath: r.source_path ?? "", pageTitle: ctx.title ?? "", existingPrompt: r.prompt_md,
+      });
+      const res = await runAiTask("micro", { system: org.system, user: org.user, maxOutput: 700 });
+      const m = res.text.match(/\{[\s\S]*\}/);
+      if (m) {
+        const j = JSON.parse(m[0]) as { title?: unknown; tldr?: unknown; summary?: unknown; categories?: unknown; urgent?: unknown };
+        const title = typeof j.title === "string" ? j.title.trim().slice(0, 120) : "";
+        if (title) r.title = title;
+        if (typeof j.tldr === "string") ctx.tldr = j.tldr.trim();
+        if (typeof j.summary === "string") ctx.summary = j.summary.trim();
+        if (!(r.categories ?? []).length && Array.isArray(j.categories)) {
+          r.categories = j.categories.filter((c): c is string => typeof c === "string" && (CATEGORIES as readonly string[]).includes(c)).slice(0, 2);
+        }
+        // AI may FLAG urgency but never un-flag what a person set.
+        if (j.urgent === true && !ctx.urgent) ctx.urgentSuggested = "1";
+      }
+    }
+    ctx.session = suggestSession(r.source_path ?? "", r.categories ?? []);
+    ctx.organizedAt = now;
+
+    // 2. The prompt — synthesis lane. Never for a to-do or a draft-in-progress.
+    let drafted = false;
+    const wantPrompt = data.draftPrompt && !isTodo && ctx.draft !== "1" && (data.redraft || !r.prompt_md?.trim());
+    if (wantPrompt) {
+      const { system, user } = buildIdeaPromptMessages({
+        title: r.title, body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
+        sourcePath: r.source_path ?? "", pageTitle: ctx.title ?? "",
+        notes: data.redraft && r.prompt_md?.trim() ? `THE PREVIOUS PROMPT (keep every decision in it, improve the rest):\n${r.prompt_md.trim().slice(0, 8000)}` : undefined,
+      });
+      const ai = await runAiTask("synthesis", { system, user, maxOutput: 3500 });
+      if (data.redraft && r.prompt_md?.trim()) ctx.previousPromptMd = r.prompt_md.trim();
+      r.prompt_md = ai.text.trim();
+      r.prompt_filename = r.prompt_filename || `${(r.title || "prompt").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60)}.md`;
+      if (r.status === "IDEA") r.status = "DRAFTED";
+      drafted = true;
+    }
+
+    const { data: out, error: e2 } = await db.from("ideas").update({
+      title: r.title, categories: r.categories ?? [], context: ctx,
+      prompt_md: r.prompt_md, prompt_filename: r.prompt_filename, status: r.status, updated_at: now,
+    }).eq("id", r.id).select().single();
+    if (e2) rethrow(e2);
+    return { idea: toIdea(out as Row), drafted };
+  });
+
+/** Lee's number for urgent texts. Env first; the fallback is the number he
+ *  gave for exactly this (2026-09-03). */
+const LEE_URGENT_PHONE = process.env.LEE_URGENT_PHONE ?? "6012018759";
+
+/** URGENT (Lee, 2026-09-03): "any idea can be toggled on as urgent … pinned
+ *  to the top … if an urgent idea takes place, text me." Marks the idea and,
+ *  when turning ON, texts Lee. SMS-TRUTH: the result says whether the text
+ *  went, so the UI never claims a text that did not happen. */
+export const setUrgent = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ id: z.string().min(1).max(80), urgent: z.boolean() }).parse(d))
+  .handler(async ({ data }): Promise<{ idea: Idea; texted: boolean; textError?: string }> => {
+    const db = await admin();
+    const { data: row, error } = await db.from("ideas").select("*").eq("id", data.id).single();
+    if (error) rethrow(error);
+    const r = row as Row;
+    const ctx: Record<string, string> = { ...(r.context ?? {}) };
+    if (data.urgent) { ctx.urgent = "1"; ctx.urgentAt = new Date().toISOString(); } else { delete ctx.urgent; delete ctx.urgentAt; }
+    const { data: out, error: e2 } = await db.from("ideas").update({ context: ctx, updated_at: new Date().toISOString() }).eq("id", r.id).select().single();
+    if (e2) rethrow(e2);
+    let texted = false, textError: string | undefined;
+    if (data.urgent) {
+      const { sendSms } = await import("@/lib/greek-chapters.functions");
+      const who = (r.created_by || "someone").toLowerCase() === "king" ? "King" : r.created_by || "someone";
+      const res = await sendSms(LEE_URGENT_PHONE, `🔥 URGENT idea from ${who}: ${r.title || "(untitled)"}${ctx.tldr ? ` — ${ctx.tldr}` : ""}\nhttps://surviveaccounting.com/admin/ideas`);
+      texted = res.ok; textError = res.error;
+    }
+    return { idea: toIdea(out as Row), texted, textError };
+  });
+
 /** SEND A SUMMARY (Lee, 2026-09-02): "Send summary to Lee / Send summary to
  *  King … I want King to get updates on what all I'm building. Have the TLDR,
  *  then the summary, prompt, etc."

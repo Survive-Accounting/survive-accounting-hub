@@ -1,32 +1,33 @@
-// IDEAS TO SAVE — the pill and the drawer. Global on every internal surface.
+// IDEAS TO SAVE — the pill and the modal. Ctrl+I on every page.
 //
-// THE ONE RULE THIS OBEYS: capture costs ten seconds. Open (⌘I), type, save
-// (⌘↵). Nothing else is required — no category, no title, no prompt. Every
-// other field is there for later, and later is optional.
+// THE ONE RULE THIS OBEYS: capture costs ten seconds. Open (⌘I), say it or
+// type it, save (⌘↵). Nothing else is required — no category, no title, no
+// prompt. AI does the organising AFTER the save, in the background (Lee,
+// 2026-09-03: "let the ideas really flow and be beautifully scattered and
+// free … It's AI's job to get it organized and categorized and triaged").
 //
-// A CENTRED, DRAGGABLE MODAL (Lee, 2026-09-02: "pop up in the center, with a
-// modal, so I can spit out an idea rapidly and move on" — and "drag it around").
-// It started life as a right-hand drawer so the page stayed visible; the
-// modal's backdrop is translucent and the box drags out of the way, which
-// keeps that. Position is remembered per browser.
+// A CENTRED, DRAGGABLE MODAL (Lee, 2026-09-02): translucent backdrop so the
+// page stays readable; drag the header out of the way; position remembered.
 //
-// WHERE IT SHOWS: every internal surface, and — once this browser has passed
-// the AdminGate — every page of the site, /v3 included. The filming laptop
-// captures on /v3; the build machine turns the capture into prompts on
-// /admin/ideas.
+// WHERE: every page of the site. The first time on a device the modal asks
+// for the passcode (and who you are — Lee or King) and remembers the device.
+// The pill only shows once a device is unlocked, so a student never sees it.
 //
-// It never generates anything. Lee writes prompts with Claude elsewhere and
-// uploads the .md here; this is a vault, not an author.
+// STEPS: lock (once) → capture → optional preview (the drafted prompt as
+// folded sections, editable, regenerate) → Save, or Save draft to come back
+// to. After a save: "Nice! Thanks for helping improve Survive." and AI
+// titles, TLDRs, summarises, categorises and drafts the prompt while you get
+// back to work. Sending a summary to King/Lee lives on /admin/ideas.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 
-import { draftIdeaPrompt, listIdeas, saveIdea, sendIdeaSummary } from "@/lib/ideas.functions";
-import { ideaUpdateText, promptSection } from "@/lib/ideas-prompt";
+import { draftIdeaPrompt, listIdeas, organizeIdea, saveIdea } from "@/lib/ideas.functions";
+import { promptSection } from "@/lib/ideas-prompt";
 import { getAdminWho, isAdminUnlocked, unlockAdmin, type AdminWho } from "@/components/AdminGate";
 import { IdeaRecorder, judgeTranscript, shouldTranscribe } from "./voice";
 import { uploadIdeaFile, transcribeIdeaAudio } from "./upload";
 import {
-  CATEGORIES, CATEGORY_HINT, CATEGORY_LABEL, deriveTitle, knownSubcategories, newIdeaId,
+  CATEGORIES, CATEGORY_HINT, CATEGORY_LABEL, deriveTitle, isDraft, knownSubcategories, newIdeaId,
   unsubmittedCount, type Attachment, type Category, type Idea,
 } from "./model";
 
@@ -36,12 +37,11 @@ const MUTED = "#9AA3B8";
 const PANEL = "#101A2E";
 const EDGE = "rgba(244,239,230,0.16)";
 
-/** Where the dock appears. Internal surfaces only — every one of these is
- *  noindex and behind the AdminGate, and they are the pages Lee has ideas ON. */
+/** Internal surfaces are gated themselves, so the pill shows there without a
+ *  separate unlock. Everywhere else the pill waits for the device to unlock. */
 const INTERNAL = ["/admin", "/outreach", "/study", "/talkthrough", "/blast-off", "/blastoff-demo", "/exhibit-lab", "/exhibit-demo", "/leeportal", "/callout-demo", "/logo-lab", "/intro-outro", "/practice-demo"];
 /** The vault's own page is the one place the pill must NOT appear: you are
- *  already there, and it would sit on top of Prioritize. "Never covers
- *  primary actions" is a hard rule, not a nudge. */
+ *  already there, and it would sit on top of Prioritize. */
 const VAULT = "/admin/ideas";
 export const isInternalPath = (p: string): boolean =>
   p !== VAULT && INTERNAL.some((r) => p === r || p.startsWith(r + "/"));
@@ -49,12 +49,15 @@ export const isInternalPath = (p: string): boolean =>
 const DISMISS_KEY = "sa-ideas-pill-dismissed";
 const POS_KEY = "sa-ideas-modal-pos";
 
+type SavedKind = "idea" | "todo" | "draft";
+
 export function IdeasDock() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; kind: SavedKind } | null>(null);
 
   // Session-scoped dismissal: the pill comes back next session, and ⌘I brings
   // it back now. Hiding it must never mean losing it.
@@ -65,20 +68,15 @@ export function IdeasDock() {
       .catch((e) => setLoadErr(e instanceof Error ? e.message : String(e)));
   }, []);
 
-  // Unlocked admins get the dock EVERYWHERE (V3, the public site) — the
-  // flag is read per navigation so unlocking the gate lights it up at once.
   const [unlocked, setUnlocked] = useState(false);
   useEffect(() => { setUnlocked(isAdminUnlocked()); }, [pathname]);
-  // The shortcut listens on EVERY page (Lee, 2026-09-03: "verify that this
-  // actually works on any pages … just require the password"). The pill only
-  // shows once this device is unlocked, so a student never sees it; the modal
-  // itself asks for the passcode the first time and remembers the device.
+  // The shortcut listens on EVERY page; the pill shows once unlocked.
   const listen = pathname !== VAULT;
   const show = listen && (isInternalPath(pathname) || unlocked);
   useEffect(() => { if (show) refresh(); }, [show, refresh]);
 
-  // ⌘I / Ctrl+I from anywhere in admin — the whole point. If capturing needs
-  // the mouse it will not happen mid-task.
+  // ⌘I / Ctrl+I from anywhere — the whole point. If capturing needs the
+  // mouse it will not happen mid-task.
   useEffect(() => {
     if (!listen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -92,6 +90,23 @@ export function IdeasDock() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [listen]);
+
+  // THE CONFIRMATION (Lee, 2026-09-03): "Nice! Thanks for helping improve
+  // Survive. (View in Ideas dashboard)". Seven seconds, then gone.
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 7000);
+    return () => clearTimeout(t);
+  }, [toast]);
+  const onSaved = (kind: SavedKind) => {
+    refresh();
+    setToast({
+      kind,
+      text: kind === "todo" ? "Counted. Terry has it on the list."
+        : kind === "draft" ? "Draft saved — Ctrl+I brings it back whenever."
+        : "Nice! Thanks for helping improve Survive.",
+    });
+  };
 
   if (!listen) return null;
   const count = unsubmittedCount(ideas);
@@ -123,6 +138,20 @@ export function IdeasDock() {
         </div>
       )}
 
+      {toast && (
+        <div role="status" style={{
+          position: "fixed", top: 18, left: "50%", transform: "translateX(-50%)", zIndex: 2147483002,
+          background: "#101A2E", border: `1px solid ${GOLD}`, color: CREAM, borderRadius: 14,
+          padding: "12px 18px", fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 13.5, fontWeight: 700,
+          boxShadow: "0 18px 50px -14px rgba(0,0,0,0.9)", display: "flex", gap: 12, alignItems: "center",
+        }}>
+          <span style={{ color: GOLD }}>{toast.kind === "todo" ? "☑" : "⚡"}</span>
+          <span>{toast.text}</span>
+          <a href="/admin/ideas" style={{ color: GOLD, fontSize: 12, textDecoration: "underline", whiteSpace: "nowrap" }}>View in Ideas dashboard →</a>
+          <button onClick={() => setToast(null)} style={{ background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 14 }}>×</button>
+        </div>
+      )}
+
       {open && (
         <Drawer
           pathname={pathname}
@@ -131,25 +160,21 @@ export function IdeasDock() {
           locked={!unlocked && !isInternalPath(pathname)}
           onUnlocked={() => { setUnlocked(true); refresh(); }}
           onClose={() => setOpen(false)}
-          onSaved={refresh}
+          onSaved={onSaved}
         />
       )}
     </>
   );
 }
 
-// ------------------------------------------------------------------ drawer
+// ------------------------------------------------------------------- modal
 
 function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved }: {
   pathname: string; ideas: Idea[]; loadErr: string | null;
   /** This device has not passed the passcode yet — ask once, remember it. */
   locked: boolean; onUnlocked: () => void;
-  onClose: () => void; onSaved: () => void;
+  onClose: () => void; onSaved: (kind: SavedKind) => void;
 }) {
-  // THREE STEPS. lock (once per device) → capture (ten seconds) → preview
-  // (optional: see the TLDR, summary, prompt and checklist before saving, edit
-  // the prompt, regenerate, then save or save-and-send). Lee, 2026-09-03: the
-  // preview is what lets King check an idea came out right before it goes.
   const [step, setStep] = useState<"lock" | "capture" | "preview">(locked ? "lock" : "capture");
   const [code, setCode] = useState("");
   const [who, setWho] = useState<AdminWho>("lee");
@@ -168,19 +193,15 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
   const [audio, setAudio] = useState<{ path: string; status: string } | null>(null);
   const [files, setFiles] = useState<Attachment[]>([]);
   const [, bump] = useState(0);
-  // SEND A SUMMARY (Lee, 2026-09-02): "Show Lee for everyone but me. Just show
-  // King for me." Lee's ideas go to King as build updates; anyone else's go
-  // to Lee. Off by default — capture stays ten seconds.
   const me = getAdminWho();
-  const other: AdminWho = me === "lee" ? "king" : "lee";
-  const otherName = other === "king" ? "King" : "Lee";
-  const [sendTo, setSendTo] = useState(false);
-  const [phase, setPhase] = useState<string | null>(null);
   // DO THIS LATER (Lee, 2026-09-02): a to-do, not a build idea. Work or
-  // personal. It lands in Obsidian under Terry/Todos.md as a checkbox, not in
-  // the build queue. Saying "this is for my to-do list" is enough — the words
-  // are read at save time when no chip was clicked.
+  // personal; lands in Obsidian under Terry/Todos.md. Saying "this is for my
+  // to-do list" is enough — the words are read at save time.
   const [todo, setTodo] = useState<"" | "work" | "personal">("");
+  // DRAFTS (Lee, 2026-09-03: "Often times, I need to build this over time").
+  // Reopening one keeps its id, so Save continues it rather than duplicating.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const drafts = useMemo(() => ideas.filter((i) => isDraft(i) && (!me || i.createdBy.toLowerCase() === me)), [ideas, me]);
   // THE PREVIEW: the drafted markdown, editable. Nothing is saved until Save.
   const [draft, setDraft] = useState("");
   const [drafting, setDrafting] = useState(false);
@@ -243,24 +264,36 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
     finally { setDrafting(false); }
   };
   const preview = () => void runDraft();
-  /** Regenerate, grounded in the draft as it stands — so an edit made here,
-   *  or fixed off-platform and pasted back, steers the next draft. */
+  /** Regenerate, grounded in the draft as it stands — an edit made here, or
+   *  fixed off-platform and pasted back, steers the next draft. */
   const regenerate = () => void runDraft(draft.trim()
     ? `THE PREVIOUS DRAFT, EDITED BY ${me ?? "the author"} — keep every decision in it and improve the rest:\n${draft.trim().slice(0, 8000)}`
     : undefined);
 
-  const save = useCallback((send: boolean = sendTo) => {
+  /** Reopen a draft: its words, categories and id come back. */
+  const resume = (d: Idea) => {
+    setEditingId(d.id); setText(d.body); setCats(d.categories); setSub(d.subcategory);
+    if (d.context?.todo === "work" || d.context?.todo === "personal") setTodo(d.context.todo);
+    setStep("capture");
+  };
+
+  /** SAVE. `asDraft` keeps the words open to come back to. Either way the
+   *  idea is safe before AI touches it; the organising runs after, in the
+   *  background — title, TLDR, summary, categories (if none chosen) and,
+   *  for a finished idea, the prompt. Its failure is logged, never blocking. */
+  const save = useCallback((asDraft = false) => {
     // Audio alone is a valid idea: a failed transcript must not lose it.
     if ((!body && !audio) || busy) return;
     setBusy(true); setErr(null);
-    const id = newIdeaId();
+    const id = editingId ?? newIdeaId();
     // Spoken tag: "put this on my to-do list", "do this later", "personal to-do".
     const spokenTodo = !todo && /\bto[- ]?do\b|\bmy list\b|\bdo (this|it|that) later\b|\bremind me\b/i.test(body)
       ? (/\bpersonal\b|\bhome\b|\bwife\b|\bfamily\b/i.test(body) ? "personal" : "work")
       : "";
     const todoTag = todo || spokenTodo;
     // A previewed (and possibly edited) draft is attached as the prompt.
-    const promptMd = step === "preview" && draft.trim() ? draft.trim() : null;
+    const promptMd = !asDraft && step === "preview" && draft.trim() ? draft.trim() : null;
+    const kind: SavedKind = asDraft ? "draft" : todoTag ? "todo" : "idea";
     saveIdea({ data: {
       id,
       title: deriveTitle(body) || (audio ? "Voice note" : ""),
@@ -268,15 +301,14 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
       categories: cats,
       subcategory: sub.trim(),
       status: promptMd ? "DRAFTED" : "IDEA",
-      // Auto-captured: the page it was written from, so a note typed on
-      // /blast-off remembers that without Lee saying so.
       sourcePath: pathname,
-      // The exact page, so a prompt drafted later can name the screen: the
-      // path is the route, the title is what Lee saw in the tab.
+      // The exact page, so the prompt can name the screen; the flags AI and
+      // Obsidian read; the draft marker while the words are unfinished.
       context: {
         title: typeof document !== "undefined" ? document.title : "",
         href: typeof location !== "undefined" ? location.href : "",
         ...(todoTag ? { todo: todoTag } : {}),
+        ...(asDraft ? { draft: "1" } : {}),
       },
       promptMd,
       promptFilename: promptMd ? `${(deriveTitle(body) || "prompt").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60)}.md` : null,
@@ -286,18 +318,16 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
       audioPath: audio?.path ?? null,
       transcriptStatus: audio?.status ?? null,
     } })
-      .then(async () => {
-        onSaved();
-        if (!send) { onClose(); return; }
-        // The idea is saved either way; the summary (drafted first if it
-        // has no prompt) is the extra step, and its failure is shown, not
-        // swallowed — the idea itself is already safe in the vault.
-        setPhase(promptMd ? `Saved. Sending to ${otherName}…` : `Saved. Drafting the prompt and sending to ${otherName}…`);
-        await sendIdeaSummary({ data: { id, to: other } });
+      .then(() => {
+        onSaved(kind);
         onClose();
+        // AI, in the background. A draft gets a title/TLDR only; a finished
+        // idea gets the prompt too (unless the preview already made one).
+        organizeIdea({ data: { id, draftPrompt: !asDraft && !todoTag && !promptMd } })
+          .catch((e) => console.warn("[ideas] organise failed — the idea is saved; redraft it from /admin/ideas", e));
       })
-      .catch((e) => { setErr(e instanceof Error ? e.message : String(e)); setPhase(null); setBusy(false); });
-  }, [body, cats, sub, pathname, busy, audio, files, onSaved, onClose, sendTo, other, otherName, todo, step, draft]);
+      .catch((e) => { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); });
+  }, [body, cats, sub, pathname, busy, audio, files, onSaved, onClose, todo, step, draft, editingId]);
 
   /** HOLD to talk, or tap-tap for a longer note. Both gestures, one handler. */
   const startRec = async () => {
@@ -338,12 +368,17 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
   };
 
   // ⌘↵ saves and closes; Esc closes WITHOUT saving — a half-idea resurfacing
-  // later is worse than retyping one line.
+  // later is worse than retyping one line (Save draft exists for the rest).
   const onKey = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); if (step === "lock") unlock(); else save(); }
     else if (e.key === "Escape") { e.preventDefault(); onClose(); }
     e.stopPropagation(); // never let the page's own shortcuts fire while typing
   };
+
+  // A click outside closes ONLY an empty modal. Lee lost an idea by clicking
+  // away mid-sentence (2026-09-03); words on screen stay until Save, Save
+  // draft, or a deliberate Esc / ×.
+  const onBackdrop = () => { if (!body && !audio && !files.length) onClose(); };
 
   const canAct = !!body && !busy && !drafting;
   const primary = (on: boolean): React.CSSProperties => ({
@@ -358,8 +393,9 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
 
   return (
     <>
-    {/* the backdrop: translucent so the page stays readable; click closes */}
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 2147483000, background: "rgba(3,6,14,0.5)" }} />
+    {/* the backdrop: translucent so the page stays readable; a click closes
+        an EMPTY modal only — never one with words in it */}
+    <div onClick={onBackdrop} style={{ position: "fixed", inset: 0, zIndex: 2147483000, background: "rgba(3,6,14,0.5)" }} />
     <div
       onKeyDown={onKey}
       role="dialog"
@@ -384,7 +420,7 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
       >
         <span style={{ color: MUTED, fontSize: 12, letterSpacing: "-2px" }} aria-hidden>⋮⋮</span>
         <span style={{ color: GOLD }}>⚡</span>
-        <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: "0.04em" }}>Save for Later{step === "preview" ? " — preview" : ""}</span>
+        <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: "0.04em" }}>Save for Later{step === "preview" ? " — preview" : editingId ? " — continuing a draft" : ""}</span>
         {step !== "lock" && <a href="/admin/ideas" style={{ marginLeft: "auto", color: MUTED, fontSize: 11, textDecoration: "underline" }}>all {ideas.length} →</a>}
         <button onClick={onClose} title="Close (Esc)" style={{ marginLeft: step === "lock" ? "auto" : undefined, background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 15 }}>×</button>
       </div>
@@ -414,13 +450,24 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
 
         {step === "capture" && (
           <>
+            {drafts.length > 0 && !editingId && (
+              <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                <span style={{ fontSize: 11, color: MUTED }}>Your drafts</span>
+                {drafts.slice(0, 6).map((d) => (
+                  <button key={d.id} onClick={() => resume(d)} title={d.body.slice(0, 200)}
+                    style={{ background: "transparent", border: `1px dashed ${GOLD}88`, color: CREAM, borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    ✎ {d.title || d.body.slice(0, 40) || "(draft)"}
+                  </button>
+                ))}
+              </div>
+            )}
             <label style={{ fontSize: 11.5, color: MUTED, display: "block", marginBottom: 6 }}>What's up?</label>
             <textarea
               ref={ta}
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={7}
-              placeholder="Say it however it comes out. Nothing else is required."
+              placeholder="Say it however it comes out. AI titles it, sums it up and files it after you save."
               style={{
                 width: "100%", background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10,
                 color: CREAM, fontSize: 13.5, lineHeight: 1.45, padding: "10px 12px", outline: "none", resize: "vertical",
@@ -434,7 +481,7 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
                 onPointerDown={(e) => { e.preventDefault(); void startRec(); }}
                 onPointerUp={() => { if (rec) void stopRec(); }}
                 onClick={() => { if (!rec) return; }}
-                title="Hold to record — or tap to start and tap again to stop"
+                title="Hold to record — or tap to start and tap again to stop. It transcribes into the box above."
                 style={{
                   display: "flex", alignItems: "center", gap: 7, minHeight: 42,
                   background: rec ? "#F8717122" : "transparent",
@@ -443,7 +490,7 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
                   touchAction: "none",
                 }}
               >
-                🎙 {rec ? "Recording — release" : "Hold to talk"}
+                🎙 {rec ? "Recording — release to stop" : "Hold to dictate"}
                 {rec && (
                   <span style={{ display: "inline-block", width: 44, height: 5, background: "rgba(244,239,230,0.18)", borderRadius: 999, overflow: "hidden" }}>
                     <span style={{ display: "block", height: "100%", width: `${Math.round(rec.level * 100)}%`, background: "#F87171" }} />
@@ -456,6 +503,7 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
                 style={{ minHeight: 42, background: "transparent", border: `1px solid ${EDGE}`, color: CREAM, borderRadius: 12, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                 📎 Add screenshot
               </button>
+              <span style={{ fontSize: 10.5, color: MUTED }}>for <span style={{ color: CREAM }}>{pathname}</span>{me ? ` · as ${me}` : ""}</span>
             </div>
             {voiceMsg && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 6 }}>{voiceMsg}</div>}
             {audio && <div style={{ fontSize: 11, color: "#3BF5A0", marginTop: 4 }}>🎙 audio attached — kept whatever the transcript did</div>}
@@ -480,41 +528,33 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
               <span style={{ fontSize: 10.5, color: MUTED }}>or just say “to-do list”</span>
             </div>
 
-            <div style={{ fontSize: 11.5, color: MUTED, margin: "14px 0 6px" }}>Categories <span style={{ opacity: 0.6 }}>optional</span></div>
-            <div className="flex flex-wrap" style={{ gap: 5 }}>
-              {CATEGORIES.map((c) => {
-                const on = cats.includes(c);
-                return (
-                  <button key={c} title={CATEGORY_HINT[c]}
-                    onClick={() => setCats((v) => on ? v.filter((x) => x !== c) : [...v, c])}
-                    style={{
-                      background: on ? GOLD : "transparent", color: on ? "#0B1322" : CREAM,
-                      border: `1px solid ${on ? GOLD : EDGE}`, borderRadius: 999,
-                      padding: "3px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer",
-                    }}>
-                    {CATEGORY_LABEL[c]}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div style={{ fontSize: 11.5, color: MUTED, margin: "14px 0 6px" }}>Subcategory <span style={{ opacity: 0.6 }}>optional</span></div>
-            <input
-              value={sub} onChange={(e) => setSub(e.target.value)} list="sa-idea-subs"
-              placeholder="learn page, rep system, practice modal…"
-              style={{ width: "100%", background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 12.5, padding: "7px 11px", outline: "none" }}
-            />
-            <datalist id="sa-idea-subs">{subs.map((s) => <option key={s} value={s} />)}</datalist>
-
-            <label className="flex items-center" style={{ gap: 8, marginTop: 14, cursor: "pointer", fontSize: 12.5, color: CREAM }}>
-              <input type="checkbox" checked={sendTo} onChange={(e) => setSendTo(e.target.checked)} style={{ accentColor: GOLD, width: 15, height: 15 }} />
-              Send summary to {otherName}
-              <span style={{ fontSize: 10.5, color: MUTED }}>— TLDR · summary · prompt · checklist, by email (drafts the prompt first)</span>
-            </label>
-
-            <div style={{ fontSize: 10.5, color: MUTED, marginTop: 12 }}>
-              Saved from <span style={{ color: CREAM }}>{pathname}</span> — captured automatically{me ? ` · as ${me}` : ""}.
-            </div>
+            {/* Categories are AI's job now; the chips stay for when you already
+                know, folded so they never get in the way. */}
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ fontSize: 11.5, color: MUTED, cursor: "pointer" }}>Category · subcategory <span style={{ opacity: 0.6 }}>optional — AI files it if you skip this</span></summary>
+              <div className="flex flex-wrap" style={{ gap: 5, marginTop: 8 }}>
+                {CATEGORIES.map((c) => {
+                  const on = cats.includes(c);
+                  return (
+                    <button key={c} title={CATEGORY_HINT[c]}
+                      onClick={() => setCats((v) => on ? v.filter((x) => x !== c) : [...v, c])}
+                      style={{
+                        background: on ? GOLD : "transparent", color: on ? "#0B1322" : CREAM,
+                        border: `1px solid ${on ? GOLD : EDGE}`, borderRadius: 999,
+                        padding: "3px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                      }}>
+                      {CATEGORY_LABEL[c]}
+                    </button>
+                  );
+                })}
+              </div>
+              <input
+                value={sub} onChange={(e) => setSub(e.target.value)} list="sa-idea-subs"
+                placeholder="subcategory — learn page, rep system, practice modal…"
+                style={{ width: "100%", marginTop: 8, background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 12.5, padding: "7px 11px", outline: "none" }}
+              />
+              <datalist id="sa-idea-subs">{subs.map((s) => <option key={s} value={s} />)}</datalist>
+            </details>
           </>
         )}
 
@@ -524,11 +564,11 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
               <span style={{ color: CREAM, fontWeight: 700 }}>Your words:</span> {body.length > 220 ? `${body.slice(0, 220)}…` : body}
               <button onClick={() => setStep("capture")} style={{ marginLeft: 8, background: "none", border: "none", color: GOLD, cursor: "pointer", fontSize: 11.5, textDecoration: "underline" }}>edit</button>
             </div>
-            <div style={{ fontSize: 10.5, color: MUTED, marginTop: 6 }}>Each part folds. Nothing is saved yet — check it, fix it, then Save, or Save &amp; send.</div>
+            <div style={{ fontSize: 10.5, color: MUTED, marginTop: 6 }}>Each part folds. Nothing is saved yet — check it, fix it, then Save.</div>
 
             <Fold title="TLDR" open>{promptSection(draft, "## TLDR") || <em style={{ color: MUTED }}>none in this draft</em>}</Fold>
             <Fold title="Summary">{promptSection(draft, "## Summary") || <em style={{ color: MUTED }}>none in this draft</em>}</Fold>
-            <Fold title="Prompt — edit it here, or paste one back from elsewhere">
+            <Fold title="Prompt — edit it here, or paste one back from elsewhere" open>
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -541,15 +581,9 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
             <Fold title="Testing checklist">
               <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{promptSection(draft, "## Testing checklist") || "none in this draft"}</pre>
             </Fold>
-            <Fold title={`Email to ${otherName} — exactly as they'll see it`}>
-              <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 12, lineHeight: 1.5 }}>
-                {ideaUpdateText({ ...ideaForDraft(), promptMd: draft, createdBy: me ?? undefined, appUrl: "https://surviveaccounting.com/admin/ideas" })}
-              </pre>
-            </Fold>
           </>
         )}
 
-        {phase && <div style={{ color: "#3BF5A0", fontSize: 11.5, marginTop: 8 }}>{phase}</div>}
         {loadErr && <div style={{ color: "#F87171", fontSize: 11, marginTop: 8 }}>{loadErr}</div>}
         {err && <div style={{ color: "#F87171", fontSize: 11.5, marginTop: 8 }}>{err}</div>}
       </div>
@@ -561,11 +595,14 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
         {step === "capture" && (
           <>
             <span style={{ fontSize: 10.5, color: MUTED }}>⌘↵ save · Esc close</span>
-            <button onClick={preview} disabled={!canAct || !!todo} title={todo ? "To-dos skip the preview — they go straight to Terry's list" : "Draft the prompt and check every part before it is saved"} style={{ ...secondary, marginLeft: "auto", opacity: canAct && !todo ? 1 : 0.5 }}>
+            <button onClick={preview} disabled={!canAct || !!todo} title={todo ? "To-dos skip the preview — they go straight to Terry's list" : "See the drafted prompt before it is saved"} style={{ ...secondary, marginLeft: "auto", opacity: canAct && !todo ? 1 : 0.5 }}>
               {drafting ? "Drafting…" : "Preview →"}
             </button>
+            <button onClick={() => save(true)} disabled={!body || busy} title="Keep it open to come back to — Ctrl+I shows your drafts" style={{ ...secondary, opacity: body && !busy ? 1 : 0.5 }}>
+              Save draft
+            </button>
             <button onClick={() => save()} disabled={!body || busy} style={primary(!!body && !busy)}>
-              {busy ? "Saving…" : sendTo ? `Save & send to ${otherName}` : "Save"}
+              {busy ? "Saving…" : "Save"}
             </button>
           </>
         )}
@@ -573,8 +610,7 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
           <>
             <button onClick={() => setStep("capture")} style={secondary}>← Words</button>
             <button onClick={regenerate} disabled={drafting || busy} style={{ ...secondary, opacity: drafting || busy ? 0.5 : 1 }}>{drafting ? "Regenerating…" : "↻ Regenerate"}</button>
-            <button onClick={() => save(false)} disabled={!canAct} style={{ ...secondary, marginLeft: "auto", opacity: canAct ? 1 : 0.5 }}>{busy ? "Saving…" : "Save"}</button>
-            <button onClick={() => save(true)} disabled={!canAct} style={primary(canAct)}>{busy ? "Saving…" : `Save & send to ${otherName}`}</button>
+            <button onClick={() => save()} disabled={!canAct} style={{ ...primary(canAct), marginLeft: "auto" }}>{busy ? "Saving…" : "Save"}</button>
           </>
         )}
       </div>

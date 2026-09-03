@@ -22,6 +22,52 @@ export interface IdeaForPrompt {
 
 export const IDEA_PROMPT_SECTIONS = ["## TLDR", "## Summary", "## Prompt", "## Testing checklist"] as const;
 
+/** ORGANISE ON SAVE (Lee, 2026-09-03: "It's AI's job to get it organized and
+ *  categorized and triaged"). One micro call titles, TLDRs, summarises and
+ *  categorises a raw capture so the vault is clean without anyone thinking. */
+export const IDEA_CATEGORY_KEYS = ["AUTHORING", "FILMING", "PUBLISHING", "MARKETING", "CUSTOMER_SUCCESS", "UI_UX", "INFRASTRUCTURE"] as const;
+
+export function buildOrganizeMessages(idea: IdeaForPrompt & { existingPrompt?: string | null }): { system: string; user: string } {
+  const system = [
+    "You tidy ONE raw idea from Survive Accounting's team (Lee, the founder; King, the VA) into a clean vault entry. The idea may be dictated, rambling, or a pasted Claude Code prompt. Keep every decision in it; drop filler.",
+    "Return ONLY a JSON object: {\"title\": str (≤ 60 chars, specific, noun phrase — what it is, not \"idea about\"), \"tldr\": str (ONE sentence: what changes for whom), \"summary\": str (2–3 sentences, plain words, Lee's intent), \"categories\": [str] (1–2 from: AUTHORING = Talk Box, exhibits, CEQs, content creation · FILMING = capture, frames, Studio · PUBLISHING = production queue, YouTube, the app · MARKETING = outreach, campaigns, campus reps, landing pages · CUSTOMER_SUCCESS = students, support, guarantees, onboarding, what a page DOES · UI_UX = how a page LOOKS · INFRASTRUCTURE = domains, inboxes, data, architecture), \"urgent\": bool (true only if the words say it blocks filming, launch, money, or a live bug for students)}",
+  ].join("\n");
+  const user = [
+    `WORDS: ${idea.title}`,
+    idea.body ? `BODY:\n${idea.body.slice(0, 6000)}` : "",
+    idea.existingPrompt ? `A PROMPT ALREADY ATTACHED (summarise what it builds):\n${idea.existingPrompt.slice(0, 6000)}` : "",
+    idea.categories.length ? `CATEGORIES ALREADY CHOSEN BY THE AUTHOR (keep them; add at most one): ${idea.categories.join(", ")}` : "",
+    idea.sourcePath ? `CAPTURED FROM: ${idea.sourcePath}${idea.pageTitle ? ` — “${idea.pageTitle}”` : ""}` : "",
+  ].filter(Boolean).join("\n\n");
+  return { system, user };
+}
+
+/** WHICH CLAUDE CODE SESSION (worktree) an idea belongs in — from where it
+ *  was captured, then its categories. Obsidian shows it in the note so Lee
+ *  opens the right window. Deterministic: no AI guess about repo layout. */
+export function suggestSession(sourcePath: string, categories: readonly string[]): string {
+  const p = sourcePath || "";
+  if (/^\/(v3|talkthrough|blast-off|blastoff-demo|study|callout-demo|intro-outro)/.test(p)) return "sa-film-camera · branch film/free-camera-pinned-ceq — talkthrough, blast off, canvas";
+  if (/^\/(exhibit-lab|exhibit-demo)/.test(p)) return "sa-exhibit-lab — exhibits";
+  if (/^\/(admin\/growth|outreach|admin\/reps|go\/|chapters|greek)/.test(p)) return "sa-growth-dashboard · main — growth, outreach, reps, chapters";
+  if (/^\/(learn|s\/)/.test(p)) return "sa-learn-share — /learn and share links";
+  if (p === "/" || /^\/(landing|preview)/.test(p)) return "sa-homepage-two-door — the homepage";
+  if (categories.includes("MARKETING") || categories.includes("CUSTOMER_SUCCESS")) return "sa-growth-dashboard · main — growth, outreach, reps, chapters";
+  if (categories.includes("FILMING") || categories.includes("AUTHORING")) return "sa-film-camera · branch film/free-camera-pinned-ceq — talkthrough, blast off, canvas";
+  return "sa-growth-dashboard · main (the default worktree for anything else)";
+}
+
+/** Replace the ## Prompt section's body inside a drafted markdown (or the
+ *  whole text when it has no sections) — the vault's editable prompt box. */
+export function replacePromptSection(md: string, prompt: string): string {
+  if (!hasPromptSections(md)) return prompt;
+  const i = md.indexOf("## Prompt");
+  const after = md.slice(i + "## Prompt".length);
+  const next = after.search(/\n## /);
+  const tail = next < 0 ? "" : after.slice(next);
+  return `${md.slice(0, i)}## Prompt\n\n${prompt.trim()}\n${tail}`;
+}
+
 /** True when a prompt has the drafted shape (TLDR is optional — the first
  *  drafts had three sections) — the Obsidian note and the email can embed it
  *  as-is; an older hand-written .md gets wrapped instead. */

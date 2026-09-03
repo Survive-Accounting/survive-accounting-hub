@@ -30,6 +30,7 @@
 //   bun run obsidian:sync -- --draft      # also draft missing prompts
 //   bun run obsidian:sync -- --redraft --only=<idea id>   # replace one prompt (old one kept)
 //   bun run obsidian:sync -- --dry        # say what would happen, write nothing
+//   bun run obsidian:sync -- --watch      # keep syncing every 5 min (--every=N for N min)
 //   OBSIDIAN_VAULT="D:/Vault" bun run obsidian:sync   # a different vault
 import fs from "node:fs";
 import path from "node:path";
@@ -61,6 +62,11 @@ const REDRAFT = args.has("--redraft");
 // --only=<idea id>: limit --draft/--redraft to one idea.
 const ONLY = [...args].find((a) => a.startsWith("--only="))?.slice(7) ?? null;
 const DRY = args.has("--dry");
+// --watch: keep running, syncing every few minutes — Lee (2026-09-03) was not
+// seeing new ideas in Obsidian because nothing ran the sync. Leave this going
+// in a terminal on the build machine and the vault is never stale.
+const WATCH = args.has("--watch");
+const WATCH_MS = Number([...args].find((a) => a.startsWith("--every="))?.slice(8) ?? 5) * 60_000;
 
 interface Row {
   id: string; title: string; body: string; categories: string[] | null; subcategory: string | null;
@@ -100,7 +106,9 @@ function renderFront(f: Front): string {
 
 // ------------------------------------------------------------------ notes
 
-const slug = (s: string): string => s.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 70) || "untitled";
+const FORBIDDEN = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*']);
+const slug = (s: string): string =>
+  [...s].filter((ch) => !FORBIDDEN.has(ch) && ch.charCodeAt(0) >= 32).join("").replace(/\s+/g, " ").trim().slice(0, 70) || "untitled";
 const day = (iso: string): string => iso.slice(0, 10);
 
 function noteFront(r: Row, keep: Front): Front {
@@ -108,7 +116,16 @@ function noteFront(r: Row, keep: Front): Front {
     id: r.id,
     title: r.title || "(untitled)",
     status: typeof keep.status === "string" && (STATUSES as readonly string[]).includes(keep.status) ? keep.status : r.status,
+    // What the app said at the last sync. `status` above is what the note
+    // says; when they differ the NOTE was edited and wins; when they agree
+    // and the app moved on, the app wins. Two-way without ping-pong.
+    synced: r.status,
     reviewed: typeof keep.reviewed === "boolean" ? keep.reviewed : false,
+    urgent: r.context?.urgent === "1",
+    priority: String(Number(r.context?.priority ?? 0) || 0),
+    draft: r.context?.draft === "1",
+    tldr: r.context?.tldr ?? "",
+    session: r.context?.session ?? "",
     categories: r.categories ?? [],
     subcategory: r.subcategory ?? "",
     source: r.source_path ?? "",
@@ -119,9 +136,18 @@ function noteFront(r: Row, keep: Front): Front {
   };
 }
 
+/** Urgent first, then Prioritize's order, then newest — the bank's own order. */
+const rank = (a: Row, b: Row): number =>
+  Number(b.context?.urgent === "1") - Number(a.context?.urgent === "1")
+  || (Number(b.context?.priority ?? 0) || 0) - (Number(a.context?.priority ?? 0) || 0)
+  || b.created_at.localeCompare(a.created_at);
+
 function noteBody(r: Row): string {
   const out: string[] = [];
-  out.push(`# ${r.title || "(untitled)"}`, "");
+  out.push(`# ${r.context?.urgent === "1" ? "🔥 " : ""}${r.title || "(untitled)"}`, "");
+  if (r.context?.tldr && !r.prompt_md?.trim()) out.push(`> ${r.context.tldr}`, "");
+  if (r.context?.summary && !r.prompt_md?.trim()) out.push(r.context.summary, "");
+  if (r.context?.session) out.push(`_Claude Code session: ${r.context.session}_`, "");
   out.push("## Idea (verbatim)", "");
   out.push(r.body?.trim() ? r.body.trim() : "_(no text — see the voice note)_", "");
   const extras: string[] = [];
@@ -177,6 +203,7 @@ function readTodosNote(md: string): Map<string, { done: boolean; category: strin
 
 /** One AI call for every to-do that has no summary yet: each becomes one
  *  imperative checkbox line. Cached on the idea (context.todoSummary). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function summariseTodos(db: { from: (t: string) => any }, todos: Row[], log: (s: string) => void): Promise<void> {
   const need = todos.filter((r) => !r.context?.todoSummary && (r.body?.trim() || r.title?.trim()));
   if (!need.length) return;
@@ -196,6 +223,7 @@ async function summariseTodos(db: { from: (t: string) => any }, todos: Row[], lo
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function syncTodos(db: { from: (t: string) => any }, todos: Row[], log: (s: string) => void): Promise<{ done: number; moved: number }> {
   let done = 0, moved = 0;
   // Read back what Lee (or a Claude Code session) changed in the note first.
@@ -247,6 +275,7 @@ async function syncTodos(db: { from: (t: string) => any }, todos: Row[], log: (s
 
 async function main(): Promise<void> {
   const { supabaseAdmin } = await import("../src/integrations/supabase/client.server");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as unknown as { from: (t: string) => any };
 
   const { data, error } = await db.from("ideas").select("*").order("created_at", { ascending: true });
@@ -311,9 +340,15 @@ async function main(): Promise<void> {
     const raw = fs.readFileSync(existing, "utf8");
     const { front, body } = parseFront(raw);
 
-    // Lee changed the status in Obsidian → push it to the app.
+    // TWO-WAY STATUS. The note remembers the app's status at the last sync
+    // (`synced`). If the note's status moved away from that, Lee edited the
+    // note → push to the app. If the note still agrees with `synced` but the
+    // app moved on (he parked it in the bank), the app wins and the note's
+    // frontmatter is refreshed — never the body.
     const fileStatus = typeof front.status === "string" ? front.status : "";
-    if ((STATUSES as readonly string[]).includes(fileStatus) && fileStatus !== r.status) {
+    const syncedStatus = typeof front.synced === "string" ? front.synced : fileStatus;
+    const noteEdited = (STATUSES as readonly string[]).includes(fileStatus) && fileStatus !== syncedStatus;
+    if (noteEdited && fileStatus !== r.status) {
       log(`status ${r.title}: ${r.status} → ${fileStatus} (from Obsidian)`);
       if (!DRY) {
         const { error: e } = await db.from("ideas").update({ status: fileStatus as Status, updated_at: new Date().toISOString() }).eq("id", r.id);
@@ -322,12 +357,17 @@ async function main(): Promise<void> {
       r.status = fileStatus;
       pushed++;
     }
+    const front2 = { ...front, status: r.status };
+    if (!noteEdited && fileStatus !== r.status) {
+      log(`status ${r.title}: note ${fileStatus || "?"} → ${r.status} (from the app)`);
+      if (!DRY) fs.writeFileSync(existing, renderFront(noteFront(r, front2)) + "\n" + body.replace(/^\n/, ""), "utf8");
+    }
 
     // The note was waiting for a prompt and the app now has one — or this run
     // redrafted it: refresh the body, keep the frontmatter Lee may have touched.
     if ((body.includes(PENDING) && r.prompt_md?.trim()) || redrawn) {
       log(`prompt ${path.basename(existing)} — ${redrawn ? "redrafted (previous kept below)" : "prompt landed"}`);
-      if (!DRY) fs.writeFileSync(existing, renderFront(noteFront(r, front)) + "\n" + noteBody(r), "utf8");
+      if (!DRY) fs.writeFileSync(existing, renderFront(noteFront(r, front2)) + "\n" + noteBody(r), "utf8");
       refreshed++;
       continue;
     }
@@ -342,7 +382,7 @@ async function main(): Promise<void> {
     return `[[${path.basename(f, ".md")}]]`;
   };
   const table = (list: Row[]) => list.length
-    ? ["| idea | categories | captured | prompt |", "|---|---|---|---|", ...list.slice().reverse().map((r) => `| ${link(r)} | ${(r.categories ?? []).join(", ")} | ${day(r.created_at)} | ${r.prompt_md?.trim() ? "✓" : "—"} |`)].join("\n")
+    ? ["| # | idea | tldr | categories | session | captured | prompt |", "|---|---|---|---|---|---|---|", ...list.slice().sort(rank).map((r, k) => `| ${r.context?.urgent === "1" ? "🔥" : k + 1} | ${link(r)} | ${(r.context?.tldr ?? "").replace(/\|/g, "／").slice(0, 120)} | ${(r.categories ?? []).join(", ")} | ${(r.context?.session ?? "").split(" — ")[0]} | ${day(r.created_at)} | ${r.prompt_md?.trim() ? "✓" : "—"} |`)].join("\n")
     : "_none_";
   const index = [
     "# Survive — the build queue",
@@ -364,4 +404,13 @@ async function main(): Promise<void> {
   console.log(`\n${DRY ? "[dry] " : ""}${rows.length} ideas → ${DIR}\n  created ${created} · prompt landed ${refreshed} · untouched ${kept} · status pushed to app ${pushed}${DRAFT || REDRAFT ? ` · drafted ${drafted}` : ""}\n${todos.length} to-dos → ${TODOS_FILE}\n  marked done ${t.done} · recategorised ${t.moved}`);
 }
 
-main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });
+async function loop(): Promise<void> {
+  for (;;) {
+    try { await main(); }
+    catch (e) { console.error(`[sync] ${e instanceof Error ? e.message : e}`); if (!WATCH) process.exit(1); }
+    if (!WATCH) return;
+    console.log(`[sync] next in ${Math.round(WATCH_MS / 60_000)} min — Ctrl+C to stop`);
+    await new Promise((r) => setTimeout(r, WATCH_MS));
+  }
+}
+void loop();
