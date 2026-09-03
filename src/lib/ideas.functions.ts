@@ -103,3 +103,25 @@ export const saveIdea = createServerFn({ method: "POST" })
     if (error) rethrow(error);
     return { idea: toIdea(out as Row) };
   });
+
+/** DRAFT A CLAUDE CODE PROMPT from an idea (Lee, 2026-09-02) — the build
+ *  machine's job: an idea captured on the filming laptop becomes a prompt here.
+ *  Synthesis lane. Never saves — the client attaches the result as promptMd
+ *  (status DRAFTED), so a bad draft is one click to replace or redraft. */
+export const draftIdeaPrompt = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    title: z.string().max(300),
+    body: z.string().max(12_000),
+    categories: z.array(z.string().max(40)).max(10),
+    subcategory: z.string().max(120),
+    sourcePath: z.string().max(300),
+    pageTitle: z.string().max(300).optional(),
+    notes: z.string().max(4000).optional(),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const { runAiTask } = await import("@/lib/ai.server");
+    const { buildIdeaPromptMessages } = await import("@/lib/ideas-prompt");
+    const { system, user } = buildIdeaPromptMessages(data);
+    const r = await runAiTask("synthesis", { system, user, maxOutput: 3500 });
+    return { text: r.text.trim(), model: r.usage.model, costUsd: r.usage.costUsd };
+  });

@@ -4,8 +4,16 @@
 // (⌘↵). Nothing else is required — no category, no title, no prompt. Every
 // other field is there for later, and later is optional.
 //
-// A DRAWER, NOT A MODAL, on purpose: Lee is usually describing the page he is
-// looking at, so the page has to stay visible while he writes.
+// A CENTRED, DRAGGABLE MODAL (Lee, 2026-09-02: "pop up in the center, with a
+// modal, so I can spit out an idea rapidly and move on" — and "drag it around").
+// It started life as a right-hand drawer so the page stayed visible; the
+// modal's backdrop is translucent and the box drags out of the way, which
+// keeps that. Position is remembered per browser.
+//
+// WHERE IT SHOWS: every internal surface, and — once this browser has passed
+// the AdminGate — every page of the site, /v3 included. The filming laptop
+// captures on /v3; the build machine turns the capture into prompts on
+// /admin/ideas.
 //
 // It never generates anything. Lee writes prompts with Claude elsewhere and
 // uploads the .md here; this is a vault, not an author.
@@ -13,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 
 import { listIdeas, saveIdea } from "@/lib/ideas.functions";
-import { getAdminWho } from "@/components/AdminGate";
+import { getAdminWho, isAdminUnlocked } from "@/components/AdminGate";
 import { IdeaRecorder, judgeTranscript, shouldTranscribe } from "./voice";
 import { uploadIdeaFile, transcribeIdeaAudio } from "./upload";
 import {
@@ -38,6 +46,7 @@ export const isInternalPath = (p: string): boolean =>
   p !== VAULT && INTERNAL.some((r) => p === r || p.startsWith(r + "/"));
 
 const DISMISS_KEY = "sa-ideas-pill-dismissed";
+const POS_KEY = "sa-ideas-modal-pos";
 
 export function IdeasDock() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -55,7 +64,11 @@ export function IdeasDock() {
       .catch((e) => setLoadErr(e instanceof Error ? e.message : String(e)));
   }, []);
 
-  const show = isInternalPath(pathname);
+  // Unlocked admins get the dock EVERYWHERE (V3, the public site) — the
+  // flag is read per navigation so unlocking the gate lights it up at once.
+  const [unlocked, setUnlocked] = useState(false);
+  useEffect(() => { setUnlocked(isAdminUnlocked()); }, [pathname]);
+  const show = pathname !== VAULT && (isInternalPath(pathname) || unlocked);
   useEffect(() => { if (show) refresh(); }, [show, refresh]);
 
   // ⌘I / Ctrl+I from anywhere in admin — the whole point. If capturing needs
@@ -140,6 +153,33 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
   useEffect(() => { ta.current?.focus(); }, []);
   const subs = useMemo(() => knownSubcategories(ideas), [ideas]);
 
+  // DRAG. Offset from centre, remembered per browser; double-click the header
+  // to recentre. Pointer capture keeps a fast drag from escaping the header.
+  const [pos, setPos] = useState<{ x: number; y: number }>(() => {
+    try { const v = JSON.parse(localStorage.getItem(POS_KEY) ?? "null") as { x?: unknown; y?: unknown } | null; return v && typeof v.x === "number" && typeof v.y === "number" ? { x: v.x, y: v.y } : { x: 0, y: 0 }; }
+    catch { return { x: 0, y: 0 }; }
+  });
+  const posRef = useRef(pos);
+  const drag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const onHeadDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("button,a")) return;
+    drag.current = { sx: e.clientX, sy: e.clientY, ox: posRef.current.x, oy: posRef.current.y };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onHeadMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    const next = { x: d.ox + e.clientX - d.sx, y: d.oy + e.clientY - d.sy };
+    posRef.current = next;
+    setPos(next);
+  };
+  const onHeadUp = () => {
+    if (!drag.current) return;
+    drag.current = null;
+    try { localStorage.setItem(POS_KEY, JSON.stringify(posRef.current)); } catch { /* cosmetic */ }
+  };
+  const recentre = () => { posRef.current = { x: 0, y: 0 }; setPos({ x: 0, y: 0 }); try { localStorage.removeItem(POS_KEY); } catch { /* cosmetic */ } };
+
   const save = useCallback(() => {
     const body = text.trim();
     // Audio alone is a valid idea: a failed transcript must not lose it.
@@ -155,7 +195,9 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
       // Auto-captured: the page it was written from, so a note typed on
       // /blast-off remembers that without Lee saying so.
       sourcePath: pathname,
-      context: {},
+      // The exact page, so a prompt drafted later can name the screen: the
+      // path is the route, the title is what Lee saw in the tab.
+      context: { title: typeof document !== "undefined" ? document.title : "", href: typeof location !== "undefined" ? location.href : "" },
       promptMd: null,
       promptFilename: null,
       createdBy: getAdminWho() ?? "",
@@ -216,16 +258,32 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
   };
 
   return (
+    <>
+    {/* the backdrop: translucent so the page stays readable; click closes */}
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 2147483000, background: "rgba(3,6,14,0.5)" }} />
     <div
       onKeyDown={onKey}
+      role="dialog"
+      aria-label="Save for Later"
       style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 2147483001,
-        width: "min(380px, 100vw)",
-        background: PANEL, borderLeft: `1px solid ${EDGE}`, boxShadow: "-14px 0 40px -18px rgba(0,0,0,0.9)",
+        position: "fixed", left: "50%", top: "50%", zIndex: 2147483001,
+        transform: `translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px)`,
+        width: "min(560px, 96vw)", maxHeight: "90vh",
+        background: PANEL, border: `1px solid ${GOLD}55`, borderRadius: 16, boxShadow: "0 30px 80px -20px rgba(0,0,0,0.9)",
         display: "flex", flexDirection: "column", fontFamily: "'Rubik', system-ui, sans-serif", color: CREAM,
       }}
     >
-      <div className="flex items-center gap-2" style={{ padding: "12px 14px", borderBottom: `1px solid ${EDGE}` }}>
+      <div
+        className="flex items-center gap-2"
+        onPointerDown={onHeadDown}
+        onPointerMove={onHeadMove}
+        onPointerUp={onHeadUp}
+        onPointerCancel={onHeadUp}
+        onDoubleClick={recentre}
+        title="Drag to move · double-click to recentre"
+        style={{ padding: "12px 14px", borderBottom: `1px solid ${EDGE}`, cursor: "grab", userSelect: "none", touchAction: "none" }}
+      >
+        <span style={{ color: MUTED, fontSize: 12, letterSpacing: "-2px" }} aria-hidden>⋮⋮</span>
         <span style={{ color: GOLD }}>⚡</span>
         <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: "0.04em" }}>Save for Later</span>
         <a href="/admin/ideas" style={{ marginLeft: "auto", color: MUTED, fontSize: 11, textDecoration: "underline" }}>all {ideas.length} →</a>
@@ -333,5 +391,6 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
         </button>
       </div>
     </div>
+    </>
   );
 }

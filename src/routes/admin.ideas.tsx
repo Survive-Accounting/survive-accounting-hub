@@ -10,7 +10,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminGate, getAdminWho } from "@/components/AdminGate";
-import { listIdeas, saveIdea } from "@/lib/ideas.functions";
+import { draftIdeaPrompt, listIdeas, saveIdea } from "@/lib/ideas.functions";
 import {
   CATEGORIES, CATEGORY_LABEL, FOCUS_LABEL, PEOPLE, PERSON_LABEL, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
   filterIdeas, prioritize, sortIdeas,
@@ -156,6 +156,29 @@ function Row({ idea, expanded, onToggle, onPatch }: {
   const file = useRef<HTMLInputElement>(null);
   const [paste, setPaste] = useState(false);
   const [md, setMd] = useState(idea.promptMd ?? "");
+  const [drafting, setDrafting] = useState(false);
+  const [draftErr, setDraftErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  /** DRAFT WITH AI (Lee, 2026-09-02): the build machine turns a captured
+   *  idea into a Claude Code prompt right here. Attaches as promptMd, moves
+   *  IDEA → DRAFTED; redrafting just replaces it. Nothing is generated until
+   *  the button is pressed. */
+  const draft = () => {
+    setDrafting(true); setDraftErr(null);
+    draftIdeaPrompt({ data: { title: idea.title, body: idea.body, categories: idea.categories, subcategory: idea.subcategory, sourcePath: idea.sourcePath, pageTitle: idea.context?.title ?? "" } })
+      .then((r) => {
+        const name = idea.promptFilename || `${idea.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60) || "prompt"}.md`;
+        setMd(r.text);
+        onPatch({ promptMd: r.text, promptFilename: name, status: idea.status === "IDEA" ? "DRAFTED" : idea.status });
+      })
+      .catch((e) => setDraftErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setDrafting(false));
+  };
+  /** Copy the prompt — the other half of "write it here, paste it into Claude Code". */
+  const copy = () => {
+    navigator.clipboard.writeText(idea.promptMd ?? "").then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400); }).catch(() => setDraftErr("Clipboard blocked — use Download .md"));
+  };
 
   /** Upload a .md written elsewhere. Attaching one is what moves an idea from
    *  IDEA to DRAFTED — the status follows the artifact rather than being
@@ -235,11 +258,18 @@ function Row({ idea, expanded, onToggle, onPatch }: {
           <div className="flex items-center" style={{ gap: 8, flexWrap: "wrap" }}>
             <input ref={file} type="file" accept=".md,.markdown,.txt" style={{ display: "none" }}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
+            <button onClick={draft} disabled={drafting}
+              style={{ background: drafting ? "transparent" : GOLD, color: drafting ? MUTED : "#0B1322", border: `1px solid ${GOLD}`, borderRadius: 9, padding: "4px 11px", fontSize: 11.5, fontWeight: 800, cursor: drafting ? "default" : "pointer" }}
+              title="Turn this idea into a Claude Code prompt (AI, synthesis lane). Attaches it here; redraft replaces it.">
+              {drafting ? "Drafting…" : idea.promptMd ? "✨ Redraft with AI" : "✨ Draft prompt with AI"}
+            </button>
+            {idea.promptMd && <Btn onClick={copy}>{copied ? "✓ Copied" : "Copy prompt"}</Btn>}
             <Btn onClick={() => file.current?.click()}>{idea.promptMd ? "Replace .md" : "Upload .md"}</Btn>
             <Btn onClick={() => setPaste((v) => !v)}>{paste ? "Cancel paste" : "Paste markdown"}</Btn>
             {idea.promptMd && <Btn onClick={download}>Download .md</Btn>}
             {idea.promptFilename && <span style={{ fontSize: 11, color: MUTED }}>{idea.promptFilename}</span>}
           </div>
+          {draftErr && <div style={{ color: "#F87171", fontSize: 11.5, marginTop: 6 }}>{draftErr}</div>}
 
           {paste && (
             <div style={{ marginTop: 8 }}>
