@@ -277,6 +277,7 @@ function Row({ idea, expanded, selected, onSelect, onArm, onToggle, onPatch, onC
           {idea.context?.mergedInto && <span title={idea.context.mergedWhy ?? "merged into another idea"} style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: MUTED }}>↳ MERGED</span>}
           {idea.context?.mergedFrom && <span title="another capture was folded into this one" style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#3BF5A0" }}>+{idea.context.mergedFrom.split(",").length}</span>}
           {idea.context?.stalePrompt === "1" && <span title="a capture was merged in since the prompt was drafted — the watch sync redrafts it, or Redraft with AI" style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: GOLD }}>PROMPT STALE</span>}
+          {idea.context?.phased === "1" && <span title="“Split into phases” was ticked when this was captured — the drafted prompt tells Claude Code to ask whether to build it all at once or one phase at a time" style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#7DD3FC" }}>PHASED</span>}
           {idea.createdBy.toLowerCase() === "king" && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: MUTED }}>KING</span>}
         </div>
         {/* quick actions: sent · reviewed · archive — the same three states

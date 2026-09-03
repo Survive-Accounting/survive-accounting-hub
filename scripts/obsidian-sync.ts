@@ -37,7 +37,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { CATEGORIES, STATUSES, type Status } from "../src/components/ideas/model";
-import { buildIdeaPromptMessages, buildOrganizeMessages, hasPromptSections, pageLabel, suggestProject } from "../src/lib/ideas-prompt";
+import { buildIdeaPromptMessages, buildOrganizeMessages, hasPromptSections, pageLabel, suggestProject, withPhasedPreamble } from "../src/lib/ideas-prompt";
 
 const VAULT = process.env.OBSIDIAN_VAULT ?? "C:/Users/lee/Documents/Obsidian Vault";
 const DIR = path.join(VAULT, "Survive", "Ideas");
@@ -442,7 +442,9 @@ async function main(): Promise<void> {
         });
         const res = await runAiTask("synthesis", { system, user, maxOutput: 3500 });
         const previous = r.prompt_md?.trim() ?? "";
-        r.prompt_md = res.text.trim();
+        // "Split into phases" survives every redraft — a prompt that quietly
+        // lost the instruction would get built in one go without anyone asking.
+        r.prompt_md = r.context?.phased === "1" ? withPhasedPreamble(res.text) : res.text.trim();
         r.prompt_filename = r.prompt_filename || `${slug(r.title).toLowerCase().replace(/\s+/g, "-")}.md`;
         if (r.status === "IDEA") r.status = "DRAFTED";
         if (previous) r.context = { ...(r.context ?? {}), previousPromptMd: previous };
