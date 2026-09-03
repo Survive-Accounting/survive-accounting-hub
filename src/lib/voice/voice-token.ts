@@ -5,7 +5,8 @@
 //
 // Server-only (node:crypto). The API key SECRET signs it and never leaves the server; the browser
 // gets a token that expires in an hour and can only place calls through ONE TwiML App.
-import { createHmac, randomUUID } from "node:crypto";
+// node:crypto is imported dynamically inside the function — a static import here reaches the
+// browser bundle through the route files and breaks the production build.
 
 export interface VoiceTokenInput {
   accountSid: string;
@@ -21,7 +22,8 @@ export interface VoiceTokenInput {
 const b64url = (input: string | Buffer) =>
   Buffer.from(input).toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
 
-export function voiceAccessToken(i: VoiceTokenInput): string {
+export async function voiceAccessToken(i: VoiceTokenInput): Promise<string> {
+  const { createHmac, randomUUID } = await import("node:crypto");
   const now = Math.floor((i.now ?? Date.now()) / 1000);
   const ttl = i.ttlSeconds ?? 3600;
   const header = { cty: "twilio-fpa;v=1", typ: "JWT", alg: "HS256" };

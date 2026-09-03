@@ -13,8 +13,8 @@ const INPUT = {
 };
 
 describe("voiceAccessToken", () => {
-  it("carries the Twilio content type, issuer, subject and an outgoing-only voice grant", () => {
-    const t = voiceAccessToken(INPUT);
+  it("carries the Twilio content type, issuer, subject and an outgoing-only voice grant", async () => {
+    const t = await voiceAccessToken(INPUT);
     const [h, , s] = t.split(".");
     const header = JSON.parse(Buffer.from(h, "base64").toString("utf8"));
     expect(header).toEqual({ cty: "twilio-fpa;v=1", typ: "JWT", alg: "HS256" });
@@ -27,8 +27,8 @@ describe("voiceAccessToken", () => {
     expect(s.length).toBeGreaterThan(20);
   });
 
-  it("is signed with the API key secret (HS256 over header.payload)", () => {
-    const t = voiceAccessToken(INPUT);
+  it("is signed with the API key secret (HS256 over header.payload)", async () => {
+    const t = await voiceAccessToken(INPUT);
     const [h, p, s] = t.split(".");
     const want = createHmac("sha256", INPUT.apiKeySecret).update(`${h}.${p}`).digest("base64")
       .replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");

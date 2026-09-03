@@ -164,7 +164,7 @@ export const getVoiceToken = createServerFn({ method: "POST" })
     const { voiceConfig } = await import("@/lib/voice/voice.server");
     if (!voiceConfig().browser) return { ok: false, error: "Browser calling needs TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET and TWILIO_TWIML_APP_SID on the server." };
     const { voiceAccessToken } = await import("@/lib/voice/voice-token");
-    const token = voiceAccessToken({
+    const token = await voiceAccessToken({
       accountSid: process.env.TWILIO_ACCOUNT_SID!, apiKeySid: process.env.TWILIO_API_KEY_SID!, apiKeySecret: process.env.TWILIO_API_KEY_SECRET!,
       twimlAppSid: process.env.TWILIO_TWIML_APP_SID!, identity: "lee",
     });

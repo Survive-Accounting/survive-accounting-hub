@@ -71,7 +71,7 @@ export async function readTwilioPost(request: Request): Promise<TwilioPost> {
     return { params, valid: true, url: request.url };
   }
   const { twilioSignatureValid } = await import("@/lib/voice/twilio-signature");
-  const ok = twilioSignatureValid(token, request.headers.get("x-twilio-signature"), [...candidates], params);
+  const ok = await twilioSignatureValid(token, request.headers.get("x-twilio-signature"), [...candidates], params);
   return { params, valid: ok, reason: ok ? undefined : "bad signature", url: request.url };
 }
 
