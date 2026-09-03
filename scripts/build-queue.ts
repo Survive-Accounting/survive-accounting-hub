@@ -118,11 +118,13 @@ function buildPrompt(r: Row, branch: string, resuming: boolean): string {
     "HARD RULES",
     "- Additive only. New files, new routes, new fields, new tables via a numbered additive migration FILE under migration/supabase-migrations/ — never run it; list it under SQL LEE MUST RUN.",
     "- Never push. Never touch main. Commit your finished work to THIS branch with a clear message (the runner pushes the branch).",
-    "- Never delete or weaken a passing test. Run `bunx tsc --noEmit` (the known error in partner-kit.server.ts is pre-existing — ignore it) and `bun test` before you finish; fix what you broke.",
+    "- Never delete or weaken a passing test. `bun test <file>` is fast — run it after each step. `bunx tsc --noEmit` takes about TEN MINUTES on this machine: run it ONCE, at the end (the known error in partner-kit.server.ts is pre-existing — ignore it). NEVER run `bun run build` or `vite build` — Vercel builds the preview, not you.",
+    "- NO DEV SERVERS. Never start `bun run dev` / vite / any server — nothing can look at it, and it outlives you. Prove things with tests and by reading the code.",
+    "- NO THROWAWAY ROUTES. Prove a UI change on the real, parameterised route with a real set (the primer names them); the checklist points there. If you find a test/demo route on this branch, delete it and commit.",
     "- Protected zones (element/frame parent membership, scene serialization internals, command bus, space walk) are off limits. If the task needs them, STOP: make no change there and say so in the REPORT.",
     "- Nothing a student sees changes unless the task says so. No data rewriting.",
     "- Fail loud: no silent fallbacks, no stubs that pretend to work. Two failed attempts on an item → stub it LOUDLY, log it, move on.",
-    "- Make it testable by a non-developer: if testing needs data or a mock (a test chapter, a test checkout, a sample student), build a safe test path behind an is_test flag or a clearly-named test route, and put the exact clicks in the checklist.",
+    "- Make it testable by a non-developer: if testing truly needs DATA that does not exist (a test chapter, a test checkout, a sample student), build a safe path behind an is_test flag and put the exact clicks in the checklist. A UI change never needs this.",
     "",
     "- COMMIT AS YOU GO. After each working step, `git add -A && git commit` on this branch. If you run out of time or turns, committed work survives; uncommitted work does not.",
     "- SCOPE: if the task reads as a research project or a list of many features, build the SMALLEST complete, testable slice first, commit it, and say in the REPORT what you left for a later pass. A finished small thing beats an unfinished big one.",
@@ -298,16 +300,19 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
       });
       let buf = "", finalText = "", lastAssistant = "", turns = 0;
       const timer = setTimeout(() => { note("  ! build timed out — killing"); child.kill(); }, BUILD_TIMEOUT_MS);
-      // THE HEARTBEAT: no new commit for STALL_MS (measured from the last
-      // commit, or the start) → stalled → stop and keep what exists.
+      // THE HEARTBEAT: nothing from Claude for STALL_MS → stalled → stop and
+      // keep what exists. Any stream event counts (a thought, a tool call, a
+      // tool result). It used to count commits only, and on 2026-09-03 it
+      // killed a healthy build that was waiting on a ten-minute typecheck.
+      let lastEventAt = startedAt;
       const pulse = setInterval(() => {
-        const last = Number(sh("git", ["log", "-1", "--format=%ct", `origin/main..HEAD`], dir, { quiet: true }).out.trim()) * 1000;
-        const since = Date.now() - Math.max(Number.isFinite(last) && last > 0 ? last : 0, startedAt);
-        if (since > STALL_MS) { note(`  ! no commit for ${Math.round(since / 60_000)} min — stalled, stopping`); child.kill(); }
+        const since = Date.now() - lastEventAt;
+        if (since > STALL_MS) { note(`  ! silent for ${Math.round(since / 60_000)} min — stalled, stopping`); child.kill(); }
       }, 60_000);
       child.on("close", () => clearInterval(pulse));
       const handle = (line: string) => {
         if (!line.trim()) return;
+        lastEventAt = Date.now();
         fs.appendFileSync(jsonlFile, line + "\n");
         let ev: { type?: string; subtype?: string; result?: string; num_turns?: number; message?: { content?: unknown } } = {};
         try { ev = JSON.parse(line); } catch { fs.appendFileSync(logFile, line + "\n"); return; }
