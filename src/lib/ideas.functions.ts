@@ -280,14 +280,19 @@ export const armIdeas = createServerFn({ method: "POST" })
     const now = new Date().toISOString();
     for (const r of (rows ?? []) as Pick<Row, "id" | "status" | "context">[]) {
       const ctx: Record<string, string> = { ...(r.context ?? {}) };
-      for (const k of ["built", "builtAt", "runStartedAt", "runFailed", "runError", "sha", "previewUrl", "previewState", "report", "testChecklist"]) delete ctx[k];
+      // RESUME (2026-09-03): a build that stopped early pushed partial work to
+      // its branch. Re-arming continues on that branch instead of starting
+      // over — the runner reads `resume` + `branch`.
+      const partial = ctx.runFailed === "1" && !!ctx.branch && !!ctx.sha;
+      for (const k of ["built", "builtAt", "runStartedAt", "runFailed", "runError", "previewUrl", "previewState", "report", "testChecklist", "sizeChecked"]) delete ctx[k];
       let status = r.status;
       if (data.armed) {
         ctx.armed = "1"; ctx.queuePriority = data.priority; ctx.armedAt = now;
         if (data.priority === "urgent") ctx.urgent = "1";
+        if (partial) ctx.resume = "1"; else { delete ctx.resume; delete ctx.branch; delete ctx.sha; }
         status = "SUBMITTED";
       } else {
-        delete ctx.armed; delete ctx.queuePriority; delete ctx.armedAt; delete ctx.branch;
+        delete ctx.armed; delete ctx.queuePriority; delete ctx.armedAt; delete ctx.resume;
         if (status === "SUBMITTED") status = "DRAFTED";
       }
       const { error: e } = await db.from("ideas").update({ context: ctx, status, updated_at: now }).eq("id", r.id);

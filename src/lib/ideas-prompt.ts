@@ -71,6 +71,26 @@ export function buildMergeMessages(
   return { system, user };
 }
 
+/** THE SPLITTER (build queue, 2026-09-03). Both failed builds were research-
+ *  project prompts; every success was one feature. Before a build starts,
+ *  one micro call decides whether the prompt is ONE buildable feature or
+ *  several — and if several, cuts it into 2–6 single-feature slices, each a
+ *  complete, testable change on its own, in build order. */
+export function buildSplitMessages(idea: { title: string; body: string; promptMd: string | null }): { system: string; user: string } {
+  const system = [
+    "You prepare work for an unattended Claude Code build in the Survive Accounting repo. A build succeeds when it is ONE feature that fits in about 30 minutes; it fails when it is a research project, a list of features, or a vision.",
+    "Decide: is this prompt ONE buildable feature (a single screen or behaviour a tester can check in a few clicks)? If yes: {\"single\": true}. If not: split it into 2–6 slices, in build order, each a complete testable change on its own that does not depend on a later slice. Drop anything that is a question, a musing, or 'defer to later' — say so in \"dropped\".",
+    "Each slice: {\"title\": str (≤ 60 chars, specific), \"spec\": str (the Claude Code prompt for just this slice — CONTEXT, WHAT TO BUILD numbered and concrete, WHERE, ACCEPTANCE, OUT OF SCOPE; 150–350 words; keep the author's decisions and wording; never invent features)}",
+    "Return ONLY JSON: {\"single\": bool, \"slices\": [ … ], \"dropped\": [str]}",
+  ].join("\n");
+  const user = [
+    `TITLE: ${idea.title}`,
+    idea.promptMd?.trim() ? `PROMPT:\n${idea.promptMd.trim().slice(0, 9000)}` : "",
+    idea.body?.trim() ? `THE AUTHOR'S WORDS:\n${idea.body.trim().slice(0, 4000)}` : "",
+  ].filter(Boolean).join("\n\n");
+  return { system, user };
+}
+
 /** THE PROJECTS — plain names for the Claude Code sessions Lee pins (2026-09-03:
  *  "give me a natural language term for the session … more about the tasks
  *  and the projects I'm working on"). Each maps to a worktree, kept separate

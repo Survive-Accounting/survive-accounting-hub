@@ -32,6 +32,8 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import { buildSplitMessages } from "../src/lib/ideas-prompt";
+
 const REPO = path.resolve(process.cwd());
 const QUEUE_DIR = process.env.QUEUE_DIR ?? path.resolve(REPO, "..", "build-queue");
 const LOG_DIR = path.join(QUEUE_DIR, "logs");
@@ -64,6 +66,9 @@ const MAX_TURNS = Number(process.env.QUEUE_MAX_TURNS ?? 400);
  *  QUEUE_MODEL (an id like claude-opus-4-8, or an alias like opus/sonnet). */
 const MODEL = process.env.QUEUE_MODEL ?? "claude-opus-5";
 const BUILD_TIMEOUT_MS = Number(process.env.QUEUE_BUILD_MINUTES ?? 45) * 60_000;
+// THE HEARTBEAT: a build that has not committed anything for this long is
+// stalled — stop it and keep what exists, instead of burning the whole clock.
+const STALL_MS = Number(process.env.QUEUE_STALL_MINUTES ?? 20) * 60_000;
 const DEPLOY_WAIT_MS = Number(process.env.QUEUE_DEPLOY_MINUTES ?? 15) * 60_000;
 const STALE_RUN_MS = 3 * 60 * 60_000;
 
@@ -96,10 +101,14 @@ const claude = (cmdArgs: string[], cwd: string, quiet = true) => sh(CLAUDE.cmd, 
 /** The prompt sent to Claude Code, with the house rules and the required
  *  closing sections. The checklist is written AFTER the build, from what was
  *  actually shipped, and names the route for every line. */
-function buildPrompt(r: Row, branch: string): string {
+function buildPrompt(r: Row, branch: string, resuming: boolean): string {
   const ideaPrompt = (r.prompt_md ?? "").trim() || `${r.title}\n\n${r.body}`;
   return [
-    `You are building ONE change, unattended, in this worktree of the Survive Accounting repo (survive-accounting-hub — TanStack Start, React 19, TypeScript, Supabase, Bun). You are on branch ${branch}, cut from origin/main. Nobody is watching; the owner (Lee) will test the result later from a checklist you write. Read CLAUDE.md and docs/SESSION-CONTEXT.md first.`,
+    `You are building ONE change, unattended, in this worktree of the Survive Accounting repo (survive-accounting-hub — TanStack Start, React 19, TypeScript, Supabase, Bun). You are on branch ${branch}${resuming ? ", which ALREADY HOLDS PARTIAL WORK from an earlier build that stopped early" : ", cut from origin/main"}. Nobody is watching; the owner (Lee) will test the result later from a checklist you write. Read CLAUDE.md and docs/SESSION-CONTEXT.md first.`,
+    ...(resuming ? [
+      "",
+      "CONTINUE, DON'T RESTART: run `git log --oneline origin/main..HEAD` and `git diff --stat origin/main` first to see what the earlier build already did, then finish the task from there. Keep what works; fix what is broken; do not redo finished parts.",
+    ] : []),
     "",
     "HARD RULES",
     "- Additive only. New files, new routes, new fields, new tables via a numbered additive migration FILE under migration/supabase-migrations/ — never run it; list it under SQL LEE MUST RUN.",
@@ -153,16 +162,97 @@ async function waitForPreview(sha: string): Promise<{ url: string | null; state:
   return { url: null, state: `timeout (${last})` };
 }
 
+/** THE SPLITTER. One buildable feature → build it. A research project → cut
+ *  it into single-feature slices, arm each in order at the same priority,
+ *  and take the parent out of the queue (it stays in the bank, marked
+ *  "split into n"). Returns true when the queue changed and the pass should
+ *  start over. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function maybeSplit(db: { from: (t: string) => any }, r: Row): Promise<boolean> {
+  const ctx = { ...(r.context ?? {}) };
+  if (ctx.sizeChecked === "1" || ctx.splitFrom || ctx.resume === "1") return false;
+  const { runAiTask } = await import("../src/lib/ai.server");
+  const { system, user } = buildSplitMessages({ title: r.title, body: r.body, promptMd: r.prompt_md });
+  const res = await runAiTask("micro", { system, user, maxOutput: 3500 });
+  const m = res.text.match(/\{[\s\S]*\}/);
+  const j = m ? (JSON.parse(m[0]) as { single?: unknown; slices?: unknown; dropped?: unknown }) : {};
+  const slices = Array.isArray(j.slices) ? (j.slices as { title?: unknown; spec?: unknown }[]).filter((x) => typeof x.title === "string" && typeof x.spec === "string") : [];
+  const now = new Date().toISOString();
+  if (j.single === true || slices.length < 2) {
+    if (!DRY) await db.from("ideas").update({ context: { ...ctx, sizeChecked: "1" }, updated_at: now }).eq("id", r.id);
+    return false;
+  }
+  log(`✂ split "${r.title}" into ${slices.length} slices${Array.isArray(j.dropped) && j.dropped.length ? ` (dropped ${j.dropped.length}: ${(j.dropped as unknown[]).map(String).join("; ").slice(0, 200)})` : ""}`);
+  if (DRY) return true;
+  const ids: string[] = [];
+  for (let i = 0; i < slices.length; i++) {
+    const s = slices[i] as { title: string; spec: string };
+    const id = `idea-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    ids.push(id);
+    const { error } = await db.from("ideas").insert({
+      id, title: s.title.slice(0, 120),
+      body: `Part ${i + 1} of ${slices.length} of "${r.title}".\n\n${s.spec}`,
+      categories: r.context?.categories ?? [], subcategory: "", status: "SUBMITTED",
+      source_path: r.source_path, prompt_md: `## TLDR\n${s.title}\n\n## Summary\nPart ${i + 1} of ${slices.length}, split from "${r.title}" so each build is one feature.\n\n## Prompt\n${s.spec}\n\n## Testing checklist\n- [ ] (written by the build)`,
+      prompt_filename: `${slug(s.title)}.md`, created_by: r.created_by, source_kind: "web", attachments: [], audio_path: null, transcript_status: null,
+      context: {
+        armed: "1", queuePriority: ctx.queuePriority ?? "medium", armedAt: new Date(Date.now() + i * 1000).toISOString(),
+        splitFrom: r.id, splitIndex: String(i + 1), splitOf: String(slices.length), sizeChecked: "1",
+        tldr: s.title, summary: `Part ${i + 1} of ${slices.length} of "${r.title}".`,
+        ...(ctx.session ? { session: ctx.session, project: ctx.project ?? "", worktree: ctx.worktree ?? "", page: ctx.page ?? "" } : {}),
+        organizedAt: now,
+      },
+    });
+    if (error) throw new Error(`split insert: ${error.message}`);
+  }
+  const parent: Record<string, string> = { ...ctx, splitInto: ids.join(","), sizeChecked: "1" };
+  delete parent.armed; delete parent.armedAt;
+  const { error: pe } = await db.from("ideas").update({ context: parent, status: "DRAFTED", updated_at: now }).eq("id", r.id);
+  if (pe) throw new Error(`split parent: ${pe.message}`);
+  return true;
+}
+
+/** ORPHANS: a builder restarted mid-build leaves an idea "building" with a
+ *  worktree on disk and no process. At startup, commit and push what is
+ *  there, mark the idea stopped-early with resume, and clear the worktree. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function salvageOrphans(db: { from: (t: string) => any }): Promise<void> {
+  const { data } = await db.from("ideas").select("id,title,context").eq("status", "SUBMITTED");
+  for (const r of ((data ?? []) as Pick<Row, "id" | "title" | "context">[])) {
+    const ctx = { ...(r.context ?? {}) };
+    if (ctx.armed !== "1" || !ctx.runStartedAt || ctx.built === "1") continue;
+    const branch = ctx.branch ?? "";
+    const dir = path.join(QUEUE_DIR, branch.replace(/^queue\//, ""));
+    let pushed = "";
+    if (branch && fs.existsSync(dir)) {
+      sh("git", ["add", "-A"], dir, { quiet: true });
+      sh("git", ["-c", "core.safecrlf=false", "commit", "-q", "-m", `build queue (stopped early — builder restarted): ${r.title}\n\nCo-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`], dir, { quiet: true });
+      const ahead = sh("git", ["rev-list", "--count", "origin/main..HEAD"], dir, { quiet: true }).out.trim();
+      if (ahead !== "0" && sh("git", ["push", "-u", "origin", branch], dir, { quiet: true }).ok) pushed = sh("git", ["rev-parse", "HEAD"], dir, { quiet: true }).out.trim();
+      sh("git", ["worktree", "remove", "--force", dir], REPO, { quiet: true });
+    }
+    log(`⚠ orphan: "${r.title}" was building when the builder stopped${pushed ? ` — partial work pushed to ${branch}` : ""}`);
+    if (!DRY) {
+      delete ctx.runStartedAt;
+      ctx.runFailed = "1"; ctx.runError = `the builder was restarted mid-build${pushed ? ` — partial work is on ${branch}; re-queue to continue` : " — nothing to salvage; re-queue to start over"}`;
+      if (pushed) ctx.sha = pushed;
+      await db.from("ideas").update({ context: ctx, updated_at: new Date().toISOString() }).eq("id", r.id);
+    }
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
   const ctx = { ...(r.context ?? {}) };
   const s = slug(r.title);
-  const branch = `queue/${s}-${r.id.slice(-5)}`;
-  const dir = path.join(QUEUE_DIR, `${s}-${r.id.slice(-5)}`);
+  // RESUME: a re-queued partial build keeps its branch and continues on it.
+  const resuming = ctx.resume === "1" && !!ctx.branch && sh("git", ["ls-remote", "--exit-code", "--heads", "origin", ctx.branch], REPO, { quiet: true }).ok;
+  const branch = resuming ? ctx.branch : `queue/${s}-${r.id.slice(-5)}`;
+  const dir = path.join(QUEUE_DIR, branch.replace(/^queue\//, ""));
   fs.mkdirSync(LOG_DIR, { recursive: true });
   const logFile = path.join(LOG_DIR, `${s}-${r.id.slice(-5)}.log`);
   const note = (t: string) => { log(t); fs.appendFileSync(logFile, `${new Date().toISOString()} ${t}\n`); };
-  note(`▶ ${r.title}  (${ctx.queuePriority ?? "medium"}) → ${branch}`);
+  note(`▶ ${r.title}  (${ctx.queuePriority ?? "medium"}) → ${branch}${resuming ? " (continuing partial work)" : ""}${ctx.splitFrom ? ` · part ${ctx.splitIndex} of ${ctx.splitOf}` : ""}`);
   if (DRY) return;
 
   const mark = async (patch: Record<string, string | undefined>, status?: string) => {
@@ -172,14 +262,18 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
     const { error } = await db.from("ideas").update(upd).eq("id", r.id);
     if (error) throw new Error(`mark ${r.id}: ${error.message}`);
   };
-  await mark({ runStartedAt: new Date().toISOString(), runError: undefined, runFailed: undefined, branch });
+  await mark({ runStartedAt: new Date().toISOString(), runError: undefined, runFailed: undefined, branch, resume: undefined });
 
   try {
-    // 1. A fresh worktree on a fresh branch off origin/main.
+    // 1. A fresh worktree: on the existing queue branch when resuming, else
+    //    on a fresh branch off origin/main.
     if (fs.existsSync(dir)) sh("git", ["worktree", "remove", "--force", dir], REPO, { quiet: true });
     sh("git", ["branch", "-D", branch], REPO, { quiet: true });
     if (!sh("git", ["fetch", "-q", "origin", "main"], REPO).ok) throw new Error("git fetch failed");
-    if (!sh("git", ["worktree", "add", dir, "-b", branch, "origin/main"], REPO).ok) throw new Error("worktree add failed");
+    if (resuming) {
+      if (!sh("git", ["fetch", "-q", "origin", branch], REPO).ok) throw new Error("git fetch of the partial branch failed");
+      if (!sh("git", ["worktree", "add", dir, "-b", branch, `origin/${branch}`], REPO).ok) throw new Error("worktree add (resume) failed");
+    } else if (!sh("git", ["worktree", "add", dir, "-b", branch, "origin/main"], REPO).ok) throw new Error("worktree add failed");
     fs.copyFileSync(path.join(REPO, ".env"), path.join(dir, ".env"));
     note("  bun install…");
     if (!sh("bun", ["install", "--frozen-lockfile"], dir).ok && !sh("bun", ["install"], dir).ok) throw new Error("bun install failed");
@@ -189,15 +283,24 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
     // died at the turn limit with a blank log — text mode prints only at the
     // end). The raw event stream is kept beside it as .jsonl.
     note(`  claude -p on ${MODEL} … (this is the long part; transcript streams below)`);
-    const prompt = buildPrompt(r, branch);
+    const prompt = buildPrompt(r, branch, resuming);
     fs.writeFileSync(path.join(dir, ".build-queue-prompt.md"), prompt, "utf8");
     const jsonlFile = logFile.replace(/\.log$/, ".jsonl");
+    const startedAt = Date.now();
     const out = await new Promise<{ code: number | null; text: string; turns: number }>((resolve) => {
       const child = spawn(CLAUDE.cmd, [...CLAUDE.args, "-p", "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions", "--model", MODEL, "--max-turns", String(MAX_TURNS)], {
         cwd: dir, env: { ...process.env, CI: "1" }, shell: false,
       });
       let buf = "", finalText = "", lastAssistant = "", turns = 0;
       const timer = setTimeout(() => { note("  ! build timed out — killing"); child.kill(); }, BUILD_TIMEOUT_MS);
+      // THE HEARTBEAT: no new commit for STALL_MS (measured from the last
+      // commit, or the start) → stalled → stop and keep what exists.
+      const pulse = setInterval(() => {
+        const last = Number(sh("git", ["log", "-1", "--format=%ct", `origin/main..HEAD`], dir, { quiet: true }).out.trim()) * 1000;
+        const since = Date.now() - Math.max(Number.isFinite(last) && last > 0 ? last : 0, startedAt);
+        if (since > STALL_MS) { note(`  ! no commit for ${Math.round(since / 60_000)} min — stalled, stopping`); child.kill(); }
+      }, 60_000);
+      child.on("close", () => clearInterval(pulse));
       const handle = (line: string) => {
         if (!line.trim()) return;
         fs.appendFileSync(jsonlFile, line + "\n");
@@ -290,6 +393,9 @@ async function pass(): Promise<boolean> {
     .filter((r) => !r.context?.runStartedAt || Date.now() - new Date(r.context.runStartedAt).getTime() >= STALE_RUN_MS)
     .sort((a, b) => (PRIORITY[b.context?.queuePriority ?? "medium"] ?? 2) - (PRIORITY[a.context?.queuePriority ?? "medium"] ?? 2) || (a.context?.armedAt ?? a.updated_at).localeCompare(b.context?.armedAt ?? b.updated_at))[0];
   if (!next) { log(`queue empty (${armed.length} armed, 0 ready)`); return false; }
+  // Size check first: a research project becomes single-feature slices and
+  // the pass starts over with the first of them.
+  if (await maybeSplit(db, next)) return true;
   await runOne(db, next);
   return true;
 }
@@ -304,6 +410,11 @@ async function main(): Promise<void> {
     const probe = claude(["-p", "Reply with exactly: OK", "--output-format", "text", "--max-turns", "1"], REPO);
     if (!probe.ok || /not logged in|please run \/login/i.test(probe.out)) throw new Error("claude CLI is not logged in on this machine — double-click scripts\\claude-login.cmd, type /login, finish in the browser, then start this again");
     log(`claude CLI ready (${v.out.trim()}) · builds run on ${MODEL}`);
+  }
+  {
+    const { supabaseAdmin } = await import("../src/integrations/supabase/client.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await salvageOrphans(supabaseAdmin as unknown as { from: (t: string) => any });
   }
   for (;;) {
     try { await pass(); }
