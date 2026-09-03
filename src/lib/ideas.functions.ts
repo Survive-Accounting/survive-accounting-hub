@@ -138,6 +138,10 @@ export const organizeIdea = createServerFn({ method: "POST" })
     id: z.string().min(1).max(80),
     draftPrompt: z.boolean().default(true),
     redraft: z.boolean().default(false),
+    // The client makes TWO requests (title/TLDR first, then the prompt) so
+    // neither runs past the serverless time limit — one request that did
+    // both is how the link-previews idea (2026-09-03) never got its prompt.
+    organize: z.boolean().default(true),
   }).parse(d))
   .handler(async ({ data }): Promise<{ idea: Idea; drafted: boolean }> => {
     const db = await admin();
@@ -152,7 +156,7 @@ export const organizeIdea = createServerFn({ method: "POST" })
 
     // 1. Title · TLDR · summary · categories — the micro lane, cheap.
     const words = r.body?.trim() || r.title || "";
-    if (words) {
+    if (words && data.organize) {
       const org = buildOrganizeMessages({
         title: r.title || words.slice(0, 80), body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
         sourcePath: r.source_path ?? "", pageTitle: ctx.title ?? "", existingPrompt: r.prompt_md,
@@ -172,12 +176,14 @@ export const organizeIdea = createServerFn({ method: "POST" })
         if (j.urgent === true && !ctx.urgent) ctx.urgentSuggested = "1";
       }
     }
-    const proj = suggestProject(r.source_path ?? "", r.categories ?? []);
-    ctx.session = proj.label;
-    ctx.project = proj.key;
-    ctx.worktree = proj.worktree;
-    ctx.page = pageLabel(r.source_path ?? "");
-    ctx.organizedAt = now;
+    if (data.organize) {
+      const proj = suggestProject(r.source_path ?? "", r.categories ?? []);
+      ctx.session = proj.label;
+      ctx.project = proj.key;
+      ctx.worktree = proj.worktree;
+      ctx.page = pageLabel(r.source_path ?? "");
+      ctx.organizedAt = now;
+    }
 
     // 2. The prompt — synthesis lane. Never for a to-do or a draft-in-progress.
     let drafted = false;

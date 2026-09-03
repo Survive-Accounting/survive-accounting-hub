@@ -5,4 +5,4 @@ rem   %APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
 rem so it starts with Windows. Close the window to stop it.
 cd /d "%~dp0.."
 title Survive — Obsidian sync (watch)
-bun scripts/obsidian-sync.ts --watch --organize
+bun scripts/obsidian-sync.ts --watch --organize --draft

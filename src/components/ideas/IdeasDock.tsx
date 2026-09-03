@@ -321,10 +321,15 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
       .then(() => {
         onSaved(kind);
         onClose();
-        // AI, in the background. A draft gets a title/TLDR only; a finished
-        // idea gets the prompt too (unless the preview already made one).
-        organizeIdea({ data: { id, draftPrompt: !asDraft && !todoTag && !promptMd } })
-          .catch((e) => console.warn("[ideas] organise failed — the idea is saved; redraft it from /admin/ideas", e));
+        // AI, in the background — TWO requests, so neither outlives the
+        // serverless time limit: title/TLDR/summary/categories first, then
+        // the prompt (a draft or a to-do gets no prompt; a previewed idea
+        // already has one). The build machine's watch sync drafts anything
+        // that still slipped through.
+        const wantPrompt = !asDraft && !todoTag && !promptMd;
+        organizeIdea({ data: { id, draftPrompt: false } })
+          .then(() => (wantPrompt ? organizeIdea({ data: { id, organize: false, draftPrompt: true } }) : undefined))
+          .catch((e) => console.warn("[ideas] organise failed — the idea is saved; the watch sync or /admin/ideas can draft it", e));
       })
       .catch((e) => { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); });
   }, [body, cats, sub, pathname, busy, audio, files, onSaved, onClose, todo, step, draft, editingId]);

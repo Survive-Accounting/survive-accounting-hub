@@ -346,6 +346,31 @@ async function main(): Promise<void> {
     }
   }
 
+  // SENT / REVIEWED, read back from _Queue.md before anything is rewritten.
+  // A tick that disagrees with the app's status changes the app: reviewed →
+  // APPROVED, sent → SUBMITTED, both cleared → DRAFTED (reopened).
+  const queueFile = path.join(DIR, "_Queue.md");
+  if (fs.existsSync(queueFile)) {
+    const ticks = new Map<string, { sent: boolean; reviewed: boolean }>();
+    for (const l of fs.readFileSync(queueFile, "utf8").split(/\r?\n/)) {
+      const m = l.match(/^- \[([ xX])\] sent \[([ xX])\] reviewed .*<!--\s*(\S+)\s*-->/);
+      if (m) ticks.set(m[3], { sent: m[1] !== " ", reviewed: m[2] !== " " });
+    }
+    for (const r of rows) {
+      const t = ticks.get(r.id);
+      if (!t) continue;
+      const want = t.reviewed ? "APPROVED" : t.sent ? "SUBMITTED" : (r.status === "SUBMITTED" || r.status === "APPROVED") ? "DRAFTED" : r.status;
+      if (want !== r.status) {
+        log(`queue  ${r.title}: ${r.status} → ${want} (from the checklist)`);
+        if (!DRY) {
+          const { error: e } = await db.from("ideas").update({ status: want, updated_at: new Date().toISOString() }).eq("id", r.id);
+          if (e) throw new Error(`queue tick for ${r.id}: ${e.message}`);
+        }
+        r.status = want;
+      }
+    }
+  }
+
   let created = 0, refreshed = 0, pushed = 0, drafted = 0, kept = 0;
 
   for (const r of rows) {
@@ -464,42 +489,49 @@ async function main(): Promise<void> {
   }
 
   // THE INDEX — always rewritten; it is a view, not a place Lee writes.
-  const groups: Record<string, Row[]> = { IDEA: [], DRAFTED: [], SUBMITTED: [], APPROVED: [], PARKED: [] };
-  for (const r of rows) (groups[r.status] ?? groups.IDEA).push(r);
-  const link = (r: Row) => {
-    const f = byId.get(r.id) ?? path.join(DIR, `${day(r.created_at)} ${slug(r.title)}.md`);
-    return `[[${path.basename(f, ".md")}]]`;
+  // THE QUEUE, Lee's way (2026-09-03): "List of prompts in order, urgent in a
+  // separate list up top. Only need download prompt link/icon … sent,
+  // reviewed (checkboxes)". Each line: two ticks, the note, the prompt file.
+  // Reviewed lines are struck through. The ticks flow to the app (SUBMITTED /
+  // APPROVED) on the next sync — read-back happens at the top of main().
+  const PROMPTS = path.join(VAULT, "Survive", "Prompts");
+  if (!DRY) fs.mkdirSync(PROMPTS, { recursive: true });
+  const noteName = (r: Row) => path.basename(byId.get(r.id) ?? path.join(DIR, `${day(r.created_at)} ${slug(r.title)}.md`), ".md");
+  const promptName = (r: Row) => `${slug(r.title).toLowerCase().replace(/\s+/g, "-").slice(0, 60) || "prompt"}.prompt`;
+  // THE PROMPT FILE — just what gets pasted into Claude Code. Generated on
+  // every sync from the app; edit the prompt in the app or in the note.
+  for (const r of rows) {
+    if (!r.prompt_md?.trim()) continue;
+    const md = r.prompt_md.trim();
+    const body = hasPromptSections(md)
+      ? (() => { const i = md.indexOf("## Prompt"); const rest = md.slice(i + 9); const n = rest.search(/\n## /); return (n < 0 ? rest : rest.slice(0, n)).trim(); })()
+      : md;
+    if (!DRY) fs.writeFileSync(path.join(PROMPTS, `${promptName(r)}.md`), `${body}\n`, "utf8");
+  }
+  const projKey = (r: Row) => r.context?.project ?? suggestProject(r.source_path ?? "", r.categories ?? []).key;
+  const line = (r: Row) => {
+    const sent = r.status === "SUBMITTED" || r.status === "APPROVED";
+    const reviewed = r.status === "APPROVED";
+    const title = `[[${noteName(r)}|${r.title.replace(/[[\]|]/g, " ")}]]`;
+    const prompt = r.prompt_md?.trim() ? ` · [[${promptName(r)}|⬇ prompt]]` : " · _no prompt yet_";
+    return `- [${sent ? "x" : " "}] sent [${reviewed ? "x" : " "}] reviewed — ${reviewed ? `~~${title}~~` : title}${prompt} · #project/${projKey(r)} <!-- ${r.id} -->`;
   };
-  const projOf = (r: Row) => (r.context?.project ? r.context.session ?? "" : "") || suggestProject(r.source_path ?? "", r.categories ?? []).label;
-  const pageOf = (r: Row) => r.context?.page ?? pageLabel(r.source_path ?? "");
-  const cell = (s: string) => s.replace(/\|/g, "／").replace(/\n/g, " ");
-  const table = (list: Row[], numbered = true) => list.length
-    ? ["| # | idea | tldr | project | page | categories | captured | prompt |", "|---|---|---|---|---|---|---|---|",
-      ...list.slice().sort(rank).map((r, k) => `| ${r.context?.urgent === "1" ? "🔥" : numbered ? k + 1 : "·"} | ${link(r)} | ${cell(r.context?.tldr ?? "").slice(0, 110)} | ${projOf(r)} | ${cell(pageOf(r))} | ${(r.categories ?? []).join(", ")} | ${day(r.created_at)} | ${r.prompt_md?.trim() ? "✓" : "—"} |`)].join("\n")
-    : "_none_";
-  const open = rows.filter((r) => r.status === "IDEA" || r.status === "DRAFTED");
-  const groupBy = (list: Row[], key: (r: Row) => string): [string, Row[]][] => {
-    const m = new Map<string, Row[]>();
-    for (const r of list) m.set(key(r), [...(m.get(key(r)) ?? []), r]);
-    return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
-  };
-  const grouped = (list: Row[], key: (r: Row) => string, level = "###") =>
-    groupBy(list, key).flatMap(([g, rs]) => [`${level} ${g} (${rs.length})`, "", table(rs, false), ""]);
+  const urgentRows = rows.filter((r) => r.context?.urgent === "1" && r.status !== "PARKED" && r.status !== "APPROVED").sort(rank);
+  const openRows = rows.filter((r) => r.context?.urgent !== "1" && r.status !== "PARKED" && r.status !== "APPROVED" && r.context?.draft !== "1").sort(rank);
+  const draftRows = rows.filter((r) => r.context?.draft === "1" && r.status !== "PARKED").sort(rank);
+  const doneRows = rows.filter((r) => r.status === "APPROVED").sort(rank);
+  const parkedRows = rows.filter((r) => r.status === "PARKED").sort(rank);
+  const list = (l: Row[]) => (l.length ? l.map(line).join("\n") : "_none_");
   const index = [
-    "# Survive — the build queue",
+    "# Survive — prompts",
     "",
-    `Synced ${new Date().toISOString()} from the app (${rows.length} ideas · ${open.length} open). Rewritten on every sync — edit the notes, not this table. Filter by tag in Obsidian: \`#project/filming\`, \`#page/…\`, \`#cat/authoring\`, \`#urgent\`.`,
+    `_Synced ${new Date().toISOString()}. Tick **sent** when it is in Claude Code, **reviewed** when it shipped and you checked it — both flow to the app on the next sync. Reviewed lines strike through and can be archived from the Idea Bank. Rewritten every sync; edit the notes, not this list._`,
     "",
-    "Work an idea: open its note → read **Prompt** → paste into the Claude Code session named for its **project** → after the deploy, tick **Testing checklist** on the laptop → set `status:` (SUBMITTED / APPROVED / PARKED) and `reviewed: true` in the note. The next sync carries the status to the app.",
-    "",
-    "## 🔥 Urgent", "", table(open.filter((r) => r.context?.urgent === "1")), "",
-    "## Open — in order", "", table(open), "",
-    "## Open — by project", "", ...grouped(open, projOf),
-    "## Open — by page", "", ...grouped(open, pageOf),
-    "## Open — by category", "", ...grouped(open, (r) => (r.categories ?? [])[0] ?? "uncategorised"),
-    "## Submitted (in Claude Code)", "", table(groups.SUBMITTED), "",
-    "## Approved (shipped)", "", table(groups.APPROVED), "",
-    "## Parked", "", table(groups.PARKED), "",
+    "## 🔥 Urgent", "", list(urgentRows), "",
+    "## Prompts, in order", "", list(openRows), "",
+    ...(draftRows.length ? ["## Drafts (words not finished)", "", list(draftRows), ""] : []),
+    ...(doneRows.length ? ["## Reviewed", "", list(doneRows), ""] : []),
+    ...(parkedRows.length ? ["## Archived", "", parkedRows.map((r) => `- ~~${r.title}~~`).join("\n"), ""] : []),
   ].join("\n");
   if (!DRY) fs.writeFileSync(path.join(DIR, "_Queue.md"), index, "utf8");
 

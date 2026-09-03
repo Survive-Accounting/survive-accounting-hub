@@ -1,19 +1,14 @@
 // /admin/ideas — THE IDEA BANK, the vault's full view.
 //
-// The modal is for capture; this is for everything after. Rebuilt 2026-09-03
-// on Lee's word: "make it more simple … a category All and some pills for
-// different categories with a numeric on it … urgent at the very top no matter
-// what … we don't need to see the full transcript … TLDR and summary above,
-// the prompt is all we want to copy and paste."
+// Lee (2026-09-03, second pass): "It's already getting really cluttered up
+// there … have urgent at the top, and then drafts, and then open. Each of
+// these three is a toggle. Only show the title for each prompt; if I click it
+// it can show the rest." So: three folds, titles only, everything else behind
+// a click. Reviewed (APPROVED) reads as strikethrough; anything can be
+// archived (PARKED) from its title line. Reviewed and Archived are two more
+// folds at the bottom, closed, so nothing is ever lost.
 //
-// What a row shows, collapsed: urgent flag · title (AI-written) · TLDR ·
-// status · who · categories · date. Opened: the summary, the categories, the
-// status, the PROMPT in an editable box with Copy, and the transcript folded
-// away under "in their words". Every idea can be marked urgent (pins it and
-// texts Lee) and sent to King/Lee as a summary email.
-//
-// NO DELETE, anywhere. PARKED is the archive: it is how an idea stops
-// resurfacing without the decision being destroyed. A PROMPT can be removed.
+// NO DELETE, anywhere. PARKED is the archive. A PROMPT can be removed.
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -22,14 +17,12 @@ import { listIdeas, organizeIdea, saveIdea, sendIdeaSummary, setUrgent } from "@
 import { hasPromptSections, ideaUpdateText, promptSection, replacePromptSection } from "@/lib/ideas-prompt";
 import {
   CATEGORIES, CATEGORY_LABEL, FOCUS_LABEL, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
-  countByCategory, isDraft, isTodoIdea, isUrgent, prioritize, priorityOf, rankIdeas, sortIdeas, summaryOf, tldrOf,
-  type Category, type Focus, type Idea, type Recommendation, type SortKey, type Status, type TimeBox,
+  isDraft, isTodoIdea, isUrgent, prioritize, priorityOf, rankIdeas, summaryOf, tldrOf,
+  type Focus, type Idea, type Recommendation, type TimeBox,
 } from "@/components/ideas/model";
 
 export const Route = createFileRoute("/admin/ideas")({
   component: IdeasRoute,
-  // ADD TO HOME SCREEN: on a phone this opens standalone, like an app, with
-  // no install and no store.
   head: () => ({
     meta: [
       { title: "Idea Bank — Survive" },
@@ -53,17 +46,16 @@ const APP_URL = "https://surviveaccounting.com/admin/ideas";
 
 function IdeasRoute() { return <AdminGate><Ideas /></AdminGate>; }
 
-type Pill = "ALL" | "URGENT" | "TODO" | "DRAFTS" | Category;
+type FoldKey = "urgent" | "drafts" | "open" | "todos" | "reviewed" | "archived";
 
 function Ideas() {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [err, setErr] = useState<string | null>(null);
-  const [pill, setPill] = useState<Pill>("ALL");
-  const [status, setStatus] = useState<Status | null>(null);
-  const [sort, setSort] = useState<SortKey>("priority");
   const [open, setOpen] = useState<string | null>(null);
   const [prio, setPrio] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [folds, setFolds] = useState<Record<FoldKey, boolean>>({ urgent: true, drafts: true, open: true, todos: false, reviewed: false, archived: false });
+  const toggle = (k: FoldKey) => setFolds((f) => ({ ...f, [k]: !f[k] }));
 
   const refresh = useCallback(() => {
     listIdeas().then((r) => { setIdeas(r.ideas); setErr(null); })
@@ -71,29 +63,20 @@ function Ideas() {
   }, []);
   useEffect(refresh, [refresh]);
 
-  // Counts on the pills — over everything not parked, so the numbers mean
-  // "how much is here", not "how much matches the other filter".
-  const live = useMemo(() => ideas.filter((i) => i.status !== "PARKED"), [ideas]);
-  const counts = useMemo(() => countByCategory(live), [live]);
-  const urgentCount = live.filter(isUrgent).length;
-  const todoCount = live.filter(isTodoIdea).length;
-  const draftCount = live.filter(isDraft).length;
-
-  const shown = useMemo(() => {
-    let out = ideas;
-    if (pill === "URGENT") out = out.filter(isUrgent);
-    else if (pill === "TODO") out = out.filter(isTodoIdea);
-    else if (pill === "DRAFTS") out = out.filter(isDraft);
-    else if (pill !== "ALL") out = out.filter((i) => i.categories.includes(pill));
-    // To-dos are Terry's; they only show on their own pill.
-    if (pill !== "TODO") out = out.filter((i) => !isTodoIdea(i));
-    // Parked stays out of sight unless you ask for it by status.
-    if (status) out = out.filter((i) => i.status === status);
-    else out = out.filter((i) => i.status !== "PARKED");
-    // Urgent is pinned whatever the sort.
-    const sorted = sortIdeas(out, sort);
-    return sort === "priority" ? sorted : [...sorted.filter(isUrgent), ...sorted.filter((i) => !isUrgent(i))];
-  }, [ideas, pill, status, sort]);
+  // THE THREE (plus the quiet ones). An idea lives in exactly one fold.
+  const sections = useMemo(() => {
+    const live = ideas.filter((i) => i.status !== "PARKED");
+    const reviewed = live.filter((i) => i.status === "APPROVED");
+    const working = live.filter((i) => i.status !== "APPROVED");
+    return {
+      urgent: rankIdeas(working.filter((i) => isUrgent(i) && !isTodoIdea(i))),
+      drafts: rankIdeas(working.filter((i) => !isUrgent(i) && isDraft(i) && !isTodoIdea(i))),
+      open: rankIdeas(working.filter((i) => !isUrgent(i) && !isDraft(i) && !isTodoIdea(i))),
+      todos: rankIdeas(working.filter(isTodoIdea)),
+      reviewed: rankIdeas(reviewed),
+      archived: rankIdeas(ideas.filter((i) => i.status === "PARKED")),
+    };
+  }, [ideas]);
 
   const patch = useCallback((i: Idea, p: Partial<Idea>) => {
     const next = { ...i, ...p };
@@ -117,26 +100,38 @@ function Ideas() {
       const i = ordered[k];
       await patch(i, { context: { ...i.context, priority: String((n - k) * 10) } });
     }
-    setSort("priority");
   }, [patch]);
 
-  const pillBtn = (key: Pill, label: string, n: number, color = GOLD) => {
-    const on = pill === key;
-    return (
-      <button key={key} onClick={() => setPill(on && key !== "ALL" ? "ALL" : key)}
-        style={{ background: on ? color : "transparent", color: on ? "#0B1322" : color === GOLD ? CREAM : color, border: `1px solid ${on ? color : EDGE}`, borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", minHeight: 34 }}>
-        {label} <span style={{ opacity: on ? 0.8 : 0.6, fontWeight: 900 }}>{n}</span>
+  const fold = (key: FoldKey, label: string, list: Idea[], color = GOLD, hint?: string) => (
+    <section key={key} style={{ marginBottom: 14 }}>
+      <button onClick={() => toggle(key)}
+        className="flex items-center gap-2"
+        style={{ background: "transparent", border: "none", color: list.length ? CREAM : MUTED, cursor: "pointer", padding: "6px 0", fontFamily: "'League Spartan', sans-serif", fontWeight: 800, fontSize: 14, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+        <span style={{ color: MUTED, fontSize: 12, width: 12 }}>{folds[key] ? "▾" : "▸"}</span>
+        <span style={{ color }}>{label}</span>
+        <span style={{ color: MUTED, fontWeight: 700, fontSize: 12 }}>{list.length}</span>
+        {hint && <span style={{ color: MUTED, fontWeight: 400, fontSize: 11, letterSpacing: 0, textTransform: "none" }}>— {hint}</span>}
       </button>
-    );
-  };
+      {folds[key] && (
+        list.length === 0
+          ? <div style={{ color: MUTED, fontSize: 12.5, padding: "2px 0 6px 20px" }}>nothing here</div>
+          : <div className="flex flex-col" style={{ gap: 4, maxWidth: 1040 }}>
+              {list.map((i) => (
+                <Row key={i.id} idea={i} expanded={open === i.id}
+                  onToggle={() => setOpen(open === i.id ? null : i.id)} onPatch={(p) => patch(i, p)} onChanged={refresh} />
+              ))}
+            </div>
+      )}
+    </section>
+  );
 
   return (
     <div style={{ minHeight: "100vh", background: BG, color: CREAM, fontFamily: "'Rubik', system-ui, sans-serif", padding: "16px clamp(12px, 4vw, 26px) 90px" }}>
-      <header className="flex items-center gap-3" style={{ marginBottom: 14, flexWrap: "wrap" }}>
+      <header className="flex items-center gap-3" style={{ marginBottom: 18, flexWrap: "wrap" }}>
         <h1 style={{ fontFamily: "'League Spartan', sans-serif", fontWeight: 800, fontSize: 21, letterSpacing: "0.06em", textTransform: "uppercase", margin: 0 }}>
           ⚡ Idea Bank
         </h1>
-        <span style={{ fontSize: 12, color: MUTED }}>{live.length} live · Ctrl/⌘ I captures from any page · AI titles, sums up and files each one</span>
+        <span style={{ fontSize: 12, color: MUTED }}>Ctrl/⌘ I captures from any page · AI titles, sums up and files each one</span>
         <button onClick={() => setUploading(true)} className="ml-auto"
           style={{ background: "transparent", color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 10, padding: "7px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
           ↑ Upload a prompt
@@ -149,49 +144,18 @@ function Ideas() {
 
       {err && <div style={{ color: "#F87171", fontSize: 13, marginBottom: 12 }}>{err}</div>}
 
-      {/* THE PILLS — All, then each category with its count. Urgent, to-dos
-          and drafts sit apart. Click a lit pill to go back to All. */}
-      <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-        {pillBtn("ALL", "All", live.filter((i) => !isTodoIdea(i)).length)}
-        {CATEGORIES.map((c) => pillBtn(c, CATEGORY_LABEL[c], counts[c] ?? 0))}
-        <span style={{ width: 1, height: 22, background: EDGE, margin: "0 4px" }} />
-        {pillBtn("URGENT", "🔥 Urgent", urgentCount, URGENT)}
-        {pillBtn("DRAFTS", "✎ Drafts", draftCount, "#7DD3FC")}
-        {pillBtn("TODO", "☐ To-dos", todoCount, "#3BF5A0")}
-      </div>
-      <div className="flex items-center" style={{ gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        <Select value={status ?? ""} onChange={(v) => setStatus((v || null) as Status | null)}
-          options={[["", "All statuses (parked hidden)"], ...STATUSES.map((s) => [s, s] as [string, string])]} />
-        <Select value={sort} onChange={(v) => setSort(v as SortKey)}
-          options={[["priority", "Urgent · priority · newest"], ["date", "Newest"], ["category", "By category"], ["status", "By status"]]} />
-        <span style={{ fontSize: 11.5, color: MUTED }}>{shown.length} shown</span>
-      </div>
+      {ideas.length === 0 && <div style={{ color: MUTED, fontSize: 13 }}>Nothing here yet. Press Ctrl/⌘ I on any page, or upload a prompt you already wrote.</div>}
 
-      {shown.length === 0 ? (
-        <div style={{ color: MUTED, fontSize: 13 }}>
-          {ideas.length === 0 ? "Nothing here yet. Press Ctrl/⌘ I on any page, or upload a prompt you already wrote." : "Nothing on this pill."}
-        </div>
-      ) : (
-        <div className="flex flex-col" style={{ gap: 6, maxWidth: 1040 }}>
-          {shown.map((i) => (
-            <Row key={i.id} idea={i} expanded={open === i.id}
-              onToggle={() => setOpen(open === i.id ? null : i.id)} onPatch={(p) => patch(i, p)} onChanged={refresh} />
-          ))}
-        </div>
-      )}
+      {fold("urgent", "🔥 Urgent", sections.urgent, URGENT)}
+      {fold("drafts", "✎ Drafts", sections.drafts, "#7DD3FC", "words not finished — Ctrl+I to continue one")}
+      {fold("open", "Open", sections.open, GOLD, "in order — urgent first, then Prioritize's order, then newest")}
+      {fold("todos", "☐ To-dos", sections.todos, "#3BF5A0", "Terry's list — in Obsidian too")}
+      {fold("reviewed", "Reviewed", sections.reviewed, MUTED, "shipped and checked — archive when done with them")}
+      {fold("archived", "Archived", sections.archived, MUTED, "parked, never deleted — reopen any time")}
 
       {uploading && <UploadPrompt onClose={() => setUploading(false)} onSaved={refresh} />}
       {prio && <Prioritize ideas={ideas} onClose={() => setPrio(false)} onSaveOrder={saveOrder} />}
     </div>
-  );
-}
-
-function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: [string, string][] }) {
-  return (
-    <select value={value} onChange={(e) => onChange(e.target.value)}
-      style={{ background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 14, padding: "7px 10px", outline: "none", minHeight: 38 }}>
-      {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-    </select>
   );
 }
 
@@ -206,6 +170,8 @@ function Row({ idea, expanded, onToggle, onPatch, onChanged }: {
   const urgent = isUrgent(idea);
   const draft = isDraft(idea);
   const todo = isTodoIdea(idea);
+  const reviewed = idea.status === "APPROVED";
+  const archived = idea.status === "PARKED";
   const tldr = tldrOf(idea);
   const summary = summaryOf(idea);
   // THE PROMPT BOX — just the ## Prompt section when the draft has sections
@@ -239,47 +205,52 @@ function Row({ idea, expanded, onToggle, onPatch, onChanged }: {
     void onPatch({ promptMd: replacePromptSection(md, promptEdit), status: idea.status === "IDEA" ? "DRAFTED" : idea.status });
   };
 
-  const chip = (text: string, color: string) => (
-    <span style={{ fontSize: 9.5, fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase", color, border: `1px solid ${color}66`, borderRadius: 5, padding: "1px 6px", marginRight: 6, verticalAlign: "middle" }}>{text}</span>
-  );
+  const tiny = (on: boolean, color: string): React.CSSProperties => ({
+    background: on ? color : "transparent", color: on ? "#0B1322" : color, border: `1px solid ${color}88`,
+    borderRadius: 999, padding: "1px 8px", fontSize: 10, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
+  });
 
   return (
-    <div className="rounded-xl" style={{ background: PANEL, border: `1px solid ${urgent ? URGENT + "88" : expanded ? GOLD + "55" : EDGE}` }}>
-      <div className="flex items-center gap-3" style={{ padding: "10px 14px", cursor: "pointer" }} onClick={onToggle}>
-        <span style={{ color: urgent ? URGENT : GOLD, fontSize: 15 }}>{urgent ? "🔥" : todo ? "☐" : "⚡"}</span>
-        <div className="min-w-0" style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {urgent && chip("urgent", URGENT)}{draft && chip("draft", "#7DD3FC")}{idea.context?.urgentSuggested === "1" && !urgent && chip("AI: looks urgent", URGENT)}
-            {idea.title || "(untitled — organising…)"}
-          </div>
-          {tldr && <div style={{ fontSize: 12.5, color: CREAM, opacity: 0.8, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tldr}</div>}
-          <div style={{ fontSize: 11, color: MUTED, marginTop: 3 }}>
+    <div className="rounded-xl" style={{ background: PANEL, border: `1px solid ${urgent ? URGENT + "88" : expanded ? GOLD + "55" : EDGE}`, opacity: archived ? 0.6 : 1 }}>
+      {/* THE TITLE LINE — the only thing shown until it is clicked. */}
+      <div className="flex items-center gap-3" style={{ padding: "8px 12px" }}>
+        <span onClick={onToggle} style={{ color: urgent ? URGENT : GOLD, fontSize: 14, cursor: "pointer" }}>{urgent ? "🔥" : todo ? "☐" : draft ? "✎" : "⚡"}</span>
+        <div onClick={onToggle} className="min-w-0" style={{ flex: 1, cursor: "pointer", fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: reviewed ? "line-through" : "none", color: reviewed ? MUTED : CREAM }}>
+          {idea.title || "(untitled — organising…)"}
+          {idea.status === "SUBMITTED" && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#7DD3FC" }}>SENT</span>}
+          {idea.createdBy.toLowerCase() === "king" && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: MUTED }}>KING</span>}
+        </div>
+        {/* quick actions: sent · reviewed · archive — the same three states
+            the Obsidian checklist writes */}
+        {!archived && !todo && (
+          <button title={idea.status === "SUBMITTED" ? "Sent to Claude Code — click to un-send" : "Mark sent to Claude Code"} style={tiny(idea.status === "SUBMITTED", "#7DD3FC")}
+            onClick={() => void onPatch({ status: idea.status === "SUBMITTED" ? "DRAFTED" : "SUBMITTED" })}>sent</button>
+        )}
+        {!archived && (
+          <button title={reviewed ? "Reviewed — click to reopen" : "Mark reviewed: shipped and checked (strikethrough)"} style={tiny(reviewed, "#3BF5A0")}
+            onClick={() => void onPatch({ status: reviewed ? "DRAFTED" : "APPROVED" })}>✓ reviewed</button>
+        )}
+        <button title={archived ? "Reopen — back to the list" : "Archive — parked, never deleted"} style={tiny(false, MUTED)}
+          onClick={() => void onPatch({ status: archived ? "DRAFTED" : "PARKED" })}>{archived ? "reopen" : "archive"}</button>
+        <span onClick={onToggle} style={{ color: MUTED, fontSize: 12, cursor: "pointer" }}>{expanded ? "▾" : "▸"}</span>
+      </div>
+
+      {expanded && (
+        <div style={{ padding: "0 14px 14px", borderTop: `1px solid ${EDGE}` }}>
+          {tldr && <div style={{ fontSize: 13, color: CREAM, opacity: 0.85, marginTop: 12 }}>{tldr}</div>}
+          {summary && <div style={{ fontSize: 13, lineHeight: 1.55, color: CREAM, marginTop: 8 }}>{summary}</div>}
+          <div style={{ fontSize: 11, color: MUTED, marginTop: 8 }}>
             <span style={{ color: STATUS_COLOR[idea.status], fontWeight: 700 }}>{idea.status.toLowerCase()}</span>
             {" "}{SOURCE_ICON[idea.sourceKind]}
             {idea.createdBy ? ` · ${idea.createdBy}` : ""}
             {idea.categories.length ? ` · ${idea.categories.map((c) => CATEGORY_LABEL[c]).join(", ")}` : " · uncategorised"}
             {idea.subcategory ? ` · ${idea.subcategory}` : ""}
-            {idea.promptMd ? " · prompt ✓" : ""}
             {priorityOf(idea) ? ` · #${Math.round(priorityOf(idea) / 10)}` : ""}
             {" · "}{new Date(idea.createdAt).toLocaleDateString()}
+            {idea.context?.session && <> · Project: <span style={{ color: CREAM }}>{idea.context.session}</span></>}
+            {idea.context?.page && <> · Page: <span style={{ color: CREAM }}>{idea.context.page}</span></>}
           </div>
-        </div>
-        <span style={{ color: MUTED, fontSize: 12 }}>{expanded ? "▾" : "▸"}</span>
-      </div>
 
-      {expanded && (
-        <div style={{ padding: "0 14px 14px", borderTop: `1px solid ${EDGE}` }}>
-          {summary && <div style={{ fontSize: 13, lineHeight: 1.55, color: CREAM, margin: "12px 0 0" }}>{summary}</div>}
-          {(idea.context?.session || idea.context?.page) && (
-            <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>
-              {idea.context?.session && <>Project: <span style={{ color: CREAM }}>{idea.context.session}</span></>}
-              {idea.context?.page && <> · Page: <span style={{ color: CREAM }}>{idea.context.page}</span></>}
-              {idea.context?.worktree && <> · <span title="the git worktree behind that project">{idea.context.worktree}</span></>}
-            </div>
-          )}
-
-          {/* IN THEIR WORDS — the transcript, folded. It is the source of truth
-              but not the thing to read every time. */}
           {idea.body && (
             <details style={{ marginTop: 10 }}>
               <summary style={{ fontSize: 11.5, color: MUTED, cursor: "pointer" }}>In their words ({idea.body.split(/\s+/).length} words)</summary>
@@ -299,7 +270,6 @@ function Row({ idea, expanded, onToggle, onPatch, onChanged }: {
                 }}>{s}</button>
             ))}
             <span style={{ width: 1, height: 18, background: EDGE, margin: "0 4px" }} />
-            {/* URGENT — pinned to the top, and Lee gets a text. */}
             <button
               onClick={() => run("urgent", async () => {
                 const r = await setUrgent({ data: { id: idea.id, urgent: !urgent } });
@@ -323,8 +293,6 @@ function Row({ idea, expanded, onToggle, onPatch, onChanged }: {
             })}
           </div>
 
-          {/* THE PROMPT — what gets pasted into Claude Code. Editable; leaving
-              the box saves it. Below it, the tools. */}
           {!todo && (
             <div style={{ marginTop: 14 }}>
               <div className="flex items-center" style={{ gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
@@ -414,7 +382,6 @@ function Prioritize({ ideas, onClose, onSaveOrder }: { ideas: Idea[]; onClose: (
   const [order, setOrder] = useState<Idea[] | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  // Start from the recommendation; without one, the current bank order.
   const list = order ?? (rec ? rec.items.map((r) => r.idea) : rankIdeas(ideas.filter((i) => (i.status === "IDEA" || i.status === "DRAFTED") && !isTodoIdea(i))).slice(0, 12));
   const why = new Map((rec?.items ?? []).map((r) => [r.idea.id, r.why]));
 
@@ -475,7 +442,7 @@ function Prioritize({ ideas, onClose, onSaveOrder }: { ideas: Idea[]; onClose: (
             </div>
           )}
           <div className="flex items-center" style={{ marginTop: 14, gap: 10 }}>
-            <span style={{ fontSize: 11, color: MUTED }}>Saving writes the order onto each idea — the bank and Obsidian's index follow it.</span>
+            <span style={{ fontSize: 11, color: MUTED }}>Saving writes the order onto each idea — the bank and Obsidian's list follow it.</span>
             <button onClick={() => { setSaving(true); onSaveOrder(list).then(onClose).finally(() => setSaving(false)); }} disabled={saving || !list.length} className="ml-auto"
               style={{ background: GOLD, color: "#0B1322", border: "none", borderRadius: 10, padding: "8px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
               {saving ? "Saving…" : "Save this order"}
@@ -499,10 +466,8 @@ const Choice = ({ on, onClick, children }: { on: boolean; onClick: () => void; c
 
 // ------------------------------------------------------- upload a prompt
 
-/** UPLOAD A PROMPT written elsewhere. Lee (2026-09-03): "let me upload a
- *  prompt and it saves automatically … generate a good title, TLDR and
- *  summary of it, put it in the correct category." So: pick the file, it
- *  saves as DRAFTED at once, and AI names and files it in the background. */
+/** UPLOAD A PROMPT written elsewhere: pick the file, it saves as DRAFTED at
+ *  once, and AI names and files it in the background. */
 function UploadPrompt({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -519,7 +484,7 @@ function UploadPrompt({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         body: "",
         categories: [],
         subcategory: "",
-        status: "DRAFTED",              // the prompt exists — that IS drafted
+        status: "DRAFTED",
         sourcePath: "/admin/ideas",
         context: { title: "Uploaded prompt" },
         promptMd: text,
