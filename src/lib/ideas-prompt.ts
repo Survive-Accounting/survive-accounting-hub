@@ -25,7 +25,32 @@ export const IDEA_PROMPT_SECTIONS = ["## TLDR", "## Summary", "## Prompt", "## T
 /** ORGANISE ON SAVE (Lee, 2026-09-03: "It's AI's job to get it organized and
  *  categorized and triaged"). One micro call titles, TLDRs, summarises and
  *  categorises a raw capture so the vault is clean without anyone thinking. */
-export const IDEA_CATEGORY_KEYS = ["AUTHORING", "FILMING", "PUBLISHING", "MARKETING", "CUSTOMER_SUCCESS", "UI_UX", "INFRASTRUCTURE"] as const;
+export const IDEA_CATEGORY_KEYS = ["AUTHORING", "STUDENT_SIDE", "FILMING", "PUBLISHING", "MARKETING", "CUSTOMER_SUCCESS", "UI_UX", "INFRASTRUCTURE"] as const;
+
+/** SPLIT INTO PHASES (Lee, 2026-09-03): "Lee wants the full submission to
+ *  optionally split into phased prompts Claude Code can ask about."
+ *
+ *  This does NOT split anything. It prepends an instruction so the session that
+ *  picks the prompt up asks Lee how he wants to take it. Splitting for real
+ *  would mean guessing where the seams are, and a wrong guess ships half a
+ *  feature — the person who can see the seams is the one being asked. */
+export const PHASED_MARKER = "> **Claude Code:";
+
+export const PHASED_PREAMBLE = [
+  "> **Claude Code: ask Lee if he wants all phases at once or one at a time.**",
+  ">",
+  "> Before writing any code, read the prompt below, list the phases you would build it in —",
+  "> `Phases: 1) [first feature], 2) [second feature], …` — and ask which he wants. Build all of",
+  "> them in one pass only if he says so. Do not split silently, and do not skip a phase.",
+].join("\n");
+
+/** Prepend the phase instruction, once. Re-running organise (or a redraft) must
+ *  not stack three copies of it on the same prompt. */
+export function withPhasedPreamble(md: string | null | undefined): string {
+  const body = (md ?? "").trim();
+  if (body.startsWith(PHASED_MARKER)) return body;
+  return `${PHASED_PREAMBLE}\n\n${body}`;
+}
 
 export function buildOrganizeMessages(idea: IdeaForPrompt & { existingPrompt?: string | null; intent?: string; other?: string }): { system: string; user: string } {
   const intentLine = idea.intent === "page" ? "THE AUTHOR PRESSED “IMPROVE THIS PAGE”: the idea is about the captured page; say so in the title and summary."
@@ -34,7 +59,7 @@ export function buildOrganizeMessages(idea: IdeaForPrompt & { existingPrompt?: s
     : "THE AUTHOR PRESSED “GENERAL IDEA”: it may be about anything; if the words name a category, use it.";
   const system = [
     "You tidy ONE raw idea from Survive Accounting's team (Lee, the founder; King, the VA) into a clean vault entry. The idea may be dictated, rambling, or a pasted Claude Code prompt. Keep every decision in it; drop filler.",
-    "Return ONLY a JSON object: {\"title\": str (≤ 60 chars, specific, noun phrase — what it is, not \"idea about\"), \"tldr\": str (ONE sentence: what changes for whom), \"summary\": str (2–3 sentences, plain words, Lee's intent), \"categories\": [str] (1–2 from: AUTHORING = Talk Box, exhibits, CEQs, content creation · FILMING = capture, frames, Studio · PUBLISHING = production queue, YouTube, the app · MARKETING = outreach, campaigns, campus reps, landing pages · CUSTOMER_SUCCESS = students, support, guarantees, onboarding, what a page DOES · UI_UX = how a page LOOKS · INFRASTRUCTURE = domains, inboxes, data, architecture), \"urgent\": bool (true only if the words say it blocks filming, launch, money, or a live bug for students)}",
+    "Return ONLY a JSON object: {\"title\": str (≤ 60 chars, specific, noun phrase — what it is, not \"idea about\"), \"tldr\": str (ONE sentence: what changes for whom), \"summary\": str (2–3 sentences, plain words, Lee's intent), \"categories\": [str] (1–2 from: AUTHORING = Talk Box, exhibits, CEQs — writing content AND editing what already exists · STUDENT_SIDE = what the student actually sees and does inside a lesson · FILMING = capture, frames, Studio · PUBLISHING = production queue, YouTube, the app · MARKETING = outreach, campaigns, campus reps, landing pages · CUSTOMER_SUCCESS = students, support, guarantees, onboarding, what a page DOES · UI_UX = how a page LOOKS · INFRASTRUCTURE = domains, inboxes, data, architecture), \"urgent\": bool (true only if the words say it blocks filming, launch, money, or a live bug for students)}",
   ].join("\n");
   const user = [
     `WORDS: ${idea.title}`,

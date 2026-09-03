@@ -8,7 +8,7 @@
 // all render what these return.
 
 export const CATEGORIES = [
-  "AUTHORING", "FILMING", "PUBLISHING", "MARKETING", "CUSTOMER_SUCCESS", "UI_UX", "INFRASTRUCTURE",
+  "AUTHORING", "STUDENT_SIDE", "FILMING", "PUBLISHING", "MARKETING", "CUSTOMER_SUCCESS", "UI_UX", "INFRASTRUCTURE",
 ] as const;
 export type Category = (typeof CATEGORIES)[number];
 
@@ -16,7 +16,11 @@ export type Category = (typeof CATEGORIES)[number];
  *  without a manual. The UI/UX vs CUSTOMER SUCCESS split is the one people get
  *  wrong, so both descriptions name it. */
 export const CATEGORY_LABEL: Record<Category, string> = {
-  AUTHORING: "Authoring",
+  // "Authoring/Editing" (Lee, 2026-09-03): editing an existing lesson is the
+  // same bucket as writing a new one, and calling it "Authoring" kept sending
+  // edit ideas to UI/UX.
+  AUTHORING: "Authoring / Editing",
+  STUDENT_SIDE: "Student side",
   FILMING: "Filming",
   PUBLISHING: "Publishing",
   MARKETING: "Marketing",
@@ -25,7 +29,8 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   INFRASTRUCTURE: "Infrastructure",
 };
 export const CATEGORY_HINT: Record<Category, string> = {
-  AUTHORING: "Talk Box, exhibits, CEQs, content creation",
+  AUTHORING: "Talk Box, exhibits, CEQs — writing content AND editing what exists",
+  STUDENT_SIDE: "what the student actually sees and does in a lesson",
   FILMING: "capture, frames, Studio",
   PUBLISHING: "production queue, YouTube, the app",
   MARKETING: "outreach, campaigns, campus reps, landing pages",
@@ -225,7 +230,7 @@ export const TIME_LABEL: Record<TimeBox, string> = {
 const FOCUS_CATEGORIES: Record<Focus, Category[]> = {
   filming: ["FILMING", "AUTHORING"],
   outreach: ["MARKETING"],
-  product: ["UI_UX", "PUBLISHING", "INFRASTRUCTURE"],
+  product: ["UI_UX", "STUDENT_SIDE", "PUBLISHING", "INFRASTRUCTURE"],
   launch: ["PUBLISHING", "CUSTOMER_SUCCESS", "MARKETING"],
   unblock: ["INFRASTRUCTURE", "AUTHORING", "PUBLISHING"],
 };

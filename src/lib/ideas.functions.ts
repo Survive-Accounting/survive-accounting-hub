@@ -149,7 +149,7 @@ export const organizeIdea = createServerFn({ method: "POST" })
     if (error) rethrow(error);
     const r = row as Row;
     const { runAiTask } = await import("@/lib/ai.server");
-    const { buildIdeaPromptMessages, buildOrganizeMessages, pageLabel, suggestProject } = await import("@/lib/ideas-prompt");
+    const { buildIdeaPromptMessages, buildOrganizeMessages, pageLabel, suggestProject, withPhasedPreamble } = await import("@/lib/ideas-prompt");
     const now = new Date().toISOString();
     const ctx: Record<string, string> = { ...(r.context ?? {}) };
     const isTodo = !!ctx.todo;
@@ -171,9 +171,11 @@ export const organizeIdea = createServerFn({ method: "POST" })
         if (typeof j.tldr === "string") ctx.tldr = j.tldr.trim();
         if (typeof j.summary === "string") ctx.summary = j.summary.trim();
         // CATEGORIES ARE AI'S, EVERY TIME (Lee, 2026-09-03: "let AI continuously
-        // update the tags/categories. Let it figure that out.") — the modal no
-        // longer offers chips; each organise re-decides.
-        if (Array.isArray(j.categories)) {
+        // update the tags/categories. Let it figure that out.") — each organise
+        // re-decides. THE ONE EXCEPTION: the modal's optional "File it as"
+        // picker. If a person said where it goes, AI does not overrule them —
+        // an override that gets silently reverted is worse than no override.
+        if (Array.isArray(j.categories) && ctx.authorCategory !== "1") {
           const cats = j.categories.filter((c): c is string => typeof c === "string" && (CATEGORIES as readonly string[]).includes(c)).slice(0, 2);
           if (cats.length) r.categories = cats;
         }
@@ -248,7 +250,10 @@ export const organizeIdea = createServerFn({ method: "POST" })
       });
       const ai = await runAiTask("synthesis", { system, user, maxOutput: 3500 });
       if (data.redraft && r.prompt_md?.trim()) ctx.previousPromptMd = r.prompt_md.trim();
-      r.prompt_md = ai.text.trim();
+      // SPLIT INTO PHASES — the toggle in the modal. No splitting happens here;
+      // the prompt is prefixed with the instruction to ASK Lee. Idempotent, so
+      // a redraft never stacks the preamble twice.
+      r.prompt_md = ctx.phased === "1" ? withPhasedPreamble(ai.text) : ai.text.trim();
       r.prompt_filename = r.prompt_filename || `${(r.title || "prompt").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60)}.md`;
       if (r.status === "IDEA") r.status = "DRAFTED";
       drafted = true;
@@ -351,13 +356,13 @@ export const sendIdeaSummary = createServerFn({ method: "POST" })
     let drafted = false;
     if (!r.prompt_md?.trim()) {
       const { runAiTask } = await import("@/lib/ai.server");
-      const { buildIdeaPromptMessages } = await import("@/lib/ideas-prompt");
+      const { buildIdeaPromptMessages, withPhasedPreamble } = await import("@/lib/ideas-prompt");
       const { system, user } = buildIdeaPromptMessages({
         title: r.title, body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
         sourcePath: r.source_path ?? "", pageTitle: r.context?.title ?? "",
       });
       const ai = await runAiTask("synthesis", { system, user, maxOutput: 3500 });
-      r.prompt_md = ai.text.trim();
+      r.prompt_md = r.context?.phased === "1" ? withPhasedPreamble(ai.text) : ai.text.trim();
       r.prompt_filename = r.prompt_filename || `${(r.title || "prompt").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60)}.md`;
       if (r.status === "IDEA") r.status = "DRAFTED";
       const { error: e } = await db.from("ideas").update({ prompt_md: r.prompt_md, prompt_filename: r.prompt_filename, status: r.status, updated_at: now }).eq("id", r.id);
