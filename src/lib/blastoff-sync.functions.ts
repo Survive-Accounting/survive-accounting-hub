@@ -47,6 +47,8 @@ const frameIn = z.object({
   body: z.string().max(4000).optional(),
   exhibitRef: z.string().max(60).optional(),
   bankItemId: z.string().max(130).optional(),
+  skipped: z.boolean().optional(),
+  prompter: z.array(z.string().max(600)).max(40).optional(),
 });
 type FrameIn = z.infer<typeof frameIn>;
 

@@ -24,7 +24,7 @@ import { SurviveBio } from "./SurviveBio";
 import { SurviveIntro } from "./SurviveIntro";
 import { SurviveOutro } from "./SurviveOutro";
 import {
-  FRAME_LABEL, INSERT_CALLOUT, INSERT_KINDS, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, reconcilePlan, removeFrame,
+  FRAME_LABEL, INSERT_CALLOUT, INSERT_KINDS, filmFrames, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, reconcilePlan, removeFrame,
   type BlastFrame, type BlastFrameKind, type BlastPlan,
 } from "./plan";
 import { BankPicker } from "./BankPicker";
@@ -52,14 +52,29 @@ export function usePlan(set: BoothSetInfo) {
     return () => { live = false; };
   }, [set.id, set.ceqs]);
 
-  const commit = useCallback((frames: BlastFrame[]) => {
-    setPlan({ frames, updatedAt: new Date().toISOString() });
-    dirty.current = true;
-    setSaving("saving…");
+  // DEBOUNCED SAVE (2026-09-03, the review deck types into frames): the
+  // screen updates on every keystroke; the server gets the plan once the
+  // typing pauses. Whatever is pending is flushed when the screen unmounts.
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingFrames = useRef<BlastFrame[] | null>(null);
+  const flush = useCallback(() => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    const frames = pendingFrames.current;
+    if (!frames) return;
+    pendingFrames.current = null;
     saveBlastPlan({ data: { setId: set.id, frames } })
       .then(() => setSaving("saved"))
       .catch((e) => setSaving(`⚠ ${e instanceof Error ? e.message : String(e)}`));
   }, [set.id]);
+  const commit = useCallback((frames: BlastFrame[]) => {
+    setPlan({ frames, updatedAt: new Date().toISOString() });
+    dirty.current = true;
+    setSaving("saving…");
+    pendingFrames.current = frames;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(flush, 500);
+  }, [flush]);
+  useEffect(() => () => { if (pendingFrames.current) flush(); }, [flush]);
 
   return { plan, commit, saving };
 }
@@ -101,7 +116,7 @@ export function BlastOffEditor({ set, topicName, onCapture }: { set: BoothSetInf
             disabled={busy}
             onClick={() => {
               setBusy(true); setSyncNote("Writing frames into the set…");
-              syncBlastPlanToSet({ data: { setId: set.id, frames: plan.frames } })
+              syncBlastPlanToSet({ data: { setId: set.id, frames: filmFrames(plan.frames) } })
                 .then((r) => {
                   setSyncNote(`✓ ${r.reordered + r.wrote} frames ordered${r.staged ? ` · ${r.staged} exhibit${r.staged > 1 ? "s" : ""} staged` : ""}${r.missing ? ` · ${r.missing} missing` : ""} — opening film`);
                   openFilmMode(set.id);
@@ -301,8 +316,12 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   // offsets, same gold as the canvas. Session-scoped, so marks survive walking
   // between frames within a rip and die only on ` or leaving capture.
   const { api: hlApi, clearAll: clearAllTextHls } = useTextHighlights();
+  // THE PROMPTER (2026-09-03): the lines Lee kept on the review deck, beside
+  // the slide they belong to. P hides and shows it.
+  const [prompter, setPrompter] = useState(true);
 
-  const frames = plan?.frames ?? [];
+  // Skipped cards never reach a take.
+  const frames = filmFrames(plan?.frames ?? []);
   const n = frames.length;
 
   useEffect(() => {
@@ -320,6 +339,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
       else if (e.code === "Backquote" || e.key === "`") { e.preventDefault(); clearAllTextHls(); }
       else if (e.key === "Escape") { e.preventDefault(); onExit(); }
       else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
+      else if (e.key.toLowerCase() === "p") { e.preventDefault(); setPrompter((v) => !v); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -352,7 +372,19 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
         }}>
           <span style={{ color: GOLD, fontWeight: 800 }}>{i + 1} / {n}</span>
           <span>{FRAME_LABEL[frame.kind]}</span>
-          <span>space next · shift+space back · ` resets · H hide this · esc exit</span>
+          <span>space next · shift+space back · ` resets · H hide this · P prompter · esc exit</span>
+        </div>
+      )}
+      {prompter && (frame.prompter?.length ?? 0) > 0 && (
+        <div style={{
+          position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", width: 300, maxHeight: "80vh", overflowY: "auto",
+          background: "rgba(7,11,20,0.88)", border: `1px solid ${EDGE}`, borderRadius: 12, padding: "10px 14px",
+          fontFamily: "'Rubik', system-ui, sans-serif", color: CREAM,
+        }}>
+          <div style={{ fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 6 }}>Prompter</div>
+          {frame.prompter!.map((line, k) => (
+            <div key={k} style={{ fontSize: 17, lineHeight: 1.35, fontWeight: 600, padding: "5px 0", borderTop: k ? `1px solid ${EDGE}` : "none" }}>{line}</div>
+          ))}
         </div>
       )}
     </div>

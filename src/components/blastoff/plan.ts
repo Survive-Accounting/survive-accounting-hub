@@ -42,6 +42,17 @@ export interface BlastFrame {
   exhibitRef?: string;
   /** Talkthrough bank item this came from, when picked rather than typed. */
   bankItemId?: string;
+  /** THE REVIEW STEP (Lee, 2026-09-03: "quickly remove a CEQ slide"). A card
+   *  the set owns cannot leave the plan — reconcile would put it straight
+   *  back — so removing it here SKIPS it: it stays in the list, greyed, and
+   *  film mode walks past it. Un-skip to film it again. Inserts are simply
+   *  removed. */
+  skipped?: boolean;
+  /** THE TELEPROMPTER COLUMN (Lee, 2026-09-03: "a third slide to the right
+   *  of the current one … the teleprompter … THESE SUGGESTED PHRASES ARE
+   *  ME"). The lines Lee kept for this slide — his own transcript words,
+   *  proofread — shown beside the slide in film mode. */
+  prompter?: string[];
 }
 
 export interface BlastPlan {
@@ -187,6 +198,41 @@ export function insertFrame(frames: readonly BlastFrame[], frame: BlastFrame, af
 export const removeFrame = (frames: readonly BlastFrame[], id: string): BlastFrame[] =>
   frames.filter((f) => (f.id === id ? !isInsert(f.kind) : true));
 
+// ---- THE REVIEW STEP's verbs (2026-09-03) ----------------------------------
+
+/** "Remove" as Lee means it: an insert goes; a card the set owns is SKIPPED
+ *  (kept in the list, greyed, not filmed). The spine — intro, bio, outro —
+ *  can be skipped too: a rip that opens on a cheat code is his call. */
+export function dropFrame(frames: readonly BlastFrame[], id: string): BlastFrame[] {
+  const f = frames.find((x) => x.id === id);
+  if (!f) return [...frames];
+  if (isInsert(f.kind)) return removeFrame(frames, id);
+  return frames.map((x) => (x.id === id ? { ...x, skipped: true } : x));
+}
+
+/** Skip ↔ film again. */
+export const toggleSkip = (frames: readonly BlastFrame[], id: string): BlastFrame[] =>
+  frames.map((x) => (x.id === id ? { ...x, skipped: !x.skipped } : x));
+
+/** A copy right after the original, with its own id. A duplicated CEQ frame
+ *  films the same card twice (a callback, a recap) — the set is untouched. */
+export function duplicateFrame(frames: readonly BlastFrame[], id: string): BlastFrame[] {
+  const i = frames.findIndex((x) => x.id === id);
+  if (i < 0) return [...frames];
+  const src = frames[i];
+  const copy: BlastFrame = { ...src, id: newFrameId(src.kind), prompter: src.prompter ? [...src.prompter] : undefined };
+  return insertFrame(frames, copy, i);
+}
+
+/** What actually films: every frame that is not skipped. Capture, the
+ *  question counter and the send-to-film handoff all read THIS, never the
+ *  raw list, so a skipped card can never sneak into a take. */
+export const filmFrames = (frames: readonly BlastFrame[]): BlastFrame[] => frames.filter((f) => !f.skipped);
+
+/** Write one frame's fields; the rest of the plan is untouched. */
+export const patchFrame = (frames: readonly BlastFrame[], id: string, patch: Partial<BlastFrame>): BlastFrame[] =>
+  frames.map((x) => (x.id === id ? { ...x, ...patch } : x));
+
 /** THE DETOUR CARD'S WORDS. An insert films as a dark card between the bright
  *  CEQ cards, and the thing that makes it read at short-form speed is ONE
  *  highlighted key phrase: a cheat code's rule, a phrase itself. Lee's own
@@ -206,4 +252,4 @@ export function insertStem(f: BlastFrame): string {
 }
 
 /** How many real takes this plan is — what Lee is about to talk through. */
-export const frameCount = (plan: BlastPlan): number => plan.frames.length;
+export const frameCount = (plan: BlastPlan): number => filmFrames(plan.frames).length;

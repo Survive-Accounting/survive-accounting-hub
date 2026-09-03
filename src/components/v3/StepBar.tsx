@@ -14,7 +14,9 @@ import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "./Shell";
 
 export const STEPS: readonly { step: BlastOffStep; n: number; label: string; blurb: string }[] = [
   { step: "talkthrough", n: 1, label: "Talkthrough", blurb: "Talk through the set — or an exhibit — and stamp out ideas." },
-  { step: "results", n: 2, label: "Generate results", blurb: "The AI pass digests what you said: script, ideas, exhibit prompts, CEQ edits." },
+  // Lee (2026-09-03): "Review is seeing the filming draft as it stands …
+  // getting it SOLID before I do the film run." The AI board folds under it.
+  { step: "results", n: 2, label: "Review", blurb: "The film draft: see the slides, edit, add, skip, rearrange — your own words beside each one. The AI board folds underneath." },
   { step: "arrange", n: 3, label: "Send to filming", blurb: "Arrange the running order, drop in what you banked, send it to film." },
 ];
 

@@ -123,6 +123,42 @@ screen; it is the route that is wrong, not the design).
   production is fast.
 - **Filming** — capture.
 
+### Update — 2026-09-03: Step 2 is REVIEW, and it is the film draft
+
+Lee: *"Talkthrough is just talking. Review is seeing the filming draft as it
+stands and adding new slides, editing current ones, removing, rearranging —
+just getting it SOLID before I do the film run."* Built by hand in this
+session (the build queue judged it too big — see docs/TWO-MACHINES.md).
+
+`/v3/$topic/$set/blast-off/results` now mounts `components/blastoff/ReviewDeck.tsx`:
+
+- **Left — the film draft.** The Blast Off plan (`deck.blastOff`, the same
+  frames film mode walks). Drag a row to reorder (arrows too). ＋ Memorize
+  this / Cheat code / Deeper idea / Exhibit / Blank insert after the selected
+  slide. Duplicate copies a slide right after itself. ✕ removes an insert;
+  on a card the set owns it SKIPS the card (`frame.skipped`) — greyed and
+  struck through in the list, absent from film mode and from the
+  send-to-film handoff, one click to film it again. The set is never edited
+  by the plan.
+- **Middle — the slide.** Drawn by the canvas's own card at readable size.
+  Underneath: the fields for that kind (rule + body for a cheat code, the
+  phrase, the idea, the intro topic line, the outro tagline). For a CEQ:
+  stem, choices (tick the correct one), feedback — **before and after** side
+  by side while dirty, **✓ Save to bank** through `applyCeqEdit`, the door
+  the review board already used. The card that films IS the bank card.
+- **Right — the teleprompter.** `frame.prompter`: the lines Lee kept for this
+  slide. Candidates are HIS words — segments captured while that CEQ was
+  focused, or inside a stamp context of the slide's kind, or the bank item
+  the slide came from (`components/blastoff/prompter.ts`, pure, tested). Click
+  to keep; edit, reorder, drop. **✨ Proofread with AI** tightens them (Lee's
+  law: never invents) and may add ONE marked suggestion. Film mode shows the
+  slide's lines in a side panel (P toggles it).
+- **The AI board** (transcript, script, CEQ edits, ideas) folds underneath.
+  Every idea card gained **＋ slide**: it lands on the draft after the selected
+  slide, as the kind its stamp maps to, with the item's text and `bankItemId`.
+- Saves are debounced 500 ms in `usePlan` and flushed on unmount; the arrange
+  step shares the hook and benefits.
+
 ---
 
 ## Lee's open requests, in his priority order

@@ -26,6 +26,10 @@ const frameSchema = z.object({
   body: z.string().max(4000).optional(),
   exhibitRef: z.string().max(60).optional(),
   bankItemId: z.string().max(130).optional(),
+  // THE REVIEW STEP (2026-09-03): a skipped card, and the teleprompter lines
+  // Lee kept for the slide. Additive; old plans have neither.
+  skipped: z.boolean().optional(),
+  prompter: z.array(z.string().max(600)).max(40).optional(),
 });
 
 export type BlastFrameRow = z.infer<typeof frameSchema>;

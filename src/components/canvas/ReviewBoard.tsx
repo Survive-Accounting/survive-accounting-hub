@@ -92,13 +92,16 @@ export function PreFlight({ doc, session, onGo, onCancel }: {
 
 // ───────────────────────────────────────────────────── shared item chrome
 
-function ItemShell({ item, children, onRegen, printable, film }: {
+function ItemShell({ item, children, onRegen, printable, film, onAddSlide }: {
   item: BoardItem; children: React.ReactNode;
   onRegen?: (comment: string) => Promise<void>;
   printable?: boolean;
   /** B5 — when set, the 🎬 INCLUDE-IN-VIDEO toggle targets this set. */
   film?: { doc: TTDoc; setId: string };
+  /** THE REVIEW DECK (2026-09-03): "＋ slide" drops this idea onto the film draft. */
+  onAddSlide?: () => void;
 }) {
+  const [slid, setSlid] = useState(false);
   const [comment, setComment] = useState(item.comment);
   const [busy, setBusy] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -164,6 +167,14 @@ function ItemShell({ item, children, onRegen, printable, film }: {
             onClick={() => setStatus("approved")}>
             {item.status === "approved" ? "✓ approved" : "approve"}
           </button>
+          {onAddSlide && (
+            <button className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+              title={slid ? "On the film draft — it's a slide now (added again if you click again)" : "Add this to the film draft as a slide, after the selected one"}
+              style={slid ? { background: GOLD, color: "#0B1322" } : { border: `1px solid ${GOLD}`, color: GOLD }}
+              onClick={() => { onAddSlide(); setSlid(true); }}>
+              {slid ? "✓ slide added" : "＋ slide"}
+            </button>
+          )}
           {/* → QUEUE (Lee, 2026-09-02): push an idea to the production queue
               on /v3 — status "in production", the bank's own lifecycle step. */}
           <button className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
@@ -402,11 +413,14 @@ function CeqEditCard({ item, ceq, onRegen }: { item: BoardItem; ceq: PassCeq | n
   );
 }
 
-function IdeaCard({ item, onRegen, film }: { item: BoardItem; onRegen: (c: string) => Promise<void>; film?: { doc: TTDoc; setId: string } }) {
+function IdeaCard({ item, onRegen, film, onAddSlide }: {
+  item: BoardItem; onRegen: (c: string) => Promise<void>; film?: { doc: TTDoc; setId: string };
+  onAddSlide?: (kind: string, text: string, itemId: string) => void;
+}) {
   const p = item.payload as { kind?: string; body?: string; origin?: string; visualKind?: string };
   const ai = p.origin === "ai";
   return (
-    <ItemShell item={item} onRegen={onRegen} film={film}>
+    <ItemShell item={item} onRegen={onRegen} film={film} onAddSlide={onAddSlide ? () => onAddSlide(p.kind ?? "idea", p.body ?? item.title, item.id) : undefined}>
       {/* WHO IT CAME FROM (Lee, 2026-09-03): a person for his stamps, the AI
           mark for the model's own suggestions — "some way to know who it came from". */}
       <span title={ai ? "AI suggested — not from a stamp" : "From your stamp, cleaned up"} style={{ marginRight: 6, fontSize: 12 }}>{ai ? "✨" : "🧑‍🏫"}</span>
@@ -434,12 +448,14 @@ function VibePlanCard({ item, onRegen }: { item: BoardItem; onRegen: (c: string)
 
 // ───────────────────────────────────────────────────────────── the board
 
-export function ReviewBoardV2({ items, ceqs, onRegen, film }: {
+export function ReviewBoardV2({ items, ceqs, onRegen, film, onAddSlide }: {
   items: BoardItem[];
   ceqs: PassCeq[];
   onRegen: (itemId: string, comment: string) => Promise<void>;
   /** B5 — enables the 🎬 pick toggle, targeting this set. */
   film?: { doc: TTDoc; setId: string };
+  /** THE REVIEW DECK (2026-09-03): idea cards get "＋ slide". */
+  onAddSlide?: (kind: string, text: string, itemId: string) => void;
 }) {
   const script = items.filter((b) => b.kind === "script");
   const edits = items.filter((b) => b.kind === "ceq_edit");
@@ -474,7 +490,7 @@ export function ReviewBoardV2({ items, ceqs, onRegen, film }: {
       {[...byKind.entries()].map(([k, list]) => (
         <div key={k} className="mb-4">
           <h3 style={{ fontSize: 11, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", marginBottom: 6 }}>{stampLabel(k)}s</h3>
-          {list.map((b) => <IdeaCard key={b.id} item={b} onRegen={regen(b.id)} film={film} />)}
+          {list.map((b) => <IdeaCard key={b.id} item={b} onRegen={regen(b.id)} film={film} onAddSlide={onAddSlide} />)}
         </div>
       ))}
       {aiIdeas.length > 0 && (
@@ -483,7 +499,7 @@ export function ReviewBoardV2({ items, ceqs, onRegen, film }: {
             ✨ AI suggested ({aiIdeas.length}) — not from a stamp; take them or leave them
           </summary>
           <div style={{ marginTop: 8 }}>
-            {aiIdeas.map((b) => <IdeaCard key={b.id} item={b} onRegen={regen(b.id)} film={film} />)}
+            {aiIdeas.map((b) => <IdeaCard key={b.id} item={b} onRegen={regen(b.id)} film={film} onAddSlide={onAddSlide} />)}
           </div>
         </details>
       )}

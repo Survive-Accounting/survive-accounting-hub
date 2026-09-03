@@ -242,3 +242,50 @@ describe("inserts", () => {
     expect(INSERT_CALLOUT.blank).toBeUndefined();
   });
 });
+
+// ---- THE REVIEW STEP's verbs (2026-09-03) ----------------------------------
+import { dropFrame, duplicateFrame, filmFrames, frameCount, patchFrame, toggleSkip } from "./plan";
+
+describe("the review step: skip, duplicate, patch — the set is never touched", () => {
+  const ceqs: PlanCeq[] = [{ id: "c1", label: "Q1", stem: "one" }, { id: "c2", label: "Q2", stem: "two" }];
+  const plan = generatePlan(ceqs, new Date("2026-09-03T00:00:00Z"));
+  const ceqFrame = plan.frames.find((f) => f.kind === "ceq" && f.ceqId === "c1")!;
+
+  test("dropping a card the set owns SKIPS it: it stays in the list, leaves the film, and reconcile does not resurrect it as a second copy", () => {
+    const next = dropFrame(plan.frames, ceqFrame.id);
+    expect(next.length).toBe(plan.frames.length);
+    expect(next.find((f) => f.id === ceqFrame.id)?.skipped).toBe(true);
+    expect(filmFrames(next).some((f) => f.ceqId === "c1")).toBe(false);
+    const again = reconcilePlan({ frames: next, updatedAt: plan.updatedAt }, ceqs);
+    expect(again.frames.filter((f) => f.ceqId === "c1").length).toBe(1);
+    expect(again.frames.find((f) => f.ceqId === "c1")?.skipped).toBe(true);
+    expect(frameCount(again)).toBe(plan.frames.length - 1);
+  });
+
+  test("dropping an insert removes it; skip toggles back", () => {
+    const withInsert = insertFrame(plan.frames, { id: "ins-1", kind: "cheat", title: "rule" }, 1);
+    expect(dropFrame(withInsert, "ins-1").some((f) => f.id === "ins-1")).toBe(false);
+    const skipped = toggleSkip(plan.frames, ceqFrame.id);
+    expect(toggleSkip(skipped, ceqFrame.id).find((f) => f.id === ceqFrame.id)?.skipped).toBe(false);
+  });
+
+  test("duplicate lands right after the original with its own id and its own prompter copy", () => {
+    const src = { ...ceqFrame, prompter: ["say this"] };
+    const frames = patchFrame(plan.frames, ceqFrame.id, { prompter: ["say this"] });
+    const next = duplicateFrame(frames, src.id);
+    const i = next.findIndex((f) => f.id === src.id);
+    expect(next.length).toBe(frames.length + 1);
+    expect(next[i + 1].kind).toBe("ceq");
+    expect(next[i + 1].ceqId).toBe("c1");
+    expect(next[i + 1].id).not.toBe(src.id);
+    expect(next[i + 1].prompter).toEqual(["say this"]);
+    expect(next[i + 1].prompter).not.toBe(next[i].prompter);
+  });
+
+  test("patchFrame writes one frame and leaves the rest identical", () => {
+    const next = patchFrame(plan.frames, ceqFrame.id, { prompter: ["a", "b"] });
+    expect(next.find((f) => f.id === ceqFrame.id)?.prompter).toEqual(["a", "b"]);
+    expect(next.filter((f) => f.id !== ceqFrame.id)).toEqual(plan.frames.filter((f) => f.id !== ceqFrame.id));
+    expect(patchFrame(plan.frames, "nope", { text: "x" })).toEqual(plan.frames);
+  });
+});
