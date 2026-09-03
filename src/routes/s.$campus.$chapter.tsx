@@ -48,6 +48,10 @@ export const Route = createFileRoute("/s/$campus/$chapter")({
       chapterSlug: params.chapter,
       chapterName: chapter.chapterName,
       letters: (chapter.letters ?? "").trim() || chapterShortName(chapter.chapterName, chapter.letters, chapter.nickname),
+      // The TITLE name, which is NOT the letters. A title is the half that has to read as plain
+      // text at full size — "for ΑΔΠ" asks the reader to decode a monogram, and /go/ says "ADPi"
+      // for the same chapter, so the two share links disagreed about what the house is called.
+      shortName: chapterShortName(chapter.chapterName, chapter.letters, chapter.nickname),
     };
   },
   staleTime: 600_000,
@@ -59,7 +63,7 @@ export const Route = createFileRoute("/s/$campus/$chapter")({
     meta: [
       ...(d
         ? ogMeta({
-            ...chapterShareOg(d.code, d.letters || d.chapterName),
+            ...chapterShareOg(d.code, d.shortName || d.chapterName),
             path: `/s/${d.schoolSlug}/${d.chapterSlug}`,
             image: chapterOgImage(d.schoolSlug, d.chapterSlug),
           })
