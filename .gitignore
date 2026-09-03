@@ -68,3 +68,6 @@ scripts/growth-intel/campuses-all.json
 
 # the build queue runner writes this into a worktree while a headless build runs
 .build-queue-prompt.md
+
+# Windows reserved name a tool created by accident; cannot be deleted from Git Bash
+nul
