@@ -104,13 +104,17 @@ export function CompactLockup({ size = 19 }: { size?: number } = {}) {
   // MONOCHROME on purpose. The two-tone brand bolt at 19px, boiling, next to a headline is a second
   // thing moving in the corner of the eye the whole way down the page; the previous version flashed
   // it in on scroll, which was worse — motion arriving in the chrome while you are reading the body
-  // is exactly the kind of thing that makes a page hard to scan. Here it is one cream silhouette
-  // with its seam cut out in the bar's own colour: the mark is still the mark, and it sits still.
+  // is exactly the kind of thing that makes a page hard to scan.
+  //
+  // CREAM BODY, LIGHT-GREY SEAM. Painting the seam in the bar's own navy read as a hole punched
+  // through the bolt rather than as a fold in it. From across a room this is one white bolt; up
+  // close the seam still draws the shape the footer logo draws. No brand red or blue at this size —
+  // two saturated colours in the corner of the eye are a distraction, not a logo.
   return (
     <SurviveWordmark
       size={size}
       red="var(--brand-cream, #F5EFE6)"
-      blue="var(--sa-surface-nav, #0D1730)"
+      blue="#AFB6C4"
       boltCream="none"
       // AND IT HOLDS STILL. The boil is a four-frame flipbook running forever; at 15px in the corner
       // of every screen it is not readable as craft, only as something twitching while you read.

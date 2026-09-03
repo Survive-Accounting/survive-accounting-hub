@@ -495,9 +495,14 @@ export function LeePortrait({ width = 200, caption = true }: { width?: number; c
             outstretched arm entering bottom-left). Only the horizontal window is a choice, and 20%
             keeps the arm in frame without cutting the sunrise off his right. Scaling up here was
             what cropped the hair and the arm away. */}
+        {/* THE FACE SITS HIGHER than a plain cover crop puts it. The source is 4:3 into a 4:5
+            frame, so cover fills the height EXACTLY and object-position has no vertical travel to
+            give — the only way to raise the face is to make the image slightly taller than the box
+            and shift it up. A 14% scale buys ~7% of headroom each side; translating up 5% stays
+            inside that, so the frame is still fully covered and the hair and arm are still in. */}
         <img
           src="/lee-sunrise.jpg" alt="Lee Ingram"
-          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "20% 50%", display: "block" }}
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "20% 50%", transform: "scale(1.14) translateY(-5%)", display: "block" }}
         />
       </div>
       {caption && (
