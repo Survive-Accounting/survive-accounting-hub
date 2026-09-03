@@ -58,9 +58,9 @@ function resolveClaude(): { cmd: string; args: string[] } {
 const CLAUDE = resolveClaude();
 const CLAUDE_BIN = `${CLAUDE.cmd} ${CLAUDE.args.join(" ")}`.trim();
 const MAX_TURNS = Number(process.env.QUEUE_MAX_TURNS ?? 80);
-/** The model each build runs on. Lee (2026-09-03): Opus 4.8. Override with
+/** The model each build runs on. Lee (2026-09-03): Opus 5. Override with
  *  QUEUE_MODEL (an id like claude-opus-4-8, or an alias like opus/sonnet). */
-const MODEL = process.env.QUEUE_MODEL ?? "claude-opus-4-8";
+const MODEL = process.env.QUEUE_MODEL ?? "claude-opus-5";
 const BUILD_TIMEOUT_MS = Number(process.env.QUEUE_BUILD_MINUTES ?? 45) * 60_000;
 const DEPLOY_WAIT_MS = Number(process.env.QUEUE_DEPLOY_MINUTES ?? 15) * 60_000;
 const STALE_RUN_MS = 3 * 60 * 60_000;
