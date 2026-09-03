@@ -118,7 +118,7 @@ export function LearnTop({
     <>
       <header className="flex shrink-0 items-center gap-3 px-4 sm:gap-4 sm:px-8" style={{ minHeight: narrow ? 58 : 72, background: INK.bg }}>
         {narrow && <button type="button" onClick={onOpenPath} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ color: INK.text, background: "transparent", border: 0 }} aria-label="Your path"><Menu className="h-5 w-5" /></button>}
-        <BoltBoil height={narrow ? 30 : 40} red={theme.schoolAccent ? theme.accent : undefined} blue={theme.schoolAccent && theme.primary ? theme.primary : undefined} cream={INK.text} />
+        <BoltBoil height={narrow ? 30 : 40} red={school?.c1 ?? undefined} blue={school?.c2 ?? undefined} />
         <div className="flex min-w-0 flex-col justify-center">
           <div className="lk-disp truncate uppercase" style={{ fontSize: narrow ? 14 : 18, letterSpacing: "0.14em", lineHeight: 1.15 }}>
             {narrow ? (courseCode ?? "Survive") : `Survive · ${courseCode ?? "Intro Accounting"}`}

@@ -58,10 +58,10 @@ export function LearnAsksBar({ theme, campusName, campusId, campusSlug, courseCo
           <div className="truncate text-[14px] font-extrabold sm:text-[15px]">{ask.title}</div>
           {!narrow && <div className="truncate text-[12.5px]" style={{ opacity: 0.85 }}>{ask.sub}</div>}
         </div>
-        <button type="button" onClick={act} className="lk-btn" style={{ background: theme.schoolAccent ? theme.accent : INK.lime, color: theme.schoolAccent ? theme.accentInk : "#111", fontSize: narrow ? 10.5 : 12 }}>{narrow ? ask.cta.replace(" →", "") : ask.cta}</button>
+        <button type="button" onClick={act} className="lk-btn" style={{ background: theme.accent, color: theme.accentInk, fontSize: narrow ? 10.5 : 12 }}>{narrow ? ask.cta.replace(" →", "") : ask.cta}</button>
         {!narrow && list.length > 1 && (
           <div className="flex gap-1.5" aria-hidden>
-            {list.map((a, k) => <span key={a.key} className="h-1.5 w-1.5 rounded-full" style={{ background: k === i % list.length ? (theme.schoolAccent ? theme.accent : INK.lime) : "rgba(255,255,255,0.3)" }} />)}
+            {list.map((a, k) => <span key={a.key} className="h-1.5 w-1.5 rounded-full" style={{ background: k === i % list.length ? theme.accent : "rgba(255,255,255,0.3)" }} />)}
           </div>
         )}
         <button type="button" onClick={dismiss} className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ background: "rgba(0,0,0,0.25)", color: ink, border: 0, cursor: "pointer" }} aria-label="Dismiss"><X className="h-4 w-4" /></button>
