@@ -109,9 +109,27 @@ this PC does the rest, unattended, one at a time in priority order:
    **reviewed** in Obsidian or the bank, and merge the branch when it's good.
    Merging is still a person's call.
 
-Setup once on this PC: `npm i -g @anthropic-ai/claude-code`, then run
-`claude` in a terminal and `/login`. A failed build marks the idea BUILD
-FAILED with the reason and moves on; fix the prompt and re-queue.
+Setup once on this PC: double-click `scripts\claude-login.cmd`, type `/login`,
+finish in the browser, `/exit`. Then `scripts\build-queue-watch.cmd`.
+
+What the runner does to keep a build from dying (learned the hard way on
+2026-09-03, when two research-project prompts hit the turn limit):
+
+- **Splits big prompts.** Before building, one cheap AI call asks "is this
+  ONE feature?" A research project becomes 2–6 single-feature slices, armed
+  in order at the same priority; the parent shows SPLIT INTO n in the bank.
+- **Commits as it goes** and pushes the branch even when a build stops
+  early — the bank shows STOPPED EARLY · partial on branch.
+- **Resumes.** Re-queue a stopped build and it continues on that branch
+  ("CONTINUE, DON'T RESTART"), shown as RESUMES in the bank.
+- **Stall heartbeat.** No commit for 20 minutes → stopped, work kept.
+- **Orphan salvage.** If the builder itself was restarted mid-build, the
+  next start pushes whatever the dead build left and marks it resumable.
+- Runs on Opus 5 (`QUEUE_MODEL` to change); 45-minute clock per build.
+
+Turn OFF Vercel's deployment protection for previews (Vercel → project →
+Settings → Deployment Protection) so the checklist links open without a
+Vercel login — for you and for a VA.
 
 ## Terry — the to-do count
 
