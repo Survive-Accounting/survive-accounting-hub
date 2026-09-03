@@ -23,6 +23,7 @@ import { isPlayable } from "@/lib/set-flow";
 import type { SetStage } from "@/lib/set-flow";
 import { listOverrideCampuses, type CampusOpt } from "@/lib/campus-overrides.functions";
 import { claimMyOrders, fetchMyUnlockedTopics, getSetPlayback } from "@/lib/entitlements.functions";
+import { campusOgImageV, campusShareOg, ogMeta } from "@/lib/og";
 import { LearnIntro } from "@/components/brand/LearnIntro";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentAuth } from "@/lib/use-student-auth";
@@ -63,7 +64,33 @@ export const Route = createFileRoute("/learn")({
     g: typeof s.g === "string" && s.g ? s.g : undefined,
     test: typeof s.test === "string" && s.test ? s.test : undefined,
   }),
-  head: () => ({ meta: [{ title: "⚡ Learn — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
+  // A SHARED /s/<campus> LINK LANDS HERE. That route is a redirect, so the preview a chat app
+  // builds comes from THIS page's tags — and with only a title it previewed as the generic site
+  // tile, which is the least useful version of the one link most likely to be pasted into a group
+  // chat. Resolved in a loader because head() has no access to search; the lookup is a synchronous
+  // map hit against the static school table, so this adds no request work.
+  loaderDeps: ({ search }: { search: LearnSearch }) => ({ campus: search.campus, g: search.g }),
+  loader: ({ deps }: { deps: { campus?: string; g?: string } }) => ({
+    // campus is an id (the /s/ hop's deep link); g is the slug it also carries. Either resolves.
+    ogSchool: schoolByCampusId(deps.campus) ?? schoolBySlug(deps.g) ?? null,
+  }),
+  // noindex STAYS either way: a deep-linked study surface has no business in search results, and
+  // noindex governs indexing, not the preview a chat app builds.
+  head: ({ loaderData }) => {
+    const school = (loaderData as { ogSchool?: { slug: string; name: string; courseCode: string | null } | null } | undefined)?.ogSchool ?? null;
+    return {
+      meta: [
+        ...(school
+          ? ogMeta({
+              ...campusShareOg(school.courseCode, school.name),
+              path: `/s/${school.slug}`,
+              image: campusOgImageV(school.slug),
+            })
+          : [{ title: "⚡ Learn — Survive Accounting" }]),
+        { name: "robots", content: "noindex" },
+      ],
+    };
+  },
   component: LearnShell,
 });
 

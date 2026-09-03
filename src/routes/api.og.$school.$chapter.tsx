@@ -77,21 +77,39 @@ async function render(origin: string, school: string, chapter: string): Promise<
     fetchBuf(`${origin}/fonts/Inter-SemiBold.ttf`),
   ]);
 
+  // ── THE CARD ────────────────────────────────────────────────────────────────────────────────
+  // Read at THUMBNAIL size in a group chat, so the budget is about six words and the course code
+  // is what earns its space: it is the thing that proves this was built for the reader's class
+  // rather than posted at them. Hierarchy, largest first:
+  //
+  //     Κ Α              their letters — the only thing recognisable at a glance
+  //     KAPPA ALPHA · AUBURN     who it is for, small caps, muted
+  //     Free ACCT 2110 prep      the line that must survive GroupMe's ~350px card
+  //     survive ⚡               the bolt, in campus colours
+  const orgLine = `${orgName.toUpperCase()} · ${shortCampus.toUpperCase()}`;
+  const orgLineFit = orgLine.length > 40 ? `${orgLine.slice(0, 39)}…` : orgLine;
+  const freeLine = courseCode === "Intro Accounting" ? "Free intro accounting prep" : `Free ${courseCode} prep`;
+
   const { default: satori } = await import("satori");
   const svg = await satori(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: NAVY, padding: 60 }}>
-        {/* letters OVER the school-colorway bolt: the mark overlaps the bolt's lower third,
-            navy text-shadow keeping it legible against the zigzag */}
-        <img src={boltDataUri(c1, c2)} width={216} height={290} style={{ marginTop: -6 }} />
-        <div style={{ display: "flex", marginTop: -86, fontFamily: "InterX", fontSize: big.length > 6 ? 108 : 148, color: CREAM, textShadow: `0 0 26px ${NAVY}, 4px 4px 0 ${NAVY}, -4px 4px 0 ${NAVY}, 4px -4px 0 ${NAVY}, -4px -4px 0 ${NAVY}` }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundColor: NAVY, padding: 56 }}>
+        {/* The letters lead. Cream, not campus-coloured: the colour belongs to the campus and the
+            letters belong to the chapter, and tinting them says the chapter IS the school. */}
+        <div style={{ display: "flex", fontFamily: "InterX", fontSize: big.length > 6 ? 132 : 176, color: CREAM, lineHeight: 1 }}>
           {big}
         </div>
-        <div style={{ display: "flex", marginTop: 18, fontFamily: "InterX", fontSize: 44, color: GOLD }}>
-          {`${shortCampus} · ${courseCode}`}
+        <div style={{ display: "flex", marginTop: 20, fontFamily: "Inter", fontSize: 32, letterSpacing: 4, color: CREAM, opacity: 0.62 }}>
+          {orgLineFit}
         </div>
-        <div style={{ display: "flex", marginTop: 16, fontFamily: "Inter", fontSize: 30, color: CREAM, opacity: 0.72 }}>
-          Cram videos + practice exams. Exam 1 is free.
+        {/* THE LINE THAT HAS TO READ AT 350px. Gold, largest of the text, and never wrapped. */}
+        <div style={{ display: "flex", marginTop: 34, fontFamily: "InterX", fontSize: 62, color: GOLD, lineHeight: 1 }}>
+          {freeLine}
+        </div>
+        {/* survive ⚡ — the bolt in campus colours, small, as a signature rather than a headline. */}
+        <div style={{ display: "flex", alignItems: "center", marginTop: 40 }}>
+          <div style={{ display: "flex", fontFamily: "InterX", fontSize: 40, color: CREAM, opacity: 0.9 }}>survive</div>
+          <img src={boltDataUri(c1, c2)} width={34} height={46} style={{ marginLeft: 12 }} />
         </div>
       </div>
     ),
@@ -108,7 +126,14 @@ async function render(origin: string, school: string, chapter: string): Promise<
   return new Response(Buffer.from(png), {
     headers: {
       "content-type": "image/png",
-      "cache-control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+      // THE DEV BYPASS. Every platform caches previews by URL, some for weeks, and iMessage caches
+      // on the device with no purge at all — so iterating on the design means either bumping a
+      // query string forever or turning the cache off. With OG_NO_STORE set, reloading the image
+      // route straight in mobile Safari always shows the current render. Production keeps the long
+      // headers; the flag is read per request so it can be flipped without a redeploy of intent.
+      "cache-control": process.env.OG_NO_STORE
+        ? "no-store, no-cache, must-revalidate"
+        : "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
     },
   });
 }

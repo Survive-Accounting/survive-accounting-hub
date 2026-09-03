@@ -89,9 +89,10 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   bio: "Bio slot",
   outro: "Outro",
   ceq: "Set card",
-  phrase: "Phrase",
+  // Lee's 09-03 standard kinds, one to one with the canvas callouts.
+  phrase: "Memorize this",
   cheat: "Cheat code",
-  tip: "Tip / Trick",
+  tip: "Deeper idea",
   exhibit: "Exhibit",
   blank: "Blank",
 };

@@ -9,6 +9,8 @@ import { useMemo, useState } from "react";
 import { Check, Printer, RefreshCw, X } from "lucide-react";
 
 import { applyCeqEdit } from "@/lib/talkthrough.functions";
+import { organizeIdea, saveIdea } from "@/lib/ideas.functions";
+import { getAdminWho } from "@/components/AdminGate";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "./theme";
 import {
   STAMP_LABELS, canonicalStamp, sessionTags, stampLabel, touchRow,
@@ -102,6 +104,33 @@ function ItemShell({ item, children, onRegen, printable, film }: {
     putBoardItem(touchRow(item, { status: item.status === s ? "suggested" : s } as Partial<BoardItem>));
   const archived = item.status === "archived";
   const queued = item.status === "in_production";
+  // → IDEA BANK (Lee, 2026-09-03): a suggested slide, CEQ edit or content
+  // idea from the talkthrough becomes an idea in the bank — AI titles and
+  // files it, Obsidian gets the note, the production queue sees it. The
+  // board item is untouched; the bank entry remembers where it came from.
+  const [banked, setBanked] = useState<"no" | "busy" | "yes" | "err">("no");
+  const toBank = () => {
+    if (banked !== "no") return;
+    setBanked("busy");
+    const p = item.payload as Record<string, unknown>;
+    const detail = String(p.body ?? p.proposal ?? p.pitch ?? p.summary ?? p.meaning ?? p.instruction ?? "");
+    const id = `idea-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    saveIdea({ data: {
+      id,
+      title: item.title,
+      body: [item.title, detail, item.quote ? `In Lee's words: "${item.quote}"` : ""].filter(Boolean).join("\n\n"),
+      categories: ["AUTHORING"],
+      subcategory: String(p.kind ?? item.kind).replace(/_/g, " "),
+      status: "IDEA",
+      sourcePath: typeof location !== "undefined" ? location.pathname : "/talkthrough",
+      context: { title: typeof document !== "undefined" ? document.title : "", fromBoardItem: item.id, boardKind: String(p.kind ?? item.kind), origin: "talkthrough-review" },
+      promptMd: null, promptFilename: null,
+      createdBy: getAdminWho() ?? "",
+      sourceKind: "web", attachments: [], audioPath: null, transcriptStatus: null,
+    } })
+      .then(() => { setBanked("yes"); organizeIdea({ data: { id } }).catch(() => { /* the idea is saved; organise again from the bank */ }); })
+      .catch(() => setBanked("err"));
+  };
   return (
     <div className="mb-2 rounded-2xl p-4 tt-item" style={{ background: PANEL, border: `1px solid ${item.status === "approved" ? "rgba(59,245,160,0.4)" : EDGE}`, opacity: archived ? 0.55 : 1 }}>
       <div className="flex items-center gap-2">
@@ -134,6 +163,12 @@ function ItemShell({ item, children, onRegen, printable, film }: {
             style={queued ? { background: GOLD, color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: GOLD }}
             onClick={() => setStatus("in_production")}>
             {queued ? "✓ queued" : "→ queue"}
+          </button>
+          <button className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+            title={banked === "yes" ? "In the Idea Bank — AI is naming and filing it; Obsidian gets the note" : "Send to the Idea Bank (and Obsidian) as an idea to build"}
+            style={banked === "yes" ? { background: "#7DD3FC", color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: banked === "err" ? "#F87171" : "#7DD3FC" }}
+            onClick={toBank}>
+            {banked === "busy" ? "…" : banked === "yes" ? "✓ in the bank" : banked === "err" ? "bank failed" : "→ idea bank"}
           </button>
           <button className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
             style={archived ? { background: "#F87171", color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: NEON.muted }}
@@ -279,10 +314,15 @@ function CeqEditCard({ item, ceq, onRegen }: { item: BoardItem; ceq: PassCeq | n
 }
 
 function IdeaCard({ item, onRegen, film }: { item: BoardItem; onRegen: (c: string) => Promise<void>; film?: { doc: TTDoc; setId: string } }) {
-  const p = item.payload as { kind?: string; body?: string };
+  const p = item.payload as { kind?: string; body?: string; origin?: string; visualKind?: string };
+  const ai = p.origin === "ai";
   return (
     <ItemShell item={item} onRegen={onRegen} film={film}>
+      {/* WHO IT CAME FROM (Lee, 2026-09-03): a person for his stamps, the AI
+          mark for the model's own suggestions — "some way to know who it came from". */}
+      <span title={ai ? "AI suggested — not from a stamp" : "From your stamp, cleaned up"} style={{ marginRight: 6, fontSize: 12 }}>{ai ? "✨" : "🧑‍🏫"}</span>
       <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ border: `1px solid ${EDGE}`, color: GOLD, marginRight: 6 }}>{stampLabel(p.kind ?? "idea")}</span>
+      {p.visualKind && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ border: `1px solid ${EDGE}`, color: NEON.muted, marginRight: 6 }}>{p.visualKind}</span>}
       {p.body ?? ""}
     </ItemShell>
   );
@@ -316,11 +356,16 @@ export function ReviewBoardV2({ items, ceqs, onRegen, film }: {
   const edits = items.filter((b) => b.kind === "ceq_edit");
   const ideas = items.filter((b) => b.kind === "idea");
   const vibes = items.filter((b) => b.kind === "vibe_plan");
+  // Lee's stamps on top, grouped by kind; the model's own suggestions in one
+  // fold at the bottom (Lee, 2026-09-03: "a separate sort of toggle at the
+  // bottom of AI suggested stuff").
+  const isAi = (i: BoardItem) => (i.payload as { origin?: string }).origin === "ai";
   const byKind = new Map<string, BoardItem[]>();
-  for (const i of ideas) {
+  for (const i of ideas.filter((x) => !isAi(x))) {
     const k = String((i.payload as { kind?: string }).kind ?? "idea");
     byKind.set(k, [...(byKind.get(k) ?? []), i]);
   }
+  const aiIdeas = ideas.filter(isAi);
   const regen = (id: string) => (c: string) => onRegen(id, c);
   const ceqOf = (b: BoardItem) => ceqs.find((c) => c.id === b.ceqIds[0]) ?? null;
   return (
@@ -343,6 +388,16 @@ export function ReviewBoardV2({ items, ceqs, onRegen, film }: {
           {list.map((b) => <IdeaCard key={b.id} item={b} onRegen={regen(b.id)} film={film} />)}
         </div>
       ))}
+      {aiIdeas.length > 0 && (
+        <details className="mb-4" style={{ border: `1px solid ${EDGE}`, borderRadius: 12, padding: "8px 12px" }}>
+          <summary style={{ cursor: "pointer", fontSize: 11, letterSpacing: "0.2em", color: NEON.muted, textTransform: "uppercase" }}>
+            ✨ AI suggested ({aiIdeas.length}) — not from a stamp; take them or leave them
+          </summary>
+          <div style={{ marginTop: 8 }}>
+            {aiIdeas.map((b) => <IdeaCard key={b.id} item={b} onRegen={regen(b.id)} film={film} />)}
+          </div>
+        </details>
+      )}
       {vibes.length > 0 && (
         <div className="mb-4">
           <h3 style={{ fontSize: 11, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", marginBottom: 6 }}>Vibe plan</h3>

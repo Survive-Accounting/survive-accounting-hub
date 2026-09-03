@@ -15,6 +15,7 @@
     "curriculum:exam1-starter-import": "bun scripts/curriculum/exam1-starter-import.ts",
     "curriculum:exam1-starter-validate": "bun scripts/curriculum/exam1-starter-validate.ts",
     "sitemap:gen": "bun scripts/gen-sitemap.ts",
+    "obsidian:sync": "bun scripts/obsidian-sync.ts",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

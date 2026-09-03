@@ -30,7 +30,7 @@ import { ChevronDown, ChevronRight, FileText, Mic, RotateCcw, Square, Undo2, X }
 
 import { EXHIBIT_REGISTRY, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import {
-  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, canonicalStamp, contextOfSegment, ghostSegments, makeTag, newTTId, openContext,
+  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, VISUAL_KINDS, canonicalStamp, contextOfSegment, ghostSegments, makeTag, newTTId, openContext,
   segmentsInContext, sessionBoard, sessionSegments, sessionTags, stampLabel, styleNotesFor, touchRow,
   type BoardItem, type StampKind, type TTDoc, type TalkSegment, type TalkSession, type TalkTag,
 } from "@/components/canvas/talkthrough";
@@ -371,7 +371,13 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
       else if (e.key === "Enter") { if (k.selStamp) { e.preventDefault(); k.stamp(k.selStamp); } }
       // SPACE = START / STOP TALKING (Lee, 2026-09-01). A toggle, not push-to-
       // talk: press once and talk for as long as you like, press again to stop.
-      else if (e.key === " ") { e.preventDefault(); toggleMicRef.current(); }
+      // SPACE = NEXT QUESTION, SHIFT+SPACE = BACK (Lee, 2026-09-03, the
+      // dictated prompt: "Space and Shift+Space navigate questions, Enter
+      // stamps in/out"). Stops at the ends; General sits before Q1.
+      else if (e.key === " ") { e.preventDefault(); k.surfCeq(e.shiftKey ? -1 : 1); }
+      // R = START / STOP RECORDING. A toggle: press once, talk as long as you
+      // like, press again to stop. (Space used to do this; it now navigates.)
+      else if (e.key.toLowerCase() === "r" && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); toggleMicRef.current(); }
       // Question surfing is Tab / Shift+Tab — "next field" semantics.
       else if (e.key === "Tab") { e.preventDefault(); k.surfCeq(e.shiftKey ? -1 : 1); }
     };
@@ -509,8 +515,14 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
             style={{ background: status.recording ? "rgba(248,113,113,0.16)" : "rgba(59,245,160,0.12)", border: `1.5px solid ${status.recording ? "#F87171" : "#3BF5A0"}`, fontFamily: BIG_FONT, fontWeight: 800, fontSize: 14 }}
             onClick={() => { if (status.recording) pauseMic(); else startMic(); }}
           >
-            {status.recording ? <><Square className="h-4 w-4" /> PAUSE</> : <><Mic className="h-4 w-4" /> {paused ? "RESUME" : "START TALKING"}</>}
+            {status.recording ? <><Square className="h-4 w-4" /> STOP RECORDING</> : <><Mic className="h-4 w-4" /> {paused ? "RESUME RECORDING" : "START RECORDING"}</>}
           </button>
+        </div>
+        {/* What this recording is FOR — Lee's "is this for the page you're on?" */}
+        <div style={{ fontSize: 11, color: NEON.muted, marginTop: -4, lineHeight: 1.45 }}>
+          Recording for <span style={{ color: CREAM, fontWeight: 700 }}>{setLabel(session.setName)}</span>
+          {" · "}<span style={{ color: GOLD }}>{focusPayload.label ?? (mode === "exhibit" ? "exhibits in general" : "the whole set")}</span>
+          {" · "}press <b style={{ color: CREAM }}>R</b> to start and stop
         </div>
         <button
           className="flex items-center justify-center gap-2 rounded-xl px-3 py-2"
@@ -539,6 +551,33 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
             <div style={{ fontSize: 12.5, color: CREAM, marginTop: 2 }}>
               {stampLabel(ctx.tag)}{ctx.focusedCeqLabel ? ` · ${ctx.focusedCeqLabel}` : " · set"} — click the stamp again to close
             </div>
+            {/* VISUAL FOLLOW-UP (Lee, 2026-09-03): "it needs to pop down asking
+                what kind of visual" — and which visual it is like. Saved on
+                the stamp; the review pass reads it. */}
+            {canonicalStamp(ctx.tag) === "visual" && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 10, color: NEON.muted, marginBottom: 4 }}>What kind?</div>
+                <div className="flex flex-wrap gap-1">
+                  {VISUAL_KINDS.map((k) => {
+                    const on = (ctx.note ?? "").startsWith(k);
+                    return (
+                      <button key={k} onClick={() => putTag(touchRow(ctx, { note: `${k}${(ctx.note ?? "").includes(" · like ") ? ctx.note!.slice(ctx.note!.indexOf(" · like ")) : ""}` } as Partial<TalkTag>))}
+                        style={{ background: on ? GOLD : "transparent", color: on ? "#0B1322" : CREAM, border: `1px solid ${on ? GOLD : EDGE}`, borderRadius: 999, padding: "2px 9px", fontSize: 10.5, fontWeight: 700, cursor: "pointer" }}>
+                        {k}
+                      </button>
+                    );
+                  })}
+                </div>
+                <select
+                  value={(ctx.note ?? "").includes(" · like ") ? ctx.note!.slice(ctx.note!.indexOf(" · like ") + 8) : ""}
+                  onChange={(e) => { const base = (ctx.note ?? "").split(" · like ")[0]; putTag(touchRow(ctx, { note: e.target.value ? `${base} · like ${e.target.value}` : base } as Partial<TalkTag>)); }}
+                  style={{ marginTop: 6, width: "100%", background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 8, color: CREAM, fontSize: 11, padding: "4px 8px" }}
+                >
+                  <option value="">like an existing visual? (optional)</option>
+                  {EXHIBIT_REGISTRY.map((e) => <option key={e.id} value={e.label}>{e.label}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         )}
 
@@ -589,7 +628,7 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
           </div>
         ))}
         <div style={{ color: NEON.muted, fontSize: 9.5, lineHeight: 1.5 }}>
-          ⌨ Space start/stop talking · Tab next Q · Shift+Tab back · ↑↓←→ pick a stamp · Enter fire it
+          ⌨ Space next Q · Shift+Space back · ↑↓←→ pick a stamp · Enter stamp in/out · R start/stop recording
         </div>
 
         <div className="mt-auto flex flex-col gap-2">
@@ -765,7 +804,7 @@ function LiveParagraph({ segments, liveFinal, interim, recording, liveAvailable,
         <div style={{ color: NEON.muted, fontSize: 12.5 }}>
           {recording
             ? (liveAvailable ? "Listening — start talking." : "Listening. This browser has no live text, so words land in seconds via Whisper.")
-            : "Press Space to start talking, or import a transcript."}
+            : "Press R to start recording, or import a transcript."}
         </div>
       ) : (
         <div style={{ fontSize: TRANSCRIPT_PX, lineHeight: 1.65, fontWeight: 400, color: TRANSCRIPT_INK, whiteSpace: "pre-wrap" }}>

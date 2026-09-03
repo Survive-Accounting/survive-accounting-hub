@@ -103,3 +103,288 @@ export const saveIdea = createServerFn({ method: "POST" })
     if (error) rethrow(error);
     return { idea: toIdea(out as Row) };
   });
+
+/** DRAFT A CLAUDE CODE PROMPT from an idea (Lee, 2026-09-02) — the build
+ *  machine's job: an idea captured on the filming laptop becomes a prompt here.
+ *  Synthesis lane. Never saves — the client attaches the result as promptMd
+ *  (status DRAFTED), so a bad draft is one click to replace or redraft. */
+export const draftIdeaPrompt = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    title: z.string().max(300),
+    body: z.string().max(12_000),
+    categories: z.array(z.string().max(40)).max(10),
+    subcategory: z.string().max(120),
+    sourcePath: z.string().max(300),
+    pageTitle: z.string().max(300).optional(),
+    notes: z.string().max(4000).optional(),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const { runAiTask } = await import("@/lib/ai.server");
+    const { buildIdeaPromptMessages } = await import("@/lib/ideas-prompt");
+    const { system, user } = buildIdeaPromptMessages(data);
+    const r = await runAiTask("synthesis", { system, user, maxOutput: 3500 });
+    return { text: r.text.trim(), model: r.usage.model, costUsd: r.usage.costUsd };
+  });
+
+/** ORGANISE (Lee, 2026-09-03): "let the ideas really flow and be beautifully
+ *  scattered and free … It's AI's job to get it organized and categorized and
+ *  triaged." Runs right after every save, in the background: one micro call
+ *  gives the idea a real title, a TLDR, a summary and categories (only when
+ *  the author chose none); then, unless told not to, the synthesis lane
+ *  drafts the Claude Code prompt. Idempotent — safe to re-run; `redraft`
+ *  replaces an existing prompt and keeps the old one on the idea. */
+export const organizeIdea = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    id: z.string().min(1).max(80),
+    draftPrompt: z.boolean().default(true),
+    redraft: z.boolean().default(false),
+    // The client makes TWO requests (title/TLDR first, then the prompt) so
+    // neither runs past the serverless time limit — one request that did
+    // both is how the link-previews idea (2026-09-03) never got its prompt.
+    organize: z.boolean().default(true),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ idea: Idea; drafted: boolean }> => {
+    const db = await admin();
+    const { data: row, error } = await db.from("ideas").select("*").eq("id", data.id).single();
+    if (error) rethrow(error);
+    const r = row as Row;
+    const { runAiTask } = await import("@/lib/ai.server");
+    const { buildIdeaPromptMessages, buildOrganizeMessages, pageLabel, suggestProject } = await import("@/lib/ideas-prompt");
+    const now = new Date().toISOString();
+    const ctx: Record<string, string> = { ...(r.context ?? {}) };
+    const isTodo = !!ctx.todo;
+
+    // 1. Title · TLDR · summary · categories — the micro lane, cheap.
+    const words = r.body?.trim() || r.title || "";
+    if (words && data.organize) {
+      const org = buildOrganizeMessages({
+        title: r.title || words.slice(0, 80), body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
+        sourcePath: r.source_path ?? "", pageTitle: ctx.title ?? "", existingPrompt: r.prompt_md,
+        intent: ctx.intent, other: ctx.other,
+      });
+      const res = await runAiTask("micro", { system: org.system, user: org.user, maxOutput: 700 });
+      const m = res.text.match(/\{[\s\S]*\}/);
+      if (m) {
+        const j = JSON.parse(m[0]) as { title?: unknown; tldr?: unknown; summary?: unknown; categories?: unknown; urgent?: unknown };
+        const title = typeof j.title === "string" ? j.title.trim().slice(0, 120) : "";
+        if (title) r.title = title;
+        if (typeof j.tldr === "string") ctx.tldr = j.tldr.trim();
+        if (typeof j.summary === "string") ctx.summary = j.summary.trim();
+        // CATEGORIES ARE AI'S, EVERY TIME (Lee, 2026-09-03: "let AI continuously
+        // update the tags/categories. Let it figure that out.") — the modal no
+        // longer offers chips; each organise re-decides.
+        if (Array.isArray(j.categories)) {
+          const cats = j.categories.filter((c): c is string => typeof c === "string" && (CATEGORIES as readonly string[]).includes(c)).slice(0, 2);
+          if (cats.length) r.categories = cats;
+        }
+        // AI may FLAG urgency but never un-flag what a person set.
+        if (j.urgent === true && !ctx.urgent) ctx.urgentSuggested = "1";
+      }
+    }
+    if (data.organize) {
+      const proj = suggestProject(r.source_path ?? "", r.categories ?? []);
+      ctx.session = proj.label;
+      ctx.project = proj.key;
+      ctx.worktree = proj.worktree;
+      ctx.page = pageLabel(r.source_path ?? "");
+      ctx.organizedAt = now;
+    }
+
+    // 1b. MERGE (Lee, 2026-09-03): fold a duplicate or an extension into the
+    // open idea it belongs to. The words are APPENDED to that idea (nothing
+    // rewritten), this one is parked with a pointer back, and the target's
+    // prompt is flagged stale so the watch sync redrafts it. Never for
+    // to-dos, drafts, uploads, or an idea that already merged.
+    if (data.organize && !isTodo && ctx.draft !== "1" && !ctx.mergedInto && !ctx.importedFrom && words) {
+      const { data: openRows } = await db.from("ideas").select("id,title,context,status")
+        .in("status", ["IDEA", "DRAFTED", "SUBMITTED"]).neq("id", r.id).order("updated_at", { ascending: false }).limit(60);
+      const cands = ((openRows ?? []) as Pick<Row, "id" | "title" | "context">[])
+        .filter((c) => !c.context?.todo && c.context?.draft !== "1" && !c.context?.mergedInto && c.title)
+        .map((c) => ({ id: c.id, title: c.title, tldr: c.context?.tldr ?? "", page: c.context?.page ?? "" }));
+      if (cands.length) {
+        const { buildMergeMessages } = await import("@/lib/ideas-prompt");
+        const mm = buildMergeMessages({ title: r.title, body: r.body, tldr: ctx.tldr, sourcePath: r.source_path ?? "" }, cands);
+        const res = await runAiTask("micro", { system: mm.system, user: mm.user, maxOutput: 200 });
+        const m = res.text.match(/\{[\s\S]*\}/);
+        const j = m ? (JSON.parse(m[0]) as { relation?: unknown; id?: unknown; why?: unknown }) : {};
+        const targetId = typeof j.id === "string" && cands.some((c) => c.id === j.id) ? j.id : null;
+        if ((j.relation === "duplicate" || j.relation === "extends") && targetId) {
+          const { data: t, error: te } = await db.from("ideas").select("*").eq("id", targetId).single();
+          if (te) rethrow(te);
+          const target = t as Row;
+          const stamp = new Date(now).toLocaleDateString("en-US");
+          const addendum = `\n\n— Added ${stamp} from a later capture (${(r.created_by || "").toLowerCase() || "lee"}${r.source_path ? `, on ${r.source_path}` : ""}):\n${r.body.trim()}`;
+          const tctx: Record<string, string> = {
+            ...(target.context ?? {}),
+            mergedFrom: [target.context?.mergedFrom, r.id].filter(Boolean).join(","),
+            ...(target.prompt_md?.trim() ? { stalePrompt: "1" } : {}),
+          };
+          const { error: ue } = await db.from("ideas").update({ body: `${target.body}${addendum}`, context: tctx, updated_at: now }).eq("id", target.id);
+          if (ue) rethrow(ue);
+          ctx.mergedInto = target.id;
+          ctx.mergedWhy = typeof j.why === "string" ? j.why.slice(0, 300) : String(j.relation);
+          const { data: out, error: pe } = await db.from("ideas").update({
+            title: r.title, categories: r.categories ?? [], context: ctx, status: "PARKED", updated_at: now,
+          }).eq("id", r.id).select().single();
+          if (pe) rethrow(pe);
+          return { idea: toIdea(out as Row), drafted: false };
+        }
+      }
+    }
+    if (ctx.mergedInto) {
+      const { data: out, error: e0 } = await db.from("ideas").update({ context: ctx, updated_at: now }).eq("id", r.id).select().single();
+      if (e0) rethrow(e0);
+      return { idea: toIdea(out as Row), drafted: false };
+    }
+
+    // 2. The prompt — synthesis lane. Never for a to-do or a draft-in-progress.
+    let drafted = false;
+    const wantPrompt = data.draftPrompt && !isTodo && ctx.draft !== "1" && (data.redraft || !r.prompt_md?.trim());
+    if (wantPrompt) {
+      const { system, user } = buildIdeaPromptMessages({
+        title: r.title, body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
+        sourcePath: r.source_path ?? "", pageTitle: ctx.title ?? "",
+        notes: data.redraft && r.prompt_md?.trim() ? `THE PREVIOUS PROMPT (keep every decision in it, improve the rest):\n${r.prompt_md.trim().slice(0, 8000)}` : undefined,
+      });
+      const ai = await runAiTask("synthesis", { system, user, maxOutput: 3500 });
+      if (data.redraft && r.prompt_md?.trim()) ctx.previousPromptMd = r.prompt_md.trim();
+      r.prompt_md = ai.text.trim();
+      r.prompt_filename = r.prompt_filename || `${(r.title || "prompt").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60)}.md`;
+      if (r.status === "IDEA") r.status = "DRAFTED";
+      drafted = true;
+    }
+
+    const { data: out, error: e2 } = await db.from("ideas").update({
+      title: r.title, categories: r.categories ?? [], context: ctx,
+      prompt_md: r.prompt_md, prompt_filename: r.prompt_filename, status: r.status, updated_at: now,
+    }).eq("id", r.id).select().single();
+    if (e2) rethrow(e2);
+    return { idea: toIdea(out as Row), drafted };
+  });
+
+/** ADD TO BUILD QUEUE (Lee, 2026-09-03): "pick and choose what I'd like to
+ *  queue up … automatically armed … urgent, high, medium, low priority."
+ *  Arming sets the priority and status SUBMITTED; the runner on the build
+ *  machine does the rest. Un-arming takes it back to DRAFTED. Re-arming a
+ *  failed or built idea clears the old run so it builds again. */
+export const armIdeas = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    ids: z.array(z.string().min(1).max(80)).min(1).max(100),
+    armed: z.boolean(),
+    priority: z.enum(["urgent", "high", "medium", "low"]).default("medium"),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true; count: number }> => {
+    const db = await admin();
+    const { data: rows, error } = await db.from("ideas").select("id,status,context").in("id", data.ids);
+    if (error) rethrow(error);
+    const now = new Date().toISOString();
+    for (const r of (rows ?? []) as Pick<Row, "id" | "status" | "context">[]) {
+      const ctx: Record<string, string> = { ...(r.context ?? {}) };
+      for (const k of ["built", "builtAt", "runStartedAt", "runFailed", "runError", "sha", "previewUrl", "previewState", "report", "testChecklist"]) delete ctx[k];
+      let status = r.status;
+      if (data.armed) {
+        ctx.armed = "1"; ctx.queuePriority = data.priority; ctx.armedAt = now;
+        if (data.priority === "urgent") ctx.urgent = "1";
+        status = "SUBMITTED";
+      } else {
+        delete ctx.armed; delete ctx.queuePriority; delete ctx.armedAt; delete ctx.branch;
+        if (status === "SUBMITTED") status = "DRAFTED";
+      }
+      const { error: e } = await db.from("ideas").update({ context: ctx, status, updated_at: now }).eq("id", r.id);
+      if (e) rethrow(e);
+    }
+    return { ok: true, count: (rows ?? []).length };
+  });
+
+/** Lee's number for urgent texts. Env first; the fallback is the number he
+ *  gave for exactly this (2026-09-03). */
+const LEE_URGENT_PHONE = process.env.LEE_URGENT_PHONE ?? "6012018759";
+
+/** URGENT (Lee, 2026-09-03): "any idea can be toggled on as urgent … pinned
+ *  to the top … if an urgent idea takes place, text me." Marks the idea and,
+ *  when turning ON, texts Lee. SMS-TRUTH: the result says whether the text
+ *  went, so the UI never claims a text that did not happen. */
+export const setUrgent = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ id: z.string().min(1).max(80), urgent: z.boolean() }).parse(d))
+  .handler(async ({ data }): Promise<{ idea: Idea; texted: boolean; textError?: string }> => {
+    const db = await admin();
+    const { data: row, error } = await db.from("ideas").select("*").eq("id", data.id).single();
+    if (error) rethrow(error);
+    const r = row as Row;
+    const ctx: Record<string, string> = { ...(r.context ?? {}) };
+    if (data.urgent) { ctx.urgent = "1"; ctx.urgentAt = new Date().toISOString(); } else { delete ctx.urgent; delete ctx.urgentAt; }
+    const { data: out, error: e2 } = await db.from("ideas").update({ context: ctx, updated_at: new Date().toISOString() }).eq("id", r.id).select().single();
+    if (e2) rethrow(e2);
+    let texted = false, textError: string | undefined;
+    if (data.urgent) {
+      const { sendSms } = await import("@/lib/greek-chapters.functions");
+      const who = (r.created_by || "someone").toLowerCase() === "king" ? "King" : r.created_by || "someone";
+      const res = await sendSms(LEE_URGENT_PHONE, `🔥 URGENT idea from ${who}: ${r.title || "(untitled)"}${ctx.tldr ? ` — ${ctx.tldr}` : ""}\nhttps://surviveaccounting.com/admin/ideas`);
+      texted = res.ok; textError = res.error;
+    }
+    return { idea: toIdea(out as Row), texted, textError };
+  });
+
+/** SEND A SUMMARY (Lee, 2026-09-02): "Send summary to Lee / Send summary to
+ *  King … I want King to get updates on what all I'm building. Have the TLDR,
+ *  then the summary, prompt, etc."
+ *
+ *  Lee's ideas go to King as build updates; King's ideas (he captures with
+ *  Ctrl+I too) go to Lee. An idea with no prompt yet is drafted first, so the
+ *  email always carries the four sections, and the draft is saved to the
+ *  vault (IDEA → DRAFTED) — one call, one artifact, both places. Uses the
+ *  existing Resend helper; a missing key surfaces as the error, never as a
+ *  silent no-send. The send is recorded on the idea (context.lastSentTo/At). */
+export const sendIdeaSummary = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    id: z.string().min(1).max(80),
+    to: z.enum(["lee", "king"]),
+    note: z.string().max(2000).optional(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true; drafted: boolean; to: string; id?: string }> => {
+    const db = await admin();
+    const { data: row, error } = await db.from("ideas").select("*").eq("id", data.id).single();
+    if (error) rethrow(error);
+    const r = row as Row;
+    const now = new Date().toISOString();
+
+    let drafted = false;
+    if (!r.prompt_md?.trim()) {
+      const { runAiTask } = await import("@/lib/ai.server");
+      const { buildIdeaPromptMessages } = await import("@/lib/ideas-prompt");
+      const { system, user } = buildIdeaPromptMessages({
+        title: r.title, body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
+        sourcePath: r.source_path ?? "", pageTitle: r.context?.title ?? "",
+      });
+      const ai = await runAiTask("synthesis", { system, user, maxOutput: 3500 });
+      r.prompt_md = ai.text.trim();
+      r.prompt_filename = r.prompt_filename || `${(r.title || "prompt").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60)}.md`;
+      if (r.status === "IDEA") r.status = "DRAFTED";
+      const { error: e } = await db.from("ideas").update({ prompt_md: r.prompt_md, prompt_filename: r.prompt_filename, status: r.status, updated_at: now }).eq("id", r.id);
+      if (e) rethrow(e);
+      drafted = true;
+    }
+
+    const { ideaUpdateText } = await import("@/lib/ideas-prompt");
+    const { adminEmailFor } = await import("@/components/AdminGate");
+    const { sendResendEmail } = await import("@/lib/email.server");
+    const to = adminEmailFor(data.to);
+    const from = (r.created_by || "").toLowerCase() || "lee";
+    const text = [
+      data.note ? `${data.note}\n` : "",
+      ideaUpdateText({
+        title: r.title, body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
+        sourcePath: r.source_path ?? "", pageTitle: r.context?.title ?? "", promptMd: r.prompt_md,
+        createdBy: from, appUrl: "https://surviveaccounting.com/admin/ideas",
+      }),
+    ].filter(Boolean).join("\n");
+    const subject = `[Survive idea] ${r.title || "(untitled)"} — from ${from === "king" ? "King" : "Lee"}`;
+    const sent = await sendResendEmail({ to, subject, text });
+    if (!sent.ok) throw new Error(`email to ${to} failed: ${sent.error}`);
+
+    // Remembered on the idea, so the vault shows who has seen it.
+    const context = { ...(r.context ?? {}), lastSentTo: to, lastSentAt: now };
+    const { error: e2 } = await db.from("ideas").update({ context, updated_at: now }).eq("id", r.id);
+    if (e2) rethrow(e2);
+    return { ok: true, drafted, to, id: sent.id };
+  });
