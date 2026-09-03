@@ -95,6 +95,7 @@ function V3Results() {
               session={session}
               set={set}
               onResume={() => void navigate({ to: blastOffPath(topic, set, "talkthrough") })}
+              editBase={`${blastOffPath(topic, set)}/edit`}
             />
           )}
         </>

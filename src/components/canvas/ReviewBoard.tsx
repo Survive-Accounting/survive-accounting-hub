@@ -314,7 +314,16 @@ function ScriptCard({ item, onRegen, film }: { item: BoardItem; onRegen: (c: str
   );
 }
 
-function CeqEditCard({ item, ceq, onRegen }: { item: BoardItem; ceq: PassCeq | null; onRegen: (c: string) => Promise<void> }) {
+/** The standalone edit screen for ONE SIDE of a CEQ edit card. Only the URL
+ *  is spelled here — the /edit route itself is a later slice, so this link
+ *  lands on "not found" until that ships. */
+function editHref(base: string, side: "current" | "proposed", item: BoardItem): string {
+  const q = new URLSearchParams({ side, item: item.id });
+  if (item.ceqIds[0]) q.set("ceq", item.ceqIds[0]);
+  return `${base}?${q.toString()}`;
+}
+
+function CeqEditCard({ item, ceq, onRegen, editBase }: { item: BoardItem; ceq: PassCeq | null; onRegen: (c: string) => Promise<void>; editBase?: string }) {
   const p = item.payload as { state?: string; error?: string; instruction?: string; proposed?: MicroEditProposal; current?: { stem: string; choices: { text: string; correct: boolean; feedback?: string | null }[] } };
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
@@ -341,7 +350,19 @@ function CeqEditCard({ item, ceq, onRegen }: { item: BoardItem; ceq: PassCeq | n
       {(p.state === "ready" || p.state === "applied" || p.proposed) && p.proposed && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <div style={{ fontSize: 9.5, letterSpacing: "0.18em", color: NEON.muted, textTransform: "uppercase", fontWeight: 900 }}>Current</div>
+            <div className="flex items-center gap-2">
+              <div style={{ fontSize: 9.5, letterSpacing: "0.18em", color: NEON.muted, textTransform: "uppercase", fontWeight: 900 }}>Current</div>
+              {editBase && (
+                <a
+                  className="tt-chrome rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                  href={editHref(editBase, "current", item)}
+                  title="Edit the CURRENT question on its own screen"
+                  style={{ border: `1px solid ${EDGE}`, color: NEON.muted, textDecoration: "none", lineHeight: 1.6 }}
+                >
+                  Edit
+                </a>
+              )}
+            </div>
             <div style={{ fontSize: 12.5, marginTop: 3 }}>{p.current?.stem ?? ceq?.stem}</div>
             {(p.current?.choices ?? ceq?.choices ?? []).map((c, i) => (
               <div key={i} style={{ fontSize: 11.5, color: c.correct ? "#3BF5A0" : NEON.muted }}>{String.fromCharCode(65 + i)}. {c.text}{c.correct ? " ✓" : ""}</div>
@@ -434,12 +455,17 @@ function VibePlanCard({ item, onRegen }: { item: BoardItem; onRegen: (c: string)
 
 // ───────────────────────────────────────────────────────────── the board
 
-export function ReviewBoardV2({ items, ceqs, onRegen, film }: {
+export function ReviewBoardV2({ items, ceqs, onRegen, film, editBase }: {
   items: BoardItem[];
   ceqs: PassCeq[];
   onRegen: (itemId: string, comment: string) => Promise<void>;
   /** B5 — enables the 🎬 pick toggle, targeting this set. */
   film?: { doc: TTDoc; setId: string };
+  /** Base path of the standalone edit screen, e.g.
+   *  /v3/<topic>/<set>/blast-off/edit. When given, every CEQ edit card shows
+   *  an Edit link above its Current column. Omitted (studio /talkthrough) =
+   *  no link, because there is no set-scoped URL to send Lee to. */
+  editBase?: string;
 }) {
   const script = items.filter((b) => b.kind === "script");
   const edits = items.filter((b) => b.kind === "ceq_edit");
@@ -468,7 +494,7 @@ export function ReviewBoardV2({ items, ceqs, onRegen, film }: {
       {edits.length > 0 && (
         <div className="mb-4">
           <h3 style={{ fontSize: 11, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", marginBottom: 6 }}>CEQ edits</h3>
-          {edits.map((b) => <CeqEditCard key={b.id} item={b} ceq={ceqOf(b)} onRegen={regen(b.id)} />)}
+          {edits.map((b) => <CeqEditCard key={b.id} item={b} ceq={ceqOf(b)} onRegen={regen(b.id)} editBase={editBase} />)}
         </div>
       )}
       {[...byKind.entries()].map(([k, list]) => (
