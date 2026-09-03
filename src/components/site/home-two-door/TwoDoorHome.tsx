@@ -300,10 +300,10 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
             <p className="text-[24px] font-black leading-tight sm:text-[30px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
               &ldquo;The exam looks nothing like the homework.&rdquo;
             </p>
-            <footer className="mt-2 text-[13.5px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>— what students tell me every semester</footer>
+            <footer className="mt-2 text-[13.5px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>(what students tell me every semester)</footer>
           </blockquote>
           <p className="mx-auto mt-5 max-w-[600px] text-center text-[15px] leading-relaxed sm:text-[16px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-secondary)" }}>
-            That&apos;s the whole problem. Survive makes exam day the second time you&apos;ve seen the problem, not the first.
+            Walk into your test confident. Survive makes exam day the second time you&apos;ve seen the problems&mdash;not the first.
           </p>
           <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} />
           <div className="mt-3 flex justify-center">
