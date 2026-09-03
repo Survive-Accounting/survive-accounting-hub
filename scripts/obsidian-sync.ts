@@ -409,7 +409,9 @@ async function main(): Promise<void> {
     // --draft: a missing prompt gets one, saved to the app first.
     // --redraft: an existing one is replaced, the old one kept.
     const eligible = (r.status === "IDEA" || r.status === "DRAFTED") && (!ONLY || ONLY === r.id);
-    const wantDraft = eligible && ((DRAFT && !r.prompt_md?.trim()) || REDRAFT);
+    // A stale prompt (another capture was merged in) redrafts on --draft too.
+    const stale = r.context?.stalePrompt === "1";
+    const wantDraft = eligible && ((DRAFT && (!r.prompt_md?.trim() || stale)) || REDRAFT);
     let redrawn = false;
     if (wantDraft) {
       log(`${r.prompt_md?.trim() ? "redraft" : "draft  "} ${r.title}`);
@@ -427,6 +429,7 @@ async function main(): Promise<void> {
         r.prompt_filename = r.prompt_filename || `${slug(r.title).toLowerCase().replace(/\s+/g, "-")}.md`;
         if (r.status === "IDEA") r.status = "DRAFTED";
         if (previous) r.context = { ...(r.context ?? {}), previousPromptMd: previous };
+        if (r.context?.stalePrompt) { const c = { ...r.context }; delete c.stalePrompt; r.context = c; }
         const { error: e } = await db.from("ideas").update({ prompt_md: r.prompt_md, prompt_filename: r.prompt_filename, status: r.status, context: r.context, updated_at: new Date().toISOString() }).eq("id", r.id);
         if (e) throw new Error(`save prompt for ${r.id}: ${e.message}`);
         redrawn = !!previous;

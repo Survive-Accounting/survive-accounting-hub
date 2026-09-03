@@ -218,6 +218,9 @@ function Row({ idea, expanded, onToggle, onPatch, onChanged }: {
         <div onClick={onToggle} className="min-w-0" style={{ flex: 1, cursor: "pointer", fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: reviewed ? "line-through" : "none", color: reviewed ? MUTED : CREAM }}>
           {idea.title || "(untitled — organising…)"}
           {idea.status === "SUBMITTED" && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#7DD3FC" }}>SENT</span>}
+          {idea.context?.mergedInto && <span title={idea.context.mergedWhy ?? "merged into another idea"} style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: MUTED }}>↳ MERGED</span>}
+          {idea.context?.mergedFrom && <span title="another capture was folded into this one" style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#3BF5A0" }}>+{idea.context.mergedFrom.split(",").length}</span>}
+          {idea.context?.stalePrompt === "1" && <span title="a capture was merged in since the prompt was drafted — the watch sync redrafts it, or Redraft with AI" style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: GOLD }}>PROMPT STALE</span>}
           {idea.createdBy.toLowerCase() === "king" && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: MUTED }}>KING</span>}
         </div>
         {/* quick actions: sent · reviewed · archive — the same three states
@@ -237,6 +240,11 @@ function Row({ idea, expanded, onToggle, onPatch, onChanged }: {
 
       {expanded && (
         <div style={{ padding: "0 14px 14px", borderTop: `1px solid ${EDGE}` }}>
+          {idea.context?.mergedInto && (
+            <div style={{ fontSize: 12, color: MUTED, marginTop: 12 }}>
+              Merged into another idea{idea.context.mergedWhy ? ` — ${idea.context.mergedWhy}` : ""}. Its words were added there; this row is parked. Wrong call? Reopen it above.
+            </div>
+          )}
           {tldr && <div style={{ fontSize: 13, color: CREAM, opacity: 0.85, marginTop: 12 }}>{tldr}</div>}
           {summary && <div style={{ fontSize: 13, lineHeight: 1.55, color: CREAM, marginTop: 8 }}>{summary}</div>}
           <div style={{ fontSize: 11, color: MUTED, marginTop: 8 }}>

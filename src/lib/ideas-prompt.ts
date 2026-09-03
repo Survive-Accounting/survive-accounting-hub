@@ -47,6 +47,30 @@ export function buildOrganizeMessages(idea: IdeaForPrompt & { existingPrompt?: s
   return { system, user };
 }
 
+/** MERGE CHECK (Lee, 2026-09-03: "every time I submit a new idea, the AI will
+ *  explore current ideas and combine them where it makes sense … reduce
+ *  clutter … use less Claude Code sessions"). One micro call decides whether
+ *  the new idea is the SAME ask as an open one (duplicate), ADDS detail to
+ *  one (extends), or stands alone. Conservative on purpose: a wrong merge
+ *  hides an idea; a missed one is just two rows. */
+export function buildMergeMessages(
+  idea: { title: string; body: string; tldr?: string; sourcePath: string },
+  candidates: readonly { id: string; title: string; tldr: string; page: string }[],
+): { system: string; user: string } {
+  const system = [
+    "You decide whether a NEW idea from Survive Accounting's team belongs inside an EXISTING open idea. Merge only when a builder would clearly do them as ONE change:",
+    "- \"duplicate\": the same ask, said again (maybe with new words).",
+    "- \"extends\": adds a detail, a case or a refinement to the SAME feature on the SAME surface.",
+    "- \"none\": anything else — a related-but-separate feature stays separate. When in doubt, \"none\".",
+    "Return ONLY JSON: {\"relation\": \"duplicate\"|\"extends\"|\"none\", \"id\": str|null, \"why\": str (one sentence)}",
+  ].join("\n");
+  const user = [
+    `NEW IDEA: ${idea.title}${idea.tldr ? ` — ${idea.tldr}` : ""}\nWORDS: ${idea.body.slice(0, 2500)}\nPAGE: ${idea.sourcePath}`,
+    `EXISTING OPEN IDEAS:\n${candidates.map((c) => `- id=${c.id} · ${c.title}${c.tldr ? ` — ${c.tldr}` : ""} · page ${c.page}`).join("\n")}`,
+  ].join("\n\n");
+  return { system, user };
+}
+
 /** THE PROJECTS — plain names for the Claude Code sessions Lee pins (2026-09-03:
  *  "give me a natural language term for the session … more about the tasks
  *  and the projects I'm working on"). Each maps to a worktree, kept separate

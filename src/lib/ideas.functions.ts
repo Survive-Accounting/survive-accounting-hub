@@ -190,6 +190,53 @@ export const organizeIdea = createServerFn({ method: "POST" })
       ctx.organizedAt = now;
     }
 
+    // 1b. MERGE (Lee, 2026-09-03): fold a duplicate or an extension into the
+    // open idea it belongs to. The words are APPENDED to that idea (nothing
+    // rewritten), this one is parked with a pointer back, and the target's
+    // prompt is flagged stale so the watch sync redrafts it. Never for
+    // to-dos, drafts, uploads, or an idea that already merged.
+    if (data.organize && !isTodo && ctx.draft !== "1" && !ctx.mergedInto && !ctx.importedFrom && words) {
+      const { data: openRows } = await db.from("ideas").select("id,title,context,status")
+        .in("status", ["IDEA", "DRAFTED", "SUBMITTED"]).neq("id", r.id).order("updated_at", { ascending: false }).limit(60);
+      const cands = ((openRows ?? []) as Pick<Row, "id" | "title" | "context">[])
+        .filter((c) => !c.context?.todo && c.context?.draft !== "1" && !c.context?.mergedInto && c.title)
+        .map((c) => ({ id: c.id, title: c.title, tldr: c.context?.tldr ?? "", page: c.context?.page ?? "" }));
+      if (cands.length) {
+        const { buildMergeMessages } = await import("@/lib/ideas-prompt");
+        const mm = buildMergeMessages({ title: r.title, body: r.body, tldr: ctx.tldr, sourcePath: r.source_path ?? "" }, cands);
+        const res = await runAiTask("micro", { system: mm.system, user: mm.user, maxOutput: 200 });
+        const m = res.text.match(/\{[\s\S]*\}/);
+        const j = m ? (JSON.parse(m[0]) as { relation?: unknown; id?: unknown; why?: unknown }) : {};
+        const targetId = typeof j.id === "string" && cands.some((c) => c.id === j.id) ? j.id : null;
+        if ((j.relation === "duplicate" || j.relation === "extends") && targetId) {
+          const { data: t, error: te } = await db.from("ideas").select("*").eq("id", targetId).single();
+          if (te) rethrow(te);
+          const target = t as Row;
+          const stamp = new Date(now).toLocaleDateString("en-US");
+          const addendum = `\n\n— Added ${stamp} from a later capture (${(r.created_by || "").toLowerCase() || "lee"}${r.source_path ? `, on ${r.source_path}` : ""}):\n${r.body.trim()}`;
+          const tctx: Record<string, string> = {
+            ...(target.context ?? {}),
+            mergedFrom: [target.context?.mergedFrom, r.id].filter(Boolean).join(","),
+            ...(target.prompt_md?.trim() ? { stalePrompt: "1" } : {}),
+          };
+          const { error: ue } = await db.from("ideas").update({ body: `${target.body}${addendum}`, context: tctx, updated_at: now }).eq("id", target.id);
+          if (ue) rethrow(ue);
+          ctx.mergedInto = target.id;
+          ctx.mergedWhy = typeof j.why === "string" ? j.why.slice(0, 300) : String(j.relation);
+          const { data: out, error: pe } = await db.from("ideas").update({
+            title: r.title, categories: r.categories ?? [], context: ctx, status: "PARKED", updated_at: now,
+          }).eq("id", r.id).select().single();
+          if (pe) rethrow(pe);
+          return { idea: toIdea(out as Row), drafted: false };
+        }
+      }
+    }
+    if (ctx.mergedInto) {
+      const { data: out, error: e0 } = await db.from("ideas").update({ context: ctx, updated_at: now }).eq("id", r.id).select().single();
+      if (e0) rethrow(e0);
+      return { idea: toIdea(out as Row), drafted: false };
+    }
+
     // 2. The prompt — synthesis lane. Never for a to-do or a draft-in-progress.
     let drafted = false;
     const wantPrompt = data.draftPrompt && !isTodo && ctx.draft !== "1" && (data.redraft || !r.prompt_md?.trim());
