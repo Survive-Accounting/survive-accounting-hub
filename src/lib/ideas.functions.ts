@@ -288,6 +288,9 @@ export const armIdeas = createServerFn({ method: "POST" })
       let status = r.status;
       if (data.armed) {
         ctx.armed = "1"; ctx.queuePriority = data.priority; ctx.armedAt = now;
+        // QUEUE ANYWAY: the hands-on gate flagged it once; arming it again is
+        // Lee overruling the gate, so the runner skips it this time.
+        if (ctx.handsOn) ctx.forceQueue = "1"; else delete ctx.forceQueue;
         if (data.priority === "urgent") ctx.urgent = "1";
         if (partial) ctx.resume = "1"; else { delete ctx.resume; delete ctx.branch; delete ctx.sha; }
         status = "SUBMITTED";

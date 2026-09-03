@@ -182,9 +182,48 @@ async function maybeSplit(db: { from: (t: string) => any }, r: Row): Promise<boo
   const { system, user } = buildSplitMessages({ title: r.title, body: r.body, promptMd: r.prompt_md });
   const res = await runAiTask("micro", { system, user, maxOutput: 3500 });
   const m = res.text.match(/\{[\s\S]*\}/);
-  const j = m ? (JSON.parse(m[0]) as { single?: unknown; slices?: unknown; dropped?: unknown }) : {};
+  const j = m ? (JSON.parse(m[0]) as { single?: unknown; handsOn?: unknown; why?: unknown; slices?: unknown; dropped?: unknown }) : {};
   const slices = Array.isArray(j.slices) ? (j.slices as { title?: unknown; spec?: unknown }[]).filter((x) => typeof x.title === "string" && typeof x.spec === "string") : [];
   const now = new Date().toISOString();
+
+  // THE HANDS-ON GATE (Lee, 2026-09-03: "a warning that hey, you should
+  // monitor this one, and then an option to email the summary of my idea,
+  // TLDR, prompt, etc to myself so I can come here manually"). Too big or
+  // too taste-dependent for an unattended build → out of the queue, flagged
+  // in the bank and Obsidian, and the brief (TLDR · summary · prompt ·
+  // suggested plan) goes to Lee's inbox. "Queue anyway" in the bank sets
+  // forceQueue and the gate steps aside.
+  if (j.handsOn === true && ctx.forceQueue !== "1") {
+    const why = typeof j.why === "string" && j.why.trim() ? j.why.trim() : "too big or too design-dependent for an unattended build";
+    const plan = slices.map((s) => String((s as { title: string }).title));
+    log(`🖐 hands-on: "${r.title}" — ${why}${plan.length ? ` (suggested plan: ${plan.length} steps)` : ""}`);
+    if (DRY) return true;
+    const flagged: Record<string, string | undefined> = { ...ctx, handsOn: why, handsOnAt: now, handsOnPlan: JSON.stringify(plan), sizeChecked: "1" };
+    delete flagged.armed; delete flagged.armedAt;
+    const { error } = await db.from("ideas").update({ context: flagged, status: r.status === "SUBMITTED" ? "DRAFTED" : r.status, updated_at: now }).eq("id", r.id);
+    if (error) throw new Error(`hands-on flag: ${error.message}`);
+    try {
+      const { ideaUpdateText } = await import("../src/lib/ideas-prompt");
+      const { sendResendEmail } = await import("../src/lib/email.server");
+      const text = [
+        `🖐 BUILD THIS ONE BY HAND\n\nThe build queue looked at "${r.title}" and stepped back: ${why}\n\nOpen Claude Code on the build PC and work it from the prompt below. Re-queue it from the Idea Bank ("queue anyway") if you disagree.`,
+        plan.length ? `SUGGESTED PLAN\n${plan.map((p, i) => `${i + 1}. ${p}`).join("\n")}` : "",
+        ideaUpdateText({
+          title: r.title, body: r.body, categories: (r.context?.categories ?? "").split(",").filter(Boolean), subcategory: "",
+          sourcePath: r.source_path ?? "", pageTitle: r.context?.title ?? "", promptMd: r.prompt_md,
+          createdBy: (r.created_by || "lee").toLowerCase(), appUrl: "https://surviveaccounting.com/admin/ideas",
+        }),
+      ].filter(Boolean).join("\n\n");
+      const sent = await sendResendEmail({ to: "lee@surviveaccounting.com", subject: `[Survive build queue] 🖐 Build by hand: ${r.title}`, text });
+      if (!sent.ok) throw new Error(sent.error);
+      await db.from("ideas").update({ context: { ...flagged, handsOnEmailed: new Date().toISOString(), lastSentTo: "lee" } }).eq("id", r.id);
+      log(`  ✉ brief emailed to lee`);
+    } catch (e) {
+      log(`  ! brief email failed: ${e instanceof Error ? e.message : String(e)} (the bank has an "Email me the brief" button)`);
+    }
+    return true;
+  }
+
   if (j.single === true || slices.length < 2) {
     if (!DRY) await db.from("ideas").update({ context: { ...ctx, sizeChecked: "1" }, updated_at: now }).eq("id", r.id);
     return false;

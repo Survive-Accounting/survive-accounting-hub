@@ -17,7 +17,7 @@ import { armIdeas, listIdeas, organizeIdea, saveIdea, sendIdeaSummary, setUrgent
 import { hasPromptSections, ideaUpdateText, promptSection, replacePromptSection } from "@/lib/ideas-prompt";
 import {
   CATEGORIES, CATEGORY_LABEL, FOCUS_LABEL, QUEUE_PRIORITIES, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
-  buildFailed, isArmed, isBuilding, isBuilt, isDraft, isProduction, isTodoIdea, isUrgent, prioritize, priorityOf, queuePriorityOf, rankIdeas, rankQueue, summaryOf, testChecklistOf, tldrOf,
+  buildFailed, handsOnPlanOf, isArmed, isBuilding, isBuilt, isDraft, isHandsOn, isProduction, isTodoIdea, isUrgent, prioritize, priorityOf, queuePriorityOf, rankIdeas, rankQueue, summaryOf, testChecklistOf, tldrOf,
   type Focus, type Idea, type QueuePriority, type Recommendation, type TimeBox,
 } from "@/components/ideas/model";
 
@@ -46,7 +46,7 @@ const APP_URL = "https://surviveaccounting.com/admin/ideas";
 
 function IdeasRoute() { return <AdminGate><Ideas /></AdminGate>; }
 
-type FoldKey = "urgent" | "production" | "queue" | "built" | "drafts" | "open" | "todos" | "reviewed" | "archived";
+type FoldKey = "urgent" | "production" | "queue" | "handsOn" | "built" | "drafts" | "open" | "todos" | "reviewed" | "archived";
 const PRIORITY_COLOR: Record<QueuePriority, string> = { urgent: "#FF7A59", high: "#FCA311", medium: "#7DD3FC", low: "#9AA3B8" };
 
 function Ideas() {
@@ -55,7 +55,7 @@ function Ideas() {
   const [open, setOpen] = useState<string | null>(null);
   const [prio, setPrio] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [folds, setFolds] = useState<Record<FoldKey, boolean>>({ urgent: true, production: true, queue: true, built: true, drafts: true, open: true, todos: false, reviewed: false, archived: false });
+  const [folds, setFolds] = useState<Record<FoldKey, boolean>>({ urgent: true, production: true, queue: true, handsOn: true, built: true, drafts: true, open: true, todos: false, reviewed: false, archived: false });
   const toggle = (k: FoldKey) => setFolds((f) => ({ ...f, [k]: !f[k] }));
   // ADD TO BUILD QUEUE (Lee, 2026-09-03): tick some, pick a priority, add.
   // The runner on the build machine takes it from there — unattended.
@@ -84,11 +84,13 @@ function Ideas() {
     const working = live.filter((i) => i.status !== "APPROVED");
     const queued = working.filter((i) => isArmed(i) && !isBuilt(i) && !isTodoIdea(i));
     const built = working.filter((i) => isBuilt(i) && !isTodoIdea(i));
-    const rest = working.filter((i) => !isArmed(i) && !isBuilt(i) && !isProduction(i));
+    const handsOn = working.filter((i) => isHandsOn(i) && !isProduction(i) && !isTodoIdea(i));
+    const rest = working.filter((i) => !isArmed(i) && !isBuilt(i) && !isProduction(i) && !isHandsOn(i));
     return {
       production: rankIdeas(working.filter((i) => isProduction(i) && !isTodoIdea(i))),
       urgent: rankIdeas(rest.filter((i) => isUrgent(i) && !isTodoIdea(i))),
       queue: rankQueue(queued),
+      handsOn: rankIdeas(handsOn),
       built: rankQueue(built),
       drafts: rankIdeas(rest.filter((i) => !isUrgent(i) && isDraft(i) && !isTodoIdea(i))),
       open: rankIdeas(rest.filter((i) => !isUrgent(i) && !isDraft(i) && !isTodoIdea(i))),
@@ -178,6 +180,7 @@ function Ideas() {
       </div>
       {fold("production", "🎬 Production queue", sections.production, "#3BF5A0", "content to film — sent from a review board; drag in Prioritize to reorder")}
       {fold("queue", "⚙ Build queue", sections.queue, GOLD, "armed — the build machine works these in priority order, unattended")}
+      {fold("handsOn", "🖐 Build by hand", sections.handsOn, "#FCA311", "the runner stepped back — too big or too design-dependent for an unattended build; the brief is in Lee's email, work it in Claude Code, or queue anyway")}
       {fold("built", "✅ Built — test these", sections.built, "#3BF5A0", "a preview link and a checklist per idea; tick reviewed when it checks out")}
       {fold("drafts", "✎ Drafts", sections.drafts, "#7DD3FC", "words not finished — Ctrl+I to continue one")}
       {fold("open", "Open", sections.open, GOLD, "in order — urgent first, then Prioritize's order, then newest")}
@@ -220,6 +223,8 @@ function Row({ idea, expanded, selected, onSelect, onArm, onToggle, onPatch, onC
   const built = isBuilt(idea);
   const building = isBuilding(idea);
   const failed = buildFailed(idea);
+  const handsOn = isHandsOn(idea);
+  const handsOnPlan = handsOnPlanOf(idea);
   const qp = queuePriorityOf(idea);
   const checklist = testChecklistOf(idea);
   const [busy, setBusy] = useState<string | null>(null);
@@ -283,6 +288,7 @@ function Row({ idea, expanded, selected, onSelect, onArm, onToggle, onPatch, onC
           {armed && !built && !building && !failed && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: PRIORITY_COLOR[qp] }}>QUEUED · {qp}</span>}
           {failed && <span title={idea.context?.runError} style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#F87171" }}>{idea.context?.sha ? "STOPPED EARLY · partial on branch" : "BUILD FAILED"}</span>}
           {idea.context?.resume === "1" && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: GOLD }}>RESUMES</span>}
+          {handsOn && <span title={idea.context?.handsOn} style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#FCA311" }}>🖐 BUILD BY HAND</span>}
           {idea.context?.splitInto && <span title="cut into single-feature slices for the build queue" style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#7DD3FC" }}>SPLIT INTO {idea.context.splitInto.split(",").length}</span>}
           {idea.context?.splitFrom && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: MUTED }}>PART {idea.context.splitIndex} / {idea.context.splitOf}</span>}
           {idea.status === "SUBMITTED" && !armed && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#7DD3FC" }}>SENT</span>}
@@ -336,6 +342,28 @@ function Row({ idea, expanded, selected, onSelect, onArm, onToggle, onPatch, onC
                   <div style={{ fontSize: 11, color: MUTED, marginTop: 8 }}>When it checks out, click <b style={{ color: CREAM }}>✓ reviewed</b> above. Merging the branch to main is still a person's call.</div>
                 </>
               )}
+            </div>
+          )}
+          {handsOn && (
+            // THE HANDS-ON GATE (Lee, 2026-09-03): the runner stepped back
+            // from this one. The why, the suggested plan, and two doors —
+            // email me the brief, or overrule the gate and queue anyway.
+            <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(252,163,17,0.5)", background: "rgba(252,163,17,0.08)" }}>
+              <div style={{ fontSize: 11, color: "#FCA311", fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase" }}>🖐 Build this one by hand</div>
+              <div style={{ fontSize: 13, color: CREAM, marginTop: 4 }}>{idea.context?.handsOn}</div>
+              {handsOnPlan.length > 0 && (
+                <ol style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 12.5, lineHeight: 1.6, color: CREAM, opacity: 0.85 }}>
+                  {handsOnPlan.map((p, k) => <li key={k}>{p}</li>)}
+                </ol>
+              )}
+              <div className="flex items-center" style={{ gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                <Btn onClick={() => run("brief", async () => {
+                  const r = await sendIdeaSummary({ data: { id: idea.id, to: "lee", note: `🖐 BUILD THIS ONE BY HAND — ${idea.context?.handsOn ?? ""}${handsOnPlan.length ? `\n\nSUGGESTED PLAN\n${handsOnPlan.map((p, k) => `${k + 1}. ${p}`).join("\n")}` : ""}` } });
+                  return `✉ brief sent to ${r.to}`;
+                })}>{busy === "brief" ? "Sending…" : "✉ Email me the brief"}</Btn>
+                <Btn onClick={() => void onArm(true, qp)}>⚙ Queue anyway</Btn>
+                <span style={{ fontSize: 11, color: MUTED }}>{idea.context?.handsOnEmailed ? `brief emailed ${idea.context.handsOnEmailed.slice(0, 16).replace("T", " ")}` : "not emailed yet"}</span>
+              </div>
             </div>
           )}
           {idea.context?.mergedInto && (

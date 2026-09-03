@@ -142,6 +142,7 @@ function noteFront(r: Row, keep: Front): Front {
     queuePriority: r.context?.queuePriority ?? "",
     built: r.context?.built === "1",
     preview: r.context?.previewUrl ?? "",
+    handsOn: r.context?.handsOn ?? "",
     priority: String(Number(r.context?.priority ?? 0) || 0),
     draft: r.context?.draft === "1",
     tldr: r.context?.tldr ?? "",
@@ -551,7 +552,10 @@ async function main(): Promise<void> {
   const buildingRows = live.filter((r) => r.context?.armed === "1" && r.context?.built !== "1" && r.context?.runStartedAt && r.context?.runFailed !== "1").sort(byQueue);
   const failedRows = live.filter((r) => r.context?.runFailed === "1").sort(byQueue);
   const armedRows = live.filter((r) => r.context?.armed === "1" && r.context?.built !== "1" && !r.context?.runStartedAt && r.context?.runFailed !== "1").sort(byQueue);
-  const unarmed = live.filter((r) => r.context?.armed !== "1" && r.context?.built !== "1" && r.context?.runFailed !== "1");
+  const notArmed = live.filter((r) => r.context?.armed !== "1" && r.context?.built !== "1" && r.context?.runFailed !== "1");
+  // THE HANDS-ON GATE: the runner stepped back; the brief went to Lee's email.
+  const handsOnRows = notArmed.filter((r) => !!r.context?.handsOn).sort(rank);
+  const unarmed = notArmed.filter((r) => !r.context?.handsOn);
   const urgentRows = unarmed.filter((r) => r.context?.urgent === "1" && r.context?.draft !== "1").sort(rank);
   const openRows = unarmed.filter((r) => r.context?.urgent !== "1" && r.context?.draft !== "1").sort(rank);
   const draftRows = unarmed.filter((r) => r.context?.draft === "1").sort(rank);
@@ -567,6 +571,7 @@ async function main(): Promise<void> {
     ...(buildingRows.length ? ["## ⚙ Building now", "", list(buildingRows), ""] : []),
     "## ⚙ Queued (armed, by priority)", "", list(armedRows), "",
     ...(failedRows.length ? ["## ✗ Build failed (re-queue from the Idea Bank)", "", list(failedRows), ""] : []),
+    ...(handsOnRows.length ? ["## 🖐 Build by hand (the runner stepped back — brief emailed to Lee; work it in Claude Code, or \"queue anyway\" in the bank)", "", list(handsOnRows, (r) => `${line(r)}\n  - why: ${r.context?.handsOn}`), ""] : []),
     "## 🔥 Urgent, not queued", "", list(urgentRows), "",
     "## Ideas, not queued", "", list(openRows), "",
     ...(draftRows.length ? ["## Drafts (words not finished)", "", list(draftRows), ""] : []),

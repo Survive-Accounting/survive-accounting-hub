@@ -118,6 +118,13 @@ What the runner does to keep a build from dying (learned the hard way on
 - **Splits big prompts.** Before building, one cheap AI call asks "is this
   ONE feature?" A research project becomes 2–6 single-feature slices, armed
   in order at the same priority; the parent shows SPLIT INTO n in the bank.
+- **The hands-on gate.** The same call can answer "don't build this
+  unattended" — a new editor or product surface, anything needing Lee's taste
+  along the way, a vision of more than three slices. The idea leaves the
+  queue, shows **🖐 BUILD BY HAND** in the bank (with the why and a suggested
+  plan) and under "Build by hand" in `_Queue.md`, and Lee gets the brief by
+  email: TLDR, summary, prompt, plan. He works it in Claude Code on this PC.
+  **⚙ Queue anyway** overrules the gate for that idea.
 - **Commits as it goes** and pushes the branch even when a build stops
   early — the bank shows STOPPED EARLY · partial on branch.
 - **Resumes.** Re-queue a stopped build and it continues on that branch

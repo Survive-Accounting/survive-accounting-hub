@@ -158,6 +158,15 @@ export const isArmed = (i: Idea): boolean => i.context?.armed === "1";
 export const isBuilt = (i: Idea): boolean => i.context?.built === "1";
 export const isBuilding = (i: Idea): boolean => isArmed(i) && !isBuilt(i) && !!i.context?.runStartedAt && !i.context?.runFailed;
 export const buildFailed = (i: Idea): boolean => i.context?.runFailed === "1";
+/** THE HANDS-ON GATE (2026-09-03): the runner judged it too big or too
+ *  taste-dependent for an unattended build, took it out of the queue, and
+ *  emailed Lee the brief. `handsOn` holds the one-sentence why; the
+ *  suggested plan is in `handsOnPlan` (JSON list of slice titles). "Queue
+ *  anyway" re-arms it and the runner skips the gate. */
+export const isHandsOn = (i: Idea): boolean => !!i.context?.handsOn && !isArmed(i) && !isBuilt(i);
+export const handsOnPlanOf = (i: Idea): string[] => {
+  try { const v = JSON.parse(i.context?.handsOnPlan ?? "[]"); return Array.isArray(v) ? v.map(String) : []; } catch { return []; }
+};
 export const queuePriorityOf = (i: Idea): QueuePriority =>
   (QUEUE_PRIORITIES as readonly string[]).includes(i.context?.queuePriority ?? "") ? (i.context!.queuePriority as QueuePriority) : "medium";
 export const testChecklistOf = (i: Idea): string[] => {
