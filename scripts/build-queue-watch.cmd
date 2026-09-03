@@ -6,3 +6,6 @@ rem checklist back. Double-click, or put a shortcut in Startup. Close to stop.
 cd /d "%~dp0.."
 title Survive — build queue
 bun scripts/build-queue.ts --watch
+echo.
+echo   The build queue stopped. Read the message above, then close this window.
+pause
