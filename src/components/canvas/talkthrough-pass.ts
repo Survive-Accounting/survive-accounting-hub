@@ -317,16 +317,25 @@ const REVIEW_SPEC = `Return ONE JSON object, nothing else (every "quote" is a VE
 {
  "script": {"title": str, "beats": [{"title": str, "coversCeqIds": [str], "voice": [str], "emphasize": str, "notes": str}], "triggerWords": [str], "compareContrasts": [str]},
  "ceqEdits": [{"ceqId": str, "proposedStem": str|null, "proposedChoices": [{"text": str, "correct": bool, "feedback": str|null}]|null, "why": str, "quote": str}],
- "ideas": [{"kind": "short"|"nerdout"|"exhibit"|"memo"|"phrase"|"trigger_word"|"tip_trick"|"cheat_code"|"real_world", "title": str, "body": str, "quote": str, "ceqIds": [str]}],
+ "ideas": [{"kind": "cheat_code"|"memorize_this"|"deeper_idea"|"visual"|"phrase"|"short"|"nerdout"|"exhibit"|"trigger_word", "origin": "lee"|"ai", "title": str, "body": str, "quote": str, "ceqIds": [str], "visualKind": str|null}],
  "vibePlan": {"title": str, "beats": [{"title": str, "why": str, "talkPrompt": str, "quote": str}]}|null,
  "proposedStamps": [{"kind": str, "quote": str, "seq": int}]
 }`;
 
-const REVIEW_RULES = `RULES:
-- You are drafting STARTING POINTS for Lee, the teacher of record. Nothing auto-applies; his hands make real changes. Write in Lee's cadence (the METHOD doc) — his phrases verbatim over paraphrase.
-- THE SCRIPT is the headline output, always generated: a concise Blast Off script/strategy in GROUPED BEATS (never question-by-question). "voice" lines are Lee's own camera-ready sentences QUOTED VERBATIM from the transcript wherever they exist; write connective tissue only where he left gaps. Name what to EMPHASIZE, the trigger words, the compare/contrasts and patterns he called out.
-- CEQ EDITS: propose an edit ONLY where the talk motivates one (beyond the stamp-drafted edits listed as already pending). proposedChoices is the FULL list with exactly one correct.
-- IDEAS: one item per idea, kind from the MAKE THIS A vocabulary; each quotes the verbatim moment that earned it. Memo = a definition/callout worth banking beside a CEQ.
+const REVIEW_RULES = `LEE'S LAW (2026-09-03, in his words — this outranks everything below):
+- "I'm the teacher. It's the support assistant." You PROOFREAD; you do not invent. When Lee stamps something, his words ARE the content: clean the grammar, keep his phrasing, his examples, his tone. "I don't want it to take the idea and make it its own." Never reword a point he already made well.
+- A stamped item is ONE item, origin "lee". You may add ideas he did not say — but each is origin "ai", kept short, and there are never more "ai" items than "lee" items. They sit in their own fold; his sit on top.
+- No inventing numbers, claims, jokes, or tone words. If he did not say it and it is not in a CEQ, it is not in the output — except as a clearly marked "ai" suggestion.
+- THREE STANDARD CARD KINDS, and Lee wants consistency: cheat_code (a rule to carry into the exam), memorize_this (the thing to remember, said the way he says it), deeper_idea (the seed of a Nerd Out). When his stamp is vague (a tip, a phrase), SUGGEST which of the three it should be by choosing the kind — do not create extra ones. tip_trick / real_world / memo are retired: map them to one of the three.
+- VISUAL: a stamped visual is a card or tool a student could use — a compare/contrast, a progressive reveal (Enter reveals the next line, Shift+Enter back), an interactive, or a static. Carry his visualKind if he gave one; otherwise suggest one. A visual may reference another visual he named.
+- THE SCRIPT is TALKING POINTS, not prose: "just give me the best talking points out of what I said, the phrases." Concise. "voice" lines are Lee's own sentences QUOTED VERBATIM wherever they exist; connective tissue only where he left a gap, and short.
+
+RULES:
+- Nothing auto-applies; his hands make real changes.
+- THE SCRIPT: GROUPED BEATS (never question-by-question). Name what to EMPHASIZE, the trigger words, the compare/contrasts and patterns he called out.
+- CEQ EDITS: propose an edit ONLY where the talk motivates one (beyond the stamp-drafted edits listed as already pending). A "revise choices" or "reword" stamp means: clean up what he said, keep his intent. proposedChoices is the FULL list with exactly one correct.
+- NEW CEQ: when he says a thing sounds like a question (a true/false, a "which of these"), propose it as a ceqEdit-style item quoting him, origin "lee".
+- IDEAS: one item per idea; each quotes the verbatim moment that earned it.
 - VIBE PLAN only when asked for; deeper-pass beats with talk-back prompts.
 - PROPOSED STAMPS: moments Lee's words clearly imply but he didn't press; seq = the [S<n>] anchor.
 - Respect the exclusions: produce NOTHING of an excluded kind.
@@ -379,7 +388,9 @@ export function buildReviewMessages(ctx: ReviewContext): { system: string; user:
   return { system, user };
 }
 
-const IDEA_KINDS = ["short", "nerdout", "exhibit", "memo", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world"] as const;
+const IDEA_KINDS = ["short", "nerdout", "exhibit", "memo", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memorize_this", "deeper_idea", "visual"] as const;
+/** Retired kinds fold into the three standard ones at parse time. */
+const KIND_FOLD: Record<string, string> = { tip_trick: "cheat_code", real_world: "deeper_idea", memo: "memorize_this" };
 
 /** Model JSON → v2 board items. Same laws as parsePass: degrade, never throw. */
 export function parseReview(
@@ -423,9 +434,14 @@ export function parseReview(
   }
 
   for (const i of arr2(raw.ideas).map(rec2)) {
-    const kind = (IDEA_KINDS as readonly string[]).includes(str2(i.kind)) ? str2(i.kind) : null;
-    if (!kind || (!str2(i.title) && !str2(i.body))) continue;
-    items.push(mk("idea", str2(i.title) || kind, { kind, body: str2(i.body) }, str2(i.quote), arr2(i.ceqIds).map(str2).filter((x) => known.has(x))));
+    const rawKind = (IDEA_KINDS as readonly string[]).includes(str2(i.kind)) ? str2(i.kind) : null;
+    if (!rawKind || (!str2(i.title) && !str2(i.body))) continue;
+    const kind = KIND_FOLD[rawKind] ?? rawKind;
+    // origin: "lee" = cleaned from a stamp; "ai" = the model's own suggestion.
+    // Anything with a quote is Lee's unless the model says otherwise.
+    const origin = str2(i.origin) === "ai" ? "ai" : "lee";
+    const visualKind = str2(i.visualKind);
+    items.push(mk("idea", str2(i.title) || kind, { kind, body: str2(i.body), origin, ...(visualKind ? { visualKind } : {}) }, str2(i.quote), arr2(i.ceqIds).map(str2).filter((x) => known.has(x))));
   }
 
   const vibe = rec2(raw.vibePlan);

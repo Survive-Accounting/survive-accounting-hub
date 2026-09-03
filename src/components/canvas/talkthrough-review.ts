@@ -87,7 +87,9 @@ export function queueReview(req: ReviewRequest): void {
           kind: canonicalStamp(t.tag)!,
           ceqLabel: t.focusedCeqLabel ?? null,
           starred: !!t.starred,
-          spoken: t.starred ? "" : segmentsInContext(segs, t).map((x) => x.text.trim()).filter(Boolean).join(" ").slice(0, 8000),
+          // A visual stamp's follow-up ("progressive reveal · like Who's It
+          // For?") rides in front of the words so the pass sees it.
+          spoken: t.starred ? "" : `${t.note && t.source === "tap" ? `[${t.note}] ` : ""}${segmentsInContext(segs, t).map((x) => x.text.trim()).filter(Boolean).join(" ")}`.slice(0, 8000),
         }));
       const r = await runTalkthroughReview({
         data: {

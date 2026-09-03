@@ -113,7 +113,8 @@ export type TagKind = MomentTag | QuickKind | StampKind2;
 type StampKind2 =
   | "reword" | "revise_choices" | "edit_other"
   | "blast_off" | "review_vibe"
-  | "short" | "nerdout" | "exhibit" | "phrase" | "trigger_word" | "tip_trick" | "cheat_code" | "real_world" | "memo";
+  | "short" | "nerdout" | "exhibit" | "phrase" | "trigger_word" | "tip_trick" | "cheat_code" | "real_world" | "memo"
+  | "memorize_this" | "deeper_idea" | "visual";
 export const TAG_LABELS: Record<MomentTag | QuickKind, string> = {
   SHORT: "Short", NERDOUT: "Nerd Out", EXHIBIT: "Exhibit idea",
   PHRASE: "Phrase", TALK: "Talk moment", KEY: "Key",
@@ -129,6 +130,11 @@ export const STAMP_KINDS = [
   "reword", "revise_choices", "edit_other",
   "blast_off", "review_vibe",
   "short", "nerdout", "exhibit", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memo",
+  // THE THREE STANDARD KINDS + VISUAL (Lee, 2026-09-03): "narrow it to these
+  // three … cheat code, memorize this, deeper idea … visual". They match the
+  // canvas's own callout kinds one to one. tip_trick / real_world / memo stay
+  // readable for old sessions but are off the board.
+  "memorize_this", "deeper_idea", "visual",
 ] as const;
 export type StampKind = (typeof STAMP_KINDS)[number];
 
@@ -137,7 +143,8 @@ export type StampKind = (typeof STAMP_KINDS)[number];
  *  Exhibit set apart from the video options (empty label = separated tail). */
 export const STAMP_GROUPS: readonly { id: string; label: string; kinds: readonly StampKind[] }[] = [
   { id: "edit", label: "EDIT THE CEQ", kinds: ["reword", "revise_choices", "edit_other"] },
-  { id: "bank", label: "BANK A NEW:", kinds: ["phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memo"] },
+  // Lee's 09-03 simplification: three standard card kinds, a visual, a phrase.
+  { id: "bank", label: "BANK A NEW:", kinds: ["cheat_code", "memorize_this", "deeper_idea", "visual", "phrase"] },
   { id: "later", label: "TO MAKE LATER", kinds: ["blast_off", "short", "nerdout", "review_vibe"] },
   { id: "exhibit", label: "", kinds: ["exhibit"] },
 ] as const;
@@ -148,7 +155,12 @@ export const STAMP_LABELS: Record<StampKind, string> = {
   short: "Other Short", nerdout: "Nerd Out", exhibit: "Exhibit", phrase: "Phrase",
   trigger_word: "Trigger Word", tip_trick: "Tip/Trick", cheat_code: "Cheat Code",
   real_world: "Real World Example", memo: "Other Memo",
+  memorize_this: "Memorize This", deeper_idea: "Deeper Idea", visual: "Visual",
 };
+
+/** VISUAL follow-up (Lee, 2026-09-03): when he stamps a visual, one more tap
+ *  says what kind — stored on the stamp's note, read by the review pass. */
+export const VISUAL_KINDS = ["progressive reveal", "interactive", "compare / contrast", "static"] as const;
 
 /** EDIT stamps are instruction contexts — closing one fires a background
  *  micro-model draft (B0) stored on the CEQ as a PENDING EDIT. */
@@ -400,9 +412,9 @@ export type StyleKind = (typeof STYLE_KINDS)[number];
 export function styleKindFor(item: BoardItem): StyleKind {
   if (item.kind === "script" || item.kind === "vibe_plan") return "script";
   const k = item.kind === "idea" ? String((item.payload as { kind?: string }).kind ?? "") : item.kind;
-  if (k === "exhibit") return "exhibit";
-  if (k === "memo" || k === "phrase" || k === "trigger_word") return "memo";
-  if (k === "short" || k === "nerdout") return "short";
+  if (k === "exhibit" || k === "visual") return "exhibit";
+  if (k === "memo" || k === "phrase" || k === "trigger_word" || k === "memorize_this" || k === "cheat_code") return "memo";
+  if (k === "short" || k === "nerdout" || k === "deeper_idea") return "short";
   return "general";
 }
 

@@ -40,6 +40,9 @@ export interface ImportBlock {
  *  code" is never read as anything else and "tip or trick" is one cue. */
 const STAMP_CUES: readonly [string, StampKind][] = [
   ["cheat\\s*codes?", "cheat_code"],
+  ["memori[sz]e\\s*this", "memorize_this"],
+  ["deeper\\s*ideas?", "deeper_idea"],
+  ["visuals?", "visual"],
   ["trigger\\s*words?", "trigger_word"],
   ["real[\\s-]*world(?:\\s+examples?)?", "real_world"],
   ["tips?\\s*(?:\\/|or|and)\\s*tricks?", "tip_trick"],

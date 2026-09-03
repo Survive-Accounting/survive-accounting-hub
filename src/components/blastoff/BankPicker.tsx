@@ -25,9 +25,12 @@ const EDGE = "rgba(244,239,230,0.16)";
 /** Which banked things belong behind each insert button. A bank item's kind
  *  lives either on the row (kind "phrase") or in its payload (idea kinds). */
 const MATCHES: Record<string, (b: BoardItem) => boolean> = {
-  phrase: (b) => b.kind === "phrase" || pk(b) === "phrase" || pk(b) === "trigger_word",
-  cheat: (b) => pk(b) === "cheat_code" || tagged(b, "Cheat Code"),
-  tip: (b) => pk(b) === "tip_trick" || tagged(b, "Memorize This") || tagged(b, "Formula to Remember"),
+  // The three standard kinds (Lee, 2026-09-03) map one to one onto the
+  // insert kinds: phrase = Memorize This, cheat = Cheat Code, tip = Deeper
+  // Idea. Retired kinds still surface where they used to.
+  phrase: (b) => b.kind === "phrase" || pk(b) === "phrase" || pk(b) === "trigger_word" || pk(b) === "memorize_this" || pk(b) === "memo" || tagged(b, "Memorize This"),
+  cheat: (b) => pk(b) === "cheat_code" || pk(b) === "tip_trick" || tagged(b, "Cheat Code"),
+  tip: (b) => pk(b) === "deeper_idea" || pk(b) === "real_world" || pk(b) === "nerdout" || tagged(b, "Deeper Idea") || tagged(b, "Formula to Remember"),
 };
 const pk = (b: BoardItem): string => String((b.payload as { kind?: string }).kind ?? "");
 const tagged = (b: BoardItem, tag: string): boolean =>

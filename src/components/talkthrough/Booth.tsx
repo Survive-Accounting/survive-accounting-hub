@@ -30,7 +30,7 @@ import { ChevronDown, ChevronRight, FileText, Mic, RotateCcw, Square, Undo2, X }
 
 import { EXHIBIT_REGISTRY, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import {
-  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, canonicalStamp, contextOfSegment, ghostSegments, makeTag, newTTId, openContext,
+  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, VISUAL_KINDS, canonicalStamp, contextOfSegment, ghostSegments, makeTag, newTTId, openContext,
   segmentsInContext, sessionBoard, sessionSegments, sessionTags, stampLabel, styleNotesFor, touchRow,
   type BoardItem, type StampKind, type TTDoc, type TalkSegment, type TalkSession, type TalkTag,
 } from "@/components/canvas/talkthrough";
@@ -551,6 +551,33 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
             <div style={{ fontSize: 12.5, color: CREAM, marginTop: 2 }}>
               {stampLabel(ctx.tag)}{ctx.focusedCeqLabel ? ` · ${ctx.focusedCeqLabel}` : " · set"} — click the stamp again to close
             </div>
+            {/* VISUAL FOLLOW-UP (Lee, 2026-09-03): "it needs to pop down asking
+                what kind of visual" — and which visual it is like. Saved on
+                the stamp; the review pass reads it. */}
+            {canonicalStamp(ctx.tag) === "visual" && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 10, color: NEON.muted, marginBottom: 4 }}>What kind?</div>
+                <div className="flex flex-wrap gap-1">
+                  {VISUAL_KINDS.map((k) => {
+                    const on = (ctx.note ?? "").startsWith(k);
+                    return (
+                      <button key={k} onClick={() => putTag(touchRow(ctx, { note: `${k}${(ctx.note ?? "").includes(" · like ") ? ctx.note!.slice(ctx.note!.indexOf(" · like ")) : ""}` } as Partial<TalkTag>))}
+                        style={{ background: on ? GOLD : "transparent", color: on ? "#0B1322" : CREAM, border: `1px solid ${on ? GOLD : EDGE}`, borderRadius: 999, padding: "2px 9px", fontSize: 10.5, fontWeight: 700, cursor: "pointer" }}>
+                        {k}
+                      </button>
+                    );
+                  })}
+                </div>
+                <select
+                  value={(ctx.note ?? "").includes(" · like ") ? ctx.note!.slice(ctx.note!.indexOf(" · like ") + 8) : ""}
+                  onChange={(e) => { const base = (ctx.note ?? "").split(" · like ")[0]; putTag(touchRow(ctx, { note: e.target.value ? `${base} · like ${e.target.value}` : base } as Partial<TalkTag>)); }}
+                  style={{ marginTop: 6, width: "100%", background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 8, color: CREAM, fontSize: 11, padding: "4px 8px" }}
+                >
+                  <option value="">like an existing visual? (optional)</option>
+                  {EXHIBIT_REGISTRY.map((e) => <option key={e.id} value={e.label}>{e.label}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         )}
 

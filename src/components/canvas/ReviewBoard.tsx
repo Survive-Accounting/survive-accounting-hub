@@ -314,10 +314,15 @@ function CeqEditCard({ item, ceq, onRegen }: { item: BoardItem; ceq: PassCeq | n
 }
 
 function IdeaCard({ item, onRegen, film }: { item: BoardItem; onRegen: (c: string) => Promise<void>; film?: { doc: TTDoc; setId: string } }) {
-  const p = item.payload as { kind?: string; body?: string };
+  const p = item.payload as { kind?: string; body?: string; origin?: string; visualKind?: string };
+  const ai = p.origin === "ai";
   return (
     <ItemShell item={item} onRegen={onRegen} film={film}>
+      {/* WHO IT CAME FROM (Lee, 2026-09-03): a person for his stamps, the AI
+          mark for the model's own suggestions — "some way to know who it came from". */}
+      <span title={ai ? "AI suggested — not from a stamp" : "From your stamp, cleaned up"} style={{ marginRight: 6, fontSize: 12 }}>{ai ? "✨" : "🧑‍🏫"}</span>
       <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ border: `1px solid ${EDGE}`, color: GOLD, marginRight: 6 }}>{stampLabel(p.kind ?? "idea")}</span>
+      {p.visualKind && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ border: `1px solid ${EDGE}`, color: NEON.muted, marginRight: 6 }}>{p.visualKind}</span>}
       {p.body ?? ""}
     </ItemShell>
   );
@@ -351,11 +356,16 @@ export function ReviewBoardV2({ items, ceqs, onRegen, film }: {
   const edits = items.filter((b) => b.kind === "ceq_edit");
   const ideas = items.filter((b) => b.kind === "idea");
   const vibes = items.filter((b) => b.kind === "vibe_plan");
+  // Lee's stamps on top, grouped by kind; the model's own suggestions in one
+  // fold at the bottom (Lee, 2026-09-03: "a separate sort of toggle at the
+  // bottom of AI suggested stuff").
+  const isAi = (i: BoardItem) => (i.payload as { origin?: string }).origin === "ai";
   const byKind = new Map<string, BoardItem[]>();
-  for (const i of ideas) {
+  for (const i of ideas.filter((x) => !isAi(x))) {
     const k = String((i.payload as { kind?: string }).kind ?? "idea");
     byKind.set(k, [...(byKind.get(k) ?? []), i]);
   }
+  const aiIdeas = ideas.filter(isAi);
   const regen = (id: string) => (c: string) => onRegen(id, c);
   const ceqOf = (b: BoardItem) => ceqs.find((c) => c.id === b.ceqIds[0]) ?? null;
   return (
@@ -378,6 +388,16 @@ export function ReviewBoardV2({ items, ceqs, onRegen, film }: {
           {list.map((b) => <IdeaCard key={b.id} item={b} onRegen={regen(b.id)} film={film} />)}
         </div>
       ))}
+      {aiIdeas.length > 0 && (
+        <details className="mb-4" style={{ border: `1px solid ${EDGE}`, borderRadius: 12, padding: "8px 12px" }}>
+          <summary style={{ cursor: "pointer", fontSize: 11, letterSpacing: "0.2em", color: NEON.muted, textTransform: "uppercase" }}>
+            ✨ AI suggested ({aiIdeas.length}) — not from a stamp; take them or leave them
+          </summary>
+          <div style={{ marginTop: 8 }}>
+            {aiIdeas.map((b) => <IdeaCard key={b.id} item={b} onRegen={regen(b.id)} film={film} />)}
+          </div>
+        </details>
+      )}
       {vibes.length > 0 && (
         <div className="mb-4">
           <h3 style={{ fontSize: 11, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", marginBottom: 6 }}>Vibe plan</h3>
