@@ -45,7 +45,7 @@ import { Emph, HighlightContext, SEL_EMPH_CSS, readRangeIn, useTextHighlights } 
 import { renderInline } from "./inline-md";
 import { activeSlots, CARD_H, CARD_W, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf, resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
 export { activeSlots, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf } from "./ceq-geom";
-import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
+import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, detourAccent, nextCalloutKind } from "./cards/CalloutCard";
 import { captureAcceptable, captureCssSize, captureFeasibility, physicalSize, snapCaptureSize, verticalObsNote } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
 import { cycleExhibitModes, exhibitDepthKey, exhibitOrderKey, exhibitRevealKey } from "./exhibit-modes";
@@ -554,7 +554,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
     setBulletEdit(null);
   };
   return (
-    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: bareFilm ? "transparent" : detour ? PAPER.navy : PAPER.card, border: bareFilm ? "none" : d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : detour ? "1.5px solid rgba(252,163,17,0.6)" : `1px solid ${PAPER.cardEdge}`, boxShadow: bareFilm ? "none" : "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
+    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: bareFilm ? "transparent" : detour ? PAPER.navy : PAPER.card, border: bareFilm ? "none" : d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : detour ? `1.5px solid ${detourAccent(d.callout?.kind)}99` : `1px solid ${PAPER.cardEdge}`, boxShadow: bareFilm ? "none" : "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
       {/* BOSS (P3): the boiling bolt sweeps in with the charge — no text, no sound. */}
       {/* The persistent top-right boss bolt is GONE (Lee, 08-17): it collided with
           the counter, and a bolt standing in frame is a burned-in watermark — the
@@ -587,7 +587,13 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
           viewer landing mid-clip knows the topic. */}
       {!isCallout && d.topic && <div style={{ display: "flex", alignItems: "center", gap: 6 * s, fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{/* no bolt here either — see the note above the boss bolt */}<span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</span></div>}
       {isCallout && !stemEditing && !d.callout?.hidden && (
-        <div onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined} title={canEditStem ? "Double-click to edit the text" : undefined}>
+        // A CALLOUT CARD SPOTLIGHTS AS A WHOLE (2026-09-03): the detour slides
+        // from Blast Off have no choices, so the card body is the one target
+        // ("self", as a memo) — Ctrl+click it in film mode like anything else.
+        <div data-spot-target="self"
+          onPointerDownCapture={(e) => { if (!stemEditing) spot.onClick(spotKey(id, "self"), e); }}
+          onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined} title={canEditStem ? "Double-click to edit the text" : undefined}
+          style={{ borderRadius: 10 * s, ...containSpot(spot.state(spotKey(id, "self")), true) }}>
           <CalloutBody
             scale={s}
             topic={d.callout?.showTopic === false ? null : d.topic}

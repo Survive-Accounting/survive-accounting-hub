@@ -72,17 +72,30 @@ const DETOUR = {
   hl: { bg: "#FCA311", color: "#14213D" },
 } as const;
 
+/** The detour card's accent per kind, on navy. Gold is the default (cheat
+ *  code, and anything without a kind). Used by the label, the highlight and
+ *  the card's edge, so a memorize-this reads orange edge to edge. */
+export function detourAccent(kind?: CalloutKind): string {
+  if (kind === "memorize-this") return "#FF9F43";
+  if (kind === "deeper-idea") return "#7DD3FC";
+  return DETOUR.gold;
+}
+
 /** The callout's face — cream card interior, navy text, orange corner accent.
  *  Rendered INSIDE the existing card shell (which owns width/drag/scale). */
 export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, highlights = [], bolt, onEditBullet, dark = false }: CalloutBodyProps) {
   const stack = highlights.length > 1;
   const kindMeta = stack ? { label: "HIGHLIGHTS FROM THIS SET", accent: "#C77D0A", tint: "rgba(199,125,10,0.08)" } : kind ? CALLOUT_KINDS[kind] : null;
-  // On the dark card every label is gold — the kind's own accent was chosen
-  // for cream paper and goes muddy on navy.
-  const meta = kindMeta && dark ? { label: kindMeta.label, accent: DETOUR.gold, tint: DETOUR.labelBg } : kindMeta;
+  // On the dark card each kind keeps its own colour (Lee, 2026-09-03: "make
+  // the cheat code stay the same, but deeper idea, memorize this are different
+  // colors"): cheat code stays brand gold; memorize this is orange; deeper
+  // idea is sky. The paper accents were chosen for cream and go muddy on
+  // navy, so these are the on-navy versions.
+  const darkAccent = detourAccent(kind);
+  const meta = kindMeta && dark ? { label: kindMeta.label, accent: darkAccent, tint: `${darkAccent}24` } : kindMeta;
   const ink = dark ? DETOUR.ink : PAPER.ink;
   const inkMuted = dark ? DETOUR.inkMuted : PAPER.inkMuted;
-  const hl = dark ? DETOUR.hl : undefined;
+  const hl = dark ? { bg: darkAccent, color: "#14213D" } : undefined;
   const mainText = highlights.length === 1 ? highlights[0] : stem;
   return (
     <div style={{ position: "relative" }}>

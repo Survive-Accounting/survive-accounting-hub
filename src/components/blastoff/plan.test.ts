@@ -42,8 +42,8 @@ describe("insertStem — the detour card's words", () => {
     expect(insertStem({ id: "f", kind: "phrase", text: "Cash is king" })).toBe("==Cash is king==");
     expect(insertStem({ id: "f", kind: "phrase", text: "Cash is ==king==" })).toBe("Cash is ==king==");
   });
-  test("a tip stays plain; an exhibit names itself", () => {
-    expect(insertStem({ id: "f", kind: "tip", text: "Read the stem twice" })).toBe("Read the stem twice");
+  test("a tip highlights its main phrase (2026-09-03); an exhibit names itself", () => {
+    expect(insertStem({ id: "f", kind: "tip", text: "Read the stem twice" })).toBe("==Read the stem twice==");
     expect(insertStem({ id: "f", kind: "exhibit", exhibitRef: "cycle" })).toBe("Exhibit: cycle");
     expect(insertStem({ id: "f", kind: "exhibit", exhibitRef: "cycle", text: "The cycle" })).toBe("The cycle");
   });

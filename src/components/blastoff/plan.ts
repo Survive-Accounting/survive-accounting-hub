@@ -48,6 +48,10 @@ export interface BlastFrame {
    *  film mode walks past it. Un-skip to film it again. Inserts are simply
    *  removed. */
   skipped?: boolean;
+  /** BULLETS under the callout (Lee, 2026-09-03: "Memorize this / Internal
+   *  Users / Management / Budgets, costs, forecasts…"). The main phrase is
+   *  highlighted; these sit under it. Empty lines are ignored at render. */
+  bullets?: string[];
   /** THE TELEPROMPTER COLUMN (Lee, 2026-09-03: "a third slide to the right
    *  of the current one … the teleprompter … THESE SUGGESTED PHRASES ARE
    *  ME"). The lines Lee kept for this slide — his own transcript words,
@@ -246,10 +250,15 @@ export function insertStem(f: BlastFrame): string {
     const body = f.body?.trim() ?? "";
     return [title ? mark(title) : "", body].filter(Boolean).join("\n");
   }
-  if (f.kind === "phrase") { const t = f.text?.trim() ?? ""; return t ? mark(t) : ""; }
+  // A deeper idea highlights its main phrase too now (Lee, 2026-09-03: "main
+  // phrase can be highlighted" for all three kinds, with bullets under it).
+  if (f.kind === "phrase" || f.kind === "tip") { const t = f.text?.trim() ?? ""; return t ? mark(t) : ""; }
   if (f.kind === "exhibit") return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
   return f.text?.trim() ?? "";
 }
+
+/** The bullets that actually render: trimmed, blanks dropped. */
+export const frameBullets = (f: BlastFrame): string[] => (f.bullets ?? []).map((b) => b.trim()).filter(Boolean);
 
 /** How many real takes this plan is — what Lee is about to talk through. */
 export const frameCount = (plan: BlastPlan): number => filmFrames(plan.frames).length;

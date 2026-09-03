@@ -49,6 +49,7 @@ const frameIn = z.object({
   bankItemId: z.string().max(130).optional(),
   skipped: z.boolean().optional(),
   prompter: z.array(z.string().max(600)).max(40).optional(),
+  bullets: z.array(z.string().max(300)).max(12).optional(),
 });
 type FrameIn = z.infer<typeof frameIn>;
 
@@ -206,8 +207,11 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
       // it reading "Exhibit: cycle" or "Bio" would just be in the shot.
       const spec: StageSpec | undefined =
         STANDARD_STAGE[f.kind] ?? (f.kind === "exhibit" && f.exhibitRef ? EXHIBIT_STAGE[f.exhibitRef] : undefined);
+      // BULLETS (2026-09-03) ride as the callout's extra stems — the canvas
+      // card already draws those under the main phrase, in film and in study.
+      const bullets = (f.bullets ?? []).map((b) => b.trim()).filter(Boolean);
       const callout: Record<string, unknown> | undefined =
-        f.kind === "blank" || spec ? { hidden: true } : kindTag ? { kind: kindTag, showTopic: true, detour: true } : undefined;
+        f.kind === "blank" || spec ? { hidden: true } : kindTag ? { kind: kindTag, showTopic: true, detour: true, ...(bullets.length ? { extraStems: bullets } : {}) } : undefined;
 
       const dataObj: Record<string, unknown> = {
         kind: "ceq",

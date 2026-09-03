@@ -288,6 +288,39 @@ export type SetPracticeResult =
   | { status: "empty" }
   | { status: "not_found" };
 
+// CRAM CARDS (Lee, 2026-09-03: "Cram blast off vid > cram cards > practice").
+// The memorize-this / cheat-code / deeper-idea cards Lee placed on the film
+// draft and sent to film are real note frames in the set (provenance
+// "blast-off"). Students get them in running order, after the video and
+// before practice. Same gate as practice: live, unparked, free.
+export interface CramCard { id: string; kind: "phrase" | "cheat" | "tip"; text: string; bullets: string[] }
+export type SetCramCardsResult =
+  | { status: "ok"; setName: string; cards: CramCard[] }
+  | { status: "locked" }
+  | { status: "empty" }
+  | { status: "not_found" };
+
+export const fetchSetCramCards = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string() }).parse(d))
+  .handler(async ({ data }): Promise<SetCramCardsResult> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as { from: (t: string) => any };
+    type RawCard = { stageOrder?: number; prompt?: string; draft?: boolean; bankArchived?: string; provenance?: string; blastKind?: string; callout?: { extraStems?: string[]; hidden?: boolean } };
+    const owned = await loadDecksDeduped(admin);
+    const o = owned.get(data.setId);
+    const deck = o && o.deck.status === "live" && o.deck.parked !== true ? o.deck : undefined;
+    if (!deck || !o) return { status: "not_found" };
+    if (deck.access === "paid") return { status: "locked" };
+    const KINDS = new Set(["phrase", "cheat", "tip"]);
+    const cards: CramCard[] = o.nodes
+      .map((n) => ({ nodeId: n.id ?? "", ...(n.data as RawCard) }))
+      .filter((d) => d.provenance === "blast-off" && !!d.blastKind && KINDS.has(d.blastKind) && !d.draft && !d.bankArchived && !d.callout?.hidden)
+      .sort((a, b) => (a.stageOrder ?? 0) - (b.stageOrder ?? 0))
+      .map((d) => ({ id: d.nodeId, kind: d.blastKind as CramCard["kind"], text: (d.prompt ?? "").trim(), bullets: (d.callout?.extraStems ?? []).map((b) => b.trim()).filter(Boolean) }))
+      .filter((c) => c.text);
+    return cards.length ? { status: "ok", setName: setName(deck.name), cards } : { status: "empty" };
+  });
+
 export const fetchSetPractice = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ setId: z.string() }).parse(d))
   .handler(async ({ data }): Promise<SetPracticeResult> => {

@@ -30,6 +30,7 @@ const frameSchema = z.object({
   // Lee kept for the slide. Additive; old plans have neither.
   skipped: z.boolean().optional(),
   prompter: z.array(z.string().max(600)).max(40).optional(),
+  bullets: z.array(z.string().max(300)).max(12).optional(),
 });
 
 export type BlastFrameRow = z.infer<typeof frameSchema>;

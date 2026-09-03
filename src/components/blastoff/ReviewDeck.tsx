@@ -7,15 +7,18 @@
 // just talking. Review is seeing the filming draft as it stands … A third
 // slide to the right of the current one … the teleprompter."
 //
-// Three columns. LEFT: the Blast Off plan — the same frames film mode walks —
-// drag to reorder, insert, duplicate, skip. MIDDLE: the selected slide, drawn
-// by the canvas's own card, editable underneath; a CEQ edit shows before and
-// after and saves to the bank through the one existing door (applyCeqEdit).
-// RIGHT: the teleprompter — Lee's own words for this slide, click to keep;
-// AI proofreads on request and may add ONE line of its own, marked as such.
+// Second pass, same evening: a drop line that says above or below; space and
+// shift+space to walk the slides; "Summary slide" (opening / closing);
+// bullets under a callout; a phone-shaped stage because every video is
+// vertical; and the prompter reorganised — the stamps he used near the slide
+// as chips, his raw words folded away, Proofread turning them into one-line
+// phrases that go on the prompter OR become a slide of a kind he can override.
 //
-// Nothing here is a new store. The plan is deck.blastOff, as always; the
-// teleprompter lines live on the frame they belong to, so film mode shows them.
+// Three columns. LEFT: the Blast Off plan — the same frames film mode walks.
+// MIDDLE: the selected slide on a 9:16 stage, editable underneath; a CEQ edit
+// shows before and after and saves through the one existing door
+// (applyCeqEdit). RIGHT: the teleprompter. Nothing here is a new store: the
+// plan is deck.blastOff, the prompter lines and bullets live on the frame.
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { applyCeqEdit, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
@@ -26,10 +29,13 @@ import { BankPicker } from "./BankPicker";
 import { CREAM, EDGE, FrameView, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
 import {
-  FRAME_LABEL, dropFrame, duplicateFrame, filmFrames, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, patchFrame, toggleSkip,
+  FRAME_LABEL, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, patchFrame, toggleSkip,
   type BlastFrame, type BlastFrameKind,
 } from "./plan";
-import { buildTidyMessages, parseTidy, prompterCandidates, type TidyResult } from "./prompter";
+import {
+  PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups,
+  type PrompterCandidate, type TidyResult,
+} from "./prompter";
 
 /** What the AI board hands the deck: "＋ slide" on an idea card. */
 export interface DeckApi { addSlide: (kind: BlastFrameKind, patch: Partial<BlastFrame>) => void }
@@ -43,6 +49,15 @@ const QUICK: readonly { kind: BlastFrameKind; label: string }[] = [
 const SKY = "#7DD3FC";
 const MINT = "#3BF5A0";
 const RED = "#F87171";
+const ORANGE = "#FF9F43";
+/** The kind's colour in the list and on the stage — matches the detour skin. */
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, exhibit: GOLD, blank: MUTED };
+
+// THE PHONE STAGE — every video is vertical (Lee: "I am considering even
+// continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
+// Shorts paint their own UI over, so a phrase never hides under a caption.
+const STAGE_W = 306;
+const STAGE_H = Math.round(STAGE_W * 16 / 9);
 
 type CeqDraft = { stem: string; choices: { text: string; correct: boolean; feedback: string }[] };
 const draftOf = (c: BoothCeq): CeqDraft => ({ stem: c.stem, choices: c.choices.map((x) => ({ text: x.text, correct: x.correct, feedback: x.feedback ?? "" })) });
@@ -58,6 +73,12 @@ const field: React.CSSProperties = {
   padding: "7px 9px", fontSize: 13, lineHeight: 1.45, fontFamily: "inherit", boxSizing: "border-box",
 };
 const eyebrow: React.CSSProperties = { fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, fontWeight: 800 };
+const subhead: React.CSSProperties = { fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTED, fontWeight: 800 };
+
+const isTyping = (t: EventTarget | null): boolean => {
+  const el = t as HTMLElement | null;
+  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+};
 
 export function ReviewDeck({ set, topic, doc, register }: {
   set: BoothSetInfo; topic: BoothTopic; doc: TTDoc;
@@ -79,32 +100,60 @@ export function ReviewDeck({ set, topic, doc, register }: {
   const frames = useMemo(() => plan?.frames ?? [], [plan]);
   const ceqById = useMemo(() => new Map(viewSet.ceqs.map((c) => [c.id, c])), [viewSet.ceqs]);
   const progress = useMemo(() => questionProgress(filmFrames(frames), ceqById), [frames, ceqById]);
+  // SUMMARY SLIDES (Lee: "instead of calling this a note slide, we call it a
+  // summary slide. It'll be at the beginning and end of the video"). The set's
+  // note-only cards in bank order: first = opening, last = closing.
+  const summaryLabel = useMemo(() => {
+    const notes = viewSet.ceqs.filter((c) => c.noteOnly).map((c) => c.id);
+    const m = new Map<string, string>();
+    notes.forEach((id, i) => m.set(id, notes.length >= 2 && i === 0 ? "Opening summary" : notes.length >= 2 && i === notes.length - 1 ? "Closing summary" : "Summary slide"));
+    return m;
+  }, [viewSet.ceqs]);
 
   const [selId, setSelId] = useState<string | null>(null);
   const sel = frames.find((f) => f.id === selId) ?? frames[0] ?? null;
   const selIdx = sel ? frames.indexOf(sel) : -1;
 
   const [picker, setPicker] = useState<BlastFrameKind | null>(null);
-  const add = useCallback((kind: BlastFrameKind, patch: Partial<BlastFrame> = {}) => {
+  const add = useCallback((kind: BlastFrameKind, patch: Partial<BlastFrame> = {}, select = true) => {
     if (!plan) return;
     const f: BlastFrame = { id: newFrameId(kind), kind, ...patch };
     commit(insertFrame(plan.frames, f, selIdx < 0 ? plan.frames.length - 1 : selIdx));
-    setSelId(f.id); setPicker(null);
+    if (select) setSelId(f.id);
+    setPicker(null);
   }, [plan, commit, selIdx]);
-  useEffect(() => { register?.({ addSlide: add }); return () => register?.(null); }, [register, add]);
+  useEffect(() => { register?.({ addSlide: (k, p) => add(k, p) }); return () => register?.(null); }, [register, add]);
 
   const patch = useCallback((id: string, p: Partial<BlastFrame>) => { if (plan) commit(patchFrame(plan.frames, id, p)); }, [plan, commit]);
 
-  // DRAG TO REORDER — plain HTML5 drag, no library; the arrows stay for
-  // one-step nudges and for touch.
+  // SPACE / SHIFT+SPACE walk the slides (Lee: "I like to do this to prep
+  // myself to film through them") — the same keys as film mode. Never while
+  // typing in a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== " " || isTyping(e.target) || !frames.length) return;
+      e.preventDefault();
+      const i = selIdx < 0 ? 0 : selIdx;
+      const next = e.shiftKey ? Math.max(0, i - 1) : Math.min(frames.length - 1, i + 1);
+      setSelId(frames[next].id);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [frames, selIdx]);
+
+  // DRAG TO REORDER — plain HTML5 drag, no library. The drop line sits above
+  // or below the row under the cursor, so it is never a guess (Lee: "I can't
+  // tell if it slots in above or below").
   const [dragId, setDragId] = useState<string | null>(null);
-  const [overIdx, setOverIdx] = useState<number | null>(null);
-  const drop = (to: number) => {
-    if (plan && dragId) {
+  const [over, setOver] = useState<{ i: number; below: boolean } | null>(null);
+  const drop = () => {
+    if (plan && dragId && over) {
       const from = plan.frames.findIndex((f) => f.id === dragId);
+      let to = over.below ? over.i + 1 : over.i;
+      if (from < to) to -= 1;
       if (from >= 0 && from !== to) commit(moveFrame(plan.frames, from, to));
     }
-    setDragId(null); setOverIdx(null);
+    setDragId(null); setOver(null);
   };
 
   const snippet = (f: BlastFrame): string => {
@@ -117,10 +166,8 @@ export function ReviewDeck({ set, topic, doc, register }: {
     if (f.kind === "exhibit") return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
     return f.text?.trim() || `(empty ${FRAME_LABEL[f.kind].toLowerCase()})`;
   };
-  const labelOf = (f: BlastFrame): string => {
-    const ceq = f.kind === "ceq" && f.ceqId ? ceqById.get(f.ceqId) : undefined;
-    return ceq?.noteOnly ? "Note frame" : FRAME_LABEL[f.kind];
-  };
+  const labelOf = (f: BlastFrame): string => (f.kind === "ceq" && f.ceqId && summaryLabel.get(f.ceqId)) || FRAME_LABEL[f.kind];
+  const colorOf = (f: BlastFrame): string => KIND_COLOR[f.kind] ?? (isStandard(f.kind) ? SKY : f.kind === "ceq" && f.ceqId && summaryLabel.has(f.ceqId) ? MINT : MUTED);
 
   if (!plan) return <div style={{ color: MUTED, fontSize: 13 }}>Loading the film draft…</div>;
 
@@ -136,35 +183,37 @@ export function ReviewDeck({ set, topic, doc, register }: {
           <span style={{ fontSize: 11.5, color: MUTED }}>{filmed} slides{skipped ? ` · ${skipped} skipped` : ""}</span>
           {saving && <span style={{ fontSize: 11, color: saving.startsWith("⚠") ? RED : saving === "saved" ? MINT : MUTED, marginLeft: "auto" }}>{saving}</span>}
         </div>
-        <div className="flex" style={{ gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+        <div className="flex" style={{ gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
           {QUICK.map((q) => (
-            <button key={q.kind} style={chip(false)} title={`Insert a ${q.label} slide after slide ${selIdx + 1}`} onClick={() => add(q.kind)}>＋ {q.label}</button>
+            <button key={q.kind} style={chip(false, KIND_COLOR[q.kind])} title={`Insert a ${q.label} slide after slide ${selIdx + 1}`} onClick={() => add(q.kind)}>＋ {q.label}</button>
           ))}
           <button style={chip(picker === "exhibit")} title="Insert an exhibit after the selected slide" onClick={() => setPicker(picker === "exhibit" ? null : "exhibit")}>＋ Exhibit</button>
           <button style={chip(false)} title="Insert a bare frame" onClick={() => add("blank")}>＋ Blank</button>
         </div>
+        <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 10 }}>inserts land after the selected slide · space / shift+space walk the slides · drag to reorder</div>
         {picker && <BankPicker kind={picker} setId={set.id} setName={set.name} onPick={(p) => add(picker, p)} onClose={() => setPicker(null)} />}
 
-        <div className="flex flex-col" style={{ gap: 5 }}>
+        <div className="flex flex-col" style={{ gap: 5 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
           {frames.map((f, i) => {
             const on = f.id === sel?.id;
-            const insert = isInsert(f.kind);
+            const lineAbove = over?.i === i && !over.below && dragId !== f.id;
+            const lineBelow = over?.i === i && over.below && dragId !== f.id;
             return (
               <div key={f.id} draggable
                 onDragStart={() => setDragId(f.id)}
-                onDragOver={(e) => { e.preventDefault(); setOverIdx(i); }}
-                onDragLeave={() => setOverIdx((v) => (v === i ? null : v))}
-                onDrop={(e) => { e.preventDefault(); drop(i); }}
-                onDragEnd={() => { setDragId(null); setOverIdx(null); }}
+                onDragOver={(e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setOver({ i, below: e.clientY > r.top + r.height / 2 }); }}
+                onDrop={(e) => { e.preventDefault(); drop(); }}
+                onDragEnd={() => { setDragId(null); setOver(null); }}
                 onClick={() => setSelId(f.id)}
                 title="Click to open · drag to reorder"
                 style={{
-                  display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 10, background: PANEL,
-                  border: `1px solid ${on ? GOLD : overIdx === i && dragId !== f.id ? SKY : EDGE}`,
+                  position: "relative", display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 10, background: PANEL,
+                  border: `1px solid ${on ? GOLD : EDGE}`,
+                  boxShadow: lineAbove ? `0 -3px 0 0 ${SKY}` : lineBelow ? `0 3px 0 0 ${SKY}` : "none",
                   opacity: f.skipped ? 0.45 : dragId === f.id ? 0.5 : 1, cursor: "grab",
                 }}>
                 <span style={{ color: MUTED, fontSize: 11, fontWeight: 800, minWidth: 18, fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
-                <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: insert ? GOLD : isStandard(f.kind) ? SKY : MUTED, minWidth: 84 }}>{labelOf(f)}</span>
+                <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: colorOf(f), minWidth: 92 }}>{labelOf(f)}</span>
                 <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{snippet(f)}</span>
                 {(f.prompter?.length ?? 0) > 0 && <span title={`${f.prompter!.length} teleprompter line${f.prompter!.length > 1 ? "s" : ""}`} style={{ fontSize: 10, color: MINT, fontWeight: 800 }}>🗒{f.prompter!.length}</span>}
               </div>
@@ -176,70 +225,125 @@ export function ReviewDeck({ set, topic, doc, register }: {
       {/* --------------------------------------------- MIDDLE: the slide */}
       <section>
         {sel && (
-          <>
-            <div className="flex items-center" style={{ gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-              <span style={eyebrow}>Slide {selIdx + 1} of {frames.length}</span>
-              <span style={{ fontSize: 11.5, color: MUTED }}>{labelOf(sel)}{sel.skipped ? " · skipped" : ""}</span>
-              <span style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-                <button style={tiny} title="Move up" onClick={() => commit(moveFrame(frames, selIdx, selIdx - 1))}>↑</button>
-                <button style={tiny} title="Move down" onClick={() => commit(moveFrame(frames, selIdx, selIdx + 1))}>↓</button>
-                <button style={chip(false)} title="A copy right after this one" onClick={() => { const next = duplicateFrame(frames, sel.id); commit(next); setSelId(next[selIdx + 1]?.id ?? sel.id); }}>⧉ duplicate</button>
-                {sel.skipped ? (
-                  <button style={chip(true, MINT)} title="Film this slide again" onClick={() => commit(toggleSkip(frames, sel.id))}>↺ film it</button>
-                ) : (
-                  <button style={chip(false, RED)} title={isInsert(sel.kind) ? "Remove this slide" : "Skip this card in the film (it stays in the set)"} onClick={() => {
-                    const next = dropFrame(frames, sel.id); commit(next);
-                    if (isInsert(sel.kind)) setSelId(next[Math.min(selIdx, next.length - 1)]?.id ?? null);
-                  }}>✕ {isInsert(sel.kind) ? "remove" : "skip"}</button>
-                )}
-              </span>
-            </div>
-            <div style={{ border: `1px solid ${EDGE}`, borderRadius: 10, overflow: "hidden", display: "inline-block", maxWidth: "100%", opacity: sel.skipped ? 0.5 : 1 }}>
-              <FrameView frame={sel} set={viewSet} scale={0.78} topicName={topic.name} progress={progress.get(sel.id)} />
-            </div>
-            <div style={{ marginTop: 12 }}>
-              {sel.kind === "ceq" && sel.ceqId && ceqById.get(sel.ceqId) && (
-                <CeqEditor key={sel.ceqId} ceq={ceqById.get(sel.ceqId)!} topicName={topic.name}
-                  onSaved={(d) => setOverrides((o) => ({ ...o, [sel.ceqId!]: d }))} />
-              )}
-              {sel.kind === "ceq" && sel.ceqId && !ceqById.get(sel.ceqId) && <div style={{ fontSize: 12, color: RED }}>This card is no longer in the set — skip it.</div>}
-              {sel.kind === "cheat" && (
-                <div className="flex flex-col" style={{ gap: 8 }}>
-                  <label style={{ fontSize: 11, color: MUTED }}>The rule (highlighted in gold)
-                    <input style={field} value={sel.title ?? ""} placeholder="e.g. Assets = Liabilities + Equity" onChange={(e) => patch(sel.id, { title: e.target.value })} /></label>
-                  <label style={{ fontSize: 11, color: MUTED }}>Under it
-                    <textarea style={{ ...field, minHeight: 64 }} value={sel.body ?? ""} placeholder="one line of why, in your words" onChange={(e) => patch(sel.id, { body: e.target.value })} /></label>
-                </div>
-              )}
-              {(sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "blank" || sel.kind === "exhibit") && (
-                <label style={{ fontSize: 11, color: MUTED }}>{sel.kind === "phrase" ? "The phrase (highlighted in gold)" : sel.kind === "tip" ? "The deeper idea" : sel.kind === "exhibit" ? `Caption${sel.exhibitRef ? ` · exhibit: ${sel.exhibitRef}` : ""}` : "Text on the bare frame"}
-                  <textarea style={{ ...field, minHeight: 72, marginTop: 4 }} value={sel.text ?? ""} placeholder="say it the way you'd say it on camera" onChange={(e) => patch(sel.id, { text: e.target.value })} /></label>
-              )}
-              {sel.kind === "intro" && (
-                <label style={{ fontSize: 11, color: MUTED }}>Topic line on the intro (blank = the set's name)
-                  <input style={{ ...field, marginTop: 4 }} value={sel.text ?? ""} placeholder={set.name} onChange={(e) => patch(sel.id, { text: e.target.value })} /></label>
-              )}
-              {sel.kind === "outro" && (
-                <label style={{ fontSize: 11, color: MUTED }}>Tagline on the outro (blank = the standard one)
-                  <input style={{ ...field, marginTop: 4 }} value={sel.text ?? ""} placeholder="Cram what's on your exam." onChange={(e) => patch(sel.id, { text: e.target.value })} /></label>
-              )}
-              {sel.kind === "bio" && <div style={{ fontSize: 12, color: MUTED }}>The bio card is the brand card — nothing to edit here. Skip it if this rip doesn't need it.</div>}
-            </div>
-          </>
+          <SlidePane key={sel.id} sel={sel} idx={selIdx} count={frames.length} label={labelOf(sel)} viewSet={viewSet} set={set} topic={topic}
+            progress={progress.get(sel.id)} ceq={sel.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined}
+            onMove={(d) => commit(moveFrame(frames, selIdx, selIdx + d))}
+            onDuplicate={() => { const next = duplicateFrame(frames, sel.id); commit(next); setSelId(next[selIdx + 1]?.id ?? sel.id); }}
+            onSkip={() => commit(toggleSkip(frames, sel.id))}
+            onDrop={() => { const next = dropFrame(frames, sel.id); commit(next); if (isInsert(sel.kind)) setSelId(next[Math.min(selIdx, next.length - 1)]?.id ?? null); }}
+            onPatch={(p) => patch(sel.id, p)}
+            onSaved={(d) => { if (sel.ceqId) setOverrides((o) => ({ ...o, [sel.ceqId!]: d })); }} />
         )}
       </section>
 
       {/* ------------------------------------------- RIGHT: teleprompter */}
       <Prompter frame={sel} slideLabel={sel ? `${labelOf(sel)} — ${snippet(sel)}` : ""} slideText={sel ? slideText(sel, ceqById) : ""} set={set} doc={doc}
-        onLines={(lines) => { if (sel) patch(sel.id, { prompter: lines }); }} />
+        onLines={(lines) => { if (sel) patch(sel.id, { prompter: lines }); }}
+        onSlide={(kind, text) => add(kind, kind === "cheat" ? { title: text, prompter: [text] } : { text, prompter: [text] }, false)} />
     </div>
   );
 }
 
 const slideText = (f: BlastFrame, byId: Map<string, BoothCeq>): string => {
   if (f.kind === "ceq" && f.ceqId) { const c = byId.get(f.ceqId); return c ? [c.stem, ...c.choices.map((x) => `${x.correct ? "✓" : "·"} ${x.text}`)].join("\n") : ""; }
-  return insertStem(f);
+  return [insertStem(f), ...frameBullets(f).map((b) => `• ${b}`)].join("\n");
 };
+
+// ------------------------------------------------------ the middle column
+
+function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq, onMove, onDuplicate, onSkip, onDrop, onPatch, onSaved }: {
+  sel: BlastFrame; idx: number; count: number; label: string; viewSet: BoothSetInfo; set: BoothSetInfo; topic: BoothTopic;
+  progress?: { x: number; y: number }; ceq?: BoothCeq;
+  onMove: (d: -1 | 1) => void; onDuplicate: () => void; onSkip: () => void; onDrop: () => void;
+  onPatch: (p: Partial<BlastFrame>) => void; onSaved: (d: CeqDraft) => void;
+}) {
+  const [phone, setPhone] = useState(true);
+  const [safe, setSafe] = useState(true);
+  const bulletsText = (sel.bullets ?? []).join("\n");
+  return (
+    <>
+      <div className="flex items-center" style={{ gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+        <span style={eyebrow}>Slide {idx + 1} of {count}</span>
+        <span style={{ fontSize: 11.5, color: MUTED }}>{label}{sel.skipped ? " · skipped" : ""}</span>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
+          <button style={chip(phone, SKY)} title="Show the slide on a 9:16 phone stage" onClick={() => setPhone((v) => !v)}>📱 phone</button>
+          {phone && <button style={chip(safe, SKY)} title="Shade the zones TikTok and Shorts paint their own UI over" onClick={() => setSafe((v) => !v)}>safe zones</button>}
+          <button style={tiny} title="Move up" onClick={() => onMove(-1)}>↑</button>
+          <button style={tiny} title="Move down" onClick={() => onMove(1)}>↓</button>
+          <button style={chip(false)} title="A copy right after this one" onClick={onDuplicate}>⧉ duplicate</button>
+          {sel.skipped ? (
+            <button style={chip(true, MINT)} title="Film this slide again" onClick={onSkip}>↺ film it</button>
+          ) : (
+            <button style={chip(false, RED)} title={isInsert(sel.kind) ? "Remove this slide" : "Skip this card in the film (it stays in the set)"} onClick={onDrop}>✕ {isInsert(sel.kind) ? "remove" : "skip"}</button>
+          )}
+        </span>
+      </div>
+
+      {phone ? (
+        <PhoneStage frame={sel} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} />
+      ) : (
+        <div style={{ border: `1px solid ${EDGE}`, borderRadius: 10, overflow: "hidden", display: "inline-block", maxWidth: "100%", opacity: sel.skipped ? 0.5 : 1 }}>
+          <FrameView frame={sel} set={viewSet} scale={0.78} topicName={topic.name} progress={progress} />
+        </div>
+      )}
+
+      <div style={{ marginTop: 12 }}>
+        {sel.kind === "ceq" && ceq && <CeqEditor key={ceq.id} ceq={ceq} topicName={topic.name} onSaved={onSaved} />}
+        {sel.kind === "ceq" && !ceq && <div style={{ fontSize: 12, color: RED }}>This card is no longer in the set — skip it.</div>}
+        {sel.kind === "cheat" && (
+          <div className="flex flex-col" style={{ gap: 8 }}>
+            <label style={{ fontSize: 11, color: MUTED }}>The rule (highlighted)
+              <input style={field} value={sel.title ?? ""} placeholder="e.g. Assets = Liabilities + Equity" onChange={(e) => onPatch({ title: e.target.value })} /></label>
+            <label style={{ fontSize: 11, color: MUTED }}>Under it
+              <textarea style={{ ...field, minHeight: 56 }} value={sel.body ?? ""} placeholder="one line of why, in your words" onChange={(e) => onPatch({ body: e.target.value })} /></label>
+          </div>
+        )}
+        {(sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "blank" || sel.kind === "exhibit") && (
+          <label style={{ fontSize: 11, color: MUTED }}>{sel.kind === "phrase" ? "The phrase (highlighted)" : sel.kind === "tip" ? "The deeper idea (highlighted)" : sel.kind === "exhibit" ? `Caption${sel.exhibitRef ? ` · exhibit: ${sel.exhibitRef}` : ""}` : "Text on the bare frame"}
+            <textarea style={{ ...field, minHeight: 56, marginTop: 4 }} value={sel.text ?? ""} placeholder="say it the way you'd say it on camera" onChange={(e) => onPatch({ text: e.target.value })} /></label>
+        )}
+        {(sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "cheat") && (
+          <label style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 8 }}>Bullets under it — one per line
+            <textarea style={{ ...field, minHeight: 64, marginTop: 4 }} value={bulletsText} placeholder={"Management\nBudgets, costs, forecasts\nProduction"} onChange={(e) => onPatch({ bullets: e.target.value.split("\n") })} /></label>
+        )}
+        {sel.kind === "intro" && (
+          <label style={{ fontSize: 11, color: MUTED }}>Topic line on the intro (blank = the set's name)
+            <input style={{ ...field, marginTop: 4 }} value={sel.text ?? ""} placeholder={set.name} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+        )}
+        {sel.kind === "outro" && (
+          <label style={{ fontSize: 11, color: MUTED }}>Tagline on the outro (blank = the standard one)
+            <input style={{ ...field, marginTop: 4 }} value={sel.text ?? ""} placeholder="Cram what's on your exam." onChange={(e) => onPatch({ text: e.target.value })} /></label>
+        )}
+        {sel.kind === "bio" && <div style={{ fontSize: 12, color: MUTED }}>The bio card is the brand card — nothing to edit here. Skip it if this rip doesn't need it.</div>}
+      </div>
+    </>
+  );
+}
+
+/** 9:16, black, the slide centred — what a phone cramming student sees. */
+function PhoneStage({ frame, set, topicName, progress, safe, dim }: {
+  frame: BlastFrame; set: BoothSetInfo; topicName: string; progress?: { x: number; y: number }; safe: boolean; dim: boolean;
+}) {
+  // The standard spine renders as a 1080-wide vertical frame at scale*0.34;
+  // a card is the canvas's 560-wide card. Both are sized to the stage width.
+  const scale = isStandard(frame.kind) ? STAGE_W / 1080 / 0.34 : 0.48;
+  const band: React.CSSProperties = { position: "absolute", left: 0, right: 0, background: "repeating-linear-gradient(135deg, rgba(125,211,252,0.10) 0 6px, transparent 6px 14px)", borderColor: "rgba(125,211,252,0.35)", pointerEvents: "none" };
+  const tag: React.CSSProperties = { position: "absolute", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(125,211,252,0.7)", fontWeight: 800 };
+  return (
+    <div style={{ width: STAGE_W, height: STAGE_H, background: "#000", borderRadius: 22, border: `1px solid ${EDGE}`, position: "relative", overflow: "hidden", display: "grid", placeItems: "center", opacity: dim ? 0.5 : 1 }}>
+      <div style={{ display: "grid", placeItems: "center" }}>
+        <FrameView frame={frame} set={set} scale={scale} topicName={topicName} progress={progress} />
+      </div>
+      {safe && (
+        <>
+          <div style={{ ...band, top: 0, height: "9%", borderBottom: "1px dashed" }}><span style={{ ...tag, left: 8, bottom: 4 }}>status bar</span></div>
+          <div style={{ ...band, bottom: 0, height: "20%", borderTop: "1px dashed" }}><span style={{ ...tag, left: 8, top: 4 }}>caption · title · sound</span></div>
+          <div style={{ ...band, top: "30%", bottom: "20%", left: "auto", width: "16%", borderLeft: "1px dashed" }}><span style={{ ...tag, right: 4, top: 4, writingMode: "vertical-rl" }}>like · share</span></div>
+        </>
+      )}
+    </div>
+  );
+}
 
 // --------------------------------------------------------- CEQ: before → after
 
@@ -302,7 +406,7 @@ function CeqEditor({ ceq, topicName, onSaved }: { ceq: BoothCeq; topicName: stri
           </div>
         </div>
       )}
-      <label style={{ fontSize: 11, color: MUTED }}>Stem
+      <label style={{ fontSize: 11, color: MUTED }}>{ceq.noteOnly ? "The summary (one line per point)" : "Stem"}
         <textarea style={{ ...field, minHeight: 64, marginTop: 4 }} value={d.stem} onChange={(e) => setD((v) => ({ ...v, stem: e.target.value }))} /></label>
       {!ceq.noteOnly && (
         <div className="flex flex-col" style={{ gap: 6, marginTop: 8 }}>
@@ -326,13 +430,19 @@ function CeqEditor({ ceq, topicName, onSaved }: { ceq: BoothCeq; topicName: stri
 
 // ------------------------------------------------------------ the prompter
 
-function Prompter({ frame, slideLabel, slideText: text, set, doc, onLines }: {
+function Prompter({ frame, slideLabel, slideText: text, set, doc, onLines, onSlide }: {
   frame: BlastFrame | null; slideLabel: string; slideText: string; set: BoothSetInfo; doc: TTDoc;
   onLines: (lines: string[]) => void;
+  /** A phrase becomes a slide of this kind, right after the current slide. */
+  onSlide: (kind: BlastFrameKind, text: string) => void;
 }) {
   const kept = useMemo(() => frame?.prompter ?? [], [frame]);
   const cands = useMemo(() => (frame ? prompterCandidates(frame, doc, set.id) : []), [frame, doc, set.id]);
+  const groups = useMemo(() => prompterGroups(cands), [cands]);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [tidy, setTidy] = useState<Record<string, { res?: TidyResult; busy?: boolean; err?: string }>>({});
+  const [kindPick, setKindPick] = useState<Record<string, BlastFrameKind>>({});
+  const [made, setMade] = useState<Set<string>>(new Set());
   const [typed, setTyped] = useState("");
   const t = frame ? tidy[frame.id] : undefined;
   const has = (s: string) => kept.some((k) => k.trim().toLowerCase() === s.trim().toLowerCase());
@@ -346,7 +456,7 @@ function Prompter({ frame, slideLabel, slideText: text, set, doc, onLines }: {
     setTidy((v) => ({ ...v, [frame.id]: { ...v[frame.id], busy: true, err: undefined } }));
     try {
       const { system, user } = buildTidyMessages({ slideLabel, slideText: text, candidates: cands, kept });
-      const r = await runMicro({ data: { system, user, maxOutput: 1800 } });
+      const r = await runMicro({ data: { system, user, maxOutput: 2000 } });
       setTidy((v) => ({ ...v, [frame.id]: { res: parseTidy(r.text, cands), busy: false } }));
     } catch (e) {
       setTidy((v) => ({ ...v, [frame.id]: { ...v[frame.id], busy: false, err: e instanceof Error ? e.message : String(e) } }));
@@ -354,16 +464,26 @@ function Prompter({ frame, slideLabel, slideText: text, set, doc, onLines }: {
   };
 
   if (!frame) return <section />;
-  const tidyById = new Map((t?.res?.lines ?? []).map((l) => [l.id, l.text]));
+  const open = groups.find((g) => g.key === openGroup) ?? null;
+  const wordLine = (c: PrompterCandidate) => {
+    const on = has(c.text);
+    return (
+      <button key={c.id} onClick={() => keep(c.text)} title={on ? "Already on the prompter" : "Keep this line as you said it"}
+        style={{ textAlign: "left", background: on ? "rgba(59,245,160,0.10)" : "rgba(9,13,26,0.6)", border: `1px solid ${on ? MINT : EDGE}`, borderRadius: 9, padding: "6px 9px", color: CREAM, fontSize: 12, lineHeight: 1.4, cursor: on ? "default" : "pointer", opacity: on ? 0.7 : 1 }}>
+        {on ? "✓ " : ""}{c.text}
+      </button>
+    );
+  };
+
   return (
-    <section style={{ background: PANEL, border: `1px solid ${EDGE}`, borderRadius: 12, padding: "10px 12px", position: "sticky", top: 12 }}>
+    <section style={{ background: PANEL, border: `1px solid ${EDGE}`, borderRadius: 12, padding: "10px 12px", position: "sticky", top: 12, maxHeight: "calc(100vh - 24px)", overflowY: "auto" }}>
       <div className="flex items-center" style={{ gap: 8, marginBottom: 8 }}>
         <span style={eyebrow}>Teleprompter</span>
         <span style={{ fontSize: 11, color: MUTED }}>{kept.length} line{kept.length === 1 ? "" : "s"} on this slide</span>
       </div>
 
       {kept.length > 0 && (
-        <div className="flex flex-col" style={{ gap: 5, marginBottom: 10 }}>
+        <div className="flex flex-col" style={{ gap: 5, marginBottom: 12 }}>
           {kept.map((k, i) => (
             <div key={i} className="flex items-center" style={{ gap: 4 }}>
               <input style={{ ...field, padding: "5px 8px", fontSize: 12.5 }} value={k} onChange={(e) => setLine(i, e.target.value)} />
@@ -375,45 +495,78 @@ function Prompter({ frame, slideLabel, slideText: text, set, doc, onLines }: {
         </div>
       )}
 
-      <div style={{ fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTED, fontWeight: 800, marginBottom: 5 }}>
-        Your words for this slide {cands.length ? `· ${cands.length}` : ""}
-      </div>
-      {cands.length === 0 ? (
+      {/* THE STAMPS he used near this slide — click one to see its words. */}
+      <div style={{ ...subhead, marginBottom: 5 }}>Stamps near this slide</div>
+      {groups.length === 0 ? (
         <div style={{ fontSize: 12, color: MUTED, marginBottom: 8 }}>
           {frame.kind === "ceq" ? "Nothing was captured while this card was up. Talk about it in Step 1, or type a line below." : "No stamp of this kind in the talkthrough. Type a line below."}
         </div>
       ) : (
-        <div className="flex flex-col" style={{ gap: 4, marginBottom: 8 }}>
-          {cands.map((c) => {
-            const clean = tidyById.get(c.id);
-            const shown = clean ?? c.text;
-            const on = has(shown);
-            return (
-              <button key={c.id} onClick={() => keep(shown)} title={on ? "Already on the prompter" : `Keep this line${clean ? ` (proofread — original: "${c.text.slice(0, 120)}")` : ""}`}
-                style={{ textAlign: "left", background: on ? "rgba(59,245,160,0.10)" : "rgba(9,13,26,0.6)", border: `1px solid ${on ? MINT : EDGE}`, borderRadius: 9, padding: "6px 9px", color: CREAM, fontSize: 12.5, lineHeight: 1.4, cursor: on ? "default" : "pointer", opacity: on ? 0.7 : 1 }}>
-                {on ? "✓ " : ""}{shown}
-                {clean && <span style={{ display: "block", fontSize: 10, color: MUTED, marginTop: 2 }}>proofread · {c.source === "stamp" ? "from a stamp" : c.source === "bank" ? "from the bank" : "said on this card"}</span>}
-              </button>
-            );
-          })}
+        <div className="flex" style={{ gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
+          {groups.map((g) => (
+            <button key={g.key} style={chip(openGroup === g.key, g.stamp ? KIND_COLOR[frameKindForStamp(g.stamp)] ?? GOLD : MUTED)} onClick={() => setOpenGroup(openGroup === g.key ? null : g.key)}>
+              {g.label} ×{g.candidates.length}
+            </button>
+          ))}
+        </div>
+      )}
+      {open && (
+        <div className="flex flex-col" style={{ gap: 4, marginBottom: 10 }}>
+          {open.candidates.map(wordLine)}
         </div>
       )}
 
-      {t?.res?.suggestion && !has(t.res.suggestion) && (
-        <button onClick={() => keep(t.res!.suggestion!)} title="The one line the AI thinks is missing — take it or leave it"
-          style={{ textAlign: "left", width: "100%", background: "rgba(125,211,252,0.08)", border: `1px dashed ${SKY}`, borderRadius: 9, padding: "6px 9px", color: CREAM, fontSize: 12.5, lineHeight: 1.4, cursor: "pointer", marginBottom: 8 }}>
-          <span style={{ fontSize: 10, color: SKY, fontWeight: 800, letterSpacing: "0.12em", display: "block", marginBottom: 2 }}>✨ ONE AI SUGGESTION</span>
-          {t.res.suggestion}
-        </button>
-      )}
-
-      <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap" }}>
-        <button style={{ ...chip(false, SKY), opacity: cands.length && !t?.busy ? 1 : 0.5 }} disabled={!cands.length || !!t?.busy} onClick={() => void proofread()} title="Tighten your words — same meaning, fewer of them — and one suggestion at most">
-          {t?.busy ? "proofreading…" : t?.res ? "✨ proofread again" : "✨ Proofread with AI"}
+      {/* PROOFREAD → phrases. Each one: keep it, or make it a slide. */}
+      <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        <button style={{ ...chip(false, SKY), opacity: cands.length && !t?.busy ? 1 : 0.5 }} disabled={!cands.length || !!t?.busy} onClick={() => void proofread()} title="Your stamps, cleaned into one-line phrases — same meaning, your voice — and one suggestion at most">
+          {t?.busy ? "proofreading…" : t?.res ? "✨ proofread again" : "✨ Proofread into phrases"}
         </button>
         {t?.err && <span style={{ fontSize: 11, color: RED }}>⚠ {t.err}</span>}
       </div>
-      <form className="flex" style={{ gap: 4, marginTop: 8 }} onSubmit={(e) => { e.preventDefault(); keep(typed); setTyped(""); }}>
+      {t?.res && (
+        <div className="flex flex-col" style={{ gap: 6, marginBottom: 10 }}>
+          {t.res.phrases.length === 0 && <div style={{ fontSize: 12, color: MUTED }}>Nothing usable came back — try the raw words below.</div>}
+          {t.res.phrases.map((p) => {
+            const on = has(p.text);
+            const kind = kindPick[p.id] ?? frameKindForStamp(p.stamp);
+            const done = made.has(p.id);
+            return (
+              <div key={p.id} style={{ background: "rgba(9,13,26,0.6)", border: `1px solid ${on || done ? MINT : EDGE}`, borderRadius: 9, padding: "6px 9px" }}>
+                <div style={{ color: CREAM, fontSize: 12.5, lineHeight: 1.4 }}>{p.text}</div>
+                <div className="flex items-center" style={{ gap: 5, marginTop: 5, flexWrap: "wrap" }}>
+                  {p.stamp && <span style={{ fontSize: 9.5, color: MUTED, letterSpacing: "0.1em", textTransform: "uppercase" }}>{groups.find((g) => g.key === p.stamp)?.label ?? p.stamp}</span>}
+                  <span style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
+                    <button style={{ ...chip(on, MINT), padding: "2px 8px", fontSize: 10.5 }} disabled={on} onClick={() => keep(p.text)}>{on ? "✓ kept" : "keep"}</button>
+                    <select value={kind} onChange={(e) => setKindPick((v) => ({ ...v, [p.id]: e.target.value as BlastFrameKind }))} title="What kind of slide this becomes — override the AI's guess"
+                      style={{ background: "rgba(9,13,26,0.8)", color: KIND_COLOR[kind] ?? CREAM, border: `1px solid ${EDGE}`, borderRadius: 7, fontSize: 10.5, padding: "2px 4px" }}>
+                      {PHRASE_SLIDE_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
+                    </select>
+                    <button style={{ ...chip(done, KIND_COLOR[kind]), padding: "2px 8px", fontSize: 10.5 }} title="Add this as a slide right after the current one" onClick={() => { onSlide(kind, p.text); setMade((s) => new Set(s).add(p.id)); }}>
+                      {done ? "✓ slide added" : "→ slide"}
+                    </button>
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          {t.res.suggestion && !has(t.res.suggestion) && (
+            <button onClick={() => keep(t.res!.suggestion!)} title="The one line the AI thinks is missing — take it or leave it"
+              style={{ textAlign: "left", width: "100%", background: "rgba(125,211,252,0.08)", border: `1px dashed ${SKY}`, borderRadius: 9, padding: "6px 9px", color: CREAM, fontSize: 12.5, lineHeight: 1.4, cursor: "pointer" }}>
+              <span style={{ fontSize: 10, color: SKY, fontWeight: 800, letterSpacing: "0.12em", display: "block", marginBottom: 2 }}>✨ ONE AI SUGGESTION</span>
+              {t.res.suggestion}
+            </button>
+          )}
+        </div>
+      )}
+
+      {cands.length > 0 && (
+        <details style={{ marginBottom: 8 }}>
+          <summary style={{ ...subhead, cursor: "pointer" }}>All your words for this slide · {cands.length}</summary>
+          <div className="flex flex-col" style={{ gap: 4, marginTop: 6 }}>{cands.map(wordLine)}</div>
+        </details>
+      )}
+
+      <form className="flex" style={{ gap: 4 }} onSubmit={(e) => { e.preventDefault(); keep(typed); setTyped(""); }}>
         <input style={{ ...field, padding: "5px 8px", fontSize: 12.5 }} value={typed} placeholder="type a line…" onChange={(e) => setTyped(e.target.value)} />
         <button type="submit" style={chip(false)} disabled={!typed.trim()}>add</button>
       </form>

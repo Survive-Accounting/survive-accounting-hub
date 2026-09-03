@@ -32,8 +32,13 @@ export function spotlightTargetsOf(data: CardData | undefined): string[] {
       return (data as ComputationCard).steps.map((s) => s.id);
     case "schedule":
       return (data as ScheduleCard).rows.map((_, i) => scheduleRowTarget(i));
-    case "ceq":
-      return (data as CeqCard).choices.map((c) => c.id);
+    case "ceq": {
+      // A CALLOUT CARD (no choices — a cheat code, memorize this, deeper idea
+      // detour from Blast Off) spotlights as a whole, like a memo (Lee,
+      // 2026-09-03: "make sure the new slides … are all spotlightable").
+      const ch = (data as CeqCard).choices;
+      return ch.length ? ch.map((c) => c.id) : [MEMO_SELF_TARGET];
+    }
     case "cycle": // accounting cycle — per-STEP targets (Lee: only steps, not the whole element)
       return (data as CycleElement).steps.map((s) => s.id);
     case "memo":

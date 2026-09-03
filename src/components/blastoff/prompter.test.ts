@@ -1,10 +1,11 @@
 // THE TELEPROMPTER COLUMN's brain: the candidates for a slide are Lee's own
 // words for THAT slide — the segments captured while its CEQ was focused, or
-// inside a stamp context of its kind — never someone else's, never invented.
+// inside a stamp context of its kind — grouped by the stamp he was holding.
+// Never someone else's, never invented.
 import { describe, expect, test } from "bun:test";
 
 import type { TTDoc } from "@/components/canvas/talkthrough";
-import { buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates } from "./prompter";
+import { buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups } from "./prompter";
 import type { BlastFrame } from "./plan";
 
 const row = (id: string, createdAt = "2026-09-03T10:00:00.000Z") => ({ id, createdAt, updatedAt: createdAt, archivedAt: null, syncedAt: null });
@@ -34,10 +35,11 @@ function doc(): TTDoc {
 }
 
 describe("prompterCandidates", () => {
-  test("a CEQ slide gets the segments said while THAT card was focused, in this set only, de-duplicated", () => {
+  test("a CEQ slide gets the segments said while THAT card was focused, in this set only, de-duplicated, each tagged with its stamp", () => {
     const f: BlastFrame = { id: "f1", kind: "ceq", ceqId: "ceq-1" };
     const c = prompterCandidates(f, doc(), "set-A");
     expect(c.map((x) => x.id)).toEqual(["g1", "g3"]);       // g4 is a duplicate of g1, g5 is another set, g6 is empty
+    expect(c.map((x) => x.stamp)).toEqual([null, "memorize_this"]);
     expect(c.every((x) => x.source === "ceq")).toBe(true);
   });
 
@@ -54,6 +56,7 @@ describe("prompterCandidates", () => {
     // In the order they were said: the bank item was minted at 10:00:00, g3 at
     // 10:00:30. The item's quote duplicates g3 and is dropped.
     expect(c.map((x) => x.id)).toEqual(["b1:body", "g3"]);
+    expect(c[0].stamp).toBe("memorize_this");
   });
 
   test("a slide with nothing said about it has no candidates — nothing is invented", () => {
@@ -61,6 +64,14 @@ describe("prompterCandidates", () => {
     expect(prompterCandidates({ id: "f5", kind: "cheat" }, doc(), "set-A")).toEqual([]);
     expect(prompterCandidates({ id: "f6", kind: "bio" }, doc(), "set-A")).toEqual([]);
   });
+});
+
+describe("prompterGroups — the stamps he used near this slide", () => {
+  test("stamps first, plain card talk last, words in the order he said them", () => {
+    const g = prompterGroups(prompterCandidates({ id: "f1", kind: "ceq", ceqId: "ceq-1" }, doc(), "set-A"));
+    expect(g.map((x) => [x.key, x.label, x.candidates.length])).toEqual([["memorize_this", "Memorize This", 1], ["card", "Said on this card", 1]]);
+  });
+  test("no candidates, no groups", () => { expect(prompterGroups([])).toEqual([]); });
 });
 
 describe("frameKindForStamp — a stamp becomes the slide of its kind", () => {
@@ -71,28 +82,36 @@ describe("frameKindForStamp — a stamp becomes the slide of its kind", () => {
     expect(frameKindForStamp("visual")).toBe("exhibit");
     expect(frameKindForStamp("tip_trick")).toBe("cheat");
     expect(frameKindForStamp("KEY")).toBe("cheat");          // legacy → tip_trick → cheat
-    expect(frameKindForStamp("something_else")).toBe("tip");
+    expect(frameKindForStamp(null)).toBe("phrase");           // plain card talk → memorize this
+    expect(frameKindForStamp("something_else")).toBe("phrase");
   });
 });
 
 describe("the proofread call", () => {
-  test("carries Lee's law, the kept lines, and every candidate by id", () => {
+  test("carries Lee's law, the cram rule, the kept lines, and every candidate by id with its stamp", () => {
     const f: BlastFrame = { id: "f1", kind: "ceq", ceqId: "ceq-1" };
     const cands = prompterCandidates(f, doc(), "set-A");
     const { system, user } = buildTidyMessages({ slideLabel: "Q1", slideText: "Who are internal users?", candidates: cands, kept: ["Already kept"] });
     expect(system).toContain("NEVER add facts");
+    expect(system).toContain("ONE sentence, two at most");
     expect(system).toContain("ONE suggestion at most");
-    expect(user).toContain("[g1] Internal users are inside the company.");
+    expect(user).toContain("[g1] (stamp: none) Internal users are inside the company.");
+    expect(user).toContain("[g3] (stamp: memorize_this) Memorize: managers are internal.");
     expect(user).toContain("- Already kept");
   });
 
-  test("parseTidy keeps only known ids with text, and one suggestion", () => {
+  test("parseTidy keeps phrases with text, resolves the stamp from the source when missing, drops duplicates, and one suggestion", () => {
     const f: BlastFrame = { id: "f1", kind: "ceq", ceqId: "ceq-1" };
     const cands = prompterCandidates(f, doc(), "set-A");
-    const r = parseTidy('Sure! {"lines":[{"id":"g1","text":"Internal users work inside the company."},{"id":"g3","text":""},{"id":"nope","text":"x"}],"suggestion":"  Say who is NOT internal.  "}', cands);
-    expect(r.lines).toEqual([{ id: "g1", text: "Internal users work inside the company." }]);
+    const r = parseTidy('Sure! {"phrases":[{"text":"Internal users work inside the company.","stamp":null,"from":["g1"]},{"text":"Managers are internal.","stamp":"none","from":["g3"]},{"text":"","from":["g3"]},{"text":"Managers are internal.","from":[]},{"text":"Ghost","stamp":"cheat_code","from":["nope"]}],"suggestion":"  Say who is NOT internal.  "}', cands);
+    expect(r.phrases.map((p) => [p.text, p.stamp, p.from])).toEqual([
+      ["Internal users work inside the company.", null, ["g1"]],
+      ["Managers are internal.", "memorize_this", ["g3"]],
+      ["Ghost", "cheat_code", []],
+    ]);
+    expect(r.phrases.map((p) => p.id)).toEqual(["ph-1", "ph-2", "ph-3"]);
     expect(r.suggestion).toBe("Say who is NOT internal.");
-    expect(parseTidy('{"lines":[],"suggestion":null}', cands)).toEqual({ lines: [], suggestion: null });
+    expect(parseTidy('{"phrases":[],"suggestion":null}', cands)).toEqual({ phrases: [], suggestion: null });
     expect(() => parseTidy("no json here", cands)).toThrow();
   });
 });

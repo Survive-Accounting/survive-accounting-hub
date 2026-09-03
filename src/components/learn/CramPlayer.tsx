@@ -15,6 +15,7 @@ import { ArrowDown, ArrowUp, Check, ChevronLeft, Loader2, Lock, Volume2, VolumeX
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { PracticeStage } from "@/components/site/PracticeStage";
+import { CramCardsPanel } from "@/components/learn/CramCards";
 import { submitIntake } from "@/lib/intake.functions";
 import type { PracticeQuestion, StudentSet, StudentTopic } from "@/lib/student.functions";
 import { INK, type LearnTheme } from "@/components/learn/learn-theme";
@@ -57,6 +58,8 @@ export function CramPlayer({
   const [soundOn, setSoundOn] = useState(false);
   useEffect(() => { setSoundOn(readSound()); }, []);
   const [ask, setAsk] = useState(false);
+  // CRAM CARDS (2026-09-03): video → cards → practice. Same drawer as practice.
+  const [cards, setCards] = useState(false);
   const [shareCard, setShareCard] = useState(true);
   useEffect(() => { try { setShareCard(sessionStorage.getItem(SHARE_DISMISS) !== "1"); } catch { /* ignore */ } }, []);
   const hasPrev = index > 0, hasNext = index < items.length - 1;
@@ -90,7 +93,7 @@ export function CramPlayer({
       key={set.id} set={set} locked={locked} demo={demo} soundOn={soundOn} onToggleSound={toggleSound}
       prog={progress[set.id]} narrow={narrow} shrink={!narrow && practice} theme={theme}
       onStarted={() => onStarted(set.id)} onComplete={() => onComplete(set.id)} onPosition={(p, d) => onPosition(set.id, p, d)}
-      onEnded={() => { if (!practice && !ask && hasNext) window.setTimeout(() => go(1), 1200); }}
+      onEnded={() => { if (!practice && !cards && !ask && hasNext) window.setTimeout(() => go(1), 1200); }}
       onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask}
       caption={{ topic: topic.name, n, of, name: set.name }}
     />
@@ -98,7 +101,10 @@ export function CramPlayer({
 
   const actions = (
     <div className="flex flex-col items-center" style={{ gap: narrow ? 12 : 14 }}>
-      <button type="button" className="lk-act" data-on={practice} onClick={() => { if (set.ceqCount > 0) { onPractice(!practice); setAsk(false); } }} disabled={set.ceqCount === 0} style={{ opacity: set.ceqCount ? 1 : 0.4 }} title={set.ceqCount ? `${set.ceqCount} practice questions` : "No questions for this set yet"}>
+      <button type="button" className="lk-act" data-on={cards} onClick={() => { setCards((v) => !v); onPractice(false); setAsk(false); }} title="The cram cards from this video — cheat codes, memorize-this, deeper ideas">
+        <span className="lk-act-b">🗂</span>Cards
+      </button>
+      <button type="button" className="lk-act" data-on={practice} onClick={() => { if (set.ceqCount > 0) { onPractice(!practice); setAsk(false); setCards(false); } }} disabled={set.ceqCount === 0} style={{ opacity: set.ceqCount ? 1 : 0.4 }} title={set.ceqCount ? `${set.ceqCount} practice questions` : "No questions for this set yet"}>
         <span className="lk-act-b">{set.ceqCount ? `${set.ceqCount} Qs` : "—"}</span>Practice
       </button>
       <button type="button" className="lk-act" disabled style={{ opacity: 0.4 }} title="Study tools — coming"><span className="lk-act-b"><RailIcon k="tools" /></span>Tools</button>
@@ -110,6 +116,20 @@ export function CramPlayer({
 
   const askCard = ask && (
     <AskLee set={set} topic={topic} campusName={campusName} campusSlug={campusSlug} contactRef={contactRef} demo={demo} narrow={narrow} onClose={() => setAsk(false)} />
+  );
+
+  const cardsPanel = cards && !practice && (
+    <div className={narrow ? "flex min-h-0 flex-1 flex-col" : "lk-in flex flex-col overflow-hidden rounded-2xl"} style={narrow ? { background: INK.surface, borderTop: `1px solid ${INK.border}` } : { width: 420, maxHeight: "78vh", background: INK.surface, border: `1px solid ${INK.border}` }}>
+      <div className="flex shrink-0 items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${INK.border}` }}>
+        <span className="lk-disp" style={{ fontSize: 15 }}>Cram cards</span>
+        <span className="min-w-0 truncate text-[12px]" style={{ color: INK.muted }}>{set.name}</span>
+        <span className="flex-1" />
+        <button type="button" onClick={() => setCards(false)} className="grid h-8 w-8 place-items-center rounded-full" style={{ background: INK.border, color: INK.text, border: 0, cursor: "pointer" }} aria-label="Close"><X className="h-4 w-4" /></button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <CramCardsPanel setId={set.id} demo={demo} practiceCount={set.ceqCount} onPractice={() => { setCards(false); onPractice(true); }} />
+      </div>
+    </div>
   );
 
   const practicePanel = practice && set.ceqCount > 0 && (
@@ -140,9 +160,9 @@ export function CramPlayer({
   if (narrow) {
     return (
       <div className="relative flex min-h-0 flex-1 flex-col" style={{ background: "#000" }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-        <div className={practice || ask ? "shrink-0" : "min-h-0 flex-1"} style={practice || ask ? { height: 220 } : undefined}>{video}</div>
+        <div className={practice || cards || ask ? "shrink-0" : "min-h-0 flex-1"} style={practice || cards || ask ? { height: 220 } : undefined}>{video}</div>
         <button type="button" onClick={onExit} className="absolute left-3 top-3 z-[2] grid h-9 w-9 place-items-center rounded-full" style={{ background: "rgba(28,28,28,0.85)", color: INK.text, border: 0, cursor: "pointer" }} aria-label="Back"><ChevronLeft className="h-5 w-5" /></button>
-        {!practice && !ask && (
+        {!practice && !cards && !ask && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 p-4" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0))" }}>
             <div className="min-w-0 flex-1 pb-1">
               <div className="text-[10px] font-extrabold uppercase" style={{ letterSpacing: "0.14em", color: theme.accent }}>{topic.name} · {n} of {of}</div>
@@ -152,6 +172,7 @@ export function CramPlayer({
             <div className="pointer-events-auto">{actions}</div>
           </div>
         )}
+        {cardsPanel}
         {practicePanel}
         {askCard}
       </div>
@@ -162,7 +183,7 @@ export function CramPlayer({
     <div className="relative flex min-h-0 flex-1 items-end justify-center" style={{ gap: 16, padding: "8px 32px 20px" }}>
       <button type="button" onClick={onExit} className="lk-btn lk-btn-ghost absolute left-8 top-3" style={{ padding: "7px 12px 7px 8px", fontSize: 11 }}><ChevronLeft className="h-4 w-4" /> All videos</button>
       {/* left: a dismissible share card, idle only */}
-      {!practice && !ask && shareCard && (
+      {!practice && !cards && !ask && shareCard && (
         <div className="lk-card lk-in absolute bottom-6 left-8 flex w-[280px] flex-col gap-2 p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="text-[13.5px] font-bold leading-snug">Know someone in this class?</div>
@@ -174,6 +195,7 @@ export function CramPlayer({
       )}
       {video}
       {actions}
+      {cardsPanel}
       {practicePanel}
       {askCard}
       <div className="absolute right-8 top-1/2 flex -translate-y-1/2 flex-col gap-2.5">

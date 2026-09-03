@@ -24,7 +24,7 @@ import { SurviveBio } from "./SurviveBio";
 import { SurviveIntro } from "./SurviveIntro";
 import { SurviveOutro } from "./SurviveOutro";
 import {
-  FRAME_LABEL, INSERT_CALLOUT, INSERT_KINDS, filmFrames, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, reconcilePlan, removeFrame,
+  FRAME_LABEL, INSERT_CALLOUT, INSERT_KINDS, filmFrames, frameBullets, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, reconcilePlan, removeFrame,
   type BlastFrame, type BlastFrameKind, type BlastPlan,
 } from "./plan";
 import { BankPicker } from "./BankPicker";
@@ -275,7 +275,7 @@ export function FrameView({ frame, set, scale, topicName, progress }: {
       // "blank" is a BARE frame — card hidden, so Lee builds on it from scratch.
       // Every other insert is a DETOUR: the dark card, gold label, key phrase
       // highlighted — the same flag the sync writes, so preview = film.
-      callout={frame.kind === "blank" ? { hidden: true } : kindTag ? { kind: kindTag, detour: true } : undefined}
+      callout={frame.kind === "blank" ? { hidden: true } : kindTag ? { kind: kindTag, detour: true, ...(frameBullets(frame).length ? { extraStems: frameBullets(frame) } : {}) } : undefined}
     />
   );
 }

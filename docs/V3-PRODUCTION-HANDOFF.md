@@ -159,6 +159,43 @@ session (the build queue judged it too big — see docs/TWO-MACHINES.md).
 - Saves are debounced 500 ms in `usePlan` and flushed on unmount; the arrange
   step shares the hook and benefits.
 
+**Second pass, same night (Lee's notes after using it):**
+- Drag shows a sky line ABOVE or BELOW the row under the cursor; the drop
+  goes where the line is. Space / Shift+Space walk the slides (never while
+  typing) — the same keys as film mode.
+- "Note frame" is now **Summary slide** — *Opening summary* / *Closing
+  summary* when the set has both. They are two different cards; editing one
+  never touches the other (that was the "it didn't save" confusion).
+- The dark detour skin keeps a colour per kind: cheat code gold, memorize
+  this orange, deeper idea sky — label, highlight and card edge
+  (`detourAccent` in cards/CalloutCard.tsx), in review, film and cram cards.
+- **Bullets** under a callout: `frame.bullets` (one per line in the editor)
+  → `callout.extraStems` on the synced frame — the canvas card already draws
+  them. The main phrase is highlighted for all three kinds (a deeper idea
+  too, now).
+- **The phone stage**: every slide previews on a 9:16 black stage with the
+  TikTok / Shorts UI zones shaded (status bar, caption strip, action column).
+  Toggle it off for the plain card.
+- **The prompter, reorganised**: the stamps used near the slide as chips
+  (click one to see its words), raw words folded under "All your words",
+  **✨ Proofread into phrases** → one-sentence phrases (two max — cram
+  videos), each with *keep* (prompter line) or *→ slide* with a kind picker
+  to override the AI's guess; the slide lands right after the current one
+  and carries the phrase as its first prompter line. One marked AI
+  suggestion at most. `prompter.ts` is pure and tested.
+- **Spotlight**: a callout CEQ (no choices) is a whole-card spotlight target
+  (`spotlightTargetsOf` → self; the previewer's callout body carries the
+  target). Verify on the canvas film surface by Ctrl+clicking a detour card.
+- **Cram cards for students** (Lee: "Cram blast off vid > cram cards >
+  practice"): `fetchSetCramCards` serves the set's synced detour frames
+  (provenance blast-off, kinds phrase/cheat/tip, running order, same gate as
+  practice); the /learn player has a **Cards** action between the video and
+  Practice (`components/learn/CramCards.tsx`), ending in "Practice → ".
+  Skipped cards and unsent edits never reach students: only what "Send to
+  film" wrote into the set is served.
+- Banked for later: film mode and the canvas mirrored, with a persistent
+  vertical frame on the canvas (idea "Film mode canvas sync…").
+
 ---
 
 ## Lee's open requests, in his priority order
