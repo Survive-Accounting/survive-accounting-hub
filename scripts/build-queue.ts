@@ -180,9 +180,18 @@ async function maybeSplit(db: { from: (t: string) => any }, r: Row): Promise<boo
   if (ctx.sizeChecked === "1" || ctx.splitFrom || ctx.resume === "1") return false;
   const { runAiTask } = await import("../src/lib/ai.server");
   const { system, user } = buildSplitMessages({ title: r.title, body: r.body, promptMd: r.prompt_md });
-  const res = await runAiTask("micro", { system, user, maxOutput: 3500 });
+  // SYNTHESIS lane, 8000 out: the micro lane caps at 2,000 tokens and a big
+  // idea's verdict (slices + plan) got cut mid-string on 2026-09-03. This is
+  // a product judgment made once per armed idea — the flagship earns it.
+  const res = await runAiTask("synthesis", { system, user, maxOutput: 8000 });
   const m = res.text.match(/\{[\s\S]*\}/);
-  const j = m ? (JSON.parse(m[0]) as { single?: unknown; handsOn?: unknown; why?: unknown; slices?: unknown; dropped?: unknown }) : {};
+  let j: { single?: unknown; handsOn?: unknown; why?: unknown; slices?: unknown; dropped?: unknown } = {};
+  try { j = m ? JSON.parse(m[0]) : {}; } catch (e) {
+    // Unparsable verdict → do NOT guess it is small. Treat it as hands-on so
+    // a person looks; the why says what happened.
+    log(`  ! splitter answer was not JSON (${e instanceof Error ? e.message : String(e)}) — flagging hands-on`);
+    j = { handsOn: true, why: "the size check could not be read; a person should look at this one", slices: [] };
+  }
   const slices = Array.isArray(j.slices) ? (j.slices as { title?: unknown; spec?: unknown }[]).filter((x) => typeof x.title === "string" && typeof x.spec === "string") : [];
   const now = new Date().toISOString();
 
@@ -193,8 +202,14 @@ async function maybeSplit(db: { from: (t: string) => any }, r: Row): Promise<boo
   // in the bank and Obsidian, and the brief (TLDR · summary · prompt ·
   // suggested plan) goes to Lee's inbox. "Queue anyway" in the bank sets
   // forceQueue and the gate steps aside.
-  if (j.handsOn === true && ctx.forceQueue !== "1") {
-    const why = typeof j.why === "string" && j.why.trim() ? j.why.trim() : "too big or too design-dependent for an unattended build";
+  // THE RULE THE MODEL WON'T APPLY TO ITSELF: asked for "hands-on if more
+  // than three slices", the dry run on 2026-09-03 returned six slices and
+  // handsOn=false. So the count is enforced here, in code.
+  const tooMany = slices.length > 3;
+  if ((j.handsOn === true || tooMany) && ctx.forceQueue !== "1") {
+    const why = typeof j.why === "string" && j.why.trim() ? j.why.trim()
+      : tooMany ? `it needs ${slices.length} slices — more than the three the unattended queue is trusted with; a person should build this one (or queue anyway)`
+      : "too big or too design-dependent for an unattended build";
     const plan = slices.map((s) => String((s as { title: string }).title));
     log(`🖐 hands-on: "${r.title}" — ${why}${plan.length ? ` (suggested plan: ${plan.length} steps)` : ""}`);
     if (DRY) return true;
