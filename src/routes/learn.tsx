@@ -1,17 +1,16 @@
-// /learn — THE CRAM FEED (09-02). Where a student lands to cram.
+// /learn — v3 (09-03): YouTube's bones, in the Blackboard.
 //
-// Cram is already running when you arrive: the first unwatched cram video autoplays in a feed of
-// one card per set, snap-scrolled, ~25 videos, under an hour. A persistent header says who you are
-// (school-coloured bolt · course code · campus · exam · chapter · who sent you) and how much cram
-// is left. Practice and Review are LATER extensions of a card — no mode switcher, no exam lock
-// cards up top. The finish card carries rewatch, share, and the Exam 2 email capture.
+// HOME: skinny rail (content types; hamburger = the path) · frozen top (brand, who you are, the
+// reminder) · topic chips · three plan cards with a live study time · Start · rows per type.
+// PLAYER (?set=<id>): the Shorts view — one vertical video, actions hugging it, Practice as a
+// drawer (the real PracticeStage), Ask Lee, Share, Got it; ↑↓ / swipe through the exam.
+// The accent is the school's colour when readable on black, lime otherwise (learn-theme.ts).
 //
-// KEPT FROM THE PREVIOUS SHELL (unchanged in spirit): magic-link auth, per-set progress
-// (localStorage signed-out / student_set_progress signed-in), entitlements + the honest paywall,
-// the Greek share funnel (LearnCta, ShareBanner context, LearnStateSwitcher), ?demo=1, and the
-// deep links: /learn?campus=<id>&set=<id> (the set now scrolls the feed to its card).
+// KEPT: magic-link auth, per-set progress (localStorage signed-out / student_set_progress
+// signed-in), entitlements + the honest paywall, the Greek share funnel (LearnCta's sheets,
+// useShareContext, LearnStateSwitcher), ?demo=1, and the deep links /learn?campus=<id>&set=<id>.
 //
-// WIREFRAMES + the decisions behind this layout: the "Learn Dashboard Wireframes" canvas (09-02).
+// Wireframes and the decisions behind this: the "Learn Dashboard Wireframes" canvas, Round 5.
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -19,34 +18,36 @@ import { Loader2, Lock, Mail, X } from "lucide-react";
 
 import { useDismiss } from "@/lib/use-dismiss";
 import { joinPricingWaitlist } from "@/lib/pricing-api";
-import { fetchStudentTree, type StudentCourse, type StudentSet, type StudentTopic } from "@/lib/student.functions";
+import { fetchStudentTree, type PracticeQuestion, type StudentCourse, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { isPlayable } from "@/lib/set-flow";
 import type { SetStage } from "@/lib/set-flow";
 import { listOverrideCampuses, type CampusOpt } from "@/lib/campus-overrides.functions";
 import { claimMyOrders, fetchMyUnlockedTopics, getSetPlayback } from "@/lib/entitlements.functions";
-import { NEON } from "@/components/canvas/theme";
 import { LearnIntro } from "@/components/brand/LearnIntro";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentAuth } from "@/lib/use-student-auth";
-import { LEARN_MODE_CSS, modeStyle } from "@/components/learn/learn-modes";
-import { VideoCard } from "@/components/learn/VideoCard";
-import { ExamWaitlist, type ExamTabState } from "@/components/learn/ExamRail";
+import type { ExamTabState } from "@/components/learn/ExamRail";
 import { LearnCta, openLearnCta } from "@/components/learn/LearnCta";
 import { useShareContext } from "@/components/learn/ShareBanner";
 import { LearnStateSwitcher } from "@/components/learn/LearnStateSwitcher";
-import { LearnHeader, usePickedChapter, type HeaderProgress } from "@/components/learn/LearnHeader";
-import { CramFeed, DEMO_PLAYBACK, LAST_SET_KEY, muxThumb, scrollFeedToSet, type FeedItem, type Prog, type ProgressState } from "@/components/learn/CramFeed";
+import { LearnTop, usePickedChapter, type TopProgress } from "@/components/learn/LearnTop";
+import { LearnRail, LearnTabs, PathList, type PathTopic, type RailKey } from "@/components/learn/LearnRail";
+import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome";
+import { CramPlayer, type PlayerItem } from "@/components/learn/CramPlayer";
+import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
+import { INK, LEARN_CSS, themeFor, themeStyle } from "@/components/learn/learn-theme";
+import { DEMO_PLAYBACK, LAST_SET_KEY, type Prog, type ProgressState } from "@/components/learn/cram-media";
+import { daysUntil, EXAM_DATE_EVENT, readExamDate } from "@/components/learn/exam-date";
 import { schoolByCampusId, schoolBySlug } from "@/lib/schools";
-import { Spine, useVisibleTopic, type SpineTopic } from "@/components/learn/Spine";
 import { isContactRef } from "@/lib/contact-ref";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
 type LearnSearch = {
   campus?: string; topic?: string; set?: string; stage?: SetStage; demo?: boolean;
   // ── GREEK SHARE FUNNEL (learn-share-flow) ──────────────────────────────────────────────────
-  // ref = the contact WE messaged (recipient; no banner, CTA context only). by = a PERSON who
-  // forwarded the link (sharer; shows the vouched line in the header). g = the campus slug the
-  // /s/<campus> hop resolved. test = force a CTA state (A–F) or the banner, client-side, no DB.
+  // ref = the contact WE messaged (recipient). by = a PERSON who forwarded the link (sharer;
+  // shows the "sent by" line). g = the campus slug the /s/<campus> hop resolved. test = force a
+  // CTA state (A–F) or the banner, client-side, no DB.
   ref?: string; by?: string; g?: string; test?: string;
 };
 
@@ -54,8 +55,7 @@ export const Route = createFileRoute("/learn")({
   validateSearch: (s: Record<string, unknown>): LearnSearch => ({
     campus: typeof s.campus === "string" && s.campus ? s.campus : undefined,
     topic: typeof s.topic === "string" && s.topic ? s.topic : undefined,
-    // DEEP LINK into a set — the feed scrolls to its card. `stage` is accepted for old links but
-    // the feed is cram-only today.
+    // ?set=<id> opens the player on that set; ?stage=practice opens its practice drawer.
     set: typeof s.set === "string" && s.set ? s.set : undefined,
     stage: s.stage === "cram" || s.stage === "practice" || s.stage === "review" ? s.stage : undefined,
     demo: s.demo === true || s.demo === 1 || s.demo === "1" || s.demo === "true" ? true : undefined,
@@ -68,47 +68,47 @@ export const Route = createFileRoute("/learn")({
   component: LearnShell,
 });
 
-// ---- DEMO TREE (?demo=1) — placeholder content so the feed can be previewed populated.
-//      Pure client-side stand-in: demo set ids never reach the DB and "videos" are stubs. ------
+// ---- DEMO (?demo=1) — a placeholder tree + canned questions so the surface can be walked before
+//      any real video ships. Pure client-side; demo ids never reach the DB. -----------------------
+const DEMO_QUESTIONS: PracticeQuestion[] = [
+  { id: "dq1", prompt: "A company pays $1,200 on Oct 1 for a 12-month insurance policy. What does the Oct 1 entry debit?", shorthand: "Prepaid → expense", choices: [
+    { id: "a", text: "Insurance Expense", correct: false, feedback: "Not yet — nothing is used up on day one. Watch for the words 'pays in advance'." },
+    { id: "b", text: "Prepaid Insurance", correct: true, feedback: "Paying in advance buys an ASSET; it becomes expense as months pass." },
+    { id: "c", text: "Cash", correct: false, feedback: "Cash is the CREDIT here — it's what leaves." },
+  ] },
+  { id: "dq2", prompt: "Which pair keeps the accounting equation in balance after buying supplies on account?", shorthand: "A = L + E", choices: [
+    { id: "a", text: "Assets up, Liabilities up", correct: true, feedback: "Supplies (asset) rise, Accounts Payable (liability) rises — balanced." },
+    { id: "b", text: "Assets up, Equity up", correct: false, feedback: "'On account' means a payable, not owner money." },
+  ] },
+];
 function demoTree(): StudentCourse[] {
   const set = (id: string, name: string, o: Partial<StudentSet> = {}): StudentSet => ({ id: `demo-${id}`, name, access: "free", orientation: "portrait", playbackId: DEMO_PLAYBACK, ceqCount: 0, runtimeSec: null, hasReview: false, reviewPlaybackId: null, reviewRuntimeSec: null, firstStem: null, shortLabel: null, ...o });
-  return [
-    {
-      id: "demo-intro1", name: "Intro 1", family: "intro",
-      units: [
-        {
-          id: "demo-exam1", name: "Exam 1",
-          topics: [
-            { id: "demo-t1", name: "The Accounting Cycle", shortLabel: "Cycle", number: 1, sets: [
-              set("s1", "The Big Picture", { runtimeSec: 112, ceqCount: 6, firstStem: "Which of the following is a user of financial accounting information?", shortLabel: "Users of accounting" }),
-              set("s2", "Assets = Liabilities + Equity", { runtimeSec: 98, ceqCount: 9 }),
-              set("s3", "The Cycle, Start to Finish", { runtimeSec: 117, ceqCount: 7 }),
-            ] },
-            { id: "demo-t2", name: "Analyzing Transactions", shortLabel: "Analyzing", number: 2, sets: [
-              set("s4", "Debits & Credits", { runtimeSec: 89, ceqCount: 8 }),
-              set("s5", "T-Accounts", { runtimeSec: 65, ceqCount: 5, orientation: "landscape" }),
-              set("s6", "Trial Balance", { playbackId: null, ceqCount: 4 }), // no cram yet — not in the feed
-            ] },
-            { id: "demo-t3", name: "Recording & Adjusting", shortLabel: "Recording", number: 3, sets: [
-              set("s8", "Adjusting Entries", { runtimeSec: 101, ceqCount: 10 }),
-            ] },
-          ],
-        },
-        {
-          id: "demo-exam2", name: "Exam 2",
-          topics: [
-            { id: "demo-t4", name: "Merchandising", shortLabel: "Merch", number: 4, sets: [
-              set("s10", "Perpetual vs Periodic", { access: "paid", playbackId: null, runtimeSec: 455, ceqCount: 8 }),
-            ] },
-          ],
-        },
-      ],
-      topics: [],
-    },
-  ];
+  return [{
+    id: "demo-intro1", name: "Intro 1", family: "intro",
+    units: [
+      { id: "demo-exam1", name: "Exam 1", topics: [
+        { id: "demo-t1", name: "Easy Points", shortLabel: "Easy", number: 1, sets: [
+          set("s1", "Internal vs. external users", { runtimeSec: 102, ceqCount: 8, firstStem: "Which of the following is a user of financial accounting information?", shortLabel: "Users of accounting" }),
+          set("s2", "Financial vs. managerial accounting", { runtimeSec: 98, ceqCount: 8, shortLabel: "Financial vs. managerial" }),
+          set("s3", "Principles & assumptions", { runtimeSec: 120, ceqCount: 11, shortLabel: "Principles" }),
+          set("s4", "Standards & regulation", { runtimeSec: 115, ceqCount: 13, shortLabel: "Standards" }),
+          set("s5", "Accounting careers", { runtimeSec: 90, ceqCount: 10, shortLabel: "Careers" }),
+        ] },
+        { id: "demo-t2", name: "Analyzing Transactions", shortLabel: "Analyzing", number: 2, sets: [
+          set("s6", "Account classification", { runtimeSec: 89, ceqCount: 12, shortLabel: "Classify accounts" }),
+          set("s7", "Equation effects", { runtimeSec: 65, ceqCount: 9, orientation: "landscape", shortLabel: "Equation effects" }),
+          set("s8", "Trial balance", { playbackId: null, ceqCount: 4, shortLabel: "Trial balance" }),
+        ] },
+      ] },
+      { id: "demo-exam2", name: "Exam 2", topics: [
+        { id: "demo-t4", name: "Merchandising", shortLabel: "Merch", number: 4, sets: [set("s10", "Perpetual vs Periodic", { access: "paid", playbackId: null, runtimeSec: 455, ceqCount: 8 })] },
+      ] },
+    ],
+    topics: [],
+  }];
 }
 
-// Magic-link sign-in dialog — email in, link out, one tap. NEVER a password field.
+// Magic-link sign-in — for a student who already has an account. Never a password field.
 function SignInDialog({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
@@ -123,34 +123,24 @@ function SignInDialog({ onClose }: { onClose: () => void }) {
     setState("sent");
   };
   return (
-    <div className="fixed inset-0 z-[110] grid place-items-center p-4" style={{ background: "rgba(4,7,14,0.9)" }} onClick={onClose}>
-      <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: "#0b1020", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
-        <div className="mb-1 flex items-center gap-2"><Mail className="h-4 w-4" style={{ color: NEON.yellow }} /><span className="text-[14px] font-black uppercase tracking-wide">Sign in</span><button type="button" onClick={onClose} aria-label="Close" className="ml-auto grid h-7 w-7 place-items-center rounded-full hover:bg-white/10" style={{ color: NEON.text }}><span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>×</span></button></div>
+    <div className="fixed inset-0 z-[110] grid place-items-center p-4" style={{ background: "rgba(0,0,0,0.75)" }} onClick={onClose}>
+      <div className="lk-in w-full max-w-sm rounded-2xl p-5" style={{ background: INK.surface, border: `1px solid ${INK.border}`, color: INK.text }} onClick={(e) => e.stopPropagation()}>
+        <div className="mb-2 flex items-center gap-2"><Mail className="h-4 w-4" style={{ color: "var(--lk-acc)" }} /><span className="lk-disp" style={{ fontSize: 18 }}>Pick up where you left off</span><button type="button" onClick={onClose} aria-label="Close" className="ml-auto grid h-8 w-8 place-items-center rounded-full" style={{ background: INK.border, color: INK.text, border: 0, cursor: "pointer" }}><X className="h-4 w-4" /></button></div>
         {state === "sent" ? (
-          <p className="mt-2 text-[12.5px] leading-relaxed" style={{ color: NEON.muted }}>Check <b style={{ color: NEON.text }}>{email}</b> — we sent a one-tap sign-in link. No password needed.</p>
+          <p className="text-[13px] leading-relaxed" style={{ color: INK.muted }}>Check <b style={{ color: INK.text }}>{email}</b> and tap the link. That's it.</p>
         ) : (
           <>
-            <p className="mt-1 mb-3 text-[12px]" style={{ color: NEON.muted }}>Save your progress across devices. We email you a link — no password, ever.</p>
-            <input
-              type="email" autoFocus inputMode="email" autoComplete="email" placeholder="you@school.edu"
-              className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: "#0e131b", color: "#e7ecf3", border: `1px solid ${NEON.borderSoft}` }}
-              value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("idle"); }}
-              onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
-            />
-            {state === "error" && <p className="mt-1.5 text-[11px]" style={{ color: "#F3C6CC" }}>{msg}</p>}
-            <button disabled={state === "sending"} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-[12.5px] font-black uppercase tracking-wide disabled:opacity-50" style={{ color: "#0B1322", background: NEON.yellow }} onClick={() => void send()}>
-              {state === "sending" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Email me a link
-            </button>
+            <input type="email" autoFocus inputMode="email" autoComplete="email" placeholder="the email you used" className="lk-field" value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("idle"); }} onKeyDown={(e) => { if (e.key === "Enter") void send(); }} />
+            {state === "error" && <p className="mt-1.5 text-[12px]" style={{ color: INK.red }}>{msg}</p>}
+            <button type="button" disabled={state === "sending"} className="lk-btn lk-btn-acc mt-3 w-full disabled:opacity-50" style={{ minHeight: 46 }} onClick={() => void send()}>{state === "sending" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Send me in</button>
           </>
         )}
-        <button className="mt-2 w-full rounded-xl px-3 py-2 text-[11px] font-bold" style={{ color: NEON.muted }} onClick={onClose}>Close</button>
       </div>
     </div>
   );
 }
 
-// NOTIFY-NOT-PAY: there is no checkout yet, so a locked topic captures an email into the SAME
-// pricing waitlist the homepage's paid tabs use (campus_waitlist, tier test_pass).
+// NOTIFY-NOT-PAY: no checkout yet, so a locked topic captures an email into the pricing waitlist.
 function Paywall({ topic, campusName, campusId, demo, onClose, onRestore, restoring }: { topic: StudentTopic; campusName: string | null; campusId: string | null; demo: boolean; onClose: () => void; onRestore?: () => void; restoring?: boolean }) {
   const n = topic.sets.length;
   const key = `sa-notify-topic-${topic.id}`;
@@ -166,40 +156,28 @@ function Paywall({ topic, campusName, campusId, demo, onClose, onRestore, restor
     } catch { setState("error"); }
   };
   return (
-    <div className="fixed inset-0 z-[100] grid place-items-center p-4" style={{ background: "rgba(4,7,14,0.9)" }} onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "#0b1020", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
-        <div className="mb-2 flex items-center gap-2"><Lock className="h-4 w-4" style={{ color: "#F0B24A" }} /><span className="text-[14px] font-black uppercase tracking-wide">{topic.name} is coming</span></div>
-        <p className="text-[12.5px] leading-relaxed" style={{ color: NEON.muted }}>
-          {n} cram {n === 1 ? "video" : "videos"} in <b style={{ color: NEON.text }}>{topic.name}</b>{topic.sets.slice(0, 3).length > 0 && <> — including {topic.sets.slice(0, 3).map((s) => s.name).join(", ")}{n > 3 ? `, +${n - 3} more` : ""}</>}.
-        </p>
-        <div className="mt-4 rounded-xl px-3 py-2.5" style={{ border: "1px solid rgba(252,163,17,0.35)", background: "rgba(252,163,17,0.06)" }}>
+    <div className="fixed inset-0 z-[100] grid place-items-center p-4" style={{ background: "rgba(0,0,0,0.75)" }} onClick={onClose}>
+      <div className="lk-in w-full max-w-md rounded-2xl p-5" style={{ background: INK.surface, border: `1px solid ${INK.border}`, color: INK.text }} onClick={(e) => e.stopPropagation()}>
+        <div className="mb-2 flex items-center gap-2"><Lock className="h-4 w-4" style={{ color: INK.muted }} /><span className="lk-disp" style={{ fontSize: 18 }}>{topic.name} is coming</span></div>
+        <p className="text-[13px] leading-relaxed" style={{ color: INK.muted }}>{n} cram {n === 1 ? "video" : "videos"} in <b style={{ color: INK.text }}>{topic.name}</b>{topic.sets.slice(0, 3).length > 0 && <> — {topic.sets.slice(0, 3).map((s) => s.name).join(", ")}{n > 3 ? `, +${n - 3} more` : ""}</>}.</p>
+        <div className="mt-4 flex flex-col gap-2">
           {state === "done" ? (
-            <p className="text-[11.5px] font-semibold">✓ You're on the list — I'll email you the day {topic.name} opens.</p>
+            <p className="text-[13px] font-semibold">✓ You're on the list — I'll email you the day {topic.name} opens.</p>
           ) : (
             <>
-              <p className="text-[11.5px] font-bold">Get notified once {topic.name} is ready</p>
-              <div className="mt-1.5 flex gap-1.5">
-                <input
-                  value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }}
-                  onKeyDown={(e) => { if (e.key === "Enter") void submit(); }}
-                  type="email" inputMode="email" autoComplete="email" placeholder="you@school.edu"
-                  className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-[12px] outline-none"
-                  style={{ background: "#0e131b", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
-                />
-                <button onClick={() => void submit()} disabled={state === "busy"} className="shrink-0 rounded-lg px-3 py-1.5 text-[11.5px] font-black disabled:opacity-50" style={{ background: NEON.yellow, color: "#0B1322" }}>{state === "busy" ? "…" : "Notify me"}</button>
-              </div>
-              {state === "error" && <p className="mt-1 text-[10.5px]" style={{ color: "#F3C6CC" }}>Couldn't save that — try again in a moment.</p>}
+              <input value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} type="email" inputMode="email" autoComplete="email" placeholder="you@school.edu" className="lk-field" />
+              <button type="button" onClick={() => void submit()} disabled={state === "busy"} className="lk-btn lk-btn-acc disabled:opacity-50" style={{ minHeight: 46 }}>{state === "busy" ? "…" : `Tell me when ${topic.name} is ready`}</button>
+              {state === "error" && <p className="text-[12px]" style={{ color: INK.red }}>Couldn't save that — try again in a moment.</p>}
             </>
           )}
         </div>
-        {onRestore && <button className="mt-2 w-full rounded-xl px-3 py-2 text-[11px] font-bold disabled:opacity-50" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} disabled={restoring} onClick={onRestore}>{restoring ? "Checking…" : "Already have access? Restore it"}</button>}
-        <button className="mt-2 w-full rounded-xl px-3 py-2 text-[11px] font-bold" style={{ color: NEON.muted }} onClick={onClose}>Keep cramming</button>
+        {onRestore && <button type="button" className="lk-btn mt-2 w-full disabled:opacity-50" style={{ background: "transparent", color: "var(--lk-acc)" }} disabled={restoring} onClick={onRestore}>{restoring ? "Checking…" : "Already have access? Restore it"}</button>}
+        <button type="button" className="lk-btn mt-1 w-full" style={{ background: "transparent", color: INK.muted }} onClick={onClose}>Keep cramming</button>
       </div>
     </div>
   );
 }
 
-// Narrow-viewport detector — one column, full-height cards, the course map behind a sheet.
 function useIsNarrow(): boolean {
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 719px)").matches);
   useEffect(() => {
@@ -211,22 +189,16 @@ function useIsNarrow(): boolean {
   return narrow;
 }
 
-const examNumOf = (unitName: string): number | null => {
-  const m = /exam\s*(\d+)/i.exec(unitName);
-  return m ? Number(m[1]) : /final/i.test(unitName) ? 4 : null;
-};
+const examNumOf = (unitName: string): number | null => { const m = /exam\s*(\d+)/i.exec(unitName); return m ? Number(m[1]) : /final/i.test(unitName) ? 4 : null; };
+const PLAN_KEY = "sa-learn-plan";
 
 function LearnShell() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const demo = !!search.demo;
-  // GREEK SHARE FUNNEL — resolve the sharer/recipient once: the header's "sent by" line (by) and
-  // the CTA bar's council state (by or ref). ?test=banner uses a fixture.
   const shareCtx = useShareContext({ by: search.by, ref: search.ref, test: search.test });
-  // CAMPUS — ?campus=<id> wins over the stored choice (the school picker / campus pages hand off).
   const [campusId, setCampusId] = useState<string | null>(() => { if (search.campus) return search.campus; try { return localStorage.getItem("sa-learn-campus"); } catch { return null; } });
   useEffect(() => { try { if (campusId) localStorage.setItem("sa-learn-campus", campusId); else localStorage.removeItem("sa-learn-campus"); } catch { /* ignore */ } }, [campusId]);
-  // A ?g slug with no stored campus id → adopt that school's campus id so the tree numbers itself.
   useEffect(() => { if (!campusId && search.g) { const s = schoolBySlug(search.g); if (s?.campusId) setCampusId(s.campusId); } }, [campusId, search.g]);
   const campusesQ = useQuery({ queryKey: ["override-campuses"], queryFn: () => listOverrideCampuses(), staleTime: 300_000, networkMode: "always", enabled: !demo });
   const campuses: CampusOpt[] = campusesQ.data ?? [];
@@ -237,36 +209,30 @@ function LearnShell() {
   const isError = !demo && q.isError;
   const [paywallTopic, setPaywallTopic] = useState<StudentTopic | null>(null);
   const isNarrow = useIsNarrow();
-  const [mapOpen, setMapOpen] = useState(false);
-  // The picked exam; null = "the first exam that has videos", resolved in render (not an effect)
-  // so the server-rendered frame already carries the feed instead of flashing an empty state.
+  const [pathOpen, setPathOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
   const [pickedExam, setExamNum] = useState<number | null>(null);
 
   const school = schoolByCampusId(campusId) ?? schoolBySlug(search.g);
   const campusSlug = search.g ?? school?.slug ?? null;
   const campusName = school?.name ?? campuses.find((c) => c.id === campusId)?.name ?? null;
+  const theme = useMemo(() => themeFor(school), [school]);
 
-  // AUTH (magic link) + per-set PROGRESSION. Signed-in rows live in student_set_progress under
-  // RLS. Signed-out (and demo) persists to localStorage — local only, nothing merges up.
+  // AUTH + PROGRESS — unchanged model: localStorage signed-out / student_set_progress signed-in.
   const { userId, email, signOut } = useStudentAuth();
   const [signInOpen, setSignInOpen] = useState(false);
   const [progress, setProgress] = useState<Record<string, Prog>>({});
   const localKey = demo ? "sa-learn-progress-demo" : "sa-learn-progress";
   const useLocal = demo || !userId;
   useEffect(() => {
-    if (useLocal) {
-      try { setProgress(JSON.parse(localStorage.getItem(localKey) ?? "{}") as Record<string, Prog>); } catch { setProgress({}); }
-      return;
-    }
+    if (useLocal) { try { setProgress(JSON.parse(localStorage.getItem(localKey) ?? "{}") as Record<string, Prog>); } catch { setProgress({}); } return; }
     let active = true;
     void (async () => {
       let r = await (supabase.from("student_set_progress" as never) as any).select("set_id,state,position_sec,duration_sec,updated_at");
       if (r.error && /position_sec|column/i.test(String(r.error.message ?? ""))) r = await (supabase.from("student_set_progress" as never) as any).select("set_id,state,updated_at");
       if (!active) return;
       const m: Record<string, Prog> = {};
-      for (const row of (r.data ?? []) as { set_id: string; state: ProgressState; position_sec?: number | null; duration_sec?: number | null; updated_at?: string }[]) {
-        m[row.set_id] = { state: row.state, positionSec: row.position_sec ?? 0, durationSec: row.duration_sec ?? null, updatedAt: row.updated_at ? Date.parse(row.updated_at) : 0 };
-      }
+      for (const row of (r.data ?? []) as { set_id: string; state: ProgressState; position_sec?: number | null; duration_sec?: number | null; updated_at?: string }[]) m[row.set_id] = { state: row.state, positionSec: row.position_sec ?? 0, durationSec: row.duration_sec ?? null, updatedAt: row.updated_at ? Date.parse(row.updated_at) : 0 };
       setProgress(m);
     })();
     return () => { active = false; };
@@ -274,298 +240,213 @@ function LearnShell() {
   const writeRow = useCallback((setId: string, p: Prog) => {
     if (!userId) return;
     const t = supabase.from("student_set_progress" as never) as any;
-    void t
-      .upsert({ user_id: userId, set_id: setId, state: p.state, position_sec: p.positionSec, duration_sec: p.durationSec, updated_at: new Date().toISOString() }, { onConflict: "user_id,set_id" })
-      .then((r: { error: { message?: string } | null }) => {
-        if (r.error && /position_sec|duration_sec|column/i.test(String(r.error.message ?? ""))) void t.upsert({ user_id: userId, set_id: setId, state: p.state }, { onConflict: "user_id,set_id" });
-      });
+    void t.upsert({ user_id: userId, set_id: setId, state: p.state, position_sec: p.positionSec, duration_sec: p.durationSec, updated_at: new Date().toISOString() }, { onConflict: "user_id,set_id" })
+      .then((r: { error: { message?: string } | null }) => { if (r.error && /position_sec|duration_sec|column/i.test(String(r.error.message ?? ""))) void t.upsert({ user_id: userId, set_id: setId, state: p.state }, { onConflict: "user_id,set_id" }); });
   }, [userId]);
-  const persist = useCallback((m: Record<string, Prog>, setId: string) => {
-    if (useLocal) { try { localStorage.setItem(localKey, JSON.stringify(m)); } catch { /* ignore */ } }
-    else writeRow(setId, m[setId]);
-  }, [useLocal, localKey, writeRow]);
+  const persist = useCallback((m: Record<string, Prog>, setId: string) => { if (useLocal) { try { localStorage.setItem(localKey, JSON.stringify(m)); } catch { /* ignore */ } } else writeRow(setId, m[setId]); }, [useLocal, localKey, writeRow]);
   const markProgress = useCallback((setId: string, next: ProgressState) => {
     setProgress((prev) => {
       const cur = prev[setId];
-      if (cur?.state === "complete" && next === "in_progress") return prev; // never downgrades
+      if (cur?.state === "complete" && next === "in_progress") return prev;
       if (cur?.state === next && next === "in_progress") return prev;
       const p: Prog = { state: next, positionSec: next === "complete" ? 0 : (cur?.positionSec ?? 0), durationSec: cur?.durationSec ?? null, updatedAt: Date.now() };
-      const m = { ...prev, [setId]: p };
-      persist(m, setId);
-      return m;
+      const m = { ...prev, [setId]: p }; persist(m, setId); return m;
     });
   }, [persist]);
   const markPosition = useCallback((setId: string, positionSec: number, durationSec: number | null) => {
     setProgress((prev) => {
       const cur = prev[setId];
-      if (cur?.state === "complete") return prev; // a finished set doesn't regain a resume point
+      if (cur?.state === "complete") return prev;
       const p: Prog = { state: cur?.state ?? "in_progress", positionSec, durationSec: durationSec ?? cur?.durationSec ?? null, updatedAt: Date.now() };
-      const m = { ...prev, [setId]: p };
-      persist(m, setId);
-      return m;
+      const m = { ...prev, [setId]: p }; persist(m, setId); return m;
     });
   }, [persist]);
   const onStarted = useCallback((id: string) => markProgress(id, "in_progress"), [markProgress]);
   const onComplete = useCallback((id: string) => markProgress(id, "complete"), [markProgress]);
 
-  // ENTITLEMENTS — topics the signed-in student has unlocked. An unlocked paid set's withheld
-  // playback id is fetched securely when its card nears.
+  // ENTITLEMENTS
   const unlockedQ = useQuery({ queryKey: ["my-unlocked-topics", userId], queryFn: () => fetchMyUnlockedTopics(), enabled: !!userId && !demo, networkMode: "always" });
   const unlockedTopics = useMemo(() => new Set(unlockedQ.data ?? []), [unlockedQ.data]);
   const [restoring, setRestoring] = useState(false);
   const restore = async () => { setRestoring(true); try { await claimMyOrders(); await unlockedQ.refetch(); } finally { setRestoring(false); } };
-  const [fetchNote, setFetchNote] = useState<{ msg: string; retry?: () => void } | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const resolvePlayback = useCallback(async (set: StudentSet): Promise<string | null> => {
     const r = await getSetPlayback({ data: { setId: set.id, stage: "cram" } });
     if (r.status === "ok") return r.playbackId;
-    if (r.status === "unpublished") setFetchNote({ msg: "This video isn't published yet — check back soon." });
+    if (r.status === "unpublished") setNote("This video isn't published yet — check back soon.");
     return null;
   }, []);
 
-  // ── THE EXAMS — units ARE the exams. Anything live is pickable; the rest are "coming". ─────
+  // ── EXAMS ───────────────────────────────────────────────────────────────────────────────────
   const examTabs = useMemo<ExamTabState[]>(() => {
-    const byNum = new Map<number, { label: string; videos: number }>();
-    for (const c of courses) for (const u of c.units) {
-      const num = examNumOf(u.name);
-      if (num == null) continue;
-      // Anything a student can enter counts — a set whose cram video is still rendering shows as a
-      // "coming soon" card in the feed rather than hiding the whole exam.
-      const videos = u.topics.reduce((n, t) => n + t.sets.filter(isPlayable).length, 0);
-      const prev = byNum.get(num);
-      byNum.set(num, { label: num === 4 ? "Final" : `Exam ${num}`, videos: (prev?.videos ?? 0) + videos });
-    }
-    return [1, 2, 3, 4].map((n) => ({ num: n, label: n === 4 ? "Final" : `Exam ${n}`, available: (byNum.get(n)?.videos ?? 0) > 0, videoCount: byNum.get(n)?.videos ?? 0 }));
+    const byNum = new Map<number, number>();
+    for (const c of courses) for (const u of c.units) { const num = examNumOf(u.name); if (num == null) continue; byNum.set(num, (byNum.get(num) ?? 0) + u.topics.reduce((n, t) => n + t.sets.filter(isPlayable).length, 0)); }
+    return [1, 2, 3, 4].map((n) => ({ num: n, label: n === 4 ? "Final" : `Exam ${n}`, available: (byNum.get(n) ?? 0) > 0, videoCount: byNum.get(n) ?? 0 }));
   }, [courses]);
   const examNum = pickedExam ?? examTabs.find((e) => e.available)?.num ?? null;
   const exam = examTabs.find((e) => e.num === examNum) ?? null;
-  const nextExam = examTabs.find((e) => !e.available && e.num > (examNum ?? 0)) ?? null;
+  const comingExams = examTabs.filter((e) => !e.available).map((e) => e.label);
 
-  // ── THE FEED — every set with a cram video (or a paid, withheld one) in the picked exam. ─────
-  const items = useMemo<FeedItem[]>(() => {
-    const out: FeedItem[] = [];
+  // ── THE SETS of the picked exam, in path order ──────────────────────────────────────────────
+  const sets = useMemo<HomeSet[]>(() => {
+    const out: HomeSet[] = [];
     const seen = new Set<string>();
     for (const c of courses) for (const u of c.units) {
       if (examNumOf(u.name) !== examNum) continue;
       for (const t of u.topics) {
-        const inFeed = t.sets.filter(isPlayable);
-        inFeed.forEach((set, i) => {
+        const inTopic = t.sets.filter((s) => isPlayable(s));
+        inTopic.forEach((set, i) => {
           if (seen.has(set.id)) return; seen.add(set.id);
-          out.push({ set, topic: t, unitLabel: u.name, locked: set.access === "paid" && !unlockedTopics.has(t.id), n: i + 1, of: inFeed.length });
+          const p = progress[set.id];
+          out.push({ set, topic: t, n: i + 1, of: inTopic.length, locked: set.access === "paid" && !unlockedTopics.has(t.id), done: p?.state === "complete", watched: p?.durationSec ? Math.min(1, p.positionSec / p.durationSec) : 0, playable: true });
         });
       }
     }
     return out;
-  }, [courses, examNum, unlockedTopics]);
-
-  const headerProgress = useMemo<HeaderProgress>(() => {
-    // Only sets with a cram video count toward "min of cram left" — a coming-soon card is not
-    // something the student can watch yet.
-    const open = items.filter((i) => !i.locked && !!i.set.playbackId);
-    const done = open.filter((i) => progress[i.set.id]?.state === "complete");
-    const left = open.filter((i) => progress[i.set.id]?.state !== "complete");
-    const secondsLeft = left.every((i) => i.set.runtimeSec != null) ? left.reduce((a, i) => a + (i.set.runtimeSec ?? 0), 0) : null;
-    return { total: open.length, done: done.length, secondsLeft };
-  }, [items, progress]);
-
-  // ── THE SPINE follows the feed's scroll. ────────────────────────────────────────────────────
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const { visibleTopicId, registerCard } = useVisibleTopic(scrollRef);
-  const [activeSetId, setActiveSetId] = useState<string | null>(null);
-  const activeTopicId = visibleTopicId ?? items.find((i) => i.set.id === activeSetId)?.topic.id ?? items[0]?.topic.id ?? null;
-  const spineTopics = useMemo<SpineTopic[]>(() => {
-    const out: SpineTopic[] = [];
-    for (const c of courses) for (const u of c.units) for (const t of u.topics) {
-      out.push({
-        // NO CHAPTER PREFIX (Lee, 09-03): topics only, until syllabi map textbook chapters properly.
-        id: t.id, label: t.name,
-        groupId: u.id, groupLabel: u.name,
-        total: t.sets.filter(isPlayable).length || t.sets.length,
-        done: t.sets.filter((x) => progress[x.id]?.state === "complete").length,
-        locked: t.sets.length > 0 && t.sets.every((x) => x.access === "paid") && !unlockedTopics.has(t.id),
-      });
+  }, [courses, examNum, unlockedTopics, progress]);
+  const topics = useMemo(() => Array.from(new Map(sets.map((s) => [s.topic.id, s.topic])).values()), [sets]);
+  const path = useMemo<PathTopic[]>(() => {
+    const out: PathTopic[] = [];
+    for (const c of courses) for (const u of c.units) {
+      if (examNumOf(u.name) !== examNum) continue;
+      for (const t of u.topics) out.push({ topic: t, sets: t.sets.map((s) => ({ set: s, done: progress[s.id]?.state === "complete", playable: !!s.playbackId, locked: s.access === "paid" && !unlockedTopics.has(t.id) })), done: t.sets.filter((s) => progress[s.id]?.state === "complete").length });
     }
     return out;
-  }, [courses, progress, unlockedTopics]);
-  const spinePosition = useMemo(() => { const i = spineTopics.findIndex((t) => t.id === activeTopicId); return i >= 0 ? { index: i + 1, total: spineTopics.length } : null; }, [spineTopics, activeTopicId]);
-  const pendingJump = useRef<string | null>(null);
-  const jumpToTopic = (topicId: string) => {
-    setMapOpen(false);
-    const hit = items.find((i) => i.topic.id === topicId);
-    if (hit) { scrollFeedToSet(scrollRef.current, hit.set.id); return; }
-    // The topic sits in another exam — switch, then scroll once its cards exist.
-    for (const c of courses) for (const u of c.units) if (u.topics.some((t) => t.id === topicId)) { const n = examNumOf(u.name); if (n != null && examTabs.find((e) => e.num === n)?.available) { pendingJump.current = topicId; setExamNum(n); } }
+  }, [courses, examNum, progress, unlockedTopics]);
+
+  // The player walks every set with a cram video (locked ones show the paywall face).
+  const playerItems = useMemo<PlayerItem[]>(() => sets.filter((s) => !!s.set.playbackId || s.locked).map((s) => ({ set: s.set, topic: s.topic, n: s.n, of: s.of, locked: s.locked })), [sets]);
+  const playerIndex = search.set ? playerItems.findIndex((i) => i.set.id === search.set) : -1;
+  const inPlayer = playerIndex >= 0;
+  const [practice, setPractice] = useState(false);
+  useEffect(() => { if (search.stage === "practice" && inPlayer) setPractice(true); }, [search.stage, inPlayer]);
+  const openSet = (setId: string, withPractice = false) => {
+    setPractice(withPractice);
+    try { localStorage.setItem(LAST_SET_KEY, setId); } catch { /* ignore */ }
+    void navigate({ search: (p: LearnSearch) => ({ ...p, set: setId, stage: withPractice ? "practice" : undefined }), replace: inPlayer });
   };
+  const exitPlayer = () => { setPractice(false); void navigate({ search: (p: LearnSearch) => ({ ...p, set: undefined, stage: undefined }) }); };
+  useEffect(() => { if (inPlayer && search.set) { try { localStorage.setItem(LAST_SET_KEY, search.set); } catch { /* ignore */ } } }, [inPlayer, search.set]);
+
+  const topProgress = useMemo<TopProgress>(() => {
+    const open = sets.filter((s) => !s.locked && !!s.set.playbackId);
+    const left = open.filter((s) => !s.done);
+    return { total: open.length, done: open.length - left.length, secondsLeft: left.every((s) => s.set.runtimeSec != null) ? left.reduce((a, s) => a + (s.set.runtimeSec ?? 0), 0) : null };
+  }, [sets]);
+
+  // THE PLAN — remembered per browser.
+  const [plan, setPlanState] = useState<Plan>({ practice: false, review: false });
+  useEffect(() => { try { const v = JSON.parse(localStorage.getItem(PLAN_KEY) ?? "null") as Plan | null; if (v) setPlanState(v); } catch { /* ignore */ } }, []);
+  const setPlan = (p: Plan) => { setPlanState(p); try { localStorage.setItem(PLAN_KEY, JSON.stringify(p)); } catch { /* ignore */ } };
+  const [examDate, setExamDate] = useState<string | null>(null);
   useEffect(() => {
-    if (!pendingJump.current) return;
-    const hit = items.find((i) => i.topic.id === pendingJump.current);
-    if (hit) { pendingJump.current = null; requestAnimationFrame(() => scrollFeedToSet(scrollRef.current, hit.set.id, "instant")); }
-  }, [items]);
+    const read = () => setExamDate(examNum != null ? readExamDate(examNum) : null);
+    read();
+    window.addEventListener(EXAM_DATE_EVENT, read);
+    return () => window.removeEventListener(EXAM_DATE_EVENT, read);
+  }, [examNum]);
+  const daysOut = examDate ? daysUntil(examDate) : null;
 
-  // RESUME — ?set= wins, else the last card this browser was on.
-  const [initialSetId] = useState<string | null>(() => { if (search.set) return search.set; try { return localStorage.getItem(LAST_SET_KEY); } catch { return null; } });
-
-  // ── THE WHO-BLOCK: chapter (the CTA bar's pick) + sender (?by). ─────────────────────────────
+  // WHO-BLOCK + share
   const chapter = usePickedChapter(campusSlug, !demo);
   const sender = search.by || (search.test ?? "").toLowerCase() === "banner" ? shareCtx.contact : null;
   const ctaMounted = !demo && (!!campusSlug || !!search.test);
   const share = async () => {
     if (ctaMounted) { openLearnCta("share"); return; }
-    // No campus known → nothing chapter-shaped to open; copy the plain link instead.
     const ok = await copyToClipboard(`${window.location.origin}/learn`);
-    setFetchNote({ msg: ok ? "Link copied — send it to anyone who needs it." : "Couldn't copy — the link is surviveaccounting.com/learn" });
+    setNote(ok ? "Link copied — send it to anyone who needs it." : "Couldn't copy — the link is surviveaccounting.com/learn");
   };
 
-  useEffect(() => { const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setPaywallTopic(null); setMapOpen(false); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
+  // RAIL → rows
+  const homeRef = useRef<HTMLDivElement>(null);
+  const rowEls = useRef<Partial<Record<RailKey, HTMLElement>>>({});
+  const rowRef = useCallback((key: RailKey) => (el: HTMLElement | null) => { if (el) rowEls.current[key] = el; }, []);
+  const [rail, setRail] = useState<RailKey>("cram");
+  const [chip, setChip] = useState<string | null>(null);
+  const pickRail = (k: RailKey) => {
+    setRail(k);
+    if (inPlayer) { exitPlayer(); window.setTimeout(() => rowEls.current[k]?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); return; }
+    if (k === "cram") homeRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    else rowEls.current[k]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const start = () => { const first = sets.find((s) => !!s.set.playbackId && !s.locked && !s.done) ?? sets.find((s) => !!s.set.playbackId && !s.locked); if (first) openSet(first.set.id); };
 
-  const activeIdx = items.findIndex((i) => i.set.id === activeSetId);
-  const upNext = items.slice(activeIdx < 0 ? 1 : activeIdx + 1, (activeIdx < 0 ? 1 : activeIdx + 1) + 6);
+  useEffect(() => { const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setPaywallTopic(null); setPathOpen(false); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
 
-  const spineBlock = (
-    <>
-      {isLoading ? (
-        <p className="flex items-center gap-1.5 px-1.5 py-2 text-[11px] italic" style={{ color: "var(--lm-muted)" }}><Loader2 className="h-3 w-3 animate-spin" /> Loading…</p>
-      ) : spineTopics.length === 0 ? (
-        <p className="px-1.5 py-2 text-[11px] italic leading-snug" style={{ color: "var(--lm-muted)" }}>No live videos yet — check back soon.</p>
-      ) : (
-        <Spine topics={spineTopics} activeId={activeTopicId} position={spinePosition} onPick={jumpToTopic} />
-      )}
-      {/* EXAMS STILL TO COME — under the map, not as lock cards up top. */}
-      {examTabs.some((e) => !e.available) && (
-        <div className="mt-3 border-t px-1.5 pt-3" style={{ borderColor: "var(--lm-border)" }}>
-          <div className="text-[9px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--lm-muted)" }}>Coming</div>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {examTabs.filter((e) => !e.available).map((e) => <span key={e.num} className="rounded-full px-2 py-0.5 text-[10.5px] font-bold" style={{ color: "var(--lm-muted)", border: "1px solid var(--lm-border)" }}>{e.label}</span>)}
-          </div>
-        </div>
-      )}
-    </>
-  );
+  const contactRef = search.by ?? search.ref ?? null;
 
   return (
-    <div className="lm-root fixed inset-0 flex flex-col" style={{ ...modeStyle("cram"), fontFamily: "'Rubik', system-ui, sans-serif" }}>
-      <style>{LEARN_MODE_CSS}</style>
+    <div className="lk-root fixed inset-0 flex flex-col" style={themeStyle(theme)}>
+      <style>{LEARN_CSS}</style>
       <LearnIntro />
 
-      <LearnHeader
-        school={school}
-        campusName={campusName}
-        exams={examTabs}
-        examNum={examNum}
-        onPickExam={setExamNum}
+      <LearnTop
+        school={school} campusId={campusId} campusName={campusName}
+        exams={examTabs} examNum={examNum} onPickExam={setExamNum}
         chapter={chapter.slug ? { name: chapter.name, members: chapter.members } : null}
-        sender={sender}
-        progress={headerProgress}
-        onShare={() => void share()}
+        sender={sender} progress={topProgress} theme={theme}
         onPickChapter={ctaMounted ? () => openLearnCta("pick") : null}
-        onOpenMap={() => setMapOpen(true)}
-        auth={{ email, userId, signOut, onSignIn: () => setSignInOpen(true) }}
-        demo={demo}
-        narrow={isNarrow}
+        onOpenPath={() => setPathOpen(true)}
+        demo={demo} narrow={isNarrow} contactRef={contactRef}
       />
 
       <div className="flex min-h-0 flex-1">
-        {/* ── LEFT: the course map, following the feed. ───────────────────────────────────── */}
-        {!isNarrow && (
-          <aside className="lm-surface flex w-[248px] shrink-0 flex-col overflow-y-auto px-2 py-3" style={{ borderRight: "1px solid var(--lm-border)" }}>
-            {spineBlock}
-          </aside>
-        )}
+        {!isNarrow && <LearnRail active={inPlayer ? "cram" : rail} onPick={pickRail} expanded={railOpen} onToggle={() => setRailOpen((v) => !v)} path={path} activeSetId={search.set ?? null} onOpenSet={(id) => openSet(id)} />}
 
-        {/* ── CENTRE: the feed. ───────────────────────────────────────────────────────────── */}
         {isError ? (
-          <div className="grid flex-1 place-items-center p-6 text-center text-[12.5px]" style={{ color: "#F3C6CC" }}>
-            Something went wrong loading videos. <button className="ml-1 underline" onClick={() => q.refetch()}>Retry</button>
-          </div>
+          <div className="grid flex-1 place-items-center p-6 text-center text-[13px]" style={{ color: INK.red }}>Something went wrong loading videos. <button type="button" className="ml-1 underline" style={{ background: "transparent", border: 0, color: INK.text, cursor: "pointer" }} onClick={() => q.refetch()}>Retry</button></div>
         ) : isLoading ? (
-          <div className="grid flex-1 place-items-center text-[12.5px]" style={{ color: "var(--lm-muted)" }}><span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading your cram videos…</span></div>
-        ) : items.length === 0 ? (
-          <div className="grid flex-1 place-items-center p-6 text-center">
-            <div><p className="text-[14px] font-bold" style={{ color: "var(--lm-text)" }}>Cram videos are on the way.</p><p className="mt-1 text-[12px]" style={{ color: "var(--lm-muted)" }}>Nothing is live for {exam?.label ?? "this exam"} yet — check back soon.</p></div>
-          </div>
-        ) : (
-          <CramFeed
-            items={items}
-            progress={progress}
-            demo={demo}
-            narrow={isNarrow}
-            scrollRef={scrollRef}
-            registerCard={registerCard}
-            examLabel={exam?.label ?? "Exam 1"}
-            nextExam={nextExam}
-            campusId={campusId}
-            campusName={campusName}
-            courseCode={school?.courseCode ?? null}
-            initialSetId={initialSetId}
-            onActive={setActiveSetId}
-            onStarted={onStarted}
-            onComplete={onComplete}
-            onPosition={markPosition}
-            onLocked={setPaywallTopic}
-            resolvePlayback={resolvePlayback}
-            onShare={() => void share()}
+          <div className="grid flex-1 place-items-center text-[13px]" style={{ color: INK.muted }}><span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading your cram videos…</span></div>
+        ) : sets.length === 0 ? (
+          <div className="grid flex-1 place-items-center p-6 text-center"><div><p className="lk-disp" style={{ fontSize: 18 }}>Cram videos are on the way.</p><p className="mt-1 text-[13px]" style={{ color: INK.muted }}>Nothing is live for {exam?.label ?? "this exam"} yet — check back soon.</p></div></div>
+        ) : inPlayer ? (
+          <CramPlayer
+            items={playerItems} index={playerIndex}
+            onIndex={(i) => { const it = playerItems[i]; if (it) { setPractice(false); void navigate({ search: (p: LearnSearch) => ({ ...p, set: it.set.id, stage: undefined }), replace: true }); } }}
+            progress={progress} onStarted={onStarted} onComplete={onComplete} onPosition={markPosition} resolvePlayback={resolvePlayback}
+            demo={demo} narrow={isNarrow} theme={theme}
+            practice={practice} onPractice={setPractice}
+            campusName={campusName} campusSlug={campusSlug} contactRef={contactRef}
+            onShare={() => void share()} onLocked={setPaywallTopic} onExit={exitPlayer}
+            demoQuestions={DEMO_QUESTIONS}
           />
-        )}
-
-        {/* ── RIGHT: up next + the house slot. ────────────────────────────────────────────── */}
-        {!isNarrow && (
-          <aside className="lm-surface w-[300px] shrink-0 overflow-y-auto px-3 py-3" style={{ borderLeft: "1px solid var(--lm-border)" }}>
-            <div className="pb-2 text-[9.5px] font-black uppercase tracking-[0.16em]" style={{ color: "var(--lm-muted)" }}>Up next</div>
-            {upNext.length === 0 ? (
-              <p className="px-1 py-2 text-[11.5px] italic" style={{ color: "var(--lm-muted)" }}>{items.length ? "That's the last one." : "Nothing yet."}</p>
-            ) : (
-              <div className="flex flex-col gap-2.5">
-                {upNext.map(({ set, topic, locked }) => (
-                  <VideoCard
-                    key={set.id}
-                    title={set.name}
-                    thumbUrl={set.playbackId && set.playbackId !== DEMO_PLAYBACK ? muxThumb(set.playbackId) : null}
-                    durationSec={set.runtimeSec}
-                    meta={topic.shortLabel || topic.name}
-                    locked={locked}
-                    complete={progress[set.id]?.state === "complete"}
-                    watched={progress[set.id]?.durationSec ? Math.min(1, progress[set.id].positionSec / progress[set.id].durationSec!) : 0}
-                    onOpen={() => (locked ? setPaywallTopic(topic) : scrollFeedToSet(scrollRef.current, set.id))}
-                    compact
-                  />
-                ))}
-              </div>
-            )}
-            {/* THE HOUSE SLOT — the rail's ad space, filled with our own asks until there is a sponsor. */}
-            {nextExam && !demo && (
-              <div className="mt-5">
-                <ExamWaitlist examNum={nextExam.num} label={nextExam.label} campusId={campusId} campusName={campusName} courseCode={school?.courseCode ?? null} />
-              </div>
-            )}
-            <a href="/rep/join" className="mt-4 block text-center text-[11.5px] font-bold underline underline-offset-4" style={{ color: "var(--lm-muted)" }}>Want to run this at your campus? Become a campus rep →</a>
-          </aside>
+        ) : (
+          <LearnHome
+            ref={homeRef}
+            sets={sets} topics={topics}
+            chip={chip} onChip={setChip}
+            plan={plan} onPlan={setPlan} daysOut={daysOut} examLabel={exam?.label ?? "Exam 1"} comingExams={comingExams}
+            theme={theme} narrow={isNarrow}
+            onStart={start} onOpenSet={openSet} onLocked={setPaywallTopic} rowRef={rowRef}
+            you={{ email, userId, onSignIn: () => setSignInOpen(true), signOut, onShare: () => void share(), done: topProgress.done, total: topProgress.total }}
+          />
         )}
       </div>
 
-      {/* NARROW course-map sheet. */}
-      {isNarrow && mapOpen && (
-        <div className="fixed inset-0 z-[95] flex flex-col" style={{ background: "rgba(4,7,14,0.96)" }}>
-          <div className="flex h-11 shrink-0 items-center gap-2 px-3" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
-            <span className="text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: NEON.muted }}>Course map</span>
-            <button className="ml-auto grid h-8 w-8 place-items-center rounded-full" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setMapOpen(false)} title="Close"><X className="h-4 w-4" /></button>
+      {!inPlayer && !isLoading && !isError && sets.length > 0 && (
+        <LearnAsksBar theme={theme} campusName={campusName} campusId={campusId} campusSlug={campusSlug} courseCode={school?.courseCode ?? null} greekEnabled={ctaMounted} onGreek={() => openLearnCta("pick")} narrow={isNarrow} demo={demo} />
+      )}
+      {isNarrow && !inPlayer && <LearnTabs active={rail} onPick={pickRail} />}
+
+      {isNarrow && pathOpen && (
+        <div className="fixed inset-0 z-[95] flex flex-col" style={{ background: INK.bg }}>
+          <div className="flex h-12 shrink-0 items-center gap-2 px-3" style={{ borderBottom: `1px solid ${INK.border}` }}>
+            <span className="lk-disp" style={{ fontSize: 15 }}>{exam?.label ?? "Exam 1"}</span>
+            <button type="button" className="ml-auto grid h-9 w-9 place-items-center rounded-full" style={{ background: INK.surface, color: INK.text, border: 0, cursor: "pointer" }} onClick={() => setPathOpen(false)} aria-label="Close"><X className="h-4 w-4" /></button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">{spineBlock}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto py-2"><PathList path={path} activeSetId={search.set ?? null} onOpenSet={(id) => { setPathOpen(false); openSet(id); }} /></div>
         </div>
       )}
 
       {paywallTopic && <Paywall topic={paywallTopic} campusName={campusName} campusId={campusId} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
       {signInOpen && <SignInDialog onClose={() => setSignInOpen(false)} />}
-      {fetchNote && (
-        <div className="fixed bottom-4 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2.5 text-[12.5px] font-semibold shadow-xl" style={{ background: "#141a2c", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}>
-          <span>{fetchNote.msg}</span>
-          {fetchNote.retry && <button className="rounded-lg px-2.5 py-1 text-[11.5px] font-black uppercase tracking-wide" style={{ background: NEON.yellow, color: "#0B1322" }} onClick={fetchNote.retry}>Retry</button>}
-          <button className="text-[11px] font-bold" style={{ color: NEON.muted }} onClick={() => setFetchNote(null)}>✕</button>
+      {note && (
+        <div className="fixed bottom-4 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2.5 text-[12.5px] font-semibold shadow-xl" style={{ background: INK.surface, border: `1px solid ${INK.border}`, color: INK.text }}>
+          <span>{note}</span>
+          <button type="button" style={{ background: "transparent", border: 0, color: INK.muted, cursor: "pointer" }} onClick={() => setNote(null)}>✕</button>
         </div>
       )}
-      {/* GREEK SHARE FUNNEL — the adaptive CTA bar. Shows when a campus is known (or ?test forces
-          a state). Never in demo mode. Also the home of the share sheet the header opens. */}
-      {ctaMounted && (
-        <LearnCta campusSlug={campusSlug ?? "your-campus"} campusName={campusName ?? campusSlug ?? "your campus"} sharerBy={search.by ?? search.ref ?? null} sharerIsCouncil={shareCtx.isCouncil} test={search.test} />
-      )}
+      {ctaMounted && <LearnCta bare campusSlug={campusSlug ?? "your-campus"} campusName={campusName ?? campusSlug ?? "your campus"} sharerBy={contactRef} sharerIsCouncil={shareCtx.isCouncil} test={search.test} />}
       {!demo && <LearnStateSwitcher current={search.test} onSelect={(test) => void navigate({ search: (p: LearnSearch) => ({ ...p, test }), replace: true })} />}
     </div>
   );

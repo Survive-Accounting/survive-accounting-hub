@@ -73,6 +73,7 @@ export function LearnCta({
   sharerBy,
   sharerIsCouncil,
   test,
+  bare = false,
 }: {
   campusSlug: string;
   campusName: string;
@@ -83,6 +84,9 @@ export function LearnCta({
   sharerIsCouncil?: boolean;
   /** ?test letter — forces a state from a fixture, client-only. */
   test?: string;
+  /** learn v3 (09-03): the asks bar owns the bottom of /learn now, so this renders ONLY the
+   *  sheets (pick / setup / share) and the test marker — never its own fixed bar. */
+  bare?: boolean;
 }) {
   const fixture = testFixture(test);
   const testing = !!fixture;
@@ -183,7 +187,7 @@ export function LearnCta({
   };
 
   // ── dismissed → a small reopen tab ────────────────────────────────────────────────────────────
-  if (dismissed) {
+  if (dismissed && !bare) {
     return (
       <button
         onClick={reopen}
@@ -206,7 +210,7 @@ export function LearnCta({
       )}
 
       {/* THE BAR */}
-      <div className="fixed inset-x-0 bottom-0 z-[90] px-3 pb-3" style={{ fontFamily: BRAND_SANS }}>
+      {!bare && <div className="fixed inset-x-0 bottom-0 z-[90] px-3 pb-3" style={{ fontFamily: BRAND_SANS }}>
         <div className="mx-auto flex w-full max-w-[560px] items-center gap-3 rounded-2xl px-4 py-3 shadow-2xl"
           style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }}>
           <div className="min-w-0 flex-1">
@@ -253,7 +257,7 @@ export function LearnCta({
             </button>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* PICK YOUR CHAPTER — one screen, one field (brief §5). */}
       {view === "pick" && (

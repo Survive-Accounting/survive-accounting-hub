@@ -16,11 +16,14 @@ export function readExamDate(examNum: number): string | null {
   } catch { return null; }
 }
 
+/** Fired after every write so anything else showing the date (the plan's "in N days") re-reads. */
+export const EXAM_DATE_EVENT = "sa-exam-date";
 export function writeExamDate(examNum: number, iso: string | null): void {
   try {
     if (iso) localStorage.setItem(key(examNum), iso);
     else localStorage.removeItem(key(examNum));
   } catch { /* ignore */ }
+  try { window.dispatchEvent(new CustomEvent(EXAM_DATE_EVENT)); } catch { /* ignore */ }
 }
 
 /** Whole calendar days from today (local) to the date. Negative = already happened. */
