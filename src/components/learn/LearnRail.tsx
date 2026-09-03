@@ -9,14 +9,12 @@ import { useState } from "react";
 import { INK } from "@/components/learn/learn-theme";
 import type { StudentSet, StudentTopic } from "@/lib/student.functions";
 
+// Only what the page actually has today (09-03 simplification): the other types come back to
+// the rail when their rows exist.
 export type RailKey = "cram" | "practice" | "problems" | "tools" | "review" | "you";
 export const RAIL_ITEMS: { key: RailKey; label: string }[] = [
   { key: "cram", label: "Cram" },
   { key: "practice", label: "Practice" },
-  { key: "problems", label: "Problems" },
-  { key: "tools", label: "Tools" },
-  { key: "review", label: "Review" },
-  { key: "you", label: "You" },
 ];
 
 export function RailIcon({ k, on }: { k: RailKey; on?: boolean }) {
@@ -53,8 +51,8 @@ export function LearnRail({ active, onPick, expanded, onToggle, path, activeSetI
         <PathList path={path} activeSetId={activeSetId} onOpenSet={onOpenSet} />
       ) : (
         <div className="flex flex-col items-center gap-1">
-          {RAIL_ITEMS.map((it, i) => (
-            <div key={it.key} className="flex flex-col items-center" style={{ marginTop: i === 5 ? 16 : 0 }}>
+          {RAIL_ITEMS.map((it) => (
+            <div key={it.key} className="flex flex-col items-center">
               <button type="button" className="lk-rail-item" data-on={active === it.key} onClick={() => onPick(it.key)} title={it.label}>
                 <RailIcon k={it.key} on={active === it.key} />
                 {it.label}
@@ -110,7 +108,7 @@ export function PathList({ path, activeSetId, onOpenSet }: { path: PathTopic[]; 
 export function LearnTabs({ active, onPick }: { active: RailKey; onPick: (k: RailKey) => void }) {
   return (
     <nav className="flex shrink-0 px-1 pb-3 pt-2" style={{ background: INK.bg, borderTop: `1px solid ${INK.border}` }}>
-      {RAIL_ITEMS.filter((i) => i.key !== "review").map((it) => (
+      {RAIL_ITEMS.map((it) => (
         <button key={it.key} type="button" onClick={() => onPick(it.key)} className="flex flex-1 flex-col items-center gap-0.5 py-1 text-[10px] font-semibold" style={{ background: "transparent", border: 0, color: active === it.key ? INK.text : INK.muted, cursor: "pointer" }}>
           <RailIcon k={it.key} on={active === it.key} />
           {it.label}

@@ -32,12 +32,11 @@ import { useShareContext } from "@/components/learn/ShareBanner";
 import { LearnStateSwitcher } from "@/components/learn/LearnStateSwitcher";
 import { LearnTop, usePickedChapter, type TopProgress } from "@/components/learn/LearnTop";
 import { LearnRail, LearnTabs, PathList, type PathTopic, type RailKey } from "@/components/learn/LearnRail";
-import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome";
+import { LearnHome, type HomeSet } from "@/components/learn/LearnHome";
 import { CramPlayer, type PlayerItem } from "@/components/learn/CramPlayer";
 import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
 import { INK, LEARN_CSS, themeFor, themeStyle } from "@/components/learn/learn-theme";
 import { DEMO_PLAYBACK, LAST_SET_KEY, type Prog, type ProgressState } from "@/components/learn/cram-media";
-import { daysUntil, EXAM_DATE_EVENT, readExamDate } from "@/components/learn/exam-date";
 import { schoolByCampusId, schoolBySlug } from "@/lib/schools";
 import { isContactRef } from "@/lib/contact-ref";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
@@ -190,7 +189,6 @@ function useIsNarrow(): boolean {
 }
 
 const examNumOf = (unitName: string): number | null => { const m = /exam\s*(\d+)/i.exec(unitName); return m ? Number(m[1]) : /final/i.test(unitName) ? 4 : null; };
-const PLAN_KEY = "sa-learn-plan";
 
 function LearnShell() {
   const search = Route.useSearch();
@@ -285,7 +283,6 @@ function LearnShell() {
   }, [courses]);
   const examNum = pickedExam ?? examTabs.find((e) => e.available)?.num ?? null;
   const exam = examTabs.find((e) => e.num === examNum) ?? null;
-  const comingExams = examTabs.filter((e) => !e.available).map((e) => e.label);
 
   // ── THE SETS of the picked exam, in path order ──────────────────────────────────────────────
   const sets = useMemo<HomeSet[]>(() => {
@@ -304,7 +301,6 @@ function LearnShell() {
     }
     return out;
   }, [courses, examNum, unlockedTopics, progress]);
-  const topics = useMemo(() => Array.from(new Map(sets.map((s) => [s.topic.id, s.topic])).values()), [sets]);
   const path = useMemo<PathTopic[]>(() => {
     const out: PathTopic[] = [];
     for (const c of courses) for (const u of c.units) {
@@ -334,19 +330,6 @@ function LearnShell() {
     return { total: open.length, done: open.length - left.length, secondsLeft: left.every((s) => s.set.runtimeSec != null) ? left.reduce((a, s) => a + (s.set.runtimeSec ?? 0), 0) : null };
   }, [sets]);
 
-  // THE PLAN — remembered per browser.
-  const [plan, setPlanState] = useState<Plan>({ practice: false, review: false });
-  useEffect(() => { try { const v = JSON.parse(localStorage.getItem(PLAN_KEY) ?? "null") as Plan | null; if (v) setPlanState(v); } catch { /* ignore */ } }, []);
-  const setPlan = (p: Plan) => { setPlanState(p); try { localStorage.setItem(PLAN_KEY, JSON.stringify(p)); } catch { /* ignore */ } };
-  const [examDate, setExamDate] = useState<string | null>(null);
-  useEffect(() => {
-    const read = () => setExamDate(examNum != null ? readExamDate(examNum) : null);
-    read();
-    window.addEventListener(EXAM_DATE_EVENT, read);
-    return () => window.removeEventListener(EXAM_DATE_EVENT, read);
-  }, [examNum]);
-  const daysOut = examDate ? daysUntil(examDate) : null;
-
   // WHO-BLOCK + share
   const chapter = usePickedChapter(campusSlug, !demo);
   const sender = search.by || (search.test ?? "").toLowerCase() === "banner" ? shareCtx.contact : null;
@@ -362,14 +345,12 @@ function LearnShell() {
   const rowEls = useRef<Partial<Record<RailKey, HTMLElement>>>({});
   const rowRef = useCallback((key: RailKey) => (el: HTMLElement | null) => { if (el) rowEls.current[key] = el; }, []);
   const [rail, setRail] = useState<RailKey>("cram");
-  const [chip, setChip] = useState<string | null>(null);
   const pickRail = (k: RailKey) => {
     setRail(k);
     if (inPlayer) { exitPlayer(); window.setTimeout(() => rowEls.current[k]?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); return; }
     if (k === "cram") homeRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     else rowEls.current[k]?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
-  const start = () => { const first = sets.find((s) => !!s.set.playbackId && !s.locked && !s.done) ?? sets.find((s) => !!s.set.playbackId && !s.locked); if (first) openSet(first.set.id); };
 
   useEffect(() => { const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setPaywallTopic(null); setPathOpen(false); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
 
@@ -413,12 +394,11 @@ function LearnShell() {
         ) : (
           <LearnHome
             ref={homeRef}
-            sets={sets} topics={topics}
-            chip={chip} onChip={setChip}
-            plan={plan} onPlan={setPlan} daysOut={daysOut} examLabel={exam?.label ?? "Exam 1"} comingExams={comingExams}
-            theme={theme} narrow={isNarrow}
-            onStart={start} onOpenSet={openSet} onLocked={setPaywallTopic} rowRef={rowRef}
-            you={{ email, userId, onSignIn: () => setSignInOpen(true), signOut, onShare: () => void share(), done: topProgress.done, total: topProgress.total }}
+            sets={sets}
+            courseCode={school?.courseCode ?? null} schoolName={campusName}
+            narrow={isNarrow}
+            onOpenSet={openSet} onLocked={setPaywallTopic} rowRef={rowRef}
+            account={{ email, userId, onSignIn: () => setSignInOpen(true), signOut }}
           />
         )}
       </div>
