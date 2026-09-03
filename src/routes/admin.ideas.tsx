@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminGate, getAdminWho } from "@/components/AdminGate";
 import { draftIdeaPrompt, listIdeas, saveIdea, sendIdeaSummary } from "@/lib/ideas.functions";
+import { ideaUpdateText } from "@/lib/ideas-prompt";
 import {
   CATEGORIES, CATEGORY_LABEL, FOCUS_LABEL, PEOPLE, PERSON_LABEL, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
   filterIdeas, prioritize, sortIdeas,
@@ -279,8 +280,26 @@ function Row({ idea, expanded, onToggle, onPatch }: {
             <Btn onClick={() => file.current?.click()}>{idea.promptMd ? "Replace .md" : "Upload .md"}</Btn>
             <Btn onClick={() => setPaste((v) => !v)}>{paste ? "Cancel paste" : "Paste markdown"}</Btn>
             {idea.promptMd && <Btn onClick={download}>Download .md</Btn>}
+            {/* REMOVE THE PROMPT, not the idea (Lee, 2026-09-03). The idea
+                stays — ideas are never deleted — and goes back to IDEA so it
+                reads as "needs a prompt" again. Confirm first: it is gone. */}
+            {idea.promptMd && (
+              <button
+                onClick={() => { if (window.confirm("Remove this prompt? The idea stays; the prompt text is gone (draft it again any time).")) onPatch({ promptMd: null, promptFilename: null, status: idea.status === "DRAFTED" ? "IDEA" : idea.status }); }}
+                style={{ background: "transparent", border: "1px solid rgba(248,113,113,0.5)", color: "#F87171", borderRadius: 9, padding: "4px 11px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
+                Remove prompt
+              </button>
+            )}
             {idea.promptFilename && <span style={{ fontSize: 11, color: MUTED }}>{idea.promptFilename}</span>}
           </div>
+          {idea.promptMd && (
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ fontSize: 11.5, color: MUTED, cursor: "pointer" }}>Email preview — what “Send summary” sends</summary>
+              <pre style={{ marginTop: 6, background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 10, padding: 12, fontSize: 11.5, lineHeight: 1.5, maxHeight: 300, overflowY: "auto", whiteSpace: "pre-wrap", color: CREAM }}>
+                {ideaUpdateText({ title: idea.title, body: idea.body, categories: idea.categories, subcategory: idea.subcategory, sourcePath: idea.sourcePath, pageTitle: idea.context?.title ?? "", promptMd: idea.promptMd, createdBy: idea.createdBy, appUrl: "https://surviveaccounting.com/admin/ideas" })}
+              </pre>
+            </details>
+          )}
           {draftErr && <div style={{ color: "#F87171", fontSize: 11.5, marginTop: 6 }}>{draftErr}</div>}
 
           {paste && (

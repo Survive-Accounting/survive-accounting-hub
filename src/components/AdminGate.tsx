@@ -36,6 +36,18 @@ export function adminEmailFor(who: AdminWho): string {
   return who === "lee" ? "lee@surviveaccounting.com" : "king@surviveaccounting.com";
 }
 
+/** Unlock from anywhere (the Save for Later modal, 2026-09-03): the same
+ *  passcode and identity this gate asks for, remembered on the device so it
+ *  is entered once. Returns false on a wrong code; stores nothing then. */
+export function unlockAdmin(code: string, who: AdminWho): boolean {
+  if (code.trim() !== ADMIN_PASSCODE) return false;
+  try {
+    localStorage.setItem(STORAGE_KEY, "yes");
+    localStorage.setItem(WHO_KEY, who);
+  } catch { /* private mode: works for this page load only */ }
+  return true;
+}
+
 export function AdminGate({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const [unlocked, setUnlocked] = useState(false);

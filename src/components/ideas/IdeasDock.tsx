@@ -20,8 +20,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 
-import { listIdeas, saveIdea, sendIdeaSummary } from "@/lib/ideas.functions";
-import { getAdminWho, isAdminUnlocked, type AdminWho } from "@/components/AdminGate";
+import { draftIdeaPrompt, listIdeas, saveIdea, sendIdeaSummary } from "@/lib/ideas.functions";
+import { ideaUpdateText, promptSection } from "@/lib/ideas-prompt";
+import { getAdminWho, isAdminUnlocked, unlockAdmin, type AdminWho } from "@/components/AdminGate";
 import { IdeaRecorder, judgeTranscript, shouldTranscribe } from "./voice";
 import { uploadIdeaFile, transcribeIdeaAudio } from "./upload";
 import {
@@ -68,13 +69,18 @@ export function IdeasDock() {
   // flag is read per navigation so unlocking the gate lights it up at once.
   const [unlocked, setUnlocked] = useState(false);
   useEffect(() => { setUnlocked(isAdminUnlocked()); }, [pathname]);
-  const show = pathname !== VAULT && (isInternalPath(pathname) || unlocked);
+  // The shortcut listens on EVERY page (Lee, 2026-09-03: "verify that this
+  // actually works on any pages … just require the password"). The pill only
+  // shows once this device is unlocked, so a student never sees it; the modal
+  // itself asks for the passcode the first time and remembers the device.
+  const listen = pathname !== VAULT;
+  const show = listen && (isInternalPath(pathname) || unlocked);
   useEffect(() => { if (show) refresh(); }, [show, refresh]);
 
   // ⌘I / Ctrl+I from anywhere in admin — the whole point. If capturing needs
   // the mouse it will not happen mid-task.
   useEffect(() => {
-    if (!show) return;
+    if (!listen) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "i") {
         e.preventDefault();
@@ -85,14 +91,14 @@ export function IdeasDock() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [show]);
+  }, [listen]);
 
-  if (!show) return null;
+  if (!listen) return null;
   const count = unsubmittedCount(ideas);
 
   return (
     <>
-      {!dismissed && !open && (
+      {show && !dismissed && !open && (
         <div style={{ position: "fixed", top: 10, right: 12, zIndex: 2147483000, display: "flex", gap: 4, alignItems: "center" }}>
           <button
             onClick={() => setOpen(true)}
@@ -122,6 +128,8 @@ export function IdeasDock() {
           pathname={pathname}
           ideas={ideas}
           loadErr={loadErr}
+          locked={!unlocked && !isInternalPath(pathname)}
+          onUnlocked={() => { setUnlocked(true); refresh(); }}
           onClose={() => setOpen(false)}
           onSaved={refresh}
         />
@@ -132,10 +140,21 @@ export function IdeasDock() {
 
 // ------------------------------------------------------------------ drawer
 
-function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
+function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved }: {
   pathname: string; ideas: Idea[]; loadErr: string | null;
+  /** This device has not passed the passcode yet — ask once, remember it. */
+  locked: boolean; onUnlocked: () => void;
   onClose: () => void; onSaved: () => void;
 }) {
+  // THREE STEPS. lock (once per device) → capture (ten seconds) → preview
+  // (optional: see the TLDR, summary, prompt and checklist before saving, edit
+  // the prompt, regenerate, then save or save-and-send). Lee, 2026-09-03: the
+  // preview is what lets King check an idea came out right before it goes.
+  const [step, setStep] = useState<"lock" | "capture" | "preview">(locked ? "lock" : "capture");
+  const [code, setCode] = useState("");
+  const [who, setWho] = useState<AdminWho>("lee");
+  const [lockErr, setLockErr] = useState<string | null>(null);
+
   const [text, setText] = useState("");
   const [cats, setCats] = useState<Category[]>([]);
   const [sub, setSub] = useState("");
@@ -154,6 +173,7 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
   // to Lee. Off by default — capture stays ten seconds.
   const me = getAdminWho();
   const other: AdminWho = me === "lee" ? "king" : "lee";
+  const otherName = other === "king" ? "King" : "Lee";
   const [sendTo, setSendTo] = useState(false);
   const [phase, setPhase] = useState<string | null>(null);
   // DO THIS LATER (Lee, 2026-09-02): a to-do, not a build idea. Work or
@@ -161,8 +181,11 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
   // the build queue. Saying "this is for my to-do list" is enough — the words
   // are read at save time when no chip was clicked.
   const [todo, setTodo] = useState<"" | "work" | "personal">("");
+  // THE PREVIEW: the drafted markdown, editable. Nothing is saved until Save.
+  const [draft, setDraft] = useState("");
+  const [drafting, setDrafting] = useState(false);
 
-  useEffect(() => { ta.current?.focus(); }, []);
+  useEffect(() => { if (step === "capture") ta.current?.focus(); }, [step]);
   const subs = useMemo(() => knownSubcategories(ideas), [ideas]);
 
   // DRAG. Offset from centre, remembered per browser; double-click the header
@@ -192,8 +215,41 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
   };
   const recentre = () => { posRef.current = { x: 0, y: 0 }; setPos({ x: 0, y: 0 }); try { localStorage.removeItem(POS_KEY); } catch { /* cosmetic */ } };
 
-  const save = useCallback(() => {
-    const body = text.trim();
+  /** The passcode, once per device. */
+  const unlock = () => {
+    if (unlockAdmin(code, who)) { setLockErr(null); setCode(""); onUnlocked(); setStep("capture"); }
+    else setLockErr("That's not it.");
+  };
+
+  const body = text.trim();
+  const ideaForDraft = () => ({
+    title: deriveTitle(body) || (audio ? "Voice note" : ""),
+    body,
+    categories: cats,
+    subcategory: sub.trim(),
+    sourcePath: pathname,
+    pageTitle: typeof document !== "undefined" ? document.title : "",
+  });
+
+  /** Draft (or redraft) the prompt for the preview. Never saves. */
+  const runDraft = async (notes?: string) => {
+    if (!body || drafting) return;
+    setDrafting(true); setErr(null);
+    try {
+      const r = await draftIdeaPrompt({ data: { ...ideaForDraft(), ...(notes ? { notes } : {}) } });
+      setDraft(r.text);
+      setStep("preview");
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setDrafting(false); }
+  };
+  const preview = () => void runDraft();
+  /** Regenerate, grounded in the draft as it stands — so an edit made here,
+   *  or fixed off-platform and pasted back, steers the next draft. */
+  const regenerate = () => void runDraft(draft.trim()
+    ? `THE PREVIOUS DRAFT, EDITED BY ${me ?? "the author"} — keep every decision in it and improve the rest:\n${draft.trim().slice(0, 8000)}`
+    : undefined);
+
+  const save = useCallback((send: boolean = sendTo) => {
     // Audio alone is a valid idea: a failed transcript must not lose it.
     if ((!body && !audio) || busy) return;
     setBusy(true); setErr(null);
@@ -203,13 +259,15 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
       ? (/\bpersonal\b|\bhome\b|\bwife\b|\bfamily\b/i.test(body) ? "personal" : "work")
       : "";
     const todoTag = todo || spokenTodo;
+    // A previewed (and possibly edited) draft is attached as the prompt.
+    const promptMd = step === "preview" && draft.trim() ? draft.trim() : null;
     saveIdea({ data: {
       id,
       title: deriveTitle(body) || (audio ? "Voice note" : ""),
       body,
       categories: cats,
       subcategory: sub.trim(),
-      status: "IDEA",
+      status: promptMd ? "DRAFTED" : "IDEA",
       // Auto-captured: the page it was written from, so a note typed on
       // /blast-off remembers that without Lee saying so.
       sourcePath: pathname,
@@ -220,8 +278,8 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
         href: typeof location !== "undefined" ? location.href : "",
         ...(todoTag ? { todo: todoTag } : {}),
       },
-      promptMd: null,
-      promptFilename: null,
+      promptMd,
+      promptFilename: promptMd ? `${(deriveTitle(body) || "prompt").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60)}.md` : null,
       createdBy: getAdminWho() ?? "",
       sourceKind: audio ? "voice" : "web",
       attachments: files,
@@ -230,16 +288,16 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
     } })
       .then(async () => {
         onSaved();
-        if (!sendTo) { onClose(); return; }
+        if (!send) { onClose(); return; }
         // The idea is saved either way; the summary (drafted first if it
         // has no prompt) is the extra step, and its failure is shown, not
         // swallowed — the idea itself is already safe in the vault.
-        setPhase(`Saved. Drafting the prompt and sending to ${other === "king" ? "King" : "Lee"}…`);
+        setPhase(promptMd ? `Saved. Sending to ${otherName}…` : `Saved. Drafting the prompt and sending to ${otherName}…`);
         await sendIdeaSummary({ data: { id, to: other } });
         onClose();
       })
       .catch((e) => { setErr(e instanceof Error ? e.message : String(e)); setPhase(null); setBusy(false); });
-  }, [text, cats, sub, pathname, busy, audio, files, onSaved, onClose, sendTo, other, todo]);
+  }, [body, cats, sub, pathname, busy, audio, files, onSaved, onClose, sendTo, other, otherName, todo, step, draft]);
 
   /** HOLD to talk, or tap-tap for a longer note. Both gestures, one handler. */
   const startRec = async () => {
@@ -279,13 +337,23 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
     }
   };
 
-  // ⌘↵ saves and closes; Esc closes WITHOUT saving but keeps the draft in the
-  // component above? No — Esc discards this draft deliberately: a half-idea
-  // resurfacing later is worse than retyping one line.
+  // ⌘↵ saves and closes; Esc closes WITHOUT saving — a half-idea resurfacing
+  // later is worse than retyping one line.
   const onKey = (e: React.KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); save(); }
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); if (step === "lock") unlock(); else save(); }
     else if (e.key === "Escape") { e.preventDefault(); onClose(); }
     e.stopPropagation(); // never let the page's own shortcuts fire while typing
+  };
+
+  const canAct = !!body && !busy && !drafting;
+  const primary = (on: boolean): React.CSSProperties => ({
+    background: on ? GOLD : "transparent", color: on ? "#0B1322" : MUTED,
+    border: `1px solid ${on ? GOLD : EDGE}`, borderRadius: 10,
+    padding: "7px 16px", fontSize: 13, fontWeight: 800, cursor: on ? "pointer" : "default",
+  });
+  const secondary: React.CSSProperties = {
+    background: "transparent", color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 10,
+    padding: "7px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer",
   };
 
   return (
@@ -299,7 +367,7 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
       style={{
         position: "fixed", left: "50%", top: "50%", zIndex: 2147483001,
         transform: `translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px)`,
-        width: "min(560px, 96vw)", maxHeight: "90vh",
+        width: step === "preview" ? "min(720px, 96vw)" : "min(560px, 96vw)", maxHeight: "90vh",
         background: PANEL, border: `1px solid ${GOLD}55`, borderRadius: 16, boxShadow: "0 30px 80px -20px rgba(0,0,0,0.9)",
         display: "flex", flexDirection: "column", fontFamily: "'Rubik', system-ui, sans-serif", color: CREAM,
       }}
@@ -316,134 +384,211 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
       >
         <span style={{ color: MUTED, fontSize: 12, letterSpacing: "-2px" }} aria-hidden>⋮⋮</span>
         <span style={{ color: GOLD }}>⚡</span>
-        <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: "0.04em" }}>Save for Later</span>
-        <a href="/admin/ideas" style={{ marginLeft: "auto", color: MUTED, fontSize: 11, textDecoration: "underline" }}>all {ideas.length} →</a>
-        <button onClick={onClose} title="Close (Esc)" style={{ background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 15 }}>×</button>
+        <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: "0.04em" }}>Save for Later{step === "preview" ? " — preview" : ""}</span>
+        {step !== "lock" && <a href="/admin/ideas" style={{ marginLeft: "auto", color: MUTED, fontSize: 11, textDecoration: "underline" }}>all {ideas.length} →</a>}
+        <button onClick={onClose} title="Close (Esc)" style={{ marginLeft: step === "lock" ? "auto" : undefined, background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 15 }}>×</button>
       </div>
 
       <div style={{ padding: 14, overflowY: "auto", flex: 1 }}>
-        <label style={{ fontSize: 11.5, color: MUTED, display: "block", marginBottom: 6 }}>What's up?</label>
-        <textarea
-          ref={ta}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={7}
-          placeholder="Say it however it comes out. Nothing else is required."
-          style={{
-            width: "100%", background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10,
-            color: CREAM, fontSize: 13.5, lineHeight: 1.45, padding: "10px 12px", outline: "none", resize: "vertical",
-            fontFamily: "inherit",
-          }}
-        />
-
-        {/* VOICE + FILES — the phone row. Hold the mic, or tap it twice. */}
-        <div className="flex items-center" style={{ gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-          <button
-            onPointerDown={(e) => { e.preventDefault(); void startRec(); }}
-            onPointerUp={() => { if (rec) void stopRec(); }}
-            onClick={() => { if (!rec) return; }}
-            title="Hold to record — or tap to start and tap again to stop"
-            style={{
-              display: "flex", alignItems: "center", gap: 7, minHeight: 42,
-              background: rec ? "#F8717122" : "transparent",
-              border: `1.5px solid ${rec ? "#F87171" : EDGE}`, color: rec ? "#F87171" : CREAM,
-              borderRadius: 12, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer",
-              touchAction: "none",
-            }}
-          >
-            🎙 {rec ? "Recording — release" : "Hold to talk"}
-            {rec && (
-              <span style={{ display: "inline-block", width: 44, height: 5, background: "rgba(244,239,230,0.18)", borderRadius: 999, overflow: "hidden" }}>
-                <span style={{ display: "block", height: "100%", width: `${Math.round(rec.level * 100)}%`, background: "#F87171" }} />
-              </span>
-            )}
-          </button>
-          <input ref={file} type="file" multiple style={{ display: "none" }}
-            onChange={(e) => { if (e.target.files) void addFiles(e.target.files); }} />
-          <button onClick={() => file.current?.click()}
-            style={{ minHeight: 42, background: "transparent", border: `1px solid ${EDGE}`, color: CREAM, borderRadius: 12, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-            📎 Add screenshot
-          </button>
-        </div>
-        {voiceMsg && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 6 }}>{voiceMsg}</div>}
-        {audio && <div style={{ fontSize: 11, color: "#3BF5A0", marginTop: 4 }}>🎙 audio attached — kept whatever the transcript did</div>}
-        {files.length > 0 && (
-          <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>
-            {files.map((f) => <div key={f.id}>📎 {f.name}</div>)}
-          </div>
+        {step === "lock" && (
+          <>
+            <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>Password to use Save for Later on this device — asked once, then remembered.</div>
+            <input
+              type="password" value={code} autoFocus placeholder="password"
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); unlock(); } }}
+              style={{ width: "100%", marginTop: 10, background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 15, padding: "9px 12px", outline: "none" }}
+            />
+            <div className="flex items-center" style={{ gap: 6, marginTop: 10 }}>
+              <span style={{ fontSize: 11.5, color: MUTED }}>I am</span>
+              {(["lee", "king"] as const).map((w) => (
+                <button key={w} onClick={() => setWho(w)}
+                  style={{ background: who === w ? GOLD : "transparent", color: who === w ? "#0B1322" : CREAM, border: `1px solid ${who === w ? GOLD : EDGE}`, borderRadius: 999, padding: "3px 11px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
+                  {w === "lee" ? "Lee" : "King"}
+                </button>
+              ))}
+            </div>
+            {lockErr && <div style={{ color: "#F87171", fontSize: 12, marginTop: 8 }}>{lockErr}</div>}
+          </>
         )}
 
-        <div className="flex items-center" style={{ gap: 6, marginTop: 14, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11.5, color: MUTED }}>Do this later?</span>
-          {(["work", "personal"] as const).map((k) => {
-            const on = todo === k;
-            return (
-              <button key={k} onClick={() => setTodo(on ? "" : k)}
-                title={k === "work" ? "A work to-do — Terry/Todos.md in Obsidian, not the build queue" : "A personal to-do — same note, its own section"}
-                style={{ background: on ? "#3BF5A0" : "transparent", color: on ? "#0B1322" : CREAM, border: `1px solid ${on ? "#3BF5A0" : EDGE}`, borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                ☐ {k === "work" ? "Work to-do" : "Personal to-do"}
-              </button>
-            );
-          })}
-          <span style={{ fontSize: 10.5, color: MUTED }}>or just say “to-do list”</span>
-        </div>
+        {step === "capture" && (
+          <>
+            <label style={{ fontSize: 11.5, color: MUTED, display: "block", marginBottom: 6 }}>What's up?</label>
+            <textarea
+              ref={ta}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={7}
+              placeholder="Say it however it comes out. Nothing else is required."
+              style={{
+                width: "100%", background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10,
+                color: CREAM, fontSize: 13.5, lineHeight: 1.45, padding: "10px 12px", outline: "none", resize: "vertical",
+                fontFamily: "inherit",
+              }}
+            />
 
-        <div style={{ fontSize: 11.5, color: MUTED, margin: "14px 0 6px" }}>Categories <span style={{ opacity: 0.6 }}>optional</span></div>
-        <div className="flex flex-wrap" style={{ gap: 5 }}>
-          {CATEGORIES.map((c) => {
-            const on = cats.includes(c);
-            return (
-              <button key={c} title={CATEGORY_HINT[c]}
-                onClick={() => setCats((v) => on ? v.filter((x) => x !== c) : [...v, c])}
+            {/* VOICE + FILES — the phone row. Hold the mic, or tap it twice. */}
+            <div className="flex items-center" style={{ gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+              <button
+                onPointerDown={(e) => { e.preventDefault(); void startRec(); }}
+                onPointerUp={() => { if (rec) void stopRec(); }}
+                onClick={() => { if (!rec) return; }}
+                title="Hold to record — or tap to start and tap again to stop"
                 style={{
-                  background: on ? GOLD : "transparent", color: on ? "#0B1322" : CREAM,
-                  border: `1px solid ${on ? GOLD : EDGE}`, borderRadius: 999,
-                  padding: "3px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer",
-                }}>
-                {CATEGORY_LABEL[c]}
+                  display: "flex", alignItems: "center", gap: 7, minHeight: 42,
+                  background: rec ? "#F8717122" : "transparent",
+                  border: `1.5px solid ${rec ? "#F87171" : EDGE}`, color: rec ? "#F87171" : CREAM,
+                  borderRadius: 12, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  touchAction: "none",
+                }}
+              >
+                🎙 {rec ? "Recording — release" : "Hold to talk"}
+                {rec && (
+                  <span style={{ display: "inline-block", width: 44, height: 5, background: "rgba(244,239,230,0.18)", borderRadius: 999, overflow: "hidden" }}>
+                    <span style={{ display: "block", height: "100%", width: `${Math.round(rec.level * 100)}%`, background: "#F87171" }} />
+                  </span>
+                )}
               </button>
-            );
-          })}
-        </div>
+              <input ref={file} type="file" multiple style={{ display: "none" }}
+                onChange={(e) => { if (e.target.files) void addFiles(e.target.files); }} />
+              <button onClick={() => file.current?.click()}
+                style={{ minHeight: 42, background: "transparent", border: `1px solid ${EDGE}`, color: CREAM, borderRadius: 12, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                📎 Add screenshot
+              </button>
+            </div>
+            {voiceMsg && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 6 }}>{voiceMsg}</div>}
+            {audio && <div style={{ fontSize: 11, color: "#3BF5A0", marginTop: 4 }}>🎙 audio attached — kept whatever the transcript did</div>}
+            {files.length > 0 && (
+              <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>
+                {files.map((f) => <div key={f.id}>📎 {f.name}</div>)}
+              </div>
+            )}
 
-        <div style={{ fontSize: 11.5, color: MUTED, margin: "14px 0 6px" }}>Subcategory <span style={{ opacity: 0.6 }}>optional</span></div>
-        <input
-          value={sub} onChange={(e) => setSub(e.target.value)} list="sa-idea-subs"
-          placeholder="learn page, rep system, practice modal…"
-          style={{ width: "100%", background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 12.5, padding: "7px 11px", outline: "none" }}
-        />
-        <datalist id="sa-idea-subs">{subs.map((s) => <option key={s} value={s} />)}</datalist>
+            <div className="flex items-center" style={{ gap: 6, marginTop: 14, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 11.5, color: MUTED }}>Do this later?</span>
+              {(["work", "personal"] as const).map((k) => {
+                const on = todo === k;
+                return (
+                  <button key={k} onClick={() => setTodo(on ? "" : k)}
+                    title={k === "work" ? "A work to-do — Terry/Todos.md in Obsidian, not the build queue" : "A personal to-do — same note, its own section"}
+                    style={{ background: on ? "#3BF5A0" : "transparent", color: on ? "#0B1322" : CREAM, border: `1px solid ${on ? "#3BF5A0" : EDGE}`, borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                    ☐ {k === "work" ? "Work to-do" : "Personal to-do"}
+                  </button>
+                );
+              })}
+              <span style={{ fontSize: 10.5, color: MUTED }}>or just say “to-do list”</span>
+            </div>
 
-        <label className="flex items-center" style={{ gap: 8, marginTop: 14, cursor: "pointer", fontSize: 12.5, color: CREAM }}>
-          <input type="checkbox" checked={sendTo} onChange={(e) => setSendTo(e.target.checked)} style={{ accentColor: GOLD, width: 15, height: 15 }} />
-          Send summary to {other === "king" ? "King" : "Lee"}
-          <span style={{ fontSize: 10.5, color: MUTED }}>— TLDR · summary · prompt · checklist, by email (drafts the prompt first)</span>
-        </label>
+            <div style={{ fontSize: 11.5, color: MUTED, margin: "14px 0 6px" }}>Categories <span style={{ opacity: 0.6 }}>optional</span></div>
+            <div className="flex flex-wrap" style={{ gap: 5 }}>
+              {CATEGORIES.map((c) => {
+                const on = cats.includes(c);
+                return (
+                  <button key={c} title={CATEGORY_HINT[c]}
+                    onClick={() => setCats((v) => on ? v.filter((x) => x !== c) : [...v, c])}
+                    style={{
+                      background: on ? GOLD : "transparent", color: on ? "#0B1322" : CREAM,
+                      border: `1px solid ${on ? GOLD : EDGE}`, borderRadius: 999,
+                      padding: "3px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                    }}>
+                    {CATEGORY_LABEL[c]}
+                  </button>
+                );
+              })}
+            </div>
 
-        <div style={{ fontSize: 10.5, color: MUTED, marginTop: 12 }}>
-          Saved from <span style={{ color: CREAM }}>{pathname}</span> — captured automatically{me ? ` · as ${me}` : ""}.
-        </div>
+            <div style={{ fontSize: 11.5, color: MUTED, margin: "14px 0 6px" }}>Subcategory <span style={{ opacity: 0.6 }}>optional</span></div>
+            <input
+              value={sub} onChange={(e) => setSub(e.target.value)} list="sa-idea-subs"
+              placeholder="learn page, rep system, practice modal…"
+              style={{ width: "100%", background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 12.5, padding: "7px 11px", outline: "none" }}
+            />
+            <datalist id="sa-idea-subs">{subs.map((s) => <option key={s} value={s} />)}</datalist>
+
+            <label className="flex items-center" style={{ gap: 8, marginTop: 14, cursor: "pointer", fontSize: 12.5, color: CREAM }}>
+              <input type="checkbox" checked={sendTo} onChange={(e) => setSendTo(e.target.checked)} style={{ accentColor: GOLD, width: 15, height: 15 }} />
+              Send summary to {otherName}
+              <span style={{ fontSize: 10.5, color: MUTED }}>— TLDR · summary · prompt · checklist, by email (drafts the prompt first)</span>
+            </label>
+
+            <div style={{ fontSize: 10.5, color: MUTED, marginTop: 12 }}>
+              Saved from <span style={{ color: CREAM }}>{pathname}</span> — captured automatically{me ? ` · as ${me}` : ""}.
+            </div>
+          </>
+        )}
+
+        {step === "preview" && (
+          <>
+            <div style={{ fontSize: 11.5, color: MUTED, lineHeight: 1.5 }}>
+              <span style={{ color: CREAM, fontWeight: 700 }}>Your words:</span> {body.length > 220 ? `${body.slice(0, 220)}…` : body}
+              <button onClick={() => setStep("capture")} style={{ marginLeft: 8, background: "none", border: "none", color: GOLD, cursor: "pointer", fontSize: 11.5, textDecoration: "underline" }}>edit</button>
+            </div>
+            <div style={{ fontSize: 10.5, color: MUTED, marginTop: 6 }}>Each part folds. Nothing is saved yet — check it, fix it, then Save, or Save &amp; send.</div>
+
+            <Fold title="TLDR" open>{promptSection(draft, "## TLDR") || <em style={{ color: MUTED }}>none in this draft</em>}</Fold>
+            <Fold title="Summary">{promptSection(draft, "## Summary") || <em style={{ color: MUTED }}>none in this draft</em>}</Fold>
+            <Fold title="Prompt — edit it here, or paste one back from elsewhere">
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                rows={14}
+                spellCheck={false}
+                style={{ width: "100%", background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 12, lineHeight: 1.5, padding: 10, outline: "none", resize: "vertical", fontFamily: "ui-monospace, 'Cascadia Mono', Consolas, monospace" }}
+              />
+              <div style={{ fontSize: 10.5, color: MUTED, marginTop: 4 }}>This is the whole draft — TLDR, Summary, Prompt and Testing checklist are read from it. Regenerate keeps what you changed.</div>
+            </Fold>
+            <Fold title="Testing checklist">
+              <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{promptSection(draft, "## Testing checklist") || "none in this draft"}</pre>
+            </Fold>
+            <Fold title={`Email to ${otherName} — exactly as they'll see it`}>
+              <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 12, lineHeight: 1.5 }}>
+                {ideaUpdateText({ ...ideaForDraft(), promptMd: draft, createdBy: me ?? undefined, appUrl: "https://surviveaccounting.com/admin/ideas" })}
+              </pre>
+            </Fold>
+          </>
+        )}
+
         {phase && <div style={{ color: "#3BF5A0", fontSize: 11.5, marginTop: 8 }}>{phase}</div>}
         {loadErr && <div style={{ color: "#F87171", fontSize: 11, marginTop: 8 }}>{loadErr}</div>}
         {err && <div style={{ color: "#F87171", fontSize: 11.5, marginTop: 8 }}>{err}</div>}
       </div>
 
-      <div className="flex items-center gap-2" style={{ padding: 12, borderTop: `1px solid ${EDGE}` }}>
-        <span style={{ fontSize: 10.5, color: MUTED }}>⌘↵ save · Esc close</span>
-        <button
-          onClick={save}
-          disabled={!text.trim() || busy}
-          style={{
-            marginLeft: "auto", background: text.trim() && !busy ? GOLD : "transparent",
-            color: text.trim() && !busy ? "#0B1322" : MUTED,
-            border: `1px solid ${text.trim() && !busy ? GOLD : EDGE}`, borderRadius: 10,
-            padding: "7px 18px", fontSize: 13, fontWeight: 800, cursor: text.trim() && !busy ? "pointer" : "default",
-          }}
-        >
-          {busy ? "Saving…" : "Save"}
-        </button>
+      <div className="flex items-center gap-2" style={{ padding: 12, borderTop: `1px solid ${EDGE}`, flexWrap: "wrap" }}>
+        {step === "lock" && (
+          <button onClick={unlock} disabled={!code.trim()} style={{ ...primary(!!code.trim()), marginLeft: "auto" }}>Unlock</button>
+        )}
+        {step === "capture" && (
+          <>
+            <span style={{ fontSize: 10.5, color: MUTED }}>⌘↵ save · Esc close</span>
+            <button onClick={preview} disabled={!canAct || !!todo} title={todo ? "To-dos skip the preview — they go straight to Terry's list" : "Draft the prompt and check every part before it is saved"} style={{ ...secondary, marginLeft: "auto", opacity: canAct && !todo ? 1 : 0.5 }}>
+              {drafting ? "Drafting…" : "Preview →"}
+            </button>
+            <button onClick={() => save()} disabled={!body || busy} style={primary(!!body && !busy)}>
+              {busy ? "Saving…" : sendTo ? `Save & send to ${otherName}` : "Save"}
+            </button>
+          </>
+        )}
+        {step === "preview" && (
+          <>
+            <button onClick={() => setStep("capture")} style={secondary}>← Words</button>
+            <button onClick={regenerate} disabled={drafting || busy} style={{ ...secondary, opacity: drafting || busy ? 0.5 : 1 }}>{drafting ? "Regenerating…" : "↻ Regenerate"}</button>
+            <button onClick={() => save(false)} disabled={!canAct} style={{ ...secondary, marginLeft: "auto", opacity: canAct ? 1 : 0.5 }}>{busy ? "Saving…" : "Save"}</button>
+            <button onClick={() => save(true)} disabled={!canAct} style={primary(canAct)}>{busy ? "Saving…" : `Save & send to ${otherName}`}</button>
+          </>
+        )}
       </div>
     </div>
     </>
+  );
+}
+
+/** A collapsed section of the preview — click the title to open it. */
+function Fold({ title, open, children }: { title: string; open?: boolean; children: React.ReactNode }) {
+  return (
+    <details open={open} style={{ marginTop: 10, border: `1px solid ${EDGE}`, borderRadius: 10, padding: "8px 12px" }}>
+      <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 800, letterSpacing: "0.04em", color: GOLD }}>{title}</summary>
+      <div style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: CREAM, whiteSpace: "pre-wrap" }}>{children}</div>
+    </details>
   );
 }
