@@ -71,12 +71,36 @@ export function mergeRows<T extends TTRow>(local: T[], incoming: T[]): T[] {
 
 // -------------------------------------------------------------------- model
 
+/** IDEMPOTENT RESUME (2026-09-04) — what a generation pass CANNOT re-derive.
+ *
+ *  Everything a pass produced is already durable and synced: the board items
+ *  themselves. Progress is therefore DERIVED from the board (talkthrough-
+ *  resume.ts), never counted into a field that can drift — the same law the
+ *  sync queue follows. What the board cannot tell you is what Lee ASKED for:
+ *  the pre-flight exclusions and whether he wanted a vibe plan. Those ride
+ *  here so an interrupted synthesis resumes with the same choices, from any
+ *  machine, and so the Booth can tell "never started" from "started, died". */
+export interface SessionGeneration {
+  /** When the synthesis pass was last requested (End Session → pre-flight). */
+  requestedAt: string;
+  /** The pre-flight choices, replayed verbatim on a resume. */
+  excludedKinds: string[];
+  wantVibePlan: boolean;
+  /** Set the moment the pass wrote its board items. */
+  completedAt?: string | null;
+  /** Last failure, verbatim. Shown, never swallowed. */
+  error?: string | null;
+}
+
 export interface TalkSession extends TTRow {
   setId: string;
   /** Denormalized at capture — a session stays readable if the set changes. */
   setName: string;
   startedAt: string;
   endedAt?: string | null;
+  /** The synthesis pass's request record — see SessionGeneration. Additive:
+   *  every session written before 2026-09-04 simply has none. */
+  generation?: SessionGeneration | null;
 }
 
 // ───────────────────── B8: GENERATION PROGRESS (the incremental queue)
@@ -575,9 +599,24 @@ export function boardForCeq(items: BoardItem[], ceqId: string): BoardItem[] {
 /* Snake-case row shapes, one per table. fromX stamps syncedAt from the server
  * copy (straight from the server ⇒ synced), exactly like idea-bank.fromRow. */
 
-export interface SessionRow { id: string; set_id: string; set_name: string; started_at: string; ended_at: string | null; created_at: string; updated_at: string; archived_at: string | null }
-export const toSessionRow = (s: TalkSession): SessionRow => ({ id: s.id, set_id: s.setId, set_name: s.setName, started_at: s.startedAt, ended_at: s.endedAt ?? null, created_at: s.createdAt, updated_at: s.updatedAt, archived_at: s.archivedAt ?? null });
-export const fromSessionRow = (r: SessionRow): TalkSession => ({ id: r.id, setId: r.set_id, setName: r.set_name, startedAt: r.started_at, endedAt: r.ended_at, createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at });
+export interface SessionRow { id: string; set_id: string; set_name: string; started_at: string; ended_at: string | null; created_at: string; updated_at: string; archived_at: string | null; generation?: Record<string, unknown> | null }
+export const toSessionRow = (s: TalkSession): SessionRow => ({ id: s.id, set_id: s.setId, set_name: s.setName, started_at: s.startedAt, ended_at: s.endedAt ?? null, created_at: s.createdAt, updated_at: s.updatedAt, archived_at: s.archivedAt ?? null, generation: s.generation ? { ...s.generation } : null });
+export const fromSessionRow = (r: SessionRow): TalkSession => ({ id: r.id, setId: r.set_id, setName: r.set_name, startedAt: r.started_at, endedAt: r.ended_at, generation: readGeneration(r.generation), createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at });
+
+/** A jsonb blob from the server is untrusted shape — read it defensively, and
+ *  degrade to "no request on record" rather than throwing the whole pull. */
+export function readGeneration(v: unknown): SessionGeneration | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const g = v as Record<string, unknown>;
+  if (typeof g.requestedAt !== "string" || !g.requestedAt) return null;
+  return {
+    requestedAt: g.requestedAt,
+    excludedKinds: Array.isArray(g.excludedKinds) ? g.excludedKinds.filter((x): x is string => typeof x === "string") : [],
+    wantVibePlan: !!g.wantVibePlan,
+    completedAt: typeof g.completedAt === "string" ? g.completedAt : null,
+    error: typeof g.error === "string" ? g.error : null,
+  };
+}
 
 export interface SegmentRow { id: string; session_id: string; seq: number; text: string; source: string; whisper_pending: boolean; audio_path: string | null; focused_ceq_id: string | null; focused_ceq_label: string | null; started_at: string; ended_at: string | null; created_at: string; updated_at: string; archived_at: string | null }
 export const toSegmentRow = (s: TalkSegment): SegmentRow => ({ id: s.id, session_id: s.sessionId, seq: s.seq, text: s.text, source: s.source, whisper_pending: s.whisperPending, audio_path: s.audioPath ?? null, focused_ceq_id: s.focusedCeqId ?? null, focused_ceq_label: s.focusedCeqLabel ?? null, started_at: s.startedAt, ended_at: s.endedAt ?? null, created_at: s.createdAt, updated_at: s.updatedAt, archived_at: s.archivedAt ?? null });
