@@ -26,15 +26,15 @@
 // Tab surfs questions (or exhibits), the stamp board opens click-in/click-out
 // contexts, the flowing paragraph grows as he talks.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, FileText, Mic, RotateCcw, Square, Undo2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Eraser, FileText, Mic, RotateCcw, Square, Undo2, X } from "lucide-react";
 
 import { EXHIBIT_REGISTRY, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import {
-  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, VISUAL_KINDS, canonicalStamp, contextsOfSegment, ghostSegments, makeTag, newTTId, openContexts,
+  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, VISUAL_KINDS, canonicalStamp, contextsOfSegment, dismissableResultsForSet, ghostSegments, makeTag, newTTId, openContexts,
   segmentsInContext, sessionBoard, sessionSegments, sessionTags, stampLabel, styleNotesFor, touchRow,
   type BoardItem, type StampKind, type TTDoc, type TalkSegment, type TalkSession, type TalkTag,
 } from "@/components/canvas/talkthrough";
-import { putBoardItem, putSegment, putTag, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
+import { dismissSetResults, putBoardItem, putSegment, putTag, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { TalkthroughRecorder, drainWhisperQueue, isWhisperHallucination, speechRecognitionAvailable, type BoothStatus } from "@/components/canvas/talkthrough-audio";
 import { buildMicroEditMessages, parseMicroEdit, type PassCeq } from "@/components/canvas/talkthrough-pass";
 import { buildImportRows, parseTranscriptImport, setNameMatches, type ImportBlock } from "@/components/canvas/talkthrough-import";
@@ -241,10 +241,31 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const flatStamps = useMemo(() => STAMP_GROUPS.flatMap((g) => g.kinds), []);
   const [selStamp, setSelStamp] = useState<StampKind | null>(null);
   const pendingEdits = sessionBoard(tt.doc, session.id).filter((b) => b.kind === "ceq_edit");
+  // The last pass's cards on THIS SET — every sitting, not just this one:
+  // "End Session → Review" ends the session, so walking back into Step 1 opens
+  // a fresh one and last night's cards hang off the previous sitting. The
+  // button exists only when there is something to clear.
+  const oldResults = dismissableResultsForSet(tt.doc, session.setId);
+  const oldSittings = new Set(oldResults.map((b) => b.sessionId)).size;
+  const [clearNote, setClearNote] = useState<string | null>(null);
 
   const clickCeq = (c: BoothCeq | null) => setFocusId(c?.id ?? null);
   const clickExhibit = (id: string | null) => setExhibitId(id);
   const switchMode = (m: BoothMode) => { rec.markBoundary(); setMode(m); };
+
+  /** CLEAR OLD RESULTS (Lee, 2026-09-04) — the last pass's cards (script, CEQ
+   *  edits, ideas, vibe plan) come off the Review board before he talks a new
+   *  pass, so Step 2 is not the old board plus the new one. Dismissed, never
+   *  deleted: the rows keep their quotes, and anything already built from one
+   *  (a slide on the film draft, a film pick, a banked item) still resolves. */
+  const clearResults = () => {
+    const n = oldResults.length;
+    if (!n) return;
+    const where = oldSittings > 1 ? ` from ${oldSittings} sittings on ${setLabel(session.setName)}` : ` on ${setLabel(session.setName)}`;
+    if (!window.confirm(`Clear ${n} old result card${n === 1 ? "" : "s"}${where} off the Step 2 Review board?\n\nYour transcript and stamps are untouched, and nothing is deleted — the cards are dismissed, and slides you already built from them keep working.`)) return;
+    const cleared = dismissSetResults(session.setId);
+    setClearNote(`✓ cleared ${cleared} old result card${cleared === 1 ? "" : "s"} — Step 2 Review stays empty until you generate again`);
+  };
 
   /** START OVER — every segment and stamp in this session is archived (soft,
    *  recoverable, syncs like any edit). The session stays open and empty. */
@@ -548,6 +569,25 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
         >
           <RotateCcw className="h-3 w-3" /> Start over
         </button>
+        {/* CLEAR OLD RESULTS — only when the last pass left cards behind. */}
+        {oldResults.length > 0 && (
+          <button
+            className="flex items-center justify-center gap-2 rounded-xl px-3 py-1.5"
+            style={{ border: `1px solid ${EDGE}`, color: NEON.muted, background: "transparent", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}
+            title="Take the last pass's cards off the Step 2 Review board before you talk a new pass — dismissed, never deleted"
+            onClick={clearResults}
+          >
+            <Eraser className="h-3 w-3" /> Clear old results ({oldResults.length})
+          </button>
+        )}
+        {clearNote && (
+          <div style={{ fontSize: 10.5, color: "#3BF5A0", lineHeight: 1.45 }}>
+            {clearNote}
+            {/* The server took the rows but could not store the flag — say so
+                where the click happened, never let it look like it worked. */}
+            {tt.warning && <div style={{ color: "#F87171", marginTop: 3 }}>⚠ {tt.warning}</div>}
+          </div>
+        )}
         {paused && !status.recording && <div style={{ color: NEON.muted, fontSize: 10.5 }}>Paused — mic released. Resume continues this session exactly here (survives reloads).</div>}
         {micError && <div style={{ color: "#F87171", fontSize: 12 }}>{micError}</div>}
         {!speechRecognitionAvailable() && <div style={{ color: NEON.muted, fontSize: 10.5 }}>Live captions unavailable — chunked Whisper alone.</div>}

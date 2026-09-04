@@ -276,6 +276,44 @@ export interface BoardItem extends TTRow {
   status: BoardStatus;
   /** Lee's note — feeds "Regenerate with my notes". */
   comment: string;
+  /** CLEARED BEFORE A NEW PASS (2026-09-04). Lee clears the last pass's cards
+   *  out of the way in the booth so the next Generate starts on a clean board.
+   *  Absent/false = live. Like `archivedAt` this is a SOFT hide — the row and
+   *  its quote stay, so anything already built from it (a slide's
+   *  `bankItemId`, a film pick, the bank) still resolves. */
+  dismissed?: boolean;
+}
+
+/** The kinds the AI review pass mints — what "the results" MEANS on the board
+ *  (ReviewBoardV2 renders exactly these). "Clear old results" dismisses these
+ *  and nothing else: takes, style notes and the legacy kinds are not results. */
+export const RESULTS_KINDS: readonly BoardKind[] = ["script", "ceq_edit", "idea", "vibe_plan"];
+
+/** Live = not dismissed. Old rows have no field at all, so absent means live. */
+export const isDismissed = (b: BoardItem): boolean => b.dismissed === true;
+
+/** One session's result cards that are still live. Pure — the caller stamps
+ *  and commits. */
+export function dismissableResults(d: TTDoc, sessionId: string): BoardItem[] {
+  return d.boardItems.filter(
+    (b) => b.sessionId === sessionId && !b.archivedAt && !isDismissed(b) && RESULTS_KINDS.includes(b.kind),
+  );
+}
+
+/** THE SET's live result cards, newest sitting first — what "Clear old
+ *  results" actually clears.
+ *
+ *  Session scope alone would miss the ordinary case: End Session → Review
+ *  ENDS the session, so walking back into Step 1 opens a FRESH one and last
+ *  night's cards hang off the old sitting. The button has to reach them, or
+ *  it would be a button that is never there when it is wanted. Sittings are
+ *  counted so the confirm can say how many boards it is about to clear. */
+export function dismissableResultsForSet(d: TTDoc, setId: string): BoardItem[] {
+  const mine = new Set(d.sessions.filter((s) => s.setId === setId && !s.archivedAt).map((s) => s.id));
+  const startedAt = new Map(d.sessions.map((s) => [s.id, s.startedAt]));
+  return d.boardItems
+    .filter((b) => mine.has(b.sessionId) && !b.archivedAt && !isDismissed(b) && RESULTS_KINDS.includes(b.kind))
+    .sort((a, b) => (startedAt.get(b.sessionId) ?? "").localeCompare(startedAt.get(a.sessionId) ?? "") || a.createdAt.localeCompare(b.createdAt));
 }
 
 // ----------------------------------------------------------------- factories
@@ -375,10 +413,12 @@ export function sessionTags(d: TTDoc, sessionId: string): TalkTag[] {
   return d.tags.filter((t) => t.sessionId === sessionId && !t.archivedAt).sort((a, b) => a.at.localeCompare(b.at));
 }
 
+/** A session's board — archived rows hidden, and DISMISSED rows hidden too
+ *  (Lee cleared the old pass out of the way; the row itself is still there). */
 export function sessionBoard(d: TTDoc, sessionId: string): BoardItem[] {
   const order = new Map(BOARD_KINDS.map((k, i) => [k, i]));
   return d.boardItems
-    .filter((b) => b.sessionId === sessionId && !b.archivedAt)
+    .filter((b) => b.sessionId === sessionId && !b.archivedAt && !isDismissed(b))
     .sort((a, b) => (order.get(a.kind)! - order.get(b.kind)!) || a.createdAt.localeCompare(b.createdAt));
 }
 
@@ -481,13 +521,17 @@ export interface TagRow { id: string; session_id: string; tag: string; at: strin
 export const toTagRow = (t: TalkTag): TagRow => ({ id: t.id, session_id: t.sessionId, tag: t.tag, at: t.at, ended_at: t.endedAt ?? null, starred: !!t.starred, focused_ceq_id: t.focusedCeqId ?? null, focused_ceq_label: t.focusedCeqLabel ?? null, source: t.source, note: t.note ?? null, created_at: t.createdAt, updated_at: t.updatedAt, archived_at: t.archivedAt ?? null });
 export const fromTagRow = (r: TagRow): TalkTag => ({ id: r.id, sessionId: r.session_id, tag: ([...MOMENT_TAGS, ...QUICK_KINDS, ...STAMP_KINDS] as readonly string[]).includes(r.tag) ? (r.tag as TagKind) : "KEY", at: r.at, endedAt: r.ended_at ?? null, starred: !!r.starred, focusedCeqId: r.focused_ceq_id, focusedCeqLabel: r.focused_ceq_label, source: r.source === "ai" ? "ai" : "tap", note: r.note, createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at });
 
-export interface BoardItemRow { id: string; session_id: string; run_id: string; kind: string; title: string; payload: Record<string, unknown>; quote: string; ceq_ids: string[]; status: string; comment: string; created_at: string; updated_at: string; archived_at: string | null }
-export const toBoardItemRow = (b: BoardItem): BoardItemRow => ({ id: b.id, session_id: b.sessionId, run_id: b.runId, kind: b.kind, title: b.title, payload: b.payload, quote: b.quote, ceq_ids: b.ceqIds, status: b.status, comment: b.comment, created_at: b.createdAt, updated_at: b.updatedAt, archived_at: b.archivedAt ?? null });
+/** `dismissed` is OPTIONAL on the wire: the column arrives with
+ *  20260904_1500_talkthrough_board_dismissed.sql, and until that runs the
+ *  server strips it and says so loudly (talkthrough.functions.ts). */
+export interface BoardItemRow { id: string; session_id: string; run_id: string; kind: string; title: string; payload: Record<string, unknown>; quote: string; ceq_ids: string[]; status: string; comment: string; dismissed?: boolean; created_at: string; updated_at: string; archived_at: string | null }
+export const toBoardItemRow = (b: BoardItem): BoardItemRow => ({ id: b.id, session_id: b.sessionId, run_id: b.runId, kind: b.kind, title: b.title, payload: b.payload, quote: b.quote, ceq_ids: b.ceqIds, status: b.status, comment: b.comment, dismissed: isDismissed(b), created_at: b.createdAt, updated_at: b.updatedAt, archived_at: b.archivedAt ?? null });
 export const fromBoardItemRow = (r: BoardItemRow): BoardItem => ({
   id: r.id, sessionId: r.session_id, runId: r.run_id,
   kind: (BOARD_KINDS as readonly string[]).includes(r.kind) ? (r.kind as BoardKind) : "vibe",
   title: r.title, payload: r.payload ?? {}, quote: r.quote ?? "",
   ceqIds: Array.isArray(r.ceq_ids) ? r.ceq_ids : [],
   status: (BOARD_STATUSES as readonly string[]).includes(r.status) ? (r.status as BoardStatus) : "suggested",
-  comment: r.comment ?? "", createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at,
+  comment: r.comment ?? "", dismissed: r.dismissed === true,
+  createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at,
 });

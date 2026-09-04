@@ -39,12 +39,20 @@ const iso = z.string().min(4);
 const sessionRow = z.object({ id: z.string().min(1).max(120), set_id: z.string().max(200), set_name: z.string().max(400), started_at: iso, ended_at: iso.nullable(), created_at: iso, updated_at: iso, archived_at: iso.nullable() });
 const segmentRow = z.object({ id: z.string().min(1).max(120), session_id: z.string().max(120), seq: z.number().int(), text: z.string().max(60_000), source: z.string().max(16), whisper_pending: z.boolean(), audio_path: z.string().max(500).nullable(), focused_ceq_id: z.string().max(200).nullable(), focused_ceq_label: z.string().max(400).nullable(), started_at: iso, ended_at: iso.nullable(), created_at: iso, updated_at: iso, archived_at: iso.nullable() });
 const tagRow = z.object({ id: z.string().min(1).max(120), session_id: z.string().max(120), tag: z.string().max(20), at: iso, ended_at: iso.nullable().optional(), starred: z.boolean().optional(), focused_ceq_id: z.string().max(200).nullable(), focused_ceq_label: z.string().max(400).nullable(), source: z.string().max(10), note: z.string().max(4000).nullable(), created_at: iso, updated_at: iso, archived_at: iso.nullable() });
-const boardRow = z.object({ id: z.string().min(1).max(130), session_id: z.string().max(120), run_id: z.string().max(120), kind: z.string().max(20), title: z.string().max(1000), payload: z.record(z.string(), z.unknown()), quote: z.string().max(20_000), ceq_ids: z.array(z.string().max(200)).max(200), status: z.string().max(16), comment: z.string().max(20_000), created_at: iso, updated_at: iso, archived_at: iso.nullable() });
+const boardRow = z.object({ id: z.string().min(1).max(130), session_id: z.string().max(120), run_id: z.string().max(120), kind: z.string().max(20), title: z.string().max(1000), payload: z.record(z.string(), z.unknown()), quote: z.string().max(20_000), ceq_ids: z.array(z.string().max(200)).max(200), status: z.string().max(16), comment: z.string().max(20_000), dismissed: z.boolean().optional(), created_at: iso, updated_at: iso, archived_at: iso.nullable() });
+
+/** "Clear old results" writes `dismissed`. Until its migration runs the column
+ *  is not there, so the query is retried without it — and the caller is TOLD,
+ *  in a warning that reaches the studio's sync chip. Never a silent no-op. */
+const DISMISS_MIGRATION = "dismissal is not persisting — apply migration/supabase-migrations/20260904_1500_talkthrough_board_dismissed.sql in the Supabase SQL editor";
+const isMissingDismissed = (e: { message?: string } | null | undefined): boolean =>
+  /dismissed/i.test(String(e?.message ?? "")) && /column|schema cache/i.test(String(e?.message ?? ""));
 
 const S_SESSIONS = "id,set_id,set_name,started_at,ended_at,created_at,updated_at,archived_at";
 const S_SEGMENTS = "id,session_id,seq,text,source,whisper_pending,audio_path,focused_ceq_id,focused_ceq_label,started_at,ended_at,created_at,updated_at,archived_at";
 const S_TAGS = "id,session_id,tag,at,ended_at,starred,focused_ceq_id,focused_ceq_label,source,note,created_at,updated_at,archived_at";
-const S_BOARD = "id,session_id,run_id,kind,title,payload,quote,ceq_ids,status,comment,created_at,updated_at,archived_at";
+const S_BOARD_BASE = "id,session_id,run_id,kind,title,payload,quote,ceq_ids,status,comment,created_at,updated_at,archived_at";
+const S_BOARD = `${S_BOARD_BASE},dismissed`;
 
 // ----------------------------------------------------------------- list/upsert
 
@@ -52,11 +60,21 @@ const S_BOARD = "id,session_id,run_id,kind,title,payload,quote,ceq_ids,status,co
  *  archived row must round-trip so restore works on any machine. */
 export const listTalkthrough = createServerFn({ method: "POST" }).handler(async () => {
   const db = await admin();
-  const [sessions, segments, boardItems] = await Promise.all([
+  const warnings: string[] = [];
+  const [sessions, segments, board] = await Promise.all([
     db.from("talkthrough_sessions").select(S_SESSIONS).order("started_at", { ascending: false }).limit(500),
     db.from("talkthrough_segments").select(S_SEGMENTS).order("started_at", { ascending: true }).limit(20_000),
     db.from("talkthrough_board_items").select(S_BOARD).order("created_at", { ascending: true }).limit(5_000),
   ]);
+  // `dismissed` degrades the same way the v2 tag columns do: read the board
+  // without it and SAY SO — the board still loads, dismissals just don't
+  // round-trip until the migration runs.
+  let boardItems = board;
+  if (boardItems.error && isMissingDismissed(boardItems.error)) {
+    console.warn(`[talkthrough] ${DISMISS_MIGRATION}`);
+    warnings.push(DISMISS_MIGRATION);
+    boardItems = await db.from("talkthrough_board_items").select(S_BOARD_BASE).order("created_at", { ascending: true }).limit(5_000);
+  }
   // v2 columns (ended_at/starred) degrade gracefully until the 20260829_0900
   // migration runs — the booth keeps syncing, stars just don't round-trip yet.
   let tags = await db.from("talkthrough_tags").select(S_TAGS).order("at", { ascending: true }).limit(5_000);
@@ -68,6 +86,7 @@ export const listTalkthrough = createServerFn({ method: "POST" }).handler(async 
   return {
     sessions: sessions.data ?? [], segments: segments.data ?? [],
     tags: tags.data ?? [], boardItems: boardItems.data ?? [],
+    warnings,
   };
 });
 
@@ -83,6 +102,7 @@ export const upsertTalkthrough = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data }) => {
     const db = await admin();
+    const warnings: string[] = [];
     const put = async (table: string, rows: unknown[], select: string): Promise<{ id: string; updated_at: string }[]> => {
       if (!rows.length) return [];
       let { data: out, error } = await db.from(table).upsert(rows, { onConflict: "id" }).select(select);
@@ -90,6 +110,15 @@ export const upsertTalkthrough = createServerFn({ method: "POST" })
       if (error && table === "talkthrough_tags" && /ended_at|starred|column/i.test(String(error.message ?? ""))) {
         console.warn("[talkthrough] tags v2 columns missing on upsert — apply 20260829_0900_talkthrough_v2.sql (stars/contexts not persisting server-side yet)");
         const stripped = (rows as Record<string, unknown>[]).map(({ ended_at, starred, ...rest }) => { void ended_at; void starred; return rest; });
+        ({ data: out, error } = await db.from(table).upsert(stripped, { onConflict: "id" }).select("id,updated_at"));
+      }
+      // Same tolerance for `dismissed`: the rest of the board must keep
+      // syncing, and the warning rides back to the UI so nobody believes a
+      // dismissal stuck when it did not.
+      if (error && table === "talkthrough_board_items" && isMissingDismissed(error)) {
+        console.warn(`[talkthrough] ${DISMISS_MIGRATION}`);
+        warnings.push(DISMISS_MIGRATION);
+        const stripped = (rows as Record<string, unknown>[]).map(({ dismissed, ...rest }) => { void dismissed; return rest; });
         ({ data: out, error } = await db.from(table).upsert(stripped, { onConflict: "id" }).select("id,updated_at"));
       }
       if (error) rethrow(error);
@@ -100,6 +129,7 @@ export const upsertTalkthrough = createServerFn({ method: "POST" })
       segments: await put("talkthrough_segments", data.segments, "id,updated_at"),
       tags: await put("talkthrough_tags", data.tags, "id,updated_at"),
       boardItems: await put("talkthrough_board_items", data.boardItems, "id,updated_at"),
+      warnings,
     };
   });
 

@@ -13,8 +13,8 @@
 import { listTalkthrough, upsertTalkthrough } from "@/lib/talkthrough.functions";
 
 import {
-  docPendingCount, emptyDoc, fromBoardItemRow, fromSegmentRow, fromSessionRow, fromTagRow,
-  loadLocalDoc, mergeRows, pendingRows, saveLocalDoc,
+  dismissableResults, dismissableResultsForSet, docPendingCount, emptyDoc, fromBoardItemRow, fromSegmentRow, fromSessionRow, fromTagRow,
+  loadLocalDoc, mergeRows, pendingRows, saveLocalDoc, touchRow,
   toBoardItemRow, toSegmentRow, toSessionRow, toTagRow,
   type BoardItem, type TTDoc, type TalkSegment, type TalkSession, type TalkTag,
 } from "./talkthrough";
@@ -26,6 +26,12 @@ export interface TTState {
   syncing: boolean;
   /** Last failure, verbatim. Null once a sync succeeds. */
   error: string | null;
+  /** The server SUCCEEDED but could not store everything it was sent — today
+   *  that means the `dismissed` column is missing and "Clear old results" is
+   *  local-only until its migration runs. Sticky until a clean reply; shown
+   *  in the studio's sync chip and beside the button that writes it, so a
+   *  half-working feature can never look like a working one. */
+  warning: string | null;
   online: boolean;
   loadedRemote: boolean;
 }
@@ -33,6 +39,7 @@ export interface TTState {
 let doc: TTDoc = emptyDoc();
 let syncing = false;
 let error: string | null = null;
+let warning: string | null = null;
 let loadedRemote = false;
 let started = false;
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -40,7 +47,7 @@ let timer: ReturnType<typeof setInterval> | undefined;
 const subs = new Set<(s: TTState) => void>();
 const online = (): boolean => (typeof navigator === "undefined" ? true : navigator.onLine !== false);
 
-export const ttState = (): TTState => ({ doc, pending: docPendingCount(doc), syncing, error, online: online(), loadedRemote });
+export const ttState = (): TTState => ({ doc, pending: docPendingCount(doc), syncing, error, warning, online: online(), loadedRemote });
 const emit = () => { const s = ttState(); subs.forEach((f) => f(s)); };
 
 export function subscribeTT(fn: (s: TTState) => void): () => void {
@@ -70,6 +77,23 @@ export const putTag = (t: TalkTag): void => commitTT((d) => ({ ...d, tags: repla
 export const putBoardItem = (b: BoardItem): void => commitTT((d) => ({ ...d, boardItems: replace(d.boardItems, b) }));
 export const putBoardItems = (items: BoardItem[]): void =>
   commitTT((d) => ({ ...d, boardItems: items.reduce((acc, b) => replace(acc, b), d.boardItems) }));
+
+/** CLEAR OLD RESULTS (2026-09-04) — dismiss live result cards (script · CEQ
+ *  edits · ideas · vibe plan) so the next pass starts on a clean board. A soft
+ *  hide, never a delete: touchRow re-queues each row, so the dismissal syncs
+ *  like any other edit and holds on every machine.
+ *  Returns how many cards were cleared — the caller SHOWS that number. */
+const dismissAll = (targets: BoardItem[], now: Date): number => {
+  if (!targets.length) return 0;
+  putBoardItems(targets.map((b) => touchRow(b, { dismissed: true } as Partial<BoardItem>, now)));
+  return targets.length;
+};
+export const dismissSessionResults = (sessionId: string, now = new Date()): number =>
+  dismissAll(dismissableResults(doc, sessionId), now);
+/** Every sitting on the set — what the booth's button clears (see
+ *  dismissableResultsForSet for why session scope alone is not enough). */
+export const dismissSetResults = (setId: string, now = new Date()): number =>
+  dismissAll(dismissableResultsForSet(doc, setId), now);
 
 /** Push everything unacknowledged, all four stores in one call. Re-entrant
  *  calls drop; a failure leaves the queue intact. */
@@ -107,6 +131,7 @@ export async function flushTT(): Promise<void> {
     };
     saveLocalDoc(doc);
     error = null;
+    warning = acked.warnings?.[0] ?? null;
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   } finally {
@@ -128,6 +153,7 @@ export async function pullTT(): Promise<void> {
     saveLocalDoc(doc);
     loadedRemote = true;
     error = null;
+    warning = rows.warnings?.[0] ?? null;
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
@@ -153,7 +179,7 @@ export function startTT(): void {
 
 /** Test seam. */
 export const __resetTT = (seed: TTDoc = emptyDoc()): void => {
-  doc = seed; syncing = false; error = null; loadedRemote = false; started = false;
+  doc = seed; syncing = false; error = null; warning = null; loadedRemote = false; started = false;
   if (timer) clearInterval(timer);
   timer = undefined;
 };

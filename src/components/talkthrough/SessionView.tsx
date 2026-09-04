@@ -12,7 +12,7 @@ import { Check, Copy, Wand2, X } from "lucide-react";
 
 import { attachOneTakeBlast, runTalkthroughPass, type BoothSetInfo } from "@/lib/talkthrough.functions";
 import {
-  BOARD_KIND_LABELS, BOARD_KINDS, BOARD_STATUSES, boardForCeq, canonicalStamp, makeTag, newTTId,
+  BOARD_KIND_LABELS, BOARD_KINDS, BOARD_STATUSES, RESULTS_KINDS, boardForCeq, canonicalStamp, makeTag, newTTId,
   sessionBoard, sessionMeta, sessionSegments, sessionTags, stampLabel, touchRow,
   type BoardItem, type BoardStatus, type TTDoc, type TalkSession,
 } from "@/components/canvas/talkthrough";
@@ -102,7 +102,9 @@ export function SessionView({ tt, session, set, onResume, onAddSlide }: {
 
   // B3 — honest review status + the B0 cost line (studio-only).
   const rs = reviewStateOf(tt.doc, session);
-  const V2_KINDS = ["script", "ceq_edit", "idea", "vibe_plan"];
+  // ONE definition of "the results" — the store owns it (RESULTS_KINDS), so
+  // "Clear old results" and this board can never disagree about what they are.
+  const V2_KINDS: readonly string[] = RESULTS_KINDS;
   const v2Items = board.filter((b) => V2_KINDS.includes(b.kind));
   const legacyItems = board.filter((b) => !V2_KINDS.includes(b.kind) && b.kind !== "style_note" && b.kind !== "take");
   const usage = sumUsage(board.map((b) => (b.payload as { _usage?: AiUsage })._usage).filter((u): u is AiUsage => !!u));
