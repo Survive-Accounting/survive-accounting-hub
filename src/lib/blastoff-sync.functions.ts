@@ -226,7 +226,9 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
       // card already draws those under the main phrase, in film and in study.
       const bullets = (f.bullets ?? []).map((b) => b.trim()).filter(Boolean);
       const callout: Record<string, unknown> | undefined =
-        f.kind === "blank" || spec ? { hidden: true } : kindTag ? { kind: kindTag, showTopic: true, detour: true, ...(bullets.length ? { extraStems: bullets } : {}) } : undefined;
+        // showTopic false (Lee, 2026-09-03: "it says Memorize This AND Found
+        // on your exam") — a detour card carries its kind label, nothing else.
+        f.kind === "blank" || spec ? { hidden: true } : kindTag ? { kind: kindTag, showTopic: false, detour: true, ...(bullets.length ? { extraStems: bullets } : {}) } : undefined;
 
       const dataObj: Record<string, unknown> = {
         kind: "ceq",

@@ -101,9 +101,24 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
     <div style={{ position: "relative" }}>
       {/* the little orange corner accent — the callout's signature, kept */}
       <span aria-hidden style={{ position: "absolute", top: -16 * s, right: -16 * s, width: 26 * s, height: 26 * s, background: "#FCA311", clipPath: "polygon(100% 0, 0 0, 100% 100%)", borderTopRightRadius: 13 * s, opacity: 0.9 }} />
-      {meta && (
+      {meta && !dark && (
         <div style={{ display: "inline-flex", alignItems: "center", gap: 6 * s, marginBottom: 8 * s, padding: `${2 * s}px ${8 * s}px`, borderRadius: 6 * s, fontSize: 10.5 * s, fontWeight: 900, letterSpacing: "0.12em", color: meta.accent, background: meta.tint, border: `1px solid ${meta.accent}44` }}>
           {meta.label}
+        </div>
+      )}
+      {meta && dark && (
+        // THE DETOUR MOMENT (Lee, 2026-09-03): "more eye catching than the navy
+        // on navy … big labels … very scannable … a subtle flashing animation
+        // on the chip/title, like a neon sign … the boiling bolt needs to make
+        // an appearance … make it a real moment anytime we have a detour
+        // slide". The boiling bolt sits top-left; the kind's name rides over
+        // it, big, in the kind's colour, breathing like a neon tube
+        // (.sa-neon-label in PV_CSS; motion only under .film-mode).
+        <div style={{ display: "flex", alignItems: "center", gap: 10 * s, marginBottom: 12 * s, position: "relative" }}>
+          <BoltBoil height={34 * s} style={{ flex: "0 0 auto", filter: `drop-shadow(0 0 ${8 * s}px ${meta.accent}66)` }} />
+          <span className="sa-neon-label" style={{ ["--neon" as string]: meta.accent, fontSize: 15 * s, fontWeight: 900, letterSpacing: "0.24em", textTransform: "uppercase", color: meta.accent, lineHeight: 1, textShadow: `0 0 ${6 * s}px ${meta.accent}AA, 0 0 ${18 * s}px ${meta.accent}55` }}>
+            {meta.label}
+          </span>
         </div>
       )}
       {topic && <div style={{ fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: inkMuted, marginBottom: 6 * s }}>{topic}</div>}

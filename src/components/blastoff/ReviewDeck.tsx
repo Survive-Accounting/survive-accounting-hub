@@ -146,7 +146,9 @@ export function ReviewDeck({ set, topic, doc, register }: {
   // typing in a field.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== " " || isTyping(e.target) || !frames.length) return;
+      // Only a bare space, not held, with nothing focused that takes text —
+      // and never with a modifier (Ctrl+Space, Alt+Space are the browser's).
+      if (e.key !== " " || e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target) || isTyping(document.activeElement) || !frames.length) return;
       e.preventDefault();
       const i = selIdx < 0 ? 0 : selIdx;
       const next = e.shiftKey ? Math.max(0, i - 1) : Math.min(frames.length - 1, i + 1);

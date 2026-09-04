@@ -40,7 +40,7 @@ import { BrandCursor } from "./BrandCursor";
 import { openPopoutWindow, PanelPopout } from "./PanelPopout";
 import { WorldBackground } from "./WorldBackground";
 import { WORLDS } from "./worlds";
-import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { Emph, HighlightContext, SEL_EMPH_CSS, readRangeIn, useTextHighlights } from "./text-highlights";
 import { renderInline } from "./inline-md";
 import { activeSlots, CARD_H, CARD_W, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf, resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
@@ -136,6 +136,18 @@ const LAYOUT_CARD = { prompt: "**LAYOUT** — the question card deals here", cho
 /** In the film popout the resize grips are HOVER-ONLY (like the real canvas film
  *  mode) — invisible on camera, but there when Lee reaches in to nudge a card. */
 export const PV_CSS = `
+/* THE NEON LABEL (Lee, 2026-09-03) — a detour card's kind name breathes like a
+   neon tube: a slow brightness swell with one quick flicker, in the kind's own
+   colour (--neon). Motion only under .film-mode, like the world backdrops. */
+@keyframes sa-neon {
+  0%, 100% { opacity: 1; text-shadow: 0 0 6px var(--neon), 0 0 18px color-mix(in srgb, var(--neon) 45%, transparent); }
+  46% { opacity: 0.88; text-shadow: 0 0 4px var(--neon), 0 0 10px color-mix(in srgb, var(--neon) 30%, transparent); }
+  49% { opacity: 1; text-shadow: 0 0 10px var(--neon), 0 0 28px color-mix(in srgb, var(--neon) 60%, transparent); }
+  52% { opacity: 0.8; text-shadow: 0 0 3px var(--neon), 0 0 8px color-mix(in srgb, var(--neon) 25%, transparent); }
+  55% { opacity: 1; text-shadow: 0 0 8px var(--neon), 0 0 22px color-mix(in srgb, var(--neon) 55%, transparent); }
+}
+.film-mode .sa-neon-label { animation: sa-neon 5.5s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .film-mode .sa-neon-label { animation: none; } }
 /* THE CEQ PIN (Lee, 09-01) — z-order between ReactFlow nodes belongs to the
    .react-flow__node WRAPPER, so a z-index on our inner counter-transform div
    cannot lift the question above an exhibit Lee has zoomed into. :has() reaches
@@ -3080,8 +3092,15 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                         <FilmInstanceBridge onReady={onFilmInstance} />
                       </ReactFlow>
                     </ReactFlowProvider>
-                    {/* No in-app film watermark for now (Lee) — the brand watermark will be
-                        added later in the actual HTML player, not baked into the take. */}
+                    {/* THE WATERMARK (Lee, 2026-09-03, filming vertical: "a bolt watermark
+                        somewhere would be great. Maybe Surv(bolt)e in top left? Watermark
+                        style, bolt is animated"). Reverses the 08-17 call to keep takes
+                        clean — vertical shorts have no HTML player around them, so the
+                        brand has to ride in the frame. Top-left, inside the Shorts safe
+                        zone, low opacity, never catches the pointer. */}
+                    <div aria-hidden style={{ position: "absolute", left: "4%", top: "3.2%", zIndex: 9, opacity: 0.62, pointerEvents: "none", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.6))" }}>
+                      <SurviveWordmark size={Math.max(18, Math.round((filmRootRef.current?.clientWidth ?? 540) * 0.052))} />
+                    </div>
                     {reveal && <BossReveal label={reveal.label} zone={reveal.zone} o={orientation()} />}
                     <FilmSlate />
                     {captureRef.current && filmWin && <CaptureBadge win={filmWin} note={captureNote} />}

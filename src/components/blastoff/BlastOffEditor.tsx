@@ -100,7 +100,9 @@ export function BlastOffEditor({ set, topicName, onCapture }: { set: BoothSetInf
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (e.key !== " " || !nFrames || (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable))) return;
+      const a = document.activeElement as HTMLElement | null;
+      const typing = (el: HTMLElement | null) => !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+      if (e.key !== " " || e.repeat || e.ctrlKey || e.metaKey || e.altKey || !nFrames || typing(t) || typing(a)) return;
       e.preventDefault();
       setAt((v) => (e.shiftKey ? Math.max(0, v - 1) : Math.min(nFrames - 1, v + 1)));
     };

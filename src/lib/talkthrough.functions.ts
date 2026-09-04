@@ -213,7 +213,13 @@ export const loadBoothBank = createServerFn({ method: "POST" }).handler(async ()
     if (!topics.has(tid)) topics.set(tid, { id: tid, name: ch?.chapter_name ?? "More", number: ch?.chapter_number ?? 9999, sets: [] });
     const cards = (o.nodes as { id: string; data?: CardData }[])
       .map((n) => ({ id: n.id, d: n.data ?? {} }))
-      .filter((c) => !c.d.bankArchived)
+      // FILM FRAMES ARE NOT BANK CARDS (Lee, 2026-09-03: "Are the Board of
+      // Directors… has shown up twice … We only want the named slots, not
+      // note frame duplicate"). Send-to-film writes the plan's detour and
+      // spine frames into the set as note nodes with provenance "blast-off";
+      // reading those back as set cards made the plan duplicate its own
+      // inserts. They belong to the plan, so the bank never lists them.
+      .filter((c) => !c.d.bankArchived && (c.d as { provenance?: string }).provenance !== "blast-off")
       .sort((a, b) => (a.d.stageOrder ?? 0) - (b.d.stageOrder ?? 0));
     const ceqs: BoothCeq[] = cards.map((c, i) => ({
       id: c.id,
