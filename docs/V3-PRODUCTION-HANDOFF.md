@@ -230,6 +230,40 @@ session (the build queue judged it too big — see docs/TWO-MACHINES.md).
   highlight on mouse-up) looks intact; retest after the preset and report
   which surface and what was clicked.
 
+**Fourth pass (Lee's notes after filming, later the same night):**
+- **Duplicates on Arrange**: send-to-film writes the plan's detour/spine
+  frames into the set as note nodes (`provenance: "blast-off"`); the bank
+  loader read them back as set cards and the plan re-added them. `loadBoothBank`
+  now skips provenance blast-off. Arrange: 14 frames + 3 skipped, no phantoms.
+- **"Memorize This AND Found on your exam"**: the sync writes
+  `showTopic: false` on detour callouts.
+- **The detour moment**: on the dark card the kind label is big, in its
+  colour, breathing like neon (`.sa-neon-label`, film only), with the boiling
+  bolt beside it; the title is the bold heading (no auto-highlight); a cheat
+  code's body is the first uniform line under it (`frameBullets`).
+- **Watermark**: `SurviveWordmark` top-left in the film popout wrapper.
+- **`__word__` / `____`** underline and blank in `renderInline`.
+- **THE V3 FILM SURFACE** (`sa-v3-film`, set by the handoff; "filming mode"
+  turned out to be the Pipeline cut room, which is the bloat Lee saw):
+  `CeqStudio` renders ONE bar — 🎯 Capture · ▶ Teleprompter · 9:16/16:9 ·
+  ⚙ Studio tools — and hides topbar, status strip, slim strip, spine,
+  pipeline and memo library by their `data-sa-panel` markers (never
+  unmounted). The previewer shows the vertical stack (`sa-view-overview` on).
+- **Teleprompter that follows the film**: `/v3/teleprompter?set=<deckId>`
+  loads the plan and shows the active frame's `prompter` lines; the Studio
+  publishes `sa-film-active` `{setId, qId, at}` on every frame change.
+- **Film popout interactivity**: the CEQ card carries `nodrag` in film so a
+  drag on it is a text selection, not a pan; **Shift+click** highlights the
+  word under the pointer (`wordRangeAtPoint`); plain click still selects /
+  resolves a choice; Ctrl+click spotlights; Alt+drag moves.
+- **Vertical card size**: with no saved spot a 9:16 frame deals the card at
+  1.3× (`VERTICAL_DEAL_SCALE`); a saved instance/template still wins.
+- Banked: alt-hover resize handles on any card; right-click "save this
+  position for future CEQs"; canvas v3 clusters/exhibits/publishing.
+- Verified in Lee's own Chrome (signed in, this PC): the handoff path opens
+  the Studio on the set; the film stack holds the four detour frames with neon
+  labels and the wordmark. NOT verified: the popout's gestures (a new window).
+
 ---
 
 ## Lee's open requests, in his priority order

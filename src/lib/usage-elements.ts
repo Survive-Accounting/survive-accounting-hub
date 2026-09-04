@@ -152,6 +152,11 @@ export const USAGE_ELEMENTS: Record<UsageSurface, UsageElement[]> = {
     { id: "studio-platform-shorts", label: "Platform guides: YT Shorts", panel: "studio-status-strip", region: "top" },
     { id: "studio-capture-launch", label: "Launch capture window (strip)", panel: "studio-status-strip", region: "top" },
 
+    // ---- THE V3 BAR (2026-09-03) — the bare film surface the Blast Off handoff opens
+    { id: "v3-capture", label: "v3: open capture window", panel: "v3-bar", region: "top" },
+    { id: "v3-teleprompter", label: "v3: open teleprompter (follows the frame)", panel: "v3-bar", region: "top" },
+    { id: "v3-studio-tools", label: "v3: bring the full Studio back", panel: "v3-bar", region: "top" },
+
     // ---- SET ACTION STRIP (above the spine)
     { id: "studio-slim-strip", label: "Set action strip", panel: "studio-slim-strip", region: "top" },
     { id: "studio-batch-takes", label: "Batch takes dropzone", panel: "studio-slim-strip", region: "top" },
@@ -245,6 +250,7 @@ export const PROTECTED_ELEMENTS: Record<UsageSurface, string[]> = {
     // The filming path itself is never a removal candidate on usage grounds: a
     // run uses each of these a handful of times and cannot happen without them.
     "film-row", "studio-capture-launch", "capture-window", "studio-takes",
+    "v3-capture", "v3-teleprompter", "v3-studio-tools",
     "studio-ready-to-film", "studio-mode-toggle", "spine-arm-uploads",
     // Publish is used once per set, at the end. Rare by design.
     "publish-blast", "publish-lookback", "publish-short",

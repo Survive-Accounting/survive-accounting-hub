@@ -342,6 +342,15 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  library, layout tools, tab strip) is simply not rendered. It writes NOTHING
    *  to any set — leaving it puts every surface back exactly as it was. */
   const [filming, setFilming] = useState<boolean>(() => localStorage.getItem("sa-filming-mode") === "1");
+  /** THE V3 FILM SURFACE (Lee, 2026-09-03, after his first send-to-film: "I want
+   *  to remove pretty much everything and we'll add settings back one by one.
+   *  Right now, all we need is a button to open capture, and teleprompter. Then
+   *  swimming around the canvas, seeing the vertical line of frames"). A view
+   *  switch like `filming`, not a fork: the Studio renders the previewer with
+   *  the frame stack and ONE bar — Capture · Teleprompter · 16:9/9:16 · Studio
+   *  tools — and hides the authoring and pipeline chrome by panel marker. The
+   *  Blast Off handoff sets it; "Studio tools" turns it off. */
+  const [v3, setV3] = useState<boolean>(() => localStorage.getItem("sa-v3-film") === "1");
   const [captureOpen, setCaptureOpen] = useState(false); // Q1: capture window is a pull-out modal, closed by default
   const [stageSel, setStageSel] = useState<string | null>(null); // Q1: selected timeline clip key
   // PIPELINE (P1): the navbar button seeds localStorage for a FRESH mount, but a
@@ -655,6 +664,14 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const isExp = (key: string, _dflt?: boolean) => outlineExp[key] ?? false;
   const toggleExp = (key: string, dflt?: boolean) => setPrefs({ setsOutline: { ...outlineExp, [key]: !isExp(key, dflt) } });
   const deck = cardDecks.find((d) => d.id === setId) ?? null;
+  // THE ACTIVE FRAME, published (2026-09-03): the v3 teleprompter window follows
+  // whatever frame is up — the film popout, the previewer and this Studio all
+  // share qId — so the lines Lee kept on the review deck appear beside the
+  // slide he is filming. localStorage, so a second window can read it.
+  useEffect(() => {
+    if (!deck) return;
+    try { localStorage.setItem("sa-film-active", JSON.stringify({ setId: deck.id, qId: qId && qId !== LAYOUT_Q0 ? qId : null, at: Date.now() })); } catch { /* cosmetic */ }
+  }, [deck, qId]);
   // Open set tabs resolved to live decks (stale session ids drop out silently).
   const tabDecks = useMemo(() => openTabs.map((id) => cardDecks.find((d) => d.id === id)).filter((d): d is DeckDef => !!d), [openTabs, cardDecks]);
   // An active set always has a visible tab chip (covers session-restore edge cases).
@@ -3341,6 +3358,32 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
       {/* TOP BAR — Videos · Topics (the editor) · Preview (the stitch) · Student
           (student-facing previews). Preview is a FIRST-CLASS tab so the editor
           and the video preview stop competing for the same center pane. */}
+      {v3 && (
+        <>
+          {/* THE V3 BAR — the only chrome. Everything else is hidden by its panel
+              marker (below), never unmounted, so Studio tools brings it all back. */}
+          <style>{`[data-sa-panel="studio-topbar"], [data-sa-panel="studio-status-strip"], [data-sa-panel="studio-slim-strip"], [data-sa-panel="studio-editor"], [data-sa-panel="spine"], [data-sa-panel="pipeline"], [data-sa-panel="memo-library"] { display: none !important; }`}</style>
+          <div data-sa-panel="v3-bar" className="flex shrink-0 items-center gap-2 border-b px-3 py-1.5" style={{ borderColor: NEON.borderSoft, background: "rgba(7,11,20,0.7)" }}>
+            <span className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: NEON.yellow }}>v3 · film</span>
+            <button className="rounded px-2.5 py-1 text-[10px] font-black uppercase tracking-wider" style={{ color: "#0B1322", background: "#3BF5A0" }} data-sa-el="v3-capture"
+              title="Open the capture window — the film popout, 1080×1920 for a vertical take"
+              onClick={() => window.dispatchEvent(new Event("sa-launch-capture"))}>🎯 Capture</button>
+            <button className="rounded px-2.5 py-1 text-[10px] font-black uppercase tracking-wider" style={{ color: "#0B1322", background: NEON.yellow }} data-sa-el="v3-teleprompter"
+              title="Open the teleprompter — the lines you kept on the Review step, following the slide that is up"
+              onClick={() => { if (deck) window.open(`/v3/teleprompter?set=${encodeURIComponent(deck.id)}`, "sa-teleprompter", "width=560,height=940"); }}>▶ Teleprompter</button>
+            <span className="ml-2 flex items-center gap-1">
+              {(["9:16", "16:9"] as const).map((o) => (
+                <button key={o} className="rounded px-2 py-1 text-[10px] font-bold" style={{ color: orient === o ? "#0B1322" : NEON.muted, background: orient === o ? NEON.cyan : "transparent", border: `1px solid ${NEON.borderSoft}` }}
+                  onClick={() => setOrientation(o)}>{o === "9:16" ? "▯ 9:16" : "▭ 16:9"}</button>
+              ))}
+            </span>
+            <span className="text-[9px]" style={{ color: NEON.muted }}>space next · shift+space back · ctrl+click spotlight · shift+click highlight a word · drag to highlight · alt+drag moves</span>
+            <button className="ml-auto rounded px-2 py-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} data-sa-el="v3-studio-tools"
+              title="Bring the full Studio back (authoring, pipeline, memo library)"
+              onClick={() => { setV3(false); localStorage.setItem("sa-v3-film", "0"); }}>⚙ Studio tools</button>
+          </div>
+        </>
+      )}
       <div data-sa-panel="studio-topbar" className="flex shrink-0 items-center gap-1 border-b px-3 py-1" style={{ borderColor: NEON.borderSoft }}>
         {/* STUDENT tab hidden (film-run fixes §6.2) — the "Student view · soon" pill in the
             canvas navbar is the future entry point. The tab's code stays wired; only the
@@ -4292,7 +4335,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   {!recording && !filming && renderPreviewer(false)}
                 </div>
                 {qd && !filming && (
-                  <div className="shrink-0 border-t" style={{ borderColor: NEON.borderSoft }}>
+                  <div data-sa-panel="studio-editor" className="shrink-0 border-t" style={{ borderColor: NEON.borderSoft }}>
                     <div className="flex items-center gap-1 px-2 py-1">
                       <button className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }} onClick={() => setEditorOpen((v) => !v)}>{editorOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} edit stem & choices</button>
                       {/* STAR / BOSS / CHA-CHING / SHORT moved to the transport row as icon

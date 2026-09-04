@@ -31,9 +31,19 @@ const SLOT_H = 150; // nominal chip height at scale 1 — the overflow stacking 
 
 export const CARD_W = 560, CARD_H = 480;
 
-export function dealCentre(fw: number, fh: number): { x: number; y: number } {
-  return { x: Math.max(0, Math.round((fw - CARD_W) / 2)), y: Math.max(0, Math.round((fh - CARD_H) / 2)) };
+export function dealCentre(fw: number, fh: number, scale = 1): { x: number; y: number } {
+  return { x: Math.max(0, Math.round((fw - CARD_W * scale) / 2)), y: Math.max(0, Math.round((fh - CARD_H * scale) / 2)) };
 }
+
+/** THE VERTICAL DEFAULT (Lee, 2026-09-03: "maybe we should increase the size
+ *  of the CEQ card? … it needs to just be fitting the vertical space better.
+ *  It's hard to see on a phone"). With no saved spot, a 9:16 frame deals the
+ *  card at 1.3× — 728 of 900 wide — instead of 560 on 900. A saved instance
+ *  or template still wins, so "apply placement to all" is untouched. */
+export const VERTICAL_DEAL_SCALE = 1.3;
+// A function declaration on purpose (tdz-graph ratchet: no module-scope arrow
+// callables on the render path).
+export function defaultCardScale(fw: number, fh: number): number { return fh > fw ? VERTICAL_DEAL_SCALE : 1; }
 
 /** THE SLOT PALETTE (Lee) — a set's baseline is a fixed rack of {@link PALETTE_N}
  *  slots running down the RIGHT side of the frame, evenly spaced and guaranteed not
@@ -82,7 +92,8 @@ export function templateFor<T>(ignoreLayout: boolean | undefined, template: T | 
 export function resolveCardSpot(instance: CeqInstanceGeom | undefined, template: DeckLayout | undefined, fw: number, fh: number): Spot {
   const s = instance?.card ?? template?.card;
   if (s) return { x: s.x, y: s.y, scale: s.scale ?? 1 };
-  return { ...dealCentre(fw, fh), scale: 1 };
+  const scale = defaultCardScale(fw, fh);
+  return { ...dealCentre(fw, fh, scale), scale };
 }
 
 /** Where THIS question's memo at FLAT chain index `i` sits.

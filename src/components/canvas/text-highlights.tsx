@@ -88,6 +88,35 @@ export function readRangeIn(el: HTMLElement | null): TextRange | null {
   return b > a ? { a, b } : null;
 }
 
+/** THE WORD UNDER THE POINTER (Lee, 2026-09-03: "maybe shift + click should
+ *  be highlight"). Finds the caret at (x, y) inside `el`, widens it to the
+ *  word around it, and returns that word as character offsets into `el`'s
+ *  text — the same shape a drag-select produces. Null off a word. */
+export function wordRangeAtPoint(el: HTMLElement | null, x: number, y: number): TextRange | null {
+  const doc = el?.ownerDocument;
+  if (!el || !doc) return null;
+  let node: Node | null = null;
+  let offset = 0;
+  const d = doc as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null; caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null };
+  if (d.caretRangeFromPoint) { const r = d.caretRangeFromPoint(x, y); if (r) { node = r.startContainer; offset = r.startOffset; } }
+  else if (d.caretPositionFromPoint) { const p = d.caretPositionFromPoint(x, y); if (p) { node = p.offsetNode; offset = p.offset; } }
+  if (!node || node.nodeType !== Node.TEXT_NODE || !el.contains(node)) return null;
+  const text = node.textContent ?? "";
+  const isWord = (ch: string) => /[\p{L}\p{N}'’$%.,-]/u.test(ch);
+  let a = Math.min(offset, text.length), b = a;
+  while (a > 0 && isWord(text[a - 1])) a--;
+  while (b < text.length && isWord(text[b])) b++;
+  // trim punctuation off the edges
+  while (a < b && /[.,'’-]/.test(text[a])) a++;
+  while (b > a && /[.,'’-]/.test(text[b - 1])) b--;
+  if (b <= a) return null;
+  const pre = doc.createRange();
+  pre.selectNodeContents(el);
+  pre.setEnd(node, a);
+  const start = pre.toString().length;
+  return { a: start, b: start + (b - a) };
+}
+
 /** Draw `text` with `range` emphasised. Out-of-bounds ranges (the stem was
  *  edited under a live highlight) fall back to plain text rather than slicing
  *  into nonsense. */

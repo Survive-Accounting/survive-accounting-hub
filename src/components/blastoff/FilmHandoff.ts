@@ -30,7 +30,11 @@ const OUTLINE_COLLAPSED_KEY = "sa-outline-collapsed";
  *  the bolt, all through the studio's own published preference keys. Every
  *  one of them is still a toggle in the studio; nothing here is a fork. */
 const V3_PRESET: Record<string, string> = {
-  "sa-filming-mode": "1",
+  // The bare v3 surface (Capture · Teleprompter · the frame stack), NOT the
+  // Pipeline cut room — that is what "filming mode" turned out to be.
+  "sa-v3-film": "1",
+  "sa-filming-mode": "0",
+  "sa-view-overview": "1",
   "sa-orientation": "9:16",
   "sa-fade-ms": "120",
   "sa-brand-cursor": "1",
