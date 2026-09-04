@@ -21,6 +21,8 @@ import { renderInline } from "@/components/canvas/inline-md";
 import { openFilmMode } from "./FilmHandoff";
 import { SetCard } from "./SetCard";
 import { BIO_CARD, bioCallout } from "./bio-card";
+import { BoltZoom } from "@/components/brand-cards/BoltZoom";
+import { V } from "./stage";
 import { SurviveIntro } from "./SurviveIntro";
 import { SurviveOutro } from "./SurviveOutro";
 import {
@@ -266,6 +268,9 @@ export function FrameView({ frame, set, scale, topicName, progress }: {
   // shell would be the same mistake the first Blast Off preview made.
   if (isStandard(frame.kind)) {
     const s = scale * 0.34; // a 1080-wide frame, sized to sit beside the list
+    // THE COLD OPEN (2026-09-03): the bolt zoom, ticker and wordmark — live
+    // here too, so Lee sees the motion on the review stage.
+    if (frame.kind === "open") return <BoltZoom w={Math.round(V.w * s)} h={Math.round(V.h * s)} mode="open" live />;
     if (frame.kind === "intro") return <SurviveIntro topic={frame.text?.trim() || set.name} scale={s} />;
     // THE TUTOR CARD (2026-09-03): the bio in the detour format, a bit bigger.
     if (frame.kind === "bio") return <SetCard id={frame.id} stem={BIO_CARD.title} scale={scale * BIO_CARD.scale} callout={bioCallout() as Record<string, unknown>} />;

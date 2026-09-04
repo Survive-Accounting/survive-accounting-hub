@@ -32,7 +32,7 @@ import { z } from "zod";
 
 import { BIO_CARD, bioCallout } from "@/components/blastoff/bio-card";
 import { verticalCardSpot } from "@/components/blastoff/film-spot";
-import { BLAST_FRAME_KINDS, INSERT_CALLOUT, insertStem } from "@/components/blastoff/plan";
+import { BLAST_FRAME_KINDS, INSERT_CALLOUT, backdropFor, insertStem } from "@/components/blastoff/plan";
 import { blankCard } from "@/components/canvas/templates";
 
 const admin = async () => {
@@ -52,6 +52,7 @@ const frameIn = z.object({
   skipped: z.boolean().optional(),
   prompter: z.array(z.string().max(600)).max(40).optional(),
   bullets: z.array(z.string().max(300)).max(12).optional(),
+  backdrop: z.enum(["zoom", "off"]).optional(),
 });
 type FrameIn = z.infer<typeof frameIn>;
 
@@ -62,6 +63,7 @@ type FrameIn = z.infer<typeof frameIn>;
  *  content is the vertical frame staged on them — so for those this is only the
  *  label Lee reads in the spine. */
 function promptFor(f: FrameIn, setName = ""): string {
+  if (f.kind === "open") return "Survive — cold open";
   if (f.kind === "intro") return f.text?.trim() || setName;
   if (f.kind === "bio") return BIO_CARD.title;
   if (f.kind === "outro") return f.text?.trim() || "Cram what's on your exam.";
@@ -104,6 +106,7 @@ export interface StageSpec { kind: string; w: number; h: number }
  *  capture). The bio is its own frame so the slot can later be re-cut as the
  *  chapter ask or the rep ask without reshooting the sign-off. */
 export const STANDARD_STAGE: Record<string, StageSpec> = {
+  open: { kind: "blastopen", w: 540, h: 960 },
   intro: { kind: "blastintro", w: 540, h: 960 },
   bio: { kind: "blastbio", w: 540, h: 960 },
   outro: { kind: "blastoutro", w: 540, h: 960 },
@@ -196,8 +199,15 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
     const planned = new Set<string>();   // frame nodes the plan accounts for
     const stagedEls = new Set<string>(); // element nodes staged onto those frames
 
+    // THE BACKDROP RULE, resolved against the set: which frames keep the bolt
+    // zoom running (quietly behind the intro, inside the wordmark on the
+    // opening summary) — see backdropFor in blastoff/plan.ts.
+    const noteOnlyOf = (ceqId: string): boolean => !!(j.nodes!.find((n) => n.id === ceqId)?.data as { noteOnly?: boolean } | undefined)?.noteOnly;
+
     data.frames.forEach((f, i) => {
       const stageOrder = orderAt(i);
+      const bd = backdropFor(data.frames, i, noteOnlyOf);
+      const filmBackdrop = bd === "backdrop" || bd === "knockout" ? bd : undefined;
 
       // A card the set already owns: renumber it in place. Its content, its
       // choices, its layout and its authoring history are none of our business.
@@ -210,6 +220,7 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
         node.data.stageOrder = stageOrder;
         node.data.slotIndex = stageOrder;
         if (f.skipped) node.data.filmSkip = true; else delete node.data.filmSkip;
+        if (filmBackdrop) node.data.filmBackdrop = filmBackdrop; else delete node.data.filmBackdrop;
         // THE VERTICAL SPOT (2026-09-03): every card of the rip sits centred on
         // the 9:16 frame, dealt big — replacing any spot saved in a landscape
         // session. Landscape geometry (data.geom) is left alone.
@@ -259,6 +270,7 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
         ...(f.kind === "bio" ? { cardW: BIO_CARD.cardW } : {}),
         // Centred on the vertical frame, like every other card of the rip.
         geomV: { card: verticalCardSpot(f.kind === "bio" ? BIO_CARD.cardW : undefined) },
+        ...(filmBackdrop ? { filmBackdrop } : {}),
         deckId: data.setId,
         deckMember: true,
         tucked: true,

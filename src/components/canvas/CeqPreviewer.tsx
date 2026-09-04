@@ -41,6 +41,7 @@ import { openPopoutWindow, PanelPopout } from "./PanelPopout";
 import { WorldBackground } from "./WorldBackground";
 import { WORLDS } from "./worlds";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
+import { BoltZoom } from "@/components/brand-cards/BoltZoom";
 import { Emph, HighlightContext, SEL_EMPH_CSS, readRangeIn, useTextHighlights, wordRangeAtPoint } from "./text-highlights";
 import { renderInline } from "./inline-md";
 import { activeSlots, CARD_H, CARD_W, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf, resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
@@ -509,8 +510,13 @@ function PlatformGuides({ w, h, platform }: { w: number; h: number; platform: Ve
 
 function FrameBgNode({ id, data }: NodeProps) {
   const film = useContext(FilmContext);
-  const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number; qNum?: number; guides?: boolean; platform?: VerticalPlatform; platformGuides?: boolean };
-  const world = d.world ? <WorldBackground worldId={d.world} intensity={d.worldIntensity} motion={d.worldMotion} /> : null;
+  const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number; qNum?: number; guides?: boolean; platform?: VerticalPlatform; platformGuides?: boolean; backdrop?: "backdrop" | "knockout" };
+  // THE BOLT ZOOM BACKDROP (2026-09-03): when the plan's rule put it on this
+  // frame, it replaces the world — black stage, the zoom behind the intro or
+  // inside the wordmark on the opening summary. Film only.
+  const world = film && d.backdrop
+    ? <BoltZoom w={d.w} h={d.h} mode={d.backdrop} live style={{ position: "absolute", inset: 0 }} />
+    : d.world ? <WorldBackground worldId={d.world} intensity={d.worldIntensity} motion={d.worldMotion} /> : null;
   // FILM: clean stage + a soft cinematic EDGE GLOW (like the canvas film frame) —
   // a faint outer bloom into the letterbox + an inner vignette over the world. The
   // brand watermark lives in the popout wrapper ABOVE this, so it stays crisp.
@@ -1702,7 +1708,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // frame refreshes" flash. With a matching id the node is identical before and
     // after the seed, so it never remounts. Outside the stack (authoring, no
     // popout) there are no stand-ins, so the shared id stays.
-    const frameNode = { id: filmStack ? `fbg:${ceqId}` : "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum, guides: recording ? false : guidesOn, platform: vplatform, platformGuides: !recording && platformGuides && frameW < frameH }, draggable: false, selectable: false, zIndex: -10 };
+    const frameNode = { id: filmStack ? `fbg:${ceqId}` : "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum, guides: recording ? false : guidesOn, platform: vplatform, platformGuides: !recording && platformGuides && frameW < frameH, backdrop: cd?.filmBackdrop }, draggable: false, selectable: false, zIndex: -10 };
     // STUDENT OVERLAY (Lee) — filmed on the card, one toggle (showProgress):
     //   "X of Y" over the deck order + a fill bar, and the TOPIC name kicker
     //   (name only, no chapter number — Lee's call). Never on the Q0 stage.
@@ -2516,7 +2522,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       const od = mainRf.getNode(qid)?.data as unknown as CeqCard | undefined;
       if (!od) return;
       const y = k * stackSlotH;
-      out.push({ id: `fbg:${qid}`, type: "frameBg", position: { x: 0, y }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum: k + 1, guides: false }, draggable: false, selectable: false, zIndex: -10 } as Node);
+      out.push({ id: `fbg:${qid}`, type: "frameBg", position: { x: 0, y }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum: k + 1, guides: false, backdrop: od.filmBackdrop }, draggable: false, selectable: false, zIndex: -10 } as Node);
       // Mirror the live ceqNode's data EXACTLY (same spot resolution, same student
       // overlay) so the activation flip changes practice/animation state only —
       // identical pixels means an invisible handover.

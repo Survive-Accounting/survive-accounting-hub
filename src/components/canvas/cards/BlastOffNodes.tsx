@@ -12,11 +12,12 @@ import type { NodeProps } from "@xyflow/react";
 import { CheatCodeFrame, PhraseFrame, TipFrame } from "@/components/blastoff/ContentFrames";
 import { FoundOnYourExam } from "@/components/blastoff/FoundOnYourExam";
 import { SurviveIntro } from "@/components/blastoff/SurviveIntro";
+import { BoltZoom } from "@/components/brand-cards/BoltZoom";
 import { SurviveBio } from "@/components/blastoff/SurviveBio";
 import { SurviveOutro } from "@/components/blastoff/SurviveOutro";
 import { V } from "@/components/blastoff/stage";
 import type {
-  BlastBioElement, BlastCheatElement, BlastFoyeElement, BlastIntroElement, BlastOutroElement,
+  BlastBioElement, BlastCheatElement, BlastFoyeElement, BlastIntroElement, BlastOpenElement, BlastOutroElement,
   BlastPhraseElement, BlastTipElement,
 } from "../types";
 import { NEON } from "../theme";
@@ -61,6 +62,24 @@ const KeyBtn = ({ on, onClick }: { on?: boolean; onClick: () => void }) => (
     onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onClick(); }}
     title="Transparent background for OBS keying (else navy)">{on ? "keyed" : "navy"}</button>
 );
+
+/** THE COLD OPEN (2026-09-03) — the bolt zoom, ticker and wordmark, as a frame
+ *  element. Nothing to type: it is the same for every rip by design. */
+export function BlastOpenNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as BlastOpenElement;
+  const { update } = useCardActions(id);
+  const w = d.w ?? 540, h = d.h ?? 960;
+  return (
+    <BlastShell id={id} w={w} h={h} posLock={d.posLock} selected={selected}
+      toolbar={<>
+        <span className="text-[9px] font-bold uppercase" style={{ color: NEON.muted }}>psych</span>
+        <input type="range" min={0} max={1} step={0.05} value={d.psych ?? 0.1} className="nodrag" style={{ width: 90 }}
+          onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ psych: Number(e.target.value) })} title="0 = brand colours at rest · 1 = full trip" />
+      </>}>
+      <BoltZoom w={w} h={h} mode="open" psych={d.psych ?? 0.1} live />
+    </BlastShell>
+  );
+}
 
 export function BlastIntroNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as BlastIntroElement;

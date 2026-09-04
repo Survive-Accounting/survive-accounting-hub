@@ -43,6 +43,7 @@ export type CardKind =
   | "shareinvite"
   // BLAST OFF vertical frames (Lee, 2026-08-30) — the 9:16 cards every Blast
   // Off opens, punctuates and closes with. Rendered by components/blastoff/.
+  | "blastopen"
   | "blastintro"
   | "blastbio"
   | "blastfoye"
@@ -60,6 +61,7 @@ export type CardKind =
 export type NodeCategory = "card" | "element" | "bridge";
 
 export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
+  blastopen: "element",
   blastintro: "element",
   blastbio: "element",
   blastfoye: "element",
@@ -440,6 +442,10 @@ export interface CeqCard extends CardBase {
    *  question counter ("Q 14/29" skips notes), practice entry, and readiness checks.
    *  Same card system as CEQ frames so film mode + the player timeline show it. */
   noteOnly?: boolean;
+  /** THE BACKDROP (Blast Off, 2026-09-03): the bolt zoom runs behind this
+   *  frame in film — "backdrop" = quiet layers, "knockout" = inside the white
+   *  wordmark. Written by send-to-film from the plan's rule; absent = none. */
+  filmBackdrop?: "backdrop" | "knockout";
   /** NON-CEQ FRAME MODE (Lee, 08-15): what this non-CEQ frame is FOR — a note
    *  (tips/headspace), an intro (setting up the CEQ), or an outro (the end
    *  card). Purely a starting point + a label: every element on any frame is
@@ -821,6 +827,14 @@ export interface LogoElement extends CardBase {
 //      with phrase / cheat-code / tip frames dropped in between as needed.
 //      These carry CONTENT ONLY; the look lives in components/blastoff/ so a
 //      phrase always looks like a phrase, in every video, forever.
+/** THE COLD OPEN (2026-09-03): the bolt zoom with the ticker and the wordmark
+ *  firm — the 9:16 frame every Blast Off opens on now, before the intro. */
+export interface BlastOpenElement extends CardBase {
+  kind: "blastopen";
+  /** 0 = brand colours at rest, 1 = full trip. Lee: 0.1. */
+  psych?: number;
+  transparent?: boolean;
+}
 export interface BlastIntroElement extends CardBase {
   kind: "blastintro";
   /** The set name Lee is about to blast off on. */
@@ -1065,6 +1079,7 @@ export interface ListCard extends CardBase {
 }
 
 export type CardData =
+  | BlastOpenElement
   | BlastIntroElement
   | BlastBioElement
   | BlastFoyeElement

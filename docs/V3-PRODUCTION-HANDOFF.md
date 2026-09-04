@@ -304,6 +304,31 @@ session (the build queue judged it too big — see docs/TWO-MACHINES.md).
   `verticalCardSpot()` (`blastoff/film-spot.ts`, tested): centred, 1.3×,
   centre at 46% of the frame's height. Landscape `data.geom` is untouched.
   **Send to film again after this deploy** for the set to pick it up.
+- **THE COLD OPEN + BACKDROP** (Lee, 2026-09-03 night: "an infinite zoom of
+  the bolt … campus + course codes scrolling like a stock ticker … Survive
+  white wordmark FIRM in the middle … 'Cram what's on your exam' … run for a
+  cold open, then keep going until the opening summary slide, then cut out …
+  INVERSE the white so the animation is going over just the Survive"):
+  - `brand-cards/BoltZoom.tsx` (+ `bolt-zoom.ts`, tested): seven boiling
+    bolts at geometric scales (1.6×, 7 s period) mirrored bottom-left→top-right,
+    brand colours cycling with a gentle hue drift (psych 0.1 ≈ ±12°), the
+    Power Four ticker (SEC first) from `GENERATED_SCHOOLS`, the wordmark firm
+    with the tagline. Modes: `open` (full), `backdrop` (layers only, quiet),
+    `knockout` (black stage, white wordmark, layers multiplied → motion inside
+    the letters). `progress` pins a frame for an offline renderer; `live`
+    false freezes it.
+  - New frame kind **`open`** leads the standard spine (generatePlan /
+    reconcilePlan guarantee it); canvas element **`blastopen`** registered
+    everywhere `blastintro` is; `STANDARD_STAGE.open` stages it on send.
+  - **The rule** `backdropFor(frames, i, isNoteOnly)`: open → `open`; every
+    frame after it through the FIRST summary card → `backdrop` (intro) /
+    `knockout` (summary); then nothing. `frame.backdrop` "zoom" | "off"
+    overrides (the **✨ backdrop · auto/on/off** chip on the review deck).
+    Send-to-film writes `data.filmBackdrop` on the planned nodes; the film
+    frame (`FrameBgNode`) draws BoltZoom instead of the world when set.
+  - Verified on the review stage. Film side: tsc + code. Re-send to film to
+    get the open frame and the backdrops into the set. Remotion MP4 render of
+    the open is the next step (separate folder, never in the web build).
 - **Detour cards are full card width** (same pass): callouts were fit-content
   with a 320 floor, so a detour drew at about half a set card's width. Dark
   detour cards now floor at `cardW ?? CARD_W` and cap at the same, so every

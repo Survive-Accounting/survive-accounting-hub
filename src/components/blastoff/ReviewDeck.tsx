@@ -34,9 +34,10 @@ import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, FrameView, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
 import {
-  FRAME_LABEL, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, patchFrame, toggleSkip,
-  type BlastFrame, type BlastFrameKind,
+  FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, patchFrame, toggleSkip,
+  type BackdropMode, type BlastFrame, type BlastFrameKind,
 } from "./plan";
+import { BoltZoom } from "@/components/brand-cards/BoltZoom";
 import {
   PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups, readTidy, setStampCandidates, tidyCacheKey, writeTidy,
   type PrompterCandidate, type TidyPhrase, type TidyResult,
@@ -176,6 +177,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
 
   const snippet = (f: BlastFrame): string => {
     const ceq = f.ceqId ? ceqById.get(f.ceqId) : undefined;
+    if (f.kind === "open") return "Bolt zoom · Power Four ticker · wordmark firm";
     if (f.kind === "intro") return f.text?.trim() || set.name;
     if (f.kind === "bio") return "Lee Ingram · BAccy · MAccy — Ole Miss";
     if (f.kind === "outro") return f.text?.trim() || "Cram what's on your exam.";
@@ -245,6 +247,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
         {sel && (
           <SlidePane key={sel.id} sel={sel} idx={selIdx} count={frames.length} label={labelOf(sel)} viewSet={viewSet} set={set} topic={topic}
             progress={progress.get(sel.id)} ceq={sel.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined}
+            backdrop={backdropFor(frames, selIdx, (id) => !!ceqById.get(id)?.noteOnly)}
             onMove={(d) => commit(moveFrame(frames, selIdx, selIdx + d))}
             onDuplicate={() => { const next = duplicateFrame(frames, sel.id); commit(next); setSelId(next[selIdx + 1]?.id ?? sel.id); }}
             onSkip={() => commit(toggleSkip(frames, sel.id))}
@@ -271,9 +274,11 @@ const slideText = (f: BlastFrame, byId: Map<string, BoothCeq>): string => {
 
 // ------------------------------------------------------ the middle column
 
-function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq, onMove, onDuplicate, onSkip, onDrop, onPatch, onSaved }: {
+function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq, backdrop, onMove, onDuplicate, onSkip, onDrop, onPatch, onSaved }: {
   sel: BlastFrame; idx: number; count: number; label: string; viewSet: BoothSetInfo; set: BoothSetInfo; topic: BoothTopic;
   progress?: { x: number; y: number }; ceq?: BoothCeq;
+  /** The bolt-zoom backdrop the rule (or the override) gives this slide. */
+  backdrop: BackdropMode | null;
   onMove: (d: -1 | 1) => void; onDuplicate: () => void; onSkip: () => void; onDrop: () => void;
   onPatch: (p: Partial<BlastFrame>) => void; onSaved: (d: CeqDraft) => void;
 }) {
@@ -288,6 +293,14 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
         <span style={{ fontSize: 11.5, color: MUTED }}>{label}{sel.skipped ? " · skipped" : ""}</span>
         <span style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
           <button style={chip(phone, SKY)} title="Show the slide on a 9:16 phone stage" onClick={() => setPhone((v) => !v)}>📱 phone</button>
+          {sel.kind !== "open" && (
+            // THE BACKDROP TOGGLE (Lee: "let me toggle any slide I want it to be
+            // running"). auto = the rule (cold open → intro → opening summary).
+            <button style={chip(!!backdrop, ORANGE)} title="The bolt-zoom backdrop on this slide: auto (the rule) → on → off"
+              onClick={() => onPatch({ backdrop: sel.backdrop === undefined ? "zoom" : sel.backdrop === "zoom" ? "off" : undefined })}>
+              ✨ backdrop · {sel.backdrop ?? "auto"}{backdrop ? ` (${backdrop})` : ""}
+            </button>
+          )}
           {phone && <button style={chip(safe, SKY)} title="Shade the zones TikTok and Shorts paint their own UI over" onClick={() => setSafe((v) => !v)}>safe zones</button>}
           <button style={tiny} title="Move up" onClick={() => onMove(-1)}>↑</button>
           <button style={tiny} title="Move down" onClick={() => onMove(1)}>↓</button>
@@ -301,7 +314,7 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
       </div>
 
       {phone ? (
-        <PhoneStage frame={sel} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} />
+        <PhoneStage frame={sel} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} backdrop={backdrop === "backdrop" || backdrop === "knockout" ? backdrop : null} />
       ) : (
         <div style={{ border: `1px solid ${EDGE}`, borderRadius: 10, overflow: "hidden", display: "inline-block", maxWidth: "100%", opacity: sel.skipped ? 0.5 : 1 }}>
           <FrameView frame={sel} set={viewSet} scale={0.78} topicName={topic.name} progress={progress} />
@@ -343,8 +356,9 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
 }
 
 /** 9:16, black, the slide centred — what a phone cramming student sees. */
-function PhoneStage({ frame, set, topicName, progress, safe, dim }: {
+function PhoneStage({ frame, set, topicName, progress, safe, dim, backdrop }: {
   frame: BlastFrame; set: BoothSetInfo; topicName: string; progress?: { x: number; y: number }; safe: boolean; dim: boolean;
+  backdrop: "backdrop" | "knockout" | null;
 }) {
   // The standard spine renders as a 1080-wide vertical frame at scale*0.34;
   // a card is the canvas's 560-wide card. Both are sized to the stage width.
@@ -355,7 +369,8 @@ function PhoneStage({ frame, set, topicName, progress, safe, dim }: {
   const tag: React.CSSProperties = { position: "absolute", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(125,211,252,0.7)", fontWeight: 800 };
   return (
     <div style={{ width: STAGE_W, height: STAGE_H, background: "#000", borderRadius: 22, border: `1px solid ${EDGE}`, position: "relative", overflow: "hidden", display: "grid", placeItems: "center", opacity: dim ? 0.5 : 1 }}>
-      <div style={{ display: "grid", placeItems: "center" }}>
+      {backdrop && <BoltZoom w={STAGE_W} h={STAGE_H} mode={backdrop} live style={{ position: "absolute", inset: 0 }} />}
+      <div style={{ display: "grid", placeItems: "center", position: "relative" }}>
         <FrameView frame={frame} set={set} scale={scale} topicName={topicName} progress={progress} />
       </div>
       {safe && (

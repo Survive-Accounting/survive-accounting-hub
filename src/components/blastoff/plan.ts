@@ -21,7 +21,7 @@
  *  derived from this rather than retyped — the spine kinds were once added to
  *  the type and not the schema, and every set with a real spine failed to load. */
 export const BLAST_FRAME_KINDS = [
-  "intro", "bio", "outro",                                 // the standard spine
+  "open", "intro", "bio", "outro",                         // the standard spine ("open" = the cold open, 2026-09-03)
   "ceq",                                                   // a card the set owns
   "phrase", "cheat", "tip", "exhibit", "blank",            // what Lee inserts
 ] as const;
@@ -52,6 +52,9 @@ export interface BlastFrame {
    *  Users / Management / Budgets, costs, forecasts…"). The main phrase is
    *  highlighted; these sit under it. Empty lines are ignored at render. */
   bullets?: string[];
+  /** THE BACKDROP (Lee, 2026-09-03): the bolt-zoom behind this slide. Absent =
+   *  the default rule (backdropFor); "zoom" forces it on, "off" forces it off. */
+  backdrop?: "zoom" | "off";
   /** THE TELEPROMPTER COLUMN (Lee, 2026-09-03: "a third slide to the right
    *  of the current one … the teleprompter … THESE SUGGESTED PHRASES ARE
    *  ME"). The lines Lee kept for this slide — his own transcript words,
@@ -82,7 +85,7 @@ export const isInsert = (k: BlastFrameKind): boolean => INSERT_KINDS.includes(k)
  *  choice. The bio slot is deliberately its own frame rather than part of the
  *  outro: same position every video means it can later hold the chapter ask or
  *  the rep ask instead, filmed once and dropped in at the edit. */
-export const STANDARD_KINDS = ["intro", "bio", "outro"] as const;
+export const STANDARD_KINDS = ["open", "intro", "bio", "outro"] as const;
 export type StandardKind = (typeof STANDARD_KINDS)[number];
 
 export const isStandard = (k: BlastFrameKind): k is StandardKind =>
@@ -100,6 +103,7 @@ export const INSERT_CALLOUT: Partial<Record<BlastFrameKind, string>> = {
 };
 
 export const FRAME_LABEL: Record<BlastFrameKind, string> = {
+  open: "Cold open",
   intro: "Intro",
   bio: "Bio slot",
   outro: "Outro",
@@ -128,6 +132,7 @@ const filmable = (ceqs: readonly PlanCeq[]): PlanCeq[] => ceqs.filter((c) => !c.
 export function generatePlan(ceqs: readonly PlanCeq[], now = new Date()): BlastPlan {
   return {
     frames: [
+      { id: newFrameId("open"), kind: "open" as const },
       { id: newFrameId("intro"), kind: "intro" as const },
       ...filmable(ceqs).map((c) => ({ id: newFrameId("ceq"), kind: "ceq" as const, ceqId: c.id })),
       { id: newFrameId("bio"), kind: "bio" as const },
@@ -172,6 +177,8 @@ export function reconcilePlan(plan: BlastPlan | null | undefined, ceqs: readonly
   // intro leading, the bio and sign-off closing. One that Lee already moved is
   // left exactly where he put it.
   if (!frames.some((f) => f.kind === "intro")) frames.unshift({ id: newFrameId("intro"), kind: "intro" });
+  // THE COLD OPEN (2026-09-03) leads everything — a plan from before it gets it.
+  if (!frames.some((f) => f.kind === "open")) frames.unshift({ id: newFrameId("open"), kind: "open" });
   if (!frames.some((f) => f.kind === "bio")) frames.push({ id: newFrameId("bio"), kind: "bio" });
   if (!frames.some((f) => f.kind === "outro")) frames.push({ id: newFrameId("outro"), kind: "outro" });
 
@@ -251,6 +258,34 @@ export function insertStem(f: BlastFrame): string {
   if (f.kind === "cheat") return f.title?.trim() ?? "";
   if (f.kind === "exhibit") return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
   return f.text?.trim() ?? "";
+}
+
+/** THE BACKDROP RULE (Lee, 2026-09-03): "have it run for a cold open, and then
+ *  it keeps going until the opening summary slide, then cuts out at the next
+ *  move forward … then we FOCUS up." So: the cold open frame is the animation
+ *  itself; every frame after it up to and including the FIRST summary card
+ *  (the set's first note-only card) keeps it running — quietly behind the
+ *  intro, inside the white wordmark on the summary — and the next frame is
+ *  clean. A frame's own `backdrop` ("zoom" | "off") overrides the rule. */
+export type BackdropMode = "open" | "backdrop" | "knockout";
+export function backdropFor(frames: readonly BlastFrame[], index: number, isNoteOnly: (ceqId: string) => boolean): BackdropMode | null {
+  const f = frames[index];
+  if (!f) return null;
+  if (f.kind === "open") return "open";
+  const summary = f.kind === "ceq" && !!f.ceqId && isNoteOnly(f.ceqId);
+  if (f.backdrop === "off") return null;
+  if (f.backdrop === "zoom") return summary ? "knockout" : "backdrop";
+  const openAt = frames.findIndex((x) => x.kind === "open" && !x.skipped);
+  if (openAt < 0 || index < openAt) return null;
+  // Everything between the open and the first summary card, inclusive.
+  for (let i = openAt + 1; i < frames.length; i++) {
+    const x = frames[i];
+    if (x.skipped) continue;
+    const isSummary = x.kind === "ceq" && !!x.ceqId && isNoteOnly(x.ceqId);
+    if (i === index) return isSummary ? "knockout" : "backdrop";
+    if (isSummary) return null;               // the summary came earlier — we are past the focus point
+  }
+  return null;
 }
 
 /** The lines under the heading, uniform for all three kinds: a cheat code's

@@ -77,7 +77,7 @@ describe("generatePlan", () => {
 
   test("every plan opens and closes with the standard spine", () => {
     const k = kinds(generatePlan(SET));
-    expect(k[0]).toBe("intro");
+    expect(k.slice(0, 2)).toEqual(["open", "intro"]);   // the cold open leads (2026-09-03), then the intro
     expect(k.slice(-2)).toEqual(["bio", "outro"]);
   });
 
@@ -114,7 +114,7 @@ describe("reconcilePlan", () => {
     const old = stored([{ id: "f1", kind: "ceq", ceqId: "ceq-a" }]);
     const k = kinds(reconcilePlan(old, SET));
     for (const std of STANDARD_KINDS) expect(k, std).toContain(std);
-    expect(k[0]).toBe("intro");
+    expect(k.slice(0, 2)).toEqual(["open", "intro"]);   // the cold open leads (2026-09-03), then the intro
     expect(k.slice(-2)).toEqual(["bio", "outro"]);
   });
 
@@ -130,7 +130,9 @@ describe("reconcilePlan", () => {
       { id: "f5", kind: "bio" },
       { id: "f6", kind: "outro" },
     ]);
-    expect(kinds(reconcilePlan(mine, SET))[1]).toBe("intro");
+    // The cold open is restored at the front (index 0); Lee's moved intro
+    // stays exactly where he put it — after the summary card, so index 2.
+    expect(kinds(reconcilePlan(mine, SET)).slice(0, 3)).toEqual(["open", "ceq", "intro"]);
   });
 
   test("Lee's inserts and his order survive untouched", () => {
@@ -291,5 +293,41 @@ describe("the review step: skip, duplicate, patch — the set is never touched",
     expect(next.find((f) => f.id === ceqFrame.id)?.prompter).toEqual(["a", "b"]);
     expect(next.filter((f) => f.id !== ceqFrame.id)).toEqual(plan.frames.filter((f) => f.id !== ceqFrame.id));
     expect(patchFrame(plan.frames, "nope", { text: "x" })).toEqual(plan.frames);
+  });
+});
+
+// ---- THE BACKDROP RULE (2026-09-03) ----------------------------------------
+import { backdropFor } from "./plan";
+
+describe("backdropFor — the cold open, then quietly through the opening summary, then focus", () => {
+  const isNote = (id: string) => id === "ceq-intro" || id === "ceq-outro";
+  const frames: BlastFrame[] = [
+    { id: "o", kind: "open" },
+    { id: "i", kind: "intro" },
+    { id: "s", kind: "ceq", ceqId: "ceq-intro" },   // the opening summary
+    { id: "q", kind: "ceq", ceqId: "ceq-a" },
+    { id: "c", kind: "cheat", title: "rule" },
+    { id: "e", kind: "ceq", ceqId: "ceq-outro" },   // the closing summary — NOT the focus point again
+    { id: "b", kind: "bio" },
+    { id: "x", kind: "outro" },
+  ];
+  test("open → backdrop behind the intro → knockout on the opening summary → nothing after", () => {
+    expect(frames.map((_, i) => backdropFor(frames, i, isNote))).toEqual(["open", "backdrop", "knockout", null, null, null, null, null]);
+  });
+  test("a frame's own override wins: off on the intro, zoom on a later cheat code", () => {
+    const mine = frames.map((f) => (f.id === "i" ? { ...f, backdrop: "off" as const } : f.id === "c" ? { ...f, backdrop: "zoom" as const } : f));
+    expect(backdropFor(mine, 1, isNote)).toBeNull();
+    expect(backdropFor(mine, 4, isNote)).toBe("backdrop");
+    // zoom on the closing summary is a knockout, because it is a summary card
+    const late = frames.map((f) => (f.id === "e" ? { ...f, backdrop: "zoom" as const } : f));
+    expect(backdropFor(late, 5, isNote)).toBe("knockout");
+  });
+  test("no cold open in the plan → nothing runs by default", () => {
+    const noOpen = frames.filter((f) => f.kind !== "open");
+    expect(noOpen.map((_, i) => backdropFor(noOpen, i, isNote)).every((b) => b === null)).toBe(true);
+  });
+  test("a skipped intro is walked past: the summary still knocks out", () => {
+    const skipped = frames.map((f) => (f.id === "i" ? { ...f, skipped: true } : f));
+    expect(backdropFor(skipped, 2, isNote)).toBe("knockout");
   });
 });

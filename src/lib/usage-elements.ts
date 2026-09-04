@@ -75,6 +75,7 @@ const NODE_KINDS: { kind: string; label: string }[] = [
   { kind: "careers", label: "Exhibit: Accounting Careers" },
   { kind: "classification", label: "Exhibit: 5 Types of Accounts" },
   // Blast Off frames (registered 08-30 by the frames session; kinds from types.ts)
+  { kind: "blastopen", label: "Blast Off: cold open" },
   { kind: "blastintro", label: "Blast Off: intro" },
   { kind: "blastfoye", label: "Blast Off: found on your exam" },
   { kind: "blastphrase", label: "Blast Off: phrase" },

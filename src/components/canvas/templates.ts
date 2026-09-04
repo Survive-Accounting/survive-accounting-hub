@@ -95,6 +95,8 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       };
     // BLAST OFF frames: 9:16, authored at half capture size (540x960) so the
     // whole frame fits on screen without distorting the aspect.
+    case "blastopen":
+      return { kind: "blastopen", psych: 0.1, w: 540, h: 960 };
     case "blastintro":
       return { kind: "blastintro", topic: "", tutor: "Lee Ingram", w: 540, h: 960 };
     case "blastfoye":
@@ -282,6 +284,7 @@ export function scheduleTemplate(preset: SchedulePreset): CardData {
 }
 
 export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
+  blastopen: "Blast Off cold open",
   blastintro: "Blast Off intro",
   blastbio: "Blast Off bio",
   blastfoye: "Found on your exam",

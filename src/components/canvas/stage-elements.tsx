@@ -6,7 +6,7 @@
 // study_.canvas.tsx) were wired to the v1 toolbar, which v2 chrome hides — that's
 // why the palette "disappeared". They live here now, merged, grouped, and sorted
 // alphabetically inside each group.
-import { BlastBioNode, BlastCheatNode, BlastFoyeNode, BlastIntroNode, BlastOutroNode, BlastPhraseNode, BlastTipNode } from "./cards/BlastOffNodes";
+import { BlastBioNode, BlastCheatNode, BlastFoyeNode, BlastIntroNode, BlastOpenNode, BlastOutroNode, BlastPhraseNode, BlastTipNode } from "./cards/BlastOffNodes";
 import { blankCard, formulaAle, scheduleTemplate } from "./templates";
 import { cardId, type CardData } from "./types";
 
@@ -45,6 +45,7 @@ export interface StageElementSpec {
 
 export const STAGE_ELEMENTS: StageElementSpec[] = [
   // — Blast Off: the vertical 9:16 frames. Authored at 540x960 (half capture).
+  { label: "Blast Off cold open", group: "Blast Off", make: () => blankCard("blastopen"), size: { w: 540, h: 960 } },
   { label: "Blast Off intro", group: "Blast Off", make: () => blankCard("blastintro"), size: { w: 540, h: 960 } },
   { label: "Found on your exam", group: "Blast Off", make: () => blankCard("blastfoye"), size: { w: 540, h: 960 } },
   { label: "Phrase", group: "Blast Off", make: () => blankCard("blastphrase"), size: { w: 540, h: 960 } },
@@ -115,6 +116,7 @@ export function groupedStageElements(query = ""): { group: string; items: StageE
  *  previewer exactly as it does on canvas (same code path, no drift). Element kinds
  *  are unwrapped (they never deck, so no face-down wrapper). */
 export const STAGE_NODE_TYPES = {
+  blastopen: BlastOpenNode,
   blastintro: BlastIntroNode,
   blastfoye: BlastFoyeNode,
   blastphrase: BlastPhraseNode,
