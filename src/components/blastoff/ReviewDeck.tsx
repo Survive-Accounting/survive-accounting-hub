@@ -37,7 +37,8 @@ import {
   FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, patchFrame, toggleSkip,
   type BackdropMode, type BlastFrame, type BlastFrameKind,
 } from "./plan";
-import { BoltZoom } from "@/components/brand-cards/BoltZoom";
+import { BoltZoom, CampusBanner } from "@/components/brand-cards/BoltZoom";
+import { ZOOM_VARIANTS, isZoomVariant, type ZoomVariant } from "@/components/brand-cards/bolt-zoom";
 import {
   PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups, readTidy, setStampCandidates, tidyCacheKey, writeTidy,
   type PrompterCandidate, type TidyPhrase, type TidyResult,
@@ -248,6 +249,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
           <SlidePane key={sel.id} sel={sel} idx={selIdx} count={frames.length} label={labelOf(sel)} viewSet={viewSet} set={set} topic={topic}
             progress={progress.get(sel.id)} ceq={sel.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined}
             backdrop={backdropFor(frames, selIdx, (id) => !!ceqById.get(id)?.noteOnly)}
+            openVariant={(() => { const v = frames.find((f) => f.kind === "open")?.variant; return isZoomVariant(v) ? v : "zoom"; })()}
             onMove={(d) => commit(moveFrame(frames, selIdx, selIdx + d))}
             onDuplicate={() => { const next = duplicateFrame(frames, sel.id); commit(next); setSelId(next[selIdx + 1]?.id ?? sel.id); }}
             onSkip={() => commit(toggleSkip(frames, sel.id))}
@@ -274,11 +276,13 @@ const slideText = (f: BlastFrame, byId: Map<string, BoothCeq>): string => {
 
 // ------------------------------------------------------ the middle column
 
-function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq, backdrop, onMove, onDuplicate, onSkip, onDrop, onPatch, onSaved }: {
+function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq, backdrop, openVariant, onMove, onDuplicate, onSkip, onDrop, onPatch, onSaved }: {
   sel: BlastFrame; idx: number; count: number; label: string; viewSet: BoothSetInfo; set: BoothSetInfo; topic: BoothTopic;
   progress?: { x: number; y: number }; ceq?: BoothCeq;
   /** The bolt-zoom backdrop the rule (or the override) gives this slide. */
   backdrop: BackdropMode | null;
+  /** The cold open's look — the backdrop and the knockout follow it. */
+  openVariant: ZoomVariant;
   onMove: (d: -1 | 1) => void; onDuplicate: () => void; onSkip: () => void; onDrop: () => void;
   onPatch: (p: Partial<BlastFrame>) => void; onSaved: (d: CeqDraft) => void;
 }) {
@@ -314,7 +318,7 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
       </div>
 
       {phone ? (
-        <PhoneStage frame={sel} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} backdrop={backdrop === "backdrop" || backdrop === "knockout" ? backdrop : null} />
+        <PhoneStage frame={sel} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} backdrop={backdrop === "backdrop" || backdrop === "knockout" ? backdrop : null} variant={openVariant} />
       ) : (
         <div style={{ border: `1px solid ${EDGE}`, borderRadius: 10, overflow: "hidden", display: "inline-block", maxWidth: "100%", opacity: sel.skipped ? 0.5 : 1 }}>
           <FrameView frame={sel} set={viewSet} scale={0.78} topicName={topic.name} progress={progress} />
@@ -350,15 +354,43 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
             <input style={{ ...field, marginTop: 4 }} value={sel.text ?? ""} placeholder="Cram what's on your exam." onChange={(e) => onPatch({ text: e.target.value })} /></label>
         )}
         {sel.kind === "bio" && <div style={{ fontSize: 12, color: MUTED }}>The tutor card — its words live in one place (bio-card.ts) so every rip says the same thing. Skip it if this rip doesn't need it.</div>}
+        {sel.kind === "open" && (
+          // THE COLD OPEN's controls (Lee: "where can I tune the psychedelic part?"
+          // and "I will pick the best ones and cycle through them for each video").
+          <div className="flex flex-col" style={{ gap: 8 }}>
+            <div style={subhead}>The look — pick one per video</div>
+            <div className="flex" style={{ gap: 5, flexWrap: "wrap" }}>
+              {ZOOM_VARIANTS.map((v) => (
+                <button key={v.id} style={chip((sel.variant ?? "zoom") === v.id, ORANGE)} title={v.blurb} onClick={() => onPatch({ variant: v.id })}>{v.label}</button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11.5, color: MUTED }}>{ZOOM_VARIANTS.find((v) => v.id === (sel.variant ?? "zoom"))?.blurb}</div>
+            <label style={{ fontSize: 11, color: MUTED, display: "flex", alignItems: "center", gap: 8 }}>
+              psych <input type="range" min={0} max={1} step={0.05} value={sel.psych ?? 0.1} onChange={(e) => onPatch({ psych: Number(e.target.value) })} style={{ width: 160 }} />
+              <span style={{ color: CREAM, fontVariantNumeric: "tabular-nums" }}>{Math.round((sel.psych ?? 0.1) * 100)}%</span>
+              <span>0 = brand colours at rest · 100 = full trip</span>
+            </label>
+            <div>
+              <button style={chip(sel.banner !== "off", ORANGE)} title="The slow Power Four banner along the lower third" onClick={() => onPatch({ banner: sel.banner === "off" ? undefined : "off" })}>🏫 campus banner · {sel.banner === "off" ? "off" : "on"}</button>
+            </div>
+          </div>
+        )}
+        {sel.kind !== "open" && (
+          <div style={{ marginTop: 8 }}>
+            <button style={chip(sel.banner === "on", ORANGE)} title="Put the slow Power Four campus banner on this slide (any slide — an expansion moment)" onClick={() => onPatch({ banner: sel.banner === "on" ? undefined : "on" })}>🏫 campus banner · {sel.banner === "on" ? "on" : "off"}</button>
+          </div>
+        )}
       </div>
     </>
   );
 }
 
 /** 9:16, black, the slide centred — what a phone cramming student sees. */
-function PhoneStage({ frame, set, topicName, progress, safe, dim, backdrop }: {
+function PhoneStage({ frame, set, topicName, progress, safe, dim, backdrop, variant }: {
   frame: BlastFrame; set: BoothSetInfo; topicName: string; progress?: { x: number; y: number }; safe: boolean; dim: boolean;
   backdrop: "backdrop" | "knockout" | null;
+  /** The cold open's look, so the backdrop and the knockout match it. */
+  variant: ZoomVariant;
 }) {
   // The standard spine renders as a 1080-wide vertical frame at scale*0.34;
   // a card is the canvas's 560-wide card. Both are sized to the stage width.
@@ -369,9 +401,10 @@ function PhoneStage({ frame, set, topicName, progress, safe, dim, backdrop }: {
   const tag: React.CSSProperties = { position: "absolute", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(125,211,252,0.7)", fontWeight: 800 };
   return (
     <div style={{ width: STAGE_W, height: STAGE_H, background: "#000", borderRadius: 22, border: `1px solid ${EDGE}`, position: "relative", overflow: "hidden", display: "grid", placeItems: "center", opacity: dim ? 0.5 : 1 }}>
-      {backdrop && <BoltZoom w={STAGE_W} h={STAGE_H} mode={backdrop} live style={{ position: "absolute", inset: 0 }} />}
+      {backdrop && <BoltZoom w={STAGE_W} h={STAGE_H} mode={backdrop} variant={variant} live style={{ position: "absolute", inset: 0 }} />}
+      {frame.kind !== "open" && frame.banner === "on" && <CampusBanner w={STAGE_W} h={STAGE_H} live />}
       <div style={{ display: "grid", placeItems: "center", position: "relative" }}>
-        <FrameView frame={frame} set={set} scale={scale} topicName={topicName} progress={progress} />
+        <FrameView frame={frame} set={set} scale={scale} topicName={topicName} progress={progress} backdrop={!!backdrop} />
       </div>
       {safe && (
         <>

@@ -1,11 +1,11 @@
-// The bolt zoom's geometry and ticker — what makes the loop seamless and the
-// ticker true.
+// The cold open's geometry and the campus mix — what makes the loop seamless
+// and the campus story true and varied.
 import { describe, expect, test } from "bun:test";
 
 import { GENERATED_SCHOOLS } from "@/lib/schools.generated";
-import { ZOOM, driftDegrees, powerFourTicker, zoomKeyframes, zoomLayers, zoomScales } from "./bolt-zoom";
+import { POWER_FOUR, ZOOM, ZOOM_VARIANTS, campusMix, campusText, driftDegrees, isZoomVariant, seededShuffle, zoomKeyframes, zoomLayers, zoomScales } from "./bolt-zoom";
 
-describe("zoomLayers — evenly staggered through one period, brand colours cycling", () => {
+describe("zoomLayers — evenly staggered through one period", () => {
   test("delays cover the period with no two layers at the same point", () => {
     const layers = zoomLayers(0.1);
     expect(layers).toHaveLength(ZOOM.layers);
@@ -14,11 +14,8 @@ describe("zoomLayers — evenly staggered through one period, brand colours cycl
     expect(Math.min(...delays)).toBeGreaterThan(-ZOOM.period);
     expect(Math.max(...delays)).toBe(0);
   });
-  test("colours are red, blue, cream, repeating; psych 0 means no tilt", () => {
-    const l = zoomLayers(0);
-    expect(l[0].colour).toBe(l[3].colour);
-    expect(l[1].colour).not.toBe(l[0].colour);
-    expect(l.every((x) => x.tiltDeg === 0)).toBe(true);
+  test("psych 0 means no tilt; 0.1 tilts a little", () => {
+    expect(zoomLayers(0).every((x) => x.tiltDeg === 0)).toBe(true);
     expect(zoomLayers(0.1).some((x) => x.tiltDeg !== 0)).toBe(true);
   });
 });
@@ -38,23 +35,37 @@ describe("zoomScales / zoomKeyframes — exponential so the zoom reads at consta
   });
 });
 
-describe("powerFourTicker — the whole Power Four, SEC first", () => {
-  test("SEC leads, then Big Ten, Big 12, ACC; nothing else; course codes ride along", () => {
-    const t = powerFourTicker();
-    const sec = GENERATED_SCHOOLS.filter((s) => s.conference === "SEC").length;
-    expect(t.length).toBe(GENERATED_SCHOOLS.filter((s) => s.conference !== "Other").length);
-    expect(t.length).toBeGreaterThanOrEqual(50);
-    const oleMiss = GENERATED_SCHOOLS.find((s) => /ole miss|mississippi$/i.test(s.name) && s.conference === "SEC");
-    if (oleMiss) expect(t.slice(0, sec).some((x) => x.startsWith(oleMiss.name))).toBe(true);
-    const withCode = GENERATED_SCHOOLS.find((s) => s.conference !== "Other" && s.courseCode);
-    if (withCode) expect(t).toContain(`${withCode.name} · ${withCode.courseCode}`);
+describe("campusMix — Ole Miss first, then the Power Four dealt across conferences", () => {
+  test("leads with Ole Miss, covers every Power Four campus once, nothing outside it", () => {
+    const m = campusMix();
+    expect(m[0].name).toMatch(/ole miss|mississippi/i);
+    expect(m.length).toBe(GENERATED_SCHOOLS.filter((s) => (POWER_FOUR as readonly string[]).includes(s.conference)).length);
+    expect(new Set(m.map((x) => x.name)).size).toBe(m.length);
+    expect(m.every((x) => (POWER_FOUR as readonly string[]).includes(x.conference))).toBe(true);
   });
-  test("works on a hand-made list", () => {
-    expect(powerFourTicker([
-      { id: "a", campusId: "a", slug: "a", name: "A", isSec: false, conference: "ACC", courseCode: null, c1: null, c2: null } as never,
-      { id: "b", campusId: "b", slug: "b", name: "B", isSec: true, conference: "SEC", courseCode: "ACCT 200", c1: null, c2: null } as never,
-      { id: "c", campusId: "c", slug: "c", name: "C", isSec: false, conference: "Other", courseCode: null, c1: null, c2: null } as never,
-    ])).toEqual(["B · ACCT 200", "A"]);
+  test("no stretch of four is a single conference (round-robin), and the seed is deterministic", () => {
+    const m = campusMix();
+    for (let i = 1; i + 3 < m.length; i++) expect(new Set(m.slice(i, i + 4).map((x) => x.conference)).size).toBeGreaterThan(1);
+    expect(campusMix(GENERATED_SCHOOLS, 3)).toEqual(campusMix(GENERATED_SCHOOLS, 3));
+    expect(campusMix(GENERATED_SCHOOLS, 3).map((x) => x.name)).not.toEqual(campusMix(GENERATED_SCHOOLS, 4).map((x) => x.name));
+  });
+  test("campusText carries the code when there is one", () => {
+    expect(campusText({ name: "A", code: "ACCT 200", conference: "SEC" })).toBe("A · ACCT 200");
+    expect(campusText({ name: "A", code: null, conference: "SEC" })).toBe("A");
+  });
+  test("seededShuffle keeps every item and is stable per seed", () => {
+    const s = seededShuffle([1, 2, 3, 4, 5, 6, 7, 8], 11);
+    expect([...s].sort()).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(seededShuffle([1, 2, 3, 4, 5, 6, 7, 8], 11)).toEqual(s);
+  });
+});
+
+describe("variants", () => {
+  test("six of them, ids unique, the guard agrees", () => {
+    expect(ZOOM_VARIANTS).toHaveLength(6);
+    expect(new Set(ZOOM_VARIANTS.map((v) => v.id)).size).toBe(6);
+    expect(isZoomVariant("zoom")).toBe(true);
+    expect(isZoomVariant("nope")).toBe(false);
   });
 });
 

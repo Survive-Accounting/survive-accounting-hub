@@ -55,6 +55,13 @@ export interface BlastFrame {
   /** THE BACKDROP (Lee, 2026-09-03): the bolt-zoom behind this slide. Absent =
    *  the default rule (backdropFor); "zoom" forces it on, "off" forces it off. */
   backdrop?: "zoom" | "off";
+  /** THE COLD OPEN's look (kind "open"): which of the six animations, and how
+   *  far to push the psychedelic end (0..1; Lee: 0.1). */
+  variant?: string;
+  psych?: number;
+  /** THE CAMPUS BANNER on this slide (Lee: "let me add this banner at any time
+   *  on future slides … toggle-able on and off"). Absent = only the cold open. */
+  banner?: "on" | "off";
   /** THE TELEPROMPTER COLUMN (Lee, 2026-09-03: "a third slide to the right
    *  of the current one … the teleprompter … THESE SUGGESTED PHRASES ARE
    *  ME"). The lines Lee kept for this slide — his own transcript words,

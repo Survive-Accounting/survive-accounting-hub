@@ -53,6 +53,9 @@ const frameIn = z.object({
   prompter: z.array(z.string().max(600)).max(40).optional(),
   bullets: z.array(z.string().max(300)).max(12).optional(),
   backdrop: z.enum(["zoom", "off"]).optional(),
+  variant: z.string().max(20).optional(),
+  psych: z.number().min(0).max(1).optional(),
+  banner: z.enum(["on", "off"]).optional(),
 });
 type FrameIn = z.infer<typeof frameIn>;
 
@@ -123,16 +126,18 @@ export const EXHIBIT_STAGE: Record<string, StageSpec> = {
 
 /** Where stageCardData drops a new element: centred on the stage, nudged up so it
  *  does not bury the choices. Same arithmetic, so the result lands identically. */
-export const stagePos = (w: number, h: number) => ({
-  x: Math.round((STAGE_W - w) / 2),
-  y: Math.round((STAGE_H - h) / 2) - 60,
+export const stagePos = (w: number, h: number, fw: number = STAGE_W, fh: number = STAGE_H) => ({
+  x: Math.round((fw - w) / 2),
+  // Centred, nudged up so it does not bury the choices — unless it IS the
+  // whole frame, in which case it sits at the top-left corner exactly.
+  y: w >= fw && h >= fh ? 0 : Math.round((fh - h) / 2) - 60,
 });
 
 /** The staged-exhibit node itself. Pure, and exported so the shape is under test
  *  rather than asserted about — a wrong `stage.ceqId` would silently strand the
  *  exhibit on no frame at all, which stays invisible until Lee is on camera. */
-export function stagedElementNode(frameNodeId: string, frameId: string, spec: StageSpec, extra: Record<string, unknown> = {}) {
-  const at = stagePos(spec.w, spec.h);
+export function stagedElementNode(frameNodeId: string, frameId: string, spec: StageSpec, extra: Record<string, unknown> = {}, frame: { w: number; h: number } = { w: STAGE_W, h: STAGE_H }) {
+  const at = stagePos(spec.w, spec.h, frame.w, frame.h);
   const card = blankCard(spec.kind as never) as unknown as Record<string, unknown>;
   return {
     id: `blast-el-${frameId}`,
@@ -141,6 +146,9 @@ export function stagedElementNode(frameNodeId: string, frameId: string, spec: St
     data: {
       ...card,
       ...extra,
+      // The element's box is the spec's — a spine card handed a full-frame
+      // spec fills the frame; blankCard's 540×960 default would not.
+      w: spec.w, h: spec.h,
       // THE ATTACHMENT. `stage.ceqId` is how CeqStudio.stagedHere finds an
       // element's frame — not ReactFlow parenting, which is a protected zone.
       stage: { ceqId: frameNodeId, x: at.x, y: at.y, scale: 1 },
@@ -165,6 +173,10 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
     setId: z.string().min(1).max(120),
     frames: z.array(frameIn).min(1).max(400),
+    // THE FRAMES ARE THE SLIDES (Lee, 2026-09-03): v3 films vertical, so the
+    // spine cards fill a 900×1600 frame edge to edge instead of sitting as a
+    // 540×960 card at the landscape stage's centre.
+    vertical: z.boolean().default(true),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true; wrote: number; reordered: number; missing: number; parked: number; staged: number }> => {
     const db = await admin();
@@ -203,6 +215,7 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
     // zoom running (quietly behind the intro, inside the wordmark on the
     // opening summary) — see backdropFor in blastoff/plan.ts.
     const noteOnlyOf = (ceqId: string): boolean => !!(j.nodes!.find((n) => n.id === ceqId)?.data as { noteOnly?: boolean } | undefined)?.noteOnly;
+    const openVariant = data.frames.find((f) => f.kind === "open")?.variant ?? "zoom";
 
     data.frames.forEach((f, i) => {
       const stageOrder = orderAt(i);
@@ -220,7 +233,8 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
         node.data.stageOrder = stageOrder;
         node.data.slotIndex = stageOrder;
         if (f.skipped) node.data.filmSkip = true; else delete node.data.filmSkip;
-        if (filmBackdrop) node.data.filmBackdrop = filmBackdrop; else delete node.data.filmBackdrop;
+        if (filmBackdrop) { node.data.filmBackdrop = filmBackdrop; node.data.filmVariant = openVariant; } else { delete node.data.filmBackdrop; delete node.data.filmVariant; }
+        if (f.banner === "on") node.data.filmBanner = true; else delete node.data.filmBanner;
         // THE VERTICAL SPOT (2026-09-03): every card of the rip sits centred on
         // the 9:16 frame, dealt big — replacing any spot saved in a landscape
         // session. Landscape geometry (data.geom) is left alone.
@@ -270,7 +284,8 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
         ...(f.kind === "bio" ? { cardW: BIO_CARD.cardW } : {}),
         // Centred on the vertical frame, like every other card of the rip.
         geomV: { card: verticalCardSpot(f.kind === "bio" ? BIO_CARD.cardW : undefined) },
-        ...(filmBackdrop ? { filmBackdrop } : {}),
+        ...(filmBackdrop ? { filmBackdrop, filmVariant: openVariant } : {}),
+        ...(f.banner === "on" ? { filmBanner: true } : {}),
         deckId: data.setId,
         deckMember: true,
         tucked: true,
@@ -297,14 +312,22 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
         const elId = `blast-el-${f.id}`;
         const el = j.nodes!.find((n) => n.id === elId);
         stagedEls.add(elId);
-        // ONCE. After it exists it is Lee's — he drags it, resizes it, retypes the
-        // bio, and a re-sync must not undo any of that. The only thing that
-        // rebuilds it is the frame becoming a different KIND of thing.
-        if (el && el.type === spec.kind) { staged++; return; }
-        // The intro card names the set it is about to blast off on; the rest carry
-        // their own copy, which lives in the frame component rather than here.
-        const extra = f.kind === "intro" ? { topic: setName, tutor: "Lee Ingram" } : {};
-        const made = stagedElementNode(nodeId, f.id, spec, extra);
+        const spine = !!STANDARD_STAGE[f.kind];
+        // THE SPINE FILLS THE VERTICAL FRAME (2026-09-03): the open / intro /
+        // outro cards are the whole slide — 900×1600 at (0,0) — and are re-stamped
+        // on every send so an old landscape placement never lingers. Exhibits
+        // stay Lee's: once staged, a re-sync does not move or resize them.
+        const frame = data.vertical ? { w: 900, h: 1600 } : { w: STAGE_W, h: STAGE_H };
+        const specHere: StageSpec = spine && data.vertical ? { ...spec, w: frame.w, h: frame.h } : spec;
+        if (el && el.type === spec.kind && !spine) { staged++; return; }
+        // The intro card names the set it is about to blast off on; the cold open
+        // carries its look; the rest carry their own copy in the frame component.
+        // The intro over the cold open's backdrop goes transparent — the
+        // backdrop is its ground; alone it keeps its navy.
+        const extra = f.kind === "intro" ? { topic: setName, tutor: "Lee Ingram", transparent: filmBackdrop === "backdrop" }
+          : f.kind === "open" ? { psych: f.psych ?? 0.1, variant: f.variant ?? "zoom", banner: f.banner !== "off" }
+          : {};
+        const made = stagedElementNode(nodeId, f.id, specHere, extra, frame);
         if (el) { el.type = made.type; el.position = made.position; el.data = made.data; }
         else j.nodes!.push(made);
         staged++;

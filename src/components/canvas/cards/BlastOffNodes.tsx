@@ -13,6 +13,7 @@ import { CheatCodeFrame, PhraseFrame, TipFrame } from "@/components/blastoff/Con
 import { FoundOnYourExam } from "@/components/blastoff/FoundOnYourExam";
 import { SurviveIntro } from "@/components/blastoff/SurviveIntro";
 import { BoltZoom } from "@/components/brand-cards/BoltZoom";
+import { ZOOM_VARIANTS, isZoomVariant } from "@/components/brand-cards/bolt-zoom";
 import { SurviveBio } from "@/components/blastoff/SurviveBio";
 import { SurviveOutro } from "@/components/blastoff/SurviveOutro";
 import { V } from "@/components/blastoff/stage";
@@ -72,11 +73,17 @@ export function BlastOpenNode({ id, data, selected }: NodeProps) {
   return (
     <BlastShell id={id} w={w} h={h} posLock={d.posLock} selected={selected}
       toolbar={<>
+        <select className="nodrag" value={isZoomVariant(d.variant) ? d.variant : "zoom"} onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ variant: e.target.value })}
+          style={{ background: "rgba(0,0,0,0.4)", color: NEON.text, border: `1px solid ${NEON.borderSoft}`, borderRadius: 4, fontSize: 10 }} title="Which of the six looks">
+          {ZOOM_VARIANTS.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+        </select>
         <span className="text-[9px] font-bold uppercase" style={{ color: NEON.muted }}>psych</span>
         <input type="range" min={0} max={1} step={0.05} value={d.psych ?? 0.1} className="nodrag" style={{ width: 90 }}
           onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ psych: Number(e.target.value) })} title="0 = brand colours at rest · 1 = full trip" />
+        <button className={ELEM_BTN} style={{ color: d.banner !== false ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
+          onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ banner: d.banner === false }); }} title="The campus banner along the lower third">banner</button>
       </>}>
-      <BoltZoom w={w} h={h} mode="open" psych={d.psych ?? 0.1} live />
+      <BoltZoom w={w} h={h} mode="open" variant={isZoomVariant(d.variant) ? d.variant : "zoom"} psych={d.psych ?? 0.1} banner={d.banner !== false} live />
     </BlastShell>
   );
 }
@@ -177,7 +184,7 @@ export function BlastOutroNode({ id, data, selected }: NodeProps) {
           onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ tagline: e.target.value })} />
         <KeyBtn on={d.transparent} onClick={() => update({ transparent: !d.transparent })} />
       </>}>
-      <SurviveOutro tagline={d.tagline || undefined} domain={d.domain || undefined} transparent={d.transparent} scale={w / V.w} />
+      <div className="sa-outro-fade"><SurviveOutro tagline={d.tagline || undefined} domain={d.domain || undefined} transparent={d.transparent} scale={w / V.w} /></div>
     </BlastShell>
   );
 }

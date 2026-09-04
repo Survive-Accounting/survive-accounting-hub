@@ -32,6 +32,9 @@ const frameSchema = z.object({
   prompter: z.array(z.string().max(600)).max(40).optional(),
   bullets: z.array(z.string().max(300)).max(12).optional(),
   backdrop: z.enum(["zoom", "off"]).optional(),
+  variant: z.string().max(20).optional(),
+  psych: z.number().min(0).max(1).optional(),
+  banner: z.enum(["on", "off"]).optional(),
 });
 
 export type BlastFrameRow = z.infer<typeof frameSchema>;

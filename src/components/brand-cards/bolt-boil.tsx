@@ -53,8 +53,10 @@ const BOIL_CSS = `
   .sa-boil-f:first-child { opacity: 1; }
 }`;
 
-export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, className, style, boilFrame }:
+export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, className, style, boilFrame, boilSeconds }:
   { height?: number; opacity?: number; red?: string; blue?: string; cream?: string; className?: string; style?: CSSProperties;
+    /** A calmer boil (default 0.5 s per four frames). The cold open uses ~1.2. */
+    boilSeconds?: number;
     /** DETERMINISTIC BOIL (blast-off frames, 2026-08-30). Undefined = the CSS
      *  animation, which is wall-clock and therefore unrenderable frame-by-frame.
      *  Given a number, exactly ONE boil frame is drawn with no animation, so the
@@ -75,7 +77,7 @@ export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, classNam
       <svg viewBox={spec.viewBox} width="100%" height="100%" style={{ display: "block", overflow: "visible" }} aria-hidden>
         {(pinned === null ? spec.frames : [spec.frames[pinned]]).map((f, i) => (
           <g key={i} className={pinned === null ? "sa-boil-f" : undefined}
-             style={pinned === null ? { animationDelay: `${(-0.125 * i).toFixed(3)}s` } : undefined}>
+             style={pinned === null ? { animationDelay: `${(-(boilSeconds ?? 0.5) / 4 * i).toFixed(3)}s`, ...(boilSeconds ? { animationDuration: `${boilSeconds}s` } : {}) } : undefined}>
             <path d={f.outer} fill={R} stroke={C === "none" ? undefined : C} strokeWidth={C === "none" ? 0 : f.sw} strokeLinejoin="round" strokeLinecap="round" paintOrder="stroke" />
             <path d={f.seam} fill={B} />
           </g>

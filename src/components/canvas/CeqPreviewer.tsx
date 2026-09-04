@@ -41,7 +41,8 @@ import { openPopoutWindow, PanelPopout } from "./PanelPopout";
 import { WorldBackground } from "./WorldBackground";
 import { WORLDS } from "./worlds";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
-import { BoltZoom } from "@/components/brand-cards/BoltZoom";
+import { BoltZoom, CampusBanner } from "@/components/brand-cards/BoltZoom";
+import { isZoomVariant } from "@/components/brand-cards/bolt-zoom";
 import { Emph, HighlightContext, SEL_EMPH_CSS, readRangeIn, useTextHighlights, wordRangeAtPoint } from "./text-highlights";
 import { renderInline } from "./inline-md";
 import { activeSlots, CARD_H, CARD_W, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf, resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
@@ -180,6 +181,11 @@ export const PV_CSS = `
   66%  { box-shadow: 0 0 26px 6px rgba(90,220,255,0.42), 0 0 0 1px rgba(90,220,255,0.45); filter: saturate(1.2) hue-rotate(-6deg); }
   100% { box-shadow: 0 0 18px 4px rgba(252,163,17,0.55), 0 0 0 1px rgba(252,163,17,0.5); filter: saturate(1.1) hue-rotate(0deg); }
 }
+/* THE FADE INTO THE OUTRO (Lee, 2026-09-03: "make it a cool transition before the
+   last slide. Like a good fade. Ends on navy"). The sign-off frame fades up from
+   black when it lands; film only. */
+@keyframes sa-outro-fade { from { opacity: 0; } to { opacity: 1; } }
+.film-mode .sa-outro-fade { animation: sa-outro-fade 1.3s ease-out both; }
 .sa-detour-spot { transform: scale(1.06) !important; transform-origin: center center; background: rgba(255,255,255,0.06); animation: sa-lsd 3.4s ease-in-out infinite !important; opacity: 1 !important; position: relative; z-index: 3; }
 @media (prefers-reduced-motion: reduce) { .sa-detour-spot { animation: none !important; } }
 /* THE CEQ PIN (Lee, 09-01) — z-order between ReactFlow nodes belongs to the
@@ -535,21 +541,33 @@ function PlatformGuides({ w, h, platform }: { w: number; h: number; platform: Ve
   );
 }
 
+/** THE FRAMES ARE THE SLIDES (Lee, 2026-09-03): on the v3 film surface the
+ *  authoring frame drops its cyan edge, "16:9 frame" label, Q number and
+ *  guides and reads exactly as it films — a black stage with its backdrop. */
+function v3Bare(): boolean { try { return localStorage.getItem("sa-v3-film") === "1"; } catch { return false; } }
+
 function FrameBgNode({ id, data }: NodeProps) {
   const film = useContext(FilmContext);
-  const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number; qNum?: number; guides?: boolean; platform?: VerticalPlatform; platformGuides?: boolean; backdrop?: "backdrop" | "knockout" };
+  const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number; qNum?: number; guides?: boolean; platform?: VerticalPlatform; platformGuides?: boolean; backdrop?: "backdrop" | "knockout"; banner?: boolean; variant?: string };
+  const bare = film || v3Bare();
   // THE BOLT ZOOM BACKDROP (2026-09-03): when the plan's rule put it on this
-  // frame, it replaces the world — black stage, the zoom behind the intro or
-  // inside the wordmark on the opening summary. Film only.
-  const world = film && d.backdrop
-    ? <BoltZoom w={d.w} h={d.h} mode={d.backdrop} live style={{ position: "absolute", inset: 0 }} />
+  // frame, it replaces the world — black stage, the zoom behind the intro, the
+  // still white wordmark on the opening summary.
+  const world = bare && d.backdrop
+    ? <BoltZoom w={d.w} h={d.h} mode={d.backdrop} variant={isZoomVariant(d.variant) ? d.variant : "zoom"} live={film} style={{ position: "absolute", inset: 0 }} />
     : d.world ? <WorldBackground worldId={d.world} intensity={d.worldIntensity} motion={d.worldMotion} /> : null;
+  const banner = bare && d.banner ? <CampusBanner w={d.w} h={d.h} live={film} /> : null;
+  if (bare && !film) return (
+    <div style={{ width: d.w, height: d.h, background: "#05070d", position: "relative", overflow: "hidden", pointerEvents: "none", borderRadius: 4, boxShadow: "0 0 0 1px rgba(120,160,235,0.18)" }}>
+      {world}{banner}
+    </div>
+  );
   // FILM: clean stage + a soft cinematic EDGE GLOW (like the canvas film frame) —
   // a faint outer bloom into the letterbox + an inner vignette over the world. The
   // brand watermark lives in the popout wrapper ABOVE this, so it stays crisp.
   if (film) return (
     <div style={{ width: d.w, height: d.h, background: "#05070d", position: "relative", overflow: "hidden", pointerEvents: "none", boxShadow: "0 0 48px 8px rgba(96,140,230,0.16), 0 0 0 1px rgba(120,160,235,0.14)" }}>
-      {world}
+      {world}{banner}
       {/* C2: encoder-friendly grain — film only, ~1.5%, breaks banding rings */}
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.015, mixBlendMode: "overlay", backgroundImage: FILM_GRAIN_URI, backgroundRepeat: "repeat" }} />
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", boxShadow: "inset 0 0 90px 14px rgba(0,0,0,0.42)" }} />
@@ -674,7 +692,11 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
   const bareFilm = film && isCallout && !!d.callout?.hidden;
   // THE DETOUR CARD (Blast Off inserts): the same card, painted navy with a
   // gold edge, so a cheat code reads as a detour between the bright CEQ cards.
-  const detour = isCallout && !!d.callout?.detour && !d.callout?.hidden;
+  // THE SUMMARY SLIDE IS A DETOUR CARD TOO (Lee, 2026-09-03): a note-only set
+  // card with no callout of its own draws in the dark skin, labelled FOUND ON
+  // YOUR EXAM — so the opening and closing summaries match the detours.
+  const summaryCard = isCallout && !!(d as { noteOnly?: boolean }).noteOnly && !d.callout?.kind && !d.callout?.hidden;
+  const detour = isCallout && (!!d.callout?.detour || summaryCard) && !d.callout?.hidden;
   const rflW = useContext(CardWriteCtx);
   const patchCallout = (patch: Partial<CalloutSettings>) => {
     if (!rflW) return;
@@ -733,12 +755,12 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
           style={{ borderRadius: 10 * s }}>
           <CalloutBody
             scale={s}
-            topic={d.callout?.showTopic === false ? null : d.topic}
+            topic={d.callout?.showTopic === false || summaryCard ? null : d.topic}
             stem={d.stem}
             extraStems={d.callout?.extraStems}
             footer={d.callout?.footer}
             lineSpot={detour && !stemEditing ? (k) => ({ state: spot.state(spotKey(id, k)), onDown: (e) => spot.onClick(spotKey(id, k), e) }) : undefined}
-            kind={d.callout?.kind ?? (d.calloutMemos?.length ? calloutKindForCategory(d.calloutMemos[0].category) : undefined)}
+            kind={d.callout?.kind ?? (summaryCard ? "found-on-exam" : d.calloutMemos?.length ? calloutKindForCategory(d.calloutMemos[0].category) : undefined)}
             highlights={(d.calloutMemos ?? []).map((m) => m.label)}
             bolt={d.callout?.bolt}
             dark={detour}
@@ -1737,7 +1759,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // frame refreshes" flash. With a matching id the node is identical before and
     // after the seed, so it never remounts. Outside the stack (authoring, no
     // popout) there are no stand-ins, so the shared id stays.
-    const frameNode = { id: filmStack ? `fbg:${ceqId}` : "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum, guides: recording ? false : guidesOn, platform: vplatform, platformGuides: !recording && platformGuides && frameW < frameH, backdrop: cd?.filmBackdrop }, draggable: false, selectable: false, zIndex: -10 };
+    const frameNode = { id: filmStack ? `fbg:${ceqId}` : "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum, guides: recording ? false : guidesOn, platform: vplatform, platformGuides: !recording && platformGuides && frameW < frameH, backdrop: cd?.filmBackdrop, banner: cd?.filmBanner, variant: cd?.filmVariant }, draggable: false, selectable: false, zIndex: -10 };
     // STUDENT OVERLAY (Lee) — filmed on the card, one toggle (showProgress):
     //   "X of Y" over the deck order + a fill bar, and the TOPIC name kicker
     //   (name only, no chapter number — Lee's call). Never on the Q0 stage.
@@ -2560,7 +2582,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       const od = mainRf.getNode(qid)?.data as unknown as CeqCard | undefined;
       if (!od) return;
       const y = k * stackSlotH;
-      out.push({ id: `fbg:${qid}`, type: "frameBg", position: { x: 0, y }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum: k + 1, guides: false, backdrop: od.filmBackdrop }, draggable: false, selectable: false, zIndex: -10 } as Node);
+      out.push({ id: `fbg:${qid}`, type: "frameBg", position: { x: 0, y }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum: k + 1, guides: false, backdrop: od.filmBackdrop, banner: od.filmBanner, variant: od.filmVariant }, draggable: false, selectable: false, zIndex: -10 } as Node);
       // Mirror the live ceqNode's data EXACTLY (same spot resolution, same student
       // overlay) so the activation flip changes practice/animation state only —
       // identical pixels means an invisible handover.
@@ -3239,9 +3261,13 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                         clean — vertical shorts have no HTML player around them, so the
                         brand has to ride in the frame. Top-left, inside the Shorts safe
                         zone, low opacity, never catches the pointer. */}
-                    <div aria-hidden style={{ position: "absolute", left: "4%", top: "3.2%", zIndex: 9, opacity: 0.62, pointerEvents: "none", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.6))" }}>
-                      <SurviveWordmark size={Math.max(18, Math.round((filmRootRef.current?.clientWidth ?? 540) * 0.052))} />
-                    </div>
+                    {/* …except on the frames that already carry the wordmark — the cold
+                        open, the intro, the opening summary (Lee: "redundant"). */}
+                    {!(cd?.filmBackdrop || cd?.blastKind === "open") && (
+                      <div aria-hidden style={{ position: "absolute", left: "4%", top: "3.2%", zIndex: 9, opacity: 0.62, pointerEvents: "none", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.6))" }}>
+                        <SurviveWordmark size={Math.max(18, Math.round((filmRootRef.current?.clientWidth ?? 540) * 0.052))} />
+                      </div>
+                    )}
                     {reveal && <BossReveal label={reveal.label} zone={reveal.zone} o={orientation()} />}
                     <FilmSlate />
                     {captureRef.current && filmWin && <CaptureBadge win={filmWin} note={captureNote} />}

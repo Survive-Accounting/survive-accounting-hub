@@ -329,6 +329,34 @@ session (the build queue judged it too big — see docs/TWO-MACHINES.md).
   - Verified on the review stage. Film side: tsc + code. Re-send to film to
     get the open frame and the backdrops into the set. Remotion MP4 render of
     the open is the next step (separate folder, never in the web build).
+- **The cold open, second pass (Lee's notes with screenshots):**
+  - The REAL brand bolt (red, blue seam, cream keyline, its own way round —
+    the mirror is gone) zooms; the wordmark's bolt is STATIC WHITE; the boil
+    is calmer (`boilSeconds` 1.2 on BoltBoil). A readability plate + vignette
+    + drop shadow behind the wordmark; tagline; `surviveaccounting.com` small
+    under it.
+  - Course codes: a SLOT under the tagline (one at a time, 1.4 s, Ole Miss
+    first) and the **CampusBanner** — 110 s per loop, Ole Miss first, then the
+    Power Four dealt round-robin across conferences by a seeded shuffle
+    (`campusMix`, tested) — toggleable on ANY slide (`frame.banner`,
+    🏫 chip on the review deck; `data.filmBanner` in film).
+  - SIX LOOKS (`ZOOM_VARIANTS`: zoom · rain · pulse · wall · board · aurora —
+    aurora keeps the live coloured bolt in the wordmark). Pick on the cold
+    open's slide pane (chips), `frame.variant`; **psych** slider there too
+    (`frame.psych`). The studio element has the same controls in its toolbar.
+  - The intro over the backdrop goes TRANSPARENT (`SurviveIntro transparent`)
+    so the zoom shows through; the summary slide's knockout is a dense brand
+    sweep multiplied into the white letters with the chosen variant faintly
+    inside (`filmVariant` rides along). No watermark on the open / intro /
+    summary.
+  - **The summary card is a detour card**: a noteOnly set card with no
+    callout draws in the dark skin labelled FOUND ON YOUR EXAM (kind
+    `found-on-exam`, outside the five). "MEET YOUR TUTOR" on the bio.
+  - **THE FRAMES ARE THE SLIDES** on the canvas: send-to-film is vertical by
+    default (`vertical: true`) — spine cards (open/intro/outro) are 900×1600 at
+    (0,0) and re-stamped every send; exhibits keep Lee's placement. On the v3
+    surface the authoring frame is bare (no cyan edge, label, Q number, guides).
+  - The outro fades up from black (`.sa-outro-fade`, film only) and stays navy.
 - **Unblock-filming pass (Lee, 2026-09-03, late):**
   - The typewriter is LINE BY LINE now (heading, then each bullet, then the
     footer; `.sa-type` + `--i`, 240 ms a step). The first cut split every word

@@ -20,7 +20,7 @@ import { PAPER } from "../theme";
 import type { CalloutKind } from "../types";
 
 /** The five callout types — each a small on-brand badge/accent, none loud. */
-export const CALLOUT_KINDS: Record<Exclude<CalloutKind, "tutor">, { label: string; accent: string; tint: string }> = {
+export const CALLOUT_KINDS: Record<Exclude<CalloutKind, "tutor" | "found-on-exam">, { label: string; accent: string; tint: string }> = {
   "cheat-code": { label: "CHEAT CODE", accent: "#1F9D57", tint: "rgba(31,157,87,0.10)" },
   "memorize-this": { label: "MEMORIZE THIS", accent: "#C77D0A", tint: "rgba(199,125,10,0.10)" },
   "deeper-idea": { label: "DEEPER IDEA", accent: "#1D7FA8", tint: "rgba(29,127,168,0.10)" },
@@ -30,9 +30,13 @@ export const CALLOUT_KINDS: Record<Exclude<CalloutKind, "tutor">, { label: strin
 /** THE TUTOR CARD (Lee, 2026-09-03): the bio slide in the detour format. Not
  *  one of the five authoring kinds (the cycler never offers it) — Blast Off's
  *  send-to-film writes it, and only for the bio frame. */
-export const TUTOR_META = { label: "YOUR TUTOR", accent: "#C62828", tint: "rgba(198,40,40,0.10)" } as const;
+export const TUTOR_META = { label: "MEET YOUR TUTOR", accent: "#C62828", tint: "rgba(198,40,40,0.10)" } as const;
+/** THE SUMMARY SLIDE (Lee, 2026-09-03: "the found on your exam should also
+ *  look more like the detour cards. Keep it consistent"): the set's own
+ *  note-only card, drawn in the detour skin with this label. */
+export const FOUND_META = { label: "FOUND ON YOUR EXAM", accent: "#FCA311", tint: "rgba(252,163,17,0.12)" } as const;
 export function calloutMeta(kind: CalloutKind): { label: string; accent: string; tint: string } {
-  return kind === "tutor" ? TUTOR_META : CALLOUT_KINDS[kind];
+  return kind === "tutor" ? TUTOR_META : kind === "found-on-exam" ? FOUND_META : CALLOUT_KINDS[kind];
 }
 
 /** Default kind when a memo is dropped, from its library category. */
@@ -91,6 +95,7 @@ export function detourAccent(kind?: CalloutKind): string {
   if (kind === "memorize-this") return "#FF9F43";
   if (kind === "deeper-idea") return "#7DD3FC";
   if (kind === "tutor") return "#FF6B6B";
+  if (kind === "found-on-exam") return DETOUR.gold;
   return DETOUR.gold;
 }
 

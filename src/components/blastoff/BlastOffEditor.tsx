@@ -14,7 +14,6 @@ import { ArrowDown, ArrowUp, Clapperboard, Plus, X } from "lucide-react";
 import type { BoothCeq, BoothSetInfo } from "@/lib/talkthrough.functions";
 import { loadBlastPlan, saveBlastPlan } from "@/lib/blastoff.functions";
 import { syncBlastPlanToSet } from "@/lib/blastoff-sync.functions";
-import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
 import { CARD_W } from "@/components/canvas/ceq-geom";
 import { HighlightContext, useTextHighlights } from "@/components/canvas/text-highlights";
 import { renderInline } from "@/components/canvas/inline-md";
@@ -22,6 +21,7 @@ import { openFilmMode } from "./FilmHandoff";
 import { SetCard } from "./SetCard";
 import { BIO_CARD, bioCallout } from "./bio-card";
 import { BoltZoom } from "@/components/brand-cards/BoltZoom";
+import { isZoomVariant } from "@/components/brand-cards/bolt-zoom";
 import { V } from "./stage";
 import { SurviveIntro } from "./SurviveIntro";
 import { SurviveOutro } from "./SurviveOutro";
@@ -137,7 +137,7 @@ export function BlastOffEditor({ set, topicName, onCapture }: { set: BoothSetInf
               setBusy(true); setSyncNote("Writing frames into the set…");
               // Every frame goes over, skipped ones included: the sync stamps
               // a skipped set card filmSkip so the canvas walk leaves it out.
-              syncBlastPlanToSet({ data: { setId: set.id, frames: plan.frames } })
+              syncBlastPlanToSet({ data: { setId: set.id, frames: plan.frames, vertical: true } })
                 .then((r) => {
                   setSyncNote(`✓ ${r.reordered + r.wrote} frames ordered${r.staged ? ` · ${r.staged} exhibit${r.staged > 1 ? "s" : ""} staged` : ""}${r.missing ? ` · ${r.missing} missing` : ""} — opening film`);
                   openFilmMode(set.id);
@@ -259,9 +259,11 @@ export function questionProgress(frames: readonly BlastFrame[], byId: Map<string
 /** ONE FRAME, drawn by the canvas's own card. Nothing here re-implements a
  *  card — a set frame renders its stem and choices, an insert renders as the
  *  callout kind it will become when it lands in the set. */
-export function FrameView({ frame, set, scale, topicName, progress }: {
+export function FrameView({ frame, set, scale, topicName, progress, backdrop = false }: {
   frame: BlastFrame; set: BoothSetInfo; scale: number; topicName?: string | null;
   progress?: { x: number; y: number } | null;
+  /** True when the bolt-zoom backdrop runs behind this frame (the intro goes transparent). */
+  backdrop?: boolean;
 }) {
   // THE STANDARD SPINE renders as the vertical 9:16 frame it actually is —
   // these are brand cards, not CEQ cards, and showing them in the silver card
@@ -270,8 +272,10 @@ export function FrameView({ frame, set, scale, topicName, progress }: {
     const s = scale * 0.34; // a 1080-wide frame, sized to sit beside the list
     // THE COLD OPEN (2026-09-03): the bolt zoom, ticker and wordmark — live
     // here too, so Lee sees the motion on the review stage.
-    if (frame.kind === "open") return <BoltZoom w={Math.round(V.w * s)} h={Math.round(V.h * s)} mode="open" live />;
-    if (frame.kind === "intro") return <SurviveIntro topic={frame.text?.trim() || set.name} scale={s} />;
+    if (frame.kind === "open") return <BoltZoom w={Math.round(V.w * s)} h={Math.round(V.h * s)} mode="open" variant={isZoomVariant(frame.variant) ? frame.variant : "zoom"} psych={frame.psych ?? 0.1} banner={frame.banner !== "off"} live />;
+    // The intro sits on the cold open's backdrop, so its own navy stage goes
+    // transparent (the backdrop provides the ground); alone, it keeps the navy.
+    if (frame.kind === "intro") return <SurviveIntro topic={frame.text?.trim() || set.name} scale={s} transparent={backdrop} />;
     // THE TUTOR CARD (2026-09-03): the bio in the detour format, a bit bigger.
     if (frame.kind === "bio") return <SetCard id={frame.id} stem={BIO_CARD.title} scale={scale * BIO_CARD.scale} callout={bioCallout() as Record<string, unknown>} />;
     return <SurviveOutro tagline={frame.text?.trim() || undefined} scale={s} />;
@@ -280,14 +284,16 @@ export function FrameView({ frame, set, scale, topicName, progress }: {
   if (frame.kind === "ceq") {
     const ceq: BoothCeq | undefined = frame.ceqId ? set.ceqs.find((c) => c.id === frame.ceqId) : undefined;
     if (!ceq) return <SetCard stem="This card is no longer in the set." scale={scale} />;
+    // The set's own note cards ARE the "found on your exam" card. Since
+    // 2026-09-03 they draw in the detour skin (dark, labelled) like every
+    // other callout slide; the previewer does the same for a noteOnly card.
+    if (ceq.noteOnly) return <SetCard id={ceq.id} stem={ceq.stem} scale={scale} callout={{ kind: "found-on-exam", detour: true, showTopic: false }} />;
     return (
       <SetCard
         id={ceq.id}
         stem={ceq.stem}
         choices={ceq.choices}
-        // The set's own note cards ARE the "found on your exam" card — that is
-        // what NOTE_EYEBROW says. Questions get the topic name instead.
-        topic={ceq.noteOnly ? NOTE_EYEBROW : topicName ?? null}
+        topic={topicName ?? null}
         progress={progress ?? null}
         scale={scale}
       />

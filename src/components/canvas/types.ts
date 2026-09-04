@@ -446,6 +446,12 @@ export interface CeqCard extends CardBase {
    *  frame in film — "backdrop" = quiet layers, "knockout" = inside the white
    *  wordmark. Written by send-to-film from the plan's rule; absent = none. */
   filmBackdrop?: "backdrop" | "knockout";
+  /** THE CAMPUS BANNER on this frame in film (Blast Off, 2026-09-03). */
+  filmBanner?: boolean;
+  /** The cold open's look, carried to the frames that keep its backdrop. */
+  filmVariant?: string;
+  /** Which Blast Off frame kind wrote this note frame ("open", "intro", …). */
+  blastKind?: string;
   /** NON-CEQ FRAME MODE (Lee, 08-15): what this non-CEQ frame is FOR — a note
    *  (tips/headspace), an intro (setting up the CEQ), or an outro (the end
    *  card). Purely a starting point + a label: every element on any frame is
@@ -833,6 +839,10 @@ export interface BlastOpenElement extends CardBase {
   kind: "blastopen";
   /** 0 = brand colours at rest, 1 = full trip. Lee: 0.1. */
   psych?: number;
+  /** One of the six looks (bolt-zoom.ts ZOOM_VARIANTS). */
+  variant?: string;
+  /** The slow campus banner along the lower third. */
+  banner?: boolean;
   transparent?: boolean;
 }
 export interface BlastIntroElement extends CardBase {
@@ -1645,7 +1655,7 @@ export function cardId(kind: string): string {
 }
 
 /** The five callout types (P1) — the banner a callout card can carry. */
-export type CalloutKind = "cheat-code" | "memorize-this" | "deeper-idea" | "recap" | "distractor" | "tutor";
+export type CalloutKind = "cheat-code" | "memorize-this" | "deeper-idea" | "recap" | "distractor" | "tutor" | "found-on-exam";
 /** CALLOUT settings (P1) on a zero-choice (note) frame. Every field optional so
  *  an untouched note frame stays byte-identical in scene JSON. */
 export interface CalloutSettings {
