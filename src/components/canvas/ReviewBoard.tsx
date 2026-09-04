@@ -13,7 +13,7 @@ import { organizeIdea, saveIdea } from "@/lib/ideas.functions";
 import { getAdminWho } from "@/components/AdminGate";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "./theme";
 import {
-  STAMP_LABELS, canonicalStamp, sessionTags, stampLabel, touchRow,
+  STAMP_LABELS, canonicalStamp, isDismissed, sessionTags, stampLabel, touchRow,
   type BoardItem, type TTDoc, type TalkSession, type TalkTag,
 } from "./talkthrough";
 import { putBoardItem } from "./talkthrough-sync";
@@ -457,10 +457,14 @@ export function ReviewBoardV2({ items, ceqs, onRegen, film, onAddSlide }: {
   /** THE REVIEW DECK (2026-09-03): idea cards get "＋ slide". */
   onAddSlide?: (kind: string, text: string, itemId: string) => void;
 }) {
-  const script = items.filter((b) => b.kind === "script");
-  const edits = items.filter((b) => b.kind === "ceq_edit");
-  const ideas = items.filter((b) => b.kind === "idea");
-  const vibes = items.filter((b) => b.kind === "vibe_plan");
+  // CLEARED OLD RESULTS (2026-09-04): a card Lee dismissed in the booth is off
+  // the board wherever the board is drawn — sessionBoard already hides them,
+  // and this is the backstop for any caller that hands us raw rows.
+  const live = items.filter((b) => !isDismissed(b));
+  const script = live.filter((b) => b.kind === "script");
+  const edits = live.filter((b) => b.kind === "ceq_edit");
+  const ideas = live.filter((b) => b.kind === "idea");
+  const vibes = live.filter((b) => b.kind === "vibe_plan");
   // Lee's stamps on top, grouped by kind; the model's own suggestions in one
   // fold at the bottom (Lee, 2026-09-03: "a separate sort of toggle at the
   // bottom of AI suggested stuff").

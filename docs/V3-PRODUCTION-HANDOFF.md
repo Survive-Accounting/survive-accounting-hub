@@ -653,3 +653,79 @@ Audio stays OBS's (the mic source); the in-app feed adds ~60–120 ms of webcam 
 **The mark lab** (`/survive-bolt`, tabs Bolt | Mountain): the bolt is the pictured red + a blue echo behind it (BoilFrame.echo — stroke both, fill both, so no white seam); the mountain (`lib/survive-mountain.ts`) is a lit side + a shaded side sharing the ridge + a snow cap (BoilFrame.cap), five presets, sliders, notes, export. Either becomes the mark by pasting its export into brand.tsx + bolt-boil.tsx; the cursor / OG / flyer need the echo or cap treatment at that point.
 
 **Vertical-only** — Lee's question answered in the session; the strategies: split the frame (top/bottom halves for a JE's debit/credit), stack and walk (space walks a tall exhibit), zoom moments (O and the wheel), the moment for emphasis, sequences over minutes (a set is many shorts), and the canvas for the rare wide exhibit.
+
+## Update — 2026-09-04: clear old results before a new pass
+
+**The button.** Step 1's booth (`components/talkthrough/Booth.tsx`, right column,
+under Start over) grows **Clear old results (N)** whenever this SET still has
+live result cards. It takes the last pass's cards — script · CEQ edits · ideas ·
+vibe plan (`RESULTS_KINDS` in `canvas/talkthrough.ts`, now the one definition
+SessionView also reads) — off the Step 2 Review board so a new Generate is not
+the old board plus the new one.
+
+**Dismissed, not deleted, not archived.** `BoardItem.dismissed` is a soft hide
+(absent = live). The row, its payload and its verbatim quote all stay, so a
+slide already built from a card (`frame.bankItemId`), a film pick and the Bank
+keep resolving — only the review board hides it. `sessionBoard()` filters it
+like `archivedAt`, so `reviewStateOf` drops back off "results ready" and /v3's
+chip agrees; `ReviewBoardV2` filters again for any caller handing it raw rows.
+
+**Scope is the SET, not the session.** "End Session → Review" ENDS the session,
+so walking back into Step 1 opens a FRESH one and last night's cards hang off
+the previous sitting — session scope alone would show the button exactly when
+there is nothing to clear. `dismissableResultsForSet()` walks every sitting on
+the set (newest first); the confirm names the set and counts the sittings.
+Caveat worth knowing: a CEQ sitting and an exhibit sitting on the same set are
+cleared together.
+
+**SQL:** `20260904_1500_talkthrough_board_dismissed.sql` (additive column).
+Until it runs, `talkthrough.functions.ts` strips `dismissed`, retries once and
+returns a **warning** — `TTState.warning`, shown red in the studio's sync chip
+and under the button itself. Dismissal is local-only until then, and says so.
+
+No undo, no archived-results view, and no dismissal from /results itself —
+those were left out of this pass on purpose.
+## Update — 2026-09-04: idempotent resume for an interrupted generation
+
+Generation runs in Lee's browser tab (serverless has no worker). Close the tab
+mid-pass and the micro-edit drafts that were in flight sat at
+`payload.state === "drafting"` **forever** — the booth kept saying "✎ drafting…"
+about work nobody was doing, and the only way forward was to re-run everything
+and pay for the drafts that had already landed.
+
+**The law: progress is DERIVED, never counted.** Board items are the durable,
+synced record of what a pass produced, so "what is still owed" is recomputed
+from the store on every read — the same shape as the sync queue
+(`syncedAt < updatedAt`). A stored counter can drift from the data; this cannot.
+
+- `src/components/canvas/talkthrough-resume.ts` (pure, 27 tests) —
+  `editTasksFor` derives one task per CLOSED edit stamp that has words spoken
+  inside it; `synthesisTaskFor` adds the End Session pass; `generationPlan`
+  returns `{ total, completed, resumable }`.
+- **The idempotency key** is `payload.tagId` (the stamp's tag id), written on
+  every draft from now on. Older drafts have no tagId and fall back to
+  `{ceqId, stamp}`, which can only ever OVER-match — skipping a draft, never
+  duplicating one.
+- **Done includes failed and archived.** A failed draft stays failed (retrying
+  failures is out of scope: Lee dismisses and re-runs), and a draft he archived
+  is never resurrected — a resume that re-billed a dismissed item would be the
+  opposite of idempotent.
+- **The Booth** shows a `ResumeBar` at the top of the centre panel:
+  "Generation was interrupted · 3/8 done · 5 to go" with a **Resume
+  generation** button. A button, not an auto-run — every draft is a paid call
+  and opening a page must not start spending. `runEditDraft` REUSES the
+  stranded row rather than writing a second one, so the item Lee is looking at
+  repairs itself. The "✎ drafting…" chip now says "✎ interrupted" when no
+  promise is alive in this tab.
+- **The synthesis lane**: `TalkSession.generation` records the pre-flight
+  request (`requestedAt`, `excludedKinds`, `wantVibePlan`, `completedAt`,
+  `error`) — the one thing the board cannot re-derive. `resumeReview()` replays
+  those exact choices; the **Resume** button on a failed row in the
+  GenerationDock calls it, for any set. `queueReview` still re-runs on demand:
+  SessionView's "Regenerate review" is a deliberate re-run and must keep
+  working, so the guard lives in `resumeReview`, not in `queueReview`.
+- **SQL**: `migration/supabase-migrations/20260904_1200_talkthrough_generation.sql`
+  adds `talkthrough_sessions.generation jsonb`. The client tolerates it being
+  absent (strip + retry once, with a console warning naming the file), so
+  nothing breaks before it runs — a resume just does not travel to a second
+  machine until it does.

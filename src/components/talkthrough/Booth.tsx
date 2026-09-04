@@ -26,17 +26,19 @@
 // Tab surfs questions (or exhibits), the stamp board opens click-in/click-out
 // contexts, the flowing paragraph grows as he talks.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, FileText, Mic, RotateCcw, Square, Undo2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Eraser, FileText, Mic, RotateCcw, Square, Undo2, X } from "lucide-react";
 
 import { EXHIBIT_REGISTRY, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import {
-  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, VISUAL_KINDS, canonicalStamp, contextsOfSegment, ghostSegments, makeTag, newTTId, openContexts,
-  segmentsInContext, sessionBoard, sessionSegments, sessionTags, stampLabel, styleNotesFor, touchRow,
+  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, VISUAL_KINDS, canonicalStamp, contextsOfSegment, dismissableResultsForSet, ghostSegments, isGenerating, makeTag, newTTId, openContexts,
+  progressLine, segmentsInContext, sessionBoard, sessionSegments, sessionTags, stampLabel, styleNotesFor, touchRow,
   type BoardItem, type StampKind, type TTDoc, type TalkSegment, type TalkSession, type TalkTag,
 } from "@/components/canvas/talkthrough";
-import { putBoardItem, putSegment, putTag, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
+import { liveGenerationProgress, subscribeReview } from "@/components/canvas/talkthrough-review";
+import { dismissSetResults, putBoardItem, putSegment, putTag, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { TalkthroughRecorder, drainWhisperQueue, isWhisperHallucination, speechRecognitionAvailable, type BoothStatus } from "@/components/canvas/talkthrough-audio";
 import { buildMicroEditMessages, parseMicroEdit, type PassCeq } from "@/components/canvas/talkthrough-pass";
+import { editTasksFor, generationPlan, isResumable, progressLabel, type GenTask, type GenerationPlan } from "@/components/canvas/talkthrough-resume";
 import { buildImportRows, parseTranscriptImport, setNameMatches, type ImportBlock } from "@/components/canvas/talkthrough-import";
 import { SetCard } from "@/components/blastoff/SetCard";
 import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
@@ -179,6 +181,49 @@ export function DraftChip() {
   );
 }
 
+/** RESUME GENERATION (2026-09-04) — the bar that appears when this session's
+ *  drafting was interrupted.
+ *
+ *  Close the tab while stamps are drafting and their board items are stranded
+ *  mid-flight; the booth used to keep saying "✎ drafting…" forever. Now the
+ *  plan is derived from the board on every load, so coming back says exactly
+ *  how much landed and offers to run only the rest.
+ *
+ *  It is a BUTTON, not an automatic re-run: every draft is a paid model call,
+ *  and nothing should start spending because a page was opened. The count is
+ *  honest about what will and will not be redone. */
+export function ResumeBar({ plan, generating, owed, note, onResume }: {
+  plan: GenerationPlan; generating: number; owed: number; note: string | null; onResume: () => void;
+}) {
+  // Nothing owed and nothing running = nothing to say. A finished pass is not
+  // news, and a session with no edit stamps never shows this at all.
+  if (!owed && !generating) return null;
+  return (
+    <div
+      className="flex items-center gap-3 rounded-xl px-3 py-2"
+      style={{ marginBottom: 12, border: `1px solid ${owed ? GOLD : EDGE}`, background: owed ? "rgba(252,163,17,0.10)" : "transparent" }}
+    >
+      <div className="min-w-0" style={{ flex: 1 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: owed ? GOLD : CREAM, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          {generating ? `Generating · ${generating} running` : "Generation was interrupted"}
+        </div>
+        <div style={{ fontSize: 11, color: NEON.muted }}>
+          {progressLabel(plan)}
+          {note ? ` — ${note}` : owed ? " — already-written drafts are kept" : ""}
+        </div>
+      </div>
+      {owed > 0 && (
+        <button
+          onClick={onResume}
+          style={{ background: GOLD, color: "#0B1322", border: "none", borderRadius: 999, padding: "6px 14px", fontWeight: 800, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
+        >
+          Resume generation
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------- booth
 
 export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
@@ -202,6 +247,11 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const [mode, setMode] = useState<BoothMode>("ceq");
   const [exhibitId, setExhibitId] = useState<string | null>(null);
   const status: BoothStatus = rec.status();
+  /** Task keys generating RIGHT NOW in this tab. Not persisted on purpose: a
+   *  tab that dies takes its promises with it, and the next load reads the
+   *  truth off the board (an item still "drafting" = interrupted). */
+  const inFlight = useRef<Set<string>>(new Set());
+  const [resumeNote, setResumeNote] = useState<string | null>(null);
 
   useEffect(() => { void drainWhisperQueue(session.id).then(bump); }, [session.id, bump]);
   useEffect(() => () => rec.stop(), [rec]);
@@ -241,10 +291,42 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const flatStamps = useMemo(() => STAMP_GROUPS.flatMap((g) => g.kinds), []);
   const [selStamp, setSelStamp] = useState<StampKind | null>(null);
   const pendingEdits = sessionBoard(tt.doc, session.id).filter((b) => b.kind === "ceq_edit");
+  // The last pass's cards on THIS SET — every sitting, not just this one:
+  // "End Session → Review" ends the session, so walking back into Step 1 opens
+  // a fresh one and last night's cards hang off the previous sitting. The
+  // button exists only when there is something to clear.
+  const oldResults = dismissableResultsForSet(tt.doc, session.setId);
+  const oldSittings = new Set(oldResults.map((b) => b.sessionId)).size;
+  const [clearNote, setClearNote] = useState<string | null>(null);
+  /** What this session's generation still owes — derived from the store on
+   *  every render, so it is right on a cold page load, right after a draft
+   *  lands, and right on another machine once the pull arrives. */
+  const plan: GenerationPlan = useMemo(() => generationPlan(tt.doc, session), [tt.doc, session]);
+  const generating = plan.resumable.filter((t) => inFlight.current.has(t.key)).length;
+  /** What a Resume press here would ACTUALLY run: edit drafts, not already
+   *  running, whose CEQ is in the set this booth loaded. A stamp whose
+   *  question has left the bank can never be drafted, so offering to resume it
+   *  would be a button that does nothing — the honest count leaves it out. */
+  const owed = plan.resumable.filter((t) =>
+    t.kind === "ceq_edit" && !inFlight.current.has(t.key) && !!set?.ceqs.some((c) => c.id === t.ceqId)).length;
 
   const clickCeq = (c: BoothCeq | null) => setFocusId(c?.id ?? null);
   const clickExhibit = (id: string | null) => setExhibitId(id);
   const switchMode = (m: BoothMode) => { rec.markBoundary(); setMode(m); };
+
+  /** CLEAR OLD RESULTS (Lee, 2026-09-04) — the last pass's cards (script, CEQ
+   *  edits, ideas, vibe plan) come off the Review board before he talks a new
+   *  pass, so Step 2 is not the old board plus the new one. Dismissed, never
+   *  deleted: the rows keep their quotes, and anything already built from one
+   *  (a slide on the film draft, a film pick, a banked item) still resolves. */
+  const clearResults = () => {
+    const n = oldResults.length;
+    if (!n) return;
+    const where = oldSittings > 1 ? ` from ${oldSittings} sittings on ${setLabel(session.setName)}` : ` on ${setLabel(session.setName)}`;
+    if (!window.confirm(`Clear ${n} old result card${n === 1 ? "" : "s"}${where} off the Step 2 Review board?\n\nYour transcript and stamps are untouched, and nothing is deleted — the cards are dismissed, and slides you already built from them keep working.`)) return;
+    const cleared = dismissSetResults(session.setId);
+    setClearNote(`✓ cleared ${cleared} old result card${cleared === 1 ? "" : "s"} — Step 2 Review stays empty until you generate again`);
+  };
 
   /** START OVER — every segment and stamp in this session is archived (soft,
    *  recoverable, syncs like any edit). The session stays open and empty. */
@@ -260,42 +342,83 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
     setImportNote(`✓ started over — ${segs.length} segments archived`);
   };
 
-  /** B2 — closing an EDIT context fires the background micro draft. Capture is
-   *  never blocked: the pending item exists immediately; the draft fills in. */
+  /** B2 — ONE micro draft, for one closed edit stamp.
+   *
+   *  IDEMPOTENT (2026-09-04). The task carries the board item that already
+   *  covers it, if any:
+   *    · already ready (or already failed) → this returns false and generates
+   *      NOTHING. Re-running a pass never re-bills work that landed, and never
+   *      stacks a second suggestion on the same stamp.
+   *    · interrupted (a killed tab left it "drafting") → the SAME row is
+   *      reused, so a resume repairs the item Lee is already looking at
+   *      instead of doubling it.
+   *  In-flight keys are held in a ref so a double press cannot double-fire. */
+  const runEditDraft = (task: GenTask): boolean => {
+    if (!isResumable(task) || !task.stamp || !task.instruction) return false;
+    if (inFlight.current.has(task.key)) return false;
+    const ceq = set?.ceqs.find((c) => c.id === task.ceqId);
+    if (!ceq) return false; // the set moved on — the stamp stays, nothing pretends to draft
+    const stamp = task.stamp;
+    const spoken = task.instruction;
+    const iso = new Date().toISOString();
+    const payload = {
+      stamp, tagId: task.tagId, ceqId: ceq.id, ceqLabel: ceq.label, instruction: spoken,
+      current: { stem: ceq.stem, choices: ceq.choices }, state: "drafting", error: null,
+    };
+    const item: BoardItem = task.item
+      ? touchRow(task.item, { status: "pending", payload: { ...task.item.payload, ...payload } } as never)
+      : {
+        id: newTTId("ttb"), sessionId: session.id, runId: "micro", kind: "ceq_edit",
+        title: `${STAMP_LABELS[stamp as never] ?? stamp} · ${ceq.label}`,
+        payload, quote: spoken, ceqIds: [ceq.id], status: "pending", comment: "",
+        createdAt: iso, updatedAt: iso, syncedAt: null,
+      };
+    inFlight.current.add(task.key);
+    bump();
+    putBoardItem(item);
+    const msgs = buildMicroEditMessages({ stamp: stamp as never, ceq: boothToPassCeq(ceq), instruction: spoken, styleNotes: styleNotesFor(ttState().doc, "memo") });
+    runMicro({ data: { system: msgs.system, user: msgs.user } })
+      .then((r) => {
+        const proposal = parseMicroEdit(r.text);
+        const fresh = ttState().doc.boardItems.find((b) => b.id === item.id) ?? item;
+        putBoardItem(touchRow(fresh, proposal
+          ? { status: "suggested", payload: { ...fresh.payload, state: "ready", proposed: proposal, _usage: r.usage } }
+          : { status: "suggested", payload: { ...fresh.payload, state: "error", error: "draft didn't parse — regenerate", _usage: r.usage } } as never));
+      })
+      .catch((e) => {
+        const fresh = ttState().doc.boardItems.find((b) => b.id === item.id) ?? item;
+        putBoardItem(touchRow(fresh, { status: "suggested", payload: { ...fresh.payload, state: "error", error: e instanceof Error ? e.message : String(e) } } as never));
+      })
+      .finally(() => { inFlight.current.delete(task.key); bump(); });
+    return true;
+  };
+
+  /** Closing an EDIT context fires its draft. Capture is never blocked: the
+   *  pending item exists immediately; the draft fills in. */
   const fireEditDraft = (closed: TalkTag) => {
     const stamp = canonicalStamp(closed.tag);
     if (!stamp || !(EDIT_STAMPS as readonly string[]).includes(stamp)) return;
-    const ceq = set?.ceqs.find((c) => c.id === closed.focusedCeqId);
-    if (!ceq) return;
-    // Give the in-flight chunk a beat to persist its live text, then draft.
+    // CLAIM THE KEY NOW. For the 1.4s below the task is derivable but has no
+    // board item yet, which reads as "owed" — without this the resume bar
+    // would flash "Generation was interrupted" after every single stamp.
+    inFlight.current.add(closed.id);
+    bump();
+    // Give the in-flight chunk a beat to persist its live text, then draft off
+    // the store — the plan derives this stamp's task the same way a resume on
+    // the next page load will, so the two can never disagree.
     window.setTimeout(() => {
-      const doc = ttState().doc;
-      const closedNow = doc.tags.find((t) => t.id === closed.id) ?? closed;
-      const spoken = segmentsInContext(sessionSegments(doc, session.id), closedNow).map((s) => s.text.trim()).filter(Boolean).join(" ");
-      if (!spoken) return; // nothing said — nothing to draft
-      const iso = new Date().toISOString();
-      const item: BoardItem = {
-        id: newTTId("ttb"), sessionId: session.id, runId: "micro", kind: "ceq_edit",
-        title: `${STAMP_LABELS[stamp as never] ?? stamp} · ${ceq.label}`,
-        payload: { stamp, ceqId: ceq.id, ceqLabel: ceq.label, instruction: spoken, current: { stem: ceq.stem, choices: ceq.choices }, state: "drafting" },
-        quote: spoken, ceqIds: [ceq.id], status: "pending", comment: "",
-        createdAt: iso, updatedAt: iso, syncedAt: null,
-      };
-      putBoardItem(item);
-      const msgs = buildMicroEditMessages({ stamp: stamp as never, ceq: boothToPassCeq(ceq), instruction: spoken, styleNotes: styleNotesFor(tt.doc, "memo") });
-      runMicro({ data: { system: msgs.system, user: msgs.user } })
-        .then((r) => {
-          const proposal = parseMicroEdit(r.text);
-          const fresh = ttState().doc.boardItems.find((b) => b.id === item.id) ?? item;
-          putBoardItem(touchRow(fresh, proposal
-            ? { status: "suggested", payload: { ...fresh.payload, state: "ready", proposed: proposal, _usage: r.usage } }
-            : { status: "suggested", payload: { ...fresh.payload, state: "error", error: "draft didn't parse — regenerate", _usage: r.usage } } as never));
-        })
-        .catch((e) => {
-          const fresh = ttState().doc.boardItems.find((b) => b.id === item.id) ?? item;
-          putBoardItem(touchRow(fresh, { status: "suggested", payload: { ...fresh.payload, state: "error", error: e instanceof Error ? e.message : String(e) } } as never));
-        });
+      const task = editTasksFor(ttState().doc, session.id).find((t) => t.tagId === closed.id);
+      inFlight.current.delete(closed.id); // runEditDraft re-claims it if it starts
+      if (!task || !runEditDraft(task)) bump();
     }, 1400);
+  };
+
+  /** RESUME — run every task the plan still owes, oldest stamp first. Nothing
+   *  already on the board is touched; see runEditDraft. */
+  const resumeGeneration = () => {
+    for (const task of generationPlan(ttState().doc, session).resumable) {
+      if (task.kind === "ceq_edit") runEditDraft(task);
+    }
   };
 
   const closeCtx = (t: TalkTag) => {
@@ -453,6 +576,16 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
 
       {/* CENTER — the focused question, drawn by THE REAL CARD Blast Off films */}
       <div className="flex-1 rounded-2xl p-5" style={{ background: PANEL, border: `1px solid ${EDGE}`, overflowY: "auto", maxHeight: "82vh", minWidth: 0 }}>
+        <ResumeBar
+          plan={plan}
+          generating={generating}
+          owed={owed}
+          note={resumeNote}
+          onResume={() => {
+            resumeGeneration();
+            setResumeNote(`picking up ${owed} draft${owed === 1 ? "" : "s"} — nothing already written is being redone`);
+          }}
+        />
         <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
           <span style={{ color: NEON.muted, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase" }}>{setLabel(session.setName)}</span>
           {exhibit ? (
@@ -469,7 +602,14 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
           {showCeq?.draft && <DraftChip />}
           {showCeq && pendingEdits.some((b) => (b.payload as { ceqId?: string }).ceqId === showCeq.id) && (
             <span style={{ fontSize: 10, color: "#7DD3FC" }}>
-              {pendingEdits.filter((b) => (b.payload as { ceqId?: string }).ceqId === showCeq.id).map((b) => (b.payload as { state?: string }).state === "drafting" ? "✎ drafting…" : "✎ edit ready").join(" · ")}
+              {/* "drafting…" is only true while a promise is actually in
+                  flight IN THIS TAB. A row left drafting by a killed tab says
+                  so — it used to claim to be working forever. */}
+              {pendingEdits.filter((b) => (b.payload as { ceqId?: string }).ceqId === showCeq.id).map((b) => {
+                const p = b.payload as { state?: string; tagId?: string };
+                if (p.state !== "drafting") return "✎ edit ready";
+                return p.tagId && !inFlight.current.has(p.tagId) ? "✎ interrupted" : "✎ drafting…";
+              }).join(" · ")}
             </span>
           )}
           <span className="ml-auto" style={{ fontSize: 10.5, color: stars.length ? GOLD : NEON.muted }}>★ {stars.length}</span>
@@ -548,6 +688,25 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
         >
           <RotateCcw className="h-3 w-3" /> Start over
         </button>
+        {/* CLEAR OLD RESULTS — only when the last pass left cards behind. */}
+        {oldResults.length > 0 && (
+          <button
+            className="flex items-center justify-center gap-2 rounded-xl px-3 py-1.5"
+            style={{ border: `1px solid ${EDGE}`, color: NEON.muted, background: "transparent", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}
+            title="Take the last pass's cards off the Step 2 Review board before you talk a new pass — dismissed, never deleted"
+            onClick={clearResults}
+          >
+            <Eraser className="h-3 w-3" /> Clear old results ({oldResults.length})
+          </button>
+        )}
+        {clearNote && (
+          <div style={{ fontSize: 10.5, color: "#3BF5A0", lineHeight: 1.45 }}>
+            {clearNote}
+            {/* The server took the rows but could not store the flag — say so
+                where the click happened, never let it look like it worked. */}
+            {tt.warning && <div style={{ color: "#F87171", marginTop: 3 }}>⚠ {tt.warning}</div>}
+          </div>
+        )}
         {paused && !status.recording && <div style={{ color: NEON.muted, fontSize: 10.5 }}>Paused — mic released. Resume continues this session exactly here (survives reloads).</div>}
         {micError && <div style={{ color: "#F87171", fontSize: 12 }}>{micError}</div>}
         {!speechRecognitionAvailable() && <div style={{ color: NEON.muted, fontSize: 10.5 }}>Live captions unavailable — chunked Whisper alone.</div>}
@@ -652,12 +811,59 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
             <div style={{ color: NEON.muted, fontSize: 11 }}>background: {status.uploadQueue} uploading · {status.transcribeQueue} awaiting Whisper</div>
           )}
           {status.lastError && <div style={{ color: "#F87171", fontSize: 11 }}>retrying: {status.lastError}</div>}
+          {/* B8 — what the AI is generating right now, item by item */}
+          <GenerationProgressLines doc={tt.doc} sessionId={session.id} />
           {/* B3 — THE primary next action */}
           <button className="rounded-xl px-4 py-3" style={{ background: GOLD, color: "#0B1322", fontFamily: BIG_FONT, fontWeight: 800, fontSize: 15 }} onClick={() => { rec.stop(); onEnd(); }}>
             End Session → Review
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------- B8: generation progress
+
+/** THE PROGRESS LINE (Lee, 2026-09-04). End Session queues a QUEUE now — the
+ *  script, then the CEQ edits, then the ideas — and each item lands on Review
+ *  as it is written. This says where it is up to: "Generating: edits 2/5 done".
+ *
+ *  It lists EVERY run in flight, not just this session's, because End Session
+ *  sends Lee straight on to the next set while the last one generates behind
+ *  him; a run that is not this booth's names its set. A finished run says so
+ *  for three minutes, then clears itself. */
+export function GenerationProgressLines({ doc, sessionId }: { doc: TTDoc; sessionId: string }) {
+  const [, tick] = useState(0);
+  useEffect(() => subscribeReview(() => tick((n) => n + 1)), []);
+  const rows = liveGenerationProgress();
+  // A finished run ages out on a clock, not on an event — nudge the render.
+  useEffect(() => {
+    if (!rows.length) return;
+    const t = setInterval(() => tick((n) => n + 1), 10_000);
+    return () => clearInterval(t);
+  }, [rows.length]);
+  if (!rows.length) return null;
+
+  return (
+    <div className="flex flex-col gap-1">
+      {rows.map(({ sessionId: sid, progress }) => {
+        const running = isGenerating(progress);
+        const ses = doc.sessions.find((s) => s.id === sid);
+        const other = sid !== sessionId && ses ? ` · ${setLabel(ses.setName)}` : "";
+        const color = progress.error ? "#F87171" : running ? GOLD : "#3BF5A0";
+        return (
+          <div key={sid} style={{ fontSize: 11.5, color, fontWeight: 700, lineHeight: 1.45 }}>
+            {running ? "⚡ " : progress.error ? "✕ " : "✓ "}{progressLine(progress)}{other}
+            {running && progress.total > 0 && (
+              <span style={{ color: NEON.muted, fontWeight: 600 }}> · {progress.completed}/{progress.total} overall</span>
+            )}
+            {running && progress.label && (
+              <div style={{ color: NEON.muted, fontSize: 10.5, fontWeight: 600 }}>{progress.label}</div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

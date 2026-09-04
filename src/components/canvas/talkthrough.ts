@@ -71,13 +71,96 @@ export function mergeRows<T extends TTRow>(local: T[], incoming: T[]): T[] {
 
 // -------------------------------------------------------------------- model
 
+/** IDEMPOTENT RESUME (2026-09-04) — what a generation pass CANNOT re-derive.
+ *
+ *  Everything a pass produced is already durable and synced: the board items
+ *  themselves. Progress is therefore DERIVED from the board (talkthrough-
+ *  resume.ts), never counted into a field that can drift — the same law the
+ *  sync queue follows. What the board cannot tell you is what Lee ASKED for:
+ *  the pre-flight exclusions and whether he wanted a vibe plan. Those ride
+ *  here so an interrupted synthesis resumes with the same choices, from any
+ *  machine, and so the Booth can tell "never started" from "started, died". */
+export interface SessionGeneration {
+  /** When the synthesis pass was last requested (End Session → pre-flight). */
+  requestedAt: string;
+  /** The pre-flight choices, replayed verbatim on a resume. */
+  excludedKinds: string[];
+  wantVibePlan: boolean;
+  /** Set the moment the pass wrote its board items. */
+  completedAt?: string | null;
+  /** Last failure, verbatim. Shown, never swallowed. */
+  error?: string | null;
+}
+
 export interface TalkSession extends TTRow {
   setId: string;
   /** Denormalized at capture — a session stays readable if the set changes. */
   setName: string;
   startedAt: string;
   endedAt?: string | null;
+  /** The synthesis pass's request record — see SessionGeneration. Additive:
+   *  every session written before 2026-09-04 simply has none. */
+  generation?: SessionGeneration | null;
 }
+
+// ───────────────────── B8: GENERATION PROGRESS (the incremental queue)
+//
+// Lee, 2026-09-04: "show generation progress" while the End-Session pass runs.
+// The pass is a QUEUE now (talkthrough-pass.buildGenerationQueue): the script,
+// then every CEQ edit, then every idea, each written to the board the moment
+// it lands. This is the shape of "where is it up to".
+//
+// WHERE IT LIVES, and why it is not a field on TalkSession: a session is a
+// SYNCED row (see SessionRow below). Hanging progress off it would mean a new
+// column, a migration and a Supabase write per generated item — churn on the
+// capture store for a number that is true for one run, in one tab, for about a
+// minute. So progress lives beside the run state it belongs to, in
+// talkthrough-review.ts's `sa-tt-genstate` store (localStorage, subscribable,
+// already swept for stranded runs at boot). The TYPE lives here, with the rest
+// of the model, because the Booth, the dock and the runner all read it.
+
+/** The queue's phases, in the order the queue runs them. */
+export const GEN_TASK_TYPES = ["script", "edit", "idea"] as const;
+export type GenTaskType = (typeof GEN_TASK_TYPES)[number];
+
+/** Plural labels for the progress line — "edits 2/5 done". */
+export const GEN_TYPE_LABELS: Record<GenTaskType, string> = { script: "script", edit: "edits", idea: "ideas" };
+
+export interface GenerationProgress {
+  /** Every task in the run — known before the first call is made. */
+  total: number;
+  /** Tasks finished (written to the board). */
+  completed: number;
+  /** What is being generated RIGHT NOW. Null = the queue is finished. */
+  currentType: GenTaskType | null;
+  /** The current task's own label ("cheat code · Q3 · Unearned → earned"). */
+  label: string | null;
+  /** Tasks per phase, and how many of each are done. */
+  counts: Record<GenTaskType, number>;
+  done: Record<GenTaskType, number>;
+  /** ISO stamp of when the queue stopped — finished or halted. */
+  finishedAt?: string | null;
+  /** Set when the queue HALTED. Fail loud: items already written stay. */
+  error?: string | null;
+}
+
+export const emptyProgress = (): GenerationProgress => ({
+  total: 0, completed: 0, currentType: null, label: null,
+  counts: { script: 0, edit: 0, idea: 0 }, done: { script: 0, edit: 0, idea: 0 },
+  finishedAt: null, error: null,
+});
+
+/** The one line the Booth and the dock show. Pure, so it is tested. */
+export function progressLine(p: GenerationProgress): string {
+  if (p.error) return `Generation stopped: ${p.error}`;
+  if (!p.currentType) return p.total ? `Generation complete · ${p.completed} item${p.completed === 1 ? "" : "s"}` : "Generation complete";
+  const t = p.currentType;
+  if (t === "script") return "Generating: the script…";
+  return `Generating: ${GEN_TYPE_LABELS[t]} ${p.done[t]}/${p.counts[t]} done`;
+}
+
+/** True while the queue is still working. */
+export const isGenerating = (p: GenerationProgress | null | undefined): boolean => !!p && !!p.currentType;
 
 export type SegmentSource = "live" | "whisper";
 
@@ -276,6 +359,44 @@ export interface BoardItem extends TTRow {
   status: BoardStatus;
   /** Lee's note — feeds "Regenerate with my notes". */
   comment: string;
+  /** CLEARED BEFORE A NEW PASS (2026-09-04). Lee clears the last pass's cards
+   *  out of the way in the booth so the next Generate starts on a clean board.
+   *  Absent/false = live. Like `archivedAt` this is a SOFT hide — the row and
+   *  its quote stay, so anything already built from it (a slide's
+   *  `bankItemId`, a film pick, the bank) still resolves. */
+  dismissed?: boolean;
+}
+
+/** The kinds the AI review pass mints — what "the results" MEANS on the board
+ *  (ReviewBoardV2 renders exactly these). "Clear old results" dismisses these
+ *  and nothing else: takes, style notes and the legacy kinds are not results. */
+export const RESULTS_KINDS: readonly BoardKind[] = ["script", "ceq_edit", "idea", "vibe_plan"];
+
+/** Live = not dismissed. Old rows have no field at all, so absent means live. */
+export const isDismissed = (b: BoardItem): boolean => b.dismissed === true;
+
+/** One session's result cards that are still live. Pure — the caller stamps
+ *  and commits. */
+export function dismissableResults(d: TTDoc, sessionId: string): BoardItem[] {
+  return d.boardItems.filter(
+    (b) => b.sessionId === sessionId && !b.archivedAt && !isDismissed(b) && RESULTS_KINDS.includes(b.kind),
+  );
+}
+
+/** THE SET's live result cards, newest sitting first — what "Clear old
+ *  results" actually clears.
+ *
+ *  Session scope alone would miss the ordinary case: End Session → Review
+ *  ENDS the session, so walking back into Step 1 opens a FRESH one and last
+ *  night's cards hang off the old sitting. The button has to reach them, or
+ *  it would be a button that is never there when it is wanted. Sittings are
+ *  counted so the confirm can say how many boards it is about to clear. */
+export function dismissableResultsForSet(d: TTDoc, setId: string): BoardItem[] {
+  const mine = new Set(d.sessions.filter((s) => s.setId === setId && !s.archivedAt).map((s) => s.id));
+  const startedAt = new Map(d.sessions.map((s) => [s.id, s.startedAt]));
+  return d.boardItems
+    .filter((b) => mine.has(b.sessionId) && !b.archivedAt && !isDismissed(b) && RESULTS_KINDS.includes(b.kind))
+    .sort((a, b) => (startedAt.get(b.sessionId) ?? "").localeCompare(startedAt.get(a.sessionId) ?? "") || a.createdAt.localeCompare(b.createdAt));
 }
 
 // ----------------------------------------------------------------- factories
@@ -375,10 +496,12 @@ export function sessionTags(d: TTDoc, sessionId: string): TalkTag[] {
   return d.tags.filter((t) => t.sessionId === sessionId && !t.archivedAt).sort((a, b) => a.at.localeCompare(b.at));
 }
 
+/** A session's board — archived rows hidden, and DISMISSED rows hidden too
+ *  (Lee cleared the old pass out of the way; the row itself is still there). */
 export function sessionBoard(d: TTDoc, sessionId: string): BoardItem[] {
   const order = new Map(BOARD_KINDS.map((k, i) => [k, i]));
   return d.boardItems
-    .filter((b) => b.sessionId === sessionId && !b.archivedAt)
+    .filter((b) => b.sessionId === sessionId && !b.archivedAt && !isDismissed(b))
     .sort((a, b) => (order.get(a.kind)! - order.get(b.kind)!) || a.createdAt.localeCompare(b.createdAt));
 }
 
@@ -426,14 +549,21 @@ export const isSessionIdle = (d: TTDoc, s: TalkSession, now = Date.now()): boole
 export const STYLE_KINDS = ["script", "exhibit", "memo", "short", "general"] as const;
 export type StyleKind = (typeof STYLE_KINDS)[number];
 
-/** Which style-note bucket an item's generations draw from. */
-export function styleKindFor(item: BoardItem): StyleKind {
-  if (item.kind === "script" || item.kind === "vibe_plan") return "script";
-  const k = item.kind === "idea" ? String((item.payload as { kind?: string }).kind ?? "") : item.kind;
+/** Which style-note bucket a KIND draws from — a board kind, or the card kind
+ *  inside an idea payload (B8's per-stamp tasks know the kind before an item
+ *  exists, so this half is callable without one). */
+export function styleKindForKind(k: string): StyleKind {
+  if (k === "script" || k === "vibe_plan") return "script";
   if (k === "exhibit" || k === "visual") return "exhibit";
   if (k === "memo" || k === "phrase" || k === "trigger_word" || k === "memorize_this" || k === "cheat_code") return "memo";
   if (k === "short" || k === "nerdout" || k === "deeper_idea") return "short";
   return "general";
+}
+
+/** Which style-note bucket an item's generations draw from. */
+export function styleKindFor(item: BoardItem): StyleKind {
+  if (item.kind === "script" || item.kind === "vibe_plan") return "script";
+  return styleKindForKind(item.kind === "idea" ? String((item.payload as { kind?: string }).kind ?? "") : item.kind);
 }
 
 /** Up to N recent APPROVED items of a style kind, newest first, trimmed —
@@ -469,9 +599,24 @@ export function boardForCeq(items: BoardItem[], ceqId: string): BoardItem[] {
 /* Snake-case row shapes, one per table. fromX stamps syncedAt from the server
  * copy (straight from the server ⇒ synced), exactly like idea-bank.fromRow. */
 
-export interface SessionRow { id: string; set_id: string; set_name: string; started_at: string; ended_at: string | null; created_at: string; updated_at: string; archived_at: string | null }
-export const toSessionRow = (s: TalkSession): SessionRow => ({ id: s.id, set_id: s.setId, set_name: s.setName, started_at: s.startedAt, ended_at: s.endedAt ?? null, created_at: s.createdAt, updated_at: s.updatedAt, archived_at: s.archivedAt ?? null });
-export const fromSessionRow = (r: SessionRow): TalkSession => ({ id: r.id, setId: r.set_id, setName: r.set_name, startedAt: r.started_at, endedAt: r.ended_at, createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at });
+export interface SessionRow { id: string; set_id: string; set_name: string; started_at: string; ended_at: string | null; created_at: string; updated_at: string; archived_at: string | null; generation?: Record<string, unknown> | null }
+export const toSessionRow = (s: TalkSession): SessionRow => ({ id: s.id, set_id: s.setId, set_name: s.setName, started_at: s.startedAt, ended_at: s.endedAt ?? null, created_at: s.createdAt, updated_at: s.updatedAt, archived_at: s.archivedAt ?? null, generation: s.generation ? { ...s.generation } : null });
+export const fromSessionRow = (r: SessionRow): TalkSession => ({ id: r.id, setId: r.set_id, setName: r.set_name, startedAt: r.started_at, endedAt: r.ended_at, generation: readGeneration(r.generation), createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at });
+
+/** A jsonb blob from the server is untrusted shape — read it defensively, and
+ *  degrade to "no request on record" rather than throwing the whole pull. */
+export function readGeneration(v: unknown): SessionGeneration | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const g = v as Record<string, unknown>;
+  if (typeof g.requestedAt !== "string" || !g.requestedAt) return null;
+  return {
+    requestedAt: g.requestedAt,
+    excludedKinds: Array.isArray(g.excludedKinds) ? g.excludedKinds.filter((x): x is string => typeof x === "string") : [],
+    wantVibePlan: !!g.wantVibePlan,
+    completedAt: typeof g.completedAt === "string" ? g.completedAt : null,
+    error: typeof g.error === "string" ? g.error : null,
+  };
+}
 
 export interface SegmentRow { id: string; session_id: string; seq: number; text: string; source: string; whisper_pending: boolean; audio_path: string | null; focused_ceq_id: string | null; focused_ceq_label: string | null; started_at: string; ended_at: string | null; created_at: string; updated_at: string; archived_at: string | null }
 export const toSegmentRow = (s: TalkSegment): SegmentRow => ({ id: s.id, session_id: s.sessionId, seq: s.seq, text: s.text, source: s.source, whisper_pending: s.whisperPending, audio_path: s.audioPath ?? null, focused_ceq_id: s.focusedCeqId ?? null, focused_ceq_label: s.focusedCeqLabel ?? null, started_at: s.startedAt, ended_at: s.endedAt ?? null, created_at: s.createdAt, updated_at: s.updatedAt, archived_at: s.archivedAt ?? null });
@@ -481,13 +626,17 @@ export interface TagRow { id: string; session_id: string; tag: string; at: strin
 export const toTagRow = (t: TalkTag): TagRow => ({ id: t.id, session_id: t.sessionId, tag: t.tag, at: t.at, ended_at: t.endedAt ?? null, starred: !!t.starred, focused_ceq_id: t.focusedCeqId ?? null, focused_ceq_label: t.focusedCeqLabel ?? null, source: t.source, note: t.note ?? null, created_at: t.createdAt, updated_at: t.updatedAt, archived_at: t.archivedAt ?? null });
 export const fromTagRow = (r: TagRow): TalkTag => ({ id: r.id, sessionId: r.session_id, tag: ([...MOMENT_TAGS, ...QUICK_KINDS, ...STAMP_KINDS] as readonly string[]).includes(r.tag) ? (r.tag as TagKind) : "KEY", at: r.at, endedAt: r.ended_at ?? null, starred: !!r.starred, focusedCeqId: r.focused_ceq_id, focusedCeqLabel: r.focused_ceq_label, source: r.source === "ai" ? "ai" : "tap", note: r.note, createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at });
 
-export interface BoardItemRow { id: string; session_id: string; run_id: string; kind: string; title: string; payload: Record<string, unknown>; quote: string; ceq_ids: string[]; status: string; comment: string; created_at: string; updated_at: string; archived_at: string | null }
-export const toBoardItemRow = (b: BoardItem): BoardItemRow => ({ id: b.id, session_id: b.sessionId, run_id: b.runId, kind: b.kind, title: b.title, payload: b.payload, quote: b.quote, ceq_ids: b.ceqIds, status: b.status, comment: b.comment, created_at: b.createdAt, updated_at: b.updatedAt, archived_at: b.archivedAt ?? null });
+/** `dismissed` is OPTIONAL on the wire: the column arrives with
+ *  20260904_1500_talkthrough_board_dismissed.sql, and until that runs the
+ *  server strips it and says so loudly (talkthrough.functions.ts). */
+export interface BoardItemRow { id: string; session_id: string; run_id: string; kind: string; title: string; payload: Record<string, unknown>; quote: string; ceq_ids: string[]; status: string; comment: string; dismissed?: boolean; created_at: string; updated_at: string; archived_at: string | null }
+export const toBoardItemRow = (b: BoardItem): BoardItemRow => ({ id: b.id, session_id: b.sessionId, run_id: b.runId, kind: b.kind, title: b.title, payload: b.payload, quote: b.quote, ceq_ids: b.ceqIds, status: b.status, comment: b.comment, dismissed: isDismissed(b), created_at: b.createdAt, updated_at: b.updatedAt, archived_at: b.archivedAt ?? null });
 export const fromBoardItemRow = (r: BoardItemRow): BoardItem => ({
   id: r.id, sessionId: r.session_id, runId: r.run_id,
   kind: (BOARD_KINDS as readonly string[]).includes(r.kind) ? (r.kind as BoardKind) : "vibe",
   title: r.title, payload: r.payload ?? {}, quote: r.quote ?? "",
   ceqIds: Array.isArray(r.ceq_ids) ? r.ceq_ids : [],
   status: (BOARD_STATUSES as readonly string[]).includes(r.status) ? (r.status as BoardStatus) : "suggested",
-  comment: r.comment ?? "", createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at,
+  comment: r.comment ?? "", dismissed: r.dismissed === true,
+  createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at,
 });
