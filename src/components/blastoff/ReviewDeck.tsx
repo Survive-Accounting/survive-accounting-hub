@@ -44,6 +44,7 @@ import {
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 import { ADS, AD_LABEL } from "./AdSlide";
 import { PhoneFrame } from "./PhoneFrame";
+import { SlideEditContext } from "./slide-edit";
 import {
   PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups, readTidy, setStampCandidates, tidyCacheKey, writeTidy,
   type PrompterCandidate, type TidyPhrase, type TidyResult,
@@ -288,12 +289,6 @@ export function ReviewDeck({ set, topic, doc, register }: {
           ? { label: "↺ Film it", title: "Film this slide again", color: MINT, run: () => commit(toggleSkip(frames, f.id)) }
           : { label: "⊘ Skip in the film", title: "Skip this card in the film (it stays in the set)", color: RED, run: () => commit(toggleSkip(frames, f.id)) },
     ];
-    if (f.kind !== "open") {
-      // The same cycle as the ✨ chip on the stage: auto (the rule) → black → off.
-      const word = (b: BlastFrame["backdrop"]) => (b === undefined ? "auto" : b === "zoom" ? "black" : "off");
-      const next: BlastFrame["backdrop"] = f.backdrop === undefined ? "zoom" : f.backdrop === "zoom" ? "off" : undefined;
-      items.push({ label: `✨ Backdrop · ${word(f.backdrop)}`, title: `The black stage behind this slide — auto (the rule) → black → off. Next: ${word(next)}`, run: () => patch(f.id, { backdrop: next }) });
-    }
     // The cold open carries the banner unless told not to; every other slide only when asked.
     const bannerOn = f.kind === "open" ? f.banner !== "off" : f.banner === "on";
     items.push({
@@ -466,20 +461,15 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
         <span style={{ fontSize: 11.5, color: MUTED }}>{label}{sel.skipped ? " · skipped" : ""}</span>
         <span style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
           <button style={chip(phone, SKY)} title="Show the slide on a 9:16 phone stage" onClick={() => setPhone((v) => !v)}>📱 phone</button>
-          {sel.kind !== "open" && (
-            // THE BACKDROP TOGGLE (Lee: "let me toggle any slide I want it to be
-            // running"). auto = the rule (cold open → intro → opening summary).
-            <button style={chip(!!backdrop, ORANGE)} title="The black stage (or the summary glow) on this slide: auto (the rule) → on → off"
-              onClick={() => onPatch({ backdrop: sel.backdrop === undefined ? "zoom" : sel.backdrop === "zoom" ? "off" : undefined })}>
-              ✨ backdrop · {sel.backdrop ?? "auto"}{backdrop ? ` (${backdrop})` : ""}
-            </button>
-          )}
           {phone && <button style={chip(safe, SKY)} title="Shade the zones TikTok and Shorts paint their own UI over" onClick={() => setSafe((v) => !v)}>safe zones</button>}
           <button style={tiny} title="Move up" onClick={() => onMove(-1)}>↑</button>
           <button style={tiny} title="Move down" onClick={() => onMove(1)}>↓</button>
         </span>
       </div>
 
+      {/* CLICK THE WORDS (Lee, 2026-09-04): the tagline, the tutor line, the domain,
+          an ad's every line — editable on the slide itself. Cards keep the Editor tab. */}
+      <SlideEditContext.Provider value={onPatch}>
       {phone ? (
         <PhoneFrame frame={sel} frames={frames} index={idx} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} w={STAGE_W} />
       ) : (
@@ -487,6 +477,7 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
           <FrameView frame={sel} set={viewSet} scale={0.78} topicName={topic.name} progress={progress} />
         </div>
       )}
+      </SlideEditContext.Provider>
     </>
   );
 }
