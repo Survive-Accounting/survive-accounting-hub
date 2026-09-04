@@ -75,7 +75,7 @@ import { CHAINED_MARKER, NEON, PAPER } from "./theme";
 import { clampScale, type CalloutKind, type CalloutSettings, type CeqCard, type CeqChainItem, type CeqInstanceGeom, type DeckLayout, type DeckSlotLayout } from "./types";
 
 /** Practice state read by the CEQ mock (emphasis + which choices are resolved). */
-const PracticeContext = createContext<{ emph: number | null; resolved: Set<number>; select?: (i: number) => void; resolveChoice?: (i: number) => void; toggleBoss?: () => void }>({ emph: null, resolved: new Set() });
+export const PracticeContext = createContext<{ emph: number | null; resolved: Set<number>; select?: (i: number) => void; resolveChoice?: (i: number) => void; toggleBoss?: () => void }>({ emph: null, resolved: new Set() });
 /** PERSISTENT TEXT HIGHLIGHTS (workflow-verified fix): state lives in INNER —
  *  keyed by question/memo id, the perfArrows pattern — because node components
  *  DO unmount (memo nodes on every walk-away; the arriving card for one commit
@@ -86,28 +86,28 @@ const PracticeContext = createContext<{ emph: number | null; resolved: Set<numbe
 /** The set of currently-revealed chain-memo node ids (read by memo chips). */
 const RevealContext = createContext<Set<string>>(new Set());
 /** Live resize: write a node's data.scale (mini + main store). */
-const ScaleContext = createContext<(id: string, s: number) => void>(() => {});
+export const ScaleContext = createContext<(id: string, s: number) => void>(() => {});
 /** Called once when a resize DRAG ends (pointer-up), so the new size can be persisted. */
-const ScaleCommitContext = createContext<() => void>(() => {});
+export const ScaleCommitContext = createContext<() => void>(() => {});
 /** ALT-RESIZE (2026-09-03): the film surface's transient width override for a
  *  CEQ card — local `nodes` state only, like setScale; dies on the next seed. */
-const WidthContext = createContext<(id: string, w: number) => void>(() => {});
+export const WidthContext = createContext<(id: string, w: number) => void>(() => {});
 /** ALT-MOVE (2026-09-03): the film surface's own pick-up-and-move for a card,
  *  in flow units. ReactFlow's node drag never fires on the film pane (verified
  *  with real pointer gestures: the node is marked draggable, nothing moves), so
  *  the card tracks the pointer itself while Alt is down. Transient, like the
  *  grips. */
-const MoveContext = createContext<(id: string, dx: number, dy: number) => void>(() => {});
+export const MoveContext = createContext<(id: string, dx: number, dy: number) => void>(() => {});
 /** POSITIONS STICK (Lee, 2026-09-03: "I think we do this … if I need to
  *  reposition something, it should probably be repositioned for the student
  *  too"). After an Alt-move or a grip drag on the LIVE card, its spot (x, y,
  *  scale) is written to the card's instance geometry for this orientation —
  *  the same door the Studio's own drag uses — so the next deal, the next take
  *  and the canvas all agree. Stand-ins (inert) never persist. */
-const PersistContext = createContext<(id: string) => void>(() => {});
+export const PersistContext = createContext<(id: string) => void>(() => {});
 /** LOCAL rehearsal-spotlight layer (never the global controller). Keyed spotKey. */
-interface PreviewSpotApi { state: (key: string) => "spot" | null; flamed: (key: string) => boolean; tone: (key: string) => SuperTone; onClick: (key: string, e: React.PointerEvent) => void; any: () => boolean }
-const PreviewSpotContext = createContext<PreviewSpotApi>({ state: () => null, flamed: () => false, tone: () => "focus", onClick: () => {}, any: () => false });
+export interface PreviewSpotApi { state: (key: string) => "spot" | null; flamed: (key: string) => boolean; tone: (key: string) => SuperTone; onClick: (key: string, e: React.PointerEvent) => void; any: () => boolean }
+export const PreviewSpotContext = createContext<PreviewSpotApi>({ state: () => null, flamed: () => false, tone: () => "focus", onClick: () => {}, any: () => false });
 // FILM view (the popout mirror): true ⇒ nodes render CLEAN — no scale grips, no
 // frame outline/label, no chain-number badges — just the composition the camera
 // sees. Now lives in film-lock.ts (shared) so staged exhibit cards can consume

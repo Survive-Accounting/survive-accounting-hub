@@ -49,6 +49,7 @@ export function SetCard({
   progress,
   callout,
   scale = 1,
+  live = false,
 }: {
   id?: string;
   stem: string;
@@ -60,6 +61,12 @@ export function SetCard({
   progress?: { x: number; y: number } | null;
   callout?: Record<string, unknown>;
   scale?: number;
+  /** THE CAPTURE SURFACE (2026-09-04): the card is the live one — practice
+   *  clicks, spotlight, shift-click highlights, Alt-move all reach it — and it
+   *  plays its entrance. Off (the default) it is the inert still the Review
+   *  and Arrange stages draw. The contexts those tools read are provided by
+   *  BlastOffCapture; without them a live card is merely not inert. */
+  live?: boolean;
 }) {
   return (
     <ReactFlowProvider>
@@ -88,10 +95,9 @@ export function SetCard({
             progress: progress ?? null,
             ...(callout ? { callout } : {}),
             // No entrance animation in a still preview — it would replay on
-            // every keystroke while Lee is arranging.
-            enterAnim: "none",
-            enterAnimName: "none",
-            inert: true,
+            // every keystroke while Lee is arranging. The live card keeps it.
+            ...(live ? {} : { enterAnim: "none", enterAnimName: "none" }),
+            inert: !live,
           }}
         />
       </div>

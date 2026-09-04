@@ -36,7 +36,7 @@ export function watermarkOn(frame: BlastFrame, _backdrop: ReturnType<typeof back
   return !isFullFrame(frame.kind);
 }
 
-export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style }: {
+export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, stageStyle }: {
   frame: BlastFrame;
   /** The whole running order — the backdrop rule looks at the neighbours. */
   frames: readonly BlastFrame[];
@@ -49,13 +49,20 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   /** The phone's rounded corners and hairline; off in capture (OBS sees black). */
   rounded?: boolean;
   style?: React.CSSProperties;
+  /** THE CAPTURE SURFACE (2026-09-04): cards are live (practice, spotlight,
+   *  highlights, Alt-move reach them), the phone is the `film-mode` root the
+   *  card stylesheet keys its motion on (typewriter, neon, outro fade), and
+   *  the slide re-keys per frame so entrances play on every walk. */
+  capture?: boolean;
+  /** A transform on the slide itself (the capture camera: zoom, pull-back). */
+  stageStyle?: React.CSSProperties;
 }) {
   const h = Math.round(w * 16 / 9);
   const backdrop = backdropFor(frames, index, (id) => !!set.ceqs.find((c) => c.id === id)?.noteOnly);
   const band: React.CSSProperties = { position: "absolute", left: 0, right: 0, background: "repeating-linear-gradient(135deg, rgba(125,211,252,0.10) 0 6px, transparent 6px 14px)", borderColor: "rgba(125,211,252,0.35)", pointerEvents: "none" };
   const tag: React.CSSProperties = { position: "absolute", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(125,211,252,0.7)", fontWeight: 800 };
   return (
-    <div style={{ width: w, height: h, background: "#000", borderRadius: rounded ? Math.round(w * 0.072) : 0, border: rounded ? "1px solid rgba(244,239,230,0.16)" : "none", position: "relative", overflow: "hidden", display: "grid", placeItems: "center", opacity: dim ? 0.5 : 1, ...style }}>
+    <div className={capture ? "film-mode" : undefined} data-sa-phone="" style={{ width: w, height: h, background: "#000", borderRadius: rounded ? Math.round(w * 0.072) : 0, border: rounded ? "1px solid rgba(244,239,230,0.16)" : "none", position: "relative", overflow: "hidden", display: "grid", placeItems: "center", opacity: dim ? 0.5 : 1, ...style }}>
       {frame.kind !== "open" && frame.banner === "on" && <CampusBanner w={w} h={h} live={live} />}
       {/* THE WATERMARK — the wordmark with the live bolt in the "i", top-left,
           sized like the film popout's (5.2% of the width). */}
@@ -64,8 +71,8 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
           <SurviveWordmark size={Math.max(12, Math.round(w * 0.052))} />
         </div>
       )}
-      <div style={{ display: "grid", placeItems: "center", position: "relative" }}>
-        <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} />
+      <div key={capture ? frame.id : undefined} data-sa-stage="" style={{ display: "grid", placeItems: "center", position: "relative", ...stageStyle }}>
+        <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} />
       </div>
       {safe && (
         <>
