@@ -329,6 +329,24 @@ session (the build queue judged it too big — see docs/TWO-MACHINES.md).
   - Verified on the review stage. Film side: tsc + code. Re-send to film to
     get the open frame and the backdrops into the set. Remotion MP4 render of
     the open is the next step (separate folder, never in the web build).
+- **Unblock-filming pass (Lee, 2026-09-03, late):**
+  - The typewriter is LINE BY LINE now (heading, then each bullet, then the
+    footer; `.sa-type` + `--i`, 240 ms a step). The first cut split every word
+    into a span and dropped words on the synced frame — that was the "blank
+    spaces in the bullets" bug. Verified finished-and-visible on the film
+    surface.
+  - Detour cards use the homepage faces at phone size: heading League
+    Spartan 31 (balanced, up to one break), bullets Rubik 19 (short ones
+    never break; a long one wraps rather than clipping off the card).
+  - **Per-line spotlight**: the title, each bullet and the footer are their
+    own spotlight targets (`spotlightTargetsOf` → title, line:i, footer;
+    `CalloutBody.lineSpot`). Ctrl+click one: 1.06× and a gentle brand-colour
+    glow that breathes gold → pink → cyan (`.sa-detour-spot`, `sa-lsd`, 20%).
+    Verified on the film surface.
+  - **Positions stick**: after an Alt-move or a grip drag on the LIVE card,
+    its spot goes to the card's instance geometry for this orientation via
+    the Studio's `onSaveInstance` (`PersistContext`); a width drag writes
+    `cardW`. The next deal, take and the canvas agree. Stand-ins never persist.
 - **Detour cards are full card width** (same pass): callouts were fit-content
   with a 320 floor, so a detour drew at about half a set card's width. Dark
   detour cards now floor at `cardW ?? CARD_W` and cap at the same, so every

@@ -37,7 +37,11 @@ export function spotlightTargetsOf(data: CardData | undefined): string[] {
       // detour from Blast Off) spotlights as a whole, like a memo (Lee,
       // 2026-09-03: "make sure the new slides … are all spotlightable").
       const ch = (data as CeqCard).choices;
-      return ch.length ? ch.map((c) => c.id) : [MEMO_SELF_TARGET];
+      if (ch.length) return ch.map((c) => c.id);
+      // A callout card: the title, then each line under it (2026-09-03 —
+      // Lee spotlights the title or a bullet, not the whole card).
+      const lines = (data as CeqCard).callout?.extraStems ?? [];
+      return ["title", ...lines.map((_, i) => `line:${i}`), ...((data as CeqCard).callout?.footer ? ["footer"] : [])];
     }
     case "cycle": // accounting cycle — per-STEP targets (Lee: only steps, not the whole element)
       return (data as CycleElement).steps.map((s) => s.id);

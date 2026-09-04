@@ -13,9 +13,8 @@
 //
 // Film law: this file is PRESENTATION ONLY. All authoring affordances live in
 // CeqPreviewNode behind the film gate — nothing here captures keys or drags.
-import { Fragment, cloneElement, isValidElement, type ReactNode } from "react";
-
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { BRAND_FONT, DISPLAY_FONT } from "@/components/blastoff/stage";
 import { renderInline } from "../inline-md";
 import { PAPER } from "../theme";
 import type { CalloutKind } from "../types";
@@ -68,6 +67,8 @@ export interface CalloutBodyProps {
   onEditBullet?: (idx: number) => void;
   /** A quiet last line under a gap — the bio card's domain. */
   footer?: string;
+  /** Per-line spotlight (film): "title", "line:<i>", "footer". */
+  lineSpot?: LineSpotOf;
   /** THE DETOUR LOOK (CalloutSettings.detour): gold label, cream ink, the
    *  ==key phrase== highlighted gold-on-navy. The shell paints the navy;
    *  this only changes the ink. */
@@ -93,27 +94,28 @@ export function detourAccent(kind?: CalloutKind): string {
   return DETOUR.gold;
 }
 
-/** THE TYPEWRITER (Lee, 2026-09-03: "on entry into a detour card … Internal
- *  users typewrites in, each of the bullet points typewrite in after that. Like
- *  a quick animation. The idea is to subliminally get them to scan/read it").
- *  Every word becomes a span with its place in the sequence (--i); PV_CSS
- *  reveals them one after another, only under .film-mode. Highlights and bold
- *  survive because the split recurses into them. `counter` carries the index
- *  across the heading and the lines so the bullets follow the heading. */
-function typewrite(nodes: ReactNode, counter: { i: number }): ReactNode {
-  if (nodes == null || typeof nodes === "boolean") return nodes;
-  if (typeof nodes === "string" || typeof nodes === "number") {
-    const parts = String(nodes).split(/(\s+)/);
-    return parts.map((p, k) => (p.trim() ? <span key={k} className="sa-type" style={{ ["--i" as string]: counter.i++ }}>{p}</span> : p));
-  }
-  if (Array.isArray(nodes)) return nodes.map((n, k) => <Fragment key={k}>{typewrite(n, counter)}</Fragment>);
-  if (isValidElement<{ children?: ReactNode }>(nodes)) return cloneElement(nodes, undefined, typewrite(nodes.props.children, counter));
-  return nodes;
-}
+/** THE TYPEWRITER (Lee, 2026-09-03: "Internal users typewrites in, each of the
+ *  bullet points typewrite in after that … can just be the title then all
+ *  three bullets after that"). LINE BY LINE: the heading is step 0, each line
+ *  under it the next step, the footer last. `.sa-type` + --i; PV_CSS reveals
+ *  them in order, only under .film-mode. (The first cut split every WORD into
+ *  a span, which dropped words on the synced frame — gone.) */
+function typeStep(i: number): React.CSSProperties { return { ["--i" as string]: i }; }
+
+/** THE DETOUR SPOTLIGHT (Lee: "let me spotlight the title, bullet if I want to
+ *  emphasize more … enlarging it and making it glow in a 20% psychedelic way …
+ *  a gentle glow"). Each line is its own target; the card hands the state in. */
+export interface LineSpot { state: "spot" | null; onDown: (e: React.PointerEvent) => void }
+export type LineSpotOf = (key: string) => LineSpot;
 
 /** The callout's face — cream card interior, navy text, orange corner accent.
  *  Rendered INSIDE the existing card shell (which owns width/drag/scale). */
-export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, highlights = [], bolt, onEditBullet, dark = false, footer }: CalloutBodyProps) {
+export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, highlights = [], bolt, onEditBullet, dark = false, footer, lineSpot }: CalloutBodyProps) {
+  const spotProps = (key: string): { className?: string; onPointerDownCapture?: (e: React.PointerEvent) => void } => {
+    if (!lineSpot) return {};
+    const ls = lineSpot(key);
+    return { className: ls.state === "spot" ? "sa-detour-spot" : undefined, onPointerDownCapture: ls.onDown };
+  };
   const stack = highlights.length > 1;
   const kindMeta = stack ? { label: "HIGHLIGHTS FROM THIS SET", accent: "#C77D0A", tint: "rgba(199,125,10,0.08)" } : kind ? calloutMeta(kind) : null;
   // On the dark card each kind keeps its own colour (Lee, 2026-09-03: "make
@@ -127,10 +129,6 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
   const inkMuted = dark ? DETOUR.inkMuted : PAPER.inkMuted;
   const hl = dark ? { bg: darkAccent, color: "#14213D" } : undefined;
   const mainText = highlights.length === 1 ? highlights[0] : stem;
-  // The typewriter runs on the dark detour card only; the sequence counter
-  // starts after the label so the heading types first, then each line.
-  const seq = { i: 0 };
-  const type = (n: ReactNode): ReactNode => (dark ? typewrite(n, seq) : n);
   return (
     <div style={{ position: "relative" }}>
       {/* the little orange corner accent — the callout's signature, kept */}
@@ -171,23 +169,35 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
             </ul>
           ) : (
             <>
-              <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: ink, whiteSpace: "pre-wrap" }}>{type(renderInline(mainText || "Callout", hl))}</div>
+              {/* THE HEADING. On the dark card: the homepage display face, phone-sized
+                  (Lee: "better fonts … bigger … title can have up to 1 line break"). */}
+              <div {...spotProps("title")} className={[dark ? "sa-type" : "", spotProps("title").className ?? ""].join(" ").trim() || undefined}
+                style={dark
+                  ? { ...typeStep(0), fontFamily: DISPLAY_FONT, fontSize: 31 * s, fontWeight: 800, lineHeight: 1.1, letterSpacing: "-0.005em", color: ink, whiteSpace: "pre-wrap", textWrap: "balance" as never, borderRadius: 8 * s, padding: `${2 * s}px ${4 * s}px`, margin: `0 ${-4 * s}px` }
+                  : { fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: ink, whiteSpace: "pre-wrap" }}>
+                {renderInline(mainText || "Callout", hl)}
+              </div>
               {extraStems.length > 0 && (
                 <ul style={{ margin: `${10 * s}px 0 0 ${6 * s}px`, padding: 0, listStyle: "none", display: "grid", gap: 5 * s }}>
                   {extraStems.map((t, i) => (
                     <li
                       key={i}
+                      {...spotProps(`line:${i}`)}
+                      className={[dark ? "sa-type" : "", spotProps(`line:${i}`).className ?? ""].join(" ").trim() || undefined}
                       onDoubleClick={onEditBullet ? (e) => { e.stopPropagation(); onEditBullet(i); } : undefined}
                       // On the dark detour card the lines under the heading are
                       // UNIFORM across cheat code / memorize this / deeper idea —
-                      // full ink, one weight (Lee, 2026-09-03: "let's meet in the
-                      // middle and have all be uniform. If I want to emphasize
-                      // something, let me just highlight it when filming").
-                      style={{ display: "flex", gap: 7 * s, alignItems: "baseline", fontSize: (dark ? 16.5 : 15.5) * s, fontWeight: 600, lineHeight: 1.32, color: dark ? ink : inkMuted, cursor: onEditBullet ? "text" : undefined }}
+                      // full ink, one weight, the brand face, phone-sized, and
+                      // no line break inside a bullet (Lee, 2026-09-03).
+                      style={dark
+                        // Sized so a short bullet never breaks; a long one wraps
+                        // rather than clipping off the card on camera.
+                        ? { ...typeStep(i + 1), display: "flex", gap: 8 * s, alignItems: "baseline", fontFamily: BRAND_FONT, fontSize: 19 * s, fontWeight: 600, lineHeight: 1.3, color: ink, whiteSpace: "normal", textWrap: "pretty" as never, borderRadius: 8 * s, padding: `${2 * s}px ${4 * s}px`, margin: `0 ${-4 * s}px`, cursor: onEditBullet ? "text" : undefined }
+                        : { display: "flex", gap: 7 * s, alignItems: "baseline", fontSize: 15.5 * s, fontWeight: 600, lineHeight: 1.32, color: inkMuted, cursor: onEditBullet ? "text" : undefined }}
                       title={onEditBullet ? "Double-click to edit · empty text removes it" : undefined}
                     >
-                      <span style={{ opacity: 0.55 }}>{dark ? <span className="sa-type" style={{ ["--i" as string]: seq.i++ }}>–</span> : "–"}</span>
-                      <span>{type(renderInline(t, hl))}</span>
+                      <span style={{ opacity: 0.55 }}>–</span>
+                      <span>{renderInline(t, hl)}</span>
                     </li>
                   ))}
                 </ul>
@@ -195,7 +205,8 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
               {footer && (
                 // THE FOOTER (2026-09-03): the bio card's domain — under a gap,
                 // quiet, letter-spaced, so it reads as a sign-off, not a bullet.
-                <div style={{ marginTop: 16 * s, fontSize: 13.5 * s, fontWeight: 700, letterSpacing: "0.08em", color: inkMuted }}>{type(footer)}</div>
+                <div {...spotProps("footer")} className={[dark ? "sa-type" : "", spotProps("footer").className ?? ""].join(" ").trim() || undefined}
+                  style={{ ...(dark ? typeStep(extraStems.length + 1) : {}), marginTop: 16 * s, fontFamily: BRAND_FONT, fontSize: 15 * s, fontWeight: 700, letterSpacing: "0.08em", color: inkMuted, borderRadius: 8 * s, padding: `${2 * s}px ${4 * s}px`, margin: `${16 * s}px ${-4 * s}px 0` }}>{footer}</div>
               )}
             </>
           )}

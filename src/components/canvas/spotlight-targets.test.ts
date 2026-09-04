@@ -40,9 +40,10 @@ describe("spotlightTargetsOf — card kinds expose component targets", () => {
 });
 
 describe("spotlightTargetsOf — a CALLOUT CEQ (no choices) spotlights as a whole (2026-09-03)", () => {
-  it("a Blast Off detour card — cheat code, memorize this, deeper idea — returns the self target", () => {
-    const c: CardData = { kind: "ceq", prompt: "==The Paycheck Test==", choices: [], callout: { kind: "cheat-code", detour: true } } as unknown as CardData;
-    expect(spotlightTargetsOf(c)).toEqual([MEMO_SELF_TARGET]);
+  it("a Blast Off detour card — cheat code, memorize this, deeper idea — targets its title, then each line", () => {
+    const c: CardData = { kind: "ceq", prompt: "The Paycheck Test", choices: [], callout: { kind: "cheat-code", detour: true, extraStems: ["one", "two"], footer: "surviveaccounting.com" } } as unknown as CardData;
+    expect(spotlightTargetsOf(c)).toEqual(["title", "line:0", "line:1", "footer"]);
+    expect(spotlightTargetsOf({ kind: "ceq", prompt: "x", choices: [], callout: { kind: "tutor" } } as unknown as CardData)).toEqual(["title"]);
   });
   it("a real question still spotlights per choice", () => {
     const c: CardData = { kind: "ceq", prompt: "?", choices: [{ id: "a", text: "x", correct: true }, { id: "b", text: "y", correct: false }] } as unknown as CardData;

@@ -98,6 +98,13 @@ const WidthContext = createContext<(id: string, w: number) => void>(() => {});
  *  the card tracks the pointer itself while Alt is down. Transient, like the
  *  grips. */
 const MoveContext = createContext<(id: string, dx: number, dy: number) => void>(() => {});
+/** POSITIONS STICK (Lee, 2026-09-03: "I think we do this … if I need to
+ *  reposition something, it should probably be repositioned for the student
+ *  too"). After an Alt-move or a grip drag on the LIVE card, its spot (x, y,
+ *  scale) is written to the card's instance geometry for this orientation —
+ *  the same door the Studio's own drag uses — so the next deal, the next take
+ *  and the canvas all agree. Stand-ins (inert) never persist. */
+const PersistContext = createContext<(id: string) => void>(() => {});
 /** LOCAL rehearsal-spotlight layer (never the global controller). Keyed spotKey. */
 interface PreviewSpotApi { state: (key: string) => "spot" | null; flamed: (key: string) => boolean; tone: (key: string) => SuperTone; onClick: (key: string, e: React.PointerEvent) => void; any: () => boolean }
 const PreviewSpotContext = createContext<PreviewSpotApi>({ state: () => null, flamed: () => false, tone: () => "focus", onClick: () => {}, any: () => false });
@@ -161,9 +168,20 @@ export const PV_CSS = `
 /* THE TYPEWRITER (Lee, 2026-09-03) — a detour card's heading types in, then each
    line under it, word by word, quick: ~45 ms a word, so a five-line card is on
    screen inside two seconds. Film only; plays when the card mounts (every deal). */
-@keyframes sa-type-in { from { opacity: 0; } to { opacity: 1; } }
-.film-mode .sa-type { opacity: 0; animation: sa-type-in 60ms steps(1, end) forwards; animation-delay: calc(140ms + var(--i) * 45ms); }
+@keyframes sa-type-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.film-mode .sa-type { opacity: 0; animation: sa-type-in 160ms ease-out forwards; animation-delay: calc(200ms + var(--i) * 240ms); }
 @media (prefers-reduced-motion: reduce) { .film-mode .sa-type { opacity: 1; animation: none; } }
+/* THE DETOUR SPOTLIGHT (Lee, 2026-09-03) — a title or a line, a little bigger,
+   glowing gently through the brand colours: "20% psychedelic … like being on
+   LSD". Amplitude kept low; the breathing is the tell, not the colour. */
+@keyframes sa-lsd {
+  0%   { box-shadow: 0 0 18px 4px rgba(252,163,17,0.55), 0 0 0 1px rgba(252,163,17,0.5); filter: saturate(1.1) hue-rotate(0deg); }
+  33%  { box-shadow: 0 0 26px 6px rgba(255,120,220,0.42), 0 0 0 1px rgba(255,120,220,0.45); filter: saturate(1.2) hue-rotate(6deg); }
+  66%  { box-shadow: 0 0 26px 6px rgba(90,220,255,0.42), 0 0 0 1px rgba(90,220,255,0.45); filter: saturate(1.2) hue-rotate(-6deg); }
+  100% { box-shadow: 0 0 18px 4px rgba(252,163,17,0.55), 0 0 0 1px rgba(252,163,17,0.5); filter: saturate(1.1) hue-rotate(0deg); }
+}
+.sa-detour-spot { transform: scale(1.06) !important; transform-origin: center center; background: rgba(255,255,255,0.06); animation: sa-lsd 3.4s ease-in-out infinite !important; opacity: 1 !important; position: relative; z-index: 3; }
+@media (prefers-reduced-motion: reduce) { .sa-detour-spot { animation: none !important; } }
 /* THE CEQ PIN (Lee, 09-01) — z-order between ReactFlow nodes belongs to the
    .react-flow__node WRAPPER, so a z-index on our inner counter-transform div
    cannot lift the question above an exhibit Lee has zoomed into. :has() reaches
@@ -411,18 +429,27 @@ function ScaleGrip({ id, scale, color, film }: { id: string; scale: number; colo
 function AltGrips({ id, scale, cardW }: { id: string; scale: number; cardW: number }) {
   const setScale = useContext(ScaleContext);
   const setWidth = useContext(WidthContext);
+  const persistGeom = useContext(PersistContext);
+  const rflW = useContext(CardWriteCtx);
   const start = useRef({ x: 0, y: 0, s: 1, w: CARD_W });
-  const begin = (e: React.PointerEvent, move: (dx: number, dy: number) => void) => {
+  const widthRef = useRef(cardW);
+  const begin = (e: React.PointerEvent, move: (dx: number, dy: number) => void, widthDrag = false) => {
     e.stopPropagation(); e.preventDefault();
     start.current = { x: e.clientX, y: e.clientY, s: scale, w: cardW };
+    widthRef.current = cardW;
     const win = (e.currentTarget as HTMLElement).ownerDocument?.defaultView ?? window;
     const mv = (ev: PointerEvent) => move(ev.clientX - start.current.x, ev.clientY - start.current.y);
-    const up = () => { win.removeEventListener("pointermove", mv); win.removeEventListener("pointerup", up); };
+    const up = () => {
+      win.removeEventListener("pointermove", mv); win.removeEventListener("pointerup", up);
+      // POSITIONS STICK: scale/position → instance geometry; width → the card.
+      persistGeom(id);
+      if (widthDrag && rflW && widthRef.current !== cardW) { const c = patchDataCmd(rflW, id, { cardW: widthRef.current } as never, "card width"); if (c) bus.dispatch(c); }
+    };
     win.addEventListener("pointermove", mv);
     win.addEventListener("pointerup", up);
   };
   const byScale = (sx: number, sy: number) => (e: React.PointerEvent) => begin(e, (dx, dy) => setScale(id, clampScale(start.current.s + (dx * sx + dy * sy) / 300)));
-  const byWidth = (sx: number) => (e: React.PointerEvent) => begin(e, (dx) => setWidth(id, Math.round(Math.min(980, Math.max(420, start.current.w + (dx * sx) / start.current.s)))));
+  const byWidth = (sx: number) => (e: React.PointerEvent) => begin(e, (dx) => { const w = Math.round(Math.min(980, Math.max(420, start.current.w + (dx * sx) / start.current.s))); widthRef.current = w; setWidth(id, w); }, true);
   const dot = (style: React.CSSProperties, cursor: string, title: string, down: (e: React.PointerEvent) => void) => (
     <div className="nodrag" onPointerDown={down} title={title} style={{ position: "absolute", width: 14, height: 14, borderRadius: 4, background: "#FCA311", border: "2px solid #14213D", boxShadow: "0 0 0 1px rgba(252,163,17,0.5)", cursor, zIndex: 40, ...style }} />
   );
@@ -581,6 +608,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
   // the capture phase on the card root so neither the choice's spotlight
   // handler nor the text selection see the gesture; the grips keep their own.
   const moveBy = useContext(MoveContext);
+  const persistGeom = useContext(PersistContext);
   const startAltMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!e.altKey || e.button !== 0 || inert) return;
     if ((e.target as HTMLElement).closest?.(".sa-alt-grips")) return;
@@ -592,7 +620,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
     try { zoom = vp ? new win.DOMMatrix(win.getComputedStyle(vp).transform).a || 1 : 1; } catch { zoom = 1; }
     let last = { x: e.clientX, y: e.clientY };
     const mv = (ev: PointerEvent) => { moveBy(id, (ev.clientX - last.x) / zoom, (ev.clientY - last.y) / zoom); last = { x: ev.clientX, y: ev.clientY }; };
-    const up = () => { win.removeEventListener("pointermove", mv); win.removeEventListener("pointerup", up); win.removeEventListener("pointercancel", up); };
+    const up = () => { win.removeEventListener("pointermove", mv); win.removeEventListener("pointerup", up); win.removeEventListener("pointercancel", up); persistGeom(id); };
     win.addEventListener("pointermove", mv);
     win.addEventListener("pointerup", up);
     win.addEventListener("pointercancel", up);
@@ -699,16 +727,17 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
         // A CALLOUT CARD SPOTLIGHTS AS A WHOLE (2026-09-03): the detour slides
         // from Blast Off have no choices, so the card body is the one target
         // ("self", as a memo) — Ctrl+click it in film mode like anything else.
-        <div data-spot-target="self"
-          onPointerDownCapture={(e) => { if (!stemEditing) spot.onClick(spotKey(id, "self"), e); }}
-          onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined} title={canEditStem ? "Double-click to edit the text" : undefined}
-          style={{ borderRadius: 10 * s, ...containSpot(spot.state(spotKey(id, "self")), true) }}>
+        // Per-LINE spotlight (2026-09-03): the title and each line are their
+        // own targets (CalloutBody's lineSpot); the card as a whole no longer is.
+        <div onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined} title={canEditStem ? "Double-click to edit the text" : undefined}
+          style={{ borderRadius: 10 * s }}>
           <CalloutBody
             scale={s}
             topic={d.callout?.showTopic === false ? null : d.topic}
             stem={d.stem}
             extraStems={d.callout?.extraStems}
             footer={d.callout?.footer}
+            lineSpot={detour && !stemEditing ? (k) => ({ state: spot.state(spotKey(id, k)), onDown: (e) => spot.onClick(spotKey(id, k), e) }) : undefined}
             kind={d.callout?.kind ?? (d.calloutMemos?.length ? calloutKindForCategory(d.calloutMemos[0].category) : undefined)}
             highlights={(d.calloutMemos ?? []).map((m) => m.label)}
             bolt={d.callout?.bolt}
@@ -2199,6 +2228,15 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   const setWidth = (nodeId: string, cardW: number) => setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, cardW } } : n)));
   // ALT-MOVE (2026-09-03): nudge a node by a delta in flow units.
   const moveBy = (nodeId: string, dx: number, dy: number) => setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } } : n)));
+  // POSITIONS STICK: the live card's spot → its instance geometry (Studio saves it).
+  const persistGeom = (nodeId: string) => {
+    if (!onSaveInstance || nodeId !== ceqId || layoutMode) return;
+    setNodes((nds) => {
+      const n = nds.find((x) => x.id === nodeId);
+      if (n) onSaveInstance({ card: { x: Math.round(n.position.x), y: Math.round(n.position.y - activeYOff), scale: (n.data as { scale?: number }).scale ?? 1 } });
+      return nds;
+    });
+  };
   /** Which RACK slot a stage chip owns. In Question 0 the chips ARE the rack, 1:1. In
    *  a real question only ACTIVE slots are on stage, so chip i owns the i-th active
    *  slot — writing rack[i] there would edit the wrong (possibly inactive) slot.
@@ -2791,6 +2829,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
          <ScaleCommitContext.Provider value={commitGeom}>
          <WidthContext.Provider value={setWidth}>
          <MoveContext.Provider value={moveBy}>
+         <PersistContext.Provider value={persistGeom}>
           <PreviewSpotContext.Provider value={spotApi}>
            <ChainToggleContext.Provider value={onPatchChainItem ?? (() => {})}>
            <MemoEditContext.Provider value={layoutMode ? null : (onRenameMemo ?? null)}>
@@ -3233,6 +3272,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
            </MemoEditContext.Provider>
            </ChainToggleContext.Provider>
           </PreviewSpotContext.Provider>
+         </PersistContext.Provider>
          </MoveContext.Provider>
          </WidthContext.Provider>
          </ScaleCommitContext.Provider>
