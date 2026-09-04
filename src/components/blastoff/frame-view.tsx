@@ -14,6 +14,7 @@ import { BoltZoom } from "@/components/brand-cards/BoltZoom";
 import { isZoomVariant } from "@/components/brand-cards/bolt-zoom";
 
 import { AdSlide } from "./AdSlide";
+import { LeePortrait } from "./LeePortrait";
 import { SetCard, type CardOverride } from "./SetCard";
 import { BIO_CARD, bioCallout } from "./bio-card";
 import { V } from "./stage";
@@ -64,14 +65,24 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} live />;
     if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} live />;
     // THE TUTOR CARD (2026-09-03): the bio in the detour format, a bit bigger.
-    if (frame.kind === "bio") return <SetCard id={frame.id} stem={BIO_CARD.title} scale={scale * BIO_CARD.scale} callout={bioCallout() as Record<string, unknown>} live={live} {...ov} />;
+    if (frame.kind === "bio") {
+      // THE PORTRAIT (2026-09-04): Lee, hand-drawn, inked on in the /learn lime
+      // above the tutor card, over the black. `frame.portrait === "off"` hides it.
+      const cardW = CARD_W * scale * BIO_CARD.scale;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 * scale }}>
+          {frame.portrait !== "off" && <LeePortrait width={Math.round(cardW * 0.42)} animate={live} />}
+          <SetCard id={frame.id} stem={BIO_CARD.title} scale={scale * BIO_CARD.scale} callout={bioCallout() as Record<string, unknown>} live={live} {...ov} />
+        </div>
+      );
+    }
     return <SurviveOutro tagline={frame.text?.trim() || undefined} scale={s} />;
   }
 
   // THE BOLT DETOUR (Lee, 2026-09-04): "just black backdrop and the bolt zoom
   // animation. Nothing else … a blank canvas to put things on."
   if (frame.kind === "bolt") return <BoltZoom w={fw} h={fh} mode="bolt" variant={isZoomVariant(frame.variant) ? frame.variant : "zoom"} psych={frame.psych ?? 0.1} live />;
-  if (frame.kind === "ad") return <AdSlide ad={isAdKind(frame.ad) ? frame.ad : "greek"} w={fw} h={fh} live />;
+  if (frame.kind === "ad") return <AdSlide ad={isAdKind(frame.ad) ? frame.ad : "greek"} w={fw} h={fh} live copy={{ label: frame.text, headline: frame.title, lines: frame.bullets, url: frame.url }} />;
 
   if (frame.kind === "ceq") {
     const ceq: BoothCeq | undefined = frame.ceqId ? set.ceqs.find((c) => c.id === frame.ceqId) : undefined;

@@ -853,6 +853,11 @@ export interface BlastOpenElement extends CardBase {
 export interface BlastAdElement extends CardBase {
   kind: "blastad";
   ad?: string;
+  /** The frame's own words (2026-09-04); absent = the built-in copy. */
+  label?: string;
+  headline?: string;
+  lines?: string[];
+  url?: string;
 }
 export interface BlastIntroElement extends CardBase {
   kind: "blastintro";

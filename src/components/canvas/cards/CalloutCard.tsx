@@ -34,7 +34,7 @@ export const TUTOR_META = { label: "MEET YOUR TUTOR", accent: "#C62828", tint: "
 /** THE SUMMARY SLIDE (Lee, 2026-09-03: "the found on your exam should also
  *  look more like the detour cards. Keep it consistent"): the set's own
  *  note-only card, drawn in the detour skin with this label. */
-export const FOUND_META = { label: "FOUND ON YOUR INTRO EXAM", accent: "#FCA311", tint: "rgba(252,163,17,0.12)" } as const;
+export const FOUND_META = { label: "FOUND ON YOUR EXAM", accent: "#FCA311", tint: "rgba(252,163,17,0.12)" } as const;
 export function calloutMeta(kind: CalloutKind): { label: string; accent: string; tint: string } {
   return kind === "tutor" ? TUTOR_META : kind === "found-on-exam" ? FOUND_META : CALLOUT_KINDS[kind];
 }
@@ -223,22 +223,17 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
   );
 }
 
-/** THE DETOUR HEADING (Lee, 2026-09-04): "put 'Found on your intro' ABOVE the
- *  box … same glowing text, same bolt, but just bigger and more readable. This
- *  is how I want to grab students' attention. In fact, try all the detours
- *  like this." The kind's name in the wordmark's powder glow — white · powder
- *  blue · sky rolling through the letters — with the boiling bolt beside it,
- *  drawn by the card above the navy box (CeqPreviewNode), not inside it.
- *  Motion is the .sa-glow-sweep rule in PV_CSS. */
-export function GlowLabel({ text, scale: s, live = true }: { text: string; scale: number; live?: boolean }) {
-  const ink: React.CSSProperties = {
-    backgroundImage: "linear-gradient(115deg, #FFFFFF 0%, #B3E5FC 28%, #7DD3FC 50%, #FFFFFF 72%, #B3E5FC 100%)",
-    backgroundSize: "300% 100%", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
-  };
+/** THE DETOUR HEADING (Lee, 2026-09-04, second take): "I'm wanting the found on
+ *  your exam, memorize this, deeper idea, cheat code to look like the
+ *  'FRATERNITIES & SORORITIES' text in that ad … different colors … too many
+ *  bolts, just have them be text only. But above the navy box, in front of
+ *  the black background." So: the ad label's chip — uppercase, letter-spaced,
+ *  the kind's colour on its own tint with a hairline — drawn by the card above
+ *  the navy box (CeqPreviewNode), no bolt. */
+export function KindChip({ text, accent, scale: s }: { text: string; accent: string; scale: number }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 * s, marginBottom: 10 * s, paddingLeft: 2 * s, filter: `drop-shadow(0 0 ${Math.round(8 * s)}px rgba(179,229,252,0.32))` }}>
-      <BoltBoil height={40 * s} style={{ flex: "0 0 auto" }} />
-      <span className={live ? "sa-glow-sweep" : undefined} style={{ ...ink, fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: 30 * s, letterSpacing: "0.1em", textTransform: "uppercase", lineHeight: 1.02, textWrap: "balance" as never }}>{text}</span>
+    <div style={{ display: "flex", marginBottom: 10 * s, paddingLeft: 2 * s }}>
+      <span style={{ display: "inline-flex", padding: `${3 * s}px ${10 * s}px`, borderRadius: 6 * s, fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 16 * s, fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase", lineHeight: 1.15, color: accent, background: `${accent}24`, border: `1px solid ${accent}4D`, textWrap: "balance" as never }}>{text}</span>
     </div>
   );
 }

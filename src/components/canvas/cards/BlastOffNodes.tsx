@@ -101,7 +101,7 @@ export function BlastAdNode({ id, data, selected }: NodeProps) {
         style={{ background: "rgba(0,0,0,0.4)", color: NEON.text, border: `1px solid ${NEON.borderSoft}`, borderRadius: 4, fontSize: 10 }} title="Which ad">
         {AD_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
       </select>}>
-      <AdSlide ad={isAdKind(d.ad) ? d.ad : "greek"} w={w} h={h} live />
+      <AdSlide ad={isAdKind(d.ad) ? d.ad : "greek"} w={w} h={h} live copy={{ label: d.label, headline: d.headline, lines: d.lines, url: d.url }} />
     </BlastShell>
   );
 }

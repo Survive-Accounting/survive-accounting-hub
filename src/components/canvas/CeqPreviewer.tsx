@@ -47,7 +47,7 @@ import { Emph, HighlightContext, SEL_EMPH_CSS, readRangeIn, useTextHighlights, w
 import { renderInline } from "./inline-md";
 import { activeSlots, CARD_H, CARD_W, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf, resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
 export { activeSlots, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf } from "./ceq-geom";
-import { CalloutBody, GlowLabel, calloutKindForCategory, calloutMeta, detourAccent, nextCalloutKind } from "./cards/CalloutCard";
+import { CalloutBody, KindChip, calloutKindForCategory, calloutMeta, detourAccent, nextCalloutKind } from "./cards/CalloutCard";
 import { captureAcceptable, captureCssSize, captureFeasibility, physicalSize, snapCaptureSize, verticalObsNote } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
 import { cycleExhibitModes, exhibitDepthKey, exhibitOrderKey, exhibitRevealKey } from "./exhibit-modes";
@@ -750,7 +750,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
           into the frame on a take). The ScaleGrip lives OUTSIDE this clip. */}
       {/* THE DETOUR HEADING sits above the navy box (2026-09-04), so the card
           root is transparent and the box below carries the navy and the edge. */}
-      {detourKind && !stemEditing && <GlowLabel text={calloutMeta(detourKind).label} scale={s} />}
+      {detourKind && !stemEditing && <KindChip text={calloutMeta(detourKind).label} accent={detourAccent(detourKind)} scale={s} />}
       <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s, ...(detour ? { background: PAPER.navy, border: `1.5px solid ${detourAccent(detourKind)}99`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)" } : {}) }}>
       {/* TOPIC kicker — name only (no Ch#), small uppercase above the stem so a
           viewer landing mid-clip knows the topic. */}

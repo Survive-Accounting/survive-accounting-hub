@@ -47,8 +47,23 @@ export const ADS: Record<AdKind, { label: string; headline: string; lines: strin
 
 export const AD_LABEL: Record<AdKind, string> = { greek: "Ad · fraternity & sorority", rep: "Ad · campus reps", send: "Ad · send your syllabus" };
 
-export function AdSlide({ ad, w, h, live = true }: { ad: AdKind; w: number; h: number; live?: boolean }) {
-  const a = ADS[ad];
+/** A frame's own words for an ad — any field absent falls back to the built-in copy. */
+export interface AdCopy { label?: string; headline?: string; lines?: string[]; url?: string }
+
+export function adCopyOf(ad: AdKind, copy?: AdCopy | null): { label: string; headline: string; lines: string[]; url: string; banner: boolean } {
+  const base = ADS[ad];
+  const lines = copy?.lines?.map((l) => l.trim()).filter(Boolean);
+  return {
+    label: copy?.label?.trim() || base.label,
+    headline: copy?.headline?.trim() || base.headline,
+    lines: lines && lines.length ? lines : base.lines,
+    url: copy?.url?.trim() || base.url,
+    banner: base.banner,
+  };
+}
+
+export function AdSlide({ ad, w, h, live = true, copy }: { ad: AdKind; w: number; h: number; live?: boolean; copy?: AdCopy | null }) {
+  const a = adCopyOf(ad, copy);
   const pad = Math.round(w * 0.09);
   return (
     <div style={{ position: "relative", width: w, height: h, overflow: "hidden", background: "#000", fontFamily: FONT, color: BRAND_CREAM }}>

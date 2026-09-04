@@ -339,7 +339,7 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
         const extra = f.kind === "intro" ? { topic: setName, tutor: "Lee Ingram", transparent: filmBackdrop === "backdrop" }
           : f.kind === "open" ? { psych: f.psych ?? 0.1, variant: f.variant ?? "zoom", banner: f.banner !== "off" }
           : f.kind === "bolt" ? { bare: true, psych: f.psych ?? 0.1, variant: f.variant ?? "zoom", banner: false }
-          : f.kind === "ad" ? { ad: f.ad ?? "greek" }
+          : f.kind === "ad" ? { ad: f.ad ?? "greek", label: f.text, headline: f.title, lines: f.bullets, url: f.url }
           : {};
         const made = stagedElementNode(nodeId, f.id, specHere, extra, frame);
         if (el) { el.type = made.type; el.position = made.position; el.data = made.data; }
