@@ -162,7 +162,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
         }}>
           <span style={{ color: GOLD, fontWeight: 800 }}>{idx + 1} / {n}</span>
           <span>{FRAME_LABEL[frame.kind]}</span>
-          <span>space next · shift+space back · click a choice, click again to resolve · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · ` resets · H hide this · P prompter{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
+          <span>space next · shift+space back · click a choice, click again to resolve · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · F1 move F1 draws an arrow, Delete removes · ` resets · H hide this · P prompter{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
           {popout.open && !popout.isPopout && (
             <button onClick={popout.open} title="Open this page as its own 9:16 window, snapped to 1080×1920 for OBS"
               style={{ color: GOLD, background: "none", border: `1px solid ${GOLD}66`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>⧉ pop out 9:16</button>
