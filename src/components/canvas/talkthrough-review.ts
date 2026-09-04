@@ -19,8 +19,8 @@ import {
   type BoardItem, type TTDoc, type TalkSession,
 } from "./talkthrough";
 import { parseReview, type PassCeq } from "./talkthrough-pass";
-import { putBoardItem, putBoardItems, putTag, ttState } from "./talkthrough-sync";
-import { touchRow } from "./talkthrough";
+import { putBoardItem, putBoardItems, putSession, putTag, ttState } from "./talkthrough-sync";
+import { touchRow, type SessionGeneration } from "./talkthrough";
 
 export type ReviewState = "idle" | "queued" | "generating" | "error";
 const KEY = "sa-tt-genstate";
@@ -72,8 +72,49 @@ export interface ReviewRequest {
   wantVibePlan: boolean;
 }
 
-/** Queue the End Session synthesis. Fire-and-forget; status via reviewStateOf. */
+/** Write the pre-flight request (or its outcome) onto the session. Always
+ *  reads the LIVE row first — the session in hand was captured before the
+ *  await and may have been edited since. */
+function markGeneration(sessionId: string, patch: Partial<SessionGeneration>): void {
+  const live = ttState().doc.sessions.find((s) => s.id === sessionId);
+  if (!live) return;
+  const generation: SessionGeneration = {
+    requestedAt: live.generation?.requestedAt ?? new Date().toISOString(),
+    excludedKinds: live.generation?.excludedKinds ?? [],
+    wantVibePlan: live.generation?.wantVibePlan ?? false,
+    completedAt: live.generation?.completedAt ?? null,
+    error: live.generation?.error ?? null,
+    ...patch,
+  };
+  putSession(touchRow(live, { generation } as Partial<TalkSession>));
+}
+
+/** IDEMPOTENCE (2026-09-04). The synthesis is ONE call that writes a whole
+ *  board, so the only honest unit of "already done" is the board itself: a
+ *  script item for this session means the pass landed. Re-queueing then would
+ *  pay twice and stack a second set of suggestions on Lee's board, which is
+ *  exactly what an interrupted-and-reopened tab used to do. */
+export const reviewAlreadyLanded = (doc: TTDoc, sessionId: string): boolean =>
+  sessionBoard(doc, sessionId).some((b) => b.kind === "script" && !b.archivedAt);
+
+/** Queue the End Session synthesis. Fire-and-forget; status via reviewStateOf.
+ *  A pass whose board already landed is a NO-OP — see reviewAlreadyLanded. */
 export function queueReview(req: ReviewRequest): void {
+  if (reviewAlreadyLanded(ttState().doc, req.session.id)) {
+    markGeneration(req.session.id, { completedAt: new Date().toISOString(), error: null });
+    set(req.session.id, "idle");
+    return;
+  }
+  // The REQUEST is recorded before the call, so a tab that dies mid-pass
+  // leaves behind what Lee asked for — the resume replays these exact
+  // choices instead of guessing them.
+  markGeneration(req.session.id, {
+    requestedAt: new Date().toISOString(),
+    excludedKinds: req.excludedKinds,
+    wantVibePlan: req.wantVibePlan,
+    completedAt: null,
+    error: null,
+  });
   set(req.session.id, "queued");
   void (async () => {
     try {
@@ -116,11 +157,29 @@ export function queueReview(req: ReviewRequest): void {
         const t = makeTag(req.session.id, (canonicalStamp(p.tag) ?? "tip_trick") as never, { ceqId: seg?.focusedCeqId ?? null, label: seg?.focusedCeqLabel ?? null });
         putTag({ ...t, source: "ai", note: p.quote, at: seg?.startedAt ?? t.at, endedAt: t.at });
       }
+      markGeneration(req.session.id, { completedAt: new Date().toISOString(), error: null });
       set(req.session.id, "idle"); // READY is derived from the board itself
     } catch (e) {
-      set(req.session.id, "error", e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      // A recorded failure stays failed: retrying failed items is out of scope
+      // (Lee dismisses and re-runs the whole pass). It is written down so the
+      // resume can tell "died mid-flight" from "tried and lost".
+      markGeneration(req.session.id, { error: msg });
+      set(req.session.id, "error", msg);
     }
   })();
+}
+
+/** RESUME an interrupted synthesis: the same pass, replaying the pre-flight
+ *  choices recorded on the session. No request on record, or a board that
+ *  already landed, means there is nothing to resume — and it says so rather
+ *  than pretending to start. */
+export function resumeReview(session: TalkSession, ceqs: PassCeq[]): { resumed: boolean; why: string } {
+  const g = session.generation;
+  if (!g?.requestedAt) return { resumed: false, why: "no pass was ever requested for this session" };
+  if (reviewAlreadyLanded(ttState().doc, session.id)) return { resumed: false, why: "the review board is already here" };
+  queueReview({ session, ceqs, excludedKinds: g.excludedKinds, wantVibePlan: g.wantVibePlan });
+  return { resumed: true, why: "picking up the review board where it stopped" };
 }
 
 /** B7 — PIN "remember this": distill a comment into a one-line style note for
