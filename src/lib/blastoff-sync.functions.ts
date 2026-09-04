@@ -57,6 +57,8 @@ const frameIn = z.object({
   psych: z.number().min(0).max(1).optional(),
   banner: z.enum(["on", "off"]).optional(),
   ad: z.enum(["greek", "rep", "send"]).optional(),
+  url: z.string().max(120).optional(),
+  portrait: z.enum(["on", "off"]).optional(),
 });
 type FrameIn = z.infer<typeof frameIn>;
 

@@ -45,6 +45,13 @@ export interface BlastFrame {
   exhibitRef?: string;
   /** Which ad this frame is (kind "ad"). */
   ad?: AdKind;
+  /** An ad frame's own address (kind "ad"); the ad's default when absent. The ad's
+   *  label / headline / lines ride in `text` / `title` / `bullets` (2026-09-04: "let
+   *  the ad's text be editable"). */
+  url?: string;
+  /** THE BIO SLIDE's hand-drawn portrait (kind "bio"): drawn on over the black
+   *  in the /learn lime. Absent = on. */
+  portrait?: "on" | "off";
   /** Talkthrough bank item this came from, when picked rather than typed. */
   bankItemId?: string;
   /** THE REVIEW STEP (Lee, 2026-09-03: "quickly remove a CEQ slide"). A card
