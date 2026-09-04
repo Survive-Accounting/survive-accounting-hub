@@ -122,7 +122,7 @@ function Candidates({ kind, live }: { kind: "bolt" | "mountain"; live: boolean }
   useEffect(() => { setParams(readJson(LS_P, defaults)); setNotes(readJson(LS_N, {})); }, [LS_P, LS_N, defaults]);
   const saveParams = (next: typeof params) => { setParams(next); writeJson(LS_P, next); };
   const saveNotes = (next: Record<string, string>) => { setNotes(next); writeJson(LS_N, next); };
-  const sliders = (kind === "bolt" ? BOLT_SLIDERS : MOUNTAIN_SLIDERS) as Slider<Record<string, number>>[];
+  const sliders = (kind === "bolt" ? BOLT_SLIDERS : MOUNTAIN_SLIDERS) as unknown as Slider<Record<string, number>>[];
 
   return (
     <>
