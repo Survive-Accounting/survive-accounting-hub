@@ -56,7 +56,7 @@ export interface BlastFrame {
    *  (small, top-right) · hero (big, top-centre) · free (camPos / camSize) ·
    *  off. Absent = the default in capture/webcam-spots.ts (home on card
    *  slides, off on the brand slides, the bolt and the ads). */
-  cam?: "home" | "corner" | "hero" | "free" | "off";
+  cam?: "home" | "corner" | "hero" | "top" | "free" | "off";
   /** Free spot: top-left as fractions of the phone; size as a fraction of its width. */
   camPos?: { x: number; y: number };
   camSize?: number;
@@ -92,6 +92,9 @@ export interface BlastFrame {
 export interface BlastPlan {
   frames: BlastFrame[];
   updatedAt: string;
+  /** THE SLIDE TEMPLATE (2026-09-05, layout.ts): pass1 = the slides that
+   *  filmed first, pass2 = the vertical template. Absent = pass1. */
+  layout?: "pass1" | "pass2";
 }
 
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only

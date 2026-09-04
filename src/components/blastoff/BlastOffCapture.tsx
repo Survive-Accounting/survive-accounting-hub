@@ -36,7 +36,8 @@ import { CaptureArrows } from "./capture/arrows";
 import { useCaptureCamera } from "./capture/camera";
 import { useCapturePopout } from "./capture/popout";
 import { useCapturePrompterSyncFrame } from "./capture/prompter-sync";
-import { camSpotOf, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
+import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
+import { camDefault, layoutOf } from "./layout";
 import { questionProgress } from "./frame-view";
 import { PhoneFrame } from "./PhoneFrame";
 import { FRAME_LABEL, filmFrames } from "./plan";
@@ -109,7 +110,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   // corner → hero → off), which lasts until the next slide.
   const [camOverride, setCamOverride] = useState<CamSpot | null>(null);
   useEffect(() => { setCamOverride(null); }, [frameId]);
-  const camNow: CamSpot = camOverride ?? (frame ? camSpotOf(frame) : "off");
+  const camNow: CamSpot = camOverride ?? (frame ? (isCamSpot(frame.cam) ? frame.cam : camDefault(layoutOf(plan), frame.kind).spot) : "off");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -155,7 +156,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
     <PersistContext.Provider value={camera.persist}>
     <div ref={hostRef} className={`film-mode${camera.rootClass ? ` ${camera.rootClass}` : ""}`} onWheel={camera.onWheel}
       style={{ minHeight: "100vh", background: "#000", display: "grid", placeItems: "center", position: "relative", overflow: "hidden" }}>
-      <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined}
+      <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)}
         progress={questionProgress(frames, ceqById).get(frame.id)} />
       <CaptureArrows hostRef={hostRef} frameId={frame.id} />
       {/* THE BRAND CURSOR — the bolt, as on the canvas popout. The native

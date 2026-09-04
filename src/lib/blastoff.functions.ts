@@ -38,7 +38,7 @@ const frameSchema = z.object({
   ad: z.enum(["greek", "rep", "send"]).optional(),
   url: z.string().max(120).optional(),
   portrait: z.enum(["on", "off"]).optional(),
-  cam: z.enum(["home", "corner", "hero", "free", "off"]).optional(),
+  cam: z.enum(["home", "corner", "hero", "top", "free", "off"]).optional(),
   camPos: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(),
   camSize: z.number().min(0.05).max(1).optional(),
 });
@@ -48,19 +48,20 @@ export type BlastFrameRow = z.infer<typeof frameSchema>;
 /** Read the stored plan for a set. null = never planned; the client generates. */
 export const loadBlastPlan = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(120) }).parse(d))
-  .handler(async ({ data }): Promise<{ frames: BlastFrameRow[]; updatedAt: string } | null> => {
+  .handler(async ({ data }): Promise<{ frames: BlastFrameRow[]; updatedAt: string; layout?: "pass1" | "pass2" } | null> => {
     const db = await admin();
     const { loadDecksDeduped } = await import("./student.functions");
     const owned = await loadDecksDeduped(db as never);
     const o = owned.get(data.setId);
     if (!o) throw new Error("set not found");
-    const deck = o.deck as { blastOff?: { frames?: unknown[]; updatedAt?: string } };
+    const deck = o.deck as { blastOff?: { frames?: unknown[]; updatedAt?: string; layout?: unknown } };
     const raw = deck.blastOff;
     if (!raw?.frames?.length) return null;
     const parsed = z.array(frameSchema).safeParse(raw.frames);
     // A malformed plan must not brick the route — regenerate rather than throw.
     if (!parsed.success) return null;
-    return { frames: parsed.data, updatedAt: String(raw.updatedAt ?? "") };
+    const layout = raw.layout === "pass2" ? "pass2" as const : raw.layout === "pass1" ? "pass1" as const : undefined;
+    return { frames: parsed.data, updatedAt: String(raw.updatedAt ?? ""), ...(layout ? { layout } : {}) };
   });
 
 /** Write the plan back onto the deck. Whole-plan replace: the client owns the
@@ -69,6 +70,7 @@ export const saveBlastPlan = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
     setId: z.string().min(1).max(120),
     frames: z.array(frameSchema).min(1).max(400),
+    layout: z.enum(["pass1", "pass2"]).optional(),
   }).parse(d))
   .handler(async ({ data }) => {
     const db = await admin();
@@ -79,12 +81,14 @@ export const saveBlastPlan = createServerFn({ method: "POST" })
 
     const { data: row, error } = await db.from("canvas_scenes").select("id,nodes_json").eq("id", o.sceneId).single();
     if (error) rethrow(error);
-    const j = row.nodes_json as { decks?: { id: string; blastOff?: unknown }[] };
+    const j = row.nodes_json as { decks?: { id: string; blastOff?: { frames?: unknown; layout?: unknown } }[] };
     const deck = (j.decks ?? []).find((d) => d.id === data.setId);
     if (!deck) throw new Error("set not found in its scene — nothing written");
 
     const updatedAt = new Date().toISOString();
-    deck.blastOff = { frames: data.frames, updatedAt };
+    // The template rides with the plan; a save that does not name it keeps the one stored.
+    const layout = data.layout ?? (deck.blastOff?.layout === "pass2" ? "pass2" : deck.blastOff?.layout === "pass1" ? "pass1" : undefined);
+    deck.blastOff = { frames: data.frames, updatedAt, ...(layout ? { layout } : {}) };
     const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", o.sceneId);
     if (up.error) rethrow(up.error);
     return { ok: true as const, frames: data.frames.length, updatedAt };

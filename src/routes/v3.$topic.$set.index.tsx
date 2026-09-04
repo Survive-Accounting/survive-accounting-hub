@@ -20,6 +20,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { GraduationCap, Rocket, ClipboardList } from "lucide-react";
 
 import { Door } from "@/components/v3/Door";
+import { usePlan } from "@/components/blastoff/BlastOffEditor";
+import { LAYOUTS, LAYOUT_LABEL, isLayout } from "@/components/blastoff/layout";
+import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
 import { V3Shell, V3Note, V3_DISPLAY, V3_MUTED } from "@/components/v3/Shell";
 
@@ -54,6 +57,10 @@ function V3Set() {
             {set.draftCount ? ` · ${set.draftCount} draft` : ""}
           </div>
 
+          {/* THE TEMPLATE (Lee, 2026-09-05): "with /v3/ maybe before we open /results and
+              /arrange etc, let it have a dropdown for pass 1 (current), pass 2, etc." */}
+          <TemplatePicker set={set} />
+
           <h2 style={{ fontFamily: V3_DISPLAY, fontSize: 12, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: V3_MUTED, marginBottom: 14 }}>
             What are you making?
           </h2>
@@ -71,5 +78,22 @@ function V3Set() {
         </>
       )}
     </V3Shell>
+  );
+}
+
+/** Pass 1 / pass 2 for this set — saved on the plan, read by Review, Arrange and /film. */
+function TemplatePicker({ set }: { set: BoothSetInfo }) {
+  const { plan, saving, setLayout } = usePlan(set);
+  const cur = plan?.layout ?? "pass1";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
+      <span style={{ fontFamily: V3_DISPLAY, fontSize: 12, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: V3_MUTED }}>Slide template</span>
+      <select value={cur} disabled={!plan} onChange={(e) => { if (isLayout(e.target.value)) setLayout(e.target.value); }}
+        style={{ background: "rgba(0,0,0,0.35)", color: "#F4EFE6", border: "1px solid rgba(244,239,230,0.2)", borderRadius: 8, padding: "6px 10px", fontSize: 13 }}>
+        {LAYOUTS.map((l) => <option key={l} value={l}>{LAYOUT_LABEL[l]}</option>)}
+      </select>
+      {saving && <span style={{ fontSize: 11, color: V3_MUTED }}>{saving}</span>}
+      <span style={{ fontSize: 11.5, color: V3_MUTED }}>pass 2 = the vertical template: cards at the top of the safe column, bigger type, the camera placed to the content</span>
+    </div>
   );
 }

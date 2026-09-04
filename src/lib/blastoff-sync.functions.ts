@@ -59,7 +59,7 @@ const frameIn = z.object({
   ad: z.enum(["greek", "rep", "send"]).optional(),
   url: z.string().max(120).optional(),
   portrait: z.enum(["on", "off"]).optional(),
-  cam: z.enum(["home", "corner", "hero", "free", "off"]).optional(),
+  cam: z.enum(["home", "corner", "hero", "top", "free", "off"]).optional(),
   camPos: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(),
   camSize: z.number().min(0.05).max(1).optional(),
 });

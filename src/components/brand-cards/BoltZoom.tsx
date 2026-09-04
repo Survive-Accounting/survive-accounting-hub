@@ -175,7 +175,7 @@ export function GlowWordmark({ size, palette = "powder", live = true, second, bo
 /** The lines a brand slide lets the Review stage edit. */
 export interface BrandEdit { tagline?: string; topic?: string; tutorLine?: string; domain?: string }
 
-export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, live = true, progress, banner = true, tagline = TAGLINE, topic, tutor = TUTOR, tutorLine, domain = DOMAIN, onEdit, seed = 7, style }: {
+export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, live = true, progress, banner = true, tagline = TAGLINE, topic, tutor = TUTOR, tutorLine, domain = DOMAIN, onEdit, wordmarkTop = WORDMARK_TOP, seed = 7, style }: {
   /** The frame this fills, in px. */
   w: number; h: number;
   mode?: BoltZoomMode;
@@ -199,6 +199,8 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
   domain?: string;
   /** The Review stage's click-to-edit — absent everywhere else. */
   onEdit?: (patch: BrandEdit) => void;
+  /** Where the wordmark block sits (a fraction of the height); pass 2's intro lowers it for the camera. */
+  wordmarkTop?: number;
   seed?: number;
   style?: React.CSSProperties;
 }) {
@@ -297,7 +299,7 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
 
   // ---- slides one and two share this block ---------------------------------
   const wordmarkBlock = (children?: React.ReactNode) => (
-    <div style={{ position: "absolute", left: 0, right: 0, top: Math.round(h * WORDMARK_TOP), display: "flex", flexDirection: "column", alignItems: "center", gap: Math.round(h * 0.016), pointerEvents: "none" }}>
+    <div style={{ position: "absolute", left: 0, right: 0, top: Math.round(h * wordmarkTop), display: "flex", flexDirection: "column", alignItems: "center", gap: Math.round(h * 0.016), pointerEvents: "none" }}>
       {/* Lee (2026-09-04): "just have a subtle powder blue / white glowing
           animation on the Survive. It's very much too much going on" — so the
           powder glow, not the brand sweep, on slides one and two. */}

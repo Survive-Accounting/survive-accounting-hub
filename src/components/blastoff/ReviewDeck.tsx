@@ -45,7 +45,8 @@ import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 import { ADS, AD_LABEL } from "./AdSlide";
 import { PhoneFrame } from "./PhoneFrame";
 import { SlideEditContext } from "./slide-edit";
-import { CAM_LABEL, CAM_SPOTS, camSpotOf } from "./capture/webcam-spots";
+import { CAM_LABEL, CAM_SPOTS, camSpotOf, isCamSpot } from "./capture/webcam-spots";
+import { camDefault, layoutOf } from "./layout";
 import {
   PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups, readTidy, setStampCandidates, tidyCacheKey, writeTidy,
   type PrompterCandidate, type TidyPhrase, type TidyResult,
@@ -298,7 +299,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
     });
     // THE CAMERA (2026-09-05): cycles the spots; "free" is placed by dragging the ring on the stage.
     items.push({ label: `📷 Camera · ${camSpotOf(f)}`, title: `Where Lee sits on this slide — ${CAM_LABEL[camSpotOf(f)]}. Click to cycle.`, run: () => patch(f.id, { cam: CAM_SPOTS[(CAM_SPOTS.indexOf(camSpotOf(f)) + 1) % CAM_SPOTS.length] }) });
-    if (f.kind === "bio") items.push({ label: `🖼 Portrait · ${f.portrait === "off" ? "off" : "on"}`, title: "The hand-drawn portrait over the black — on unless you turn it off", run: () => patch(f.id, { portrait: f.portrait === "off" ? undefined : "off" }) });
+    if (f.kind === "bio") items.push({ label: `🖼 Portrait · ${f.portrait === "on" ? "on" : "off (parked)"}`, title: "The hand-drawn portrait over the black — on unless you turn it off", run: () => patch(f.id, { portrait: f.portrait === "on" ? undefined : "on" }) });
     const chips: MenuChips[] = [];
     if (f.kind === "bolt") chips.push({ label: "The animation", chips: ZOOM_VARIANTS.map((v) => ({ id: v.id, label: v.label, on: (f.variant ?? "zoom") === v.id, title: v.blurb })), pick: (id) => patch(f.id, { variant: id }) });
     if (f.kind === "ad") chips.push({ label: "Which ad", chips: AD_KINDS.map((k) => ({ id: k, label: AD_LABEL[k].replace(/^Ad · /, ""), on: (f.ad ?? "greek") === k })), pick: (id) => { if (isAdKind(id)) patch(f.id, { ad: id }); } });
@@ -398,6 +399,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
             progress={progress.get(sel.id)}
             backdrop={backdropFor(frames, selIdx, (id) => !!ceqById.get(id)?.noteOnly)}
             frames={frames}
+            layout={layoutOf(plan)}
             onMove={(d) => commit(moveFrame(frames, selIdx, selIdx + d))}
             onPatch={(p) => patch(sel.id, p)} />
         )}
@@ -444,13 +446,15 @@ const slideText = (f: BlastFrame, byId: Map<string, BoothCeq>): string => {
 
 // ------------------------------------------------------ the middle column
 
-function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop, frames, onMove, onPatch }: {
+function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop, frames, layout, onMove, onPatch }: {
   sel: BlastFrame; idx: number; count: number; label: string; viewSet: BoothSetInfo; topic: BoothTopic;
   progress?: { x: number; y: number };
   /** The bolt-zoom backdrop the rule (or the override) gives this slide. */
   backdrop: BackdropMode | null;
   /** The whole running order — the phone applies the backdrop rule itself. */
   frames: readonly BlastFrame[];
+  /** The set's slide template. */
+  layout: "pass1" | "pass2";
   onMove: (d: -1 | 1) => void;
   /** Only the backdrop toggle patches from here; the words are edited in SlideEditor. */
   onPatch: (p: Partial<BlastFrame>) => void;
@@ -474,7 +478,7 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
           an ad's every line — editable on the slide itself. Cards keep the Editor tab. */}
       <SlideEditContext.Provider value={onPatch}>
       {phone ? (
-        <PhoneFrame frame={sel} frames={frames} index={idx} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} w={STAGE_W} />
+        <PhoneFrame frame={sel} frames={frames} index={idx} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} w={STAGE_W} layout={layout} />
       ) : (
         <div style={{ border: `1px solid ${EDGE}`, borderRadius: 10, overflow: "hidden", display: "inline-block", maxWidth: "100%", opacity: sel.skipped ? 0.5 : 1 }}>
           <FrameView frame={sel} set={viewSet} scale={0.78} topicName={topic.name} progress={progress} />
@@ -542,7 +546,7 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, onPatch, onSaved }: {
           <div className="flex flex-col" style={{ gap: 8 }}>
             <div style={{ fontSize: 12, color: MUTED }}>The tutor card — its words live in one place (bio-card.ts) so every rip says the same thing. Skip it if this rip doesn't need it.</div>
             <div>
-              <button style={chip(sel.portrait !== "off", ORANGE)} title="The hand-drawn portrait over the black — on unless you turn it off" onClick={() => onPatch({ portrait: sel.portrait === "off" ? undefined : "off" })}>🖼 portrait · {sel.portrait === "off" ? "off" : "on"}</button>
+              <button style={chip(sel.portrait === "on", ORANGE)} title="The hand-drawn portrait over the black — on unless you turn it off" onClick={() => onPatch({ portrait: sel.portrait === "on" ? undefined : "on" })}>🖼 portrait · {sel.portrait === "on" ? "on" : "off (parked)"}</button>
             </div>
           </div>
         )}
@@ -608,10 +612,10 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, onPatch, onSaved }: {
           <div style={subhead}>📷 Camera on this slide</div>
           <div className="flex" style={{ gap: 5, flexWrap: "wrap", marginTop: 4 }}>
             {CAM_SPOTS.map((c) => (
-              <button key={c} style={chip(camSpotOf(sel) === c, ORANGE)} title={CAM_LABEL[c]} onClick={() => onPatch({ cam: c })}>{c}</button>
+              <button key={c} style={chip((isCamSpot(sel.cam) ? sel.cam : camDefault(layout, sel.kind).spot) === c, ORANGE)} title={CAM_LABEL[c]} onClick={() => onPatch({ cam: c })}>{c}</button>
             ))}
           </div>
-          {camSpotOf(sel) === "free" && <div style={{ fontSize: 10.5, color: MUTED, marginTop: 4 }}>Drag the ring on the stage to place it · wheel over it to resize.</div>}
+          {(isCamSpot(sel.cam) ? sel.cam : camDefault(layout, sel.kind).spot) === "free" && <div style={{ fontSize: 10.5, color: MUTED, marginTop: 4 }}>Drag the ring on the stage to place it · wheel over it to resize.</div>}
         </div>
         {sel.kind !== "open" && (
           <div style={{ marginTop: 8 }}>

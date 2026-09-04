@@ -16,6 +16,7 @@ import { loadBlastPlan, saveBlastPlan } from "@/lib/blastoff.functions";
 import { syncBlastPlanToSet } from "@/lib/blastoff-sync.functions";
 import { openFilmMode } from "./FilmHandoff";
 import { PhoneFrame } from "./PhoneFrame";
+import { layoutOf } from "./layout";
 import {
   FRAME_LABEL, INSERT_KINDS, filmFrames, insertFrame, isInsert, isStandard, moveFrame, newFrameId, reconcilePlan, removeFrame,
   type BlastFrame, type BlastFrameKind, type BlastPlan,
@@ -40,7 +41,7 @@ export function usePlan(set: BoothSetInfo) {
   useEffect(() => {
     let live = true;
     loadBlastPlan({ data: { setId: set.id } })
-      .then((stored) => { if (live) setPlan(reconcilePlan(stored as BlastPlan | null, set.ceqs)); })
+      .then((stored) => { if (live) { const s = stored as BlastPlan | null; setPlan({ ...reconcilePlan(s, set.ceqs), ...(s?.layout ? { layout: s.layout } : {}) }); } })
       .catch(() => { if (live) setPlan(reconcilePlan(null, set.ceqs)); });
     return () => { live = false; };
   }, [set.id, set.ceqs]);
@@ -60,7 +61,7 @@ export function usePlan(set: BoothSetInfo) {
       .catch((e) => setSaving(`⚠ ${e instanceof Error ? e.message : String(e)}`));
   }, [set.id]);
   const commit = useCallback((frames: BlastFrame[]) => {
-    setPlan({ frames, updatedAt: new Date().toISOString() });
+    setPlan((prev) => ({ frames, updatedAt: new Date().toISOString(), ...(prev?.layout ? { layout: prev.layout } : {}) }));
     dirty.current = true;
     setSaving("saving…");
     pendingFrames.current = frames;
@@ -69,7 +70,19 @@ export function usePlan(set: BoothSetInfo) {
   }, [flush]);
   useEffect(() => () => { if (pendingFrames.current) flush(); }, [flush]);
 
-  return { plan, commit, saving };
+  // THE TEMPLATE (2026-09-05): pass 1 / pass 2, chosen on the set screen; saved at once.
+  const setLayout = useCallback((layout: "pass1" | "pass2") => {
+    setPlan((prev) => {
+      if (!prev) return prev;
+      setSaving("saving…");
+      saveBlastPlan({ data: { setId: set.id, frames: prev.frames, layout } })
+        .then(() => setSaving("saved"))
+        .catch((e) => setSaving(`⚠ ${e instanceof Error ? e.message : String(e)}`));
+      return { ...prev, layout };
+    });
+  }, [set.id]);
+
+  return { plan, commit, saving, setLayout };
 }
 
 // ---------------------------------------------------------------- editor
@@ -222,7 +235,7 @@ export function BlastOffEditor({ set, topicName, onCapture }: { set: BoothSetInf
           Frame {Math.min(at, plan.frames.length - 1) + 1} preview
         </div>
         {/* THE SAME PHONE as Review and /film (2026-09-04: "/arrange should also show the slide"). */}
-        <PhoneFrame frame={plan.frames[Math.min(at, plan.frames.length - 1)]} frames={plan.frames} index={Math.min(at, plan.frames.length - 1)} set={set} w={270}
+        <PhoneFrame frame={plan.frames[Math.min(at, plan.frames.length - 1)]} frames={plan.frames} index={Math.min(at, plan.frames.length - 1)} set={set} w={270} layout={layoutOf(plan)}
           topicName={topicName} progress={progressById.get(plan.frames[Math.min(at, plan.frames.length - 1)]?.id)} />
       </div>
     </div>

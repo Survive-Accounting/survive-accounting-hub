@@ -20,9 +20,9 @@
 // like/share rail right 16% from 30% to 80% of the height.
 import type { BlastFrame } from "../plan";
 
-export const CAM_SPOTS = ["home", "corner", "hero", "free", "off"] as const;
+export const CAM_SPOTS = ["home", "corner", "hero", "top", "free", "off"] as const;
 export type CamSpot = (typeof CAM_SPOTS)[number];
-export const CAM_LABEL: Record<CamSpot, string> = { home: "home · bottom-left", corner: "corner · top-right", hero: "hero · big, top", free: "free · anywhere", off: "off" };
+export const CAM_LABEL: Record<CamSpot, string> = { home: "home · bottom-left", corner: "corner · top-right", hero: "hero · big, top", top: "top · a big circle, centred", free: "free · anywhere", off: "off" };
 
 export function isCamSpot(v: unknown): v is CamSpot { return typeof v === "string" && (CAM_SPOTS as readonly string[]).includes(v); }
 
@@ -51,6 +51,8 @@ export function camRect(spot: Exclude<CamSpot, "off">, w: number, h: number, siz
     case "home": { const d = r(w * (size ?? 0.24)); return { x: r(w * 0.05), y: r(h * 0.8) - d, w: d, h: d, shape: "circle" }; }
     case "corner": { const d = r(w * (size ?? 0.17)); return { x: w - r(w * 0.05) - d, y: r(h * 0.105), w: d, h: d, shape: "circle" }; }
     case "hero": { const cw = r(w * (size ?? 0.62)); const ch = r(cw * 1.2); return { x: r((w - cw) / 2), y: r(h * 0.11), w: cw, h: ch, shape: "portrait" }; }
+    // TOP (pass 2): a big circle, centred, under the status bar — above the wordmark on the intro.
+    case "top": { const d = r(w * (size ?? 0.34)); return { x: r((w - d) / 2), y: r(h * 0.105), w: d, h: d, shape: "circle" }; }
     case "free": { const d = r(w * (size ?? 0.26)); const p = pos ?? { x: 0.05, y: 0.55 }; return { x: r(p.x * w), y: r(p.y * h), w: d, h: d, shape: "circle" }; }
   }
 }
@@ -74,7 +76,7 @@ export function avoidCard(cam: CamRect, spot: Exclude<CamSpot, "off">, card: Box
     const w = Math.round(cam.w * k), h = Math.round(cam.h * k);
     const rect: CamRect = spot === "home" ? { ...cam, x: cam.x, y: cam.y + (cam.h - h), w, h }
       : spot === "corner" ? { ...cam, x: cam.x + (cam.w - w), y: cam.y, w, h }
-      : spot === "hero" ? { ...cam, x: cam.x + Math.round((cam.w - w) / 2), y: cam.y, w, h }
+      : spot === "hero" || spot === "top" ? { ...cam, x: cam.x + Math.round((cam.w - w) / 2), y: cam.y, w, h }
       : { ...cam, x: cam.x + Math.round((cam.w - w) / 2), y: cam.y + Math.round((cam.h - h) / 2), w, h };
     if (!overlaps(rect, card, pad)) return { rect, scale: k, clear: true };
     if (k <= min) return { rect, scale: k, clear: false };
@@ -82,9 +84,9 @@ export function avoidCard(cam: CamRect, spot: Exclude<CamSpot, "off">, card: Box
   return { rect: cam, scale: 1, clear: false };
 }
 
-/** B cycles the spots on the take: home → corner → hero → off → home. */
+/** B cycles the spots on the take: home → corner → hero → top → off → home. */
 export function nextCamSpot(cur: CamSpot): CamSpot {
-  const order: CamSpot[] = ["home", "corner", "hero", "off"];
+  const order: CamSpot[] = ["home", "corner", "hero", "top", "off"];
   const i = order.indexOf(cur === "free" ? "home" : cur);
   return order[(i + 1) % order.length];
 }

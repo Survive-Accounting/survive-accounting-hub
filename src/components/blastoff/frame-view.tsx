@@ -23,6 +23,7 @@ import { V } from "./stage";
 import { SurviveOutro } from "./SurviveOutro";
 import { INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isStandard, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
+import { introWordmarkTop, type SlideLayout } from "./layout";
 
 const GOLD = "#FCA311";
 
@@ -45,7 +46,7 @@ export function questionProgress(frames: readonly BlastFrame[], byId: Map<string
 /** The full-frame kinds size themselves from a 1080×1920 frame at scale·0.34
  *  (a 1080-wide frame sized to sit beside a list); cards are the canvas's own
  *  560-wide card at `scale`. PhoneFrame turns a stage width into both. */
-export function FrameView({ frame, set, scale, topicName, progress, live = false, cardOverride }: {
+export function FrameView({ frame, set, scale, topicName, progress, live = false, cardOverride, layout = "pass1" }: {
   frame: BlastFrame; set: BoothSetInfo; scale: number; topicName?: string | null;
   progress?: { x: number; y: number } | null;
   /** The capture surface: cards are live (SetCard `live`). */
@@ -53,6 +54,8 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   /** The capture camera's grip override (width, scale multiplier), applied
    *  to whichever SetCard this frame renders. */
   cardOverride?: CardOverride;
+  /** The set's slide template (layout.ts). */
+  layout?: SlideLayout;
 }) {
   const s = scale * 0.34;
   const ov = cardOverride ?? {};
@@ -70,7 +73,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // open: tagline = text, domain = url · intro: topic = text, the tutor line = title, domain = url
     if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} tagline={frame.text?.trim() || undefined} domain={frame.url?.trim() || undefined} live
       onEdit={edit ? (p) => edit({ ...(p.tagline !== undefined ? { text: p.tagline } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
-    if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} tutorLine={frame.title?.trim() || undefined} domain={frame.url?.trim() || undefined} banner={frame.banner !== "off"} live
+    if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} tutorLine={frame.title?.trim() || undefined} domain={frame.url?.trim() || undefined} banner={frame.banner !== "off"} wordmarkTop={introWordmarkTop(layout)} live
       onEdit={edit ? (p) => edit({ ...(p.topic !== undefined ? { text: p.topic } : {}), ...(p.tutorLine !== undefined ? { title: p.tutorLine } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
     // THE TUTOR CARD (2026-09-03): the bio in the detour format, a bit bigger.
     if (frame.kind === "bio") {
@@ -79,7 +82,8 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
       const cardW = CARD_W * scale * BIO_CARD.scale;
       return (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 * scale }}>
-          {frame.portrait !== "off" && <LeePortrait width={Math.round(cardW * 0.42)} animate={live} />}
+          {/* PARKED (Lee, 2026-09-05: "the SVG drawing of me didn't quite work. Let's park that") — on only when asked. */}
+          {frame.portrait === "on" && <LeePortrait width={Math.round(cardW * 0.42)} animate={live} />}
           <SetCard id={frame.id} stem={BIO_CARD.title} scale={scale * BIO_CARD.scale} callout={bioCallout() as Record<string, unknown>} live={live} {...ov} />
         </div>
       );

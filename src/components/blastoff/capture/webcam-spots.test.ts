@@ -46,10 +46,11 @@ describe("the camera's spots", () => {
     expect(avoidCard(cam, "corner", null).scale).toBe(1);
     expect(avoidCard(cam, "corner", { x: 100, y: 900, w: 880, h: 400 }).scale).toBe(1);
   });
-  test("B cycles home → corner → hero → off → home; free rejoins at corner", () => {
+  test("B cycles home → corner → hero → top → off → home; free rejoins at corner", () => {
     expect(nextCamSpot("home")).toBe("corner");
     expect(nextCamSpot("corner")).toBe("hero");
-    expect(nextCamSpot("hero")).toBe("off");
+    expect(nextCamSpot("hero")).toBe("top");
+    expect(nextCamSpot("top")).toBe("off");
     expect(nextCamSpot("off")).toBe("home");
     expect(nextCamSpot("free")).toBe("corner");
   });

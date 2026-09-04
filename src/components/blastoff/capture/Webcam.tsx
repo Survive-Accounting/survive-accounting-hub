@@ -2,28 +2,34 @@
 //
 // The old canvas bubble ("b", canvas/CameraBubble.tsx) was a screen-fixed
 // overlay Lee dragged around. This one belongs to the SLIDE: the phone draws
-// it at one of the spots in webcam-spots.ts (home / corner / hero / free /
-// off, chosen per slide on Review, overridden per take with B), inside the
-// 9:16 frame, so OBS window-captures the camera together with the slide and
-// the placement is the same every time. It shrinks on its own when a card
-// would be under it (avoidCard) — the one thing an in-app feed can do that an
-// OBS overlay cannot.
+// it at one of the spots in webcam-spots.ts (home / corner / hero / top /
+// free / off, chosen per slide on Review, overridden per take with B), inside
+// the 9:16 frame, so OBS window-captures the camera together with the slide
+// and the placement is the same every time. It shrinks on its own when a card
+// would be under it (avoidCard). Walking between spots animates — Lee: "the
+// camera movement is really cool how it animates around."
+//
+// THE MOMENT (2026-09-05, the easter egg): Ctrl+click the camera and it takes
+// the frame — grows to a big portrait in the middle, the slide dims behind it —
+// for the line that matters. Ctrl+click again, ` or the next slide ends it.
 //
 // live=false (the Review and Arrange stages) draws a placeholder — no camera
 // permission prompt while Lee is arranging. live=true (the capture) asks for
-// the webcam, mirrors it, and fails soft: a quiet "no camera" ring, never a
-// crash. The look: a cream ring with a soft glow and a navy shadow, a small
-// nametag under the home circle.
+// the webcam, mirrors it, and fails soft. The look: a cream ring with a soft
+// glow and a navy shadow. No nametag (Lee: "simple, elegant, modern").
 import { useEffect, useRef, useState } from "react";
 
 import { avoidCard, camRect, type Box, type CamRect, type CamSpot } from "./webcam-spots";
 
 const CREAM = "#F5EFE6";
-const NAVY = "#14213D";
-const GOLD = "#FCA311";
-const NAME = "Lee Ingram";
 
-export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirror = true }: {
+/** The moment's frame: a big portrait, centred in the safe column. */
+function momentRect(w: number, h: number): CamRect {
+  const cw = Math.round(w * 0.78), ch = Math.round(cw * 1.25);
+  return { x: Math.round((w - cw) / 2), y: Math.round(h * 0.16), w: cw, h: ch, shape: "portrait" };
+}
+
+export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirror = true, moment = false, onMoment }: {
   w: number; h: number;
   spot: Exclude<CamSpot, "off">;
   /** Free spot (and an override on the fixed spots): width as a fraction of the phone. */
@@ -36,10 +42,14 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
   /** Free spot on the Review stage: drag / wheel-resize write back here (fractions). */
   onFree?: (p: { pos?: { x: number; y: number }; size?: number }) => void;
   mirror?: boolean;
+  /** The easter egg: the camera takes the frame. */
+  moment?: boolean;
+  /** Ctrl+click on the camera. */
+  onMoment?: () => void;
 }) {
   const base = camRect(spot, w, h, size, pos);
   const fit = avoidCard(base, spot, cardBox ?? null);
-  const r: CamRect = fit.rect;
+  const r: CamRect = moment ? momentRect(w, h) : fit.rect;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -62,8 +72,9 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
 
   // FREE: drag to move, wheel to resize — on the Review stage, written to the frame.
   const drag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
-  const editable = spot === "free" && !!onFree;
+  const editable = spot === "free" && !!onFree && !moment;
   function onDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.ctrlKey || e.metaKey) { if (onMoment) { e.preventDefault(); e.stopPropagation(); onMoment(); } return; }
     if (!editable) return;
     e.preventDefault(); e.stopPropagation();
     drag.current = { sx: e.clientX, sy: e.clientY, ox: r.x, oy: r.y };
@@ -84,18 +95,21 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
     onFree({ size: Math.max(0.12, Math.min(0.9, Math.round((cur * (e.deltaY < 0 ? 1.06 : 0.94)) * 1000) / 1000)) });
   }
 
-  const ring = Math.max(2, Math.round(r.w * 0.018));
+  const ring = Math.max(2, Math.round(r.w * 0.016));
   const radius = r.shape === "circle" ? "50%" : Math.round(r.w * 0.09);
-  const tag = spot === "home" || spot === "free";
   return (
-    <div data-sa-cam={spot} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onWheel={onWheel}
-      title={editable ? "Drag to move · wheel to resize" : undefined}
-      style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, zIndex: 12, cursor: editable ? "grab" : undefined, pointerEvents: editable ? "auto" : "none",
-        transition: "left 220ms ease, top 220ms ease, width 220ms ease, height 220ms ease" }}>
-      {/* the ring: cream, a soft outer glow, a navy shadow — never loud */}
-      <div style={{ position: "absolute", inset: 0, borderRadius: radius, padding: ring, background: `linear-gradient(160deg, ${CREAM}, rgba(245,239,230,0.72))`,
-        boxShadow: `0 0 0 ${Math.round(ring * 2.2)}px rgba(245,239,230,0.10), 0 ${Math.round(r.w * 0.06)}px ${Math.round(r.w * 0.16)}px -${Math.round(r.w * 0.05)}px rgba(0,0,0,0.75)` }}>
-        <div style={{ width: "100%", height: "100%", borderRadius: radius, overflow: "hidden", background: live ? "#000" : "rgba(20,33,61,0.55)", position: "relative" }}>
+    <div data-sa-cam={moment ? "moment" : spot} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onWheel={onWheel}
+      title={editable ? "Drag to move · wheel to resize · ctrl+click for the moment" : onMoment ? "ctrl+click: the camera takes the frame" : undefined}
+      style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, zIndex: moment ? 30 : 12, cursor: editable ? "grab" : undefined, pointerEvents: editable || onMoment ? "auto" : "none",
+        // The move between spots is the choreography — a touch of overshoot, never a snap.
+        transition: "left 480ms cubic-bezier(0.34, 1.3, 0.64, 1), top 480ms cubic-bezier(0.34, 1.3, 0.64, 1), width 480ms cubic-bezier(0.34, 1.3, 0.64, 1), height 480ms cubic-bezier(0.34, 1.3, 0.64, 1)" }}>
+      {/* the ring: cream, a soft outer glow, a navy shadow — never loud; the moment breathes */}
+      <div style={{ position: "absolute", inset: 0, borderRadius: radius, padding: ring, background: `linear-gradient(160deg, ${CREAM}, rgba(245,239,230,0.7))`,
+        boxShadow: moment
+          ? `0 0 0 ${Math.round(ring * 3)}px rgba(252,163,17,0.18), 0 0 ${Math.round(r.w * 0.18)}px rgba(252,163,17,0.35), 0 ${Math.round(r.w * 0.06)}px ${Math.round(r.w * 0.2)}px -${Math.round(r.w * 0.05)}px rgba(0,0,0,0.8)`
+          : `0 0 0 ${Math.round(ring * 2.2)}px rgba(245,239,230,0.10), 0 ${Math.round(r.w * 0.06)}px ${Math.round(r.w * 0.16)}px -${Math.round(r.w * 0.05)}px rgba(0,0,0,0.75)`,
+        transition: "box-shadow 480ms ease, border-radius 480ms ease" }}>
+        <div style={{ width: "100%", height: "100%", borderRadius: radius, overflow: "hidden", background: live ? "#000" : "rgba(20,33,61,0.55)", position: "relative", transition: "border-radius 480ms ease" }}>
           {live && !err && <video ref={videoRef} autoPlay muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", transform: mirror ? "scaleX(-1)" : undefined, display: "block" }} />}
           {(!live || err) && (
             <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: CREAM, fontFamily: "'Rubik', system-ui, sans-serif", textAlign: "center", padding: "8%" }}>
@@ -108,15 +122,6 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
           )}
         </div>
       </div>
-      {/* the nametag — under the home circle only; the hero and corner speak for themselves */}
-      {tag && (
-        <div style={{ position: "absolute", left: "50%", bottom: -Math.round(r.w * 0.09), transform: "translateX(-50%)", whiteSpace: "nowrap", borderRadius: 999, background: CREAM, color: NAVY,
-          padding: `${Math.round(r.w * 0.015)}px ${Math.round(r.w * 0.09)}px`, fontFamily: "'League Spartan', 'Rubik', system-ui, sans-serif", fontWeight: 800, fontSize: Math.max(9, Math.round(r.w * 0.085)), lineHeight: 1.3,
-          boxShadow: "0 8px 20px -10px rgba(0,0,0,0.7)", pointerEvents: "none" }}>
-          {NAME}
-          <span style={{ display: "block", margin: "1px auto 0", width: "60%", height: 2, borderRadius: 2, background: GOLD }} />
-        </div>
-      )}
     </div>
   );
 }
