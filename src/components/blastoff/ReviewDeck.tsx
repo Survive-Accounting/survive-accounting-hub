@@ -45,6 +45,7 @@ import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 import { ADS, AD_LABEL } from "./AdSlide";
 import { PhoneFrame } from "./PhoneFrame";
 import { SlideEditContext } from "./slide-edit";
+import { CAM_LABEL, CAM_SPOTS, camSpotOf } from "./capture/webcam-spots";
 import {
   PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups, readTidy, setStampCandidates, tidyCacheKey, writeTidy,
   type PrompterCandidate, type TidyPhrase, type TidyResult,
@@ -295,6 +296,8 @@ export function ReviewDeck({ set, topic, doc, register }: {
       label: `🏫 Campus banner · ${bannerOn ? "on" : "off"}`, title: "The slow Power Four banner along the lower third",
       run: () => patch(f.id, { banner: f.kind === "open" ? (f.banner === "off" ? undefined : "off") : (f.banner === "on" ? undefined : "on") }),
     });
+    // THE CAMERA (2026-09-05): cycles the spots; "free" is placed by dragging the ring on the stage.
+    items.push({ label: `📷 Camera · ${camSpotOf(f)}`, title: `Where Lee sits on this slide — ${CAM_LABEL[camSpotOf(f)]}. Click to cycle.`, run: () => patch(f.id, { cam: CAM_SPOTS[(CAM_SPOTS.indexOf(camSpotOf(f)) + 1) % CAM_SPOTS.length] }) });
     if (f.kind === "bio") items.push({ label: `🖼 Portrait · ${f.portrait === "off" ? "off" : "on"}`, title: "The hand-drawn portrait over the black — on unless you turn it off", run: () => patch(f.id, { portrait: f.portrait === "off" ? undefined : "off" }) });
     const chips: MenuChips[] = [];
     if (f.kind === "bolt") chips.push({ label: "The animation", chips: ZOOM_VARIANTS.map((v) => ({ id: v.id, label: v.label, on: (f.variant ?? "zoom") === v.id, title: v.blurb })), pick: (id) => patch(f.id, { variant: id }) });
@@ -600,6 +603,16 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, onPatch, onSaved }: {
             <div style={{ fontSize: 11.5, color: MUTED }}>Edits stay on this slide; every other rip keeps the built-in copy.</div>
           </div>
         )}
+        {/* THE CAMERA (Lee, 2026-09-05): three fixed spots, free, or off — home 70 %+ of the time. */}
+        <div style={{ marginTop: 10 }}>
+          <div style={subhead}>📷 Camera on this slide</div>
+          <div className="flex" style={{ gap: 5, flexWrap: "wrap", marginTop: 4 }}>
+            {CAM_SPOTS.map((c) => (
+              <button key={c} style={chip(camSpotOf(sel) === c, ORANGE)} title={CAM_LABEL[c]} onClick={() => onPatch({ cam: c })}>{c}</button>
+            ))}
+          </div>
+          {camSpotOf(sel) === "free" && <div style={{ fontSize: 10.5, color: MUTED, marginTop: 4 }}>Drag the ring on the stage to place it · wheel over it to resize.</div>}
+        </div>
         {sel.kind !== "open" && (
           <div style={{ marginTop: 8 }}>
             <button style={chip(sel.banner === "on", ORANGE)} title="Put the slow Power Four campus banner on this slide (any slide — an expansion moment)" onClick={() => onPatch({ banner: sel.banner === "on" ? undefined : "on" })}>🏫 campus banner · {sel.banner === "on" ? "on" : "off"}</button>

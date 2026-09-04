@@ -36,6 +36,7 @@ import { CaptureArrows } from "./capture/arrows";
 import { useCaptureCamera } from "./capture/camera";
 import { useCapturePopout } from "./capture/popout";
 import { useCapturePrompterSyncFrame } from "./capture/prompter-sync";
+import { camSpotOf, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { questionProgress } from "./frame-view";
 import { PhoneFrame } from "./PhoneFrame";
 import { FRAME_LABEL, filmFrames } from "./plan";
@@ -104,6 +105,11 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   useCapturePrompterSyncFrame(set.id, frame ?? null);
   // Inside the popped-out window the chrome starts hidden — the window IS the shot.
   const [chrome, setChrome] = useState(!popout.isPopout);
+  // THE CAMERA for this take: the slide's own spot, or B's override (home →
+  // corner → hero → off), which lasts until the next slide.
+  const [camOverride, setCamOverride] = useState<CamSpot | null>(null);
+  useEffect(() => { setCamOverride(null); }, [frameId]);
+  const camNow: CamSpot = camOverride ?? (frame ? camSpotOf(frame) : "off");
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -120,10 +126,11 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
       else if (e.key === "Escape") { e.preventDefault(); onExit(); }
       else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
       else if (e.key.toLowerCase() === "p") { e.preventDefault(); setPrompter((v) => !v); }
+      else if (e.key.toLowerCase() === "b" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); setCamOverride(nextCamSpot(camNow)); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [n, onExit, resetTake]);
+  }, [n, onExit, resetTake, camNow]);
 
   // FIT THE PHONE to the window: as tall as the window allows, 9:16. Size the
   // browser window to 9:16 (or pop it out) and the phone IS the window.
@@ -148,7 +155,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
     <PersistContext.Provider value={camera.persist}>
     <div ref={hostRef} className={`film-mode${camera.rootClass ? ` ${camera.rootClass}` : ""}`} onWheel={camera.onWheel}
       style={{ minHeight: "100vh", background: "#000", display: "grid", placeItems: "center", position: "relative", overflow: "hidden" }}>
-      <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture stageStyle={camera.stageStyle} cardOverride={camera.cardOverride}
+      <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined}
         progress={questionProgress(frames, ceqById).get(frame.id)} />
       <CaptureArrows hostRef={hostRef} frameId={frame.id} />
       {/* THE BRAND CURSOR — the bolt, as on the canvas popout. The native
@@ -162,7 +169,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
         }}>
           <span style={{ color: GOLD, fontWeight: 800 }}>{idx + 1} / {n}</span>
           <span>{FRAME_LABEL[frame.kind]}</span>
-          <span>space next · shift+space back · wheel zooms, O pulls back, 0 resets · alt+drag moves, alt-hover grips resize · click a choice, click again to resolve · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · F1 move F1 draws an arrow, Delete removes · ` resets · H hide this · P prompter{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
+          <span>B camera {camNow} · space next · shift+space back · wheel zooms, O pulls back, 0 resets · alt+drag moves, alt-hover grips resize · click a choice, click again to resolve · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · F1 move F1 draws an arrow, Delete removes · ` resets · H hide this · P prompter{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
           {popout.open && !popout.isPopout && (
             <button onClick={popout.open} title="Open this page as its own 9:16 window, snapped to 1080×1920 for OBS"
               style={{ color: GOLD, background: "none", border: `1px solid ${GOLD}66`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>⧉ pop out 9:16</button>

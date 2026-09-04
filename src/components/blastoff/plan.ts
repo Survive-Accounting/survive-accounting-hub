@@ -52,6 +52,14 @@ export interface BlastFrame {
   /** THE BIO SLIDE's hand-drawn portrait (kind "bio"): drawn on over the black
    *  in the /learn lime. Absent = on. */
   portrait?: "on" | "off";
+  /** THE CAMERA on this slide (2026-09-05): home (bottom-left circle) · corner
+   *  (small, top-right) · hero (big, top-centre) · free (camPos / camSize) ·
+   *  off. Absent = the default in capture/webcam-spots.ts (home on card
+   *  slides, off on the brand slides, the bolt and the ads). */
+  cam?: "home" | "corner" | "hero" | "free" | "off";
+  /** Free spot: top-left as fractions of the phone; size as a fraction of its width. */
+  camPos?: { x: number; y: number };
+  camSize?: number;
   /** Talkthrough bank item this came from, when picked rather than typed. */
   bankItemId?: string;
   /** THE REVIEW STEP (Lee, 2026-09-03: "quickly remove a CEQ slide"). A card
