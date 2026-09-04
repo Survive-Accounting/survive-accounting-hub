@@ -192,6 +192,8 @@ export interface BoothCeq {
   noteOnly: boolean;
   needsExhibit: string | null;
   masterNotes: string | null;
+  /** Saved edits on the card that can be reverted (applyCeqEdit history). */
+  edits: number;
 }
 export interface BoothSetInfo { id: string; name: string; ceqs: BoothCeq[]; liveCount: number; draftCount: number }
 export interface BoothTopic { id: string; name: string; number: number | null; sets: BoothSetInfo[] }
@@ -230,6 +232,7 @@ export const loadBoothBank = createServerFn({ method: "POST" }).handler(async ()
       noteOnly: !!c.d.noteOnly,
       needsExhibit: c.d.needsExhibit ? String(c.d.needsExhibit) : null,
       masterNotes: c.d.masterNotes ? String(c.d.masterNotes) : null,
+      edits: Array.isArray((c.d as { editHistory?: unknown }).editHistory) ? ((c.d as { editHistory: unknown[] }).editHistory).length : 0,
     }));
     topics.get(tid)!.sets.push({
       id: d.id, name: d.name, ceqs,
@@ -341,6 +344,11 @@ export const applyCeqEdit = createServerFn({ method: "POST" })
     const node = (j.nodes ?? []).find((n) => n.id === data.ceqNodeId);
     if (!node) throw new Error("CEQ node vanished from its scene — refresh and retry");
     node.data ??= {};
+    // REVERTIBLE (Lee, 2026-09-03: "I'm just nervous to use it. Would be great
+    // if we could revert on this after the fact"). The card's words BEFORE this
+    // save go onto the node (last ten), so revertCeqEdit can put them back.
+    const hist = Array.isArray(node.data.editHistory) ? (node.data.editHistory as unknown[]) : [];
+    node.data.editHistory = [...hist, { at: new Date().toISOString(), prompt: node.data.prompt ?? "", choices: node.data.choices ?? [] }].slice(-10);
     if (data.stem) node.data.prompt = data.stem;
     if (data.choices) node.data.choices = data.choices.map((c, i) => ({ id: `c${i}`, text: c.text, correct: c.correct, ...(c.feedback ? { feedback: c.feedback } : {}) }));
     (node.data as Record<string, unknown>).editedVia = "talkthrough-review";
@@ -348,6 +356,38 @@ export const applyCeqEdit = createServerFn({ method: "POST" })
     const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", sceneId);
     if (up.error) rethrow(up.error);
     return { ok: true as const, sceneId };
+  });
+
+/** UNDO the last applyCeqEdit on a card: the words it had before that save come
+ *  back, the history shrinks by one. Returns what the card says now. */
+export const revertCeqEdit = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ ceqNodeId: z.string().min(1).max(200) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true; stem: string; choices: { text: string; correct: boolean; feedback: string | null }[]; edits: number }> => {
+    const db = await admin();
+    const { loadDecksDeduped } = await import("@/lib/student.functions");
+    const owned = await loadDecksDeduped(db as never);
+    let sceneId: string | null = null;
+    for (const o of owned.values()) {
+      if ((o.nodes as { id: string }[]).some((n) => n.id === data.ceqNodeId)) { sceneId = o.sceneId; break; }
+    }
+    if (!sceneId) throw new Error("CEQ not found in any live set");
+    const { data: row, error } = await db.from("canvas_scenes").select("id,nodes_json").eq("id", sceneId).single();
+    if (error) rethrow(error);
+    const j = row.nodes_json as { nodes?: { id: string; data?: Record<string, unknown> }[] };
+    const node = (j.nodes ?? []).find((n) => n.id === data.ceqNodeId);
+    if (!node?.data) throw new Error("CEQ node vanished from its scene — refresh and retry");
+    const hist = Array.isArray(node.data.editHistory) ? (node.data.editHistory as { at: string; prompt: unknown; choices: unknown }[]) : [];
+    const last = hist[hist.length - 1];
+    if (!last) throw new Error("nothing to revert — no saved edits on this card");
+    node.data.prompt = last.prompt;
+    node.data.choices = last.choices;
+    node.data.editHistory = hist.slice(0, -1);
+    node.data.editedVia = "talkthrough-revert";
+    node.data.editedAt = new Date().toISOString();
+    const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", sceneId);
+    if (up.error) rethrow(up.error);
+    const choices = (Array.isArray(last.choices) ? last.choices : []) as { text?: unknown; correct?: unknown; feedback?: unknown }[];
+    return { ok: true as const, stem: String(last.prompt ?? ""), choices: choices.map((c) => ({ text: String(c.text ?? ""), correct: !!c.correct, feedback: c.feedback ? String(c.feedback) : null })), edits: hist.length - 1 };
   });
 
 // -------------------------------------------------------- B5: film picks

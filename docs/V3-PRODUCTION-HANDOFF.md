@@ -258,6 +258,21 @@ session (the build queue judged it too big — see docs/TWO-MACHINES.md).
   resolves a choice; Ctrl+click spotlights; Alt+drag moves.
 - **Vertical card size**: with no saved spot a 9:16 frame deals the card at
   1.3× (`VERTICAL_DEAL_SCALE`); a saved instance/template still wins.
+- **Alt+drag MOVES the card by its own hand now** (2026-09-03, late): with
+  real pointer gestures on the inline film surface, ReactFlow's node drag
+  never fired on the film pane even with the node marked draggable — which is
+  why Alt+pick-up "never worked" for Lee. The card root now owns the gesture
+  (`startAltMove` in CeqPreviewNode, capture phase, `MoveContext` → transient
+  position delta in flow units, zoom-aware). The `nodrag` class added the
+  night before is gone (it was blocking drags outright). VERIFIED in the test
+  pane with real gestures: plain click selects, second click resolves,
+  drag-select highlights, Shift+click highlights a word, Ctrl+click pops,
+  Alt+drag moves the live card, Alt-hover shows the grips and ring.
+- **How that was tested**: `/study/canvas?film=inline` with the handoff in
+  localStorage opens the SAME film surface inline in the tab (the popout is
+  `window.open("")` + a React portal of the same tree), so the in-app browser
+  pane can drive it. The pane loads canvas data without a sign-in. Mind: the
+  canvas autosaves scene files on load; never touch authoring controls there.
 - **Alt-hover grips in the film popout** (built, same night): hold Alt and
   hover any node → a dashed gold ring; on the CEQ card, corner grips scale it
   (text too), left/right grips change its width, top/bottom grips scale, and
@@ -275,6 +290,20 @@ session (the build queue judged it too big — see docs/TWO-MACHINES.md).
   `components/blastoff/bio-card.ts`. `SurviveBio` (the 9:16 brand card) stays
   for the Add menu and old scenes; a re-send removes the old staged bio.
   `CalloutSettings.footer` is new and additive.
+- **Revert a saved CEQ edit** (Lee: "I'm just nervous to use it. Would be great
+  if we could revert on this after the fact"): `applyCeqEdit` keeps the card's
+  previous words in `data.editHistory` (last ten); `revertCeqEdit` puts the
+  last one back; the review deck's CEQ editor shows **↶ Revert last save · n**.
+- **The typewriter** on dark detour cards (film only): the heading types in
+  word by word, then each line, ~45 ms a word (`typewrite` in CalloutCard,
+  `.sa-type` in PV_CSS). Plays on every deal; off under reduced motion.
+- **THE VERTICAL SPOT** (Lee: "the slide is off to the top right … 1/5 the
+  size … more centered … big enough that it fits best in the shorts zone"):
+  the set carried card spots from landscape sessions. Send-to-film now stamps
+  `data.geomV.card` on every planned frame and `deck.layoutV.card` with
+  `verticalCardSpot()` (`blastoff/film-spot.ts`, tested): centred, 1.3×,
+  centre at 46% of the frame's height. Landscape `data.geom` is untouched.
+  **Send to film again after this deploy** for the set to pick it up.
 - **Detour cards are full card width** (same pass): callouts were fit-content
   with a 320 floor, so a detour drew at about half a set card's width. Dark
   detour cards now floor at `cardW ?? CARD_W` and cap at the same, so every

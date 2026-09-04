@@ -25,7 +25,7 @@
 // plan is deck.blastOff; prompter lines and bullets live on the frame.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { applyCeqEdit, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
+import { applyCeqEdit, revertCeqEdit, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import type { TTDoc } from "@/components/canvas/talkthrough";
 import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
 import { refreshBank } from "@/components/v3/use-bank";
@@ -396,6 +396,24 @@ function CeqEditor({ ceq, topicName, onSaved }: { ceq: BoothCeq; topicName: stri
       onSaved(d);
       refreshBank();
       setNote("✓ saved to the bank — this is the card that films");
+      setEdits((n) => n + 1);
+    } catch (e) { setNote(`⚠ ${e instanceof Error ? e.message : String(e)}`); } finally { setBusy(false); }
+  };
+  // REVERT (Lee, 2026-09-03: "I'm just nervous to use it. Would be great if we
+  // could revert on this after the fact"): the card's words before the last
+  // save come back — one step at a time, as many times as there were saves.
+  const [edits, setEdits] = useState(ceq.edits);
+  useEffect(() => { setEdits(ceq.edits); }, [ceq.edits]);
+  const revert = async () => {
+    if (!window.confirm("Put back the words this card had before the last save?")) return;
+    setBusy(true); setNote(null);
+    try {
+      const r = await revertCeqEdit({ data: { ceqNodeId: ceq.id } });
+      const restored: CeqDraft = { stem: r.stem, choices: r.choices.map((c) => ({ text: c.text, correct: c.correct, feedback: c.feedback ?? "" })) };
+      onSaved(restored);
+      refreshBank();
+      setEdits(r.edits);
+      setNote(`↶ reverted — ${r.edits ? `${r.edits} earlier save${r.edits > 1 ? "s" : ""} left to undo` : "back to the original"}`);
     } catch (e) { setNote(`⚠ ${e instanceof Error ? e.message : String(e)}`); } finally { setBusy(false); }
   };
 
@@ -405,6 +423,11 @@ function CeqEditor({ ceq, topicName, onSaved }: { ceq: BoothCeq; topicName: stri
         <span style={eyebrow}>Edit the card</span>
         {dirty && <span style={{ fontSize: 11, color: GOLD }}>unsaved</span>}
         {note && <span style={{ fontSize: 11, color: note.startsWith("⚠") ? RED : MINT }}>{note}</span>}
+        {!dirty && edits > 0 && (
+          <button style={{ ...chip(false), marginLeft: "auto" }} disabled={busy} title={`Undo the last save on this card (${edits} saved edit${edits > 1 ? "s" : ""} can be undone, one at a time)`} onClick={() => void revert()}>
+            {busy ? "…" : `↶ Revert last save · ${edits}`}
+          </button>
+        )}
         {dirty && (
           <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
             <button style={chip(false)} onClick={() => setD(base)} disabled={busy}>discard</button>

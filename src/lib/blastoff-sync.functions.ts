@@ -31,6 +31,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { BIO_CARD, bioCallout } from "@/components/blastoff/bio-card";
+import { verticalCardSpot } from "@/components/blastoff/film-spot";
 import { BLAST_FRAME_KINDS, INSERT_CALLOUT, insertStem } from "@/components/blastoff/plan";
 import { blankCard } from "@/components/canvas/templates";
 
@@ -177,8 +178,11 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
       decks?: { id: string; name?: string }[];
     };
     j.nodes ??= [];
-    const deckRow = (j.decks ?? []).find((d) => d.id === data.setId) as ({ id: string; name?: string; world?: string } | undefined);
+    const deckRow = (j.decks ?? []).find((d) => d.id === data.setId) as ({ id: string; name?: string; world?: string; layoutV?: Record<string, unknown> } | undefined);
     const setName = deckRow?.name ?? "";
+    // The set's vertical baseline follows the same spot, so a card added later
+    // deals where the rest of the rip sits.
+    if (deckRow) deckRow.layoutV = { ...(deckRow.layoutV ?? {}), card: verticalCardSpot() };
     // THE BACKDROP (Lee, 2026-09-03: "when filming in the capture mode, I lost
     // the background"). The film frame paints deck.world and a set with none
     // is flat near-black. A set arriving from Blast Off gets the calm default
@@ -206,6 +210,10 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
         node.data.stageOrder = stageOrder;
         node.data.slotIndex = stageOrder;
         if (f.skipped) node.data.filmSkip = true; else delete node.data.filmSkip;
+        // THE VERTICAL SPOT (2026-09-03): every card of the rip sits centred on
+        // the 9:16 frame, dealt big — replacing any spot saved in a landscape
+        // session. Landscape geometry (data.geom) is left alone.
+        node.data.geomV = { ...((node.data.geomV as Record<string, unknown> | undefined) ?? {}), card: verticalCardSpot(typeof node.data.cardW === "number" ? node.data.cardW : undefined) };
         planned.add(node.id);
         reordered++;
         return;
@@ -249,6 +257,8 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
         ...(callout ? { callout } : {}),
         // The tutor card is a bit bigger than a detour card.
         ...(f.kind === "bio" ? { cardW: BIO_CARD.cardW } : {}),
+        // Centred on the vertical frame, like every other card of the rip.
+        geomV: { card: verticalCardSpot(f.kind === "bio" ? BIO_CARD.cardW : undefined) },
         deckId: data.setId,
         deckMember: true,
         tucked: true,

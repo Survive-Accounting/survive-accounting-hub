@@ -91,6 +91,12 @@ const ScaleCommitContext = createContext<() => void>(() => {});
 /** ALT-RESIZE (2026-09-03): the film surface's transient width override for a
  *  CEQ card — local `nodes` state only, like setScale; dies on the next seed. */
 const WidthContext = createContext<(id: string, w: number) => void>(() => {});
+/** ALT-MOVE (2026-09-03): the film surface's own pick-up-and-move for a card,
+ *  in flow units. ReactFlow's node drag never fires on the film pane (verified
+ *  with real pointer gestures: the node is marked draggable, nothing moves), so
+ *  the card tracks the pointer itself while Alt is down. Transient, like the
+ *  grips. */
+const MoveContext = createContext<(id: string, dx: number, dy: number) => void>(() => {});
 /** LOCAL rehearsal-spotlight layer (never the global controller). Keyed spotKey. */
 interface PreviewSpotApi { state: (key: string) => "spot" | null; flamed: (key: string) => boolean; tone: (key: string) => SuperTone; onClick: (key: string, e: React.PointerEvent) => void; any: () => boolean }
 const PreviewSpotContext = createContext<PreviewSpotApi>({ state: () => null, flamed: () => false, tone: () => "focus", onClick: () => {}, any: () => false });
@@ -151,6 +157,12 @@ export const PV_CSS = `
 }
 .film-mode .sa-neon-label { animation: sa-neon 5.5s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .film-mode .sa-neon-label { animation: none; } }
+/* THE TYPEWRITER (Lee, 2026-09-03) — a detour card's heading types in, then each
+   line under it, word by word, quick: ~45 ms a word, so a five-line card is on
+   screen inside two seconds. Film only; plays when the card mounts (every deal). */
+@keyframes sa-type-in { from { opacity: 0; } to { opacity: 1; } }
+.film-mode .sa-type { opacity: 0; animation: sa-type-in 60ms steps(1, end) forwards; animation-delay: calc(140ms + var(--i) * 45ms); }
+@media (prefers-reduced-motion: reduce) { .film-mode .sa-type { opacity: 1; animation: none; } }
 /* THE CEQ PIN (Lee, 09-01) — z-order between ReactFlow nodes belongs to the
    .react-flow__node WRAPPER, so a z-index on our inner counter-transform div
    cannot lift the question above an exhibit Lee has zoomed into. :has() reaches
@@ -559,6 +571,26 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
   const inert = !!(data as { inert?: boolean }).inert;
   const prLive = useContext(PracticeContext);
   const pr = inert ? INERT_PRACTICE : prLive;
+  // ALT-MOVE (2026-09-03): Alt + drag anywhere on the card picks it up. Runs in
+  // the capture phase on the card root so neither the choice's spotlight
+  // handler nor the text selection see the gesture; the grips keep their own.
+  const moveBy = useContext(MoveContext);
+  const startAltMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!e.altKey || e.button !== 0 || inert) return;
+    if ((e.target as HTMLElement).closest?.(".sa-alt-grips")) return;
+    e.preventDefault(); e.stopPropagation();
+    const el = e.currentTarget;
+    const win = el.ownerDocument.defaultView ?? window;
+    const vp = el.closest(".react-flow__viewport") as HTMLElement | null;
+    let zoom = 1;
+    try { zoom = vp ? new win.DOMMatrix(win.getComputedStyle(vp).transform).a || 1 : 1; } catch { zoom = 1; }
+    let last = { x: e.clientX, y: e.clientY };
+    const mv = (ev: PointerEvent) => { moveBy(id, (ev.clientX - last.x) / zoom, (ev.clientY - last.y) / zoom); last = { x: ev.clientX, y: ev.clientY }; };
+    const up = () => { win.removeEventListener("pointermove", mv); win.removeEventListener("pointerup", up); win.removeEventListener("pointercancel", up); };
+    win.addEventListener("pointermove", mv);
+    win.addEventListener("pointerup", up);
+    win.addEventListener("pointercancel", up);
+  };
   const vc = useContext(ViewChoiceContext);
   const viewChoice = vc?.view ?? null;
   const onViewChoice = vc?.set;
@@ -625,7 +657,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
     setBulletEdit(null);
   };
   return (
-    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}${film ? " nodrag" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? (detour ? ((d as { cardW?: number }).cardW ?? CARD_W) : 320) * s : undefined, maxWidth: isCallout ? ((d as { cardW?: number }).cardW ?? CARD_W) * s : undefined, borderRadius: 14 * s, background: bareFilm ? "transparent" : detour ? PAPER.navy : PAPER.card, border: bareFilm ? "none" : d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : detour ? `1.5px solid ${detourAccent(d.callout?.kind)}99` : `1px solid ${PAPER.cardEdge}`, boxShadow: bareFilm ? "none" : "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
+    <div data-ceq-card="" onPointerDownCapture={film ? startAltMove : undefined} onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? (detour ? ((d as { cardW?: number }).cardW ?? CARD_W) : 320) * s : undefined, maxWidth: isCallout ? ((d as { cardW?: number }).cardW ?? CARD_W) * s : undefined, borderRadius: 14 * s, background: bareFilm ? "transparent" : detour ? PAPER.navy : PAPER.card, border: bareFilm ? "none" : d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : detour ? `1.5px solid ${detourAccent(d.callout?.kind)}99` : `1px solid ${PAPER.cardEdge}`, boxShadow: bareFilm ? "none" : "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
       {/* BOSS (P3): the boiling bolt sweeps in with the charge — no text, no sound. */}
       {/* The persistent top-right boss bolt is GONE (Lee, 08-17): it collided with
           the counter, and a bolt standing in frame is a burned-in watermark — the
@@ -2159,6 +2191,8 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   const setScale = (nodeId: string, scale: number) => setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, scale } } : n)));
   // ALT-RESIZE (2026-09-03): the CEQ card's width, the same transient way.
   const setWidth = (nodeId: string, cardW: number) => setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, cardW } } : n)));
+  // ALT-MOVE (2026-09-03): nudge a node by a delta in flow units.
+  const moveBy = (nodeId: string, dx: number, dy: number) => setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } } : n)));
   /** Which RACK slot a stage chip owns. In Question 0 the chips ARE the rack, 1:1. In
    *  a real question only ACTIVE slots are on stage, so chip i owns the i-th active
    *  slot — writing rack[i] there would edit the wrong (possibly inactive) slot.
@@ -2750,6 +2784,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         <ScaleContext.Provider value={setScale}>
          <ScaleCommitContext.Provider value={commitGeom}>
          <WidthContext.Provider value={setWidth}>
+         <MoveContext.Provider value={moveBy}>
           <PreviewSpotContext.Provider value={spotApi}>
            <ChainToggleContext.Provider value={onPatchChainItem ?? (() => {})}>
            <MemoEditContext.Provider value={layoutMode ? null : (onRenameMemo ?? null)}>
@@ -3192,6 +3227,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
            </MemoEditContext.Provider>
            </ChainToggleContext.Provider>
           </PreviewSpotContext.Provider>
+         </MoveContext.Provider>
          </WidthContext.Provider>
          </ScaleCommitContext.Provider>
         </ScaleContext.Provider>

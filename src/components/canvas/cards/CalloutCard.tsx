@@ -13,6 +13,8 @@
 //
 // Film law: this file is PRESENTATION ONLY. All authoring affordances live in
 // CeqPreviewNode behind the film gate — nothing here captures keys or drags.
+import { Fragment, cloneElement, isValidElement, type ReactNode } from "react";
+
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { renderInline } from "../inline-md";
 import { PAPER } from "../theme";
@@ -91,6 +93,24 @@ export function detourAccent(kind?: CalloutKind): string {
   return DETOUR.gold;
 }
 
+/** THE TYPEWRITER (Lee, 2026-09-03: "on entry into a detour card … Internal
+ *  users typewrites in, each of the bullet points typewrite in after that. Like
+ *  a quick animation. The idea is to subliminally get them to scan/read it").
+ *  Every word becomes a span with its place in the sequence (--i); PV_CSS
+ *  reveals them one after another, only under .film-mode. Highlights and bold
+ *  survive because the split recurses into them. `counter` carries the index
+ *  across the heading and the lines so the bullets follow the heading. */
+function typewrite(nodes: ReactNode, counter: { i: number }): ReactNode {
+  if (nodes == null || typeof nodes === "boolean") return nodes;
+  if (typeof nodes === "string" || typeof nodes === "number") {
+    const parts = String(nodes).split(/(\s+)/);
+    return parts.map((p, k) => (p.trim() ? <span key={k} className="sa-type" style={{ ["--i" as string]: counter.i++ }}>{p}</span> : p));
+  }
+  if (Array.isArray(nodes)) return nodes.map((n, k) => <Fragment key={k}>{typewrite(n, counter)}</Fragment>);
+  if (isValidElement<{ children?: ReactNode }>(nodes)) return cloneElement(nodes, undefined, typewrite(nodes.props.children, counter));
+  return nodes;
+}
+
 /** The callout's face — cream card interior, navy text, orange corner accent.
  *  Rendered INSIDE the existing card shell (which owns width/drag/scale). */
 export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, highlights = [], bolt, onEditBullet, dark = false, footer }: CalloutBodyProps) {
@@ -107,6 +127,10 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
   const inkMuted = dark ? DETOUR.inkMuted : PAPER.inkMuted;
   const hl = dark ? { bg: darkAccent, color: "#14213D" } : undefined;
   const mainText = highlights.length === 1 ? highlights[0] : stem;
+  // The typewriter runs on the dark detour card only; the sequence counter
+  // starts after the label so the heading types first, then each line.
+  const seq = { i: 0 };
+  const type = (n: ReactNode): ReactNode => (dark ? typewrite(n, seq) : n);
   return (
     <div style={{ position: "relative" }}>
       {/* the little orange corner accent — the callout's signature, kept */}
@@ -147,7 +171,7 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
             </ul>
           ) : (
             <>
-              <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: ink, whiteSpace: "pre-wrap" }}>{renderInline(mainText || "Callout", hl)}</div>
+              <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: ink, whiteSpace: "pre-wrap" }}>{type(renderInline(mainText || "Callout", hl))}</div>
               {extraStems.length > 0 && (
                 <ul style={{ margin: `${10 * s}px 0 0 ${6 * s}px`, padding: 0, listStyle: "none", display: "grid", gap: 5 * s }}>
                   {extraStems.map((t, i) => (
@@ -162,8 +186,8 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
                       style={{ display: "flex", gap: 7 * s, alignItems: "baseline", fontSize: (dark ? 16.5 : 15.5) * s, fontWeight: 600, lineHeight: 1.32, color: dark ? ink : inkMuted, cursor: onEditBullet ? "text" : undefined }}
                       title={onEditBullet ? "Double-click to edit · empty text removes it" : undefined}
                     >
-                      <span style={{ opacity: 0.55 }}>–</span>
-                      <span>{renderInline(t, hl)}</span>
+                      <span style={{ opacity: 0.55 }}>{dark ? <span className="sa-type" style={{ ["--i" as string]: seq.i++ }}>–</span> : "–"}</span>
+                      <span>{type(renderInline(t, hl))}</span>
                     </li>
                   ))}
                 </ul>
@@ -171,7 +195,7 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
               {footer && (
                 // THE FOOTER (2026-09-03): the bio card's domain — under a gap,
                 // quiet, letter-spaced, so it reads as a sign-off, not a bullet.
-                <div style={{ marginTop: 16 * s, fontSize: 13.5 * s, fontWeight: 700, letterSpacing: "0.08em", color: inkMuted }}>{footer}</div>
+                <div style={{ marginTop: 16 * s, fontSize: 13.5 * s, fontWeight: 700, letterSpacing: "0.08em", color: inkMuted }}>{type(footer)}</div>
               )}
             </>
           )}
