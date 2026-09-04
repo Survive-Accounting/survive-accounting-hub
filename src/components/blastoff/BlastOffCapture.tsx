@@ -35,7 +35,7 @@ import { BG, CREAM, EDGE, GOLD, MUTED, usePlan } from "./BlastOffEditor";
 import { CaptureArrows } from "./capture/arrows";
 import { useCaptureCamera } from "./capture/camera";
 import { useCapturePopout } from "./capture/popout";
-import { useCapturePrompterSync } from "./capture/prompter-sync";
+import { useCapturePrompterSyncFrame } from "./capture/prompter-sync";
 import { questionProgress } from "./frame-view";
 import { PhoneFrame } from "./PhoneFrame";
 import { FRAME_LABEL, filmFrames } from "./plan";
@@ -101,7 +101,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   // ---- the plug-ins: camera, arrows, teleprompter sync, the 9:16 pop-out ----
   const camera = useCaptureCamera({ hostRef, frameId: frameId ?? "" });
   const popout = useCapturePopout();
-  useCapturePrompterSync(set.id, frameId);
+  useCapturePrompterSyncFrame(set.id, frame ?? null);
   // Inside the popped-out window the chrome starts hidden — the window IS the shot.
   const [chrome, setChrome] = useState(!popout.isPopout);
 
@@ -162,7 +162,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
         }}>
           <span style={{ color: GOLD, fontWeight: 800 }}>{idx + 1} / {n}</span>
           <span>{FRAME_LABEL[frame.kind]}</span>
-          <span>space next · shift+space back · click a choice, click again to resolve · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · ` resets · H hide this · P prompter · esc exit</span>
+          <span>space next · shift+space back · click a choice, click again to resolve · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · ` resets · H hide this · P prompter{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
           {popout.open && !popout.isPopout && (
             <button onClick={popout.open} title="Open this page as its own 9:16 window, snapped to 1080×1920 for OBS"
               style={{ color: GOLD, background: "none", border: `1px solid ${GOLD}66`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>⧉ pop out 9:16</button>
