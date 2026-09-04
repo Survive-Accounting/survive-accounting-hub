@@ -38,7 +38,7 @@ import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, FrameView, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
 import {
-  AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, patchFrame, toggleSkip,
+  AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, toggleSkip,
   type BackdropMode, type BlastFrame, type BlastFrameKind,
 } from "./plan";
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
@@ -109,8 +109,54 @@ const panelShell: React.CSSProperties = {
  *  when a slide is selected". Keyboard focus reveals them too. */
 const SPINE_CSS = `
 .sa-spine-row .sa-spine-tools{opacity:0;transition:opacity .12s}
-.sa-spine-row:hover .sa-spine-tools,.sa-spine-row.is-on .sa-spine-tools,.sa-spine-row .sa-spine-tools:focus-within{opacity:1}
+.sa-spine-row:hover .sa-spine-tools,.sa-spine-row.is-on .sa-spine-tools,.sa-spine-row.is-menu .sa-spine-tools,.sa-spine-row .sa-spine-tools:focus-within{opacity:1}
+.sa-slide-menu button:hover{background:rgba(255,255,255,0.06)}
 `;
+
+// THE SLIDE'S MENU (Lee, 2026-09-04: "for any slides, give them a … menu with
+// any settings, tools, etc relevant to that slide. Maybe put that menu to
+// right of the skip"). A ⋯ as the last hover icon on every row opens a small
+// panel under the row. Every item goes through the verbs the icons and the
+// editor already use — nothing here is a new door to the plan.
+type MenuItem = { label: string; title?: string; color?: string; run: () => void };
+/** A row of chips inside the menu — the bolt's six animations, the three ads. */
+type MenuChips = { label: string; chips: { id: string; label: string; on: boolean; title?: string }[]; pick: (id: string) => void };
+
+function SlideMenu({ items, chips, onClose }: { items: MenuItem[]; chips: MenuChips[]; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Escape closes; so does a press anywhere outside — except on a row's ⋯,
+  // which toggles (or moves the menu to its own row) by itself.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      if (ref.current && t && !ref.current.contains(t) && !t.closest(".sa-spine-more")) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => { window.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
+  }, [onClose]);
+  const item: React.CSSProperties = { display: "block", width: "100%", textAlign: "left", background: "none", border: "none", borderRadius: 7, padding: "5px 9px", fontSize: 12, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap" };
+  return (
+    <div ref={ref} role="menu" className="sa-slide-menu" draggable={false}
+      onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}
+      style={{ position: "absolute", right: 6, top: "calc(100% + 4px)", zIndex: 40, minWidth: 224, maxWidth: 300, background: PANEL, border: `1px solid ${EDGE}`, borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.55)", padding: 5, cursor: "default" }}>
+      {items.map((it) => (
+        <button key={it.label} type="button" role="menuitem" title={it.title} style={{ ...item, color: it.color ?? CREAM }} onClick={() => { it.run(); onClose(); }}>{it.label}</button>
+      ))}
+      {chips.map((g) => (
+        <div key={g.label} style={{ padding: "6px 9px 4px", borderTop: `1px solid ${EDGE}`, marginTop: 4 }}>
+          <div style={subhead}>{g.label}</div>
+          <div className="flex" style={{ gap: 4, flexWrap: "wrap", marginTop: 5 }}>
+            {g.chips.map((c) => (
+              <button key={c.id} type="button" title={c.title} style={{ ...chip(c.on, ORANGE), padding: "2px 8px", fontSize: 10.5 }} onClick={() => { g.pick(c.id); onClose(); }}>{c.label}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const isTyping = (t: EventTarget | null): boolean => {
   const el = t as HTMLElement | null;
@@ -179,6 +225,12 @@ export function ReviewDeck({ set, topic, doc, register }: {
 
   const patch = useCallback((id: string, p: Partial<BlastFrame>) => { if (plan) commit(patchFrame(plan.frames, id, p)); }, [plan, commit]);
 
+  // Which row's ⋯ menu is open (one at a time). A row that leaves the plan
+  // while its menu is up takes the menu with it.
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const closeMenu = useCallback(() => setMenuId(null), []);
+  useEffect(() => { if (menuId && !frames.some((f) => f.id === menuId)) setMenuId(null); }, [frames, menuId]);
+
   // SPACE / SHIFT+SPACE walk the slides (Lee: "I like to do this to prep
   // myself to film through them") — the same keys as film mode. Never while
   // typing in a field.
@@ -186,7 +238,8 @@ export function ReviewDeck({ set, topic, doc, register }: {
     const onKey = (e: KeyboardEvent) => {
       // Only a bare space, not held, with nothing focused that takes text —
       // and never with a modifier (Ctrl+Space, Alt+Space are the browser's).
-      if (e.key !== " " || e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target) || isTyping(document.activeElement) || !frames.length) return;
+      // Not while a slide's ⋯ menu is open either — space is picking an item there.
+      if (e.key !== " " || e.repeat || e.ctrlKey || e.metaKey || e.altKey || menuId || isTyping(e.target) || isTyping(document.activeElement) || !frames.length) return;
       e.preventDefault();
       const i = selIdx < 0 ? 0 : selIdx;
       const next = e.shiftKey ? Math.max(0, i - 1) : Math.min(frames.length - 1, i + 1);
@@ -194,7 +247,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [frames, selIdx]);
+  }, [frames, selIdx, menuId]);
 
   // DRAG TO REORDER — plain HTML5 drag, no library. The drop line sits above
   // or below the row under the cursor, so it is never a guess (Lee: "I can't
@@ -218,6 +271,42 @@ export function ReviewDeck({ set, topic, doc, register }: {
   const duplicateAt = (id: string, i: number) => { const next = duplicateFrame(frames, id); commit(next); setSelId(next[i + 1]?.id ?? id); };
   const removeAt = (id: string, i: number) => { const next = dropFrame(frames, id); commit(next); if (id === sel?.id) setSelId(next[Math.min(i, next.length - 1)]?.id ?? null); };
 
+  /** What the ⋯ menu offers this slide: the row's own verbs first, then the
+   *  switches the editor and the stage have (backdrop, banner), then what only
+   *  this kind has (the bolt's animation, which ad, the bio's portrait). */
+  const menuFor = (f: BlastFrame, i: number): { items: MenuItem[]; chips: MenuChips[] } => {
+    const edit = () => { setSelId(f.id); setRightTab("editor"); };
+    const items: MenuItem[] = [
+      {
+        label: f.kind === "ad" ? "✎ Edit the copy" : f.kind === "ceq" && f.ceqId && ceqById.has(f.ceqId) ? "✎ Edit the card" : "✎ Edit this slide",
+        title: "Open it in the editor, beside the slide", color: GOLD, run: edit,
+      },
+      { label: "⧉ Duplicate", title: "A copy right after this one", run: () => duplicateAt(f.id, i) },
+      isInsert(f.kind)
+        ? { label: "✕ Remove", title: "Remove this slide", color: RED, run: () => removeAt(f.id, i) }
+        : f.skipped
+          ? { label: "↺ Film it", title: "Film this slide again", color: MINT, run: () => commit(toggleSkip(frames, f.id)) }
+          : { label: "⊘ Skip in the film", title: "Skip this card in the film (it stays in the set)", color: RED, run: () => commit(toggleSkip(frames, f.id)) },
+    ];
+    if (f.kind !== "open") {
+      // The same cycle as the ✨ chip on the stage: auto (the rule) → black → off.
+      const word = (b: BlastFrame["backdrop"]) => (b === undefined ? "auto" : b === "zoom" ? "black" : "off");
+      const next: BlastFrame["backdrop"] = f.backdrop === undefined ? "zoom" : f.backdrop === "zoom" ? "off" : undefined;
+      items.push({ label: `✨ Backdrop · ${word(f.backdrop)}`, title: `The black stage behind this slide — auto (the rule) → black → off. Next: ${word(next)}`, run: () => patch(f.id, { backdrop: next }) });
+    }
+    // The cold open carries the banner unless told not to; every other slide only when asked.
+    const bannerOn = f.kind === "open" ? f.banner !== "off" : f.banner === "on";
+    items.push({
+      label: `🏫 Campus banner · ${bannerOn ? "on" : "off"}`, title: "The slow Power Four banner along the lower third",
+      run: () => patch(f.id, { banner: f.kind === "open" ? (f.banner === "off" ? undefined : "off") : (f.banner === "on" ? undefined : "on") }),
+    });
+    if (f.kind === "bio") items.push({ label: `🖼 Portrait · ${f.portrait === "off" ? "off" : "on"}`, title: "The hand-drawn portrait over the black — on unless you turn it off", run: () => patch(f.id, { portrait: f.portrait === "off" ? undefined : "off" }) });
+    const chips: MenuChips[] = [];
+    if (f.kind === "bolt") chips.push({ label: "The animation", chips: ZOOM_VARIANTS.map((v) => ({ id: v.id, label: v.label, on: (f.variant ?? "zoom") === v.id, title: v.blurb })), pick: (id) => patch(f.id, { variant: id }) });
+    if (f.kind === "ad") chips.push({ label: "Which ad", chips: AD_KINDS.map((k) => ({ id: k, label: AD_LABEL[k].replace(/^Ad · /, ""), on: (f.ad ?? "greek") === k })), pick: (id) => { if (isAdKind(id)) patch(f.id, { ad: id }); } });
+    return { items, chips };
+  };
+
   const snippet = (f: BlastFrame): string => {
     const ceq = f.ceqId ? ceqById.get(f.ceqId) : undefined;
     if (f.kind === "open") return "Black · the glow wordmark · Power Four ticker";
@@ -226,7 +315,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
     if (f.kind === "outro") return f.text?.trim() || "Cram what's on your exam.";
     if (f.kind === "ceq") return ceq ? (ceq.noteOnly ? ceq.stem : `${ceq.label} · ${ceq.stem}`) : "— card missing from the set —";
     if (f.kind === "cheat") return [f.title, f.body].filter(Boolean).join(" — ") || "(empty cheat code)";
-    if (f.kind === "ad") return ADS[f.ad ?? "greek"].headline;
+    if (f.kind === "ad") return f.title?.trim() || ADS[f.ad ?? "greek"].headline;
     if (f.kind === "bolt") return `Black + the ${f.variant ?? "zoom"} animation`;
     if (f.kind === "exhibit") return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
     return f.text?.trim() || `(empty ${FRAME_LABEL[f.kind].toLowerCase()})`;
@@ -263,10 +352,12 @@ export function ReviewDeck({ set, topic, doc, register }: {
         <div className="flex flex-col" style={{ gap: 5 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
           {frames.map((f, i) => {
             const on = f.id === sel?.id;
+            const menu = menuId === f.id;
             const lineAbove = over?.i === i && !over.below && dragId !== f.id;
             const lineBelow = over?.i === i && over.below && dragId !== f.id;
             return (
-              <div key={f.id} draggable className={`sa-spine-row${on ? " is-on" : ""}`}
+              // A row with its menu open is not draggable — a press inside the menu must never pick the row up.
+              <div key={f.id} draggable={!menu} className={`sa-spine-row${on ? " is-on" : ""}${menu ? " is-menu" : ""}`}
                 onDragStart={() => setDragId(f.id)}
                 onDragOver={(e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setOver({ i, below: e.clientY > r.top + r.height / 2 }); }}
                 onDrop={(e) => { e.preventDefault(); drop(); }}
@@ -292,7 +383,10 @@ export function ReviewDeck({ set, topic, doc, register }: {
                   ) : (
                     <button style={{ ...tiny, color: RED }} title="Skip this card in the film (it stays in the set)" onClick={(e) => { e.stopPropagation(); commit(toggleSkip(frames, f.id)); }}>⊘</button>
                   )}
+                  <button className="sa-spine-more" style={{ ...tiny, color: menu ? GOLD : MUTED }} title="Everything for this slide — edit, duplicate, skip, backdrop, banner, and what only this kind has"
+                    aria-haspopup="menu" aria-expanded={menu} onClick={(e) => { e.stopPropagation(); setMenuId(menu ? null : f.id); }}>⋯</button>
                 </span>
+                {menu && <SlideMenu {...menuFor(f, i)} onClose={closeMenu} />}
               </div>
             );
           })}
@@ -414,6 +508,8 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, onPatch, onSaved }: {
 }) {
   const bulletsText = (sel.bullets ?? []).join("\n");
   const detour = sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "cheat";
+  const ad = sel.kind === "ad" ? ADS[sel.ad ?? "greek"] : null;
+  const adOwn = sel.text !== undefined || sel.title !== undefined || sel.bullets !== undefined || sel.url !== undefined;
   return (
     <section style={panelShell}>
       <div className="flex items-center" style={{ gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
@@ -448,7 +544,14 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, onPatch, onSaved }: {
           <label style={{ fontSize: 11, color: MUTED }}>Tagline on the outro (blank = the standard one)
             <input style={{ ...field, marginTop: 4 }} value={sel.text ?? ""} placeholder="Cram what's on your exam." onChange={(e) => onPatch({ text: e.target.value })} /></label>
         )}
-        {sel.kind === "bio" && <div style={{ fontSize: 12, color: MUTED }}>The tutor card — its words live in one place (bio-card.ts) so every rip says the same thing. Skip it if this rip doesn't need it.</div>}
+        {sel.kind === "bio" && (
+          <div className="flex flex-col" style={{ gap: 8 }}>
+            <div style={{ fontSize: 12, color: MUTED }}>The tutor card — its words live in one place (bio-card.ts) so every rip says the same thing. Skip it if this rip doesn't need it.</div>
+            <div>
+              <button style={chip(sel.portrait !== "off", ORANGE)} title="The hand-drawn portrait over the black — on unless you turn it off" onClick={() => onPatch({ portrait: sel.portrait === "off" ? undefined : "off" })}>🖼 portrait · {sel.portrait === "off" ? "off" : "on"}</button>
+            </div>
+          </div>
+        )}
         {sel.kind === "open" && (
           <div className="flex flex-col" style={{ gap: 8 }}>
             <div style={{ fontSize: 11.5, color: MUTED }}>Black, the glow wordmark with the live bolt, the line, the Power Four ticker. The look is fixed now — the animations live on the bolt detour, and /branding keeps the experiments.</div>
@@ -476,7 +579,12 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, onPatch, onSaved }: {
             <div style={{ fontSize: 11.5, color: MUTED }}>Black + the bolt, nothing else — put your camera on it in OBS, or lay an ad over it.</div>
           </div>
         )}
-        {sel.kind === "ad" && (
+        {sel.kind === "ad" && ad && (
+          // THE AD'S WORDS (Lee, 2026-09-04: "Let the ad's text be editable, so
+          // I don't have to run changes through you"). Prefilled from the
+          // built-in copy; an edit lands on this frame only — label → text,
+          // headline → title, lines → bullets, address → url. "↺ default copy"
+          // clears the four so the ad falls back to AdSlide.tsx.
           <div className="flex flex-col" style={{ gap: 8 }}>
             <div style={subhead}>Which ad</div>
             <div className="flex" style={{ gap: 5, flexWrap: "wrap" }}>
@@ -484,7 +592,21 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, onPatch, onSaved }: {
                 <button key={k} style={chip((sel.ad ?? "greek") === k, ORANGE)} onClick={() => onPatch({ ad: k })}>{AD_LABEL[k]}</button>
               ))}
             </div>
-            <div style={{ fontSize: 11.5, color: MUTED }}>The copy lives in one place (AdSlide.tsx) so every rip says the same thing.</div>
+            <div className="flex items-center" style={{ gap: 6, marginTop: 2 }}>
+              <span style={subhead}>The copy</span>
+              {adOwn && <span style={{ fontSize: 11, color: GOLD }}>edited on this slide</span>}
+              <button style={{ ...chip(false), padding: "2px 8px", fontSize: 10.5, marginLeft: "auto", opacity: adOwn ? 1 : 0.5 }} disabled={!adOwn} title="Put the built-in words back — the four fields fall back to AdSlide.tsx"
+                onClick={() => onPatch({ text: undefined, title: undefined, bullets: undefined, url: undefined })}>↺ default copy</button>
+            </div>
+            <label style={{ fontSize: 11, color: MUTED }}>Label — the small gold tag
+              <input style={{ ...field, marginTop: 4 }} value={sel.text ?? ad.label} placeholder={ad.label} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+            <label style={{ fontSize: 11, color: MUTED }}>Headline
+              <textarea style={{ ...field, minHeight: 48, marginTop: 4 }} value={sel.title ?? ad.headline} placeholder={ad.headline} onChange={(e) => onPatch({ title: e.target.value })} /></label>
+            <label style={{ fontSize: 11, color: MUTED }}>Lines — one per line
+              <textarea style={{ ...field, minHeight: 64, marginTop: 4 }} value={(sel.bullets ?? ad.lines).join("\n")} placeholder={ad.lines.join("\n")} onChange={(e) => onPatch({ bullets: e.target.value.split("\n") })} /></label>
+            <label style={{ fontSize: 11, color: MUTED }}>Address — after "go to"
+              <input style={{ ...field, marginTop: 4 }} value={sel.url ?? ad.url} placeholder={ad.url} onChange={(e) => onPatch({ url: e.target.value })} /></label>
+            <div style={{ fontSize: 11.5, color: MUTED }}>Edits stay on this slide; every other rip keeps the built-in copy.</div>
           </div>
         )}
         {sel.kind !== "open" && (
