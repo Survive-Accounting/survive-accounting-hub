@@ -254,6 +254,7 @@ export async function regenerateReviewItem(sessionId: string, itemId: string, ce
  *  /talkthrough studio. V3's two Generate buttons run this one. */
 export function queueIncrementalReview(req: ReviewRequest): void {
   const sid = req.session.id;
+  setProgress(sid, null); // a previous run's "complete" never fronts a new one
   set(sid, "queued");
   void (async () => {
     const runId = newTTId("run");
