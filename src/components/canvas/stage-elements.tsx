@@ -6,7 +6,7 @@
 // study_.canvas.tsx) were wired to the v1 toolbar, which v2 chrome hides — that's
 // why the palette "disappeared". They live here now, merged, grouped, and sorted
 // alphabetically inside each group.
-import { BlastBioNode, BlastCheatNode, BlastFoyeNode, BlastIntroNode, BlastOpenNode, BlastOutroNode, BlastPhraseNode, BlastTipNode } from "./cards/BlastOffNodes";
+import { BlastAdNode, BlastBioNode, BlastCheatNode, BlastFoyeNode, BlastIntroNode, BlastOpenNode, BlastOutroNode, BlastPhraseNode, BlastTipNode } from "./cards/BlastOffNodes";
 import { blankCard, formulaAle, scheduleTemplate } from "./templates";
 import { cardId, type CardData } from "./types";
 
@@ -47,6 +47,8 @@ export const STAGE_ELEMENTS: StageElementSpec[] = [
   // — Blast Off: the vertical 9:16 frames. Authored at 540x960 (half capture).
   { label: "Blast Off cold open", group: "Blast Off", make: () => blankCard("blastopen"), size: { w: 540, h: 960 } },
   { label: "Blast Off intro", group: "Blast Off", make: () => blankCard("blastintro"), size: { w: 540, h: 960 } },
+  { label: "Bolt detour", group: "Blast Off", make: () => ({ ...blankCard("blastopen"), bare: true }) as CardData, size: { w: 540, h: 960 } },
+  { label: "Blast Off ad", group: "Blast Off", make: () => blankCard("blastad"), size: { w: 540, h: 960 } },
   { label: "Found on your exam", group: "Blast Off", make: () => blankCard("blastfoye"), size: { w: 540, h: 960 } },
   { label: "Phrase", group: "Blast Off", make: () => blankCard("blastphrase"), size: { w: 540, h: 960 } },
   { label: "Cheat code", group: "Blast Off", make: () => blankCard("blastcheat"), size: { w: 540, h: 960 } },
@@ -118,6 +120,7 @@ export function groupedStageElements(query = ""): { group: string; items: StageE
 export const STAGE_NODE_TYPES = {
   blastopen: BlastOpenNode,
   blastintro: BlastIntroNode,
+  blastad: BlastAdNode,
   blastfoye: BlastFoyeNode,
   blastphrase: BlastPhraseNode,
   blastcheat: BlastCheatNode,

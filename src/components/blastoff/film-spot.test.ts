@@ -11,11 +11,11 @@ describe("verticalCardSpot", () => {
     expect(s.x).toBe(Math.round((FILM_FRAME.w - CARD_W * VERTICAL_DEAL_SCALE) / 2));
     expect(s.x + CARD_W * VERTICAL_DEAL_SCALE).toBeLessThanOrEqual(FILM_FRAME.w);
   });
-  test("its centre sits a little above the frame's middle — the clear band on Shorts", () => {
+  test("its centre sits ON the frame's middle — where the Review phone draws it (Lee: /results is perfect)", () => {
     const s = verticalCardSpot();
     const centre = s.y + (CARD_H * s.scale) / 2;
     expect(Math.round(centre)).toBe(Math.round(FILM_FRAME.h * CARD_CENTRE_Y));
-    expect(centre).toBeLessThan(FILM_FRAME.h / 2);
+    expect(centre).toBe(FILM_FRAME.h / 2);
     expect(s.y).toBeGreaterThan(FILM_FRAME.h * 0.09);            // below the status bar band
     expect(s.y + CARD_H * s.scale).toBeLessThan(FILM_FRAME.h * 0.8); // above the caption band
   });

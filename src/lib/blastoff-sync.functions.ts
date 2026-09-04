@@ -56,6 +56,7 @@ const frameIn = z.object({
   variant: z.string().max(20).optional(),
   psych: z.number().min(0).max(1).optional(),
   banner: z.enum(["on", "off"]).optional(),
+  ad: z.enum(["greek", "rep", "send"]).optional(),
 });
 type FrameIn = z.infer<typeof frameIn>;
 
@@ -70,6 +71,8 @@ function promptFor(f: FrameIn, setName = ""): string {
   if (f.kind === "intro") return f.text?.trim() || setName;
   if (f.kind === "bio") return BIO_CARD.title;
   if (f.kind === "outro") return f.text?.trim() || "Cram what's on your exam.";
+  if (f.kind === "bolt") return "Bolt detour";
+  if (f.kind === "ad") return `Ad — ${f.ad ?? "greek"}`;
   // Inserts carry their ==key phrase== marked — the detour card highlights it.
   return insertStem(f);
 }
@@ -136,6 +139,13 @@ export const stagePos = (w: number, h: number, fw: number = STAGE_W, fh: number 
 /** The staged-exhibit node itself. Pure, and exported so the shape is under test
  *  rather than asserted about — a wrong `stage.ceqId` would silently strand the
  *  exhibit on no frame at all, which stays invisible until Lee is on camera. */
+/** THE INSERTS THAT ARE WHOLE SLIDES (2026-09-04): the bolt detour stages the
+ *  open element bare; an ad stages the ad element. Full-frame like the spine. */
+export const INSERT_STAGE: Record<string, StageSpec> = {
+  bolt: { kind: "blastopen", w: 540, h: 960 },
+  ad: { kind: "blastad", w: 540, h: 960 },
+};
+
 export function stagedElementNode(frameNodeId: string, frameId: string, spec: StageSpec, extra: Record<string, unknown> = {}, frame: { w: number; h: number } = { w: STAGE_W, h: STAGE_H }) {
   const at = stagePos(spec.w, spec.h, frame.w, frame.h);
   const card = blankCard(spec.kind as never) as unknown as Record<string, unknown>;
@@ -259,7 +269,7 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
       // Add menu and old scenes; a re-send removes the old staged bio element
       // (unplanned blast-off provenance is deleted below).
       const spec: StageSpec | undefined =
-        f.kind === "bio" ? undefined : STANDARD_STAGE[f.kind] ?? (f.kind === "exhibit" && f.exhibitRef ? EXHIBIT_STAGE[f.exhibitRef] : undefined);
+        f.kind === "bio" ? undefined : STANDARD_STAGE[f.kind] ?? INSERT_STAGE[f.kind] ?? (f.kind === "exhibit" && f.exhibitRef ? EXHIBIT_STAGE[f.exhibitRef] : undefined);
       // BULLETS (2026-09-03) ride as the callout's extra stems — the canvas
       // card already draws those under the main phrase, in film and in study.
       const bullets = (f.bullets ?? []).map((b) => b.trim()).filter(Boolean);
@@ -312,7 +322,7 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
         const elId = `blast-el-${f.id}`;
         const el = j.nodes!.find((n) => n.id === elId);
         stagedEls.add(elId);
-        const spine = !!STANDARD_STAGE[f.kind];
+        const spine = !!STANDARD_STAGE[f.kind] || !!INSERT_STAGE[f.kind];
         // THE SPINE FILLS THE VERTICAL FRAME (2026-09-03): the open / intro /
         // outro cards are the whole slide — 900×1600 at (0,0) — and are re-stamped
         // on every send so an old landscape placement never lingers. Exhibits
@@ -326,6 +336,8 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
         // backdrop is its ground; alone it keeps its navy.
         const extra = f.kind === "intro" ? { topic: setName, tutor: "Lee Ingram", transparent: filmBackdrop === "backdrop" }
           : f.kind === "open" ? { psych: f.psych ?? 0.1, variant: f.variant ?? "zoom", banner: f.banner !== "off" }
+          : f.kind === "bolt" ? { bare: true, psych: f.psych ?? 0.1, variant: f.variant ?? "zoom", banner: false }
+          : f.kind === "ad" ? { ad: f.ad ?? "greek" }
           : {};
         const made = stagedElementNode(nodeId, f.id, specHere, extra, frame);
         if (el) { el.type = made.type; el.position = made.position; el.data = made.data; }

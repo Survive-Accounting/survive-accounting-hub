@@ -24,6 +24,9 @@ export const BLAST_FRAME_KINDS = [
   "open", "intro", "bio", "outro",                         // the standard spine ("open" = the cold open, 2026-09-03)
   "ceq",                                                   // a card the set owns
   "phrase", "cheat", "tip", "exhibit", "blank",            // what Lee inserts
+  // 2026-09-04: the bolt detour (black + the bolt animation, nothing else —
+  // Lee's OBS camera backdrop and ad bed) and the three ads.
+  "bolt", "ad",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -40,6 +43,8 @@ export interface BlastFrame {
   body?: string;
   /** exhibit frame — which shipped exhibit. */
   exhibitRef?: string;
+  /** Which ad this frame is (kind "ad"). */
+  ad?: AdKind;
   /** Talkthrough bank item this came from, when picked rather than typed. */
   bankItemId?: string;
   /** THE REVIEW STEP (Lee, 2026-09-03: "quickly remove a CEQ slide"). A card
@@ -77,7 +82,18 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "exhibit", "blank"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "exhibit", "blank", "bolt", "ad"];
+
+/** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
+ *  sharing with fraternity and sorority, for campus reps, for sending in
+ *  syllabi"). The copy lives in AdSlide.tsx; a frame only says which one. */
+export { AD_KINDS, isAdKind, type AdKind } from "./ad-kinds";
+import type { AdKind } from "./ad-kinds";
+
+/** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
+ *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
+export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad"];
+export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.includes(k);
 
 export const isInsert = (k: BlastFrameKind): boolean => INSERT_KINDS.includes(k);
 
@@ -121,6 +137,8 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   tip: "Deeper idea",
   exhibit: "Exhibit",
   blank: "Blank",
+  bolt: "Bolt detour",
+  ad: "Ad",
 };
 
 let seq = 0;

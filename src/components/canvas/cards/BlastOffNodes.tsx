@@ -11,13 +11,15 @@ import type { NodeProps } from "@xyflow/react";
 
 import { CheatCodeFrame, PhraseFrame, TipFrame } from "@/components/blastoff/ContentFrames";
 import { FoundOnYourExam } from "@/components/blastoff/FoundOnYourExam";
-import { SurviveIntro } from "@/components/blastoff/SurviveIntro";
+import { AdSlide } from "@/components/blastoff/AdSlide";
+import { AD_KINDS, isAdKind } from "@/components/blastoff/ad-kinds";
 import { BoltZoom } from "@/components/brand-cards/BoltZoom";
 import { ZOOM_VARIANTS, isZoomVariant } from "@/components/brand-cards/bolt-zoom";
 import { SurviveBio } from "@/components/blastoff/SurviveBio";
 import { SurviveOutro } from "@/components/blastoff/SurviveOutro";
 import { V } from "@/components/blastoff/stage";
 import type {
+  BlastAdElement,
   BlastBioElement, BlastCheatElement, BlastFoyeElement, BlastIntroElement, BlastOpenElement, BlastOutroElement,
   BlastPhraseElement, BlastTipElement,
 } from "../types";
@@ -83,7 +85,23 @@ export function BlastOpenNode({ id, data, selected }: NodeProps) {
         <button className={ELEM_BTN} style={{ color: d.banner !== false ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
           onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ banner: d.banner === false }); }} title="The campus banner along the lower third">banner</button>
       </>}>
-      <BoltZoom w={w} h={h} mode="open" variant={isZoomVariant(d.variant) ? d.variant : "zoom"} psych={d.psych ?? 0.1} banner={d.banner !== false} live />
+      <BoltZoom w={w} h={h} mode={d.bare ? "bolt" : "open"} variant={isZoomVariant(d.variant) ? d.variant : "zoom"} psych={d.psych ?? 0.1} banner={d.banner !== false} live />
+    </BlastShell>
+  );
+}
+
+/** THE AD SLIDE — one of the three ads, picked in the toolbar. */
+export function BlastAdNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as BlastAdElement;
+  const { update } = useCardActions(id);
+  const w = d.w ?? 540, h = d.h ?? 960;
+  return (
+    <BlastShell id={id} w={w} h={h} posLock={d.posLock} selected={selected}
+      toolbar={<select className="nodrag" value={isAdKind(d.ad) ? d.ad : "greek"} onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ ad: e.target.value })}
+        style={{ background: "rgba(0,0,0,0.4)", color: NEON.text, border: `1px solid ${NEON.borderSoft}`, borderRadius: 4, fontSize: 10 }} title="Which ad">
+        {AD_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+      </select>}>
+      <AdSlide ad={isAdKind(d.ad) ? d.ad : "greek"} w={w} h={h} live />
     </BlastShell>
   );
 }
@@ -101,7 +119,7 @@ export function BlastIntroNode({ id, data, selected }: NodeProps) {
           onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ tutor: e.target.value })} />
         <KeyBtn on={d.transparent} onClick={() => update({ transparent: !d.transparent })} />
       </>}>
-      <SurviveIntro topic={d.topic || "Set name"} tutor={d.tutor || "Lee Ingram"} transparent={d.transparent} scale={w / V.w} />
+      <BoltZoom w={w} h={h} mode="intro" topic={d.topic || "Set name"} tutor={d.tutor || "Lee Ingram"} live />
     </BlastShell>
   );
 }

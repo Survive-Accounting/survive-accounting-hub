@@ -145,6 +145,17 @@ export const TEMPLATES: TemplateDef[] = [
     trafficPaths: ["/rep", "/:school/rep"],
   },
   {
+    id: "send-syllabus",
+    label: "Send Your Syllabus",
+    category: "public",
+    description: "surviveaccounting.com/send — the syllabus intake the ad slide points at (email + files through submitSyllabus).",
+    routePattern: "/send",
+    routes: ["send.tsx"],
+    countKey: "static",
+    extraFiles: ["src/lib/syllabus.functions.ts"],
+    trafficPaths: ["/send"],
+  },
+  {
     id: "rep-portal",
     label: "Rep Portal",
     category: "public",
@@ -541,6 +552,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "logo-lab.tsx": "dev lab (noindex)",
   "lab.bolt.tsx": "dev lab (noindex)",
   "leeportal.tsx": "Lee's private nav portal (AdminGate, noindex, unlinked)",
+  "branding.tsx": "Lee's brand-slide wall — the shipping slides, the bolt detour, the set-aside experiments (AdminGate, noindex)",
   // V3 — the production menu (noindex). Blast Off is the one live door;
   // Practice and Review render closed until they exist.
   "v3.index.tsx": "V3 menu (noindex) — Exam 1 topics",

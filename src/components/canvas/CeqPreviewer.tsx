@@ -42,7 +42,6 @@ import { WorldBackground } from "./WorldBackground";
 import { WORLDS } from "./worlds";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { BoltZoom, CampusBanner } from "@/components/brand-cards/BoltZoom";
-import { isZoomVariant } from "@/components/brand-cards/bolt-zoom";
 import { Emph, HighlightContext, SEL_EMPH_CSS, readRangeIn, useTextHighlights, wordRangeAtPoint } from "./text-highlights";
 import { renderInline } from "./inline-md";
 import { activeSlots, CARD_H, CARD_W, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf, resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
@@ -554,7 +553,7 @@ function FrameBgNode({ id, data }: NodeProps) {
   // frame, it replaces the world — black stage, the zoom behind the intro, the
   // still white wordmark on the opening summary.
   const world = bare && d.backdrop
-    ? <BoltZoom w={d.w} h={d.h} mode={d.backdrop} variant={isZoomVariant(d.variant) ? d.variant : "zoom"} live={film} style={{ position: "absolute", inset: 0 }} />
+    ? <BoltZoom w={d.w} h={d.h} mode={d.backdrop === "knockout" ? "summary" : "backdrop"} live={film} style={{ position: "absolute", inset: 0 }} />
     : d.world ? <WorldBackground worldId={d.world} intensity={d.worldIntensity} motion={d.worldMotion} /> : null;
   const banner = bare && d.banner ? <CampusBanner w={d.w} h={d.h} live={film} /> : null;
   if (bare && !film) return (
@@ -3263,7 +3262,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                         zone, low opacity, never catches the pointer. */}
                     {/* …except on the frames that already carry the wordmark — the cold
                         open, the intro, the opening summary (Lee: "redundant"). */}
-                    {!(cd?.filmBackdrop || cd?.blastKind === "open" || cd?.blastKind === "outro") && (
+                    {!(cd?.filmBackdrop || cd?.blastKind === "open" || cd?.blastKind === "intro" || cd?.blastKind === "outro" || cd?.blastKind === "bolt" || cd?.blastKind === "ad") && (
                       <div aria-hidden style={{ position: "absolute", left: "4%", top: "3.2%", zIndex: 9, opacity: 0.62, pointerEvents: "none", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.6))" }}>
                         <SurviveWordmark size={Math.max(18, Math.round((filmRootRef.current?.clientWidth ?? 540) * 0.052))} />
                       </div>

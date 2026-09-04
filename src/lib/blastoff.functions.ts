@@ -35,6 +35,7 @@ const frameSchema = z.object({
   variant: z.string().max(20).optional(),
   psych: z.number().min(0).max(1).optional(),
   banner: z.enum(["on", "off"]).optional(),
+  ad: z.enum(["greek", "rep", "send"]).optional(),
 });
 
 export type BlastFrameRow = z.infer<typeof frameSchema>;

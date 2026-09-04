@@ -34,11 +34,12 @@ import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, FrameView, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
 import {
-  FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, patchFrame, toggleSkip,
+  AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, patchFrame, toggleSkip,
   type BackdropMode, type BlastFrame, type BlastFrameKind,
 } from "./plan";
-import { BoltZoom, CampusBanner } from "@/components/brand-cards/BoltZoom";
-import { ZOOM_VARIANTS, isZoomVariant, type ZoomVariant } from "@/components/brand-cards/bolt-zoom";
+import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
+import { AD_LABEL } from "./AdSlide";
+import { PhoneFrame } from "./PhoneFrame";
 import {
   PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups, readTidy, setStampCandidates, tidyCacheKey, writeTidy,
   type PrompterCandidate, type TidyPhrase, type TidyResult,
@@ -47,10 +48,15 @@ import {
 /** What the AI board hands the deck: "＋ slide" on an idea card. */
 export interface DeckApi { addSlide: (kind: BlastFrameKind, patch: Partial<BlastFrame>) => void }
 
-const QUICK: readonly { kind: BlastFrameKind; label: string }[] = [
+const QUICK: readonly { kind: BlastFrameKind; label: string; patch?: Partial<BlastFrame> }[] = [
   { kind: "phrase", label: "Memorize this" },
   { kind: "cheat", label: "Cheat code" },
   { kind: "tip", label: "Deeper idea" },
+  // 2026-09-04: the bolt detour (Lee's OBS camera bed) and the three ads.
+  { kind: "bolt", label: "Bolt detour" },
+  { kind: "ad", label: "Ad · Greek", patch: { ad: "greek" } },
+  { kind: "ad", label: "Ad · reps", patch: { ad: "rep" } },
+  { kind: "ad", label: "Ad · syllabus", patch: { ad: "send" } },
 ];
 
 const SKY = "#7DD3FC";
@@ -58,13 +64,12 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, exhibit: GOLD, blank: MUTED };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
 // Shorts paint their own UI over, so a phrase never hides under a caption.
 const STAGE_W = 306;
-const STAGE_H = Math.round(STAGE_W * 16 / 9);
 
 type CeqDraft = { stem: string; choices: { text: string; correct: boolean; feedback: string }[] };
 const draftOf = (c: BoothCeq): CeqDraft => ({ stem: c.stem, choices: c.choices.map((x) => ({ text: x.text, correct: x.correct, feedback: x.feedback ?? "" })) });
@@ -178,7 +183,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
 
   const snippet = (f: BlastFrame): string => {
     const ceq = f.ceqId ? ceqById.get(f.ceqId) : undefined;
-    if (f.kind === "open") return "Bolt zoom · Power Four ticker · wordmark firm";
+    if (f.kind === "open") return "Black · the glow wordmark · Power Four ticker";
     if (f.kind === "intro") return f.text?.trim() || set.name;
     if (f.kind === "bio") return "Lee Ingram · BAccy · MAccy — Ole Miss";
     if (f.kind === "outro") return f.text?.trim() || "Cram what's on your exam.";
@@ -187,7 +192,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
     if (f.kind === "exhibit") return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
     return f.text?.trim() || `(empty ${FRAME_LABEL[f.kind].toLowerCase()})`;
   };
-  const labelOf = (f: BlastFrame): string => (f.kind === "ceq" && f.ceqId && summaryLabel.get(f.ceqId)) || FRAME_LABEL[f.kind];
+  const labelOf = (f: BlastFrame): string => (f.kind === "ceq" && f.ceqId && summaryLabel.get(f.ceqId)) || (f.kind === "ad" && f.ad ? AD_LABEL[f.ad] : FRAME_LABEL[f.kind]);
   const colorOf = (f: BlastFrame): string => KIND_COLOR[f.kind] ?? (isStandard(f.kind) ? SKY : f.kind === "ceq" && f.ceqId && summaryLabel.has(f.ceqId) ? MINT : MUTED);
 
   if (!plan) return <div style={{ color: MUTED, fontSize: 13 }}>Loading the film draft…</div>;
@@ -206,7 +211,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
         </div>
         <div className="flex" style={{ gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
           {QUICK.map((q) => (
-            <button key={q.kind} style={chip(false, KIND_COLOR[q.kind])} title={`Insert a ${q.label} slide after slide ${selIdx + 1}`} onClick={() => add(q.kind)}>＋ {q.label}</button>
+            <button key={q.label} style={chip(false, KIND_COLOR[q.kind])} title={`Insert a ${q.label} slide after slide ${selIdx + 1}`} onClick={() => add(q.kind, q.patch)}>＋ {q.label}</button>
           ))}
           <button style={chip(picker === "exhibit")} title="Insert an exhibit after the selected slide" onClick={() => setPicker(picker === "exhibit" ? null : "exhibit")}>＋ Exhibit</button>
           <button style={chip(false)} title="Insert a bare frame" onClick={() => add("blank")}>＋ Blank</button>
@@ -249,7 +254,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
           <SlidePane key={sel.id} sel={sel} idx={selIdx} count={frames.length} label={labelOf(sel)} viewSet={viewSet} set={set} topic={topic}
             progress={progress.get(sel.id)} ceq={sel.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined}
             backdrop={backdropFor(frames, selIdx, (id) => !!ceqById.get(id)?.noteOnly)}
-            openVariant={(() => { const v = frames.find((f) => f.kind === "open")?.variant; return isZoomVariant(v) ? v : "zoom"; })()}
+            frames={frames}
             onMove={(d) => commit(moveFrame(frames, selIdx, selIdx + d))}
             onDuplicate={() => { const next = duplicateFrame(frames, sel.id); commit(next); setSelId(next[selIdx + 1]?.id ?? sel.id); }}
             onSkip={() => commit(toggleSkip(frames, sel.id))}
@@ -276,13 +281,13 @@ const slideText = (f: BlastFrame, byId: Map<string, BoothCeq>): string => {
 
 // ------------------------------------------------------ the middle column
 
-function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq, backdrop, openVariant, onMove, onDuplicate, onSkip, onDrop, onPatch, onSaved }: {
+function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq, backdrop, frames, onMove, onDuplicate, onSkip, onDrop, onPatch, onSaved }: {
   sel: BlastFrame; idx: number; count: number; label: string; viewSet: BoothSetInfo; set: BoothSetInfo; topic: BoothTopic;
   progress?: { x: number; y: number }; ceq?: BoothCeq;
   /** The bolt-zoom backdrop the rule (or the override) gives this slide. */
   backdrop: BackdropMode | null;
-  /** The cold open's look — the backdrop and the knockout follow it. */
-  openVariant: ZoomVariant;
+  /** The whole running order — the phone applies the backdrop rule itself. */
+  frames: readonly BlastFrame[];
   onMove: (d: -1 | 1) => void; onDuplicate: () => void; onSkip: () => void; onDrop: () => void;
   onPatch: (p: Partial<BlastFrame>) => void; onSaved: (d: CeqDraft) => void;
 }) {
@@ -300,7 +305,7 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
           {sel.kind !== "open" && (
             // THE BACKDROP TOGGLE (Lee: "let me toggle any slide I want it to be
             // running"). auto = the rule (cold open → intro → opening summary).
-            <button style={chip(!!backdrop, ORANGE)} title="The bolt-zoom backdrop on this slide: auto (the rule) → on → off"
+            <button style={chip(!!backdrop, ORANGE)} title="The black stage (or the summary glow) on this slide: auto (the rule) → on → off"
               onClick={() => onPatch({ backdrop: sel.backdrop === undefined ? "zoom" : sel.backdrop === "zoom" ? "off" : undefined })}>
               ✨ backdrop · {sel.backdrop ?? "auto"}{backdrop ? ` (${backdrop})` : ""}
             </button>
@@ -318,7 +323,7 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
       </div>
 
       {phone ? (
-        <PhoneStage frame={sel} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} backdrop={backdrop === "backdrop" || backdrop === "knockout" ? backdrop : null} variant={openVariant} />
+        <PhoneFrame frame={sel} frames={frames} index={idx} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} w={STAGE_W} />
       ) : (
         <div style={{ border: `1px solid ${EDGE}`, borderRadius: 10, overflow: "hidden", display: "inline-block", maxWidth: "100%", opacity: sel.skipped ? 0.5 : 1 }}>
           <FrameView frame={sel} set={viewSet} scale={0.78} topicName={topic.name} progress={progress} />
@@ -355,10 +360,18 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
         )}
         {sel.kind === "bio" && <div style={{ fontSize: 12, color: MUTED }}>The tutor card — its words live in one place (bio-card.ts) so every rip says the same thing. Skip it if this rip doesn't need it.</div>}
         {sel.kind === "open" && (
-          // THE COLD OPEN's controls (Lee: "where can I tune the psychedelic part?"
-          // and "I will pick the best ones and cycle through them for each video").
           <div className="flex flex-col" style={{ gap: 8 }}>
-            <div style={subhead}>The look — pick one per video</div>
+            <div style={{ fontSize: 11.5, color: MUTED }}>Black, the glow wordmark with the live bolt, the line, the Power Four ticker. The look is fixed now — the animations live on the bolt detour, and /branding keeps the experiments.</div>
+            <div>
+              <button style={chip(sel.banner !== "off", ORANGE)} title="The slow Power Four banner along the lower third" onClick={() => onPatch({ banner: sel.banner === "off" ? undefined : "off" })}>🏫 campus banner · {sel.banner === "off" ? "off" : "on"}</button>
+            </div>
+          </div>
+        )}
+        {sel.kind === "bolt" && (
+          // THE BOLT DETOUR (Lee, 2026-09-04): "just black backdrop and the bolt
+          // zoom animation, nothing else … a blank canvas to put things on".
+          <div className="flex flex-col" style={{ gap: 8 }}>
+            <div style={subhead}>The animation</div>
             <div className="flex" style={{ gap: 5, flexWrap: "wrap" }}>
               {ZOOM_VARIANTS.map((v) => (
                 <button key={v.id} style={chip((sel.variant ?? "zoom") === v.id, ORANGE)} title={v.blurb} onClick={() => onPatch({ variant: v.id })}>{v.label}</button>
@@ -370,9 +383,18 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
               <span style={{ color: CREAM, fontVariantNumeric: "tabular-nums" }}>{Math.round((sel.psych ?? 0.1) * 100)}%</span>
               <span>0 = brand colours at rest · 100 = full trip</span>
             </label>
-            <div>
-              <button style={chip(sel.banner !== "off", ORANGE)} title="The slow Power Four banner along the lower third" onClick={() => onPatch({ banner: sel.banner === "off" ? undefined : "off" })}>🏫 campus banner · {sel.banner === "off" ? "off" : "on"}</button>
+            <div style={{ fontSize: 11.5, color: MUTED }}>Black + the bolt, nothing else — put your camera on it in OBS, or lay an ad over it.</div>
+          </div>
+        )}
+        {sel.kind === "ad" && (
+          <div className="flex flex-col" style={{ gap: 8 }}>
+            <div style={subhead}>Which ad</div>
+            <div className="flex" style={{ gap: 5, flexWrap: "wrap" }}>
+              {AD_KINDS.map((k) => (
+                <button key={k} style={chip((sel.ad ?? "greek") === k, ORANGE)} onClick={() => onPatch({ ad: k })}>{AD_LABEL[k]}</button>
+              ))}
             </div>
+            <div style={{ fontSize: 11.5, color: MUTED }}>The copy lives in one place (AdSlide.tsx) so every rip says the same thing.</div>
           </div>
         )}
         {sel.kind !== "open" && (
@@ -385,37 +407,7 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
   );
 }
 
-/** 9:16, black, the slide centred — what a phone cramming student sees. */
-function PhoneStage({ frame, set, topicName, progress, safe, dim, backdrop, variant }: {
-  frame: BlastFrame; set: BoothSetInfo; topicName: string; progress?: { x: number; y: number }; safe: boolean; dim: boolean;
-  backdrop: "backdrop" | "knockout" | null;
-  /** The cold open's look, so the backdrop and the knockout match it. */
-  variant: ZoomVariant;
-}) {
-  // The standard spine renders as a 1080-wide vertical frame at scale*0.34;
-  // a card is the canvas's 560-wide card. Both are sized to the stage width.
-  // The tutor card is 1.15× on the real frame; on this small stage it has to
-  // fit the width, so it renders at the same size as the other cards here.
-  const scale = isStandard(frame.kind) ? (frame.kind === "bio" ? 0.45 : STAGE_W / 1080 / 0.34) : 0.48;
-  const band: React.CSSProperties = { position: "absolute", left: 0, right: 0, background: "repeating-linear-gradient(135deg, rgba(125,211,252,0.10) 0 6px, transparent 6px 14px)", borderColor: "rgba(125,211,252,0.35)", pointerEvents: "none" };
-  const tag: React.CSSProperties = { position: "absolute", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(125,211,252,0.7)", fontWeight: 800 };
-  return (
-    <div style={{ width: STAGE_W, height: STAGE_H, background: "#000", borderRadius: 22, border: `1px solid ${EDGE}`, position: "relative", overflow: "hidden", display: "grid", placeItems: "center", opacity: dim ? 0.5 : 1 }}>
-      {backdrop && <BoltZoom w={STAGE_W} h={STAGE_H} mode={backdrop} variant={variant} live style={{ position: "absolute", inset: 0 }} />}
-      {frame.kind !== "open" && frame.banner === "on" && <CampusBanner w={STAGE_W} h={STAGE_H} live />}
-      <div style={{ display: "grid", placeItems: "center", position: "relative" }}>
-        <FrameView frame={frame} set={set} scale={scale} topicName={topicName} progress={progress} backdrop={!!backdrop} />
-      </div>
-      {safe && (
-        <>
-          <div style={{ ...band, top: 0, height: "9%", borderBottom: "1px dashed" }}><span style={{ ...tag, left: 8, bottom: 4 }}>status bar</span></div>
-          <div style={{ ...band, bottom: 0, height: "20%", borderTop: "1px dashed" }}><span style={{ ...tag, left: 8, top: 4 }}>caption · title · sound</span></div>
-          <div style={{ ...band, top: "30%", bottom: "20%", left: "auto", width: "16%", borderLeft: "1px dashed" }}><span style={{ ...tag, right: 4, top: 4, writingMode: "vertical-rl" }}>like · share</span></div>
-        </>
-      )}
-    </div>
-  );
-}
+// The phone stage itself is ./PhoneFrame.tsx — shared with Arrange and /film.
 
 // --------------------------------------------------------- CEQ: before → after
 

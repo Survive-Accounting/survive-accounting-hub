@@ -1,13 +1,21 @@
-// THE COLD OPEN — six variants, one component — and the campus banner.
+// THE BRAND SLIDES — the cold open, the intro, the summary knockout, the bolt
+// detour — and the campus banner. One component, one wordmark placement, so the
+// wordmark never moves between slide one and slide two.
 //
-// Lee (2026-09-03): "the goal of this intro is to show students that I work
-// with a lot of campuses … much more like the actual bolt we use in branding
-// … the bolt in the survive just be static white. The logo bolt is the one
-// zooming … a slot machine that goes through all the course codes … the
-// scroller is too nauseating, slower and randomized, always start with Ole
-// Miss … let me add this banner at any time on future slides … Survive
-// wordmark is the main focus here … give me 5 good variations … and a 6th
-// with the animated bolt in the wordmark and a different background."
+// Lee (2026-09-04): "Remove the backdrop bolts animated. It'll look better just
+// pure black background and the animated bolt back on the I of survive.
+// Scrolling ticker could stay … a bit bigger … Remove surviveaccounting.com on
+// the intro, put the campuses ticker there … The glow effect you have in
+// 'found on your exam' is spectacular, use that in the intro on the black
+// background, HOWEVER bring the main animated bolt logo back into the SurvIve
+// … Make the Survive stay in line between slides 1 and 2 … the glow can be a
+// bit more focused on powder blue and subtle, only for Found on your exam,
+// which needs Survive / Accounting and the accounting can share the glow."
+//
+// The six animated backgrounds from the second pass are NOT gone: they are the
+// BOLT DETOUR (mode "bolt" — "just black backdrop and the bolt zoom animation,
+// nothing else … a blank canvas to put things on") and they live on /branding
+// (mode "gallery") to come back to.
 //
 // Everything is CSS + SVG on the same BoltBoil the brand uses — no library,
 // no build risk. Motion only while `live`; `progress` pins a frame for an
@@ -16,61 +24,71 @@ import { useMemo } from "react";
 
 import { BoltBoil, BRAND_BLUE, BRAND_CREAM, BRAND_RED, SurviveWordmark } from "./bolt-boil";
 import {
-  BANNER_SECONDS, SLOT_SECONDS, ZOOM, campusMix, campusText, driftDegrees, seededShuffle, zoomKeyframes, zoomLayers,
+  BANNER_SECONDS, ZOOM, campusMix, campusText, driftDegrees, seededShuffle, zoomKeyframes, zoomLayers,
   type ZoomVariant,
 } from "./bolt-zoom";
 
-export type BoltZoomMode = "open" | "backdrop" | "knockout";
+/** open = slide 1 · intro = slide 2 · summary = the "found on your exam" knockout
+ *  wordmark over the card · backdrop = a plain black stage (a frame's override)
+ *  · bolt = the bolt detour (black + one of the six animations, nothing else)
+ *  · gallery = the second-pass look, kept on /branding. "knockout" is the old
+ *  name for summary and still resolves. */
+export type BoltZoomMode = "open" | "intro" | "summary" | "knockout" | "backdrop" | "bolt" | "gallery";
 export const TAGLINE = "Cram what's on your exam.";
 export const DOMAIN = "surviveaccounting.com";
+export const TUTOR = "Lee Ingram";
 const FONT = "'Rubik', system-ui, sans-serif";
+const HEAD_FONT = "'League Spartan', 'Rubik', system-ui, sans-serif";
 const WHITE = "#FFFFFF";
+const POWDER = "#B3E5FC";
+const SKY = "#7DD3FC";
 
-function zoomCss(n: number, psych: number, slotN: number): string { return `
+/** Where the wordmark sits on slides one and two — the SAME number for both, so
+ *  a cut from the open to the intro leaves "survive" exactly where it was. */
+export const WORDMARK_TOP = 0.36;
+export const WORDMARK_SIZE = 0.078;
+
+function zoomCss(n: number, psych: number): string { return `
 @keyframes sa-zoom { ${zoomKeyframes(n)} }
 @keyframes sa-zoom-drift { 0%, 100% { filter: hue-rotate(0deg); } 50% { filter: hue-rotate(${driftDegrees(psych)}deg); } }
 @keyframes sa-zoom-banner { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-@keyframes sa-zoom-slot { from { transform: translateY(0); } to { transform: translateY(-${(slotN - 1) * 100}%); } }
 @keyframes sa-zoom-rain { from { transform: translateY(-20%) rotate(var(--r, 0deg)); } to { transform: translateY(120%) rotate(var(--r, 0deg)); } }
 @keyframes sa-zoom-sway { 0%, 100% { margin-left: 0; } 50% { margin-left: var(--sway, 2%); } }
 @keyframes sa-zoom-pulse { 0%, 100% { transform: scale(0.97) rotate(-1.5deg); } 50% { transform: scale(1.04) rotate(1.5deg); } }
 @keyframes sa-zoom-ring { from { transform: scale(1); opacity: 0.5; } to { transform: scale(2.3); opacity: 0; } }
 @keyframes sa-zoom-wall { from { transform: translate(0, 0); } to { transform: translate(-6%, -4%); } }
 @keyframes sa-zoom-wall-lit { 0%, 6% { opacity: 1; text-shadow: 0 0 18px rgba(252,163,17,0.9); color: ${BRAND_CREAM}; } 12%, 100% { opacity: 0.22; text-shadow: none; color: ${BRAND_CREAM}; } }
-@keyframes sa-zoom-flip { 0% { transform: rotateX(0deg); } 45% { transform: rotateX(-90deg); } 55% { transform: rotateX(90deg); } 100% { transform: rotateX(0deg); } }
 @keyframes sa-zoom-aurora { 0%, 100% { transform: translate(-8%, -6%) scale(1); } 50% { transform: translate(8%, 6%) scale(1.15); } }
 @keyframes sa-zoom-confetti { from { transform: rotate(0deg) translateX(var(--orbit, 30%)) rotate(0deg); } to { transform: rotate(360deg) translateX(var(--orbit, 30%)) rotate(-360deg); } }
+@keyframes sa-zoom-sweep { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
 .sa-zoom-layer { animation: sa-zoom ${ZOOM.period}s linear infinite; will-change: transform, opacity; }
 .sa-zoom-drift { animation: sa-zoom-drift ${ZOOM.period * 3}s ease-in-out infinite; }
 .sa-zoom-banner { animation: sa-zoom-banner ${BANNER_SECONDS}s linear infinite; }
-.sa-zoom-slot { animation: sa-zoom-slot ${(slotN - 1) * SLOT_SECONDS}s steps(${Math.max(1, slotN - 1)}, end) infinite; }
 .sa-zoom-rain { animation: sa-zoom-rain var(--dur, 14s) linear infinite, sa-zoom-sway 6s ease-in-out infinite; }
 .sa-zoom-pulse { animation: sa-zoom-pulse 6s ease-in-out infinite; }
 .sa-zoom-ring { animation: sa-zoom-ring 5s ease-out infinite; }
 .sa-zoom-wall { animation: sa-zoom-wall 60s linear infinite alternate; }
 .sa-zoom-wall-lit { animation: sa-zoom-wall-lit var(--cycle, 40s) linear infinite; }
-.sa-zoom-flip { animation: sa-zoom-flip ${SLOT_SECONDS}s ease-in-out infinite; transform-style: preserve-3d; }
 .sa-zoom-aurora { animation: sa-zoom-aurora 14s ease-in-out infinite; }
 .sa-zoom-confetti { animation: sa-zoom-confetti var(--dur, 30s) linear infinite; }
-@keyframes sa-zoom-sweep { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
-.sa-zoom-sweep { animation: sa-zoom-sweep 9s linear infinite alternate; }
-.sa-zoom-still .sa-zoom-sweep { animation-play-state: paused; }
-.sa-zoom-still .sa-zoom-layer, .sa-zoom-still .sa-zoom-drift, .sa-zoom-still .sa-zoom-banner, .sa-zoom-still .sa-zoom-slot, .sa-zoom-still .sa-zoom-rain, .sa-zoom-still .sa-zoom-pulse, .sa-zoom-still .sa-zoom-ring, .sa-zoom-still .sa-zoom-wall, .sa-zoom-still .sa-zoom-wall-lit, .sa-zoom-still .sa-zoom-flip, .sa-zoom-still .sa-zoom-aurora, .sa-zoom-still .sa-zoom-confetti { animation-play-state: paused; }
-@media (prefers-reduced-motion: reduce) { .sa-zoom-layer, .sa-zoom-drift, .sa-zoom-banner, .sa-zoom-slot, .sa-zoom-rain, .sa-zoom-pulse, .sa-zoom-ring, .sa-zoom-wall, .sa-zoom-wall-lit, .sa-zoom-flip, .sa-zoom-aurora, .sa-zoom-confetti { animation: none; } }
+.sa-zoom-sweep { animation: sa-zoom-sweep var(--sweep, 9s) linear infinite alternate; }
+.sa-zoom-still .sa-zoom-layer, .sa-zoom-still .sa-zoom-drift, .sa-zoom-still .sa-zoom-banner, .sa-zoom-still .sa-zoom-rain, .sa-zoom-still .sa-zoom-pulse, .sa-zoom-still .sa-zoom-ring, .sa-zoom-still .sa-zoom-wall, .sa-zoom-still .sa-zoom-wall-lit, .sa-zoom-still .sa-zoom-aurora, .sa-zoom-still .sa-zoom-confetti, .sa-zoom-still .sa-zoom-sweep { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .sa-zoom-layer, .sa-zoom-drift, .sa-zoom-banner, .sa-zoom-rain, .sa-zoom-pulse, .sa-zoom-ring, .sa-zoom-wall, .sa-zoom-wall-lit, .sa-zoom-aurora, .sa-zoom-confetti, .sa-zoom-sweep { animation: none; } }
 `; }
 
 /** THE CAMPUS BANNER — the slow, randomised Power Four strip. Reusable on any
  *  slide (Lee: "a useful repeatable thing, if I ever want to do an
- *  advertisement about expansion"). Height ≈ 3.6% of the frame. */
+ *  advertisement about expansion"). Bigger since 2026-09-04 ("so easier to
+ *  read"): ≈ 4.6% of the frame tall. */
 export function CampusBanner({ w, h, seed = 7, live = true, top }: { w: number; h: number; seed?: number; live?: boolean; top?: number }) {
   const items = useMemo(() => campusMix(undefined, seed), [seed]);
-  const fs = Math.round(h * 0.0165);
+  const fs = Math.round(h * 0.021);
   return (
-    <div className={live ? undefined : "sa-zoom-still"} style={{ position: "absolute", left: 0, width: w, top: top ?? Math.round(h * 0.745), height: Math.round(h * 0.036), overflow: "hidden", pointerEvents: "none", borderTop: "1px solid rgba(245,239,230,0.16)", borderBottom: "1px solid rgba(245,239,230,0.16)", background: "rgba(0,0,0,0.38)", fontFamily: FONT }}>
+    <div className={live ? undefined : "sa-zoom-still"} style={{ position: "absolute", left: 0, width: w, top: top ?? Math.round(h * 0.745), height: Math.round(h * 0.046), overflow: "hidden", pointerEvents: "none", borderTop: "1px solid rgba(245,239,230,0.16)", borderBottom: "1px solid rgba(245,239,230,0.16)", background: "rgba(0,0,0,0.38)", fontFamily: FONT }}>
       <div className="sa-zoom-banner" style={{ display: "flex", whiteSpace: "nowrap", alignItems: "center", height: "100%", width: "max-content" }}>
         {[0, 1].map((rep) => items.map((c, i) => (
-          <span key={`${rep}-${i}`} style={{ color: BRAND_CREAM, fontWeight: 800, fontSize: fs, letterSpacing: "0.16em", textTransform: "uppercase", padding: `0 ${Math.round(h * 0.018)}px`, opacity: 0.88 }}>
-            {campusText(c)}<span style={{ opacity: 0.35, marginLeft: Math.round(h * 0.018) }}>⚡</span>
+          <span key={`${rep}-${i}`} style={{ color: BRAND_CREAM, fontWeight: 800, fontSize: fs, letterSpacing: "0.16em", textTransform: "uppercase", padding: `0 ${Math.round(h * 0.022)}px`, opacity: 0.9 }}>
+            {campusText(c)}<span style={{ opacity: 0.35, marginLeft: Math.round(h * 0.022) }}>⚡</span>
           </span>
         )))}
       </div>
@@ -78,49 +96,77 @@ export function CampusBanner({ w, h, seed = 7, live = true, top }: { w: number; 
   );
 }
 
-/** THE SLOT — one course code at a time rolling under the tagline. */
-function CourseSlot({ h, items, live }: { h: number; items: { text: string }[]; live: boolean }) {
-  const lh = Math.round(h * 0.03);
+/** THE GLOW WORDMARK — "survive" with the sweep INSIDE the letters (the effect
+ *  Lee called spectacular on the summary slide), and the real, boiling brand
+ *  bolt as the "i". Two palettes: brand (red · cream · blue rolling through)
+ *  for the open and the intro; powder (white · powder blue, subtle) for the
+ *  summary, which also carries "accounting" underneath in the same glow. The
+ *  geometry is SurviveWordmark's, so it lines up with every other wordmark. */
+export function GlowWordmark({ size, palette = "brand", live = true, second, boilFrame }: {
+  size: number; palette?: "brand" | "powder"; live?: boolean;
+  /** A second line in the same glow — "accounting" on the summary slide. */
+  second?: string;
+  boilFrame?: number;
+}) {
+  const gradient = palette === "powder"
+    ? `linear-gradient(115deg, ${WHITE} 0%, ${POWDER} 28%, ${SKY} 50%, ${WHITE} 72%, ${POWDER} 100%)`
+    : `linear-gradient(115deg, ${BRAND_RED} 0%, ${BRAND_CREAM} 22%, ${BRAND_BLUE} 45%, ${BRAND_RED} 68%, ${BRAND_CREAM} 90%, ${BRAND_BLUE} 100%)`;
+  const glow = palette === "powder"
+    ? `drop-shadow(0 0 ${Math.round(size * 0.10)}px rgba(179,229,252,0.32))`
+    : `drop-shadow(0 0 ${Math.round(size * 0.12)}px rgba(245,239,230,0.28))`;
+  const ink: React.CSSProperties = {
+    backgroundImage: gradient, backgroundSize: "300% 100%", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
+    ["--sweep" as string]: palette === "powder" ? "14s" : "9s",
+  };
   return (
-    <div style={{ height: lh, overflow: "hidden", fontFamily: FONT, fontWeight: 800, fontSize: Math.round(h * 0.02), letterSpacing: "0.18em", textTransform: "uppercase", color: BRAND_CREAM, opacity: 0.92 }}>
-      <div className={live ? "sa-zoom-slot" : undefined}>
-        {items.map((it, i) => <div key={i} style={{ height: lh, lineHeight: `${lh}px`, whiteSpace: "nowrap" }}>{it.text}</div>)}
-      </div>
+    <div className={live ? undefined : "sa-zoom-still"} style={{ display: "flex", flexDirection: "column", alignItems: "center", filter: glow, pointerEvents: "none" }}>
+      <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: FONT, fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
+        <span className="sa-zoom-sweep" style={ink}>surv</span>
+        <BoltBoil height={size * 0.8} boilSeconds={1.2} boilFrame={boilFrame} style={{ marginLeft: size * -0.015, marginRight: size * 0.03, transform: `translate(${size * (-1 / 96)}px, ${size * 0.13}px) rotate(2deg)`, transformOrigin: "100% 51%" }} />
+        <span className="sa-zoom-sweep" style={{ ...ink, animationDelay: "-2s" }}>ve</span>
+      </span>
+      {second && (
+        <span className="sa-zoom-sweep" style={{ ...ink, fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(size * 0.5), letterSpacing: "0.22em", textTransform: "uppercase", marginTop: Math.round(size * 0.12), animationDelay: "-4s" }}>{second}</span>
+      )}
     </div>
   );
 }
 
-export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, live = true, progress, banner = true, tagline = TAGLINE, domain = DOMAIN, seed = 7, style }: {
+export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, live = true, progress, banner = true, tagline = TAGLINE, topic, tutor = TUTOR, seed = 7, style }: {
   /** The frame this fills, in px. */
   w: number; h: number;
   mode?: BoltZoomMode;
+  /** The bolt detour's / gallery's animation. */
   variant?: ZoomVariant;
   /** 0 = brand colours at rest, 1 = full trip. Lee: 0.1. */
   psych?: number;
-  /** false = frozen (the review stage, an authoring pane). */
+  /** false = frozen (an authoring pane). */
   live?: boolean;
   /** 0..1 pins one moment of the loop — an offline renderer's frame. */
   progress?: number;
   /** The slow campus strip along the lower third (open mode). */
   banner?: boolean;
   tagline?: string;
-  domain?: string;
+  /** Slide two: the set Lee is about to cram, and who is tutoring it. */
+  topic?: string;
+  tutor?: string;
   seed?: number;
   style?: React.CSSProperties;
 }) {
+  const m: Exclude<BoltZoomMode, "knockout"> = mode === "knockout" ? "summary" : mode;
   const layers = useMemo(() => zoomLayers(psych), [psych]);
   const mix = useMemo(() => campusMix(undefined, seed), [seed]);
-  // The slot rolls through a couple of dozen, Ole Miss first, then loops.
-  const slotItems = useMemo(() => [...mix.slice(0, 26), mix[0]].map((c) => ({ text: campusText(c) })), [mix]);
   const pinned = progress !== undefined;
   const still = !live || pinned;
   const boltH = Math.round(h * 0.42);
   const boil = 1.2;   // calmer than the brand's 0.5 s — the wordmark is the focus
-  const dim = mode === "backdrop" ? 0.45 : 0.9;
+  const dim = 0.9;
   const delayAt = (sec: number) => (pinned ? `${(sec - progress! * ZOOM.period).toFixed(3)}s` : `${sec.toFixed(3)}s`);
   const seeded = useMemo(() => seededShuffle(Array.from({ length: 16 }, (_, i) => i), seed + 5), [seed]);
+  const wordSize = Math.round(h * WORDMARK_SIZE);
+  const frame = pinned ? Math.floor(progress! * 8) : undefined;
 
-  // ---- backgrounds, one per variant ---------------------------------------
+  // ---- the six animations (bolt detour + gallery) -------------------------
   const zoomStack = (
     <div className="sa-zoom-drift" style={{ position: "absolute", inset: 0, pointerEvents: "none", ...(pinned ? { animationDelay: `${(-progress! * ZOOM.period * 3).toFixed(3)}s` } : {}) }}>
       {layers.map((l) => (
@@ -157,7 +203,7 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
         </div>
       ))}
       <div className="sa-zoom-pulse" style={{ position: "absolute", opacity: 0.55 }}>
-        <BoltBoil height={Math.round(h * 0.56)} boilSeconds={boil} boilFrame={pinned ? Math.floor(progress! * 8) : undefined} />
+        <BoltBoil height={Math.round(h * 0.56)} boilSeconds={boil} boilFrame={frame} />
       </div>
     </div>
   );
@@ -198,56 +244,55 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
     </div>
   );
 
-  const background = variant === "rain" ? rain : variant === "pulse" ? pulse : variant === "wall" ? wall : variant === "board" ? board : variant === "aurora" ? aurora : zoomStack;
-  const liveBolt = variant === "aurora";
+  const animation = variant === "rain" ? rain : variant === "pulse" ? pulse : variant === "wall" ? wall : variant === "board" ? board : variant === "aurora" ? aurora : zoomStack;
 
-  // ---- the wordmark, firm --------------------------------------------------
-  const wordSize = Math.round(h * 0.078);
-  const word = liveBolt
-    ? <SurviveWordmark size={wordSize} cream={WHITE} boilFrame={pinned ? Math.floor(progress! * 8) : undefined} />
-    : <SurviveWordmark size={wordSize} cream={WHITE} red={WHITE} blue={WHITE} boltCream={WHITE} boilFrame={0} />;
+  // ---- slides one and two share this block ---------------------------------
+  const wordmarkBlock = (children?: React.ReactNode) => (
+    <div style={{ position: "absolute", left: 0, right: 0, top: Math.round(h * WORDMARK_TOP), display: "flex", flexDirection: "column", alignItems: "center", gap: Math.round(h * 0.016), pointerEvents: "none" }}>
+      <GlowWordmark size={wordSize} palette="brand" live={!still} boilFrame={frame} />
+      {children}
+    </div>
+  );
 
   return (
     <div className={still ? "sa-zoom-still" : undefined} style={{ position: "relative", width: w, height: h, overflow: "hidden", background: "#000", fontFamily: FONT, ...style }}>
-      <style>{zoomCss(layers.length, psych, slotItems.length)}</style>
+      <style>{zoomCss(layers.length, psych)}</style>
 
-      {mode === "knockout" ? (
-        // THE SUMMARY SLIDE (Lee: "the concept still feels great. YOU come up
-        // with a good animation to put in those letters … use each of your 6
-        // as a reference point"): black stage, white letters up top, and
-        // MULTIPLIED over them a dense brand-colour sweep — red, cream, blue
-        // rolling through the letters — with the chosen variant's own motion
-        // faintly inside it. Black stays black; only the letters carry colour.
-        <>
-          <div style={{ position: "absolute", left: 0, right: 0, top: Math.round(h * 0.11), display: "flex", justifyContent: "center", pointerEvents: "none" }}>
-            <SurviveWordmark size={wordSize} cream={WHITE} red={WHITE} blue={WHITE} boltCream={WHITE} boilFrame={0} />
-          </div>
-          <div style={{ position: "absolute", inset: 0, mixBlendMode: "multiply", pointerEvents: "none" }}>
-            <div className="sa-zoom-sweep" style={{ position: "absolute", inset: 0, background: `linear-gradient(115deg, ${BRAND_RED} 0%, ${BRAND_CREAM} 22%, ${BRAND_BLUE} 45%, ${BRAND_RED} 68%, ${BRAND_CREAM} 90%, ${BRAND_BLUE} 100%)`, backgroundSize: "300% 300%" }} />
-            <div style={{ position: "absolute", inset: 0, opacity: 0.75 }}>{background}</div>
-          </div>
-        </>
-      ) : background}
+      {/* THE BOLT DETOUR and the gallery: black + one of the six, nothing else. */}
+      {(m === "bolt" || m === "gallery") && animation}
 
-      {mode === "open" && (
+      {m === "gallery" && (
+        <div style={{ position: "absolute", left: 0, right: 0, top: "50%", transform: "translateY(-58%)", display: "flex", flexDirection: "column", alignItems: "center", gap: Math.round(h * 0.014), pointerEvents: "none", filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.9)) drop-shadow(0 12px 40px rgba(0,0,0,0.7))" }}>
+          <SurviveWordmark size={wordSize} cream={WHITE} red={WHITE} blue={WHITE} boltCream={WHITE} boilFrame={0} />
+          <div style={{ color: WHITE, fontWeight: 800, fontSize: Math.round(h * 0.027), letterSpacing: "0.01em", textShadow: "0 2px 14px rgba(0,0,0,0.9)" }}>{tagline}</div>
+        </div>
+      )}
+
+      {/* SLIDE ONE — the cold open: the glow wordmark, the line, the ticker. */}
+      {m === "open" && (
         <>
-          {/* the readability plate: a soft dark pool behind the centre, and a
-              vignette so the wordmark is the first thing the eye lands on */}
-          <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 32%, rgba(0,0,0,0) 55%), radial-gradient(ellipse at center, rgba(0,0,0,0) 40%, rgba(0,0,0,0.6) 100%)" }} />
-          <div style={{ position: "absolute", left: 0, right: 0, top: "50%", transform: "translateY(-58%)", display: "flex", flexDirection: "column", alignItems: "center", gap: Math.round(h * 0.014), pointerEvents: "none", filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.9)) drop-shadow(0 12px 40px rgba(0,0,0,0.7))" }}>
-            {word}
-            <div style={{ color: WHITE, fontWeight: 800, fontSize: Math.round(h * 0.027), letterSpacing: "0.01em", textShadow: "0 2px 14px rgba(0,0,0,0.9)" }}>{tagline}</div>
-            <div style={{ color: BRAND_CREAM, opacity: 0.6, fontWeight: 700, fontSize: Math.round(h * 0.016), letterSpacing: "0.14em", textTransform: "uppercase", textShadow: "0 2px 10px rgba(0,0,0,0.9)" }}>{domain}</div>
-            {variant !== "wall" && (
-              <div style={{ marginTop: Math.round(h * 0.02) }}>
-                {variant === "board"
-                  ? <div className="sa-zoom-flip" style={{ fontFamily: FONT, fontWeight: 800, fontSize: Math.round(h * 0.024), letterSpacing: "0.2em", textTransform: "uppercase", color: BRAND_CREAM, background: "rgba(0,0,0,0.55)", border: "1px solid rgba(245,239,230,0.2)", borderRadius: 6, padding: `${Math.round(h * 0.006)}px ${Math.round(h * 0.02)}px` }}><CourseSlot h={h} items={slotItems} live={!still} /></div>
-                  : <CourseSlot h={h} items={slotItems} live={!still} />}
-              </div>
-            )}
-          </div>
+          {wordmarkBlock(
+            <div style={{ color: WHITE, fontWeight: 800, fontSize: Math.round(h * 0.027), letterSpacing: "0.01em", marginTop: Math.round(h * 0.004) }}>{tagline}</div>,
+          )}
           {banner && <CampusBanner w={w} h={h} seed={seed} live={!still} />}
         </>
+      )}
+
+      {/* SLIDE TWO — the intro: the SAME wordmark, in the same place, and the set. */}
+      {m === "intro" && wordmarkBlock(
+        <>
+          <div style={{ width: Math.round(w * 0.56), height: 1, background: "rgba(245,239,230,0.28)", marginTop: Math.round(h * 0.006) }} />
+          <div style={{ fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(h * 0.042), lineHeight: 1.08, letterSpacing: "0.02em", textTransform: "uppercase", color: BRAND_CREAM, textAlign: "center", maxWidth: Math.round(w * 0.84), textWrap: "balance" as never }}>{topic || "Set name"}</div>
+          <div style={{ color: "rgba(245,239,230,0.7)", fontWeight: 700, fontSize: Math.round(h * 0.019), letterSpacing: "0.02em" }}>tutored by {tutor}</div>
+        </>,
+      )}
+
+      {/* THE SUMMARY — "Survive / Accounting" up top in the powder glow; the
+          FOUND ON YOUR EXAM card is drawn by the frame underneath. */}
+      {m === "summary" && (
+        <div style={{ position: "absolute", left: 0, right: 0, top: Math.round(h * 0.085), display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+          <GlowWordmark size={Math.round(wordSize * 0.92)} palette="powder" live={!still} second="accounting" boilFrame={frame} />
+        </div>
       )}
     </div>
   );

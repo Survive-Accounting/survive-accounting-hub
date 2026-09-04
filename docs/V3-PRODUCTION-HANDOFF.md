@@ -572,3 +572,24 @@ selection. Do not claim these work without Lee.
 | Blast frames (the real slides) | `src/components/blastoff/` |
 | Film camera / pin | `src/components/canvas/film-camera.ts` |
 | Film surface | `CeqPreviewer.tsx` (`FilmShell`, `withCeqPin`) |
+
+
+## Update — 2026-09-04: one phone everywhere, the black open, the bolt detour, the ads
+
+Lee's verdict after filming the first Easy Points rip: /results was right, the canvas and the capture popout were not, and the animated backdrop under the wordmark "just didn't work". So:
+
+**One renderer.** `components/blastoff/frame-view.tsx` (FrameView, moved out of BlastOffEditor) draws a frame; `components/blastoff/PhoneFrame.tsx` wraps it in the 9:16 black phone with the backdrop rule, the campus banner and the wordmark watermark (top-left, live bolt in the "i"). The Review stage, the Arrange preview (270 wide) and the /film capture (`components/blastoff/BlastOffCapture.tsx`, its own file now) all mount PhoneFrame — /film is the Review slide at window height. Space / shift+space walk, ` resets highlights, H hides the chrome, P the prompter, Esc exits. Size the browser window 9:16 (or crop in OBS) and the phone is the window.
+
+**The brand slides** (`brand-cards/BoltZoom.tsx`, modes): `open` = pure black, the GLOW WORDMARK (the summary's sweep inside the letters, brand red · cream · blue, with the real boiling bolt as the "i"), the line, the Power Four ticker (bigger); no domain, no course-code slot, no animated backdrop. `intro` = the SAME wordmark at the SAME `WORDMARK_TOP` (0.36), a rule, the set name in League Spartan, "tutored by Lee Ingram" — slide one cuts to slide two and the wordmark does not move. `summary` = "survive / ACCOUNTING" in the powder-blue subtle glow, over the FOUND ON YOUR EXAM card. `backdrop` = plain black (a frame's override). The canvas's `blastintro` element renders BoltZoom intro too, so the canvas matches. Watermark hidden on open / intro / outro / bolt / ad / the summary.
+
+**The bolt detour** — frame kind `bolt`: black + one of the six animations (zoom / rain / pulse / wall / board / aurora, `frame.variant`, psych slider), nothing else. Insert it on Review like a cheat code ("Bolt detour" chip). Lee's OBS camera bed and the ad bed. On the canvas it stages `blastopen` with `bare: true` (Add menu: "Bolt detour").
+
+**The ads** — frame kind `ad` with `frame.ad` ∈ greek / rep / send (`components/blastoff/AdSlide.tsx`, copy in one place, no invented numbers): "Exam 1 is free for your whole chapter" → surviveaccounting.com/greek; "Get paid to spread Survive on your campus" → /rep; "Send me your syllabus" → /send. Review chips "Ad · Greek / reps / syllabus"; canvas element `blastad`.
+
+**/send** — new public route: email + up to five files (+ optional campus, note) through the landing page's own `submitSyllabus` intake. No new table.
+
+**/branding** (AdminGate) — the slides as they ship, the bolt detour in every animation, the ads, and the set-aside second-pass look ("gallery": the white wordmark over each animation).
+
+**Card placement** — `CARD_CENTRE_Y` is 0.5 now (the Review phone centres the card; Lee: /results is perfect). Send to film stamps it; Lee must re-send a set for the canvas to pick it up.
+
+**Still open on the canvas side** (why /film is the surface for Easy Points for now): data written by an older send (cheat code without its line, cream "found on your exam" card, the intro element at its old size/place) only corrects on re-send; the canvas popout's world background (navy) is not the black phone; choices on /film are inert (no click-to-answer, no spotlight) — the canvas keeps those.

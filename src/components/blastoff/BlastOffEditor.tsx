@@ -14,19 +14,10 @@ import { ArrowDown, ArrowUp, Clapperboard, Plus, X } from "lucide-react";
 import type { BoothCeq, BoothSetInfo } from "@/lib/talkthrough.functions";
 import { loadBlastPlan, saveBlastPlan } from "@/lib/blastoff.functions";
 import { syncBlastPlanToSet } from "@/lib/blastoff-sync.functions";
-import { CARD_W } from "@/components/canvas/ceq-geom";
-import { HighlightContext, useTextHighlights } from "@/components/canvas/text-highlights";
-import { renderInline } from "@/components/canvas/inline-md";
 import { openFilmMode } from "./FilmHandoff";
-import { SetCard } from "./SetCard";
-import { BIO_CARD, bioCallout } from "./bio-card";
-import { BoltZoom } from "@/components/brand-cards/BoltZoom";
-import { isZoomVariant } from "@/components/brand-cards/bolt-zoom";
-import { V } from "./stage";
-import { SurviveIntro } from "./SurviveIntro";
-import { SurviveOutro } from "./SurviveOutro";
+import { PhoneFrame } from "./PhoneFrame";
 import {
-  FRAME_LABEL, INSERT_CALLOUT, INSERT_KINDS, filmFrames, frameBullets, insertFrame, insertStem, isInsert, isStandard, moveFrame, newFrameId, reconcilePlan, removeFrame,
+  FRAME_LABEL, INSERT_KINDS, filmFrames, insertFrame, isInsert, isStandard, moveFrame, newFrameId, reconcilePlan, removeFrame,
   type BlastFrame, type BlastFrameKind, type BlastPlan,
 } from "./plan";
 import { BankPicker } from "./BankPicker";
@@ -230,204 +221,15 @@ export function BlastOffEditor({ set, topicName, onCapture }: { set: BoothSetInf
         <div style={{ fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, fontWeight: 800, marginBottom: 7 }}>
           Frame {Math.min(at, plan.frames.length - 1) + 1} preview
         </div>
-        <div style={{ border: `1px solid ${EDGE}`, borderRadius: 10, overflow: "hidden" }}>
-          <FrameView frame={plan.frames[Math.min(at, plan.frames.length - 1)]} set={set} scale={0.62}
-            topicName={topicName} progress={progressById.get(plan.frames[Math.min(at, plan.frames.length - 1)]?.id)} />
-        </div>
+        {/* THE SAME PHONE as Review and /film (2026-09-04: "/arrange should also show the slide"). */}
+        <PhoneFrame frame={plan.frames[Math.min(at, plan.frames.length - 1)]} frames={plan.frames} index={Math.min(at, plan.frames.length - 1)} set={set} w={270}
+          topicName={topicName} progress={progressById.get(plan.frames[Math.min(at, plan.frames.length - 1)]?.id)} />
       </div>
     </div>
   );
 }
 
-// ------------------------------------------------------- one frame, drawn
-
-/** Is this plan frame a QUESTION, as opposed to one of the set's note frames?
- *  The canvas's own rule: a note frame is breath — it neither counts toward the
- *  "Q 3/8" counter nor is counted by it. */
-const isQuestion = (f: BlastFrame, byId: Map<string, BoothCeq>): boolean =>
-  f.kind === "ceq" && !!f.ceqId && !byId.get(f.ceqId)?.noteOnly;
-
-/** frame id → "Q 3/8", questions only. Built once per plan. */
-export function questionProgress(frames: readonly BlastFrame[], byId: Map<string, BoothCeq>): Map<string, { x: number; y: number }> {
-  const y = frames.filter((f) => isQuestion(f, byId)).length;
-  const out = new Map<string, { x: number; y: number }>();
-  let x = 0;
-  for (const f of frames) if (isQuestion(f, byId)) out.set(f.id, { x: ++x, y });
-  return out;
-}
-
-/** ONE FRAME, drawn by the canvas's own card. Nothing here re-implements a
- *  card — a set frame renders its stem and choices, an insert renders as the
- *  callout kind it will become when it lands in the set. */
-export function FrameView({ frame, set, scale, topicName, progress, backdrop = false }: {
-  frame: BlastFrame; set: BoothSetInfo; scale: number; topicName?: string | null;
-  progress?: { x: number; y: number } | null;
-  /** True when the bolt-zoom backdrop runs behind this frame (the intro goes transparent). */
-  backdrop?: boolean;
-}) {
-  // THE STANDARD SPINE renders as the vertical 9:16 frame it actually is —
-  // these are brand cards, not CEQ cards, and showing them in the silver card
-  // shell would be the same mistake the first Blast Off preview made.
-  if (isStandard(frame.kind)) {
-    const s = scale * 0.34; // a 1080-wide frame, sized to sit beside the list
-    // THE COLD OPEN (2026-09-03): the bolt zoom, ticker and wordmark — live
-    // here too, so Lee sees the motion on the review stage.
-    if (frame.kind === "open") return <BoltZoom w={Math.round(V.w * s)} h={Math.round(V.h * s)} mode="open" variant={isZoomVariant(frame.variant) ? frame.variant : "zoom"} psych={frame.psych ?? 0.1} banner={frame.banner !== "off"} live />;
-    // The intro sits on the cold open's backdrop, so its own navy stage goes
-    // transparent (the backdrop provides the ground); alone, it keeps the navy.
-    if (frame.kind === "intro") return <SurviveIntro topic={frame.text?.trim() || set.name} scale={s} transparent={backdrop} />;
-    // THE TUTOR CARD (2026-09-03): the bio in the detour format, a bit bigger.
-    if (frame.kind === "bio") return <SetCard id={frame.id} stem={BIO_CARD.title} scale={scale * BIO_CARD.scale} callout={bioCallout() as Record<string, unknown>} />;
-    return <SurviveOutro tagline={frame.text?.trim() || undefined} scale={s} />;
-  }
-
-  if (frame.kind === "ceq") {
-    const ceq: BoothCeq | undefined = frame.ceqId ? set.ceqs.find((c) => c.id === frame.ceqId) : undefined;
-    if (!ceq) return <SetCard stem="This card is no longer in the set." scale={scale} />;
-    // The set's own note cards ARE the "found on your exam" card. Since
-    // 2026-09-03 they draw in the detour skin (dark, labelled) like every
-    // other callout slide; the previewer does the same for a noteOnly card.
-    if (ceq.noteOnly) return <SetCard id={ceq.id} stem={ceq.stem} scale={scale} callout={{ kind: "found-on-exam", detour: true, showTopic: false }} />;
-    return (
-      <SetCard
-        id={ceq.id}
-        stem={ceq.stem}
-        choices={ceq.choices}
-        topic={topicName ?? null}
-        progress={progress ?? null}
-        scale={scale}
-      />
-    );
-  }
-
-  // AN EXHIBIT FRAME IS THE EXHIBIT. On the canvas the sync stages the real
-  // element on a bare frame; here a dark placeholder names it, so the running
-  // order reads as a detour rather than a cream card saying "Exhibit: cycle".
-  if (frame.kind === "exhibit") return <ExhibitDetour label={insertStem(frame)} scale={scale} />;
-
-  const kindTag = INSERT_CALLOUT[frame.kind];
-  return (
-    <SetCard
-      id={frame.id}
-      stem={insertStem(frame)}
-      scale={scale}
-      // "blank" is a BARE frame — card hidden, so Lee builds on it from scratch.
-      // Every other insert is a DETOUR: the dark card, gold label, key phrase
-      // highlighted — the same flag the sync writes, so preview = film.
-      callout={frame.kind === "blank" ? { hidden: true } : kindTag ? { kind: kindTag, detour: true, ...(frameBullets(frame).length ? { extraStems: frameBullets(frame) } : {}) } : undefined}
-    />
-  );
-}
-
-/** The exhibit frame's stand-in, in the detour skin: same width and paper
- *  edge as the card shell, gold EXHIBIT label, the exhibit's name as the key
- *  phrase. Not a canvas card — the canvas stages the real element instead. */
-function ExhibitDetour({ label, scale }: { label: string; scale: number }) {
-  const navy = "#14213D";
-  return (
-    <div style={{ width: CARD_W * scale, background: navy, padding: 22 * scale, borderRadius: 12, display: "flex", justifyContent: "center" }}>
-      <div style={{ width: "100%", borderRadius: 14 * scale, border: "1.5px solid rgba(252,163,17,0.6)", padding: `${18 * scale}px ${20 * scale}px ${20 * scale}px`, background: navy, position: "relative" }}>
-        <span aria-hidden style={{ position: "absolute", top: -1, right: -1, width: 26 * scale, height: 26 * scale, background: GOLD, clipPath: "polygon(100% 0, 0 0, 100% 100%)", borderTopRightRadius: 13 * scale, opacity: 0.9 }} />
-        <div style={{ display: "inline-flex", padding: `${2 * scale}px ${8 * scale}px`, borderRadius: 6 * scale, fontSize: 10.5 * scale, fontWeight: 900, letterSpacing: "0.12em", color: GOLD, background: "rgba(252,163,17,0.14)", border: "1px solid rgba(252,163,17,0.27)", marginBottom: 8 * scale }}>
-          EXHIBIT
-        </div>
-        <div style={{ fontSize: 24 * scale, fontWeight: 800, lineHeight: 1.25, color: "#F5EFE6" }}>
-          {renderInline(label.includes("==") ? label : `==${label}==`, { bg: GOLD, color: navy })}
-        </div>
-        <div style={{ fontSize: 11 * scale, color: "rgba(245,239,230,0.55)", marginTop: 8 * scale }}>
-          the real exhibit is staged on this frame when the plan is sent to film
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// --------------------------------------------------------------- capture
-
-/** CAPTURE — one frame, full height, spacebar forward. Nothing else on screen:
- *  OBS captures this window and anything that is not the frame is in the shot. */
-export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo; topicName?: string; onExit: () => void }) {
-  const { plan } = usePlan(set);
-  const [i, setI] = useState(0);
-  const [chrome, setChrome] = useState(true);
-  const ceqById = useMemo(() => new Map(set.ceqs.map((c) => [c.id, c])), [set.ceqs]);
-  // The SHARED highlight store (canvas/text-highlights) — same gesture, same
-  // offsets, same gold as the canvas. Session-scoped, so marks survive walking
-  // between frames within a rip and die only on ` or leaving capture.
-  const { api: hlApi, clearAll: clearAllTextHls } = useTextHighlights();
-  // THE PROMPTER (2026-09-03): the lines Lee kept on the review deck, beside
-  // the slide they belong to. P hides and shows it.
-  const [prompter, setPrompter] = useState(true);
-
-  // Skipped cards never reach a take.
-  const frames = filmFrames(plan?.frames ?? []);
-  const n = frames.length;
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-      if (e.key === " ") {
-        e.preventDefault();
-        if (e.shiftKey) setI((v) => Math.max(0, v - 1));
-        else setI((v) => Math.min(n - 1, v + 1));
-      }
-      // ` = the full wipe, same mental model as every other filming surface:
-      // temporary state goes, nothing saved is touched. Lee reaches for this
-      // without thinking, so it has to exist the moment highlighting does.
-      else if (e.code === "Backquote" || e.key === "`") { e.preventDefault(); clearAllTextHls(); }
-      else if (e.key === "Escape") { e.preventDefault(); onExit(); }
-      else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
-      else if (e.key.toLowerCase() === "p") { e.preventDefault(); setPrompter((v) => !v); }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [n, onExit]);
-
-  // Fit the CARD to the window. The card is the canvas's own 560-wide card, so
-  // this scales that box rather than a 1080x1920 vertical frame — Blast Off is
-  // an arrangement surface now, and the real takes happen on the canvas.
-  const [scale, setScale] = useState(1);
-  useEffect(() => {
-    const fit = () => setScale(Math.max(0.5, Math.min(2.4, Math.min(window.innerHeight / 760, window.innerWidth / 700))));
-    fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
-  }, []);
-
-  if (!plan) return <div style={{ minHeight: "100vh", background: BG, color: MUTED, display: "grid", placeItems: "center" }}>Loading the running order…</div>;
-
-  const frame = frames[Math.min(i, n - 1)];
-  return (
-    <HighlightContext.Provider value={hlApi}>
-    <div style={{ minHeight: "100vh", background: "#000", display: "grid", placeItems: "center", position: "relative" }}>
-      <FrameView frame={frame} set={set} scale={scale} topicName={topicName}
-        progress={questionProgress(frames, ceqById).get(frame.id)} />
-      {chrome && (
-        <div style={{
-          position: "fixed", left: 12, bottom: 12, display: "flex", gap: 12, alignItems: "center",
-          background: "rgba(7,11,20,0.86)", border: `1px solid ${EDGE}`, borderRadius: 10,
-          padding: "7px 12px", fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 11.5, color: MUTED,
-        }}>
-          <span style={{ color: GOLD, fontWeight: 800 }}>{i + 1} / {n}</span>
-          <span>{FRAME_LABEL[frame.kind]}</span>
-          <span>space next · shift+space back · ` resets · H hide this · P prompter · esc exit</span>
-        </div>
-      )}
-      {prompter && (frame.prompter?.length ?? 0) > 0 && (
-        <div style={{
-          position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", width: 300, maxHeight: "80vh", overflowY: "auto",
-          background: "rgba(7,11,20,0.88)", border: `1px solid ${EDGE}`, borderRadius: 12, padding: "10px 14px",
-          fontFamily: "'Rubik', system-ui, sans-serif", color: CREAM,
-        }}>
-          <div style={{ fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 6 }}>Prompter</div>
-          {frame.prompter!.map((line, k) => (
-            <div key={k} style={{ fontSize: 17, lineHeight: 1.35, fontWeight: 600, padding: "5px 0", borderTop: k ? `1px solid ${EDGE}` : "none" }}>{line}</div>
-          ))}
-        </div>
-      )}
-    </div>
-    </HighlightContext.Provider>
-  );
-}
-
+// FrameView, questionProgress and the capture surface moved out (2026-09-04) so
+// PhoneFrame can draw the arrange preview here without an import cycle.
+export { FrameView, questionProgress } from "./frame-view";
+import { questionProgress } from "./frame-view";

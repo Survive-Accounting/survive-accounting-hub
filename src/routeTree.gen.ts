@@ -17,6 +17,7 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TalkthroughRouteImport } from './routes/talkthrough'
 import { Route as StudyRouteImport } from './routes/study'
 import { Route as StartRouteImport } from './routes/start'
+import { Route as SendRouteImport } from './routes/send'
 import { Route as RepRouteImport } from './routes/rep'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PreviewRouteImport } from './routes/preview'
@@ -37,6 +38,7 @@ import { Route as ExhibitDemoRouteImport } from './routes/exhibit-demo'
 import { Route as ChaptersRouteImport } from './routes/chapters'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as CalloutDemoRouteImport } from './routes/callout-demo'
+import { Route as BrandingRouteImport } from './routes/branding'
 import { Route as BlastoffDemoRouteImport } from './routes/blastoff-demo'
 import { Route as BlastOffRouteImport } from './routes/blast-off'
 import { Route as BeyondRouteImport } from './routes/beyond'
@@ -212,6 +214,11 @@ const StartRoute = StartRouteImport.update({
   path: '/start',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SendRoute = SendRouteImport.update({
+  id: '/send',
+  path: '/send',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RepRoute = RepRouteImport.update({
   id: '/rep',
   path: '/rep',
@@ -310,6 +317,11 @@ const CeqRoute = CeqRouteImport.update({
 const CalloutDemoRoute = CalloutDemoRouteImport.update({
   id: '/callout-demo',
   path: '/callout-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BrandingRoute = BrandingRouteImport.update({
+  id: '/branding',
+  path: '/branding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlastoffDemoRoute = BlastoffDemoRouteImport.update({
@@ -1010,6 +1022,7 @@ export interface FileRoutesByFullPath {
   '/beyond': typeof BeyondRoute
   '/blast-off': typeof BlastOffRoute
   '/blastoff-demo': typeof BlastoffDemoRoute
+  '/branding': typeof BrandingRoute
   '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
@@ -1030,6 +1043,7 @@ export interface FileRoutesByFullPath {
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/rep': typeof RepRoute
+  '/send': typeof SendRoute
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
   '/talkthrough': typeof TalkthroughRoute
@@ -1174,6 +1188,7 @@ export interface FileRoutesByTo {
   '/beyond': typeof BeyondRoute
   '/blast-off': typeof BlastOffRoute
   '/blastoff-demo': typeof BlastoffDemoRoute
+  '/branding': typeof BrandingRoute
   '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
@@ -1193,6 +1208,7 @@ export interface FileRoutesByTo {
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/rep': typeof RepRoute
+  '/send': typeof SendRoute
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
   '/talkthrough': typeof TalkthroughRoute
@@ -1335,6 +1351,7 @@ export interface FileRoutesById {
   '/beyond': typeof BeyondRoute
   '/blast-off': typeof BlastOffRoute
   '/blastoff-demo': typeof BlastoffDemoRoute
+  '/branding': typeof BrandingRoute
   '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
@@ -1355,6 +1372,7 @@ export interface FileRoutesById {
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/rep': typeof RepRoute
+  '/send': typeof SendRoute
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
   '/talkthrough': typeof TalkthroughRoute
@@ -1501,6 +1519,7 @@ export interface FileRouteTypes {
     | '/beyond'
     | '/blast-off'
     | '/blastoff-demo'
+    | '/branding'
     | '/callout-demo'
     | '/ceq'
     | '/chapters'
@@ -1521,6 +1540,7 @@ export interface FileRouteTypes {
     | '/preview'
     | '/privacy'
     | '/rep'
+    | '/send'
     | '/start'
     | '/study'
     | '/talkthrough'
@@ -1665,6 +1685,7 @@ export interface FileRouteTypes {
     | '/beyond'
     | '/blast-off'
     | '/blastoff-demo'
+    | '/branding'
     | '/callout-demo'
     | '/ceq'
     | '/chapters'
@@ -1684,6 +1705,7 @@ export interface FileRouteTypes {
     | '/preview'
     | '/privacy'
     | '/rep'
+    | '/send'
     | '/start'
     | '/study'
     | '/talkthrough'
@@ -1825,6 +1847,7 @@ export interface FileRouteTypes {
     | '/beyond'
     | '/blast-off'
     | '/blastoff-demo'
+    | '/branding'
     | '/callout-demo'
     | '/ceq'
     | '/chapters'
@@ -1845,6 +1868,7 @@ export interface FileRouteTypes {
     | '/preview'
     | '/privacy'
     | '/rep'
+    | '/send'
     | '/start'
     | '/study'
     | '/talkthrough'
@@ -1990,6 +2014,7 @@ export interface RootRouteChildren {
   BeyondRoute: typeof BeyondRoute
   BlastOffRoute: typeof BlastOffRoute
   BlastoffDemoRoute: typeof BlastoffDemoRoute
+  BrandingRoute: typeof BrandingRoute
   CalloutDemoRoute: typeof CalloutDemoRoute
   CeqRoute: typeof CeqRouteWithChildren
   ChaptersRoute: typeof ChaptersRoute
@@ -2010,6 +2035,7 @@ export interface RootRouteChildren {
   PreviewRoute: typeof PreviewRoute
   PrivacyRoute: typeof PrivacyRoute
   RepRoute: typeof RepRoute
+  SendRoute: typeof SendRoute
   StartRoute: typeof StartRoute
   StudyRoute: typeof StudyRoute
   TalkthroughRoute: typeof TalkthroughRoute
@@ -2139,6 +2165,13 @@ declare module '@tanstack/react-router' {
       path: '/start'
       fullPath: '/start'
       preLoaderRoute: typeof StartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/send': {
+      id: '/send'
+      path: '/send'
+      fullPath: '/send'
+      preLoaderRoute: typeof SendRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rep': {
@@ -2279,6 +2312,13 @@ declare module '@tanstack/react-router' {
       path: '/callout-demo'
       fullPath: '/callout-demo'
       preLoaderRoute: typeof CalloutDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/branding': {
+      id: '/branding'
+      path: '/branding'
+      fullPath: '/branding'
+      preLoaderRoute: typeof BrandingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blastoff-demo': {
@@ -3437,6 +3477,7 @@ const rootRouteChildren: RootRouteChildren = {
   BeyondRoute: BeyondRoute,
   BlastOffRoute: BlastOffRoute,
   BlastoffDemoRoute: BlastoffDemoRoute,
+  BrandingRoute: BrandingRoute,
   CalloutDemoRoute: CalloutDemoRoute,
   CeqRoute: CeqRouteWithChildren,
   ChaptersRoute: ChaptersRoute,
@@ -3457,6 +3498,7 @@ const rootRouteChildren: RootRouteChildren = {
   PreviewRoute: PreviewRoute,
   PrivacyRoute: PrivacyRoute,
   RepRoute: RepRoute,
+  SendRoute: SendRoute,
   StartRoute: StartRoute,
   StudyRoute: StudyRoute,
   TalkthroughRoute: TalkthroughRoute,

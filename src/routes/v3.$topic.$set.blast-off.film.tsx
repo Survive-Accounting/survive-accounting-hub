@@ -8,7 +8,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { AdminGate } from "@/components/AdminGate";
-import { BlastOffCapture } from "@/components/blastoff/BlastOffEditor";
+import { BlastOffCapture } from "@/components/blastoff/BlastOffCapture";
 import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
 import { V3Shell, V3Note } from "@/components/v3/Shell";
 

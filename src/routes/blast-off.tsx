@@ -19,7 +19,8 @@ import { Clapperboard, Pencil } from "lucide-react";
 
 import { AdminGate } from "@/components/AdminGate";
 import { loadBoothBank, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
-import { BG, BlastOffCapture, BlastOffEditor, CREAM, EDGE, GOLD, MUTED, PANEL } from "@/components/blastoff/BlastOffEditor";
+import { BG, BlastOffEditor, CREAM, EDGE, GOLD, MUTED, PANEL } from "@/components/blastoff/BlastOffEditor";
+import { BlastOffCapture } from "@/components/blastoff/BlastOffCapture";
 
 export const Route = createFileRoute("/blast-off")({
   component: BlastOffRoute,

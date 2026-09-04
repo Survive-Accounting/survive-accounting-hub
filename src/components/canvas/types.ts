@@ -45,6 +45,7 @@ export type CardKind =
   // Off opens, punctuates and closes with. Rendered by components/blastoff/.
   | "blastopen"
   | "blastintro"
+  | "blastad"
   | "blastbio"
   | "blastfoye"
   | "blastphrase"
@@ -63,6 +64,7 @@ export type NodeCategory = "card" | "element" | "bridge";
 export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   blastopen: "element",
   blastintro: "element",
+  blastad: "element",
   blastbio: "element",
   blastfoye: "element",
   blastphrase: "element",
@@ -844,6 +846,13 @@ export interface BlastOpenElement extends CardBase {
   /** The slow campus banner along the lower third. */
   banner?: boolean;
   transparent?: boolean;
+  /** THE BOLT DETOUR (2026-09-04): black + the animation, no wordmark, no banner. */
+  bare?: boolean;
+}
+/** AN AD SLIDE (2026-09-04) — one of the three ads in blastoff/AdSlide.tsx. */
+export interface BlastAdElement extends CardBase {
+  kind: "blastad";
+  ad?: string;
 }
 export interface BlastIntroElement extends CardBase {
   kind: "blastintro";
@@ -1091,6 +1100,7 @@ export interface ListCard extends CardBase {
 export type CardData =
   | BlastOpenElement
   | BlastIntroElement
+  | BlastAdElement
   | BlastBioElement
   | BlastFoyeElement
   | BlastPhraseElement

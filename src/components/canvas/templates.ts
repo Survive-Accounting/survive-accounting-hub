@@ -99,6 +99,8 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return { kind: "blastopen", psych: 0.1, w: 540, h: 960 };
     case "blastintro":
       return { kind: "blastintro", topic: "", tutor: "Lee Ingram", w: 540, h: 960 };
+    case "blastad":
+      return { kind: "blastad", ad: "greek", w: 540, h: 960 };
     case "blastfoye":
       return { kind: "blastfoye", w: 540, h: 960 };
     case "blastphrase":
@@ -286,6 +288,7 @@ export function scheduleTemplate(preset: SchedulePreset): CardData {
 export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   blastopen: "Blast Off cold open",
   blastintro: "Blast Off intro",
+  blastad: "Blast Off ad",
   blastbio: "Blast Off bio",
   blastfoye: "Found on your exam",
   blastphrase: "Phrase frame",
