@@ -43,6 +43,11 @@ const WHITE = "#FFFFFF";
 const POWDER = "#B3E5FC";
 const SKY = "#7DD3FC";
 
+/** The quiet line under the wordmark block — "tutored by Lee Ingram", the domain. */
+function QUIET(h: number): React.CSSProperties {
+  return { color: "rgba(245,239,230,0.62)", fontWeight: 700, fontSize: Math.round(h * 0.019), letterSpacing: "0.02em" };
+}
+
 /** Where the wordmark sits on slides one and two — the SAME number for both, so
  *  a cut from the open to the intro leaves "survive" exactly where it was. */
 export const WORDMARK_TOP = 0.36;
@@ -80,11 +85,22 @@ function zoomCss(n: number, psych: number): string { return `
  *  slide (Lee: "a useful repeatable thing, if I ever want to do an
  *  advertisement about expansion"). Bigger since 2026-09-04 ("so easier to
  *  read"): ≈ 4.6% of the frame tall. */
+const BANNER_CSS = `
+@keyframes sa-zoom-banner { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.sa-zoom-banner { animation: sa-zoom-banner ${BANNER_SECONDS}s linear infinite; }
+.sa-zoom-still .sa-zoom-banner { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .sa-zoom-banner { animation: none; } }
+`;
+
 export function CampusBanner({ w, h, seed = 7, live = true, top }: { w: number; h: number; seed?: number; live?: boolean; top?: number }) {
   const items = useMemo(() => campusMix(undefined, seed), [seed]);
   const fs = Math.round(h * 0.021);
   return (
+    // The banner carries its own keyframes (2026-09-04: "course ticker isn't
+    // working on the ads" — it only moved where BoltZoom's stylesheet happened
+    // to be mounted). Duplicate declarations are harmless.
     <div className={live ? undefined : "sa-zoom-still"} style={{ position: "absolute", left: 0, width: w, top: top ?? Math.round(h * 0.745), height: Math.round(h * 0.046), overflow: "hidden", pointerEvents: "none", borderTop: "1px solid rgba(245,239,230,0.16)", borderBottom: "1px solid rgba(245,239,230,0.16)", background: "rgba(0,0,0,0.38)", fontFamily: FONT }}>
+      <style>{BANNER_CSS}</style>
       <div className="sa-zoom-banner" style={{ display: "flex", whiteSpace: "nowrap", alignItems: "center", height: "100%", width: "max-content" }}>
         {[0, 1].map((rep) => items.map((c, i) => (
           <span key={`${rep}-${i}`} style={{ color: BRAND_CREAM, fontWeight: 800, fontSize: fs, letterSpacing: "0.16em", textTransform: "uppercase", padding: `0 ${Math.round(h * 0.022)}px`, opacity: 0.9 }}>
@@ -102,7 +118,14 @@ export function CampusBanner({ w, h, seed = 7, live = true, top }: { w: number; 
  *  for the open and the intro; powder (white · powder blue, subtle) for the
  *  summary, which also carries "accounting" underneath in the same glow. The
  *  geometry is SurviveWordmark's, so it lines up with every other wordmark. */
-export function GlowWordmark({ size, palette = "brand", live = true, second, boilFrame }: {
+const GLOW_CSS = `
+@keyframes sa-zoom-sweep { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+.sa-zoom-sweep { animation: sa-zoom-sweep var(--sweep, 9s) linear infinite alternate; }
+.sa-zoom-still .sa-zoom-sweep { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .sa-zoom-sweep { animation: none; } }
+`;
+
+export function GlowWordmark({ size, palette = "powder", live = true, second, boilFrame }: {
   size: number; palette?: "brand" | "powder"; live?: boolean;
   /** A second line in the same glow — "accounting" on the summary slide. */
   second?: string;
@@ -120,6 +143,8 @@ export function GlowWordmark({ size, palette = "brand", live = true, second, boi
   };
   return (
     <div className={live ? undefined : "sa-zoom-still"} style={{ display: "flex", flexDirection: "column", alignItems: "center", filter: glow, pointerEvents: "none" }}>
+      {/* self-styled, so the glow moves on the ads and anywhere else BoltZoom's sheet is not mounted */}
+      <style>{GLOW_CSS}</style>
       <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: FONT, fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
         <span className="sa-zoom-sweep" style={ink}>surv</span>
         <BoltBoil height={size * 0.8} boilSeconds={1.2} boilFrame={boilFrame} style={{ marginLeft: size * -0.015, marginRight: size * 0.03, transform: `translate(${size * (-1 / 96)}px, ${size * 0.13}px) rotate(2deg)`, transformOrigin: "100% 51%" }} />
@@ -249,7 +274,10 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
   // ---- slides one and two share this block ---------------------------------
   const wordmarkBlock = (children?: React.ReactNode) => (
     <div style={{ position: "absolute", left: 0, right: 0, top: Math.round(h * WORDMARK_TOP), display: "flex", flexDirection: "column", alignItems: "center", gap: Math.round(h * 0.016), pointerEvents: "none" }}>
-      <GlowWordmark size={wordSize} palette="brand" live={!still} boilFrame={frame} />
+      {/* Lee (2026-09-04): "just have a subtle powder blue / white glowing
+          animation on the Survive. It's very much too much going on" — so the
+          powder glow, not the brand sweep, on slides one and two. */}
+      <GlowWordmark size={wordSize} palette="powder" live={!still} boilFrame={frame} />
       {children}
     </div>
   );
@@ -272,7 +300,11 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
       {m === "open" && (
         <>
           {wordmarkBlock(
-            <div style={{ color: WHITE, fontWeight: 800, fontSize: Math.round(h * 0.027), letterSpacing: "0.01em", marginTop: Math.round(h * 0.004) }}>{tagline}</div>,
+            <>
+              <div style={{ color: WHITE, fontWeight: 800, fontSize: Math.round(h * 0.027), letterSpacing: "0.01em", marginTop: Math.round(h * 0.004) }}>{tagline}</div>
+              {/* the domain, back under the line — quiet, the "tutored by" style */}
+              <div style={QUIET(h)}>{DOMAIN}</div>
+            </>,
           )}
           {banner && <CampusBanner w={w} h={h} seed={seed} live={!still} />}
         </>
@@ -283,7 +315,8 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
         <>
           <div style={{ width: Math.round(w * 0.56), height: 1, background: "rgba(245,239,230,0.28)", marginTop: Math.round(h * 0.006) }} />
           <div style={{ fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(h * 0.042), lineHeight: 1.08, letterSpacing: "0.02em", textTransform: "uppercase", color: BRAND_CREAM, textAlign: "center", maxWidth: Math.round(w * 0.84), textWrap: "balance" as never }}>{topic || "Set name"}</div>
-          <div style={{ color: "rgba(245,239,230,0.7)", fontWeight: 700, fontSize: Math.round(h * 0.019), letterSpacing: "0.02em" }}>tutored by {tutor}</div>
+          <div style={QUIET(h)}>tutored by {tutor}</div>
+          <div style={{ ...QUIET(h), opacity: 0.75, marginTop: Math.round(h * -0.008) }}>{DOMAIN}</div>
         </>,
       )}
 

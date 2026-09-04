@@ -593,3 +593,16 @@ Lee's verdict after filming the first Easy Points rip: /results was right, the c
 **Card placement** — `CARD_CENTRE_Y` is 0.5 now (the Review phone centres the card; Lee: /results is perfect). Send to film stamps it; Lee must re-send a set for the canvas to pick it up.
 
 **Still open on the canvas side** (why /film is the surface for Easy Points for now): data written by an older send (cheat code without its line, cream "found on your exam" card, the intro element at its old size/place) only corrects on re-send; the canvas popout's world background (navy) is not the black phone; choices on /film are inert (no click-to-answer, no spotlight) — the canvas keeps those.
+
+
+## Update — 2026-09-04 (evening): the quiet open, headings above the box, the ads' copy, the three-column Review
+
+**Slides one and two** (`brand-cards/BoltZoom.tsx`): the wordmark glow is the subtle powder-blue / white sweep on both (Lee: "very much too much going on" with the brand sweep); the domain is back under "Cram what's on your exam." and under "tutored by Lee Ingram", in the same quiet style (`QUIET`). The opening summary no longer carries the big "survive / accounting" — it wears the top-left watermark like every card slide (`PhoneFrame.watermarkOn`, the canvas gate no longer keys on `filmBackdrop`).
+
+**Detour headings** (`canvas/cards/CalloutCard.tsx` `GlowLabel`, mounted by `CeqPreviewNode`): every detour — memorize this, cheat code, deeper idea, meet your tutor, and the summary, now labelled FOUND ON YOUR INTRO EXAM — draws its kind's name ABOVE the navy box, big, in the wordmark's powder glow with the boiling bolt beside it; the card root is transparent and the inner clip box carries the navy, the accent edge and the shadow. `CalloutBody` takes `headerOutside` so the in-box header is skipped. Motion is `.sa-glow-sweep` in PV_CSS.
+
+**Ads** (`blastoff/AdSlide.tsx`): Lee's copy verbatim (greek: "Send this to your scholarship chair / Set up chapter access in minutes / Boost GPAs on autopilot"; rep: "Share free Exam 1 with Greek chapters / Get 10% commissions + bonuses / Easiest side gig imaginable"); the wordmark matches slide one; GO TO + the address lighter and smaller with an arrow mark so "/greek" never clips. `CampusBanner` and `GlowWordmark` now carry their own keyframes (the ticker only moved where BoltZoom's stylesheet happened to be mounted).
+
+**Review layout** (`blastoff/ReviewDeck.tsx`): three equal columns — Film draft | Slide N of M | a right panel toggling Teleprompter / Editor (remembered in `sa-review-right-tab`). Duplicate / remove / skip are hover icons on the spine rows; every slide-editing control lives in the Editor tab.
+
+**Interactivity on /film** — see the audit summary in the session notes (workflow `film-interactivity-audit`): the canvas popout supplies the contexts the tools need (Practice, Spotlight, Move/Width/Persist, Highlight, the film-mode class); `BlastOffCapture → PhoneFrame → SetCard` mounts the card inert with only the Highlight context. Lee decides which tools come back and on which surface.

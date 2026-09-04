@@ -18,12 +18,16 @@
 // highlighted: "If I want to emphasize something, let me just highlight it
 // when filming."
 //
-// Three columns. LEFT: the Blast Off plan — the same frames film mode walks.
-// MIDDLE: the selected slide on a 9:16 stage, editable underneath; a CEQ edit
-// shows before and after and saves through the one existing door
-// (applyCeqEdit). RIGHT: the teleprompter. Nothing here is a new store: the
-// plan is deck.blastOff; prompter lines and bullets live on the frame.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// Three EQUAL columns (Lee, 2026-09-04: "Film draft is left 1/3, slide # of #
+// is middle 1/3, teleprompter is right 1/3"). LEFT: the Blast Off plan — the
+// same frames film mode walks, with duplicate / skip / remove as icons that
+// show on hover. MIDDLE: the selected slide on a 9:16 stage. RIGHT: one panel
+// with two faces — the teleprompter, or the slide's editor ("instead of having
+// edits of a slide underneath … have them left/right"); a CEQ edit shows
+// before and after and saves through the one existing door (applyCeqEdit).
+// Nothing here is a new store: the plan is deck.blastOff; prompter lines and
+// bullets live on the frame.
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { applyCeqEdit, revertCeqEdit, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import type { TTDoc } from "@/components/canvas/talkthrough";
@@ -38,7 +42,7 @@ import {
   type BackdropMode, type BlastFrame, type BlastFrameKind,
 } from "./plan";
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
-import { AD_LABEL } from "./AdSlide";
+import { ADS, AD_LABEL } from "./AdSlide";
 import { PhoneFrame } from "./PhoneFrame";
 import {
   PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups, readTidy, setStampCandidates, tidyCacheKey, writeTidy,
@@ -87,6 +91,27 @@ const field: React.CSSProperties = {
 const eyebrow: React.CSSProperties = { fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, fontWeight: 800 };
 const subhead: React.CSSProperties = { fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTED, fontWeight: 800 };
 
+// THE RIGHT PANEL has two faces (Lee, 2026-09-04: "Teleprompter maybe can be
+// toggleable between editor / teleprompter"). The face he left it on is
+// remembered per browser; a browser that refuses storage just forgets.
+type RightTab = "teleprompter" | "editor";
+const RIGHT_TAB_KEY = "sa-review-right-tab";
+const readRightTab = (): RightTab => { try { return localStorage.getItem(RIGHT_TAB_KEY) === "editor" ? "editor" : "teleprompter"; } catch { return "teleprompter"; } };
+const writeRightTab = (t: RightTab): void => { try { localStorage.setItem(RIGHT_TAB_KEY, t); } catch { /* storage refused — the tab simply won't stick */ } };
+/** The right column's shell, shared by both faces: sticky, so it rides along
+ *  while the spine scrolls, and never taller than the viewport. */
+const panelShell: React.CSSProperties = {
+  background: PANEL, border: `1px solid ${EDGE}`, borderRadius: 12, padding: "10px 12px",
+  position: "sticky", top: 12, maxHeight: "calc(100vh - 24px)", overflowY: "auto",
+};
+/** The spine's per-row verbs (duplicate · skip / remove) show on hover, or on
+ *  the selected row — Lee: "icons that show up on hover on the left spine like
+ *  when a slide is selected". Keyboard focus reveals them too. */
+const SPINE_CSS = `
+.sa-spine-row .sa-spine-tools{opacity:0;transition:opacity .12s}
+.sa-spine-row:hover .sa-spine-tools,.sa-spine-row.is-on .sa-spine-tools,.sa-spine-row .sa-spine-tools:focus-within{opacity:1}
+`;
+
 const isTyping = (t: EventTarget | null): boolean => {
   const el = t as HTMLElement | null;
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
@@ -133,6 +158,11 @@ export function ReviewDeck({ set, topic, doc, register }: {
   const [selId, setSelId] = useState<string | null>(null);
   const sel = frames.find((f) => f.id === selId) ?? frames[0] ?? null;
   const selIdx = sel ? frames.indexOf(sel) : -1;
+
+  // Which face the right panel shows. Read lazily: the panel only renders once
+  // the plan has loaded on the client, so there is nothing to mismatch.
+  const [rightTab, setRightTabState] = useState<RightTab>(readRightTab);
+  const setRightTab = useCallback((t: RightTab) => { setRightTabState(t); writeRightTab(t); }, []);
 
   const [picker, setPicker] = useState<BlastFrameKind | null>(null);
   /** Insert after a given frame (or the selected one), optionally selecting it. */
@@ -181,6 +211,13 @@ export function ReviewDeck({ set, topic, doc, register }: {
     setDragId(null); setOver(null);
   };
 
+  // THE ROW VERBS (Lee, 2026-09-04: "Duplicate and remove also can be icons
+  // that show up on hover on the left spine"). Same moves the slide's chips
+  // made: the copy is selected; a removed row hands selection to its
+  // neighbour — but only when it was the selected one.
+  const duplicateAt = (id: string, i: number) => { const next = duplicateFrame(frames, id); commit(next); setSelId(next[i + 1]?.id ?? id); };
+  const removeAt = (id: string, i: number) => { const next = dropFrame(frames, id); commit(next); if (id === sel?.id) setSelId(next[Math.min(i, next.length - 1)]?.id ?? null); };
+
   const snippet = (f: BlastFrame): string => {
     const ceq = f.ceqId ? ceqById.get(f.ceqId) : undefined;
     if (f.kind === "open") return "Black · the glow wordmark · Power Four ticker";
@@ -189,6 +226,8 @@ export function ReviewDeck({ set, topic, doc, register }: {
     if (f.kind === "outro") return f.text?.trim() || "Cram what's on your exam.";
     if (f.kind === "ceq") return ceq ? (ceq.noteOnly ? ceq.stem : `${ceq.label} · ${ceq.stem}`) : "— card missing from the set —";
     if (f.kind === "cheat") return [f.title, f.body].filter(Boolean).join(" — ") || "(empty cheat code)";
+    if (f.kind === "ad") return ADS[f.ad ?? "greek"].headline;
+    if (f.kind === "bolt") return `Black + the ${f.variant ?? "zoom"} animation`;
     if (f.kind === "exhibit") return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
     return f.text?.trim() || `(empty ${FRAME_LABEL[f.kind].toLowerCase()})`;
   };
@@ -199,11 +238,13 @@ export function ReviewDeck({ set, topic, doc, register }: {
 
   const filmed = filmFrames(frames).length;
   const skipped = frames.length - filmed;
+  const tabs = <RightTabs tab={rightTab} onTab={setRightTab} />;
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 340px) minmax(460px, 1fr) minmax(300px, 400px)", gap: 18, alignItems: "start" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 18, alignItems: "start" }}>
       {/* ------------------------------------------------ LEFT: the spine */}
       <section>
+        <style>{SPINE_CSS}</style>
         <div className="flex items-center" style={{ gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
           <span style={eyebrow}>Film draft</span>
           <span style={{ fontSize: 11.5, color: MUTED }}>{filmed} slides{skipped ? ` · ${skipped} skipped` : ""}</span>
@@ -225,7 +266,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
             const lineAbove = over?.i === i && !over.below && dragId !== f.id;
             const lineBelow = over?.i === i && over.below && dragId !== f.id;
             return (
-              <div key={f.id} draggable
+              <div key={f.id} draggable className={`sa-spine-row${on ? " is-on" : ""}`}
                 onDragStart={() => setDragId(f.id)}
                 onDragOver={(e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setOver({ i, below: e.clientY > r.top + r.height / 2 }); }}
                 onDrop={(e) => { e.preventDefault(); drop(); }}
@@ -242,6 +283,16 @@ export function ReviewDeck({ set, topic, doc, register }: {
                 <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: colorOf(f), minWidth: 92 }}>{labelOf(f)}</span>
                 <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{snippet(f)}</span>
                 {(f.prompter?.length ?? 0) > 0 && <span title={`${f.prompter!.length} teleprompter line${f.prompter!.length > 1 ? "s" : ""}`} style={{ fontSize: 10, color: MINT, fontWeight: 800 }}>🗒{f.prompter!.length}</span>}
+                <span className="sa-spine-tools" style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: 2 }}>
+                  <button style={tiny} title="A copy right after this one" onClick={(e) => { e.stopPropagation(); duplicateAt(f.id, i); }}>⧉</button>
+                  {f.skipped ? (
+                    <button style={{ ...tiny, color: MINT }} title="Film this slide again" onClick={(e) => { e.stopPropagation(); commit(toggleSkip(frames, f.id)); }}>↺</button>
+                  ) : isInsert(f.kind) ? (
+                    <button style={{ ...tiny, color: RED }} title="Remove this slide" onClick={(e) => { e.stopPropagation(); removeAt(f.id, i); }}>✕</button>
+                  ) : (
+                    <button style={{ ...tiny, color: RED }} title="Skip this card in the film (it stays in the set)" onClick={(e) => { e.stopPropagation(); commit(toggleSkip(frames, f.id)); }}>⊘</button>
+                  )}
+                </span>
               </div>
             );
           })}
@@ -251,26 +302,46 @@ export function ReviewDeck({ set, topic, doc, register }: {
       {/* --------------------------------------------- MIDDLE: the slide */}
       <section>
         {sel && (
-          <SlidePane key={sel.id} sel={sel} idx={selIdx} count={frames.length} label={labelOf(sel)} viewSet={viewSet} set={set} topic={topic}
-            progress={progress.get(sel.id)} ceq={sel.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined}
+          <SlidePane key={sel.id} sel={sel} idx={selIdx} count={frames.length} label={labelOf(sel)} viewSet={viewSet} topic={topic}
+            progress={progress.get(sel.id)}
             backdrop={backdropFor(frames, selIdx, (id) => !!ceqById.get(id)?.noteOnly)}
             frames={frames}
             onMove={(d) => commit(moveFrame(frames, selIdx, selIdx + d))}
-            onDuplicate={() => { const next = duplicateFrame(frames, sel.id); commit(next); setSelId(next[selIdx + 1]?.id ?? sel.id); }}
-            onSkip={() => commit(toggleSkip(frames, sel.id))}
-            onDrop={() => { const next = dropFrame(frames, sel.id); commit(next); if (isInsert(sel.kind)) setSelId(next[Math.min(selIdx, next.length - 1)]?.id ?? null); }}
-            onPatch={(p) => patch(sel.id, p)}
-            onSaved={(d) => { if (sel.ceqId) setOverrides((o) => ({ ...o, [sel.ceqId!]: d })); }} />
+            onPatch={(p) => patch(sel.id, p)} />
         )}
       </section>
 
-      {/* ------------------------------------------- RIGHT: teleprompter */}
-      <Prompter frame={sel} frames={frames} set={set} doc={doc} labelOf={labelOf} snippetOf={snippet}
-        slideText={sel ? slideText(sel, ceqById) : ""}
-        onLines={(id, lines) => patch(id, { prompter: lines })}
-        onSelect={(id) => setSelId(id)}
-        onSlideAfter={(id, kind, p) => insertAfter(id, kind, p, false)} />
+      {/* --------------------------------- RIGHT: teleprompter | editor */}
+      {rightTab === "editor" && sel ? (
+        <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs}
+          ceq={sel.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined}
+          onPatch={(p) => patch(sel.id, p)}
+          onSaved={(d) => { if (sel.ceqId) setOverrides((o) => ({ ...o, [sel.ceqId!]: d })); }} />
+      ) : (
+        <Prompter tabs={tabs} frame={sel} frames={frames} set={set} doc={doc} labelOf={labelOf} snippetOf={snippet}
+          slideText={sel ? slideText(sel, ceqById) : ""}
+          onLines={(id, lines) => patch(id, { prompter: lines })}
+          onSelect={(id) => setSelId(id)}
+          onSlideAfter={(id, kind, p) => insertAfter(id, kind, p, false)} />
+      )}
     </div>
+  );
+}
+
+/** The right panel's toggle — drawn as the panel's heading, so the face he is
+ *  on reads like the column's name (as "Film draft" and "Slide n of m" do). */
+function RightTabs({ tab, onTab }: { tab: RightTab; onTab: (t: RightTab) => void }) {
+  const one = (t: RightTab, label: string, title: string) => (
+    <button type="button" title={title} aria-pressed={tab === t} onClick={() => onTab(t)}
+      style={{ ...eyebrow, color: tab === t ? GOLD : MUTED, background: "none", border: "none", borderBottom: `2px solid ${tab === t ? GOLD : "transparent"}`, borderRadius: 0, padding: "0 0 2px", cursor: "pointer", fontFamily: "inherit" }}>
+      {label}
+    </button>
+  );
+  return (
+    <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
+      {one("teleprompter", "Teleprompter", "Your own words for this slide — stamps, phrases, lines")}
+      {one("editor", "Editor", "Edit the selected slide here, beside it")}
+    </span>
   );
 }
 
@@ -281,20 +352,19 @@ const slideText = (f: BlastFrame, byId: Map<string, BoothCeq>): string => {
 
 // ------------------------------------------------------ the middle column
 
-function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq, backdrop, frames, onMove, onDuplicate, onSkip, onDrop, onPatch, onSaved }: {
-  sel: BlastFrame; idx: number; count: number; label: string; viewSet: BoothSetInfo; set: BoothSetInfo; topic: BoothTopic;
-  progress?: { x: number; y: number }; ceq?: BoothCeq;
+function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop, frames, onMove, onPatch }: {
+  sel: BlastFrame; idx: number; count: number; label: string; viewSet: BoothSetInfo; topic: BoothTopic;
+  progress?: { x: number; y: number };
   /** The bolt-zoom backdrop the rule (or the override) gives this slide. */
   backdrop: BackdropMode | null;
   /** The whole running order — the phone applies the backdrop rule itself. */
   frames: readonly BlastFrame[];
-  onMove: (d: -1 | 1) => void; onDuplicate: () => void; onSkip: () => void; onDrop: () => void;
-  onPatch: (p: Partial<BlastFrame>) => void; onSaved: (d: CeqDraft) => void;
+  onMove: (d: -1 | 1) => void;
+  /** Only the backdrop toggle patches from here; the words are edited in SlideEditor. */
+  onPatch: (p: Partial<BlastFrame>) => void;
 }) {
   const [phone, setPhone] = useState(true);
   const [safe, setSafe] = useState(true);
-  const bulletsText = (sel.bullets ?? []).join("\n");
-  const detour = sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "cheat";
   return (
     <>
       <div className="flex items-center" style={{ gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
@@ -313,12 +383,6 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
           {phone && <button style={chip(safe, SKY)} title="Shade the zones TikTok and Shorts paint their own UI over" onClick={() => setSafe((v) => !v)}>safe zones</button>}
           <button style={tiny} title="Move up" onClick={() => onMove(-1)}>↑</button>
           <button style={tiny} title="Move down" onClick={() => onMove(1)}>↓</button>
-          <button style={chip(false)} title="A copy right after this one" onClick={onDuplicate}>⧉ duplicate</button>
-          {sel.skipped ? (
-            <button style={chip(true, MINT)} title="Film this slide again" onClick={onSkip}>↺ film it</button>
-          ) : (
-            <button style={chip(false, RED)} title={isInsert(sel.kind) ? "Remove this slide" : "Skip this card in the film (it stays in the set)"} onClick={onDrop}>✕ {isInsert(sel.kind) ? "remove" : "skip"}</button>
-          )}
         </span>
       </div>
 
@@ -329,8 +393,34 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
           <FrameView frame={sel} set={viewSet} scale={0.78} topicName={topic.name} progress={progress} />
         </div>
       )}
+    </>
+  );
+}
 
-      <div style={{ marginTop: 12 }}>
+// The phone stage itself is ./PhoneFrame.tsx — shared with Arrange and /film.
+
+// ------------------------------------------------- the editor (right column)
+
+/** Everything editable about the selected slide — beside it, not under it
+ *  (Lee, 2026-09-04: "Instead of having edits of a slide underneath, it'd be
+ *  faster/better to have them left/right"). A set card edits the card itself;
+ *  an insert edits its words; the brand slides and ads edit their few
+ *  switches. Same shell as the prompter — the two are faces of one column. */
+function SlideEditor({ sel, label, ceq, set, topic, tabs, onPatch, onSaved }: {
+  sel: BlastFrame; label: string; ceq?: BoothCeq; set: BoothSetInfo; topic: BoothTopic;
+  /** The Teleprompter | Editor toggle, drawn by the deck. */
+  tabs: ReactNode;
+  onPatch: (p: Partial<BlastFrame>) => void; onSaved: (d: CeqDraft) => void;
+}) {
+  const bulletsText = (sel.bullets ?? []).join("\n");
+  const detour = sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "cheat";
+  return (
+    <section style={panelShell}>
+      <div className="flex items-center" style={{ gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+        {tabs}
+        <span style={{ fontSize: 11.5, color: MUTED }}>{label}{sel.skipped ? " · skipped" : ""}</span>
+      </div>
+      <div>
         {sel.kind === "ceq" && ceq && <CeqEditor key={ceq.id} ceq={ceq} topicName={topic.name} onSaved={onSaved} />}
         {sel.kind === "ceq" && !ceq && <div style={{ fontSize: 12, color: RED }}>This card is no longer in the set — skip it.</div>}
         {sel.kind === "cheat" && (
@@ -403,11 +493,9 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
           </div>
         )}
       </div>
-    </>
+    </section>
   );
 }
-
-// The phone stage itself is ./PhoneFrame.tsx — shared with Arrange and /film.
 
 // --------------------------------------------------------- CEQ: before → after
 
@@ -520,7 +608,9 @@ function CeqEditor({ ceq, topicName, onSaved }: { ceq: BoothCeq; topicName: stri
 
 type TidyState = { res?: TidyResult; busy?: boolean; err?: string };
 
-function Prompter({ frame, frames, set, doc, labelOf, snippetOf, slideText: text, onLines, onSelect, onSlideAfter }: {
+function Prompter({ tabs, frame, frames, set, doc, labelOf, snippetOf, slideText: text, onLines, onSelect, onSlideAfter }: {
+  /** The Teleprompter | Editor toggle, drawn by the deck — sits where the heading was. */
+  tabs: ReactNode;
   frame: BlastFrame | null; frames: BlastFrame[]; set: BoothSetInfo; doc: TTDoc;
   labelOf: (f: BlastFrame) => string; snippetOf: (f: BlastFrame) => string; slideText: string;
   onLines: (frameId: string, lines: string[]) => void;
@@ -579,7 +669,7 @@ function Prompter({ frame, frames, set, doc, labelOf, snippetOf, slideText: text
   const dropLine = (i: number) => frame && onLines(frame.id, kept.filter((_, j) => j !== i));
   const moveLine = (i: number, d: -1 | 1) => { if (!frame) return; const j = i + d; if (j < 0 || j >= kept.length) return; const n = [...kept]; [n[i], n[j]] = [n[j], n[i]]; onLines(frame.id, n); };
 
-  if (!frame) return <section />;
+  if (!frame) return <section style={panelShell}>{tabs}</section>;
 
   const wordLine = (c: PrompterCandidate) => {
     const home = homeOf(c);
@@ -628,9 +718,9 @@ function Prompter({ frame, frames, set, doc, labelOf, snippetOf, slideText: text
   for (const p of phrases) { const k = p.stamp ?? "card"; byStamp.set(k, [...(byStamp.get(k) ?? []), p]); }
 
   return (
-    <section style={{ background: PANEL, border: `1px solid ${EDGE}`, borderRadius: 12, padding: "10px 12px", position: "sticky", top: 12, maxHeight: "calc(100vh - 24px)", overflowY: "auto" }}>
+    <section style={panelShell}>
       <div className="flex items-center" style={{ gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-        <span style={eyebrow}>Teleprompter</span>
+        {tabs}
         <span style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
           <button style={{ ...chip(view === "slide"), padding: "2px 8px", fontSize: 10.5 }} onClick={() => setView("slide")}>This slide</button>
           <button style={{ ...chip(view === "all"), padding: "2px 8px", fontSize: 10.5 }} title="Every stamp that came through on this set — assign from here" onClick={() => setView("all")}>All stamps · {allCands.length}</button>

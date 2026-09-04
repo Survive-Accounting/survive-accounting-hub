@@ -46,7 +46,7 @@ import { Emph, HighlightContext, SEL_EMPH_CSS, readRangeIn, useTextHighlights, w
 import { renderInline } from "./inline-md";
 import { activeSlots, CARD_H, CARD_W, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf, resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
 export { activeSlots, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf } from "./ceq-geom";
-import { CalloutBody, calloutKindForCategory, calloutMeta, detourAccent, nextCalloutKind } from "./cards/CalloutCard";
+import { CalloutBody, GlowLabel, calloutKindForCategory, calloutMeta, detourAccent, nextCalloutKind } from "./cards/CalloutCard";
 import { captureAcceptable, captureCssSize, captureFeasibility, physicalSize, snapCaptureSize, verticalObsNote } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
 import { cycleExhibitModes, exhibitDepthKey, exhibitOrderKey, exhibitRevealKey } from "./exhibit-modes";
@@ -72,7 +72,7 @@ import { bus, patchDataCmd, type RfLike } from "./commands";
 import { STAGE_NODE_TYPES, stageNodeType } from "./stage-elements";
 import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SuperTone } from "./spotlight";
 import { CHAINED_MARKER, NEON, PAPER } from "./theme";
-import { clampScale, type CalloutSettings, type CeqCard, type CeqChainItem, type CeqInstanceGeom, type DeckLayout, type DeckSlotLayout } from "./types";
+import { clampScale, type CalloutKind, type CalloutSettings, type CeqCard, type CeqChainItem, type CeqInstanceGeom, type DeckLayout, type DeckSlotLayout } from "./types";
 
 /** Practice state read by the CEQ mock (emphasis + which choices are resolved). */
 const PracticeContext = createContext<{ emph: number | null; resolved: Set<number>; select?: (i: number) => void; resolveChoice?: (i: number) => void; toggleBoss?: () => void }>({ emph: null, resolved: new Set() });
@@ -185,6 +185,10 @@ export const PV_CSS = `
    black when it lands; film only. */
 @keyframes sa-outro-fade { from { opacity: 0; } to { opacity: 1; } }
 .film-mode .sa-outro-fade { animation: sa-outro-fade 1.3s ease-out both; }
+/* THE DETOUR HEADING's glow (2026-09-04) — the wordmark's powder sweep through the kind's name above the box. */
+@keyframes sa-glow-sweep { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+.sa-glow-sweep { animation: sa-glow-sweep 14s linear infinite alternate; }
+@media (prefers-reduced-motion: reduce) { .sa-glow-sweep { animation: none; } }
 .sa-detour-spot { transform: scale(1.06) !important; transform-origin: center center; background: rgba(255,255,255,0.06); animation: sa-lsd 3.4s ease-in-out infinite !important; opacity: 1 !important; position: relative; z-index: 3; }
 @media (prefers-reduced-motion: reduce) { .sa-detour-spot { animation: none !important; } }
 /* THE CEQ PIN (Lee, 09-01) — z-order between ReactFlow nodes belongs to the
@@ -553,7 +557,7 @@ function FrameBgNode({ id, data }: NodeProps) {
   // frame, it replaces the world — black stage, the zoom behind the intro, the
   // still white wordmark on the opening summary.
   const world = bare && d.backdrop
-    ? <BoltZoom w={d.w} h={d.h} mode={d.backdrop === "knockout" ? "summary" : "backdrop"} live={film} style={{ position: "absolute", inset: 0 }} />
+    ? <BoltZoom w={d.w} h={d.h} mode="backdrop" live={film} style={{ position: "absolute", inset: 0 }} />
     : d.world ? <WorldBackground worldId={d.world} intensity={d.worldIntensity} motion={d.worldMotion} /> : null;
   const banner = bare && d.banner ? <CampusBanner w={d.w} h={d.h} live={film} /> : null;
   if (bare && !film) return (
@@ -696,6 +700,9 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
   // YOUR EXAM — so the opening and closing summaries match the detours.
   const summaryCard = isCallout && !!(d as { noteOnly?: boolean }).noteOnly && !d.callout?.kind && !d.callout?.hidden;
   const detour = isCallout && (!!d.callout?.detour || summaryCard) && !d.callout?.hidden;
+  // The detour's kind (the summary is FOUND ON YOUR INTRO EXAM) — its name is
+  // the glow heading ABOVE the navy box, its accent the box's edge.
+  const detourKind: CalloutKind | undefined = detour ? (d.callout?.kind ?? (summaryCard ? "found-on-exam" : undefined)) : undefined;
   const rflW = useContext(CardWriteCtx);
   const patchCallout = (patch: Partial<CalloutSettings>) => {
     if (!rflW) return;
@@ -712,7 +719,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
     setBulletEdit(null);
   };
   return (
-    <div data-ceq-card="" onPointerDownCapture={film ? startAltMove : undefined} onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? (detour ? ((d as { cardW?: number }).cardW ?? CARD_W) : 320) * s : undefined, maxWidth: isCallout ? ((d as { cardW?: number }).cardW ?? CARD_W) * s : undefined, borderRadius: 14 * s, background: bareFilm ? "transparent" : detour ? PAPER.navy : PAPER.card, border: bareFilm ? "none" : d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : detour ? `1.5px solid ${detourAccent(d.callout?.kind)}99` : `1px solid ${PAPER.cardEdge}`, boxShadow: bareFilm ? "none" : "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
+    <div data-ceq-card="" onPointerDownCapture={film ? startAltMove : undefined} onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? (detour ? ((d as { cardW?: number }).cardW ?? CARD_W) : 320) * s : undefined, maxWidth: isCallout ? ((d as { cardW?: number }).cardW ?? CARD_W) * s : undefined, borderRadius: 14 * s, background: bareFilm || detour ? "transparent" : PAPER.card, border: bareFilm || detour ? "none" : d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: bareFilm || detour ? "none" : "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
       {/* BOSS (P3): the boiling bolt sweeps in with the charge — no text, no sound. */}
       {/* The persistent top-right boss bolt is GONE (Lee, 08-17): it collided with
           the counter, and a bolt standing in frame is a burned-in watermark — the
@@ -740,7 +747,10 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
       )}
       {/* CLIP — a spotlit choice's scale + glow stays INSIDE the CEQ box (never spills
           into the frame on a take). The ScaleGrip lives OUTSIDE this clip. */}
-      <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s }}>
+      {/* THE DETOUR HEADING sits above the navy box (2026-09-04), so the card
+          root is transparent and the box below carries the navy and the edge. */}
+      {detourKind && !stemEditing && <GlowLabel text={calloutMeta(detourKind).label} scale={s} />}
+      <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s, ...(detour ? { background: PAPER.navy, border: `1.5px solid ${detourAccent(detourKind)}99`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)" } : {}) }}>
       {/* TOPIC kicker — name only (no Ch#), small uppercase above the stem so a
           viewer landing mid-clip knows the topic. */}
       {!isCallout && d.topic && <div style={{ display: "flex", alignItems: "center", gap: 6 * s, fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{/* no bolt here either — see the note above the boss bolt */}<span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</span></div>}
@@ -763,6 +773,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
             highlights={(d.calloutMemos ?? []).map((m) => m.label)}
             bolt={d.callout?.bolt}
             dark={detour}
+            headerOutside={detour}
             onEditBullet={film ? undefined : (i) => setBulletEdit({ i, draft: d.callout?.extraStems?.[i] ?? "" })}
           />
         </div>
@@ -3262,7 +3273,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                         zone, low opacity, never catches the pointer. */}
                     {/* …except on the frames that already carry the wordmark — the cold
                         open, the intro, the opening summary (Lee: "redundant"). */}
-                    {!(cd?.filmBackdrop || cd?.blastKind === "open" || cd?.blastKind === "intro" || cd?.blastKind === "outro" || cd?.blastKind === "bolt" || cd?.blastKind === "ad") && (
+                    {!(cd?.blastKind === "open" || cd?.blastKind === "intro" || cd?.blastKind === "outro" || cd?.blastKind === "bolt" || cd?.blastKind === "ad") && (
                       <div aria-hidden style={{ position: "absolute", left: "4%", top: "3.2%", zIndex: 9, opacity: 0.62, pointerEvents: "none", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.6))" }}>
                         <SurviveWordmark size={Math.max(18, Math.round((filmRootRef.current?.clientWidth ?? 540) * 0.052))} />
                       </div>

@@ -8,7 +8,7 @@
 // the /film capture all mount this, at different widths, with the same rules
 // for the backdrop, the banner and the watermark.
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
-import { BoltZoom, CampusBanner } from "@/components/brand-cards/BoltZoom";
+import { CampusBanner } from "@/components/brand-cards/BoltZoom";
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 
 import { FrameView } from "./frame-view";
@@ -29,11 +29,11 @@ export function phoneScale(frame: BlastFrame, w: number): number {
 }
 
 /** Does the film watermark (the wordmark, top-left) belong on this frame? Not
- *  on the brand slides, the bolt detour, an ad, or the summary knockout — the
- *  same rule the canvas popout applies to `blastKind` / `filmBackdrop`. */
-export function watermarkOn(frame: BlastFrame, backdrop: ReturnType<typeof backdropFor>): boolean {
-  if (isFullFrame(frame.kind)) return false;
-  return backdrop !== "knockout";
+ *  on the brand slides, the bolt detour or an ad — every card slide carries it,
+ *  the opening summary included (Lee, 2026-09-04: "opening summary just shift
+ *  to watermark there. Not the survive accounting at top"). */
+export function watermarkOn(frame: BlastFrame, _backdrop: ReturnType<typeof backdropFor>): boolean {
+  return !isFullFrame(frame.kind);
 }
 
 export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style }: {
@@ -56,9 +56,6 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   const tag: React.CSSProperties = { position: "absolute", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(125,211,252,0.7)", fontWeight: 800 };
   return (
     <div style={{ width: w, height: h, background: "#000", borderRadius: rounded ? Math.round(w * 0.072) : 0, border: rounded ? "1px solid rgba(244,239,230,0.16)" : "none", position: "relative", overflow: "hidden", display: "grid", placeItems: "center", opacity: dim ? 0.5 : 1, ...style }}>
-      {/* THE SUMMARY KNOCKOUT: "Survive / Accounting" in the powder glow above
-          the FOUND ON YOUR EXAM card. A plain "backdrop" is just the black. */}
-      {backdrop === "knockout" && <BoltZoom w={w} h={h} mode="summary" live={live} style={{ position: "absolute", inset: 0 }} />}
       {frame.kind !== "open" && frame.banner === "on" && <CampusBanner w={w} h={h} live={live} />}
       {/* THE WATERMARK — the wordmark with the live bolt in the "i", top-left,
           sized like the film popout's (5.2% of the width). */}

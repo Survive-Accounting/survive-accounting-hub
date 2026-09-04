@@ -34,7 +34,7 @@ export const TUTOR_META = { label: "MEET YOUR TUTOR", accent: "#C62828", tint: "
 /** THE SUMMARY SLIDE (Lee, 2026-09-03: "the found on your exam should also
  *  look more like the detour cards. Keep it consistent"): the set's own
  *  note-only card, drawn in the detour skin with this label. */
-export const FOUND_META = { label: "FOUND ON YOUR EXAM", accent: "#FCA311", tint: "rgba(252,163,17,0.12)" } as const;
+export const FOUND_META = { label: "FOUND ON YOUR INTRO EXAM", accent: "#FCA311", tint: "rgba(252,163,17,0.12)" } as const;
 export function calloutMeta(kind: CalloutKind): { label: string; accent: string; tint: string } {
   return kind === "tutor" ? TUTOR_META : kind === "found-on-exam" ? FOUND_META : CALLOUT_KINDS[kind];
 }
@@ -77,6 +77,8 @@ export interface CalloutBodyProps {
    *  ==key phrase== highlighted gold-on-navy. The shell paints the navy;
    *  this only changes the ink. */
   dark?: boolean;
+  /** The kind label is drawn ABOVE the navy box by the card (GlowLabel) — skip the in-box header. */
+  headerOutside?: boolean;
 }
 
 /** Detour palette — brand gold on brand navy, cream ink. */
@@ -115,7 +117,7 @@ export type LineSpotOf = (key: string) => LineSpot;
 
 /** The callout's face — cream card interior, navy text, orange corner accent.
  *  Rendered INSIDE the existing card shell (which owns width/drag/scale). */
-export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, highlights = [], bolt, onEditBullet, dark = false, footer, lineSpot }: CalloutBodyProps) {
+export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, highlights = [], bolt, onEditBullet, dark = false, footer, lineSpot, headerOutside = false }: CalloutBodyProps) {
   const spotProps = (key: string): { className?: string; onPointerDownCapture?: (e: React.PointerEvent) => void } => {
     if (!lineSpot) return {};
     const ls = lineSpot(key);
@@ -143,7 +145,7 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
           {meta.label}
         </div>
       )}
-      {meta && dark && (
+      {meta && dark && !headerOutside && (
         // THE DETOUR MOMENT (Lee, 2026-09-03): "more eye catching than the navy
         // on navy … big labels … very scannable … a subtle flashing animation
         // on the chip/title, like a neon sign … the boiling bolt needs to make
@@ -217,6 +219,26 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** THE DETOUR HEADING (Lee, 2026-09-04): "put 'Found on your intro' ABOVE the
+ *  box … same glowing text, same bolt, but just bigger and more readable. This
+ *  is how I want to grab students' attention. In fact, try all the detours
+ *  like this." The kind's name in the wordmark's powder glow — white · powder
+ *  blue · sky rolling through the letters — with the boiling bolt beside it,
+ *  drawn by the card above the navy box (CeqPreviewNode), not inside it.
+ *  Motion is the .sa-glow-sweep rule in PV_CSS. */
+export function GlowLabel({ text, scale: s, live = true }: { text: string; scale: number; live?: boolean }) {
+  const ink: React.CSSProperties = {
+    backgroundImage: "linear-gradient(115deg, #FFFFFF 0%, #B3E5FC 28%, #7DD3FC 50%, #FFFFFF 72%, #B3E5FC 100%)",
+    backgroundSize: "300% 100%", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 * s, marginBottom: 10 * s, paddingLeft: 2 * s, filter: `drop-shadow(0 0 ${Math.round(8 * s)}px rgba(179,229,252,0.32))` }}>
+      <BoltBoil height={40 * s} style={{ flex: "0 0 auto" }} />
+      <span className={live ? "sa-glow-sweep" : undefined} style={{ ...ink, fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: 30 * s, letterSpacing: "0.1em", textTransform: "uppercase", lineHeight: 1.02, textWrap: "balance" as never }}>{text}</span>
     </div>
   );
 }

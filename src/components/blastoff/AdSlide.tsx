@@ -2,13 +2,16 @@
 //
 // Lee (2026-09-04): "go ahead and go for making the ads, similar ones we have in
 // /learn already — for sharing with fraternity and sorority, for campus reps,
-// for sending in syllabi (surviveaccounting.com/send)." The copy is the site's
-// own: the Greek door's "Exam 1 is free for your whole fraternity or sorority",
-// the rep programme's self-serve sign-up, and the syllabus intake. No numbers
-// we cannot stand behind — nothing here says how many students or campuses.
+// for sending in syllabi (surviveaccounting.com/send)." Then, after seeing them:
+// "the greek ad is fantastic. Make survive up top match what we have in cold
+// open … /greek is cutting off … the link itself may need a link icon, and a
+// bit less font weight — it's competing with the headline." The copy below is
+// his, word for word. No numbers we cannot stand behind beyond the ones he set.
 //
-// Black, the glow wordmark in the same place as slides one and two, the pitch,
-// the address big at the bottom, and the campus ticker where it earns its keep.
+// Black, the glow wordmark exactly as on slide one, the pitch, GO TO + the
+// address (lighter, smaller, with a link mark), and the campus ticker.
+import { ArrowUpRight } from "lucide-react";
+
 import { BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
 import { CampusBanner, GlowWordmark, WORDMARK_SIZE } from "@/components/brand-cards/BoltZoom";
 
@@ -21,22 +24,22 @@ const GOLD = "#FCA311";
 export const ADS: Record<AdKind, { label: string; headline: string; lines: string[]; url: string; banner: boolean }> = {
   greek: {
     label: "Fraternities & sororities",
-    headline: "Exam 1 is free for your whole chapter.",
-    lines: ["Send this to your scholarship chair.", "Every member, every Exam 1 topic.", "One link does it."],
+    headline: "Exam 1 is free for your whole chapter",
+    lines: ["Send this to your scholarship chair", "Set up chapter access in minutes", "Boost GPAs on autopilot"],
     url: "surviveaccounting.com/greek",
     banner: true,
   },
   rep: {
     label: "Campus reps",
-    headline: "Get paid to spread Survive on your campus.",
-    lines: ["Post it. Send it. Tell your study group.", "Sign up yourself, get your own dashboard."],
+    headline: "Get paid to share Survive on your campus",
+    lines: ["Share free Exam 1 with Greek chapters", "Get 10% commissions + bonuses", "Easiest side gig imaginable"],
     url: "surviveaccounting.com/rep",
     banner: true,
   },
   send: {
     label: "Send in your syllabus",
     headline: "Send me your syllabus. I'll cram what's on your exam.",
-    lines: ["Any accounting class, any campus.", "The cram sets are built from what your professor tests."],
+    lines: ["Any accounting class, any campus", "The cram sets are built from what your professor tests"],
     url: "surviveaccounting.com/send",
     banner: false,
   },
@@ -50,12 +53,12 @@ export function AdSlide({ ad, w, h, live = true }: { ad: AdKind; w: number; h: n
   return (
     <div style={{ position: "relative", width: w, height: h, overflow: "hidden", background: "#000", fontFamily: FONT, color: BRAND_CREAM }}>
       <div style={{ position: "absolute", left: 0, right: 0, top: Math.round(h * 0.10), display: "flex", justifyContent: "center", pointerEvents: "none" }}>
-        <GlowWordmark size={Math.round(h * WORDMARK_SIZE * 0.8)} live={live} />
+        <GlowWordmark size={Math.round(h * WORDMARK_SIZE)} live={live} />
       </div>
-      <div style={{ position: "absolute", left: pad, right: pad, top: Math.round(h * 0.235), display: "flex", flexDirection: "column", gap: Math.round(h * 0.018) }}>
+      <div style={{ position: "absolute", left: pad, right: pad, top: Math.round(h * 0.245), display: "flex", flexDirection: "column", gap: Math.round(h * 0.018) }}>
         <div style={{ alignSelf: "flex-start", padding: `${Math.round(h * 0.006)}px ${Math.round(h * 0.014)}px`, borderRadius: Math.round(h * 0.008), fontSize: Math.round(h * 0.016), fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase", color: GOLD, background: "rgba(252,163,17,0.14)", border: "1px solid rgba(252,163,17,0.3)" }}>{a.label}</div>
         <div style={{ fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(h * 0.046), lineHeight: 1.06, letterSpacing: "0.005em", textWrap: "balance" as never }}>{a.headline}</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: Math.round(h * 0.008), marginTop: Math.round(h * 0.006) }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: Math.round(h * 0.009), marginTop: Math.round(h * 0.008) }}>
           {a.lines.map((l, i) => (
             <div key={i} style={{ display: "flex", gap: Math.round(h * 0.012), alignItems: "baseline", fontSize: Math.round(h * 0.024), fontWeight: 600, lineHeight: 1.3, color: "rgba(245,239,230,0.88)" }}>
               <span style={{ color: GOLD, fontWeight: 900 }}>–</span><span>{l}</span>
@@ -63,9 +66,14 @@ export function AdSlide({ ad, w, h, live = true }: { ad: AdKind; w: number; h: n
           ))}
         </div>
       </div>
-      <div style={{ position: "absolute", left: pad, right: pad, top: Math.round(h * 0.62), display: "flex", flexDirection: "column", gap: Math.round(h * 0.008) }}>
+      <div style={{ position: "absolute", left: pad, right: pad, top: Math.round(h * 0.63), display: "flex", flexDirection: "column", gap: Math.round(h * 0.008) }}>
         <div style={{ fontSize: Math.round(h * 0.015), fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(245,239,230,0.55)" }}>go to</div>
-        <div style={{ fontWeight: 900, fontSize: Math.round(h * 0.03), letterSpacing: "0.01em", color: "#FFFFFF", wordBreak: "break-all" }}>{a.url}</div>
+        {/* lighter and smaller than the headline, so it reads as the address,
+            not as a second headline; sized so "/greek" never clips */}
+        <div style={{ display: "flex", alignItems: "center", gap: Math.round(h * 0.008), fontWeight: 600, fontSize: Math.round(h * 0.0235), letterSpacing: "0.005em", color: "#FFFFFF", whiteSpace: "nowrap" }}>
+          <ArrowUpRight size={Math.round(h * 0.024)} strokeWidth={2.5} color={GOLD} style={{ flex: "0 0 auto" }} />
+          <span>{a.url}</span>
+        </div>
       </div>
       {a.banner && <CampusBanner w={w} h={h} live={live} />}
     </div>
