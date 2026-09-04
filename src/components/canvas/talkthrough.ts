@@ -485,14 +485,21 @@ export const isSessionIdle = (d: TTDoc, s: TalkSession, now = Date.now()): boole
 export const STYLE_KINDS = ["script", "exhibit", "memo", "short", "general"] as const;
 export type StyleKind = (typeof STYLE_KINDS)[number];
 
-/** Which style-note bucket an item's generations draw from. */
-export function styleKindFor(item: BoardItem): StyleKind {
-  if (item.kind === "script" || item.kind === "vibe_plan") return "script";
-  const k = item.kind === "idea" ? String((item.payload as { kind?: string }).kind ?? "") : item.kind;
+/** Which style-note bucket a KIND draws from — a board kind, or the card kind
+ *  inside an idea payload (B8's per-stamp tasks know the kind before an item
+ *  exists, so this half is callable without one). */
+export function styleKindForKind(k: string): StyleKind {
+  if (k === "script" || k === "vibe_plan") return "script";
   if (k === "exhibit" || k === "visual") return "exhibit";
   if (k === "memo" || k === "phrase" || k === "trigger_word" || k === "memorize_this" || k === "cheat_code") return "memo";
   if (k === "short" || k === "nerdout" || k === "deeper_idea") return "short";
   return "general";
+}
+
+/** Which style-note bucket an item's generations draw from. */
+export function styleKindFor(item: BoardItem): StyleKind {
+  if (item.kind === "script" || item.kind === "vibe_plan") return "script";
+  return styleKindForKind(item.kind === "idea" ? String((item.payload as { kind?: string }).kind ?? "") : item.kind);
 }
 
 /** Up to N recent APPROVED items of a style kind, newest first, trimmed —

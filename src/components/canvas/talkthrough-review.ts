@@ -15,7 +15,7 @@ import { runMicro, runTalkthroughReview } from "@/lib/talkthrough.functions";
 
 import {
   STAMP_LABELS, canonicalStamp, emptyProgress, isGenerating, isSessionIdle, makeTag, newTTId, recentApprovedExamples,
-  segmentsInContext, sessionBoard, sessionSegments, sessionTags, styleKindFor, styleNotesFor,
+  segmentsInContext, sessionBoard, sessionSegments, sessionTags, styleKindFor, styleKindForKind, styleNotesFor,
   type BoardItem, type GenerationProgress, type TTDoc, type TalkSession,
 } from "./talkthrough";
 import {
@@ -384,7 +384,7 @@ async function runGenTask(
 
   // idea — one stamp, one card, his words proofread.
   const ceq = task.ceqId ? req.ceqs.find((c) => c.id === task.ceqId) ?? null : null;
-  const styleKind = styleKindFor({ kind: "idea", payload: { kind: task.stampKind } } as BoardItem);
+  const styleKind = styleKindForKind(task.stampKind ?? "");
   const msgs = buildIdeaMessages({
     stampKind: task.stampKind ?? "cheat_code",
     setName: req.session.setName,
