@@ -91,20 +91,17 @@ function markGeneration(sessionId: string, patch: Partial<SessionGeneration>): v
 
 /** IDEMPOTENCE (2026-09-04). The synthesis is ONE call that writes a whole
  *  board, so the only honest unit of "already done" is the board itself: a
- *  script item for this session means the pass landed. Re-queueing then would
- *  pay twice and stack a second set of suggestions on Lee's board, which is
- *  exactly what an interrupted-and-reopened tab used to do. */
+ *  script item for this session means the pass landed.
+ *
+ *  This gates RESUME, not queueReview. "Regenerate review" in the session
+ *  view deliberately re-runs a session that already has a board — making
+ *  queueReview itself no-op would turn that button into a dead one, silently.
+ *  A resume is the opposite intent: pick up only what is missing. */
 export const reviewAlreadyLanded = (doc: TTDoc, sessionId: string): boolean =>
   sessionBoard(doc, sessionId).some((b) => b.kind === "script" && !b.archivedAt);
 
-/** Queue the End Session synthesis. Fire-and-forget; status via reviewStateOf.
- *  A pass whose board already landed is a NO-OP — see reviewAlreadyLanded. */
+/** Queue the End Session synthesis. Fire-and-forget; status via reviewStateOf. */
 export function queueReview(req: ReviewRequest): void {
-  if (reviewAlreadyLanded(ttState().doc, req.session.id)) {
-    markGeneration(req.session.id, { completedAt: new Date().toISOString(), error: null });
-    set(req.session.id, "idle");
-    return;
-  }
   // The REQUEST is recorded before the call, so a tab that dies mid-pass
   // leaves behind what Lee asked for — the resume replays these exact
   // choices instead of guessing them.

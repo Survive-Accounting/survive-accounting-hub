@@ -295,7 +295,12 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
    *  lands, and right on another machine once the pull arrives. */
   const plan: GenerationPlan = useMemo(() => generationPlan(tt.doc, session), [tt.doc, session]);
   const generating = plan.resumable.filter((t) => inFlight.current.has(t.key)).length;
-  const owed = plan.resumable.filter((t) => t.kind === "ceq_edit" && !inFlight.current.has(t.key)).length;
+  /** What a Resume press here would ACTUALLY run: edit drafts, not already
+   *  running, whose CEQ is in the set this booth loaded. A stamp whose
+   *  question has left the bank can never be drafted, so offering to resume it
+   *  would be a button that does nothing — the honest count leaves it out. */
+  const owed = plan.resumable.filter((t) =>
+    t.kind === "ceq_edit" && !inFlight.current.has(t.key) && !!set?.ceqs.some((c) => c.id === t.ceqId)).length;
 
   const clickCeq = (c: BoothCeq | null) => setFocusId(c?.id ?? null);
   const clickExhibit = (id: string | null) => setExhibitId(id);
@@ -371,12 +376,18 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const fireEditDraft = (closed: TalkTag) => {
     const stamp = canonicalStamp(closed.tag);
     if (!stamp || !(EDIT_STAMPS as readonly string[]).includes(stamp)) return;
+    // CLAIM THE KEY NOW. For the 1.4s below the task is derivable but has no
+    // board item yet, which reads as "owed" — without this the resume bar
+    // would flash "Generation was interrupted" after every single stamp.
+    inFlight.current.add(closed.id);
+    bump();
     // Give the in-flight chunk a beat to persist its live text, then draft off
     // the store — the plan derives this stamp's task the same way a resume on
     // the next page load will, so the two can never disagree.
     window.setTimeout(() => {
       const task = editTasksFor(ttState().doc, session.id).find((t) => t.tagId === closed.id);
-      if (task) runEditDraft(task);
+      inFlight.current.delete(closed.id); // runEditDraft re-claims it if it starts
+      if (!task || !runEditDraft(task)) bump();
     }, 1400);
   };
 
@@ -549,9 +560,8 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
           owed={owed}
           note={resumeNote}
           onResume={() => {
-            const n = plan.resumable.filter((t) => t.kind === "ceq_edit").length;
             resumeGeneration();
-            setResumeNote(n ? `picking up ${n} draft${n === 1 ? "" : "s"} — nothing already written is being redone` : null);
+            setResumeNote(`picking up ${owed} draft${owed === 1 ? "" : "s"} — nothing already written is being redone`);
           }}
         />
         <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
