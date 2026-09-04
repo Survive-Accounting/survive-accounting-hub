@@ -7,6 +7,8 @@
 // without an import cycle. Nothing here re-implements a card — a set frame
 // renders its stem and choices, an insert renders as the callout kind it
 // becomes when it lands in the set.
+import { useContext } from "react";
+
 import type { BoothCeq, BoothSetInfo } from "@/lib/talkthrough.functions";
 import { CARD_W } from "@/components/canvas/ceq-geom";
 import { renderInline } from "@/components/canvas/inline-md";
@@ -20,6 +22,7 @@ import { BIO_CARD, bioCallout } from "./bio-card";
 import { V } from "./stage";
 import { SurviveOutro } from "./SurviveOutro";
 import { INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isStandard, type BlastFrame } from "./plan";
+import { SlideEditContext } from "./slide-edit";
 
 const GOLD = "#FCA311";
 
@@ -54,6 +57,8 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   const s = scale * 0.34;
   const ov = cardOverride ?? {};
   const fw = Math.round(V.w * s), fh = Math.round(V.h * s);
+  // THE REVIEW STAGE'S CLICK-TO-EDIT (2026-09-04): present only there.
+  const edit = useContext(SlideEditContext);
 
   // THE STANDARD SPINE renders as the vertical 9:16 frame it actually is —
   // these are brand cards, not CEQ cards, and showing them in the silver card
@@ -62,8 +67,11 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // SLIDES ONE AND TWO are one component (BoltZoom open / intro) so the
     // wordmark sits in the same place on both — Lee: "Make the Survive stay in
     // line between slides 1 and 2 so when I switch it doesn't look like I did."
-    if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} live />;
-    if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} live />;
+    // open: tagline = text, domain = url · intro: topic = text, the tutor line = title, domain = url
+    if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} tagline={frame.text?.trim() || undefined} domain={frame.url?.trim() || undefined} live
+      onEdit={edit ? (p) => edit({ ...(p.tagline !== undefined ? { text: p.tagline } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
+    if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} tutorLine={frame.title?.trim() || undefined} domain={frame.url?.trim() || undefined} banner={frame.banner !== "off"} live
+      onEdit={edit ? (p) => edit({ ...(p.topic !== undefined ? { text: p.topic } : {}), ...(p.tutorLine !== undefined ? { title: p.tutorLine } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
     // THE TUTOR CARD (2026-09-03): the bio in the detour format, a bit bigger.
     if (frame.kind === "bio") {
       // THE PORTRAIT (2026-09-04): Lee, hand-drawn, inked on in the /learn lime
@@ -82,7 +90,8 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   // THE BOLT DETOUR (Lee, 2026-09-04): "just black backdrop and the bolt zoom
   // animation. Nothing else … a blank canvas to put things on."
   if (frame.kind === "bolt") return <BoltZoom w={fw} h={fh} mode="bolt" variant={isZoomVariant(frame.variant) ? frame.variant : "zoom"} psych={frame.psych ?? 0.1} live />;
-  if (frame.kind === "ad") return <AdSlide ad={isAdKind(frame.ad) ? frame.ad : "greek"} w={fw} h={fh} live copy={{ label: frame.text, headline: frame.title, lines: frame.bullets, url: frame.url }} />;
+  if (frame.kind === "ad") return <AdSlide ad={isAdKind(frame.ad) ? frame.ad : "greek"} w={fw} h={fh} live copy={{ label: frame.text, headline: frame.title, lines: frame.bullets, url: frame.url }}
+    onEdit={edit ? (p) => edit({ ...(p.label !== undefined ? { text: p.label } : {}), ...(p.headline !== undefined ? { title: p.headline } : {}), ...(p.lines !== undefined ? { bullets: p.lines } : {}), ...(p.url !== undefined ? { url: p.url } : {}) }) : undefined} />;
 
   if (frame.kind === "ceq") {
     const ceq: BoothCeq | undefined = frame.ceqId ? set.ceqs.find((c) => c.id === frame.ceqId) : undefined;

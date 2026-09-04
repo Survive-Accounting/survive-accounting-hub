@@ -85,7 +85,7 @@ export function BlastOpenNode({ id, data, selected }: NodeProps) {
         <button className={ELEM_BTN} style={{ color: d.banner !== false ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
           onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ banner: d.banner === false }); }} title="The campus banner along the lower third">banner</button>
       </>}>
-      <BoltZoom w={w} h={h} mode={d.bare ? "bolt" : "open"} variant={isZoomVariant(d.variant) ? d.variant : "zoom"} psych={d.psych ?? 0.1} banner={d.banner !== false} live />
+      <BoltZoom w={w} h={h} mode={d.bare ? "bolt" : "open"} tagline={d.tagline} domain={d.domain} variant={isZoomVariant(d.variant) ? d.variant : "zoom"} psych={d.psych ?? 0.1} banner={d.banner !== false} live />
     </BlastShell>
   );
 }
@@ -119,7 +119,7 @@ export function BlastIntroNode({ id, data, selected }: NodeProps) {
           onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ tutor: e.target.value })} />
         <KeyBtn on={d.transparent} onClick={() => update({ transparent: !d.transparent })} />
       </>}>
-      <BoltZoom w={w} h={h} mode="intro" topic={d.topic || "Set name"} tutor={d.tutor || "Lee Ingram"} live />
+      <BoltZoom w={w} h={h} mode="intro" topic={d.topic || "Set name"} tutor={d.tutor || "Lee Ingram"} tutorLine={d.tutorLine} domain={d.domain} banner={d.banner !== false} live />
     </BlastShell>
   );
 }

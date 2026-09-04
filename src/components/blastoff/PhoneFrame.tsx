@@ -67,7 +67,7 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   const tag: React.CSSProperties = { position: "absolute", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(125,211,252,0.7)", fontWeight: 800 };
   return (
     <div className={capture ? "film-mode" : undefined} data-sa-phone="" style={{ width: w, height: h, background: "#000", borderRadius: rounded ? Math.round(w * 0.072) : 0, border: rounded ? "1px solid rgba(244,239,230,0.16)" : "none", position: "relative", overflow: "hidden", display: "grid", placeItems: "center", opacity: dim ? 0.5 : 1, ...style }}>
-      {frame.kind !== "open" && frame.banner === "on" && <CampusBanner w={w} h={h} live={live} />}
+      {frame.kind !== "open" && frame.kind !== "intro" && frame.banner === "on" && <CampusBanner w={w} h={h} live={live} />}
       {/* THE WATERMARK — the wordmark with the live bolt in the "i", top-left,
           sized like the film popout's (5.2% of the width). */}
       {watermarkOn(frame, backdrop) && (

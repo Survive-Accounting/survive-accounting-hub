@@ -848,6 +848,9 @@ export interface BlastOpenElement extends CardBase {
   transparent?: boolean;
   /** THE BOLT DETOUR (2026-09-04): black + the animation, no wordmark, no banner. */
   bare?: boolean;
+  /** The frame's own lines (2026-09-04); absent = the defaults. */
+  tagline?: string;
+  domain?: string;
 }
 /** AN AD SLIDE (2026-09-04) — one of the three ads in blastoff/AdSlide.tsx. */
 export interface BlastAdElement extends CardBase {
@@ -865,6 +868,11 @@ export interface BlastIntroElement extends CardBase {
   topic?: string;
   tutor?: string;
   transparent?: boolean;
+  /** The whole line under the topic (2026-09-04); default "tutored by <tutor>". */
+  tutorLine?: string;
+  domain?: string;
+  /** The campus ticker carries from the open into the intro; false hides it. */
+  banner?: boolean;
 }
 export interface BlastFoyeElement extends CardBase {
   kind: "blastfoye";
