@@ -16,7 +16,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
-import { listSessions, progressLine, sessionBoard, type TalkSession } from "@/components/canvas/talkthrough";
+import { isGenerating, listSessions, progressLine, sessionBoard, type TalkSession } from "@/components/canvas/talkthrough";
 import { generationProgressOf, reviewStateOf, subscribeReview } from "@/components/canvas/talkthrough-review";
 import { startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { blastOffPath, topicOfSet, useBank } from "@/components/v3/use-bank";
@@ -56,7 +56,10 @@ export function GenerationDock() {
         || (rs.state === "ready" && s.endedAt && now - new Date(s.endedAt).getTime() < DAY))
       .slice(0, 12);
   }, [tt.doc]);
-  const busy = rows.filter((r) => r.rs.state === "queued" || r.rs.state === "generating").length;
+  // B8: the incremental queue writes the script FIRST, so a run mid-flight
+  // already reads "ready" off the board. The progress entry is the truth about
+  // whether anything is still being generated.
+  const busy = rows.filter((r) => r.rs.state === "queued" || r.rs.state === "generating" || isGenerating(generationProgressOf(r.s.id))).length;
 
   // The bolt boils while something is generating; still when idle.
   useEffect(() => {
@@ -99,7 +102,7 @@ export function GenerationDock() {
                       {state}{rs.state === "ready" && board ? ` · ${board} suggestions` : ""}{rs.error ? ` · ${rs.error.slice(0, 40)}` : ""}
                     </div>
                     {/* B8 — the incremental queue's own count, item by item. */}
-                    {prog && (rs.state === "generating" || rs.state === "queued") && (
+                    {prog && isGenerating(prog) && (
                       <div style={{ fontSize: 10, color: V3_MUTED }}>{progressLine(prog)} · {prog.completed}/{prog.total}</div>
                     )}
                   </div>

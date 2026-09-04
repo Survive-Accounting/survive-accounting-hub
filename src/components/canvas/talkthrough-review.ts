@@ -266,8 +266,10 @@ export function queueIncrementalReview(req: ReviewRequest): void {
       const tags = sessionTags(doc, sid);
       const knownIds = new Set(req.ceqs.map((c) => c.id));
 
-      // Every tap-stamp, with the words spoken inside its window. Same rule the
-      // one-shot pass uses — a visual's follow-up tap rides in front of them.
+      // Every tap-stamp, with the words spoken inside its window. `spoken` is
+      // HIS WORDS ONLY — it becomes the item's quote and the idea prompt's
+      // content, so the follow-up tap (a visual's kind) rides in `note`, not
+      // glued to the front of the transcript.
       const stamps: GenStamp[] = tags
         .filter((t) => t.source === "tap" && canonicalStamp(t.tag))
         .map((t) => ({
@@ -277,7 +279,7 @@ export function queueIncrementalReview(req: ReviewRequest): void {
           ceqId: t.focusedCeqId ?? null,
           ceqLabel: t.focusedCeqLabel ?? null,
           note: t.note ?? null,
-          spoken: t.starred ? "" : `${t.note ? `[${t.note}] ` : ""}${segmentsInContext(segs, t).map((x) => x.text.trim()).filter(Boolean).join(" ")}`.slice(0, 8000),
+          spoken: t.starred ? "" : segmentsInContext(segs, t).map((x) => x.text.trim()).filter(Boolean).join(" ").slice(0, 8000),
         }));
 
       // The booth already drafts a CEQ edit the moment an edit context closes.
@@ -333,7 +335,9 @@ async function runGenTask(
         setName: req.session.setName,
         ceqs: req.ceqs,
         segments: segs.map((s) => ({ id: s.id, seq: s.seq, text: s.text, focusedCeqId: s.focusedCeqId ?? null, focusedCeqLabel: s.focusedCeqLabel ?? null, source: s.source, whisperPending: s.whisperPending })),
-        stamps: stamps.map((s) => ({ kind: s.kind, ceqLabel: s.ceqLabel, starred: s.starred, spoken: s.spoken })),
+        // The synthesis lane reads the stamps the way the one-shot pass does:
+        // the follow-up tap in front of the words, so it sees the whole moment.
+        stamps: stamps.map((s) => ({ kind: s.kind, ceqLabel: s.ceqLabel, starred: s.starred, spoken: `${s.note && s.spoken ? `[${s.note}] ` : ""}${s.spoken}`.slice(0, 8000) })),
         excludedKinds: req.excludedKinds,
         styleNotes: [...styleNotesFor(doc, "script"), ...recentApprovedExamples(doc, "script").map((e) => `EXAMPLE (approved earlier): ${e}`)].slice(0, 12),
         wantVibePlan: req.wantVibePlan,
