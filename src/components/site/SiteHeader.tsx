@@ -440,3 +440,13 @@ export function useNavyDocument() {
     return () => el.classList.remove("sa-navy");
   }, []);
 }
+
+/** THE BLACK HOME — on top of the navy document: html/body paint --bg-home (the film stage black)
+ *  so overscroll and the area behind the page match the homepage root. Homepage only. */
+export function useBlackDocument() {
+  useEffect(() => {
+    const el = document.documentElement;
+    el.classList.add("sa-black");
+    return () => el.classList.remove("sa-black");
+  }, []);
+}

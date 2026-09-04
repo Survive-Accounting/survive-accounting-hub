@@ -107,13 +107,17 @@ function scrimStyle(w: WorldPreset, intensity: number): React.CSSProperties | nu
 
 /** The world layer for a frame. Fills its (relative) parent; renders nothing for
  *  an unknown id. */
-export function WorldBackground({ worldId, intensity, motion, seed, animate }: {
+export function WorldBackground({ worldId, intensity, motion, seed, animate, onBlack = false }: {
   worldId: string;
   intensity?: number;
   motion?: number;
   seed?: number;
   /** Opt into drift/glow motion without a `.film-mode` ancestor (frames outside the canvas). */
   animate?: boolean;
+  /** THE BLACK HOME (2026-09-04): the glow pools at its focal point and fades to nothing, so
+   *  the page's own black ground shows around it instead of the world's navy base filling
+   *  the box. Same glow, same drift — only the edges let go. */
+  onBlack?: boolean;
 }) {
   const w = worldById(worldId);
   const reduced = usePrefersReducedMotion();
@@ -136,7 +140,9 @@ export function WorldBackground({ worldId, intensity, motion, seed, animate }: {
       <div
         className="sa-world-glow-el absolute inset-0"
         style={{
-          background: `radial-gradient(90% 80% at ${w.focalPoint.x * 100}% ${w.focalPoint.y * 100}%, ${p.glow} 0%, ${p.base2} 42%, ${p.base} 100%)`,
+          background: onBlack
+            ? `radial-gradient(90% 80% at ${w.focalPoint.x * 100}% ${w.focalPoint.y * 100}%, ${p.glow} 0%, ${p.base2} 34%, transparent 78%)`
+            : `radial-gradient(90% 80% at ${w.focalPoint.x * 100}% ${w.focalPoint.y * 100}%, ${p.glow} 0%, ${p.base2} 42%, ${p.base} 100%)`,
           // animation-NAME is applied only under .film-mode (see WORLD_CSS); here we
           // just set the timing so authoring stays a static gradient.
           animationDuration: mot > 0 ? `${Math.round(30 - mot * 12)}s` : undefined,

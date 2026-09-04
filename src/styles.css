@@ -267,6 +267,17 @@ html.sa-navy body {
   background-color: var(--bg-page, #0F1A2E);
 }
 
+/* THE BLACK HOME (Lee, 2026-09-04: "make the home page the same black background too … I am
+   liking how navy sits on the black, how it makes the wordmark/bolt pop"). Not pure #000: the
+   film stage black, a breath of navy in it, so the navy cards, nav and footer read as the same
+   family sitting on it rather than floating on a void. Only the homepage opts in (useBlackDocument
+   + --bg-home on its root); every other navy page keeps --bg-page. */
+:root { --bg-home: #05070D; }
+html.sa-black,
+html.sa-black body {
+  background-color: var(--bg-home);
+}
+
 /* BRAND PALETTE FOR EVERY NAVY PAGE.
  *
  * These used to exist ONLY as inline vars from frameThemeVars() on the landing page's root, so a

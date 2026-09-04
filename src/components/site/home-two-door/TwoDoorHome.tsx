@@ -34,7 +34,7 @@ import {
   FeatureValueStrip, FloatingContact, MARKETING_CSS, MARKETING_HERO_ID, SocialProofSection,
   TrustChips, TutorBioModal, TutorCard,
 } from "@/components/site/Marketing";
-import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
+import { SiteHeader, useBlackDocument, useNavyDocument } from "@/components/site/SiteHeader";
 import { Footer } from "@/components/site/SiteFooter";
 import { TestimonialsSlider } from "@/components/site/Testimonials";
 import { GreekWaitlistSheet } from "@/components/site/home-two-door/GreekWaitlistSheet";
@@ -93,6 +93,9 @@ export function TwoDoorHome({ storedCampusId, initialCode, previewSoloHref }: {
 
 function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   useNavyDocument();
+  // THE BLACK HOME (2026-09-04): the page ground is the film stage black; the navy cards, nav
+  // and footer sit on it — the same relationship as a detour card on a slide.
+  useBlackDocument();
   const campus = useCampus();
 
   // The resolved campus recolors the page theme + the door bolt; unknown stays brand default.
@@ -211,14 +214,14 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
 
   return (
     <div style={{
-      ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip",
+      ...frameThemeVars(theme), background: "var(--bg-home)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip",
       ...DOOR_CTA_VARS,
     }}>
       <style>{MARKETING_CSS}</style>
       <style>{DOOR_CARD_CSS}</style>
       <style>{HOME_FOLD_CSS}</style>
       <style>{TWO_DOOR_CSS}</style>
-      <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
+      <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate onBlack /></div>
 
       <SiteHeader homeNav onLanding />
 

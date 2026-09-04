@@ -23,11 +23,13 @@ export const FRAME_BG_VARIANTS: { id: FrameBgVariant; name: string }[] = [
   { id: "plain", name: "Plain" },
 ];
 
-export function FrameBackground({ variant = "orbital", intensity = 0.3, animate = true }: {
+export function FrameBackground({ variant = "orbital", intensity = 0.3, animate = true, onBlack = false }: {
   variant?: FrameBgVariant;
   intensity?: number; // 0-1; WorldBackground keeps it in a muted band
   animate?: boolean;
+  /** The glow pools and fades to the page's own black instead of filling the box with navy. */
+  onBlack?: boolean;
 }) {
   if (variant === "plain") return <div className="pointer-events-none absolute inset-0" style={{ background: "var(--brand-navy)", zIndex: 0 }} aria-hidden />;
-  return <WorldBackground worldId={WORLD_BY_VARIANT[variant]} intensity={intensity} animate={animate} />;
+  return <WorldBackground worldId={WORLD_BY_VARIANT[variant]} intensity={intensity} animate={animate} onBlack={onBlack} />;
 }
