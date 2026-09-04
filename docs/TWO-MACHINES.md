@@ -132,7 +132,17 @@ What the runner does to keep a build from dying (learned the hard way on
 - **Stall heartbeat.** No commit for 20 minutes → stopped, work kept.
 - **Orphan salvage.** If the builder itself was restarted mid-build, the
   next start pushes whatever the dead build left and marks it resumable.
-- Runs on Opus 5 (`QUEUE_MODEL` to change); 45-minute clock per build.
+- Runs on **Sonnet 5**; 45-minute clock per build, 140 turns, 3 builds per
+  run. Those four numbers are the bill: the first Opus nights took 118 / 86 /
+  173 turns per build and ate about half a month's allowance in one night.
+  Every knob is an env var — for a build worth the money:
+  `QUEUE_MODEL=claude-opus-5 QUEUE_MAX_BUILDS=6 bun scripts/build-queue.ts --watch`
+  (also `QUEUE_MAX_TURNS`, `QUEUE_BUILD_MINUTES`, `QUEUE_DEPLOY_MINUTES`).
+- **No preview wait.** Vercel only deploys `main`, so a `queue/*` branch never
+  gets a Preview deployment; the runner used to sit 15 minutes per build
+  waiting for one. Off by default (`QUEUE_DEPLOY_MINUTES=15` to bring it back
+  if branch previews are ever enabled).
+- Each build logs what it cost: `✓ built — 8 checks · 96 turns on claude-sonnet-5`.
 
 **Refinement notes from the first real day (2026-09-03), for the next pass:**
 - The builder did not know what a CEQ was and hardcoded one set's route.

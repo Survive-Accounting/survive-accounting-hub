@@ -60,18 +60,38 @@ function resolveClaude(): { cmd: string; args: string[] } {
 }
 const CLAUDE = resolveClaude();
 const CLAUDE_BIN = `${CLAUDE.cmd} ${CLAUDE.args.join(" ")}`.trim();
-// Turns are cheap to allow; the wall clock (QUEUE_BUILD_MINUTES) is the real
-// cap. 80 was too few — the first build hit it mid-work with nothing shipped.
-const MAX_TURNS = Number(process.env.QUEUE_MAX_TURNS ?? 400);
-/** The model each build runs on. Lee (2026-09-03): Opus 5. Override with
- *  QUEUE_MODEL (an id like claude-opus-4-8, or an alias like opus/sonnet). */
-const MODEL = process.env.QUEUE_MODEL ?? "claude-opus-5";
+// TURNS ARE THE BILL (Lee, 2026-09-04: "I went from like 20% allowance to 70%
+// used"). Three overnight builds took 118 / 86 / 173 turns on Opus and ate
+// half a month. Every turn re-sends the whole conversation, so the cost of a
+// build is roughly quadratic in its turns — the cap is the brake. 80 was too
+// few (a build hit it mid-work); 140 is comfortably past what the three that
+// worked needed, and a task that wants more than that belongs on the
+// hands-on gate, not in the queue.
+const MAX_TURNS = Number(process.env.QUEUE_MAX_TURNS ?? 140);
+/** The model each build runs on. Opus 5 built the first nights and burned
+ *  about half of Lee's monthly allowance in three builds; the queue is scoped
+ *  to SMALL testable changes (the hands-on gate sends everything bigger to
+ *  Lee), which is Sonnet's home ground. So the lane is Sonnet by default and
+ *  Opus is one env var away for a build worth it:
+ *      QUEUE_MODEL=claude-opus-5 bun scripts/build-queue.ts --watch          */
+const MODEL = process.env.QUEUE_MODEL ?? "claude-sonnet-5";
 const BUILD_TIMEOUT_MS = Number(process.env.QUEUE_BUILD_MINUTES ?? 45) * 60_000;
 // THE HEARTBEAT: a build that has not committed anything for this long is
 // stalled — stop it and keep what exists, instead of burning the whole clock.
 const STALL_MS = Number(process.env.QUEUE_STALL_MINUTES ?? 20) * 60_000;
-const DEPLOY_WAIT_MS = Number(process.env.QUEUE_DEPLOY_MINUTES ?? 15) * 60_000;
+// THE PREVIEW WAIT IS OFF (2026-09-04). Vercel only deploys origin/main, so a
+// queue/* branch never gets a Preview deployment and every build sat the full
+// 15 minutes for nothing — 45 minutes across one night. The checklist's routes
+// are plain paths without it. Set QUEUE_DEPLOY_MINUTES=15 if branch previews
+// are ever turned on in Vercel.
+const DEPLOY_WAIT_MS = Number(process.env.QUEUE_DEPLOY_MINUTES ?? 0) * 60_000;
 const STALE_RUN_MS = 3 * 60 * 60_000;
+/** THE NIGHT'S BUDGET: builds this process will run before it idles. A full
+ *  queue used to run until it emptied — the reason a night cost half a month.
+ *  Raise it for a night you are watching (QUEUE_MAX_BUILDS=6), or restart the
+ *  runner to start the count over. */
+const MAX_BUILDS = Number(process.env.QUEUE_MAX_BUILDS ?? 3);
+let builtThisRun = 0;
 
 const args = new Set(process.argv.slice(2));
 const WATCH = args.has("--watch");
@@ -118,7 +138,8 @@ function buildPrompt(r: Row, branch: string, resuming: boolean): string {
     "HARD RULES",
     "- Additive only. New files, new routes, new fields, new tables via a numbered additive migration FILE under migration/supabase-migrations/ — never run it; list it under SQL LEE MUST RUN.",
     "- Never push. Never touch main. Commit your finished work to THIS branch with a clear message (the runner pushes the branch).",
-    "- Never delete or weaken a passing test. `bun test <file>` is fast — run it after each step. `bunx tsc --noEmit` takes about TEN MINUTES on this machine: run it ONCE, at the end (the known error in partner-kit.server.ts is pre-existing — ignore it). NEVER run `bun run build` or `vite build` — Vercel builds the preview, not you.",
+    "- DO NOT BURN TURNS. Every turn costs Lee real money. Never poll a long command in a loop (`wc -c` on a log, `ps`, repeated `cat`): run ONE blocking command that waits (`until grep -q EXIT= file; do sleep 15; done`) and let it return. Do not re-read a file you already read. Do not re-run a test that already passed.",
+    "- Never delete or weaken a passing test. `bun test <file>` is fast — run it after each step. run the FULL suite at most ONCE, at the end — during the work run only the files you touched. `bunx tsc --noEmit` takes about TEN MINUTES on this machine: run it ONCE, at the end (the known error in partner-kit.server.ts is pre-existing — ignore it). NEVER run `bun run build` or `vite build` — Vercel builds the preview, not you.",
     "- NO DEV SERVERS. Never start `bun run dev` / vite / any server — nothing can look at it, and it outlives you. Prove things with tests and by reading the code.",
     "- NO THROWAWAY ROUTES. Prove a UI change on the real, parameterised route with a real set (the primer names them); the checklist points there. If you find a test/demo route on this branch, delete it and commit.",
     "- Protected zones (element/frame parent membership, scene serialization internals, command bus, space walk) are off limits. If the task needs them, STOP: make no change there and say so in the REPORT.",
@@ -149,6 +170,7 @@ function parseSections(text: string): { report: string; checklist: string[] } {
 
 /** Vercel tells GitHub about every deployment (with its URL). Poll by commit. */
 async function waitForPreview(sha: string): Promise<{ url: string | null; state: string }> {
+  if (DEPLOY_WAIT_MS <= 0) return { url: null, state: "skipped" };
   const started = Date.now();
   let last = "none";
   while (Date.now() - started < DEPLOY_WAIT_MS) {
@@ -416,7 +438,7 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
     }
     if (ahead === "0") throw new Error("the build finished but made no commits — see the REPORT in the log");
     const { report, checklist } = parseSections(out.text);
-    note("  waiting for the Vercel preview…");
+    if (DEPLOY_WAIT_MS > 0) note("  waiting for the Vercel preview…");
 
     // 4. The preview URL, from GitHub's deployment record.
     const prev = await waitForPreview(sha);
@@ -426,13 +448,16 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
       if (!m) return l;
       return base ? `${m[1]} — ${base}${m[2]}` : `${m[1]} — ${m[2]} (on the ${branch} preview)`;
     });
-    note(`  preview: ${prev.url ?? `not found (${prev.state})`}`);
+    if (DEPLOY_WAIT_MS > 0) note(`  preview: ${prev.url ?? `not found (${prev.state})`}`);
 
     await mark({
       built: "1", builtAt: new Date().toISOString(), branch, sha, previewUrl: base ?? "", previewState: prev.state,
       report, testChecklist: JSON.stringify(withUrls), runStartedAt: undefined,
     });
-    note(`✓ built — ${withUrls.length} checks`);
+    builtThisRun++;
+    // The turn count IS the invoice — it is the one number that predicts what a
+    // night costs, so it goes in the log beside the checks.
+    note(`✓ built — ${withUrls.length} checks · ${out.turns} turns on ${MODEL}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     note(`✗ failed: ${msg}`);
@@ -457,6 +482,10 @@ async function pass(): Promise<boolean> {
     .filter((r) => !r.context?.runStartedAt || Date.now() - new Date(r.context.runStartedAt).getTime() >= STALE_RUN_MS)
     .sort((a, b) => (PRIORITY[b.context?.queuePriority ?? "medium"] ?? 2) - (PRIORITY[a.context?.queuePriority ?? "medium"] ?? 2) || (a.context?.armedAt ?? a.updated_at).localeCompare(b.context?.armedAt ?? b.updated_at))[0];
   if (!next) { log(`queue empty (${armed.length} armed, 0 ready)`); return false; }
+  if (builtThisRun >= MAX_BUILDS) {
+    log(`night's budget spent — ${builtThisRun} builds this run (QUEUE_MAX_BUILDS). ${armed.length} still armed; restart the runner to continue.`);
+    return false;
+  }
   // Size check first: a research project becomes single-feature slices and
   // the pass starts over with the first of them.
   if (await maybeSplit(db, next)) return true;
