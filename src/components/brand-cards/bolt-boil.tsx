@@ -18,7 +18,9 @@ export type BoilFrame = { outer: string; seam: string; sw: number;
   /** THE ECHO MARK (2026-09-05): `seam` is a full copy of the bolt slid behind
    *  `outer`, not a half. Both are stroked, then both are filled again on top,
    *  so the keyline shows only around the union — no white where red meets blue. */
-  echo?: boolean };
+  echo?: boolean;
+  /** THE MOUNTAIN (2026-09-05): a third ring — the snow cap — drawn in cream on top. */
+  cap?: string };
 export type BoltSpec = { frames: BoilFrame[]; viewBox: string; ratio: number; red: string; blue: string; cream: string };
 
 // Lee's FINAL hand-edited bolt (baked from his Logo Lab preset — the canonical logo). These
@@ -93,6 +95,7 @@ export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, classNam
               <>
                 <path d={f.outer} fill={R} stroke={C === "none" ? undefined : C} strokeWidth={C === "none" ? 0 : f.sw} strokeLinejoin="round" strokeLinecap="round" paintOrder="stroke" />
                 <path d={f.seam} fill={B} />
+                {f.cap && <path d={f.cap} fill={C === "none" ? "#F5EFE6" : C} />}
               </>
             )}
           </g>

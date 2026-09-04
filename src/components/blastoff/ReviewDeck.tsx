@@ -407,7 +407,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
 
       {/* --------------------------------- RIGHT: teleprompter | editor */}
       {rightTab === "editor" && sel ? (
-        <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs}
+        <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs} layout={layoutOf(plan)}
           ceq={sel.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined}
           onPatch={(p) => patch(sel.id, p)}
           onSaved={(d) => { if (sel.ceqId) setOverrides((o) => ({ ...o, [sel.ceqId!]: d })); }} />
@@ -498,7 +498,9 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
  *  faster/better to have them left/right"). A set card edits the card itself;
  *  an insert edits its words; the brand slides and ads edit their few
  *  switches. Same shell as the prompter — the two are faces of one column. */
-function SlideEditor({ sel, label, ceq, set, topic, tabs, onPatch, onSaved }: {
+function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onSaved }: {
+  /** The set's slide template — the camera chips read their default from it. */
+  layout: "pass1" | "pass2";
   sel: BlastFrame; label: string; ceq?: BoothCeq; set: BoothSetInfo; topic: BoothTopic;
   /** The Teleprompter | Editor toggle, drawn by the deck. */
   tabs: ReactNode;

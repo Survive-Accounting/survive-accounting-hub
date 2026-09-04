@@ -81,7 +81,7 @@ export const saveBlastPlan = createServerFn({ method: "POST" })
 
     const { data: row, error } = await db.from("canvas_scenes").select("id,nodes_json").eq("id", o.sceneId).single();
     if (error) rethrow(error);
-    const j = row.nodes_json as { decks?: { id: string; blastOff?: { frames?: unknown; layout?: unknown } }[] };
+    const j = row.nodes_json as { decks?: { id: string; blastOff?: { frames?: unknown; updatedAt?: string; layout?: unknown } }[] };
     const deck = (j.decks ?? []).find((d) => d.id === data.setId);
     if (!deck) throw new Error("set not found in its scene — nothing written");
 
