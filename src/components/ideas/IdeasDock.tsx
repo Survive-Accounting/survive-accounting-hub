@@ -42,7 +42,6 @@ const VAULT = "/admin/ideas";
 export const isInternalPath = (p: string): boolean =>
   p !== VAULT && INTERNAL.some((r) => p === r || p.startsWith(r + "/"));
 
-const DISMISS_KEY = "sa-ideas-pill-dismissed";
 const POS_KEY = "sa-ideas-modal-pos";
 
 type SavedKind = "idea" | "todo" | "draft";
@@ -52,12 +51,10 @@ type Intent = "general" | "page" | "todo" | "other";
 export function IdeasDock() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; kind: SavedKind } | null>(null);
 
-  useEffect(() => { try { setDismissed(sessionStorage.getItem(DISMISS_KEY) === "1"); } catch { /* private mode */ } }, []);
 
   const refresh = useCallback(() => {
     listIdeas().then((r) => { setIdeas(r.ideas); setLoadErr(null); })
@@ -76,8 +73,6 @@ export function IdeasDock() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "i") {
         e.preventDefault();
-        setDismissed(false);
-        try { sessionStorage.removeItem(DISMISS_KEY); } catch { /* ignore */ }
         setOpen(true);
       }
     };
@@ -105,30 +100,10 @@ export function IdeasDock() {
 
   return (
     <>
-      {show && !dismissed && !open && (
-        <div style={{ position: "fixed", top: 10, right: 12, zIndex: 2147483000, display: "flex", gap: 4, alignItems: "center" }}>
-          <button
-            onClick={() => setOpen(true)}
-            title="Ideas Bank (Ctrl/⌘ I) — bank it, get back to work"
-            style={{
-              display: "flex", alignItems: "center", gap: 7, background: "rgba(16,26,46,0.94)",
-              border: `1px solid ${GOLD}66`, color: CREAM, borderRadius: 999,
-              padding: "5px 11px", fontSize: 11.5, fontWeight: 700, cursor: "pointer",
-              fontFamily: "'Rubik', system-ui, sans-serif", boxShadow: "0 4px 14px -6px rgba(0,0,0,0.8)",
-            }}
-          >
-            <span style={{ color: GOLD }}>⚡</span> Ideas Bank
-            {count > 0 && (
-              <span style={{ background: GOLD, color: "#0B1322", borderRadius: 999, padding: "0 6px", fontSize: 10.5, fontWeight: 900 }}>{count}</span>
-            )}
-          </button>
-          <button
-            onClick={() => { setDismissed(true); try { sessionStorage.setItem(DISMISS_KEY, "1"); } catch { /* ignore */ } }}
-            title="Hide until next session (⌘I brings it back)"
-            style={{ background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "2px 4px" }}
-          >×</button>
-        </div>
-      )}
+      {/* NO FLOATING PILL (Lee, 2026-09-03: "Hide the ideas bank floating guy at
+          top right. CTRL + i is good enough."). The modal is Ctrl/⌘+I from any
+          page; the count lives on /admin/ideas. `show` and `count` stay computed
+          for the modal's own header. */}
 
       {toast && (
         <div role="status" style={{
