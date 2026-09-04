@@ -12,6 +12,7 @@ import { CampusBanner } from "@/components/brand-cards/BoltZoom";
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 
 import { FrameView } from "./frame-view";
+import type { CardOverride } from "./SetCard";
 import { backdropFor, isFullFrame, type BlastFrame } from "./plan";
 
 /** The Review stage width; everything else scales from it. */
@@ -36,7 +37,7 @@ export function watermarkOn(frame: BlastFrame, _backdrop: ReturnType<typeof back
   return !isFullFrame(frame.kind);
 }
 
-export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, stageStyle }: {
+export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, stageStyle, cardOverride }: {
   frame: BlastFrame;
   /** The whole running order — the backdrop rule looks at the neighbours. */
   frames: readonly BlastFrame[];
@@ -56,6 +57,9 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   capture?: boolean;
   /** A transform on the slide itself (the capture camera: zoom, pull-back). */
   stageStyle?: React.CSSProperties;
+  /** The capture camera's grip override for the live card (width, scale
+   *  multiplier) — `camera.cardOverride`, per slide. */
+  cardOverride?: CardOverride;
 }) {
   const h = Math.round(w * 16 / 9);
   const backdrop = backdropFor(frames, index, (id) => !!set.ceqs.find((c) => c.id === id)?.noteOnly);
@@ -72,7 +76,7 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
         </div>
       )}
       <div key={capture ? frame.id : undefined} data-sa-stage="" style={{ display: "grid", placeItems: "center", position: "relative", ...stageStyle }}>
-        <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} />
+        <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} />
       </div>
       {safe && (
         <>

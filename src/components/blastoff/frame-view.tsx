@@ -14,7 +14,7 @@ import { BoltZoom } from "@/components/brand-cards/BoltZoom";
 import { isZoomVariant } from "@/components/brand-cards/bolt-zoom";
 
 import { AdSlide } from "./AdSlide";
-import { SetCard } from "./SetCard";
+import { SetCard, type CardOverride } from "./SetCard";
 import { BIO_CARD, bioCallout } from "./bio-card";
 import { V } from "./stage";
 import { SurviveOutro } from "./SurviveOutro";
@@ -41,13 +41,17 @@ export function questionProgress(frames: readonly BlastFrame[], byId: Map<string
 /** The full-frame kinds size themselves from a 1080×1920 frame at scale·0.34
  *  (a 1080-wide frame sized to sit beside a list); cards are the canvas's own
  *  560-wide card at `scale`. PhoneFrame turns a stage width into both. */
-export function FrameView({ frame, set, scale, topicName, progress, live = false }: {
+export function FrameView({ frame, set, scale, topicName, progress, live = false, cardOverride }: {
   frame: BlastFrame; set: BoothSetInfo; scale: number; topicName?: string | null;
   progress?: { x: number; y: number } | null;
   /** The capture surface: cards are live (SetCard `live`). */
   live?: boolean;
+  /** The capture camera's grip override (width, scale multiplier), applied
+   *  to whichever SetCard this frame renders. */
+  cardOverride?: CardOverride;
 }) {
   const s = scale * 0.34;
+  const ov = cardOverride ?? {};
   const fw = Math.round(V.w * s), fh = Math.round(V.h * s);
 
   // THE STANDARD SPINE renders as the vertical 9:16 frame it actually is —
@@ -60,7 +64,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} live />;
     if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} live />;
     // THE TUTOR CARD (2026-09-03): the bio in the detour format, a bit bigger.
-    if (frame.kind === "bio") return <SetCard id={frame.id} stem={BIO_CARD.title} scale={scale * BIO_CARD.scale} callout={bioCallout() as Record<string, unknown>} live={live} />;
+    if (frame.kind === "bio") return <SetCard id={frame.id} stem={BIO_CARD.title} scale={scale * BIO_CARD.scale} callout={bioCallout() as Record<string, unknown>} live={live} {...ov} />;
     return <SurviveOutro tagline={frame.text?.trim() || undefined} scale={s} />;
   }
 
@@ -71,11 +75,11 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
 
   if (frame.kind === "ceq") {
     const ceq: BoothCeq | undefined = frame.ceqId ? set.ceqs.find((c) => c.id === frame.ceqId) : undefined;
-    if (!ceq) return <SetCard stem="This card is no longer in the set." scale={scale} live={live} />;
+    if (!ceq) return <SetCard stem="This card is no longer in the set." scale={scale} live={live} {...ov} />;
     // The set's own note cards ARE the "found on your exam" card. Since
     // 2026-09-03 they draw in the detour skin (dark, labelled) like every
     // other callout slide; the previewer does the same for a noteOnly card.
-    if (ceq.noteOnly) return <SetCard id={ceq.id} stem={ceq.stem} scale={scale} callout={{ kind: "found-on-exam", detour: true, showTopic: false }} live={live} />;
+    if (ceq.noteOnly) return <SetCard id={ceq.id} stem={ceq.stem} scale={scale} callout={{ kind: "found-on-exam", detour: true, showTopic: false }} live={live} {...ov} />;
     return (
       <SetCard
         id={ceq.id}
@@ -85,6 +89,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
         progress={progress ?? null}
         scale={scale}
         live={live}
+        {...ov}
       />
     );
   }
@@ -101,6 +106,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
       stem={insertStem(frame)}
       scale={scale}
       live={live}
+      {...ov}
       // "blank" is a BARE frame — card hidden, so Lee builds on it from scratch.
       // Every other insert is a DETOUR: the dark card, gold label, key phrase
       // highlighted — the same flag the sync writes, so preview = film.

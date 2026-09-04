@@ -41,6 +41,24 @@ const Card = CeqPreviewNode as unknown as (p: { id: string; data: Record<string,
 
 export interface SetCardChoice { id?: string; text: string; correct?: boolean }
 
+/** THE GRIPS' OVERRIDE (2026-09-04): what the capture camera's alt-hover grips
+ *  change on the live card, per slide. `cardW` is the card's width in its own
+ *  flow units (data.cardW; CARD_W = 560 when unset); `scaleMul` multiplies the
+ *  scale the card was given, so the same grip drag means the same thing at
+ *  every phone width. Threaded PhoneFrame → FrameView → SetCard. */
+export interface CardOverride { cardW?: number; scaleMul?: number }
+
+/** ALT ON THE CAPTURE SURFACE. PV_CSS keys the grab affordances on the canvas's
+ *  `.react-flow__node` wrapper, which a SetCard does not have — the card is
+ *  the node. Same ring, same latch (`.film-mode.sa-alt`); the grips come from
+ *  PV_CSS as they are. The native cursor is hidden behind the brand cursor,
+ *  so the ring is the whole affordance. */
+const LIVE_ALT_CSS = `
+.film-mode.sa-alt [data-sa-card] .sa-pv-node { cursor: grab; }
+.film-mode.sa-alt [data-sa-card] .sa-pv-node:active { cursor: grabbing; }
+.film-mode.sa-alt [data-sa-card] .sa-pv-node:hover { outline: 2px dashed rgba(252,163,17,0.85); outline-offset: 6px; }
+`;
+
 export function SetCard({
   id = "blast-preview",
   stem,
@@ -50,6 +68,8 @@ export function SetCard({
   callout,
   scale = 1,
   live = false,
+  cardW,
+  scaleMul,
 }: {
   id?: string;
   stem: string;
@@ -67,21 +87,32 @@ export function SetCard({
    *  and Arrange stages draw. The contexts those tools read are provided by
    *  BlastOffCapture; without them a live card is merely not inert. */
   live?: boolean;
+  /** The grips' width override, in flow units (see CardOverride). */
+  cardW?: number;
+  /** The grips' scale override — multiplies `scale` (see CardOverride). */
+  scaleMul?: number;
 }) {
+  // The scale the card actually draws at. The GIVEN scale is published on the
+  // wrapper (data-sa-card-scale) so the capture camera can turn a grip's
+  // absolute target back into a multiplier of it — see capture/camera.ts.
+  const s = scale * (scaleMul ?? 1);
+  const w = cardW ?? CARD_W;
   return (
     <ReactFlowProvider>
     <FilmContext.Provider value={true}>
       {/* The card's own stylesheet — selection gold, enter animation, flame. */}
-      <style>{FLAME_CSS}{PV_CSS}</style>
+      <style>{FLAME_CSS}{PV_CSS}{LIVE_ALT_CSS}</style>
       <div
+        data-sa-card=""
+        data-sa-card-scale={scale}
         style={{
-          width: CARD_W * scale,
+          width: w * s,
           display: "flex",
           justifyContent: "center",
           // A card floats on the frame, never on nothing — the same navy the
           // canvas stage sits on, so the paper edge reads correctly.
           background: PAPER.navy,
-          padding: 22 * scale,
+          padding: 22 * s,
           borderRadius: 12,
         }}
       >
@@ -90,7 +121,8 @@ export function SetCard({
           data={{
             stem,
             choices: choices.map((c, i) => ({ id: c.id ?? `c${i}`, text: c.text, correct: !!c.correct })),
-            scale,
+            scale: s,
+            ...(cardW == null ? {} : { cardW }),
             topic: topic ?? null,
             progress: progress ?? null,
             ...(callout ? { callout } : {}),
