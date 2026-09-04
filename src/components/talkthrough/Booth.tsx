@@ -580,7 +580,14 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
           {showCeq?.draft && <DraftChip />}
           {showCeq && pendingEdits.some((b) => (b.payload as { ceqId?: string }).ceqId === showCeq.id) && (
             <span style={{ fontSize: 10, color: "#7DD3FC" }}>
-              {pendingEdits.filter((b) => (b.payload as { ceqId?: string }).ceqId === showCeq.id).map((b) => (b.payload as { state?: string }).state === "drafting" ? "✎ drafting…" : "✎ edit ready").join(" · ")}
+              {/* "drafting…" is only true while a promise is actually in
+                  flight IN THIS TAB. A row left drafting by a killed tab says
+                  so — it used to claim to be working forever. */}
+              {pendingEdits.filter((b) => (b.payload as { ceqId?: string }).ceqId === showCeq.id).map((b) => {
+                const p = b.payload as { state?: string; tagId?: string };
+                if (p.state !== "drafting") return "✎ edit ready";
+                return p.tagId && !inFlight.current.has(p.tagId) ? "✎ interrupted" : "✎ drafting…";
+              }).join(" · ")}
             </span>
           )}
           <span className="ml-auto" style={{ fontSize: 10.5, color: stars.length ? GOLD : NEON.muted }}>★ {stars.length}</span>
