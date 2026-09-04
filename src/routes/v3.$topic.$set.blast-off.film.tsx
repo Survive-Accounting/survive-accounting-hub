@@ -13,6 +13,9 @@ import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
 import { V3Shell, V3Note } from "@/components/v3/Shell";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/film")({
+  // ?popout=1 marks the 9:16 pop-out window (components/blastoff/capture/popout.ts).
+  // Declared so TanStack keeps it through its search handling; the hook reads the location.
+  validateSearch: (s: Record<string, unknown>): { popout?: 1 } => (s.popout === 1 || s.popout === "1" || s.popout === true ? { popout: 1 } : {}),
   component: () => <AdminGate><V3Film /></AdminGate>,
   head: () => ({ meta: [{ title: "🎬 Film — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
