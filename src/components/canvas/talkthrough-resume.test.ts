@@ -80,9 +80,20 @@ describe("matching an existing board item", () => {
     expect(matchesEditTask(mkItem({ payload: { ceqId: "q2", stamp: "reword" } }), task)).toBe(false);
     expect(matchesEditTask(mkItem({ payload: { ceqId: "q1", stamp: "revise_choices" } }), task)).toBe(false);
   });
-  test("archived items and other kinds never match", () => {
-    expect(matchesEditTask(mkItem({ payload: { tagId: "tag-a" }, archivedAt: at(9) }), task)).toBe(false);
+  test("other kinds never match; an ARCHIVED draft still does", () => {
     expect(matchesEditTask(mkItem({ kind: "idea", payload: { tagId: "tag-a" } }), task)).toBe(false);
+    // A dismissed draft must stay dismissed — matching it is how a resume
+    // knows not to resurrect (and re-bill) it.
+    expect(matchesEditTask(mkItem({ payload: { tagId: "tag-a" }, archivedAt: at(9) }), task)).toBe(true);
+    expect(statusOfEditItem(mkItem({ payload: { tagId: "tag-a", state: "drafting" }, archivedAt: at(9) }))).toBe("done");
+  });
+  test("a dismissed draft does not come back on resume", () => {
+    const d = twoStampDoc();
+    d.boardItems.push(
+      mkItem({ payload: { tagId: "tag-a", state: "ready" } }),
+      mkItem({ payload: { tagId: "tag-b", state: "drafting" }, archivedAt: at(9) }), // Lee threw it away
+    );
+    expect(generationPlan(d, mkSession()).resumable).toHaveLength(0);
   });
   test("findEditItem picks the covering item out of a mixed board", () => {
     const board = [mkItem({ kind: "script", payload: {} }), mkItem({ id: "hit", payload: { tagId: "tag-a" } })];

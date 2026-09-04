@@ -71,7 +71,7 @@ const strOf = (v: unknown): string => (typeof v === "string" ? v : "");
  *  duplicates and re-bills one. Skipping is the safe side of that trade, and
  *  the stamp is still on the board for Lee to regenerate by hand. */
 export function matchesEditTask(b: BoardItem, task: { tagId?: string; ceqId?: string; stamp?: string }): boolean {
-  if (b.kind !== "ceq_edit" || b.archivedAt) return false;
+  if (b.kind !== "ceq_edit") return false;
   const p = payloadOf(b);
   const tagId = strOf(p.tagId);
   if (tagId) return !!task.tagId && tagId === task.tagId;
@@ -83,9 +83,13 @@ export const findEditItem = (board: BoardItem[], task: { tagId?: string; ceqId?:
 
 /** The status an existing draft implies. A synthesis-minted ceq_edit has
  *  state "ready"; anything unrecognised is treated as landed, because an item
- *  on the board is content Lee can see and act on. */
+ *  on the board is content Lee can see and act on.
+ *
+ *  ARCHIVED = DONE. A draft Lee dismissed stays dismissed: a resume that
+ *  resurrected it would be re-billing him for the thing he just threw away. */
 export function statusOfEditItem(item: BoardItem | null): GenTaskStatus {
   if (!item) return "pending";
+  if (item.archivedAt) return "done";
   const state = strOf(payloadOf(item).state);
   if (state === "drafting") return "interrupted";
   if (state === "error") return "failed";
@@ -106,7 +110,10 @@ export function isClosedEditStamp(t: TalkTag): boolean {
  *  the board item that already covers it (if any) and therefore its status. */
 export function editTasksFor(doc: TTDoc, sessionId: string): GenTask[] {
   const segs = sessionSegments(doc, sessionId);
-  const board = sessionBoard(doc, sessionId);
+  // ARCHIVED ITEMS INCLUDED on purpose — see statusOfEditItem. sessionBoard()
+  // hides them, which is right for display and wrong for "has this already
+  // been generated once?".
+  const board = doc.boardItems.filter((b) => b.sessionId === sessionId);
   const out: GenTask[] = [];
   for (const t of sessionTags(doc, sessionId)) {
     if (!isClosedEditStamp(t)) continue;
