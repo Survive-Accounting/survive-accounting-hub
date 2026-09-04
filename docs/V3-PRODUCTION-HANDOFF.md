@@ -606,3 +606,18 @@ Lee's verdict after filming the first Easy Points rip: /results was right, the c
 **Review layout** (`blastoff/ReviewDeck.tsx`): three equal columns — Film draft | Slide N of M | a right panel toggling Teleprompter / Editor (remembered in `sa-review-right-tab`). Duplicate / remove / skip are hover icons on the spine rows; every slide-editing control lives in the Editor tab.
 
 **Interactivity on /film** — see the audit summary in the session notes (workflow `film-interactivity-audit`): the canvas popout supplies the contexts the tools need (Practice, Spotlight, Move/Width/Persist, Highlight, the film-mode class); `BlastOffCapture → PhoneFrame → SetCard` mounts the card inert with only the Highlight context. Lee decides which tools come back and on which surface.
+
+
+## Update — 2026-09-04 (night): the tools are back on /film
+
+Lee's picks after the audit: spotlight + super, click-to-answer, bolt cursor + typewriter + fades, zoom + O, F1 arrows, Alt-move + grips, the teleprompter sync — and "whichever has best screen record quality in OBS" for the surface, which is a dedicated window at native 1080×1920.
+
+**Foundation** (`BlastOffCapture.tsx`, commit a81ef86a): the canvas previewer exports its Practice / PreviewSpot / Scale / ScaleCommit / Width / Move / Persist contexts; `SetCard` takes `live` (inert off, entrance kept); `PhoneFrame capture` is the `film-mode` root and re-keys the slide per frame; BlastOffCapture provides practice (click a choice, click again to resolve, with the cues), the rehearsal spotlight (Ctrl+click / Ctrl+Shift super / +Alt siren), the shared highlights, and the brand cursor; ` resets all of it.
+
+**Plug-ins** (`blastoff/capture/*`, one file each, built in parallel worktrees and merged):
+- `arrows.tsx` — F1, move, F1 draws; Delete/Backspace removes; Esc cancels a half-drawn arrow only (capture-phase stop, so Esc still exits otherwise); ` clears. The SVG layer was extracted from the previewer into `canvas/PerfArrowLayer.tsx` so both surfaces draw the identical arrow.
+- `camera.ts` — wheel zooms the slide (0.6–2.4, native non-passive listener), O toggles the 0.82 pull-back, 0 resets; Alt held ⇒ `sa-alt` on the root (grips + grab cursors from PV_CSS); Alt+drag moves the card (per slide, zoom-aware); the grips change width (320–900) and scale (×0.5–2.2) through `cardOverride` → PhoneFrame → FrameView → SetCard (`cardW`, `scaleMul`). Nothing persists — a position is per take.
+- `popout.ts` — "⧉ pop out 9:16" opens the SAME page with `?popout=1` (the film route's `validateSearch` keeps it); inside, `snapCaptureSize(…, "9:16")` on mount, status in physical pixels (exact 1080×1920, or the tallest 9:16 that fits + the OBS scale note), F toggles fullscreen, chrome hidden by default (H shows it).
+- `prompter-sync.ts` — publishes `sa-film-active` `{ setId, qId, at }` per frame (the CEQ node id for a set card, `blast-<frame id>` otherwise), so `/v3/teleprompter?set=<deck id>` follows the capture.
+
+**Verified in the pane**: click/resolve, Ctrl+click pill, typewriter and glow motion, space walk, the pop-out status line and the sync record. Wheel/O/Alt/F1 verified by synthetic events (see the session memory for the recipe). The canvas popout is unchanged.
