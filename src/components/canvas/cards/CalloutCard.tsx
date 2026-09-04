@@ -129,7 +129,12 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
                     <li
                       key={i}
                       onDoubleClick={onEditBullet ? (e) => { e.stopPropagation(); onEditBullet(i); } : undefined}
-                      style={{ display: "flex", gap: 7 * s, alignItems: "baseline", fontSize: 15.5 * s, fontWeight: 600, lineHeight: 1.3, color: inkMuted, cursor: onEditBullet ? "text" : undefined }}
+                      // On the dark detour card the lines under the heading are
+                      // UNIFORM across cheat code / memorize this / deeper idea —
+                      // full ink, one weight (Lee, 2026-09-03: "let's meet in the
+                      // middle and have all be uniform. If I want to emphasize
+                      // something, let me just highlight it when filming").
+                      style={{ display: "flex", gap: 7 * s, alignItems: "baseline", fontSize: (dark ? 16.5 : 15.5) * s, fontWeight: 600, lineHeight: 1.32, color: dark ? ink : inkMuted, cursor: onEditBullet ? "text" : undefined }}
                       title={onEditBullet ? "Double-click to edit · empty text removes it" : undefined}
                     >
                       <span style={{ opacity: 0.55 }}>–</span>

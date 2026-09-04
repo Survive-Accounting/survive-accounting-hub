@@ -93,6 +93,21 @@ export function BlastOffEditor({ set, topicName, onCapture }: { set: BoothSetInf
     [plan?.frames, ceqById],
   );
 
+  // SPACE / SHIFT+SPACE walk the frames here too (Lee, 2026-09-03: "if I'm in
+  // filming mode / arranging, let me flip through slides quickly"). Never
+  // while typing in a field.
+  const nFrames = plan?.frames.length ?? 0;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.key !== " " || !nFrames || (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable))) return;
+      e.preventDefault();
+      setAt((v) => (e.shiftKey ? Math.max(0, v - 1) : Math.min(nFrames - 1, v + 1)));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [nFrames]);
+
   if (!plan) return <div style={{ color: MUTED, fontSize: 13 }}>Loading the running order…</div>;
 
   const add = (kind: BlastFrameKind, patch: Partial<BlastFrame> = {}) => {
@@ -104,7 +119,7 @@ export function BlastOffEditor({ set, topicName, onCapture }: { set: BoothSetInf
     <div className="flex gap-6" style={{ alignItems: "flex-start", flexWrap: "wrap" }}>
       <div style={{ flex: "1 1 520px", minWidth: 420, maxWidth: 760 }}>
         <div className="flex items-center gap-2" style={{ marginBottom: 12, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11.5, color: MUTED }}>{plan.frames.length} frames</span>
+          <span style={{ fontSize: 11.5, color: MUTED }}>{filmFrames(plan.frames).length} frames{plan.frames.length - filmFrames(plan.frames).length ? ` · ${plan.frames.length - filmFrames(plan.frames).length} skipped in review` : ""}</span>
           {saving && <span style={{ fontSize: 11, color: saving.startsWith("⚠") ? "#F87171" : saving === "saved" ? "#3BF5A0" : MUTED }}>{saving}</span>}
           {syncNote && <span style={{ fontSize: 11, color: syncNote.startsWith("⚠") ? "#F87171" : syncNote.startsWith("✓") ? "#3BF5A0" : MUTED }}>{syncNote}</span>}
           {/* THE HANDOFF. Blast-off plans; the canvas films. This writes the
@@ -158,12 +173,20 @@ export function BlastOffEditor({ set, topicName, onCapture }: { set: BoothSetInf
             return (
               <div key={f.id} onClick={() => setAt(i)}
                 className="flex items-center gap-3 rounded-xl px-3 py-2"
+                title={f.skipped ? "Skipped in Review — not filmed, not sent to film. Un-skip it on the Review step." : undefined}
                 style={{
                   background: PANEL,
                   border: `1px solid ${at === i ? GOLD : EDGE}`,
                   cursor: "pointer",
+                  // SKIPPED IN REVIEW (Lee, 2026-09-03: "CEQ's I skipped in review
+                  // still got through") — shown struck through here so the
+                  // running order reads honestly; filmFrames() keeps it out of
+                  // capture and out of the send-to-film handoff.
+                  opacity: f.skipped ? 0.4 : 1,
+                  textDecoration: f.skipped ? "line-through" : "none",
                 }}>
                 <span style={{ color: MUTED, fontSize: 11, fontWeight: 800, minWidth: 24, fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
+                {f.skipped && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.12em", color: "#F87171" }}>SKIPPED</span>}
                 <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: insert ? GOLD : isStandard(f.kind) ? "#7DD3FC" : MUTED, minWidth: 128 }}>
                   {note ? "Note frame" : FRAME_LABEL[f.kind]}
                 </span>

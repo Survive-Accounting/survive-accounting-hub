@@ -244,21 +244,19 @@ export const patchFrame = (frames: readonly BlastFrame[], id: string, patch: Par
  *  so the Blast Off preview and the frame the sync writes cannot disagree.
  *  A tip stays plain — it is an aside, not a rule. */
 export function insertStem(f: BlastFrame): string {
-  const mark = (s: string): string => (s.includes("==") ? s : `==${s}==`);
-  if (f.kind === "cheat") {
-    const title = f.title?.trim() ?? "";
-    const body = f.body?.trim() ?? "";
-    return [title ? mark(title) : "", body].filter(Boolean).join("\n");
-  }
-  // A deeper idea highlights its main phrase too now (Lee, 2026-09-03: "main
-  // phrase can be highlighted" for all three kinds, with bullets under it).
-  if (f.kind === "phrase" || f.kind === "tip") { const t = f.text?.trim() ?? ""; return t ? mark(t) : ""; }
+  // NO AUTOMATIC HIGHLIGHT any more (Lee, 2026-09-03, second look: "let's just
+  // have that be bold like a heading. Don't highlight it. This way I can
+  // highlight it if I wanted, or highlight something else"). The title IS the
+  // card's bold heading; his own ==marks== still render if he types them.
+  if (f.kind === "cheat") return f.title?.trim() ?? "";
   if (f.kind === "exhibit") return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
   return f.text?.trim() ?? "";
 }
 
-/** The bullets that actually render: trimmed, blanks dropped. */
-export const frameBullets = (f: BlastFrame): string[] => (f.bullets ?? []).map((b) => b.trim()).filter(Boolean);
+/** The lines under the heading, uniform for all three kinds: a cheat code's
+ *  body is simply its first line, then the bullets. Trimmed, blanks dropped. */
+export const frameBullets = (f: BlastFrame): string[] =>
+  [...(f.kind === "cheat" && f.body ? [f.body] : []), ...(f.bullets ?? [])].map((b) => b.trim()).filter(Boolean);
 
 /** How many real takes this plan is — what Lee is about to talk through. */
 export const frameCount = (plan: BlastPlan): number => filmFrames(plan.frames).length;

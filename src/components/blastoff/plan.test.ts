@@ -36,14 +36,18 @@ describe("BLAST_FRAME_KINDS — the one list the Zod schemas derive from", () =>
 
 describe("insertStem — the detour card's words", () => {
   test("a cheat code marks its rule as the key phrase, body on its own line", () => {
-    expect(insertStem({ id: "f", kind: "cheat", title: "Debits left", body: "always" })).toBe("==Debits left==\nalways");
+    // 2026-09-03: the title is the bold heading, nothing is auto-highlighted,
+    // and the body is the first line UNDER it (frameBullets), uniform with the
+    // other two kinds.
+    expect(insertStem({ id: "f", kind: "cheat", title: "Debits left", body: "always" })).toBe("Debits left");
+    expect(frameBullets({ id: "f", kind: "cheat", title: "Debits left", body: "always", bullets: [" and credits right ", ""] })).toEqual(["always", "and credits right"]);
   });
   test("a phrase IS the key phrase; Lee's own marks win", () => {
-    expect(insertStem({ id: "f", kind: "phrase", text: "Cash is king" })).toBe("==Cash is king==");
-    expect(insertStem({ id: "f", kind: "phrase", text: "Cash is ==king==" })).toBe("Cash is ==king==");
+    expect(insertStem({ id: "f", kind: "phrase", text: "Cash is king" })).toBe("Cash is king");
+    expect(insertStem({ id: "f", kind: "phrase", text: "Cash is ==king==" })).toBe("Cash is ==king==");   // his own marks stay
   });
-  test("a tip highlights its main phrase (2026-09-03); an exhibit names itself", () => {
-    expect(insertStem({ id: "f", kind: "tip", text: "Read the stem twice" })).toBe("==Read the stem twice==");
+  test("a tip is its heading, plain; an exhibit names itself", () => {
+    expect(insertStem({ id: "f", kind: "tip", text: "Read the stem twice" })).toBe("Read the stem twice");
     expect(insertStem({ id: "f", kind: "exhibit", exhibitRef: "cycle" })).toBe("Exhibit: cycle");
     expect(insertStem({ id: "f", kind: "exhibit", exhibitRef: "cycle", text: "The cycle" })).toBe("The cycle");
   });
@@ -244,7 +248,7 @@ describe("inserts", () => {
 });
 
 // ---- THE REVIEW STEP's verbs (2026-09-03) ----------------------------------
-import { dropFrame, duplicateFrame, filmFrames, frameCount, patchFrame, toggleSkip } from "./plan";
+import { dropFrame, duplicateFrame, filmFrames, frameBullets, frameCount, patchFrame, toggleSkip } from "./plan";
 
 describe("the review step: skip, duplicate, patch — the set is never touched", () => {
   const ceqs: PlanCeq[] = [{ id: "c1", label: "Q1", stem: "one" }, { id: "c2", label: "Q2", stem: "two" }];

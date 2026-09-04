@@ -8,17 +8,19 @@
 // the main thing; maybe have ONE AI suggestion for the best thing it feels is
 // missing."
 //
-// And the second pass, the same evening: "Show me the stamps I used for that
-// slide, I'll click and see what all I have. I'll use proofread tool … it
+// Same evening, second pass: "Show me the stamps I used for that slide … it
 // organizes them into phrases. It lets me pick any to form that into a slide
 // … 2 sentences max on a phrase, preferably one … these are CRAM videos."
 //
-// So: the candidates for a slide are his own segments — the ones captured
-// while that CEQ was focused, or inside a stamp context of the slide's kind —
-// GROUPED BY THE STAMP he was holding. No model is needed to FIND them. The
-// model only proofreads them into short phrases (buildTidy…), each one
-// keepable on the prompter or turnable into a slide, and may add exactly one
-// line of its own, marked as such.
+// Third pass: "An option above the teleprompter to view all stamps … click
+// each example and let it navigate to the slide it was from … let's just let
+// the stamps be proofread by default. Save the raw text in the toggle still."
+//
+// So: the candidates are his own segments — captured while a CEQ was focused
+// and/or inside a stamp context — each tagged with the stamp he was holding
+// and the card he was looking at. No model is needed to FIND them. The model
+// only proofreads them into short titled phrases (buildTidy…), which go on
+// the prompter or become a slide, and may add exactly one line of its own.
 import {
   canonicalStamp, contextsOfSegment, isContextTag, stampLabel,
   type TTDoc, type TalkSegment, type TalkTag,
@@ -33,10 +35,13 @@ export interface PrompterCandidate {
   source: "ceq" | "stamp" | "bank";
   /** The stamp he was holding (canonical kind), or null for plain card talk. */
   stamp: string | null;
+  /** The card he was looking at when he said it, when known. */
+  ceqId: string | null;
+  ceqLabel: string | null;
   at: string;
 }
 
-/** One chip in the prompter: a stamp he used near this slide, with its words. */
+/** One chip in the prompter: a stamp he used, with its words. */
 export interface PrompterGroup {
   key: string;
   label: string;
@@ -69,21 +74,11 @@ export const PHRASE_SLIDE_KINDS: readonly { kind: BlastFrameKind; label: string 
   { kind: "tip", label: "Deeper idea" },
 ];
 
-/** Lee's own words for this slide, in the order he said them, de-duplicated,
- *  each tagged with the stamp he was holding. */
-export function prompterCandidates(frame: BlastFrame, doc: TTDoc, setId: string): PrompterCandidate[] {
+/** The set's live talk: its sessions' segments and stamp contexts. */
+function setTalk(doc: TTDoc, setId: string): { segs: TalkSegment[]; stampOf: (s: TalkSegment) => string | null } {
   const sessionIds = new Set(doc.sessions.filter((s) => s.setId === setId && !s.archivedAt).map((s) => s.id));
-  const segs: TalkSegment[] = doc.segments.filter((s) => sessionIds.has(s.sessionId) && !s.archivedAt && s.text.trim());
+  const segs = doc.segments.filter((s) => sessionIds.has(s.sessionId) && !s.archivedAt && s.text.trim());
   const tags: TalkTag[] = doc.tags.filter((t) => sessionIds.has(t.sessionId) && !t.archivedAt && isContextTag(t));
-  const out: PrompterCandidate[] = [];
-  const seen = new Set<string>();
-  const push = (id: string, text: string, source: PrompterCandidate["source"], stamp: string | null, at: string) => {
-    const clean = text.trim();
-    const key = clean.toLowerCase();
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    out.push({ id, text: clean, source, stamp, at });
-  };
   // The stamp a segment was captured under: the newest open context in its
   // own session (contextsOfSegment is newest-first).
   const stampOf = (s: TalkSegment): string | null => {
@@ -91,16 +86,39 @@ export function prompterCandidates(frame: BlastFrame, doc: TTDoc, setId: string)
     const ctx = mine.length ? contextsOfSegment(s, mine) : [];
     return ctx.length ? canonicalStamp(ctx[0].tag) : null;
   };
+  return { segs, stampOf };
+}
+
+const collector = () => {
+  const out: PrompterCandidate[] = [];
+  const seen = new Set<string>();
+  const push = (c: Omit<PrompterCandidate, "text"> & { text: string }) => {
+    const clean = c.text.trim();
+    const key = clean.toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push({ ...c, text: clean });
+  };
+  return { out, push };
+};
+
+const fromSeg = (s: TalkSegment, source: PrompterCandidate["source"], stamp: string | null): PrompterCandidate =>
+  ({ id: s.id, text: s.text, source, stamp, ceqId: s.focusedCeqId ?? null, ceqLabel: s.focusedCeqLabel ?? null, at: s.startedAt });
+
+/** Lee's own words for THIS slide, in the order he said them, de-duplicated. */
+export function prompterCandidates(frame: BlastFrame, doc: TTDoc, setId: string): PrompterCandidate[] {
+  const { segs, stampOf } = setTalk(doc, setId);
+  const { out, push } = collector();
 
   if (frame.kind === "ceq" && frame.ceqId) {
-    for (const s of segs) if (s.focusedCeqId === frame.ceqId) push(s.id, s.text, "ceq", stampOf(s), s.startedAt);
+    for (const s of segs) if (s.focusedCeqId === frame.ceqId) push(fromSeg(s, "ceq", stampOf(s)));
   }
 
   const kinds = STAMPS_FOR_KIND[frame.kind];
   if (kinds) {
     for (const s of segs) {
       const st = stampOf(s);
-      if (st && kinds.includes(st)) push(s.id, s.text, "stamp", st, s.startedAt);
+      if (st && kinds.includes(st)) push(fromSeg(s, "stamp", st));
     }
   }
 
@@ -110,16 +128,28 @@ export function prompterCandidates(frame: BlastFrame, doc: TTDoc, setId: string)
       const p = b.payload as { body?: unknown; kind?: unknown };
       const st = typeof p.kind === "string" ? canonicalStamp(p.kind) : null;
       const body = String(p.body ?? "");
-      if (b.quote) push(`${b.id}:quote`, b.quote, "bank", st, b.createdAt);
-      if (body) push(`${b.id}:body`, body, "bank", st, b.createdAt);
+      if (b.quote) push({ id: `${b.id}:quote`, text: b.quote, source: "bank", stamp: st, ceqId: b.ceqIds[0] ?? null, ceqLabel: null, at: b.createdAt });
+      if (body) push({ id: `${b.id}:body`, text: body, source: "bank", stamp: st, ceqId: b.ceqIds[0] ?? null, ceqLabel: null, at: b.createdAt });
     }
   }
 
   return out.sort((a, b) => a.at.localeCompare(b.at));
 }
 
-/** The stamps he used near this slide, each with its words — stamps first
- *  (in the order he first used them), plain card talk last. */
+/** EVERY STAMP that came through on this set, whatever slide it was near —
+ *  the "all stamps" view. Plain card talk is left out; that is per-slide. */
+export function setStampCandidates(doc: TTDoc, setId: string): PrompterCandidate[] {
+  const { segs, stampOf } = setTalk(doc, setId);
+  const { out, push } = collector();
+  for (const s of segs) {
+    const st = stampOf(s);
+    if (st) push(fromSeg(s, "stamp", st));
+  }
+  return out.sort((a, b) => a.at.localeCompare(b.at));
+}
+
+/** The stamps, each with its words — stamps first (in the order he first
+ *  used them), plain card talk last. */
 export function prompterGroups(candidates: readonly PrompterCandidate[]): PrompterGroup[] {
   const groups = new Map<string, PrompterGroup>();
   for (const c of candidates) {
@@ -138,15 +168,20 @@ export function prompterGroups(candidates: readonly PrompterCandidate[]): Prompt
 
 export interface TidyPhrase {
   id: string;
+  /** 2–5 words: the heading the slide would carry ("The Paycheck Test"). */
+  title: string;
+  /** The phrase itself — his voice, one sentence, two at most. */
   text: string;
   /** The stamp the words came from — decides the slide kind it would become. */
   stamp: string | null;
   /** Candidate ids it was made from. */
   from: string[];
+  /** The card he was looking at, from the first source candidate. */
+  ceqId: string | null;
+  ceqLabel: string | null;
 }
 
 export interface TidyResult {
-  /** Lee's words as short phrases — his voice, one sentence, two at most. */
   phrases: TidyPhrase[];
   /** The ONE thing the model thinks is missing, or null. Marked AI in the UI. */
   suggestion: string | null;
@@ -155,23 +190,24 @@ export interface TidyResult {
 /** The proofreading call. LEE'S LAW applies: his words, tightened, never
  *  invented — and exactly one line the model may add, kept apart. */
 export function buildTidyMessages(input: {
-  slideLabel: string;
-  slideText: string;
+  scope: string;
+  slideText?: string;
   candidates: readonly PrompterCandidate[];
   kept: readonly string[];
 }): { system: string; user: string } {
   const system = [
-    "You proofread a teacher's own spoken words into PHRASES for a short vertical CRAM video and its teleprompter. The teacher is Lee; the words are his, captured live while he looked at the slide described below, under the stamp named on each line.",
-    "LEE'S LAW: keep his meaning, his phrasing and his voice. Fix grammar and dropped words, cut filler and false starts. NEVER add facts, examples or claims he did not say.",
-    "PHRASES, NOT PARAGRAPHS. This is a cram video: each phrase is ONE sentence, two at most, bullet-point concise, sayable in a breath. A long candidate becomes two or three separate phrases; a candidate with nothing usable (an aside, noise, a question to himself) produces none. Keep each phrase's stamp; use the candidate ids it came from in \"from\".",
-    "Then, ONE suggestion at most: a single phrase for the one useful thing you believe is missing for THIS slide, in his voice. If nothing is clearly missing, null.",
-    "Return ONLY JSON: {\"phrases\": [{\"text\": str, \"stamp\": str | null, \"from\": [str]}], \"suggestion\": str | null}",
+    "You proofread a teacher's own spoken words into PHRASES for a short vertical CRAM video and its teleprompter. The teacher is Lee; the words are his, captured live while he looked at the card named on each line, under the stamp named on each line.",
+    "LEE'S LAW: keep his meaning, his phrasing and his voice. Fix grammar and dropped words, cut filler and false starts. Keep the connective words that carry the logic ('if so', 'then', 'because'). NEVER add facts, examples or claims he did not say.",
+    "PHRASES, NOT PARAGRAPHS. This is a cram video: each phrase is ONE sentence, two at most, bullet-point concise, sayable in a breath. A long candidate becomes two or three separate phrases; a candidate with nothing usable (an aside, noise, a question to himself) produces none. Keep each phrase's stamp; list the candidate ids it came from in \"from\".",
+    "Give every phrase a TITLE: 2–5 words, the heading a slide would carry (e.g. 'The Paycheck Test', 'Internal users'). Use his own name for it when he gave one; otherwise the plainest name for what the phrase is about. Never a full sentence.",
+    "Then, ONE suggestion at most: a single phrase for the one useful thing you believe is missing, in his voice. If nothing is clearly missing, null.",
+    "Return ONLY JSON: {\"phrases\": [{\"title\": str, \"text\": str, \"stamp\": str | null, \"from\": [str]}], \"suggestion\": str | null}",
   ].join("\n");
   const user = [
-    `SLIDE: ${input.slideLabel}`,
+    `SCOPE: ${input.scope}`,
     input.slideText ? `WHAT THE SLIDE SAYS:\n${input.slideText.slice(0, 2000)}` : "",
     input.kept.length ? `LINES HE ALREADY KEPT (do not repeat these):\n${input.kept.map((k) => `- ${k}`).join("\n")}` : "",
-    `HIS WORDS (candidates):\n${input.candidates.map((c) => `[${c.id}] (stamp: ${c.stamp ?? "none"}) ${c.text}`).join("\n")}`,
+    `HIS WORDS (candidates):\n${input.candidates.map((c) => `[${c.id}] (stamp: ${c.stamp ?? "none"} · card: ${c.ceqLabel ?? "—"}) ${c.text}`).join("\n")}`,
   ].filter(Boolean).join("\n\n");
   return { system, user };
 }
@@ -185,14 +221,50 @@ export function parseTidy(raw: string, candidates: readonly PrompterCandidate[])
   const seen = new Set<string>();
   const phrases: TidyPhrase[] = [];
   for (const p of Array.isArray(j.phrases) ? j.phrases : []) {
-    const o = p as { text?: unknown; stamp?: unknown; from?: unknown };
+    const o = p as { title?: unknown; text?: unknown; stamp?: unknown; from?: unknown };
     const text = typeof o.text === "string" ? o.text.trim() : "";
     if (!text || seen.has(text.toLowerCase())) continue;
     seen.add(text.toLowerCase());
     const from = (Array.isArray(o.from) ? o.from : []).filter((x): x is string => typeof x === "string" && byId.has(x));
-    const stamp = typeof o.stamp === "string" && o.stamp !== "none" ? canonicalStamp(o.stamp) ?? o.stamp : from.length ? byId.get(from[0])!.stamp : null;
-    phrases.push({ id: `ph-${phrases.length + 1}`, text, stamp, from });
+    const first = from.length ? byId.get(from[0])! : null;
+    const stamp = typeof o.stamp === "string" && o.stamp !== "none" ? canonicalStamp(o.stamp) ?? o.stamp : first?.stamp ?? null;
+    const title = typeof o.title === "string" && o.title.trim() ? o.title.trim().replace(/[.:]+$/, "") : "";
+    phrases.push({ id: `ph-${phrases.length + 1}`, title, text, stamp, from, ceqId: first?.ceqId ?? null, ceqLabel: first?.ceqLabel ?? null });
   }
   const suggestion = typeof j.suggestion === "string" && j.suggestion.trim() ? j.suggestion.trim() : null;
   return { phrases, suggestion };
+}
+
+// ---- proofread by default, remembered -------------------------------------
+// One micro call per slide (or per set, for the all-stamps view) is cents;
+// re-running it on every visit is not. The result is keyed by the words it
+// was made from, so new talk gets a fresh proofread and old talk keeps its.
+
+const TIDY_KEY = "sa-prompter-tidy-v2";
+
+/** Cheap stable hash of the candidate ids + texts (FNV-1a, 32-bit). */
+export function tidyCacheKey(scope: string, candidates: readonly PrompterCandidate[]): string {
+  let h = 0x811c9dc5;
+  const s = candidates.map((c) => `${c.id}${c.text}`).join("");
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return `${scope}:${h.toString(16)}`;
+}
+
+type TidyStore = Record<string, TidyResult>;
+const readStore = (): TidyStore => { try { return (JSON.parse(localStorage.getItem(TIDY_KEY) ?? "{}") as TidyStore) ?? {}; } catch { return {}; } };
+
+export function readTidy(key: string): TidyResult | null {
+  const r = readStore()[key];
+  return r && Array.isArray(r.phrases) ? r : null;
+}
+
+export function writeTidy(key: string, res: TidyResult): void {
+  try {
+    const store = readStore();
+    store[key] = res;
+    // Keep the store small: the newest 60 entries.
+    const keys = Object.keys(store);
+    if (keys.length > 60) for (const k of keys.slice(0, keys.length - 60)) delete store[k];
+    localStorage.setItem(TIDY_KEY, JSON.stringify(store));
+  } catch { /* storage full or unavailable — the proofread still shows this visit */ }
 }
