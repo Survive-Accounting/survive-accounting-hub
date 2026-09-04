@@ -553,6 +553,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "lab.bolt.tsx": "dev lab (noindex)",
   "leeportal.tsx": "Lee's private nav portal (AdminGate, noindex, unlinked)",
   "branding.tsx": "Lee's brand-slide wall — the shipping slides, the bolt detour, the set-aside experiments (AdminGate, noindex)",
+  "survive-bolt.tsx": "the three original Survive bolt candidates to pick from (AdminGate, noindex)",
   // V3 — the production menu (noindex). Blast Off is the one live door;
   // Practice and Review render closed until they exist.
   "v3.index.tsx": "V3 menu (noindex) — Exam 1 topics",

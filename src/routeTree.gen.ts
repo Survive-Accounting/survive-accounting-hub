@@ -15,6 +15,7 @@ import { Route as TheCampaignRouteImport } from './routes/the-campaign'
 import { Route as ThankyouRouteImport } from './routes/thankyou'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TalkthroughRouteImport } from './routes/talkthrough'
+import { Route as SurviveBoltRouteImport } from './routes/survive-bolt'
 import { Route as StudyRouteImport } from './routes/study'
 import { Route as StartRouteImport } from './routes/start'
 import { Route as SendRouteImport } from './routes/send'
@@ -202,6 +203,11 @@ const TermsRoute = TermsRouteImport.update({
 const TalkthroughRoute = TalkthroughRouteImport.update({
   id: '/talkthrough',
   path: '/talkthrough',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SurviveBoltRoute = SurviveBoltRouteImport.update({
+  id: '/survive-bolt',
+  path: '/survive-bolt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StudyRoute = StudyRouteImport.update({
@@ -1046,6 +1052,7 @@ export interface FileRoutesByFullPath {
   '/send': typeof SendRoute
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
+  '/survive-bolt': typeof SurviveBoltRoute
   '/talkthrough': typeof TalkthroughRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
@@ -1211,6 +1218,7 @@ export interface FileRoutesByTo {
   '/send': typeof SendRoute
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
+  '/survive-bolt': typeof SurviveBoltRoute
   '/talkthrough': typeof TalkthroughRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
@@ -1375,6 +1383,7 @@ export interface FileRoutesById {
   '/send': typeof SendRoute
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
+  '/survive-bolt': typeof SurviveBoltRoute
   '/talkthrough': typeof TalkthroughRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
@@ -1543,6 +1552,7 @@ export interface FileRouteTypes {
     | '/send'
     | '/start'
     | '/study'
+    | '/survive-bolt'
     | '/talkthrough'
     | '/terms'
     | '/thankyou'
@@ -1708,6 +1718,7 @@ export interface FileRouteTypes {
     | '/send'
     | '/start'
     | '/study'
+    | '/survive-bolt'
     | '/talkthrough'
     | '/terms'
     | '/thankyou'
@@ -1871,6 +1882,7 @@ export interface FileRouteTypes {
     | '/send'
     | '/start'
     | '/study'
+    | '/survive-bolt'
     | '/talkthrough'
     | '/terms'
     | '/thankyou'
@@ -2038,6 +2050,7 @@ export interface RootRouteChildren {
   SendRoute: typeof SendRoute
   StartRoute: typeof StartRoute
   StudyRoute: typeof StudyRoute
+  SurviveBoltRoute: typeof SurviveBoltRoute
   TalkthroughRoute: typeof TalkthroughRoute
   TermsRoute: typeof TermsRoute
   ThankyouRoute: typeof ThankyouRoute
@@ -2151,6 +2164,13 @@ declare module '@tanstack/react-router' {
       path: '/talkthrough'
       fullPath: '/talkthrough'
       preLoaderRoute: typeof TalkthroughRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/survive-bolt': {
+      id: '/survive-bolt'
+      path: '/survive-bolt'
+      fullPath: '/survive-bolt'
+      preLoaderRoute: typeof SurviveBoltRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/study': {
@@ -3501,6 +3521,7 @@ const rootRouteChildren: RootRouteChildren = {
   SendRoute: SendRoute,
   StartRoute: StartRoute,
   StudyRoute: StudyRoute,
+  SurviveBoltRoute: SurviveBoltRoute,
   TalkthroughRoute: TalkthroughRoute,
   TermsRoute: TermsRoute,
   ThankyouRoute: ThankyouRoute,
