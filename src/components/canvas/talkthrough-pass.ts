@@ -15,7 +15,7 @@
 //     anything; the caller just shows the error and offers retry.
 import {
   BOARD_KINDS, MOMENT_TAGS, newTTId, stampLabel,
-  type BoardItem, type BoardKind, type MomentTag, type TalkSegment, type TalkTag,
+  type BoardItem, type BoardKind, type GenTaskType, type MomentTag, type TalkSegment, type TalkTag,
 } from "./talkthrough";
 
 // ------------------------------------------------------------------ context
@@ -456,4 +456,213 @@ export function parseReview(
     .filter((t) => t.quote && !!t.tag);
 
   return { items, proposedTags };
+}
+
+// ─────────────────────── B8: THE GENERATION QUEUE (incremental results)
+//
+// Lee, 2026-09-04: the End-Session pass used to be ONE blocking request that
+// returned the whole board at once — nothing on Results until every token had
+// landed, and no way to tell a slow pass from a dead one. So generation is a
+// QUEUE now: tasks in priority order (the script, then the CEQ edits, then the
+// ideas), each one generated on its own and written to the store the moment it
+// parses, so Review fills in while he watches.
+//
+// This half is PURE: it builds the task list and each task's messages. The
+// runner (client-side, store-writing) lives in talkthrough-review.ts — this
+// module is imported by the SERVER function and must never touch the store.
+//
+// TARGETS. A task knows what it is about, and the targets are the ones the
+// session already has, so the total is known BEFORE the first call:
+//   script → the whole session (one task, the synthesis lane)
+//   edit   → one CEQ, via an EDIT stamp Lee pressed on it (micro lane)
+//   idea   → one stamp's spoken window (micro lane)
+// Every idea/edit task is ONE stamp = ONE item, which is Lee's Law in the
+// shape of a queue: his words, proofread, never re-imagined.
+
+/** The phases live with the model (talkthrough.ts) so the Booth and the dock
+ *  can read progress without importing the prompt builders. */
+export type { GenTaskType };
+
+/** A stamp as the queue builder sees it (canonical kind + its spoken window). */
+export interface GenStamp {
+  id: string;
+  /** Canonical stamp kind — canonicalStamp() has already run. */
+  kind: string;
+  starred: boolean;
+  ceqId: string | null;
+  ceqLabel: string | null;
+  /** Everything Lee said inside this stamp's context window. */
+  spoken: string;
+  /** The stamp's typed follow-up (a visual's kind, for instance). */
+  note?: string | null;
+}
+
+export interface GenTask {
+  /** Stable within a run — the progress line and the error report name it. */
+  id: string;
+  type: GenTaskType;
+  /** Human label for the progress line: "the script", "reword · Q3 …". */
+  label: string;
+  /** The stamp this task came from (null for the script task). */
+  stampId: string | null;
+  /** Canonical stamp kind (null for the script task). */
+  stampKind: string | null;
+  ceqId: string | null;
+  ceqLabel: string | null;
+  /** Lee's words for this target (empty for the script task — it reads the
+   *  whole transcript server-side). */
+  spoken: string;
+  note?: string | null;
+}
+
+/** Stamps that mean "change this question" — they draft a CEQ edit. */
+export const EDIT_TASK_KINDS: readonly string[] = ["reword", "revise_choices", "edit_other"];
+/** Stamps that mean "bank this idea". blast_off / review_vibe are markers for
+ *  the script and the vibe plan, not cards, so they never mint an idea task. */
+export const IDEA_TASK_KINDS: readonly string[] = IDEA_KINDS;
+
+/** The key an already-drafted CEQ edit occupies — the booth fires a micro
+ *  draft the moment an edit context closes, and the queue must not double it. */
+export const editTaskKey = (ceqId: string, stampKind: string): string => `${ceqId}|${stampKind}`;
+
+/** THE QUEUE, in priority order: the script, every CEQ edit, every idea.
+ *  Pure and total — the count it returns is the count the progress line shows. */
+export function buildGenerationQueue(input: {
+  stamps: GenStamp[];
+  /** Pre-flight exclusions (canonical stamp kinds Lee unchecked). */
+  excludedKinds: string[];
+  /** `editTaskKey()` values already on the board from the booth's live drafts. */
+  alreadyDrafted?: string[];
+}): GenTask[] {
+  const excluded = new Set(input.excludedKinds);
+  const drafted = new Set(input.alreadyDrafted ?? []);
+  const tasks: GenTask[] = [];
+
+  // (a) THE SCRIPT — always, even with no stamps at all (the pre-flight says
+  // so in as many words: "The script is always generated").
+  tasks.push({ id: "t-script", type: "script", label: "the script", stampId: null, stampKind: null, ceqId: null, ceqLabel: null, spoken: "" });
+
+  // A stamp with nothing said inside it has nothing to proofread, and a star
+  // is a bookmark, not a context. Neither may be turned into content — that
+  // would be inventing, which is the one thing the pass may never do.
+  const usable = input.stamps.filter((s) => !s.starred && !excluded.has(s.kind) && s.spoken.trim());
+
+  // (b) CEQ EDITS — one per edit stamp that still needs a draft.
+  let n = 0;
+  for (const s of usable) {
+    if (!EDIT_TASK_KINDS.includes(s.kind) || !s.ceqId) continue;
+    if (drafted.has(editTaskKey(s.ceqId, s.kind))) continue;
+    tasks.push({
+      id: `t-edit-${n++}`, type: "edit", label: `${s.kind.replace(/_/g, " ")} · ${s.ceqLabel ?? "a question"}`,
+      stampId: s.id, stampKind: s.kind, ceqId: s.ceqId, ceqLabel: s.ceqLabel ?? null, spoken: s.spoken, note: s.note ?? null,
+    });
+  }
+
+  // (c) IDEAS — one per bankable stamp.
+  let m = 0;
+  for (const s of usable) {
+    if (!IDEA_TASK_KINDS.includes(s.kind)) continue;
+    tasks.push({
+      id: `t-idea-${m++}`, type: "idea", label: `${s.kind.replace(/_/g, " ")}${s.ceqLabel ? ` · ${s.ceqLabel}` : ""}`,
+      stampId: s.id, stampKind: s.kind, ceqId: s.ceqId ?? null, ceqLabel: s.ceqLabel ?? null, spoken: s.spoken, note: s.note ?? null,
+    });
+  }
+
+  return tasks;
+}
+
+/** How many tasks of each type a queue holds — the "3/8" in the progress line. */
+export function queueCounts(tasks: GenTask[]): Record<GenTaskType, number> {
+  return {
+    script: tasks.filter((t) => t.type === "script").length,
+    edit: tasks.filter((t) => t.type === "edit").length,
+    idea: tasks.filter((t) => t.type === "idea").length,
+  };
+}
+
+/** The synthesis keys the SCRIPT task asks for. The rest of the board is minted
+ *  by the per-stamp micro tasks, so this call stays small and lands fast. */
+export const scriptTaskKeys = (wantVibePlan: boolean): string[] =>
+  ["script", ...(wantVibePlan ? ["vibePlan"] : []), "proposedStamps"];
+
+/** Same context, same laws, but only some keys of the output object. Used by
+ *  the script task so the first card reaches the board in one short call. */
+export function buildReviewOnlyMessages(ctx: ReviewContext, keys: string[]): { system: string; user: string } {
+  const base = buildReviewMessages(ctx);
+  const list = keys.length ? keys : ["script"];
+  const system = `${base.system}\n\nPARTIAL OUTPUT MODE: output ONE JSON object with ONLY these keys — ${list.map((k) => `"${k}"`).join(", ")}. Omit every other key entirely. Same rules, same quoting law.`;
+  return { system, user: base.user };
+}
+
+// ---------------------------------------------------- the per-stamp idea task
+
+/** One stamp, its words, and the question it was pressed on. */
+export interface IdeaDraftContext {
+  /** Canonical stamp kind — it is the card kind unless it is a vague one. */
+  stampKind: string;
+  setName: string;
+  ceqLabel: string | null;
+  ceqStem: string | null;
+  /** Lee's verbatim words inside the stamp's window. THE content. */
+  spoken: string;
+  /** A visual stamp's follow-up ("progressive reveal"), if he tapped one. */
+  note?: string | null;
+  /** B7 style notes for this kind. */
+  styleNotes: string[];
+}
+
+const IDEA_SPEC = `Return ONE JSON object, nothing else:
+{"kind": "cheat_code"|"memorize_this"|"deeper_idea"|"visual"|"phrase"|"trigger_word"|"short"|"nerdout"|"exhibit", "title": str, "body": str, "visualKind": str|null}
+- kind: the stamp's kind, unless his words clearly belong to one of the other standard kinds (cheat_code / memorize_this / deeper_idea) — then say which.
+- title: a short heading in HIS words (under 60 characters).
+- body: his point, proofread. Two or three short lines at most.
+- visualKind: only for a visual — "progressive reveal" | "interactive" | "compare / contrast" | "static", or null.`;
+
+const IDEA_RULES = `LEE'S LAW (his words, and it outranks everything else):
+- "I'm the teacher. It's the support assistant." You PROOFREAD; you do not invent. These ARE his words: clean the grammar, keep his phrasing, his examples, his tone. Never reword a point he already made well. Never take his idea and make it your own.
+- ONE card out of one stamp. No extras, no alternatives, no commentary.
+- No invented numbers, claims, jokes or tone words. If he did not say it and it is not in the question, it is not in the card.
+- THE THREE STANDARD KINDS: cheat_code (a rule to carry into the exam), memorize_this (the thing to remember, said his way), deeper_idea (the seed of a Nerd Out). Plus visual, phrase, trigger_word, and the video kinds (short / nerdout / exhibit). Do not invent a kind outside that list.
+- Intro-accounting level. No salary data, no rankings.
+- If his words do not add up to a card, return a title and body that are his words as they stand — an honest thin card beats an invented fat one.`;
+
+export function buildIdeaMessages(ctx: IdeaDraftContext): { system: string; user: string } {
+  const system = [
+    `You draft ONE bankable card for Lee, the teacher of record, out of a moment he stamped "${ctx.stampKind.replace(/_/g, " ")}" while talking through his question set.`,
+    ctx.styleNotes.length ? `STYLE NOTES (Lee's standing preferences — obey):\n${ctx.styleNotes.map((n) => `- ${n}`).join("\n")}` : "",
+    IDEA_RULES,
+    IDEA_SPEC,
+  ].filter(Boolean).join("\n\n");
+  const user = [
+    `SET: ${ctx.setName}`,
+    ctx.ceqLabel ? `THE QUESTION HE WAS LOOKING AT: ${ctx.ceqLabel}` : "HE WAS TALKING ABOUT THE SET AS A WHOLE.",
+    ctx.ceqStem ? `ITS STEM: ${ctx.ceqStem}` : "",
+    ctx.note ? `HIS FOLLOW-UP TAP: ${ctx.note}` : "",
+    `\nWHAT HE SAID (verbatim — this is the content):\n"${ctx.spoken}"`,
+  ].filter(Boolean).join("\n");
+  return { system, user };
+}
+
+export interface IdeaDraft {
+  kind: string;
+  title: string;
+  body: string;
+  visualKind: string | null;
+}
+
+/** Parse the micro reply into one idea. Garbage → null, and the caller halts
+ *  the queue loudly rather than banking a card nobody can trace. */
+export function parseIdeaDraft(text: string, stampKind: string): IdeaDraft | null {
+  const raw = extractJsonObject(text);
+  if (!raw) return null;
+  const asked = str(raw.kind);
+  const folded = KIND_FOLD[asked] ?? asked;
+  const kind = (IDEA_KINDS as readonly string[]).includes(folded)
+    ? folded
+    : (KIND_FOLD[stampKind] ?? stampKind);
+  const title = str(raw.title).trim();
+  const body = str(raw.body).trim();
+  if (!title && !body) return null;
+  const visualKind = str(raw.visualKind).trim();
+  return { kind, title: title || body.slice(0, 60), body, visualKind: visualKind || null };
 }

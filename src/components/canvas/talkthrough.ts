@@ -79,6 +79,65 @@ export interface TalkSession extends TTRow {
   endedAt?: string | null;
 }
 
+// ───────────────────── B8: GENERATION PROGRESS (the incremental queue)
+//
+// Lee, 2026-09-04: "show generation progress" while the End-Session pass runs.
+// The pass is a QUEUE now (talkthrough-pass.buildGenerationQueue): the script,
+// then every CEQ edit, then every idea, each written to the board the moment
+// it lands. This is the shape of "where is it up to".
+//
+// WHERE IT LIVES, and why it is not a field on TalkSession: a session is a
+// SYNCED row (see SessionRow below). Hanging progress off it would mean a new
+// column, a migration and a Supabase write per generated item — churn on the
+// capture store for a number that is true for one run, in one tab, for about a
+// minute. So progress lives beside the run state it belongs to, in
+// talkthrough-review.ts's `sa-tt-genstate` store (localStorage, subscribable,
+// already swept for stranded runs at boot). The TYPE lives here, with the rest
+// of the model, because the Booth, the dock and the runner all read it.
+
+/** The queue's phases, in the order the queue runs them. */
+export const GEN_TASK_TYPES = ["script", "edit", "idea"] as const;
+export type GenTaskType = (typeof GEN_TASK_TYPES)[number];
+
+/** Plural labels for the progress line — "edits 2/5 done". */
+export const GEN_TYPE_LABELS: Record<GenTaskType, string> = { script: "script", edit: "edits", idea: "ideas" };
+
+export interface GenerationProgress {
+  /** Every task in the run — known before the first call is made. */
+  total: number;
+  /** Tasks finished (written to the board). */
+  completed: number;
+  /** What is being generated RIGHT NOW. Null = the queue is finished. */
+  currentType: GenTaskType | null;
+  /** The current task's own label ("cheat code · Q3 · Unearned → earned"). */
+  label: string | null;
+  /** Tasks per phase, and how many of each are done. */
+  counts: Record<GenTaskType, number>;
+  done: Record<GenTaskType, number>;
+  /** ISO stamp of when the queue stopped — finished or halted. */
+  finishedAt?: string | null;
+  /** Set when the queue HALTED. Fail loud: items already written stay. */
+  error?: string | null;
+}
+
+export const emptyProgress = (): GenerationProgress => ({
+  total: 0, completed: 0, currentType: null, label: null,
+  counts: { script: 0, edit: 0, idea: 0 }, done: { script: 0, edit: 0, idea: 0 },
+  finishedAt: null, error: null,
+});
+
+/** The one line the Booth and the dock show. Pure, so it is tested. */
+export function progressLine(p: GenerationProgress): string {
+  if (p.error) return `Generation stopped: ${p.error}`;
+  if (!p.currentType) return p.total ? `Generation complete · ${p.completed} item${p.completed === 1 ? "" : "s"}` : "Generation complete";
+  const t = p.currentType;
+  if (t === "script") return "Generating: the script…";
+  return `Generating: ${GEN_TYPE_LABELS[t]} ${p.done[t]}/${p.counts[t]} done`;
+}
+
+/** True while the queue is still working. */
+export const isGenerating = (p: GenerationProgress | null | undefined): boolean => !!p && !!p.currentType;
+
 export type SegmentSource = "live" | "whisper";
 
 export interface TalkSegment extends TTRow {
@@ -466,14 +525,21 @@ export const isSessionIdle = (d: TTDoc, s: TalkSession, now = Date.now()): boole
 export const STYLE_KINDS = ["script", "exhibit", "memo", "short", "general"] as const;
 export type StyleKind = (typeof STYLE_KINDS)[number];
 
-/** Which style-note bucket an item's generations draw from. */
-export function styleKindFor(item: BoardItem): StyleKind {
-  if (item.kind === "script" || item.kind === "vibe_plan") return "script";
-  const k = item.kind === "idea" ? String((item.payload as { kind?: string }).kind ?? "") : item.kind;
+/** Which style-note bucket a KIND draws from — a board kind, or the card kind
+ *  inside an idea payload (B8's per-stamp tasks know the kind before an item
+ *  exists, so this half is callable without one). */
+export function styleKindForKind(k: string): StyleKind {
+  if (k === "script" || k === "vibe_plan") return "script";
   if (k === "exhibit" || k === "visual") return "exhibit";
   if (k === "memo" || k === "phrase" || k === "trigger_word" || k === "memorize_this" || k === "cheat_code") return "memo";
   if (k === "short" || k === "nerdout" || k === "deeper_idea") return "short";
   return "general";
+}
+
+/** Which style-note bucket an item's generations draw from. */
+export function styleKindFor(item: BoardItem): StyleKind {
+  if (item.kind === "script" || item.kind === "vibe_plan") return "script";
+  return styleKindForKind(item.kind === "idea" ? String((item.payload as { kind?: string }).kind ?? "") : item.kind);
 }
 
 /** Up to N recent APPROVED items of a style kind, newest first, trimmed —

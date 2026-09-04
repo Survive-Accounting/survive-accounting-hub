@@ -30,10 +30,11 @@ import { ChevronDown, ChevronRight, Eraser, FileText, Mic, RotateCcw, Square, Un
 
 import { EXHIBIT_REGISTRY, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import {
-  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, VISUAL_KINDS, canonicalStamp, contextsOfSegment, dismissableResultsForSet, ghostSegments, makeTag, newTTId, openContexts,
-  segmentsInContext, sessionBoard, sessionSegments, sessionTags, stampLabel, styleNotesFor, touchRow,
+  EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, VISUAL_KINDS, canonicalStamp, contextsOfSegment, dismissableResultsForSet, ghostSegments, isGenerating, makeTag, newTTId, openContexts,
+  progressLine, segmentsInContext, sessionBoard, sessionSegments, sessionTags, stampLabel, styleNotesFor, touchRow,
   type BoardItem, type StampKind, type TTDoc, type TalkSegment, type TalkSession, type TalkTag,
 } from "@/components/canvas/talkthrough";
+import { liveGenerationProgress, subscribeReview } from "@/components/canvas/talkthrough-review";
 import { dismissSetResults, putBoardItem, putSegment, putTag, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { TalkthroughRecorder, drainWhisperQueue, isWhisperHallucination, speechRecognitionAvailable, type BoothStatus } from "@/components/canvas/talkthrough-audio";
 import { buildMicroEditMessages, parseMicroEdit, type PassCeq } from "@/components/canvas/talkthrough-pass";
@@ -692,12 +693,59 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
             <div style={{ color: NEON.muted, fontSize: 11 }}>background: {status.uploadQueue} uploading · {status.transcribeQueue} awaiting Whisper</div>
           )}
           {status.lastError && <div style={{ color: "#F87171", fontSize: 11 }}>retrying: {status.lastError}</div>}
+          {/* B8 — what the AI is generating right now, item by item */}
+          <GenerationProgressLines doc={tt.doc} sessionId={session.id} />
           {/* B3 — THE primary next action */}
           <button className="rounded-xl px-4 py-3" style={{ background: GOLD, color: "#0B1322", fontFamily: BIG_FONT, fontWeight: 800, fontSize: 15 }} onClick={() => { rec.stop(); onEnd(); }}>
             End Session → Review
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------- B8: generation progress
+
+/** THE PROGRESS LINE (Lee, 2026-09-04). End Session queues a QUEUE now — the
+ *  script, then the CEQ edits, then the ideas — and each item lands on Review
+ *  as it is written. This says where it is up to: "Generating: edits 2/5 done".
+ *
+ *  It lists EVERY run in flight, not just this session's, because End Session
+ *  sends Lee straight on to the next set while the last one generates behind
+ *  him; a run that is not this booth's names its set. A finished run says so
+ *  for three minutes, then clears itself. */
+export function GenerationProgressLines({ doc, sessionId }: { doc: TTDoc; sessionId: string }) {
+  const [, tick] = useState(0);
+  useEffect(() => subscribeReview(() => tick((n) => n + 1)), []);
+  const rows = liveGenerationProgress();
+  // A finished run ages out on a clock, not on an event — nudge the render.
+  useEffect(() => {
+    if (!rows.length) return;
+    const t = setInterval(() => tick((n) => n + 1), 10_000);
+    return () => clearInterval(t);
+  }, [rows.length]);
+  if (!rows.length) return null;
+
+  return (
+    <div className="flex flex-col gap-1">
+      {rows.map(({ sessionId: sid, progress }) => {
+        const running = isGenerating(progress);
+        const ses = doc.sessions.find((s) => s.id === sid);
+        const other = sid !== sessionId && ses ? ` · ${setLabel(ses.setName)}` : "";
+        const color = progress.error ? "#F87171" : running ? GOLD : "#3BF5A0";
+        return (
+          <div key={sid} style={{ fontSize: 11.5, color, fontWeight: 700, lineHeight: 1.45 }}>
+            {running ? "⚡ " : progress.error ? "✕ " : "✓ "}{progressLine(progress)}{other}
+            {running && progress.total > 0 && (
+              <span style={{ color: NEON.muted, fontWeight: 600 }}> · {progress.completed}/{progress.total} overall</span>
+            )}
+            {running && progress.label && (
+              <div style={{ color: NEON.muted, fontSize: 10.5, fontWeight: 600 }}>{progress.label}</div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

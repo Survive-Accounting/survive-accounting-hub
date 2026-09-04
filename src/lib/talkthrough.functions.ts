@@ -315,6 +315,10 @@ const reviewInput = z.object({
     previous: z.record(z.string(), z.unknown()),
     comments: z.array(z.string().max(4000)).max(10),
   }).optional(),
+  /** B8 — PARTIAL OUTPUT: the generation queue asks for one slice of the board
+   *  at a time (the script task takes "script"), so the first card lands fast.
+   *  Absent = the classic whole-board pass, unchanged. */
+  only: z.array(z.string().max(40)).max(8).optional(),
 });
 
 /** B3 — the End Session synthesis. Returns raw text + usage; the pure parser
@@ -327,7 +331,7 @@ export const runTalkthroughReview = createServerFn({ method: "POST" })
       import("../../docs/EXHIBIT-PRODUCTION-BIBLE-v1.md?raw").then((m) => m.default),
       import("../../docs/SURVIVE_MASTER_CONTEXT_V2.md?raw").then((m) => m.default),
     ]);
-    const { buildReviewMessages, buildReviewRegenMessages } = await import("@/components/canvas/talkthrough-pass");
+    const { buildReviewMessages, buildReviewOnlyMessages, buildReviewRegenMessages } = await import("@/components/canvas/talkthrough-pass");
     const ctxForBuild = {
       setName: data.setName,
       ceqs: data.ceqs,
@@ -341,7 +345,9 @@ export const runTalkthroughReview = createServerFn({ method: "POST" })
     };
     const { system, user } = data.regen
       ? buildReviewRegenMessages(ctxForBuild, data.regen.kind, data.regen.previous, data.regen.comments)
-      : buildReviewMessages(ctxForBuild);
+      : data.only?.length
+        ? buildReviewOnlyMessages(ctxForBuild, data.only)
+        : buildReviewMessages(ctxForBuild);
     const { runAiTask } = await import("@/lib/ai.server");
     const r = await runAiTask("synthesis", { system, user });
     return { text: r.text, model: r.usage.model, usage: { inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens, costUsd: r.usage.costUsd } };

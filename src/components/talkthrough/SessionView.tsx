@@ -12,8 +12,8 @@ import { Check, Copy, Wand2, X } from "lucide-react";
 
 import { attachOneTakeBlast, runTalkthroughPass, type BoothSetInfo } from "@/lib/talkthrough.functions";
 import {
-  BOARD_KIND_LABELS, BOARD_KINDS, BOARD_STATUSES, RESULTS_KINDS, boardForCeq, canonicalStamp, makeTag, newTTId,
-  sessionBoard, sessionMeta, sessionSegments, sessionTags, stampLabel, touchRow,
+  BOARD_KIND_LABELS, BOARD_KINDS, BOARD_STATUSES, RESULTS_KINDS, boardForCeq, canonicalStamp, isGenerating, makeTag, newTTId,
+  progressLine, sessionBoard, sessionMeta, sessionSegments, sessionTags, stampLabel, touchRow,
   type BoardItem, type BoardStatus, type TTDoc, type TalkSession,
 } from "@/components/canvas/talkthrough";
 import { putBoardItem, putBoardItems, putTag, type TTState } from "@/components/canvas/talkthrough-sync";
@@ -21,7 +21,7 @@ import { drainWhisperQueue } from "@/components/canvas/talkthrough-audio";
 import { extractJsonObject, parsePass } from "@/components/canvas/talkthrough-pass";
 import { ReviewBoardV2 } from "@/components/canvas/ReviewBoard";
 import { FilmPicksTray, openFilmMode } from "@/components/canvas/FilmPicks";
-import { queueReview, regenerateReviewItem, reviewStateOf } from "@/components/canvas/talkthrough-review";
+import { generationProgressOf, queueIncrementalReview, regenerateReviewItem, reviewStateOf } from "@/components/canvas/talkthrough-review";
 import { setActivePhraseSession, startPhraseBank } from "@/components/canvas/phrase-bank";
 import { sumUsage, type AiUsage } from "@/lib/ai-registry";
 import { BIG_FONT, NEON } from "@/components/canvas/theme";
@@ -102,6 +102,10 @@ export function SessionView({ tt, session, set, onResume, onAddSlide }: {
 
   // B3 — honest review status + the B0 cost line (studio-only).
   const rs = reviewStateOf(tt.doc, session);
+  // B8 — the incremental queue writes the script FIRST, so rs flips to READY
+  // while edits and ideas are still coming. THIS is "still working".
+  const prog = generationProgressOf(session.id);
+  const genBusy = isGenerating(prog);
   // ONE definition of "the results" — the store owns it (RESULTS_KINDS), so
   // "Clear old results" and this board can never disagree about what they are.
   const V2_KINDS: readonly string[] = RESULTS_KINDS;
@@ -187,16 +191,16 @@ export function SessionView({ tt, session, set, onResume, onAddSlide }: {
               ≈${usage.costUsd.toFixed(3)} · {(usage.inputTokens / 1000).toFixed(1)}k in / {(usage.outputTokens / 1000).toFixed(1)}k out
             </span>
           )}
-          {(rs.state === "queued" || rs.state === "generating") && (
+          {(rs.state === "queued" || rs.state === "generating" || genBusy) && (
             <span className="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider" style={{ border: "1px solid #7DD3FC55", color: "#7DD3FC" }}>
-              {rs.state === "queued" ? "QUEUED" : "GENERATING…"}
+              {prog && genBusy ? progressLine(prog) : rs.state === "queued" ? "QUEUED" : "GENERATING…"}
             </span>
           )}
           <button
             className="flex items-center gap-2 rounded-xl px-4 py-2"
-            style={{ border: `1.5px solid ${GOLD}`, color: running || rs.state === "generating" ? NEON.muted : GOLD, fontFamily: BIG_FONT, fontWeight: 800 }}
-            disabled={running || rs.state === "generating" || rs.state === "queued"}
-            onClick={() => queueReview({ session, ceqs: passCeqs, excludedKinds: [], wantVibePlan: tags.some((t) => canonicalStamp(t.tag) === "review_vibe") })}
+            style={{ border: `1.5px solid ${GOLD}`, color: running || genBusy || rs.state === "generating" ? NEON.muted : GOLD, fontFamily: BIG_FONT, fontWeight: 800 }}
+            disabled={running || genBusy || rs.state === "generating" || rs.state === "queued"}
+            onClick={() => queueIncrementalReview({ session, ceqs: passCeqs, excludedKinds: [], wantVibePlan: tags.some((t) => canonicalStamp(t.tag) === "review_vibe") })}
           >
             <Wand2 className="h-4 w-4" /> {v2Items.length ? "Regenerate review" : "Generate review"}
           </button>
@@ -206,7 +210,7 @@ export function SessionView({ tt, session, set, onResume, onAddSlide }: {
         <div className="rounded-xl px-4 py-2" style={{ border: "1px solid #F87171", color: "#F87171", fontSize: 13 }}>
           {rs.error ?? "generation failed"} — the transcript is untouched.
           <button style={{ textDecoration: "underline", marginLeft: 8 }}
-            onClick={() => queueReview({ session, ceqs: passCeqs, excludedKinds: [], wantVibePlan: tags.some((t) => canonicalStamp(t.tag) === "review_vibe") })}>
+            onClick={() => queueIncrementalReview({ session, ceqs: passCeqs, excludedKinds: [], wantVibePlan: tags.some((t) => canonicalStamp(t.tag) === "review_vibe") })}>
             retry
           </button>
         </div>
