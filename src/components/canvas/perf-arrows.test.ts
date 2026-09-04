@@ -7,6 +7,12 @@ import { describe, expect, test } from "bun:test";
 
 const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
 const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8").split("\r\n").join("\n");
+// The layer itself lives in PerfArrowLayer.tsx since 2026-09-04 — extracted so the
+// capture surface (blastoff/capture/arrows.tsx) draws the same arrow. The previewer
+// keeps the state, the ` wipe and the select+Delete branch.
+const layerSrc = readFileSync(join(import.meta.dir, "PerfArrowLayer.tsx"), "utf8").split("\r\n").join("\n");
+/** The interactive layer alone — from its declaration to the end of the module. */
+function layerOf(src: string): string { return src.slice(src.indexOf("function PerfArrowLayer")); }
 
 // PERF ARROWS ARE AN F1 TOOL NOW (Lee, 2026-09-01). They used to be armed by
 // ALT, which cost Alt for everything else and meant a stray alt-drag drew an
@@ -17,13 +23,13 @@ const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8").spli
 // unless an anchor is pending, so it can never intercept a card gesture again.
 describe("perf arrows — F1 tap-tap, pointer-inert when idle", () => {
   test("F1 anchors, F1 again sets — and F1's browser help is suppressed", () => {
-    expect(previewer).toContain('if (e.key !== "F1" || e.ctrlKey || e.metaKey || e.altKey) return;');
-    expect(previewer).toContain("e.preventDefault();                       // F1 is the browser's help key");
-    expect(previewer).toContain("if (!pending) { pendingRef.current = c; setArmed(true);");
-    expect(previewer).toContain("if (Math.hypot(c.x - pending.x, c.y - pending.y) > CLICK_EPS) add({ x1: pending.x, y1: pending.y, x2: c.x, y2: c.y });");
+    expect(layerSrc).toContain('if (e.key !== "F1" || e.ctrlKey || e.metaKey || e.altKey) return;');
+    expect(layerSrc).toContain("e.preventDefault();                       // F1 is the browser's help key");
+    expect(layerSrc).toContain("if (!pending) { pendingRef.current = c; setArmed(true);");
+    expect(layerSrc).toContain("if (Math.hypot(c.x - pending.x, c.y - pending.y) > CLICK_EPS) add({ x1: pending.x, y1: pending.y, x2: c.x, y2: c.y });");
   });
   test("ALT no longer arms the arrow layer — it belongs to moving cards", () => {
-    const layer = previewer.slice(previewer.indexOf("function PerfArrowLayer"), previewer.indexOf("function Inner("));
+    const layer = layerOf(layerSrc);
     // Alt must never ARM the tool, and must never gate the pointer handler.
     expect(layer).not.toContain("setArmed(e.altKey");
     expect(layer).not.toContain("if (!e.altKey");
@@ -35,17 +41,26 @@ describe("perf arrows — F1 tap-tap, pointer-inert when idle", () => {
     expect(layer).not.toContain("Alt+CLICK");
   });
   test("the layer is pointer-inert with nothing pending, so it cannot eat a card click", () => {
-    const layer = previewer.slice(previewer.indexOf("function PerfArrowLayer"), previewer.indexOf("function Inner("));
+    const layer = layerOf(layerSrc);
     expect(layer).toContain('pointerEvents: armed ? "auto" : "none"');
     // onDown bails immediately unless an anchor is already waiting.
     expect(layer).toContain("const pending = pendingRef.current;\n    if (!pending) return;");
   });
   test("Esc or ` cancels a pending anchor (clean slate)", () => {
-    expect(previewer).toContain('if (e.key === "Escape" || e.key === "`" || e.code === "Backquote") { if (pendingRef.current) cancel(); return; }');
+    expect(layerSrc).toContain('if (e.key === "Escape" || e.key === "`" || e.code === "Backquote") { if (pendingRef.current) cancel(); return; }');
   });
   test("the cursor is tracked on the DOCUMENT, since an inert layer sees no pointer events", () => {
-    expect(previewer).toContain('doc.addEventListener("pointermove", pm)');
-    expect(previewer).toContain("cursorRef");
+    expect(layerSrc).toContain('doc.addEventListener("pointermove", pm)');
+    expect(layerSrc).toContain("cursorRef");
+  });
+  test("the previewer mounts the EXTRACTED layer — one arrow for both surfaces", () => {
+    expect(previewer).toContain('import { PerfArrowLayer, type PerfArrow } from "./PerfArrowLayer";');
+    expect(previewer).toContain("<PerfArrowLayer arrows={perfArrows} add={addPerfArrow} sel={selPerf} setSel={setSelPerf} />");
+    expect(previewer).not.toContain("function PerfArrowLayer");
+    // The drawing is shared through PerfArrowSvg; the layer restates none of it.
+    expect(layerSrc).toContain("export function PerfArrowSvg");
+    expect(layerOf(layerSrc)).toContain("<PerfArrowSvg arrows={arrows} draw={draw} sel={sel} w={size.w} h={size.h} hit={!armed} onSelect={setSel} />");
+    expect(layerOf(layerSrc)).not.toContain("#FCA311");
   });
   test("` still clears all arrows; select+Delete still removes one", () => {
     expect(previewer).toContain("setPerfArrows([]); setSelPerf(null); clearExhibitHighlights();");
