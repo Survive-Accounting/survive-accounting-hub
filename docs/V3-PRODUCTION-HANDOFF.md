@@ -258,8 +258,14 @@ session (the build queue judged it too big — see docs/TWO-MACHINES.md).
   resolves a choice; Ctrl+click spotlights; Alt+drag moves.
 - **Vertical card size**: with no saved spot a 9:16 frame deals the card at
   1.3× (`VERTICAL_DEAL_SCALE`); a saved instance/template still wins.
-- Banked: alt-hover resize handles on any card; right-click "save this
-  position for future CEQs"; canvas v3 clusters/exhibits/publishing.
+- **Alt-hover grips in the film popout** (built, same night): hold Alt and
+  hover any node → a dashed gold ring; on the CEQ card, corner grips scale it
+  (text too), left/right grips change its width, top/bottom grips scale, and
+  Alt+drag on the body moves it (`AltGrips` in CeqPreviewer, `WidthContext`
+  for the transient width). All TRANSIENT, like every grip in the previewer:
+  the next seed/question resets it; nothing is written to the set.
+- Still banked: right-click "save this position for future CEQs" (the
+  persistent version of the above); canvas v3 clusters/exhibits/publishing.
 - Verified in Lee's own Chrome (signed in, this PC): the handoff path opens
   the Studio on the set; the film stack holds the four detour frames with neon
   labels and the wordmark. NOT verified: the popout's gestures (a new window).

@@ -88,6 +88,9 @@ const RevealContext = createContext<Set<string>>(new Set());
 const ScaleContext = createContext<(id: string, s: number) => void>(() => {});
 /** Called once when a resize DRAG ends (pointer-up), so the new size can be persisted. */
 const ScaleCommitContext = createContext<() => void>(() => {});
+/** ALT-RESIZE (2026-09-03): the film surface's transient width override for a
+ *  CEQ card — local `nodes` state only, like setScale; dies on the next seed. */
+const WidthContext = createContext<(id: string, w: number) => void>(() => {});
 /** LOCAL rehearsal-spotlight layer (never the global controller). Keyed spotKey. */
 interface PreviewSpotApi { state: (key: string) => "spot" | null; flamed: (key: string) => boolean; tone: (key: string) => SuperTone; onClick: (key: string, e: React.PointerEvent) => void; any: () => boolean }
 const PreviewSpotContext = createContext<PreviewSpotApi>({ state: () => null, flamed: () => false, tone: () => "focus", onClick: () => {}, any: () => false });
@@ -181,6 +184,12 @@ ${BOSS_REVEAL_CSS}
 .sa-boss-bolt { animation: sa-boss-bolt-in 480ms 160ms cubic-bezier(0.16,1,0.3,1) both; }
 .sa-pv-node .sa-grip-film { opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
 .sa-pv-node:hover .sa-grip-film { opacity: 1; pointer-events: auto; }
+/* ALT-HOVER GRIPS (Lee, 2026-09-03) — only while Alt is held AND the pointer is on
+   the card: a dashed ring on any node, the corner/side grips on the CEQ card. Let
+   go of Alt and it is a locked film surface again. Nothing persists. */
+.sa-alt-grips { display: none; }
+.film-mode.sa-alt .sa-pv-node:hover .sa-alt-grips, .film-mode.sa-alt .sa-pv-node:active .sa-alt-grips { display: block; }
+.film-mode.sa-alt .react-flow__node:hover { outline: 2px dashed rgba(252,163,17,0.85); outline-offset: 6px; border-radius: 12px; }
 /* MOVE STRIPS (Lee) — the memo moves only by its top/bottom edge, but the strips are
    INVISIBLE (Lee knows they're there); the move cursor on hover is the only hint. */
 .sa-memo-move { background: transparent; }
@@ -375,6 +384,53 @@ function ScaleGrip({ id, scale, color, film }: { id: string; scale: number; colo
     win.addEventListener("pointerup", up);
   };
   return <div className={`nodrag${film ? " sa-grip-film" : ""}`} onPointerDown={down} title={`Scale ${Math.round(scale * 100)}% — drag to resize (text scales too)`} style={{ position: "absolute", right: -9, bottom: -9, width: 18, height: 18, borderRadius: 5, background: color, border: "2px solid #05070d", cursor: "nwse-resize", zIndex: 20 }} />;
+}
+
+/** ALT-HOVER GRIPS (Lee, 2026-09-03: "holding alt gives a hover effect on a card
+ *  where any corner shows a resize thing. Sides show a way to widen or heighten.
+ *  Alt click in the middle of it grabs the whole thing to pick it up and move it").
+ *  Film surface only, visible only while Alt is held AND the pointer is on the
+ *  card (PV_CSS). Corners and top/bottom scale the card (text scales too);
+ *  left/right change its width; the middle is the existing Alt+drag move.
+ *  Everything here is TRANSIENT — the same per-instance overrides a grip drag
+ *  makes in authoring; nothing is written to the set. Pointer tracking uses the
+ *  grip's own window so it works in the popout. */
+function AltGrips({ id, scale, cardW }: { id: string; scale: number; cardW: number }) {
+  const setScale = useContext(ScaleContext);
+  const setWidth = useContext(WidthContext);
+  const start = useRef({ x: 0, y: 0, s: 1, w: CARD_W });
+  const begin = (e: React.PointerEvent, move: (dx: number, dy: number) => void) => {
+    e.stopPropagation(); e.preventDefault();
+    start.current = { x: e.clientX, y: e.clientY, s: scale, w: cardW };
+    const win = (e.currentTarget as HTMLElement).ownerDocument?.defaultView ?? window;
+    const mv = (ev: PointerEvent) => move(ev.clientX - start.current.x, ev.clientY - start.current.y);
+    const up = () => { win.removeEventListener("pointermove", mv); win.removeEventListener("pointerup", up); };
+    win.addEventListener("pointermove", mv);
+    win.addEventListener("pointerup", up);
+  };
+  const byScale = (sx: number, sy: number) => (e: React.PointerEvent) => begin(e, (dx, dy) => setScale(id, clampScale(start.current.s + (dx * sx + dy * sy) / 300)));
+  const byWidth = (sx: number) => (e: React.PointerEvent) => begin(e, (dx) => setWidth(id, Math.round(Math.min(980, Math.max(420, start.current.w + (dx * sx) / start.current.s)))));
+  const dot = (style: React.CSSProperties, cursor: string, title: string, down: (e: React.PointerEvent) => void) => (
+    <div className="nodrag" onPointerDown={down} title={title} style={{ position: "absolute", width: 14, height: 14, borderRadius: 4, background: "#FCA311", border: "2px solid #14213D", boxShadow: "0 0 0 1px rgba(252,163,17,0.5)", cursor, zIndex: 40, ...style }} />
+  );
+  const bar = (style: React.CSSProperties, cursor: string, title: string, down: (e: React.PointerEvent) => void) => (
+    <div className="nodrag" onPointerDown={down} title={title} style={{ position: "absolute", borderRadius: 4, background: "rgba(252,163,17,0.85)", border: "2px solid #14213D", cursor, zIndex: 40, ...style }} />
+  );
+  return (
+    <div className="sa-alt-grips" aria-hidden>
+      {dot({ left: -8, top: -8 }, "nwse-resize", "Scale", byScale(-1, -1))}
+      {dot({ right: -8, top: -8 }, "nesw-resize", "Scale", byScale(1, -1))}
+      {dot({ left: -8, bottom: -8 }, "nesw-resize", "Scale", byScale(-1, 1))}
+      {dot({ right: -8, bottom: -8 }, "nwse-resize", "Scale", byScale(1, 1))}
+      {bar({ left: -7, top: "35%", width: 8, height: "30%" }, "ew-resize", "Widen / narrow", byWidth(-1))}
+      {bar({ right: -7, top: "35%", width: 8, height: "30%" }, "ew-resize", "Widen / narrow", byWidth(1))}
+      {bar({ top: -7, left: "35%", width: "30%", height: 8 }, "ns-resize", "Taller / shorter (scales the card)", byScale(0, -1))}
+      {bar({ bottom: -7, left: "35%", width: "30%", height: 8 }, "ns-resize", "Taller / shorter (scales the card)", byScale(0, 1))}
+      <div style={{ position: "absolute", left: "50%", top: -30, transform: "translateX(-50%)", whiteSpace: "nowrap", fontSize: 10.5, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#FCA311", background: "rgba(20,33,61,0.9)", border: "1px solid rgba(252,163,17,0.5)", borderRadius: 6, padding: "2px 8px", pointerEvents: "none" }}>
+        alt · drag to move · corners scale · sides widen
+      </div>
+    </div>
+  );
 }
 
 /** The 16:9 frame — a visible guideline in the previewer; in the FILM mirror it
@@ -713,6 +769,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
         })}
       </div>
       </div>
+      {film && !inert && !d.layoutBadge && <AltGrips id={id} scale={s} cardW={(d as { cardW?: number }).cardW ?? CARD_W} />}
       {/* WIDTH GRIP — right edge, authoring only: THIS frame goes wide (or back
           to standard on double-click) while every other frame keeps conforming
           to the set layout. Distinct from ScaleGrip (uniform scale). */}
@@ -2099,6 +2156,8 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // switch / baseline change). We no longer write them back to the real canvas nodes;
   // the SET BASELINE is the single source of truth. Promote via "Set as layout" only.
   const setScale = (nodeId: string, scale: number) => setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, scale } } : n)));
+  // ALT-RESIZE (2026-09-03): the CEQ card's width, the same transient way.
+  const setWidth = (nodeId: string, cardW: number) => setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, cardW } } : n)));
   /** Which RACK slot a stage chip owns. In Question 0 the chips ARE the rack, 1:1. In
    *  a real question only ACTIVE slots are on stage, so chip i owns the i-th active
    *  slot — writing rack[i] there would edit the wrong (possibly inactive) slot.
@@ -2689,6 +2748,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       <RevealContext.Provider value={revealedMemoIds}>
         <ScaleContext.Provider value={setScale}>
          <ScaleCommitContext.Provider value={commitGeom}>
+         <WidthContext.Provider value={setWidth}>
           <PreviewSpotContext.Provider value={spotApi}>
            <ChainToggleContext.Provider value={onPatchChainItem ?? (() => {})}>
            <MemoEditContext.Provider value={layoutMode ? null : (onRenameMemo ?? null)}>
@@ -3131,6 +3191,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
            </MemoEditContext.Provider>
            </ChainToggleContext.Provider>
           </PreviewSpotContext.Provider>
+         </WidthContext.Provider>
          </ScaleCommitContext.Provider>
         </ScaleContext.Provider>
       </RevealContext.Provider>
