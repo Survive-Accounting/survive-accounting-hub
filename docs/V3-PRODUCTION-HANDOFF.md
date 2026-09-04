@@ -653,3 +653,35 @@ Audio stays OBS's (the mic source); the in-app feed adds ~60–120 ms of webcam 
 **The mark lab** (`/survive-bolt`, tabs Bolt | Mountain): the bolt is the pictured red + a blue echo behind it (BoilFrame.echo — stroke both, fill both, so no white seam); the mountain (`lib/survive-mountain.ts`) is a lit side + a shaded side sharing the ridge + a snow cap (BoilFrame.cap), five presets, sliders, notes, export. Either becomes the mark by pasting its export into brand.tsx + bolt-boil.tsx; the cursor / OG / flyer need the echo or cap treatment at that point.
 
 **Vertical-only** — Lee's question answered in the session; the strategies: split the frame (top/bottom halves for a JE's debit/credit), stack and walk (space walks a tall exhibit), zoom moments (O and the wheel), the moment for emphasis, sequences over minutes (a set is many shorts), and the canvas for the rare wide exhibit.
+
+## Update — 2026-09-04: clear old results before a new pass
+
+**The button.** Step 1's booth (`components/talkthrough/Booth.tsx`, right column,
+under Start over) grows **Clear old results (N)** whenever this SET still has
+live result cards. It takes the last pass's cards — script · CEQ edits · ideas ·
+vibe plan (`RESULTS_KINDS` in `canvas/talkthrough.ts`, now the one definition
+SessionView also reads) — off the Step 2 Review board so a new Generate is not
+the old board plus the new one.
+
+**Dismissed, not deleted, not archived.** `BoardItem.dismissed` is a soft hide
+(absent = live). The row, its payload and its verbatim quote all stay, so a
+slide already built from a card (`frame.bankItemId`), a film pick and the Bank
+keep resolving — only the review board hides it. `sessionBoard()` filters it
+like `archivedAt`, so `reviewStateOf` drops back off "results ready" and /v3's
+chip agrees; `ReviewBoardV2` filters again for any caller handing it raw rows.
+
+**Scope is the SET, not the session.** "End Session → Review" ENDS the session,
+so walking back into Step 1 opens a FRESH one and last night's cards hang off
+the previous sitting — session scope alone would show the button exactly when
+there is nothing to clear. `dismissableResultsForSet()` walks every sitting on
+the set (newest first); the confirm names the set and counts the sittings.
+Caveat worth knowing: a CEQ sitting and an exhibit sitting on the same set are
+cleared together.
+
+**SQL:** `20260904_1500_talkthrough_board_dismissed.sql` (additive column).
+Until it runs, `talkthrough.functions.ts` strips `dismissed`, retries once and
+returns a **warning** — `TTState.warning`, shown red in the studio's sync chip
+and under the button itself. Dismissal is local-only until then, and says so.
+
+No undo, no archived-results view, and no dismissal from /results itself —
+those were left out of this pass on purpose.

@@ -164,8 +164,11 @@ function TalkthroughApp() {
 
 function SyncBadge({ tt }: { tt: TTState }) {
   // B1.5 — the badge is also the RETRY NOW tap.
-  const label = tt.error ? `⚠ ${tt.error}` : tt.pending > 0 ? `${tt.pending} unsynced${tt.syncing ? " · syncing…" : " · tap to retry"}` : "all synced";
-  const color = tt.error ? "#F87171" : tt.pending > 0 ? GOLD : "#3BF5A0";
+  // A WARNING is a sync that succeeded while dropping something on the floor
+  // (a column its migration has not created yet) — louder than "all synced",
+  // quieter than a failure, and never hidden.
+  const label = tt.error ? `⚠ ${tt.error}` : tt.warning ? `⚠ ${tt.warning}` : tt.pending > 0 ? `${tt.pending} unsynced${tt.syncing ? " · syncing…" : " · tap to retry"}` : "all synced";
+  const color = tt.error || tt.warning ? "#F87171" : tt.pending > 0 ? GOLD : "#3BF5A0";
   return (
     <button
       type="button"
