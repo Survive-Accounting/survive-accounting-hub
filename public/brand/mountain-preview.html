@@ -1,0 +1,57 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Survive mountain — preview</title>
+<style>
+  body { margin:0; background:#0A1633; color:#F4EFE6; font:14px/1.4 Rubik, system-ui, sans-serif; padding:26px 28px 60px; }
+  h2 { font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:#FCA311; margin:26px 0 12px; }
+  .row { display:flex; gap:32px; align-items:flex-end; flex-wrap:wrap; }
+  .cell { text-align:center; }
+  .cap { font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#8FA0C4; margin-top:9px; }
+  .word { display:flex; align-items:baseline; font-weight:900; letter-spacing:-.01em; }
+  .word .mk { height:.9em; width:auto; margin:0 .01em -.06em; }
+  svg { display:block; }
+  .olemiss { --sa-lit:#CE1126; --sa-shade:#14213D; }
+  .lsu { --sa-lit:#461D7C; --sa-shade:#FDD023; }
+  .mich { --sa-lit:#00274C; --sa-shade:#FFCB05; }
+  .paper { background:#F4EFE6; border-radius:14px; padding:14px 18px; }
+</style>
+
+<h2>the icon</h2>
+<div class="row">
+  <div class="cell"><span class="mk" data-mk="mountain" data-w="220"></span><div class="cap">main icon</div></div>
+  <div class="cell"><span class="mk" data-mk="mountain" data-w="72"></span><div class="cap">small</div></div>
+  <div class="cell"><span class="mk" data-mk="mountain" data-w="28"></span><div class="cap">favicon</div></div>
+  <div class="cell paper"><span class="mk" data-mk="cursor" data-w="54"></span><div class="cap" style="color:#14213D">cursor on paper</div></div>
+  <div class="cell"><span class="mk" data-mk="cursor" data-w="140"></span><div class="cap">cursor</div></div>
+</div>
+
+<h2>in the wordmark</h2>
+<div class="row" style="align-items:baseline">
+  <div class="word" style="font-size:64px">sur<span class="mk" data-mk="mountain" data-h="0.9em"></span>ve</div>
+  <div class="word" style="font-size:26px">sur<span class="mk" data-mk="mountain" data-h="0.9em"></span>ve</div>
+</div>
+
+<h2>campus colours</h2>
+<div class="row">
+  <div class="cell"><span class="mk" data-mk="mountain" data-w="110"></span><div class="cap">survive</div></div>
+  <div class="cell olemiss"><span class="mk" data-mk="mountain" data-w="110"></span><div class="cap">ole miss</div></div>
+  <div class="cell lsu"><span class="mk" data-mk="mountain" data-w="110"></span><div class="cap">lsu</div></div>
+  <div class="cell mich"><span class="mk" data-mk="mountain" data-w="110"></span><div class="cap">michigan</div></div>
+</div>
+
+<script type="module">
+  // Inline the files (rather than <img>) so the CSS variables reach them —
+  // that is how the app will mount the mark, and it is what proves a campus
+  // can recolour it.
+  const src = {
+    mountain: await (await fetch("/brand/survive-mountain.svg")).text(),
+    cursor: await (await fetch("/brand/survive-mountain-cursor.svg")).text(),
+  };
+  for (const el of document.querySelectorAll(".mk")) {
+    el.innerHTML = src[el.dataset.mk];
+    const svg = el.querySelector("svg");
+    svg.removeAttribute("width"); svg.removeAttribute("height");
+    if (el.dataset.w) { svg.style.width = el.dataset.w + "px"; svg.style.height = "auto"; }
+    if (el.dataset.h) { svg.style.height = el.dataset.h; svg.style.width = "auto"; }
+  }
+</script>

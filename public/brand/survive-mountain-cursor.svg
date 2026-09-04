@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 232" width="240" height="232" role="img" aria-label="Survive — the mountain cursor">
+  <title>Survive — the mountain cursor</title>
+  <desc>The same peak with its base cut into a pointer: the summit is the tip, the right slope is the arrow's long edge, and the notch and tail finish it. Lee (2026-09-05): "REALLY dig how they converted the mountain into a pointer."</desc>
+  <g stroke="var(--sa-keyline, #FFFFFF)" stroke-width="8" stroke-linejoin="round" stroke-linecap="round" paint-order="stroke">
+    <path id="sa-cur-shade" fill="var(--sa-shade, #1565C0)"
+          d="M124 20 L138 42 L196 164 L152 154 L178 216 L148 228 L124 158 L44 176 L100 56 Z"/>
+    <path id="sa-cur-lit" fill="var(--sa-lit, #C62828)" d="M94 66 L104 88 L124 158 L44 176 Z"/>
+  </g>
+  <g fill="var(--sa-snow, #FFFFFF)">
+    <path id="sa-cur-snow-high" d="M124 20 L138 42 L130 38 L123 51 L116 41 L109 53 L103 50 Z"/>
+    <path id="sa-cur-snow-low" d="M94 66 L104 88 L98 83 L91 95 L84 85 L76 95 Z"/>
+  </g>
+</svg>

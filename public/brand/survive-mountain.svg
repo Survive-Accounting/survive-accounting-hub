@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 200" width="240" height="200" role="img" aria-label="Survive — the mountain">
+  <title>Survive — the mountain</title>
+  <desc>Aoraki: a summit that steps right off the high point rather than a plain triangle, a lit face and a shaded face parted by the tent-opening gap, snow on both summits. Two colours and a keyline, each a CSS variable, so a campus recolours it with --sa-lit and --sa-shade.</desc>
+  <!-- THE SHADED FACE is the whole silhouette; THE LIT FACE sits in front of it,
+       and the lit face's own keyline is what opens the white gap between the two
+       colours — the "looking into a tent" line. -->
+  <g stroke="var(--sa-keyline, #FFFFFF)" stroke-width="8" stroke-linejoin="round" stroke-linecap="round" paint-order="stroke">
+    <path id="sa-mtn-shade" fill="var(--sa-shade, #1565C0)" d="M124 20 L138 42 L214 176 L26 176 L100 56 Z"/>
+    <path id="sa-mtn-lit" fill="var(--sa-lit, #C62828)" d="M94 66 L104 88 L136 176 L26 176 Z"/>
+  </g>
+  <!-- THE SNOW: a jagged skirt on each summit, deep enough to read at favicon size. -->
+  <g fill="var(--sa-snow, #FFFFFF)">
+    <path id="sa-mtn-snow-high" d="M124 20 L138 42 L130 38 L123 51 L116 41 L109 53 L103 50 Z"/>
+    <path id="sa-mtn-snow-low" d="M94 66 L104 88 L98 83 L91 95 L84 85 L76 95 Z"/>
+  </g>
+</svg>
