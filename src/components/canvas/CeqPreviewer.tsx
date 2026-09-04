@@ -3263,7 +3263,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                         zone, low opacity, never catches the pointer. */}
                     {/* …except on the frames that already carry the wordmark — the cold
                         open, the intro, the opening summary (Lee: "redundant"). */}
-                    {!(cd?.filmBackdrop || cd?.blastKind === "open") && (
+                    {!(cd?.filmBackdrop || cd?.blastKind === "open" || cd?.blastKind === "outro") && (
                       <div aria-hidden style={{ position: "absolute", left: "4%", top: "3.2%", zIndex: 9, opacity: 0.62, pointerEvents: "none", filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.6))" }}>
                         <SurviveWordmark size={Math.max(18, Math.round((filmRootRef.current?.clientWidth ?? 540) * 0.052))} />
                       </div>
