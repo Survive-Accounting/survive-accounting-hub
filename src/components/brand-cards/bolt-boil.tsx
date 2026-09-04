@@ -14,7 +14,11 @@ export const BRAND_BLUE = "#1565C0";
 export const BRAND_CREAM = "#F5EFE6";
 export const BRAND_NAVY = "#111A32";
 
-export type BoilFrame = { outer: string; seam: string; sw: number };
+export type BoilFrame = { outer: string; seam: string; sw: number;
+  /** THE ECHO MARK (2026-09-05): `seam` is a full copy of the bolt slid behind
+   *  `outer`, not a half. Both are stroked, then both are filled again on top,
+   *  so the keyline shows only around the union — no white where red meets blue. */
+  echo?: boolean };
 export type BoltSpec = { frames: BoilFrame[]; viewBox: string; ratio: number; red: string; blue: string; cream: string };
 
 // Lee's FINAL hand-edited bolt (baked from his Logo Lab preset — the canonical logo). These
@@ -78,8 +82,19 @@ export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, classNam
         {(pinned === null ? spec.frames : [spec.frames[pinned]]).map((f, i) => (
           <g key={i} className={pinned === null ? "sa-boil-f" : undefined}
              style={pinned === null ? { animationDelay: `${(-(boilSeconds ?? 0.5) / 4 * i).toFixed(3)}s`, ...(boilSeconds ? { animationDuration: `${boilSeconds}s` } : {}) } : undefined}>
-            <path d={f.outer} fill={R} stroke={C === "none" ? undefined : C} strokeWidth={C === "none" ? 0 : f.sw} strokeLinejoin="round" strokeLinecap="round" paintOrder="stroke" />
-            <path d={f.seam} fill={B} />
+            {f.echo ? (
+              <>
+                <path d={f.seam} fill={B} stroke={C === "none" ? undefined : C} strokeWidth={C === "none" ? 0 : f.sw} strokeLinejoin="round" strokeLinecap="round" paintOrder="stroke" />
+                <path d={f.outer} fill={R} stroke={C === "none" ? undefined : C} strokeWidth={C === "none" ? 0 : f.sw} strokeLinejoin="round" strokeLinecap="round" paintOrder="stroke" />
+                <path d={f.seam} fill={B} />
+                <path d={f.outer} fill={R} />
+              </>
+            ) : (
+              <>
+                <path d={f.outer} fill={R} stroke={C === "none" ? undefined : C} strokeWidth={C === "none" ? 0 : f.sw} strokeLinejoin="round" strokeLinecap="round" paintOrder="stroke" />
+                <path d={f.seam} fill={B} />
+              </>
+            )}
           </g>
         ))}
       </svg>

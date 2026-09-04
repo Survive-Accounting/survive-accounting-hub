@@ -1,51 +1,40 @@
 import { describe, expect, test } from "bun:test";
 
-import { SURVIVE_BOLTS, forgeSurviveBolt, surviveBoltSpec } from "./survive-bolt";
+import { SURVIVE_BOLTS, forgeSurviveBolt, redBolt, surviveBoltSpec } from "./survive-bolt";
 
-function turns(pts: [number, number][]): number {
-  // Count sign changes of the x-direction along the ring — a crude "how many zigzags".
-  let n = 0, prev = 0;
-  for (let i = 1; i < pts.length; i++) {
-    const d = Math.sign(pts[i][0] - pts[i - 1][0]);
-    if (d && prev && d !== prev) n++;
-    if (d) prev = d;
-  }
-  return n;
-}
-
-describe("the Survive bolt — three original silhouettes", () => {
-  test("each family builds closed rings that share the tip and the base, inside its viewBox", () => {
+describe("the Survive bolt — the red bolt and its blue echo", () => {
+  test("the red is a 13-point bolt: two jags on the right, two notches on the left, a tip at the bottom", () => {
+    for (const b of SURVIVE_BOLTS) {
+      const r = redBolt(b.params);
+      expect(r).toHaveLength(13);
+      expect(r[7][1]).toBe(Math.max(...r.map((q) => q[1])));               // the tip is the lowest point
+      expect(r[1][1]).toBe(Math.min(...r.map((q) => q[1])));               // the top edge is the highest
+      expect(r[3][0]).toBeGreaterThan(r[2][0]);                            // the first jag steps right…
+      expect(r[5][0]).toBeGreaterThan(r[4][0]);                            // …and the second
+      expect(r[11][0]).toBeGreaterThan(r[12][0]);                          // the notches step in going up
+    }
+  });
+  test("the echo is the same ring slid down-left, both inside the viewBox", () => {
     for (const b of SURVIVE_BOLTS) {
       const g = forgeSurviveBolt(b.params);
-      expect(g.outerPts.length).toBeGreaterThan(6);
-      expect(g.seamPts.length).toBeGreaterThan(6);
-      expect(g.outerPts[0]).toEqual(g.seamPts[0]);                           // the tip is shared
+      expect(g.seamPts).toHaveLength(g.outerPts.length);
+      g.outerPts.forEach(([x, y], i) => { expect(g.seamPts[i][0]).toBeCloseTo(x - b.params.echoX, 6); expect(g.seamPts[i][1]).toBeCloseTo(y + b.params.echoY, 6); });
       const [vx, vy, vw, vh] = g.viewBox.split(" ").map(Number);
       for (const [x, y] of [...g.outerPts, ...g.seamPts]) { expect(x).toBeGreaterThanOrEqual(vx); expect(x).toBeLessThanOrEqual(vx + vw); expect(y).toBeGreaterThanOrEqual(vy); expect(y).toBeLessThanOrEqual(vy + vh); }
-      expect(g.ratio).toBeGreaterThan(0.3);
-      expect(g.ratio).toBeLessThan(1);                                        // taller than wide
+      expect(g.ratio).toBeLessThan(1);                                     // taller than wide
     }
   });
-  test("far fewer zigzags than the old mark, and the flanks are not mirror images", () => {
-    for (const b of SURVIVE_BOLTS) {
-      const g = forgeSurviveBolt(b.params);
-      expect(turns(g.outerPts)).toBeLessThanOrEqual(12);                     // the old silhouette turns ~26 times
-      const xs = g.outerPts.map((q) => q[0]);
-      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-      const rightMass = g.outerPts.filter((q) => q[0] > cx).length, leftMass = g.outerPts.length - rightMass;
-      expect(rightMass).not.toBe(leftMass);                                   // asymmetric by construction
-    }
-  });
-  test("deterministic: the same params give the same points; a different seed gives different ones", () => {
+  test("deterministic, and the top and the tip never wobble", () => {
     const a = forgeSurviveBolt(SURVIVE_BOLTS[0].params), b = forgeSurviveBolt(SURVIVE_BOLTS[0].params);
     expect(a.outer).toBe(b.outer);
-    const c = forgeSurviveBolt({ ...SURVIVE_BOLTS[0].params, seed: 99 });
-    expect(c.outer).not.toBe(a.outer);
+    const plain = redBolt(SURVIVE_BOLTS[0].params);
+    expect(a.outerPts[1]).toEqual(plain[1]);
+    expect(a.outerPts[7]).toEqual(plain[7]);
+    expect(forgeSurviveBolt({ ...SURVIVE_BOLTS[0].params, seed: 99 }).outer).not.toBe(a.outer);
   });
-  test("the boil spec has four frames with the tip and base pinned", () => {
-    const s = surviveBoltSpec(SURVIVE_BOLTS[1].params);
+  test("the spec is an echo spec with four boil frames", () => {
+    const s = surviveBoltSpec(SURVIVE_BOLTS[2].params);
     expect(s.frames).toHaveLength(4);
-    const firstPoint = (d: string) => d.split(" ").slice(0, 2).join(" ");
-    expect(new Set(s.frames.map((f) => firstPoint(f.outer))).size).toBe(1);   // the tip never moves
+    expect(s.frames.every((f) => f.echo)).toBe(true);
   });
 });

@@ -18,7 +18,9 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { AdminGate } from "@/components/AdminGate";
 import { BoltBoil, BoltContext, DEFAULT_BOLT_SPEC, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
-import { SURVIVE_BOLTS, forgeSurviveBolt, surviveBoltExport, surviveBoltSpec, type SurviveBoltFamily, type SurviveBoltParams } from "@/lib/survive-bolt";
+import { SURVIVE_BOLTS, forgeSurviveBolt, surviveBoltExport, surviveBoltSpec, type SurviveBoltParams } from "@/lib/survive-bolt";
+
+type SurviveBoltFamily = (typeof SURVIVE_BOLTS)[number]["id"];
 
 export const Route = createFileRoute("/survive-bolt")({
   component: () => <AdminGate><SurviveBoltLab /></AdminGate>,
@@ -30,8 +32,8 @@ const MUTED = "#9AA3B8";
 const GOLD = "#FCA311";
 const EDGE = "rgba(244,239,230,0.16)";
 const PANEL = "rgba(16,24,44,0.92)";
-const LS_PARAMS = "sa-survive-bolt-params";
-const LS_NOTES = "sa-survive-bolt-notes";
+const LS_PARAMS = "sa-survive-bolt-params-v2";
+const LS_NOTES = "sa-survive-bolt-notes-v2";
 
 /** Three colourways that have to work: the brand, and two schools. */
 const WAYS = [
@@ -42,12 +44,13 @@ const WAYS = [
 ];
 
 const SLIDERS: { key: keyof SurviveBoltParams; label: string; min: number; max: number; step: number }[] = [
-  { key: "lean", label: "lean", min: 0, max: 0.5, step: 0.01 },
-  { key: "width", label: "width", min: 10, max: 26, step: 0.5 },
-  { key: "elbow", label: "elbow", min: 0.25, max: 0.65, step: 0.01 },
-  { key: "jut", label: "jut", min: 8, max: 40, step: 0.5 },
-  { key: "notch", label: "notch", min: 0, max: 16, step: 0.5 },
-  { key: "seamS", label: "seam S", min: 0, max: 12, step: 0.5 },
+  { key: "width", label: "width", min: 14, max: 36, step: 0.5 },
+  { key: "lean", label: "lean", min: 10, max: 40, step: 0.5 },
+  { key: "step", label: "jag", min: 6, max: 24, step: 0.5 },
+  { key: "taper", label: "tip taper", min: 0.2, max: 0.8, step: 0.01 },
+  { key: "tip", label: "tip length", min: 4, max: 24, step: 0.5 },
+  { key: "echoX", label: "blue left", min: 0, max: 22, step: 0.5 },
+  { key: "echoY", label: "blue down", min: 0, max: 24, step: 0.5 },
   { key: "handDrawn", label: "hand-drawn", min: 0, max: 2.5, step: 0.05 },
   { key: "seed", label: "seed", min: 1, max: 60, step: 1 },
 ];
@@ -69,7 +72,7 @@ function SurviveBoltLab() {
     <div style={{ minHeight: "100vh", background: "#070B14", color: CREAM, fontFamily: "'Rubik', system-ui, sans-serif", padding: "28px 32px 80px" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
         <h1 style={{ fontSize: 22, fontWeight: 900, margin: 0 }}>The Survive bolt</h1>
-        <span style={{ fontSize: 12.5, color: MUTED, maxWidth: 760 }}>three original silhouettes — one elbow each, taller, asymmetric, their own top and bottom — with the boil, the two halves, the keyline and the "i" untouched. Tune, write a note, and the export is one copy away.</span>
+        <span style={{ fontSize: 12.5, color: MUTED, maxWidth: 760 }}>the bolt from the picture: the red kept, the blue slid behind it so it follows every edge, one keyline around the whole mark and no white in the seam — boiling. Three weights of it; tune, write a note, and the export is one copy away.</span>
         <button onClick={() => setLive((v) => !v)} style={{ marginLeft: "auto", fontSize: 11.5, fontWeight: 800, color: live ? GOLD : MUTED, background: "none", border: `1px solid ${live ? GOLD : EDGE}`, borderRadius: 999, padding: "4px 12px", cursor: "pointer" }}>{live ? "boil on" : "boil off"}</button>
       </div>
 
@@ -79,7 +82,7 @@ function SurviveBoltLab() {
           <BoltBoil height={110} boilFrame={live ? undefined : 0} />
           <SurviveWordmark size={44} boilFrame={live ? undefined : 0} />
         </BoltContext.Provider>
-        <div style={{ fontSize: 12.5, color: MUTED, maxWidth: 520 }}>Today's mark — the 13-point zigzag with the same tooth on both flanks. Kept here so the three below are judged against it, not against memory.</div>
+        <div style={{ fontSize: 12.5, color: MUTED, maxWidth: 520 }}>Today's mark — kept here so the three below are judged against it, not against memory.</div>
       </section>
 
       {SURVIVE_BOLTS.map((b, i) => {
@@ -154,7 +157,7 @@ function SurviveBoltLab() {
           </section>
         );
       })}
-      <p style={{ marginTop: 22, fontSize: 12, color: MUTED, maxWidth: 760 }}>When one is the pick: its export replaces BOLT_OUTER / BOLT_RIGHT / BOLT_VIEWBOX in canvas/brand.tsx and FINAL_OUTER / FINAL_SEAM in brand-cards/bolt-boil.tsx — the wordmark, every slide, the homepage campus bolt, the flyer, the OG image and the cursor all read from those two places. Then a trademark clearance on the new mark.</p>
+      <p style={{ marginTop: 22, fontSize: 12, color: MUTED, maxWidth: 760 }}>When one is the pick: its export goes into canvas/brand.tsx (BOLT_OUTER = the red, BOLT_RIGHT = the blue echo, drawn behind) and brand-cards/bolt-boil.tsx (the default spec, echo mode) — the wordmark, every slide, the homepage campus bolt, the flyer, the OG image and the cursor follow. Then a trademark clearance on the new mark.</p>
     </div>
   );
 }

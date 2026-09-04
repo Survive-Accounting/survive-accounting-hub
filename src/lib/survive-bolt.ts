@@ -1,50 +1,38 @@
-// THE SURVIVE BOLT — three original silhouettes, built from the ground up.
+// THE SURVIVE BOLT — the bolt Lee pictured, built as red + a blue echo.
 //
-// Lee (2026-09-05), after the trademark read: the current mark shares the
-// Dead bolt's cues (the elongated multi-zigzag, red/blue, white keyline, the
-// 13-point rhythm), so before it goes everywhere the silhouette has to become
-// ours — "significantly fewer major turns, taller and narrower, asymmetric,
-// distinctive top and bottom terminations, a geometry you can recognise from
-// silhouette alone … the division between the school colours could itself form
-// an S." Everything else stays: two halves that take school colours, the white
-// keyline, the boil, the bolt as the "i".
+// Lee (2026-09-05), with the reference image: "The red part of this bolt is
+// perfect. Just add the blue to the left of it and white outline and then boil
+// it … it'd be perfect if the blue just followed the red … and remove the
+// white in the middle seam. Just colors for the seam."
 //
-// bolt-forge.ts builds the old mark: a spine with the same tooth on both
-// flanks, which is the Dead construction by definition. This module builds
-// each family its own way and only shares the OUTPUT shape with the forge
-// (outer ring + seam ring + viewBox), so makeBoil, BoltBoil, the wordmark,
-// the cursor and the flyer all take it unchanged.
+// So the mark is ONE shape drawn twice: the RED bolt, and the same bolt slid a
+// little down-left as the BLUE echo behind it. The keyline runs around the
+// union only — the two fills are painted again on top of the strokes, so no
+// white ever shows where red meets blue. The three options keep the red's
+// proportions close to the picture and vary how the echo sits and how heavy
+// the bolt is.
 //
-//   strike  ONE elbow. A long upper shaft, a single jut to the right, a long
-//           lower shaft to a needle. The left flank is nearly straight with one
-//           small kink — no matching tooth — so the silhouette is a Z, not a
-//           zigzag. Slanted top. The seam is an S.
-//   hook    A crook at the top (the bolt bends where it leaves the cloud), one
-//           elbow, and a chisel-cut base. The right half carries more colour.
-//   fork    A flat cap, one elbow, and a base that splits into two prongs —
-//           the one bolt you can name from its bottom alone.
-//
-// Coordinates follow the forge (top at y = 4, base near y = 150) so the bolt
-// sits in the wordmark the way the old one did. Deterministic: same params,
-// same points — the boil is the only motion.
+// The red bolt is three diagonal bands stacked with a step to the right at
+// each join — the two jags on the right, the two notches on the left, a sharp
+// tip at the bottom. Coordinates follow the old forge (top y = 4) so the bolt
+// sits in the wordmark the way it always did. Deterministic; the boil is the
+// only motion.
 import { makeBoil, type BoltSpec } from "@/components/brand-cards/bolt-boil";
 
-export type SurviveBoltFamily = "strike" | "hook" | "fork";
-
 export interface SurviveBoltParams {
-  family: SurviveBoltFamily;
-  /** How far the bolt drifts left on the way down (0 = upright). */
-  lean: number;
-  /** The shaft's thickness. */
+  /** Band thickness (the red's width across a band). */
   width: number;
-  /** Where the elbow sits, as a fraction of the height. */
-  elbow: number;
-  /** How far the elbow juts out. */
-  jut: number;
-  /** The small kink on the quiet flank. */
-  notch: number;
-  /** The S in the seam (0 = a straight lean). */
-  seamS: number;
+  /** How far each band drifts left over its height (the lean of the strokes). */
+  lean: number;
+  /** The step to the right at each join — the size of the jags / notches. */
+  step: number;
+  /** The bottom band narrows into the tip by this fraction. */
+  taper: number;
+  /** How far the tip drops below the last band. */
+  tip: number;
+  /** The blue echo's offset: left and down, in the bolt's own units. */
+  echoX: number;
+  echoY: number;
   /** Hand-drawn wobble on every vertex (0 = ruler-straight). */
   handDrawn: number;
   seed: number;
@@ -52,21 +40,27 @@ export interface SurviveBoltParams {
   outline: number;
 }
 
-export interface SurviveBoltGeom { outerPts: [number, number][]; seamPts: [number, number][]; outer: string; seam: string; viewBox: string; ratio: number }
+export interface SurviveBoltGeom {
+  /** The red bolt (also the silhouette the keyline follows on the right). */
+  outerPts: [number, number][];
+  /** The blue echo — the same ring, slid down-left. */
+  seamPts: [number, number][];
+  outer: string; seam: string; viewBox: string; ratio: number;
+}
 
-export const SURVIVE_BOLTS: { id: SurviveBoltFamily; name: string; blurb: string; params: SurviveBoltParams }[] = [
-  { id: "strike", name: "Strike", blurb: "One elbow, a needle, an S for the seam. Tall and narrow; the left flank is almost a single line.",
-    params: { family: "strike", lean: 0.3, width: 16, elbow: 0.44, jut: 24, notch: 7, seamS: 6, handDrawn: 0.9, seed: 11, outline: 8 } },
-  { id: "hook", name: "Hook", blurb: "A crook at the top where it leaves the cloud, one elbow, a chisel base. The right half is the heavier one.",
-    params: { family: "hook", lean: 0.26, width: 17, elbow: 0.5, jut: 22, notch: 6, seamS: 5, handDrawn: 0.9, seed: 5, outline: 8 } },
-  { id: "fork", name: "Fork", blurb: "A flat cap, one elbow, and a base that splits in two — recognisable from the bottom alone.",
-    params: { family: "fork", lean: 0.22, width: 17, elbow: 0.4, jut: 20, notch: 6, seamS: 4, handDrawn: 0.9, seed: 3, outline: 8 } },
+export const SURVIVE_BOLTS: { id: "pictured" | "tall" | "heavy"; name: string; blurb: string; params: SurviveBoltParams }[] = [
+  { id: "pictured", name: "As pictured", blurb: "The red from the picture; the blue slides down-left along the bolt's own lean, so it follows every edge and never pools at the top.",
+    params: { width: 24, lean: 26, step: 13, taper: 0.55, tip: 12, echoX: 9, echoY: 12, handDrawn: 0.6, seed: 7, outline: 8 } },
+  { id: "tall", name: "Taller, leaner", blurb: "The same bolt stretched: thinner bands, a longer tip, a thinner blue echo. Reads sharper small — in the wordmark and as the cursor.",
+    params: { width: 20, lean: 30, step: 12, taper: 0.6, tip: 16, echoX: 7, echoY: 10, handDrawn: 0.6, seed: 11, outline: 8 } },
+  { id: "heavy", name: "Heavier", blurb: "Thicker bands, bigger jags, a wider blue echo — more poster, more sticker. The one to try at slide size.",
+    params: { width: 28, lean: 24, step: 16, taper: 0.5, tip: 11, echoX: 12, echoY: 14, handDrawn: 0.7, seed: 3, outline: 8 } },
 ];
 
 type Pt = [number, number];
 const TY = 4;
-const BOTTOM = 150;
-const TOP_X = 60;
+const BAND_H = 44;
+const TOP_R = 80;
 
 // mulberry32 — the forge's PRNG, so a seed means the same thing here.
 function prng(seed: number) {
@@ -83,114 +77,65 @@ function toPath(pts: Pt[]): string {
   return pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(2)} ${y.toFixed(2)}`).join(" ") + " Z";
 }
 
-/** The seam, top to base, as an S around the shaft's centre line: +amp a quarter
- *  of the way down, −amp three quarters down. amp = 0 is the straight lean. */
-function seamLine(cx: (y: number) => number, top: Pt, base: Pt, amp: number, n = 9): Pt[] {
-  const pts: Pt[] = [top];
-  for (let k = 1; k < n; k++) {
-    const t = k / n;
-    const y = top[1] + (base[1] - top[1]) * t;
-    pts.push([cx(y) + amp * Math.sin(Math.PI * 2 * t * 0.75 + Math.PI * 0.1), y]);
+/** The red bolt's ring, clockwise from the top-left corner: three bands, two
+ *  joins, a tapered tip. */
+export function redBolt(p: SurviveBoltParams): Pt[] {
+  const w = Math.max(10, p.width), lean = p.lean, step = p.step;
+  // Each band: top-left x, top-right x; the next band starts `step` to the right
+  // of where this one ends (after the lean), which cuts the jag and the notch.
+  const bands: { y0: number; y1: number; L0: number; R0: number; L1: number; R1: number }[] = [];
+  let L = TOP_R - w;
+  for (let k = 0; k < 3; k++) {
+    const y0 = TY + k * BAND_H, y1 = y0 + BAND_H;
+    const R0 = L + w;
+    const L1 = L - lean, R1 = R0 - lean;
+    bands.push({ y0, y1, L0: L, R0, L1, R1 });
+    L = L1 + step;
   }
-  pts.push(base);
-  return pts;
+  const b0 = bands[0], b1 = bands[1], b2 = bands[2];
+  // The bottom band narrows into the tip: its foot is `taper` of the width.
+  const footW = w * (1 - p.taper);
+  const footL = b2.L1 + (w - footW) * 0.35, footR = footL + footW;
+  const tipPt: Pt = [footL + footW * 0.35 - p.lean * 0.18, b2.y1 + p.tip];
+  return [
+    [b0.L0, b0.y0], [b0.R0, b0.y0],            // the top edge
+    [b0.R1, b0.y1], [b1.R0, b1.y0],            // down the right, the first jag
+    [b1.R1, b1.y1], [b2.R0, b2.y0],            // the second jag
+    [footR, b2.y1], tipPt, [footL, b2.y1],     // the tip
+    [b2.L0, b2.y0], [b1.L1, b1.y1],            // up the left, the second notch
+    [b1.L0, b1.y0], [b0.L1, b0.y1],            // the first notch, back to the top
+  ];
 }
 
 export function forgeSurviveBolt(p: SurviveBoltParams): SurviveBoltGeom {
   const rnd = prng(p.seed);
   const wob = (amp: number) => (amp === 0 ? 0 : (rnd() * 2 - 1) * amp);
-  const H = BOTTOM - TY;
-  const cx = (y: number) => TOP_X - p.lean * (y - TY);
-  const w = Math.max(8, p.width), hw = w / 2;
-  const ey = TY + H * p.elbow;
-  let right: Pt[] = [], left: Pt[] = [], seam: Pt[] = [];
-  let tipTop: Pt, base: Pt;
-
-  if (p.family === "strike") {
-    // Slanted top: the right corner is the tip, the left corner sits lower.
-    tipTop = [cx(TY) + hw * 0.9, TY];
-    const topLeft: Pt = [cx(TY) - hw * 1.1, TY + 7];
-    base = [cx(BOTTOM) - hw * 0.15, BOTTOM];
-    right = [tipTop,
-      [cx(ey - 4) + hw * 0.85, ey - 4],                 // the shaft narrows into the elbow
-      [cx(ey) + hw + p.jut, ey - 3],                    // the jut — the ONE elbow
-      [cx(ey + 10) + hw * 0.55, ey + 10],               // and back in to the lower shaft
-      base];
-    left = [tipTop, topLeft,
-      [cx(ey + 18) - hw * 1.05, ey + 18],               // the quiet flank: one small kink
-      [cx(ey + 26) - hw * 0.55 - p.notch * 0.2, ey + 26],
-      [cx(ey + 30) - hw * 1.0 - p.notch * 0.5, ey + 30],
-      base];
-    seam = seamLine(cx, tipTop, base, p.seamS);
-  } else if (p.family === "hook") {
-    // The crook: the head leans out to the right and comes back to the shaft.
-    tipTop = [cx(TY) + hw * 0.5, TY];
-    const hookOut: Pt = [cx(TY + 9) + hw + p.jut * 0.65, TY + 6];
-    const hookIn: Pt = [cx(TY + 22) + hw * 0.8, TY + 22];
-    // A chisel base: a slanted cut, the right corner lower.
-    base = [cx(BOTTOM) + hw * 0.25, BOTTOM];
-    const baseLeft: Pt = [cx(BOTTOM - 9) - hw * 0.6, BOTTOM - 9];
-    right = [tipTop, hookOut, hookIn,
-      [cx(ey - 3) + hw * 0.9, ey - 3],
-      [cx(ey) + hw + p.jut, ey - 2],
-      [cx(ey + 11) + hw * 0.6, ey + 11],
-      base];
-    left = [tipTop, [cx(TY + 4) - hw * 0.95, TY + 4],
-      [cx(ey + 6) - hw, ey + 6],
-      [cx(ey + 14) - hw * 0.45 - p.notch * 0.2, ey + 14],
-      [cx(ey + 19) - hw * 0.95 - p.notch * 0.4, ey + 19],
-      baseLeft, base];
-    // The seam runs left of centre so the right half carries more colour.
-    seam = seamLine((y) => cx(y) - hw * 0.18, tipTop, base, p.seamS);
-  } else {
-    // A flat cap, then one elbow, then the fork.
-    tipTop = [cx(TY) + hw * 0.7, TY];
-    const capLeft: Pt = [cx(TY) - hw * 0.9, TY + 1];
-    const crotchY = BOTTOM - 34;
-    base = [cx(BOTTOM) + hw * 0.55, BOTTOM];                             // the right prong (the longer one)
-    const prongL: Pt = [cx(BOTTOM - 12) - hw * 1.25 - p.notch, BOTTOM - 12]; // the left prong
-    const crotch: Pt = [cx(crotchY) - hw * 0.05, crotchY];
-    right = [tipTop,
-      [cx(ey - 4) + hw * 0.9, ey - 4],
-      [cx(ey) + hw + p.jut, ey - 2],
-      [cx(ey + 10) + hw * 0.6, ey + 10],
-      base];
-    left = [tipTop, capLeft,
-      [cx(ey + 16) - hw * 1.0, ey + 16],
-      [cx(ey + 22) - hw * 0.5 - p.notch * 0.2, ey + 22],
-      [cx(crotchY - 12) - hw * 0.95, crotchY - 12],
-      prongL, crotch, base];
-    seam = seamLine(cx, tipTop, crotch, p.seamS);
-    seam.push(base);
-  }
-
-  // The hand-drawn wobble — every vertex but the tip and the base, so the bolt
-  // stays pinned as the "i" (the boil does the same).
-  const shake = (pts: Pt[]): Pt[] => pts.map((q) => (q === tipTop || q === base) ? q : [q[0] + wob(p.handDrawn * 1.6), q[1] + wob(p.handDrawn * 1.2)] as Pt);
-  const R = shake(right), L = shake(left), S = shake(seam);
-  // The rings: the silhouette runs down the right flank and up the left; the
-  // seam ring is the S then back up the right flank — its shared edge with the
-  // silhouette is what makes the two halves one mark.
-  const outerPts: Pt[] = [...R, ...L.slice(1, -1).reverse()];
-  const seamPts: Pt[] = [...S, ...R.slice(1, -1).reverse()];
-  const all = [...outerPts, ...seamPts];
+  const red = redBolt(p);
+  const top = red[1], tip = red[7];
+  // The hand-drawn wobble — every vertex but the top tip and the bottom tip, so
+  // the bolt stays pinned as the "i" (the boil does the same).
+  const shaken = red.map((q) => (q === top || q === tip) ? q : [q[0] + wob(p.handDrawn * 1.6), q[1] + wob(p.handDrawn * 1.2)] as Pt);
+  // The echo is the SAME ring slid down-left — it follows every edge.
+  const echo = shaken.map(([x, y]) => [x - p.echoX, y + p.echoY] as Pt);
+  const all = [...shaken, ...echo];
   const xs = all.map((q) => q[0]), ys = all.map((q) => q[1]);
   const pad = p.outline / 2 + 2;
   const vx = Math.min(...xs) - pad, vy = Math.min(...ys) - pad;
   const vw = Math.max(...xs) - vx + pad, vh = Math.max(...ys) - vy + pad;
   const r1 = (v: number) => Math.round(v * 100) / 100;
-  return { outerPts, seamPts, outer: toPath(outerPts), seam: toPath(seamPts), viewBox: `${r1(vx)} ${r1(vy)} ${r1(vw)} ${r1(vh)}`, ratio: vw / vh };
+  return { outerPts: shaken, seamPts: echo, outer: toPath(shaken), seam: toPath(echo), viewBox: `${r1(vx)} ${r1(vy)} ${r1(vw)} ${r1(vh)}`, ratio: vw / vh };
 }
 
-/** The BoltSpec the boil cards, the wordmark and the cold open render. */
+/** The BoltSpec the boil cards, the wordmark and the cold open render: an
+ *  "echo" spec — outer = the red bolt, seam = the blue echo behind it. */
 export function surviveBoltSpec(p: SurviveBoltParams, colours?: { red?: string; blue?: string; cream?: string }): BoltSpec {
   const g = forgeSurviveBolt(p);
-  return { frames: makeBoil(g.outerPts, g.seamPts, p.outline), viewBox: g.viewBox, ratio: g.ratio, red: colours?.red ?? "#C62828", blue: colours?.blue ?? "#1565C0", cream: colours?.cream ?? "#FFFFFF" };
+  return { frames: makeBoil(g.outerPts, g.seamPts, p.outline).map((f) => ({ ...f, echo: true })), viewBox: g.viewBox, ratio: g.ratio, red: colours?.red ?? "#C62828", blue: colours?.blue ?? "#1565C0", cream: colours?.cream ?? "#FFFFFF" };
 }
 
-/** What a sitewide swap pastes into canvas/brand.tsx (BOLT_OUTER / BOLT_RIGHT /
- *  BOLT_VIEWBOX) and bolt-boil.tsx (FINAL_OUTER / FINAL_SEAM / viewBox). */
-export function surviveBoltExport(p: SurviveBoltParams): { BOLT_OUTER: string; BOLT_RIGHT: string; BOLT_VIEWBOX: string; outerPts: Pt[]; seamPts: Pt[] } {
+/** What a sitewide swap pastes: the red ring as BOLT_OUTER, the echo as
+ *  BOLT_RIGHT (drawn BEHIND, echo mode), the viewBox, and the points. */
+export function surviveBoltExport(p: SurviveBoltParams): { mode: "echo"; BOLT_OUTER: string; BOLT_RIGHT: string; BOLT_VIEWBOX: string; outerPts: Pt[]; seamPts: Pt[] } {
   const g = forgeSurviveBolt(p);
-  return { BOLT_OUTER: g.outer, BOLT_RIGHT: g.seam, BOLT_VIEWBOX: g.viewBox, outerPts: g.outerPts, seamPts: g.seamPts };
+  return { mode: "echo", BOLT_OUTER: g.outer, BOLT_RIGHT: g.seam, BOLT_VIEWBOX: g.viewBox, outerPts: g.outerPts, seamPts: g.seamPts };
 }
