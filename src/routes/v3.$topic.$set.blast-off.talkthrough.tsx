@@ -16,7 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AdminGate } from "@/components/AdminGate";
 import { Booth, boothToPassCeq } from "@/components/talkthrough/Booth";
 import { PreFlight } from "@/components/canvas/ReviewBoard";
-import { queueReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
+import { queueIncrementalReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
 import { listSessions, makeSession, touchRow, type TalkSession } from "@/components/canvas/talkthrough";
 import { putSession, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { StepBar } from "@/components/v3/StepBar";
@@ -102,7 +102,10 @@ function V3Talkthrough() {
             const ses = preflight;
             setPreflight(null);
             putSession(touchRow(ses, { endedAt: new Date().toISOString() } as Partial<TalkSession>));
-            queueReview({ session: ses, ceqs: set.ceqs.map(boothToPassCeq), excludedKinds, wantVibePlan });
+            // B8 — the INCREMENTAL queue: script → CEQ edits → ideas, each
+            // written to the board as it lands, with a progress line in the
+            // booth. The one-shot pass is still queueReview (the studio).
+            queueIncrementalReview({ session: ses, ceqs: set.ceqs.map(boothToPassCeq), excludedKinds, wantVibePlan });
             // ON TO THE NEXT SET (Lee, 2026-09-03): generation runs in the
             // background — the dock bottom-right tracks it and links to the
             // results when ready. After the last set, back to the queue.

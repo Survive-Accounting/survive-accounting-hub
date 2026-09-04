@@ -16,8 +16,8 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
-import { listSessions, sessionBoard, type TalkSession } from "@/components/canvas/talkthrough";
-import { reviewStateOf, subscribeReview } from "@/components/canvas/talkthrough-review";
+import { listSessions, progressLine, sessionBoard, type TalkSession } from "@/components/canvas/talkthrough";
+import { generationProgressOf, reviewStateOf, subscribeReview } from "@/components/canvas/talkthrough-review";
 import { startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { blastOffPath, topicOfSet, useBank } from "@/components/v3/use-bank";
 
@@ -88,6 +88,7 @@ export function GenerationDock() {
           <div style={{ maxHeight: 280, overflowY: "auto" }}>
             {rows.map(({ s, rs, board }) => {
               const href = resultsHref(s);
+              const prog = generationProgressOf(s.id);
               const state = rs.state === "ready" ? "ready" : rs.state === "error" ? "failed" : rs.state === "queued" ? "queued" : "generating…";
               const color = rs.state === "ready" ? "#3BF5A0" : rs.state === "error" ? "#FF8B7E" : V3_GOLD;
               return (
@@ -97,6 +98,10 @@ export function GenerationDock() {
                     <div style={{ fontSize: 10.5, color, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>
                       {state}{rs.state === "ready" && board ? ` · ${board} suggestions` : ""}{rs.error ? ` · ${rs.error.slice(0, 40)}` : ""}
                     </div>
+                    {/* B8 — the incremental queue's own count, item by item. */}
+                    {prog && (rs.state === "generating" || rs.state === "queued") && (
+                      <div style={{ fontSize: 10, color: V3_MUTED }}>{progressLine(prog)} · {prog.completed}/{prog.total}</div>
+                    )}
                   </div>
                   {rs.state === "ready" && (href
                     ? <Link to={href} target="_blank" rel="noopener" style={{ fontSize: 11.5, color: "#3BF5A0", textDecoration: "underline", whiteSpace: "nowrap" }}>Review ↗</Link>

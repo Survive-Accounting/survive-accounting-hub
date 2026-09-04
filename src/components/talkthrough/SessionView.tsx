@@ -21,7 +21,7 @@ import { drainWhisperQueue } from "@/components/canvas/talkthrough-audio";
 import { extractJsonObject, parsePass } from "@/components/canvas/talkthrough-pass";
 import { ReviewBoardV2 } from "@/components/canvas/ReviewBoard";
 import { FilmPicksTray, openFilmMode } from "@/components/canvas/FilmPicks";
-import { queueReview, regenerateReviewItem, reviewStateOf } from "@/components/canvas/talkthrough-review";
+import { queueIncrementalReview, regenerateReviewItem, reviewStateOf } from "@/components/canvas/talkthrough-review";
 import { setActivePhraseSession, startPhraseBank } from "@/components/canvas/phrase-bank";
 import { sumUsage, type AiUsage } from "@/lib/ai-registry";
 import { BIG_FONT, NEON } from "@/components/canvas/theme";
@@ -194,7 +194,7 @@ export function SessionView({ tt, session, set, onResume, onAddSlide }: {
             className="flex items-center gap-2 rounded-xl px-4 py-2"
             style={{ border: `1.5px solid ${GOLD}`, color: running || rs.state === "generating" ? NEON.muted : GOLD, fontFamily: BIG_FONT, fontWeight: 800 }}
             disabled={running || rs.state === "generating" || rs.state === "queued"}
-            onClick={() => queueReview({ session, ceqs: passCeqs, excludedKinds: [], wantVibePlan: tags.some((t) => canonicalStamp(t.tag) === "review_vibe") })}
+            onClick={() => queueIncrementalReview({ session, ceqs: passCeqs, excludedKinds: [], wantVibePlan: tags.some((t) => canonicalStamp(t.tag) === "review_vibe") })}
           >
             <Wand2 className="h-4 w-4" /> {v2Items.length ? "Regenerate review" : "Generate review"}
           </button>
@@ -204,7 +204,7 @@ export function SessionView({ tt, session, set, onResume, onAddSlide }: {
         <div className="rounded-xl px-4 py-2" style={{ border: "1px solid #F87171", color: "#F87171", fontSize: 13 }}>
           {rs.error ?? "generation failed"} — the transcript is untouched.
           <button style={{ textDecoration: "underline", marginLeft: 8 }}
-            onClick={() => queueReview({ session, ceqs: passCeqs, excludedKinds: [], wantVibePlan: tags.some((t) => canonicalStamp(t.tag) === "review_vibe") })}>
+            onClick={() => queueIncrementalReview({ session, ceqs: passCeqs, excludedKinds: [], wantVibePlan: tags.some((t) => canonicalStamp(t.tag) === "review_vibe") })}>
             retry
           </button>
         </div>
