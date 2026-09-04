@@ -350,7 +350,7 @@ function PhoneStage({ frame, set, topicName, progress, safe, dim }: {
   // a card is the canvas's 560-wide card. Both are sized to the stage width.
   // The tutor card is 1.15× on the real frame; on this small stage it has to
   // fit the width, so it renders at the same size as the other cards here.
-  const scale = isStandard(frame.kind) ? (frame.kind === "bio" ? 0.48 / BIO_CARD.scale : STAGE_W / 1080 / 0.34) : 0.48;
+  const scale = isStandard(frame.kind) ? (frame.kind === "bio" ? 0.45 : STAGE_W / 1080 / 0.34) : 0.48;
   const band: React.CSSProperties = { position: "absolute", left: 0, right: 0, background: "repeating-linear-gradient(135deg, rgba(125,211,252,0.10) 0 6px, transparent 6px 14px)", borderColor: "rgba(125,211,252,0.35)", pointerEvents: "none" };
   const tag: React.CSSProperties = { position: "absolute", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(125,211,252,0.7)", fontWeight: 800 };
   return (
