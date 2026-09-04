@@ -8,6 +8,7 @@
 // and flattens their live card-decks. Fine at current scale; revisit if scenes balloon.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { cramCardsFromPlan, practiceIdsFromPlan, readLearnPlan } from "./learn-plan";
 
 /** A SET is one Cram Blast → Practice → Review sequence (the product model, 08-20).
  *
@@ -50,7 +51,9 @@ const setName = (n?: string) => (n ?? "Set").replace(/^\s*ch\s*\d+\s*·\s*/i, ""
 
 /** A shipped per-set publication (DeckDef.publications) — `blast` = cram, `lookback` = review. */
 export type RawPub = { id?: string; kind?: string; state?: string; render?: { muxPlaybackId?: string | null; durationS?: number | null } };
-type RawDeck = { id: string; name?: string; payloadType?: string; status?: string; access?: string; lessonId?: string | null; topicId?: string | null; courseId?: string | null; parked?: boolean; sortOrder?: number; publications?: RawPub[] };
+/** `blastOff` = the saved Review plan (blastoff.functions.ts writes it; learn-plan.ts reads it) — the
+ *  final edit Lee films from, and so what /learn serves when present. Read raw; never trusted blindly. */
+type RawDeck = { id: string; name?: string; payloadType?: string; status?: string; access?: string; lessonId?: string | null; topicId?: string | null; courseId?: string | null; parked?: boolean; sortOrder?: number; publications?: RawPub[]; blastOff?: unknown };
 /** The set's shipped publication of a kind, or null. state must be "shipped" WITH a playback id —
  *  a rendered-but-never-shipped cut is not student content. */
 export const shippedPub = (d: { publications?: RawPub[] }, kind: "blast" | "lookback"): RawPub | null =>
@@ -289,10 +292,13 @@ export type SetPracticeResult =
   | { status: "not_found" };
 
 // CRAM CARDS (Lee, 2026-09-03: "Cram blast off vid > cram cards > practice").
-// The memorize-this / cheat-code / deeper-idea cards Lee placed on the film
-// draft and sent to film are real note frames in the set (provenance
-// "blast-off"). Students get them in running order, after the video and
-// before practice. Same gate as practice: live, unparked, free.
+// The memorize-this / cheat-code / deeper-idea cards Lee placed on the Review
+// step. THE SAVED PLAN IS THE SOURCE (2026-09-04): Lee films from /film
+// without pressing "Send to film", so the plan on the set (deck.blastOff) is
+// the final edit — its non-skipped inserts, in plan order, are the cards. A
+// set with NO plan falls back to the note frames a send wrote (provenance
+// "blast-off"). Students get them after the video and before practice. Same
+// gate as practice: live, unparked, free.
 export interface CramCard { id: string; kind: "phrase" | "cheat" | "tip"; text: string; bullets: string[] }
 export type SetCramCardsResult =
   | { status: "ok"; setName: string; cards: CramCard[] }
@@ -312,7 +318,11 @@ export const fetchSetCramCards = createServerFn({ method: "GET" })
     if (!deck || !o) return { status: "not_found" };
     if (deck.access === "paid") return { status: "locked" };
     const KINDS = new Set(["phrase", "cheat", "tip"]);
-    const cards: CramCard[] = o.nodes
+    // The plan first (ids are `blast-<frame.id>`, exactly what a send writes,
+    // so anything keyed on them is stable either way); the nodes only when
+    // the set was never planned.
+    const fromPlan = cramCardsFromPlan(readLearnPlan(deck.blastOff));
+    const cards: CramCard[] = fromPlan ?? o.nodes
       .map((n) => ({ nodeId: n.id ?? "", ...(n.data as RawCard) }))
       .filter((d) => d.provenance === "blast-off" && !!d.blastKind && KINDS.has(d.blastKind) && !d.draft && !d.bankArchived && !d.callout?.hidden)
       .sort((a, b) => (a.stageOrder ?? 0) - (b.stageOrder ?? 0))
@@ -339,10 +349,21 @@ export const fetchSetPractice = createServerFn({ method: "GET" })
     const cards = o.nodes
       // filmSkip (2026-09-03): Lee skipped it on the review deck and sent to
       // film — "the final edit of slides is what practice will look like".
+      // Kept as belt and braces now the plan itself decides (below).
       .filter((n) => { const d = n.data as (RawCard & { filmSkip?: boolean }) | undefined; return !d?.noteOnly && !d?.draft && !d?.bankArchived && !d?.filmSkip; })
       .map((n) => ({ nodeId: n.id ?? "", ...(n.data as RawCard) }));
-    const questions: PracticeQuestion[] = cards
-      .sort((a, b) => (a.stageOrder ?? 0) - (b.stageOrder ?? 0))
+    // THE SAVED REVIEW PLAN IS THE FINAL EDIT (Lee, 2026-09-04: "whatever
+    // questions get pushed to the final video we film from, THOSE questions
+    // are what we will push to /learn"). When the set has a plan with set
+    // cards in it, practice is the plan's non-skipped cards in PLAN order; a
+    // card in the set but not in the plan is not served. No plan → bank
+    // (stageOrder) order, exactly as before.
+    const planIds = practiceIdsFromPlan(readLearnPlan(deck.blastOff));
+    const byNode = new Map(cards.map((c) => [c.nodeId, c] as const));
+    const ordered = planIds
+      ? planIds.flatMap((id) => { const c = byNode.get(id); return c ? [c] : []; })
+      : cards.sort((a, b) => (a.stageOrder ?? 0) - (b.stageOrder ?? 0));
+    const questions: PracticeQuestion[] = ordered
       .map((c, i) => ({
         id: c.nodeId || `${data.setId}:${c.stageOrder ?? i}`,
         prompt: (c.prompt ?? "").trim(),
