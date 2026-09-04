@@ -20,7 +20,7 @@ import { HighlightContext, useTextHighlights } from "@/components/canvas/text-hi
 import { renderInline } from "@/components/canvas/inline-md";
 import { openFilmMode } from "./FilmHandoff";
 import { SetCard } from "./SetCard";
-import { SurviveBio } from "./SurviveBio";
+import { BIO_CARD, bioCallout } from "./bio-card";
 import { SurviveIntro } from "./SurviveIntro";
 import { SurviveOutro } from "./SurviveOutro";
 import {
@@ -267,7 +267,8 @@ export function FrameView({ frame, set, scale, topicName, progress }: {
   if (isStandard(frame.kind)) {
     const s = scale * 0.34; // a 1080-wide frame, sized to sit beside the list
     if (frame.kind === "intro") return <SurviveIntro topic={frame.text?.trim() || set.name} scale={s} />;
-    if (frame.kind === "bio") return <SurviveBio scale={s} />;
+    // THE TUTOR CARD (2026-09-03): the bio in the detour format, a bit bigger.
+    if (frame.kind === "bio") return <SetCard id={frame.id} stem={BIO_CARD.title} scale={scale * BIO_CARD.scale} callout={bioCallout() as Record<string, unknown>} />;
     return <SurviveOutro tagline={frame.text?.trim() || undefined} scale={s} />;
   }
 

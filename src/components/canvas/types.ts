@@ -1630,7 +1630,7 @@ export function cardId(kind: string): string {
 }
 
 /** The five callout types (P1) — the banner a callout card can carry. */
-export type CalloutKind = "cheat-code" | "memorize-this" | "deeper-idea" | "recap" | "distractor";
+export type CalloutKind = "cheat-code" | "memorize-this" | "deeper-idea" | "recap" | "distractor" | "tutor";
 /** CALLOUT settings (P1) on a zero-choice (note) frame. Every field optional so
  *  an untouched note frame stays byte-identical in scene JSON. */
 export interface CalloutSettings {
@@ -1638,6 +1638,8 @@ export interface CalloutSettings {
   showTopic?: boolean;
   /** Secondary stems — indented, smaller, grayed bullets under the main stem. */
   extraStems?: string[];
+  /** A quiet last line under a gap (the bio card's domain). Absent = none. */
+  footer?: string;
   /** Boiling bolt on the card's left. Absent = off. */
   bolt?: boolean;
   /** The type banner; absent = plain callout (kicker + stem only). */

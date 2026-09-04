@@ -19,13 +19,20 @@ import { PAPER } from "../theme";
 import type { CalloutKind } from "../types";
 
 /** The five callout types — each a small on-brand badge/accent, none loud. */
-export const CALLOUT_KINDS: Record<CalloutKind, { label: string; accent: string; tint: string }> = {
+export const CALLOUT_KINDS: Record<Exclude<CalloutKind, "tutor">, { label: string; accent: string; tint: string }> = {
   "cheat-code": { label: "CHEAT CODE", accent: "#1F9D57", tint: "rgba(31,157,87,0.10)" },
   "memorize-this": { label: "MEMORIZE THIS", accent: "#C77D0A", tint: "rgba(199,125,10,0.10)" },
   "deeper-idea": { label: "DEEPER IDEA", accent: "#1D7FA8", tint: "rgba(29,127,168,0.10)" },
   recap: { label: "RECAP", accent: "#6D5BB8", tint: "rgba(109,91,184,0.10)" },
   distractor: { label: "DISTRACTOR", accent: "#C22B45", tint: "rgba(194,43,69,0.10)" },
 };
+/** THE TUTOR CARD (Lee, 2026-09-03): the bio slide in the detour format. Not
+ *  one of the five authoring kinds (the cycler never offers it) — Blast Off's
+ *  send-to-film writes it, and only for the bio frame. */
+export const TUTOR_META = { label: "YOUR TUTOR", accent: "#C62828", tint: "rgba(198,40,40,0.10)" } as const;
+export function calloutMeta(kind: CalloutKind): { label: string; accent: string; tint: string } {
+  return kind === "tutor" ? TUTOR_META : CALLOUT_KINDS[kind];
+}
 
 /** Default kind when a memo is dropped, from its library category. */
 export function calloutKindForCategory(category?: string): CalloutKind {
@@ -57,6 +64,8 @@ export interface CalloutBodyProps {
   bolt?: boolean;
   /** Authoring-only inline edit hook for an extra-stem bullet (never in film). */
   onEditBullet?: (idx: number) => void;
+  /** A quiet last line under a gap — the bio card's domain. */
+  footer?: string;
   /** THE DETOUR LOOK (CalloutSettings.detour): gold label, cream ink, the
    *  ==key phrase== highlighted gold-on-navy. The shell paints the navy;
    *  this only changes the ink. */
@@ -78,14 +87,15 @@ const DETOUR = {
 export function detourAccent(kind?: CalloutKind): string {
   if (kind === "memorize-this") return "#FF9F43";
   if (kind === "deeper-idea") return "#7DD3FC";
+  if (kind === "tutor") return "#FF6B6B";
   return DETOUR.gold;
 }
 
 /** The callout's face — cream card interior, navy text, orange corner accent.
  *  Rendered INSIDE the existing card shell (which owns width/drag/scale). */
-export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, highlights = [], bolt, onEditBullet, dark = false }: CalloutBodyProps) {
+export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, highlights = [], bolt, onEditBullet, dark = false, footer }: CalloutBodyProps) {
   const stack = highlights.length > 1;
-  const kindMeta = stack ? { label: "HIGHLIGHTS FROM THIS SET", accent: "#C77D0A", tint: "rgba(199,125,10,0.08)" } : kind ? CALLOUT_KINDS[kind] : null;
+  const kindMeta = stack ? { label: "HIGHLIGHTS FROM THIS SET", accent: "#C77D0A", tint: "rgba(199,125,10,0.08)" } : kind ? calloutMeta(kind) : null;
   // On the dark card each kind keeps its own colour (Lee, 2026-09-03: "make
   // the cheat code stay the same, but deeper idea, memorize this are different
   // colors"): cheat code stays brand gold; memorize this is orange; deeper
@@ -157,6 +167,11 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
                     </li>
                   ))}
                 </ul>
+              )}
+              {footer && (
+                // THE FOOTER (2026-09-03): the bio card's domain — under a gap,
+                // quiet, letter-spaced, so it reads as a sign-off, not a bullet.
+                <div style={{ marginTop: 16 * s, fontSize: 13.5 * s, fontWeight: 700, letterSpacing: "0.08em", color: inkMuted }}>{footer}</div>
               )}
             </>
           )}

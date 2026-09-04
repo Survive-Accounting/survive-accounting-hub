@@ -45,7 +45,7 @@ import { Emph, HighlightContext, SEL_EMPH_CSS, readRangeIn, useTextHighlights, w
 import { renderInline } from "./inline-md";
 import { activeSlots, CARD_H, CARD_W, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf, resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
 export { activeSlots, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf } from "./ceq-geom";
-import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, detourAccent, nextCalloutKind } from "./cards/CalloutCard";
+import { CalloutBody, calloutKindForCategory, calloutMeta, detourAccent, nextCalloutKind } from "./cards/CalloutCard";
 import { captureAcceptable, captureCssSize, captureFeasibility, physicalSize, snapCaptureSize, verticalObsNote } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
 import { cycleExhibitModes, exhibitDepthKey, exhibitOrderKey, exhibitRevealKey } from "./exhibit-modes";
@@ -645,7 +645,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
       {isCallout && !film && (
         <div className="sa-chrome nodrag card-actions" style={{ position: "absolute", top: -26, right: 0, zIndex: 21, display: "flex", gap: 4, alignItems: "center", borderRadius: 8, padding: "2px 4px", background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()}>
           <button className="rounded px-1 text-[9px] font-black" style={{ color: d.callout?.showTopic === false ? NEON.muted : NEON.cyan }} title="Topic label on/off" onClick={() => patchCallout({ showTopic: d.callout?.showTopic === false })}>TOPIC</button>
-          <button className="rounded px-1 text-[9px] font-black" style={{ color: d.callout?.kind ? CALLOUT_KINDS[d.callout.kind].accent : NEON.muted }} title="Callout type — click to cycle (or drop a memo from the library to convert)" onClick={() => patchCallout({ kind: nextCalloutKind(d.callout?.kind) })}>{d.callout?.kind ? CALLOUT_KINDS[d.callout.kind].label : "TYPE"}</button>
+          <button className="rounded px-1 text-[9px] font-black" style={{ color: d.callout?.kind ? calloutMeta(d.callout.kind).accent : NEON.muted }} title="Callout type — click to cycle (or drop a memo from the library to convert)" onClick={() => patchCallout({ kind: nextCalloutKind(d.callout?.kind) })}>{d.callout?.kind ? calloutMeta(d.callout.kind).label : "TYPE"}</button>
           <button className="rounded px-1 text-[9px] font-black" style={{ color: NEON.muted }} title="Add a secondary stem (indented gray bullet; double-click one to edit)" onClick={() => patchCallout({ extraStems: [...(d.callout?.extraStems ?? []), "New point"] })}>+ STEM</button>
           <button className="rounded px-1 text-[9px] font-black" style={{ color: d.callout?.hidden ? "#3BF5A0" : NEON.muted }} title={d.callout?.hidden ? "Bring the callout card back" : "Hide the callout card — leaves a BARE frame (just your elements) to build from scratch"} onClick={() => patchCallout({ hidden: !d.callout?.hidden })}>{d.callout?.hidden ? "+ CARD" : "✕ CARD"}</button>
           {(d.callout?.memoIds?.length ?? 0) > 0 && <button className="rounded px-1 text-[9px] font-black" style={{ color: "#FF8B9E" }} title="Clear the dropped memos (back to the stem)" onClick={() => patchCallout({ memoIds: [] })}>✕ MEMOS</button>}
@@ -670,6 +670,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
             topic={d.callout?.showTopic === false ? null : d.topic}
             stem={d.stem}
             extraStems={d.callout?.extraStems}
+            footer={d.callout?.footer}
             kind={d.callout?.kind ?? (d.calloutMemos?.length ? calloutKindForCategory(d.calloutMemos[0].category) : undefined)}
             highlights={(d.calloutMemos ?? []).map((m) => m.label)}
             bolt={d.callout?.bolt}

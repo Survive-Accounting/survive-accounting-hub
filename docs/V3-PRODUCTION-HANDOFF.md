@@ -266,6 +266,15 @@ session (the build queue judged it too big — see docs/TWO-MACHINES.md).
   the next seed/question resets it; nothing is written to the set.
 - Still banked: right-click "save this position for future CEQs" (the
   persistent version of the above); canvas v3 clusters/exhibits/publishing.
+- **The tutor card** (Lee: "do the bio slide in the same format as the
+  memorize this, deeper idea, cheat code… but maybe a bit bigger"): the bio
+  is a detour-format callout now — kind `tutor` (YOUR TUTOR, red on navy),
+  heading "Lee Ingram", lines BAccy · MAccy — Ole Miss / Tutor since 2015 /
+  1,000+ students, footer surviveaccounting.com — at 1.15× on the review
+  stage and `cardW` 640 on the synced frame. Words live in
+  `components/blastoff/bio-card.ts`. `SurviveBio` (the 9:16 brand card) stays
+  for the Add menu and old scenes; a re-send removes the old staged bio.
+  `CalloutSettings.footer` is new and additive.
 - Verified in Lee's own Chrome (signed in, this PC): the handoff path opens
   the Studio on the set; the film stack holds the four detour frames with neon
   labels and the wordmark. NOT verified: the popout's gestures (a new window).

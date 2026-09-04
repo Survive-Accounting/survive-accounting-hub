@@ -30,6 +30,7 @@ import type { TTDoc } from "@/components/canvas/talkthrough";
 import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
 import { refreshBank } from "@/components/v3/use-bank";
 import { BankPicker } from "./BankPicker";
+import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, FrameView, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
 import {
@@ -335,7 +336,7 @@ function SlidePane({ sel, idx, count, label, viewSet, set, topic, progress, ceq,
           <label style={{ fontSize: 11, color: MUTED }}>Tagline on the outro (blank = the standard one)
             <input style={{ ...field, marginTop: 4 }} value={sel.text ?? ""} placeholder="Cram what's on your exam." onChange={(e) => onPatch({ text: e.target.value })} /></label>
         )}
-        {sel.kind === "bio" && <div style={{ fontSize: 12, color: MUTED }}>The bio card is the brand card — nothing to edit here. Skip it if this rip doesn't need it.</div>}
+        {sel.kind === "bio" && <div style={{ fontSize: 12, color: MUTED }}>The tutor card — its words live in one place (bio-card.ts) so every rip says the same thing. Skip it if this rip doesn't need it.</div>}
       </div>
     </>
   );
@@ -347,7 +348,9 @@ function PhoneStage({ frame, set, topicName, progress, safe, dim }: {
 }) {
   // The standard spine renders as a 1080-wide vertical frame at scale*0.34;
   // a card is the canvas's 560-wide card. Both are sized to the stage width.
-  const scale = isStandard(frame.kind) ? STAGE_W / 1080 / 0.34 : 0.48;
+  // The tutor card is 1.15× on the real frame; on this small stage it has to
+  // fit the width, so it renders at the same size as the other cards here.
+  const scale = isStandard(frame.kind) ? (frame.kind === "bio" ? 0.48 / BIO_CARD.scale : STAGE_W / 1080 / 0.34) : 0.48;
   const band: React.CSSProperties = { position: "absolute", left: 0, right: 0, background: "repeating-linear-gradient(135deg, rgba(125,211,252,0.10) 0 6px, transparent 6px 14px)", borderColor: "rgba(125,211,252,0.35)", pointerEvents: "none" };
   const tag: React.CSSProperties = { position: "absolute", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(125,211,252,0.7)", fontWeight: 800 };
   return (

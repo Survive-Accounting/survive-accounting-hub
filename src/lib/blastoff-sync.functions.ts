@@ -30,6 +30,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { BIO_CARD, bioCallout } from "@/components/blastoff/bio-card";
 import { BLAST_FRAME_KINDS, INSERT_CALLOUT, insertStem } from "@/components/blastoff/plan";
 import { blankCard } from "@/components/canvas/templates";
 
@@ -61,7 +62,7 @@ type FrameIn = z.infer<typeof frameIn>;
  *  label Lee reads in the spine. */
 function promptFor(f: FrameIn, setName = ""): string {
   if (f.kind === "intro") return f.text?.trim() || setName;
-  if (f.kind === "bio") return f.text?.trim() || "Bio — Lee Ingram";
+  if (f.kind === "bio") return BIO_CARD.title;
   if (f.kind === "outro") return f.text?.trim() || "Cram what's on your exam.";
   // Inserts carry their ==key phrase== marked — the detour card highlights it.
   return insertStem(f);
@@ -220,15 +221,20 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
       // an exhibit frame stages the exhibit. Either way the frame's own callout is
       // HIDDEN — the staged element is the content, and a second card underneath
       // it reading "Exhibit: cycle" or "Bio" would just be in the shot.
+      // THE BIO IS A CARD NOW (2026-09-03), not a staged 9:16 brand frame: the
+      // tutor callout in the detour format. STANDARD_STAGE.bio stays for the
+      // Add menu and old scenes; a re-send removes the old staged bio element
+      // (unplanned blast-off provenance is deleted below).
       const spec: StageSpec | undefined =
-        STANDARD_STAGE[f.kind] ?? (f.kind === "exhibit" && f.exhibitRef ? EXHIBIT_STAGE[f.exhibitRef] : undefined);
+        f.kind === "bio" ? undefined : STANDARD_STAGE[f.kind] ?? (f.kind === "exhibit" && f.exhibitRef ? EXHIBIT_STAGE[f.exhibitRef] : undefined);
       // BULLETS (2026-09-03) ride as the callout's extra stems — the canvas
       // card already draws those under the main phrase, in film and in study.
       const bullets = (f.bullets ?? []).map((b) => b.trim()).filter(Boolean);
       const callout: Record<string, unknown> | undefined =
         // showTopic false (Lee, 2026-09-03: "it says Memorize This AND Found
         // on your exam") — a detour card carries its kind label, nothing else.
-        f.kind === "blank" || spec ? { hidden: true } : kindTag ? { kind: kindTag, showTopic: false, detour: true, ...(bullets.length ? { extraStems: bullets } : {}) } : undefined;
+        f.kind === "bio" ? (bioCallout() as Record<string, unknown>)
+        : f.kind === "blank" || spec ? { hidden: true } : kindTag ? { kind: kindTag, showTopic: false, detour: true, ...(bullets.length ? { extraStems: bullets } : {}) } : undefined;
 
       const dataObj: Record<string, unknown> = {
         kind: "ceq",
@@ -241,6 +247,8 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
         frameMode: f.kind === "intro" ? "intro" : f.kind === "outro" ? "outro" : "note",
         choices: [],
         ...(callout ? { callout } : {}),
+        // The tutor card is a bit bigger than a detour card.
+        ...(f.kind === "bio" ? { cardW: BIO_CARD.cardW } : {}),
         deckId: data.setId,
         deckMember: true,
         tucked: true,
