@@ -31,12 +31,13 @@ import { ChevronDown, ChevronRight, FileText, Mic, RotateCcw, Square, Undo2, X }
 import { EXHIBIT_REGISTRY, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import {
   EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, VISUAL_KINDS, canonicalStamp, contextsOfSegment, ghostSegments, makeTag, newTTId, openContexts,
-  segmentsInContext, sessionBoard, sessionSegments, sessionTags, stampLabel, styleNotesFor, touchRow,
+  sessionBoard, sessionSegments, sessionTags, stampLabel, styleNotesFor, touchRow,
   type BoardItem, type StampKind, type TTDoc, type TalkSegment, type TalkSession, type TalkTag,
 } from "@/components/canvas/talkthrough";
 import { putBoardItem, putSegment, putTag, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { TalkthroughRecorder, drainWhisperQueue, isWhisperHallucination, speechRecognitionAvailable, type BoothStatus } from "@/components/canvas/talkthrough-audio";
 import { buildMicroEditMessages, parseMicroEdit, type PassCeq } from "@/components/canvas/talkthrough-pass";
+import { editTasksFor, generationPlan, isResumable, progressLabel, type GenTask, type GenerationPlan } from "@/components/canvas/talkthrough-resume";
 import { buildImportRows, parseTranscriptImport, setNameMatches, type ImportBlock } from "@/components/canvas/talkthrough-import";
 import { SetCard } from "@/components/blastoff/SetCard";
 import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
@@ -179,6 +180,49 @@ export function DraftChip() {
   );
 }
 
+/** RESUME GENERATION (2026-09-04) — the bar that appears when this session's
+ *  drafting was interrupted.
+ *
+ *  Close the tab while stamps are drafting and their board items are stranded
+ *  mid-flight; the booth used to keep saying "✎ drafting…" forever. Now the
+ *  plan is derived from the board on every load, so coming back says exactly
+ *  how much landed and offers to run only the rest.
+ *
+ *  It is a BUTTON, not an automatic re-run: every draft is a paid model call,
+ *  and nothing should start spending because a page was opened. The count is
+ *  honest about what will and will not be redone. */
+export function ResumeBar({ plan, generating, owed, note, onResume }: {
+  plan: GenerationPlan; generating: number; owed: number; note: string | null; onResume: () => void;
+}) {
+  // Nothing owed and nothing running = nothing to say. A finished pass is not
+  // news, and a session with no edit stamps never shows this at all.
+  if (!owed && !generating) return null;
+  return (
+    <div
+      className="flex items-center gap-3 rounded-xl px-3 py-2"
+      style={{ marginBottom: 12, border: `1px solid ${owed ? GOLD : EDGE}`, background: owed ? "rgba(252,163,17,0.10)" : "transparent" }}
+    >
+      <div className="min-w-0" style={{ flex: 1 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: owed ? GOLD : CREAM, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          {generating ? `Generating · ${generating} running` : "Generation was interrupted"}
+        </div>
+        <div style={{ fontSize: 11, color: NEON.muted }}>
+          {progressLabel(plan)}
+          {note ? ` — ${note}` : owed ? " — already-written drafts are kept" : ""}
+        </div>
+      </div>
+      {owed > 0 && (
+        <button
+          onClick={onResume}
+          style={{ background: GOLD, color: "#0B1322", border: "none", borderRadius: 999, padding: "6px 14px", fontWeight: 800, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
+        >
+          Resume generation
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------- booth
 
 export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
@@ -202,6 +246,11 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const [mode, setMode] = useState<BoothMode>("ceq");
   const [exhibitId, setExhibitId] = useState<string | null>(null);
   const status: BoothStatus = rec.status();
+  /** Task keys generating RIGHT NOW in this tab. Not persisted on purpose: a
+   *  tab that dies takes its promises with it, and the next load reads the
+   *  truth off the board (an item still "drafting" = interrupted). */
+  const inFlight = useRef<Set<string>>(new Set());
+  const [resumeNote, setResumeNote] = useState<string | null>(null);
 
   useEffect(() => { void drainWhisperQueue(session.id).then(bump); }, [session.id, bump]);
   useEffect(() => () => rec.stop(), [rec]);
@@ -241,6 +290,12 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const flatStamps = useMemo(() => STAMP_GROUPS.flatMap((g) => g.kinds), []);
   const [selStamp, setSelStamp] = useState<StampKind | null>(null);
   const pendingEdits = sessionBoard(tt.doc, session.id).filter((b) => b.kind === "ceq_edit");
+  /** What this session's generation still owes — derived from the store on
+   *  every render, so it is right on a cold page load, right after a draft
+   *  lands, and right on another machine once the pull arrives. */
+  const plan: GenerationPlan = useMemo(() => generationPlan(tt.doc, session), [tt.doc, session]);
+  const generating = plan.resumable.filter((t) => inFlight.current.has(t.key)).length;
+  const owed = plan.resumable.filter((t) => t.kind === "ceq_edit" && !inFlight.current.has(t.key)).length;
 
   const clickCeq = (c: BoothCeq | null) => setFocusId(c?.id ?? null);
   const clickExhibit = (id: string | null) => setExhibitId(id);
@@ -260,42 +315,77 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
     setImportNote(`✓ started over — ${segs.length} segments archived`);
   };
 
-  /** B2 — closing an EDIT context fires the background micro draft. Capture is
-   *  never blocked: the pending item exists immediately; the draft fills in. */
+  /** B2 — ONE micro draft, for one closed edit stamp.
+   *
+   *  IDEMPOTENT (2026-09-04). The task carries the board item that already
+   *  covers it, if any:
+   *    · already ready (or already failed) → this returns false and generates
+   *      NOTHING. Re-running a pass never re-bills work that landed, and never
+   *      stacks a second suggestion on the same stamp.
+   *    · interrupted (a killed tab left it "drafting") → the SAME row is
+   *      reused, so a resume repairs the item Lee is already looking at
+   *      instead of doubling it.
+   *  In-flight keys are held in a ref so a double press cannot double-fire. */
+  const runEditDraft = (task: GenTask): boolean => {
+    if (!isResumable(task) || !task.stamp || !task.instruction) return false;
+    if (inFlight.current.has(task.key)) return false;
+    const ceq = set?.ceqs.find((c) => c.id === task.ceqId);
+    if (!ceq) return false; // the set moved on — the stamp stays, nothing pretends to draft
+    const stamp = task.stamp;
+    const spoken = task.instruction;
+    const iso = new Date().toISOString();
+    const payload = {
+      stamp, tagId: task.tagId, ceqId: ceq.id, ceqLabel: ceq.label, instruction: spoken,
+      current: { stem: ceq.stem, choices: ceq.choices }, state: "drafting", error: null,
+    };
+    const item: BoardItem = task.item
+      ? touchRow(task.item, { status: "pending", payload: { ...task.item.payload, ...payload } } as never)
+      : {
+        id: newTTId("ttb"), sessionId: session.id, runId: "micro", kind: "ceq_edit",
+        title: `${STAMP_LABELS[stamp as never] ?? stamp} · ${ceq.label}`,
+        payload, quote: spoken, ceqIds: [ceq.id], status: "pending", comment: "",
+        createdAt: iso, updatedAt: iso, syncedAt: null,
+      };
+    inFlight.current.add(task.key);
+    bump();
+    putBoardItem(item);
+    const msgs = buildMicroEditMessages({ stamp: stamp as never, ceq: boothToPassCeq(ceq), instruction: spoken, styleNotes: styleNotesFor(ttState().doc, "memo") });
+    runMicro({ data: { system: msgs.system, user: msgs.user } })
+      .then((r) => {
+        const proposal = parseMicroEdit(r.text);
+        const fresh = ttState().doc.boardItems.find((b) => b.id === item.id) ?? item;
+        putBoardItem(touchRow(fresh, proposal
+          ? { status: "suggested", payload: { ...fresh.payload, state: "ready", proposed: proposal, _usage: r.usage } }
+          : { status: "suggested", payload: { ...fresh.payload, state: "error", error: "draft didn't parse — regenerate", _usage: r.usage } } as never));
+      })
+      .catch((e) => {
+        const fresh = ttState().doc.boardItems.find((b) => b.id === item.id) ?? item;
+        putBoardItem(touchRow(fresh, { status: "suggested", payload: { ...fresh.payload, state: "error", error: e instanceof Error ? e.message : String(e) } } as never));
+      })
+      .finally(() => { inFlight.current.delete(task.key); bump(); });
+    return true;
+  };
+
+  /** Closing an EDIT context fires its draft. Capture is never blocked: the
+   *  pending item exists immediately; the draft fills in. */
   const fireEditDraft = (closed: TalkTag) => {
     const stamp = canonicalStamp(closed.tag);
     if (!stamp || !(EDIT_STAMPS as readonly string[]).includes(stamp)) return;
-    const ceq = set?.ceqs.find((c) => c.id === closed.focusedCeqId);
-    if (!ceq) return;
-    // Give the in-flight chunk a beat to persist its live text, then draft.
+    // Give the in-flight chunk a beat to persist its live text, then draft off
+    // the store — the plan derives this stamp's task the same way a resume on
+    // the next page load will, so the two can never disagree.
     window.setTimeout(() => {
-      const doc = ttState().doc;
-      const closedNow = doc.tags.find((t) => t.id === closed.id) ?? closed;
-      const spoken = segmentsInContext(sessionSegments(doc, session.id), closedNow).map((s) => s.text.trim()).filter(Boolean).join(" ");
-      if (!spoken) return; // nothing said — nothing to draft
-      const iso = new Date().toISOString();
-      const item: BoardItem = {
-        id: newTTId("ttb"), sessionId: session.id, runId: "micro", kind: "ceq_edit",
-        title: `${STAMP_LABELS[stamp as never] ?? stamp} · ${ceq.label}`,
-        payload: { stamp, ceqId: ceq.id, ceqLabel: ceq.label, instruction: spoken, current: { stem: ceq.stem, choices: ceq.choices }, state: "drafting" },
-        quote: spoken, ceqIds: [ceq.id], status: "pending", comment: "",
-        createdAt: iso, updatedAt: iso, syncedAt: null,
-      };
-      putBoardItem(item);
-      const msgs = buildMicroEditMessages({ stamp: stamp as never, ceq: boothToPassCeq(ceq), instruction: spoken, styleNotes: styleNotesFor(tt.doc, "memo") });
-      runMicro({ data: { system: msgs.system, user: msgs.user } })
-        .then((r) => {
-          const proposal = parseMicroEdit(r.text);
-          const fresh = ttState().doc.boardItems.find((b) => b.id === item.id) ?? item;
-          putBoardItem(touchRow(fresh, proposal
-            ? { status: "suggested", payload: { ...fresh.payload, state: "ready", proposed: proposal, _usage: r.usage } }
-            : { status: "suggested", payload: { ...fresh.payload, state: "error", error: "draft didn't parse — regenerate", _usage: r.usage } } as never));
-        })
-        .catch((e) => {
-          const fresh = ttState().doc.boardItems.find((b) => b.id === item.id) ?? item;
-          putBoardItem(touchRow(fresh, { status: "suggested", payload: { ...fresh.payload, state: "error", error: e instanceof Error ? e.message : String(e) } } as never));
-        });
+      const task = editTasksFor(ttState().doc, session.id).find((t) => t.tagId === closed.id);
+      if (task) runEditDraft(task);
     }, 1400);
+  };
+
+  /** RESUME — run every task the plan still owes, oldest stamp first. Nothing
+   *  already on the board is touched; see runEditDraft. */
+  const resumeGeneration = () => {
+    for (const task of generationPlan(ttState().doc, session).resumable) {
+      if (task.kind === "ceq_edit") runEditDraft(task);
+    }
   };
 
   const closeCtx = (t: TalkTag) => {
@@ -453,6 +543,17 @@ export function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
 
       {/* CENTER — the focused question, drawn by THE REAL CARD Blast Off films */}
       <div className="flex-1 rounded-2xl p-5" style={{ background: PANEL, border: `1px solid ${EDGE}`, overflowY: "auto", maxHeight: "82vh", minWidth: 0 }}>
+        <ResumeBar
+          plan={plan}
+          generating={generating}
+          owed={owed}
+          note={resumeNote}
+          onResume={() => {
+            const n = plan.resumable.filter((t) => t.kind === "ceq_edit").length;
+            resumeGeneration();
+            setResumeNote(n ? `picking up ${n} draft${n === 1 ? "" : "s"} — nothing already written is being redone` : null);
+          }}
+        />
         <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
           <span style={{ color: NEON.muted, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase" }}>{setLabel(session.setName)}</span>
           {exhibit ? (

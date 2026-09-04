@@ -17,7 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { listSessions, sessionBoard, type TalkSession } from "@/components/canvas/talkthrough";
-import { reviewStateOf, subscribeReview } from "@/components/canvas/talkthrough-review";
+import { resumeReview, reviewStateOf, subscribeReview } from "@/components/canvas/talkthrough-review";
 import { startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { blastOffPath, topicOfSet, useBank } from "@/components/v3/use-bank";
 
@@ -33,11 +33,21 @@ const setLabel = (name: string): string => name.replace(/^"|"$/g, "").replace(/\
 const OPEN_KEY = "sa-gen-dock-open";
 const DAY = 86_400_000;
 
+/** The Booth's boothToPassCeq, inlined — importing it would pull the Booth's
+ *  whole graph into the dock and reintroduce the runtime cycle the header
+ *  warns about (the import-cycles test caught exactly that once). */
+type DockCeq = { id: string; label: string; stem: string; draft?: boolean; noteOnly?: boolean; choices: { text: string; correct: boolean; feedback?: string }[] };
+const toPassCeq = (c: DockCeq) => ({
+  id: c.id, label: c.draft ? `${c.label} (draft)` : c.label, stem: c.stem,
+  choices: c.choices, ...(c.noteOnly ? { noteOnly: true } : {}),
+});
+
 export function GenerationDock() {
   const [tt, setTT] = useState<TTState>(() => ttState());
   const [, tick] = useState(0);
   const [open, setOpen] = useState(true);
   const [frame, setFrame] = useState(0);
+  const [resumeNote, setResumeNote] = useState<string | null>(null);
   const { topics } = useBank();
 
   useEffect(() => {
@@ -73,6 +83,18 @@ export function GenerationDock() {
     return topic && set ? blastOffPath(topic, set, "results") : null;
   };
 
+  /** RESUME an interrupted synthesis. The pre-flight choices Lee made are on
+   *  the session (TalkSession.generation), so this replays that exact request
+   *  — no guessing, and queueReview no-ops if the board already landed. Works
+   *  for any set: the CEQs come from the bank by the session's own setId. */
+  const canResume = (s: TalkSession): boolean => !!s.generation?.requestedAt && !!topics;
+  const doResume = (s: TalkSession) => {
+    const set = topics ? topicOfSet(topics, s.setId)?.sets.find((x) => x.id === s.setId) : null;
+    if (!set) { setResumeNote(`${setLabel(s.setName)}: that set is not in the live bank — cannot resume`); return; }
+    const r = resumeReview(s, set.ceqs.map(toPassCeq));
+    setResumeNote(`${setLabel(s.setName)}: ${r.why}`);
+  };
+
   if (!rows.length) return null;
 
   return (
@@ -98,6 +120,15 @@ export function GenerationDock() {
                       {state}{rs.state === "ready" && board ? ` · ${board} suggestions` : ""}{rs.error ? ` · ${rs.error.slice(0, 40)}` : ""}
                     </div>
                   </div>
+                  {/* A pass killed by a closed tab lands here as "failed".
+                      Resume replays the pre-flight choices Lee actually made
+                      and writes nothing twice — the board is the idempotency
+                      key (talkthrough-review.reviewAlreadyLanded). */}
+                  {rs.state === "error" && canResume(s) && (
+                    <button onClick={() => doResume(s)} style={{ fontSize: 11.5, fontWeight: 800, color: "#0B1322", background: V3_GOLD, border: "none", borderRadius: 999, padding: "4px 10px", cursor: "pointer", whiteSpace: "nowrap" }}>
+                      Resume
+                    </button>
+                  )}
                   {rs.state === "ready" && (href
                     ? <Link to={href} target="_blank" rel="noopener" style={{ fontSize: 11.5, color: "#3BF5A0", textDecoration: "underline", whiteSpace: "nowrap" }}>Review ↗</Link>
                     : <a href="/talkthrough" target="_blank" rel="noopener" style={{ fontSize: 11.5, color: "#3BF5A0", textDecoration: "underline", whiteSpace: "nowrap" }}>Review ↗</a>)}
@@ -106,7 +137,7 @@ export function GenerationDock() {
             })}
           </div>
           <div style={{ padding: "6px 12px", fontSize: 10, color: V3_MUTED }}>
-            Generation runs in the tab that pressed End Session; finished boards show here from any tab.
+            {resumeNote ?? "Generation runs in the tab that pressed End Session; finished boards show here from any tab."}
             {topics ? "" : " Loading sets…"}
           </div>
         </div>
