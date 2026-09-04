@@ -621,3 +621,13 @@ Lee's picks after the audit: spotlight + super, click-to-answer, bolt cursor + t
 - `prompter-sync.ts` — publishes `sa-film-active` `{ setId, qId, at }` per frame (the CEQ node id for a set card, `blast-<frame id>` otherwise), so `/v3/teleprompter?set=<deck id>` follows the capture.
 
 **Verified in the pane**: click/resolve, Ctrl+click pill, typewriter and glow motion, space walk, the pop-out status line and the sync record. Wheel/O/Alt/F1 verified by synthetic events (see the session memory for the recipe). The canvas popout is unchanged.
+
+## Update — 2026-09-04 (late night): chips, click-to-edit, the portrait, the ⋯ menu, /learn from the plan
+
+- **Detour headings** are chips again (`KindChip` in `canvas/cards/CalloutCard.tsx`): the ad label's style — uppercase, letter-spaced, the kind's colour on its tint — text only, above the navy box. FOUND ON YOUR EXAM is back.
+- **Click the words** (`brand-cards/Editable.tsx`, `blastoff/slide-edit.ts`): on the Review stage the open's tagline and domain, the intro's topic / tutor line / domain, and every ad line are contentEditable; Enter or blur commits to the frame (`text` / `title` / `url` / `bullets`), Esc restores. The canvas elements take the same lines through the sync (`tagline`, `domain`, `tutorLine`, `banner`, ad `label/headline/lines/url`).
+- **The ticker carries into slide two**: the intro draws the campus banner too, on one clock (`BANNER_EPOCH`) so it continues the strip. `frame.banner = "off"` hides it on either slide.
+- **The bio slide** inks Lee's hand-drawn portrait (`blastoff/LeePortrait.tsx`, `lee-portrait.svg` — 516 shapes in stroke order, staggered over 1.5 s, the /learn lime) above the tutor card; `frame.portrait = "off"` hides it (Editor chip, ⋯ menu).
+- **The ⋯ menu** on every spine row (`SlideMenu` in `ReviewDeck.tsx`): edit this slide (switches the right panel to Editor), duplicate, remove / skip / film it, campus banner, plus per kind: the bolt detour's animation, which ad, the portrait. The ✨ backdrop chip is gone (it only ever meant "plain black stage").
+- **Editable ad copy** in the Editor tab (label / headline / lines / address, "↺ default copy").
+- **/learn is the Review plan** (`lib/learn-plan.ts`, `student.functions.ts`): a set with a saved plan serves practice = the plan's non-skipped set cards in plan order, cram cards = the plan's non-skipped detours; a set without a plan behaves as before. No "Send to film" needed. Skipping a card keeps it in the bank but out of the film AND out of /learn.
