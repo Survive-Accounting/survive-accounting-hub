@@ -275,6 +275,10 @@ session (the build queue judged it too big — see docs/TWO-MACHINES.md).
   `components/blastoff/bio-card.ts`. `SurviveBio` (the 9:16 brand card) stays
   for the Add menu and old scenes; a re-send removes the old staged bio.
   `CalloutSettings.footer` is new and additive.
+- **Detour cards are full card width** (same pass): callouts were fit-content
+  with a 320 floor, so a detour drew at about half a set card's width. Dark
+  detour cards now floor at `cardW ?? CARD_W` and cap at the same, so every
+  slide in a rip is the same width and the tutor card (640) reads bigger.
 - Verified in Lee's own Chrome (signed in, this PC): the handoff path opens
   the Studio on the set; the film stack holds the four detour frames with neon
   labels and the wordmark. NOT verified: the popout's gestures (a new window).
