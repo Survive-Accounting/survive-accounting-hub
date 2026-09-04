@@ -20,7 +20,9 @@
 // Everything is CSS + SVG on the same BoltBoil the brand uses — no library,
 // no build risk. Motion only while `live`; `progress` pins a frame for an
 // offline renderer. The mix and geometry are decided in bolt-zoom.ts (tested).
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+
+import { Editable } from "./Editable";
 
 import { BoltBoil, BRAND_BLUE, BRAND_CREAM, BRAND_RED, SurviveWordmark } from "./bolt-boil";
 import {
@@ -92,16 +94,29 @@ const BANNER_CSS = `
 @media (prefers-reduced-motion: reduce) { .sa-zoom-banner { animation: none; } }
 `;
 
+/** One clock for every banner on the page: a strip that mounts later starts
+ *  where the last one was, so the ticker reads as ONE strip running from
+ *  slide one into slide two (Lee: "can the campus banner persist from #1 to
+ *  #2 slide? so it actually has a chance to be seen"). Set in an effect, so
+ *  the server and the first client paint agree. */
+const BANNER_EPOCH = Date.now();
+
 export function CampusBanner({ w, h, seed = 7, live = true, top }: { w: number; h: number; seed?: number; live?: boolean; top?: number }) {
   const items = useMemo(() => campusMix(undefined, seed), [seed]);
   const fs = Math.round(h * 0.021);
+  const strip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = strip.current;
+    if (!el) return;
+    el.style.animationDelay = `-${(Date.now() - BANNER_EPOCH) % (BANNER_SECONDS * 1000)}ms`;
+  }, []);
   return (
     // The banner carries its own keyframes (2026-09-04: "course ticker isn't
     // working on the ads" — it only moved where BoltZoom's stylesheet happened
     // to be mounted). Duplicate declarations are harmless.
     <div className={live ? undefined : "sa-zoom-still"} style={{ position: "absolute", left: 0, width: w, top: top ?? Math.round(h * 0.745), height: Math.round(h * 0.046), overflow: "hidden", pointerEvents: "none", borderTop: "1px solid rgba(245,239,230,0.16)", borderBottom: "1px solid rgba(245,239,230,0.16)", background: "rgba(0,0,0,0.38)", fontFamily: FONT }}>
       <style>{BANNER_CSS}</style>
-      <div className="sa-zoom-banner" style={{ display: "flex", whiteSpace: "nowrap", alignItems: "center", height: "100%", width: "max-content" }}>
+      <div ref={strip} className="sa-zoom-banner" style={{ display: "flex", whiteSpace: "nowrap", alignItems: "center", height: "100%", width: "max-content" }}>
         {[0, 1].map((rep) => items.map((c, i) => (
           <span key={`${rep}-${i}`} style={{ color: BRAND_CREAM, fontWeight: 800, fontSize: fs, letterSpacing: "0.16em", textTransform: "uppercase", padding: `0 ${Math.round(h * 0.022)}px`, opacity: 0.9 }}>
             {campusText(c)}<span style={{ opacity: 0.35, marginLeft: Math.round(h * 0.022) }}>⚡</span>
@@ -157,7 +172,10 @@ export function GlowWordmark({ size, palette = "powder", live = true, second, bo
   );
 }
 
-export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, live = true, progress, banner = true, tagline = TAGLINE, topic, tutor = TUTOR, seed = 7, style }: {
+/** The lines a brand slide lets the Review stage edit. */
+export interface BrandEdit { tagline?: string; topic?: string; tutorLine?: string; domain?: string }
+
+export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, live = true, progress, banner = true, tagline = TAGLINE, topic, tutor = TUTOR, tutorLine, domain = DOMAIN, onEdit, seed = 7, style }: {
   /** The frame this fills, in px. */
   w: number; h: number;
   mode?: BoltZoomMode;
@@ -175,6 +193,12 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
   /** Slide two: the set Lee is about to cram, and who is tutoring it. */
   topic?: string;
   tutor?: string;
+  /** The whole line under the topic; default "tutored by <tutor>". */
+  tutorLine?: string;
+  /** The quiet address line under the tagline / the tutor line. */
+  domain?: string;
+  /** The Review stage's click-to-edit — absent everywhere else. */
+  onEdit?: (patch: BrandEdit) => void;
   seed?: number;
   style?: React.CSSProperties;
 }) {
@@ -301,9 +325,9 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
         <>
           {wordmarkBlock(
             <>
-              <div style={{ color: WHITE, fontWeight: 800, fontSize: Math.round(h * 0.027), letterSpacing: "0.01em", marginTop: Math.round(h * 0.004) }}>{tagline}</div>
+              <Editable value={tagline} onEdit={onEdit ? (v) => onEdit({ tagline: v }) : undefined} style={{ color: WHITE, fontWeight: 800, fontSize: Math.round(h * 0.027), letterSpacing: "0.01em", marginTop: Math.round(h * 0.004), textAlign: "center" }} />
               {/* the domain, back under the line — quiet, the "tutored by" style */}
-              <div style={QUIET(h)}>{DOMAIN}</div>
+              <Editable value={domain} onEdit={onEdit ? (v) => onEdit({ domain: v }) : undefined} style={{ ...QUIET(h), textAlign: "center" }} />
             </>,
           )}
           {banner && <CampusBanner w={w} h={h} seed={seed} live={!still} />}
@@ -314,11 +338,13 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
       {m === "intro" && wordmarkBlock(
         <>
           <div style={{ width: Math.round(w * 0.56), height: 1, background: "rgba(245,239,230,0.28)", marginTop: Math.round(h * 0.006) }} />
-          <div style={{ fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(h * 0.042), lineHeight: 1.08, letterSpacing: "0.02em", textTransform: "uppercase", color: BRAND_CREAM, textAlign: "center", maxWidth: Math.round(w * 0.84), textWrap: "balance" as never }}>{topic || "Set name"}</div>
-          <div style={QUIET(h)}>tutored by {tutor}</div>
-          <div style={{ ...QUIET(h), opacity: 0.75, marginTop: Math.round(h * -0.008) }}>{DOMAIN}</div>
+          <Editable value={topic || "Set name"} onEdit={onEdit ? (v) => onEdit({ topic: v }) : undefined} multiline style={{ fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(h * 0.042), lineHeight: 1.08, letterSpacing: "0.02em", textTransform: "uppercase", color: BRAND_CREAM, textAlign: "center", maxWidth: Math.round(w * 0.84), textWrap: "balance" as never }} />
+          <Editable value={tutorLine ?? `tutored by ${tutor}`} onEdit={onEdit ? (v) => onEdit({ tutorLine: v }) : undefined} style={{ ...QUIET(h), textAlign: "center" }} />
+          <Editable value={domain} onEdit={onEdit ? (v) => onEdit({ domain: v }) : undefined} style={{ ...QUIET(h), opacity: 0.75, marginTop: Math.round(h * -0.008), textAlign: "center" }} />
         </>,
       )}
+      {/* THE TICKER CARRIES INTO SLIDE TWO (2026-09-04) — same strip, same phase. */}
+      {m === "intro" && banner && <CampusBanner w={w} h={h} seed={seed} live={!still} />}
 
       {/* THE SUMMARY — "Survive / Accounting" up top in the powder glow; the
           FOUND ON YOUR EXAM card is drawn by the frame underneath. */}

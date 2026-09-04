@@ -14,6 +14,7 @@ import { ArrowUpRight } from "lucide-react";
 
 import { BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
 import { CampusBanner, GlowWordmark, WORDMARK_SIZE } from "@/components/brand-cards/BoltZoom";
+import { Editable } from "@/components/brand-cards/Editable";
 
 import type { AdKind } from "./ad-kinds";
 
@@ -62,8 +63,11 @@ export function adCopyOf(ad: AdKind, copy?: AdCopy | null): { label: string; hea
   };
 }
 
-export function AdSlide({ ad, w, h, live = true, copy }: { ad: AdKind; w: number; h: number; live?: boolean; copy?: AdCopy | null }) {
+export function AdSlide({ ad, w, h, live = true, copy, onEdit }: { ad: AdKind; w: number; h: number; live?: boolean; copy?: AdCopy | null;
+  /** The Review stage's click-to-edit — absent everywhere else. */
+  onEdit?: (patch: AdCopy) => void }) {
   const a = adCopyOf(ad, copy);
+  const editLine = onEdit ? (i: number, v: string) => { const lines = [...a.lines]; if (v) lines[i] = v; else lines.splice(i, 1); onEdit({ lines }); } : undefined;
   const pad = Math.round(w * 0.09);
   return (
     <div style={{ position: "relative", width: w, height: h, overflow: "hidden", background: "#000", fontFamily: FONT, color: BRAND_CREAM }}>
@@ -71,12 +75,12 @@ export function AdSlide({ ad, w, h, live = true, copy }: { ad: AdKind; w: number
         <GlowWordmark size={Math.round(h * WORDMARK_SIZE)} live={live} />
       </div>
       <div style={{ position: "absolute", left: pad, right: pad, top: Math.round(h * 0.245), display: "flex", flexDirection: "column", gap: Math.round(h * 0.018) }}>
-        <div style={{ alignSelf: "flex-start", padding: `${Math.round(h * 0.006)}px ${Math.round(h * 0.014)}px`, borderRadius: Math.round(h * 0.008), fontSize: Math.round(h * 0.016), fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase", color: GOLD, background: "rgba(252,163,17,0.14)", border: "1px solid rgba(252,163,17,0.3)" }}>{a.label}</div>
-        <div style={{ fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(h * 0.046), lineHeight: 1.06, letterSpacing: "0.005em", textWrap: "balance" as never }}>{a.headline}</div>
+        <Editable value={a.label} onEdit={onEdit ? (v) => onEdit({ label: v }) : undefined} style={{ alignSelf: "flex-start", padding: `${Math.round(h * 0.006)}px ${Math.round(h * 0.014)}px`, borderRadius: Math.round(h * 0.008), fontSize: Math.round(h * 0.016), fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase", color: GOLD, background: "rgba(252,163,17,0.14)", border: "1px solid rgba(252,163,17,0.3)" }} />
+        <Editable value={a.headline} onEdit={onEdit ? (v) => onEdit({ headline: v }) : undefined} multiline style={{ fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(h * 0.046), lineHeight: 1.06, letterSpacing: "0.005em", textWrap: "balance" as never }} />
         <div style={{ display: "flex", flexDirection: "column", gap: Math.round(h * 0.009), marginTop: Math.round(h * 0.008) }}>
           {a.lines.map((l, i) => (
             <div key={i} style={{ display: "flex", gap: Math.round(h * 0.012), alignItems: "baseline", fontSize: Math.round(h * 0.024), fontWeight: 600, lineHeight: 1.3, color: "rgba(245,239,230,0.88)" }}>
-              <span style={{ color: GOLD, fontWeight: 900 }}>–</span><span>{l}</span>
+              <span style={{ color: GOLD, fontWeight: 900 }}>–</span><Editable value={l} onEdit={editLine ? (v) => editLine(i, v) : undefined} style={{ display: "inline" }} />
             </div>
           ))}
         </div>
@@ -87,7 +91,7 @@ export function AdSlide({ ad, w, h, live = true, copy }: { ad: AdKind; w: number
             not as a second headline; sized so "/greek" never clips */}
         <div style={{ display: "flex", alignItems: "center", gap: Math.round(h * 0.008), fontWeight: 600, fontSize: Math.round(h * 0.0235), letterSpacing: "0.005em", color: "#FFFFFF", whiteSpace: "nowrap" }}>
           <ArrowUpRight size={Math.round(h * 0.024)} strokeWidth={2.5} color={GOLD} style={{ flex: "0 0 auto" }} />
-          <span>{a.url}</span>
+          <Editable value={a.url} onEdit={onEdit ? (v) => onEdit({ url: v }) : undefined} style={{ display: "inline" }} />
         </div>
       </div>
       {a.banner && <CampusBanner w={w} h={h} live={live} />}

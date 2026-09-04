@@ -13,7 +13,8 @@
 // the colour is one prop; the default is the /learn lime.
 import { useEffect, useRef } from "react";
 
-import { LEARN } from "@/components/learn/learn-theme";
+// The /learn dashboard lime (learn-theme.ts) — Lee: "maybe use the lime color from the /learn dashboard".
+export const LEARN_LIME = "#E8FF47";
 
 import portraitSvg from "./lee-portrait.svg?raw";
 
@@ -29,7 +30,7 @@ const INK_CSS = `
 @media (prefers-reduced-motion: reduce) { .sa-portrait path { opacity: 1; animation: none; } }
 `;
 
-export function LeePortrait({ width, color = LEARN.lime, animate = true, style }: {
+export function LeePortrait({ width, color = LEARN_LIME, animate = true, style }: {
   /** The drawing's width in px; the height follows the page. */
   width: number;
   color?: string;
