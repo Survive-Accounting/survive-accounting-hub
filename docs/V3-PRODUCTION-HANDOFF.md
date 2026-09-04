@@ -645,3 +645,36 @@ Audio stays OBS's (the mic source); the in-app feed adds ~60–120 ms of webcam 
 **The bolt** (`lib/survive-bolt.ts`, `/survive-bolt`, AdminGate): after Lee's trademark read on the Dead bolt, three original silhouettes — **strike** (one elbow, a needle, an S seam), **hook** (a crook at the top, a chisel base, the right half heavier), **fork** (a flat cap and a forked base). Each is built its own way (not the forge's mirrored teeth) and emits the same rings the boil, the wordmark, brand.tsx, the cursor and the flyer consume. The route shows each big, in the wordmark, in four colourways, as the cursor, with sliders (lean / width / elbow / jut / notch / seam S / hand-drawn / seed), a notes box (localStorage) and "copy the export". THE SWAP, when Lee picks: paste the export's BOLT_OUTER / BOLT_RIGHT / BOLT_VIEWBOX into `canvas/brand.tsx` and the points into `brand-cards/bolt-boil.tsx` FINAL_OUTER / FINAL_SEAM (+ viewBox/ratio); `api.og.$school.$chapter.tsx` reads brand.tsx. Then a clearance review on the new mark.
 
 **Captions** (`scripts/captions.ts`, `lib/captions.ts`, `docs/CAPTIONS.md`): `bun run captions <take.mp4>` — ffmpeg audio out, Whisper word timings (OPENAI_WHISPER / OPENAI_API_KEY from .env), cards of ≤5 words turning every ~0.7–1.2 s, karaoke ASS (Rubik Black, white, navy stroke, gold spoken word) in the band right of the home camera at 78 % height, an .srt sidecar, libass burn. ffmpeg is not installed on this PC yet (`winget install Gyan.FFmpeg`); the key is not in this worktree's .env.
+
+
+## Update — 2026-09-04: clear old results before a new pass
+
+**The button.** Step 1's booth (`components/talkthrough/Booth.tsx`, right column,
+under Start over) grows **Clear old results (N)** whenever this SET still has
+live result cards. It takes the last pass's cards — script · CEQ edits · ideas ·
+vibe plan (`RESULTS_KINDS` in `canvas/talkthrough.ts`, now the one definition
+SessionView also reads) — off the Step 2 Review board so a new Generate is not
+the old board plus the new one.
+
+**Dismissed, not deleted, not archived.** `BoardItem.dismissed` is a soft hide
+(absent = live). The row, its payload and its verbatim quote all stay, so a
+slide already built from a card (`frame.bankItemId`), a film pick and the Bank
+keep resolving — only the review board hides it. `sessionBoard()` filters it
+like `archivedAt`, so `reviewStateOf` drops back off "results ready" and /v3's
+chip agrees; `ReviewBoardV2` filters again for any caller handing it raw rows.
+
+**Scope is the SET, not the session.** "End Session → Review" ENDS the session,
+so walking back into Step 1 opens a FRESH one and last night's cards hang off
+the previous sitting — session scope alone would show the button exactly when
+there is nothing to clear. `dismissableResultsForSet()` walks every sitting on
+the set (newest first); the confirm names the set and counts the sittings.
+Caveat worth knowing: a CEQ sitting and an exhibit sitting on the same set are
+cleared together.
+
+**SQL:** `20260904_1500_talkthrough_board_dismissed.sql` (additive column).
+Until it runs, `talkthrough.functions.ts` strips `dismissed`, retries once and
+returns a **warning** — `TTState.warning`, shown red in the studio's sync chip
+and under the button itself. Dismissal is local-only until then, and says so.
+
+No undo, no archived-results view, and no dismissal from /results itself —
+those were left out of this pass on purpose.
