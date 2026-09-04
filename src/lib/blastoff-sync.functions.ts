@@ -176,7 +176,16 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
       decks?: { id: string; name?: string }[];
     };
     j.nodes ??= [];
-    const setName = (j.decks ?? []).find((d) => d.id === data.setId)?.name ?? "";
+    const deckRow = (j.decks ?? []).find((d) => d.id === data.setId) as ({ id: string; name?: string; world?: string } | undefined);
+    const setName = deckRow?.name ?? "";
+    // THE BACKDROP (Lee, 2026-09-03: "when filming in the capture mode, I lost
+    // the background"). The film frame paints deck.world and a set with none
+    // is flat near-black. A set arriving from Blast Off gets the calm default
+    // if it has no world yet; View ▸ World in the studio changes it per set.
+    if (deckRow && !deckRow.world) {
+      const { DEFAULT_WORLD } = await import("@/components/canvas/worlds");
+      deckRow.world = DEFAULT_WORLD;
+    }
 
     let wrote = 0, reordered = 0, missing = 0, staged = 0;
     const planned = new Set<string>();   // frame nodes the plan accounts for
@@ -187,15 +196,21 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
 
       // A card the set already owns: renumber it in place. Its content, its
       // choices, its layout and its authoring history are none of our business.
+      // SKIPPED IN REVIEW (2026-09-03): the card keeps its place and gets
+      // data.filmSkip — the studio's walk and student practice leave it out;
+      // un-skipping on the review deck and sending again clears it.
       if (f.kind === "ceq") {
         const node = f.ceqId ? j.nodes!.find((n) => n.id === f.ceqId) : undefined;
         if (!node?.data) { missing++; return; }
         node.data.stageOrder = stageOrder;
         node.data.slotIndex = stageOrder;
+        if (f.skipped) node.data.filmSkip = true; else delete node.data.filmSkip;
         planned.add(node.id);
         reordered++;
         return;
       }
+      // A skipped insert is simply not written (and, being unplanned, is removed below).
+      if (f.skipped) return;
 
       // A card Lee inserted here: upsert it as a real note frame.
       const nodeId = `blast-${f.id}`;

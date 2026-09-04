@@ -669,7 +669,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     if (first) { setQId(first.id); setExpandedQ((s) => new Set(s).add(first.id)); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deck?.id, qId, nodes]);
-  const questions = useMemo(() => (deck ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], deck.id).filter((n) => (n as { type?: string }).type === "ceq") : []), [deck, nodes]);
+  // SKIPPED IN REVIEW (2026-09-03): a card Lee skipped on the /v3 review deck
+  // is stamped data.filmSkip by send-to-film and stays out of the walk here —
+  // it is still the set's card, still in the bank, just not in this rip.
+  const questions = useMemo(() => (deck ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number; filmSkip?: boolean } }[], deck.id).filter((n) => (n as { type?: string }).type === "ceq" && !(n as { data?: { filmSkip?: boolean } }).data?.filmSkip) : []), [deck, nodes]);
   // STABLE identity — this feeds the previewer's build() deps. A fresh array every
   // render re-seeded the preview constantly, which is what made an in-progress move
   // snap back to the saved geometry mid-edit.

@@ -238,8 +238,8 @@ ${SEL_EMPH_CSS.trim()}
 /* SPOTLIGHT GUARDRAILS (Lee) — cap the FLAME super-scale inside the previewer so a
    flamed choice/memo can't blow outside the CEQ box / frame on a take (beats
    FLAME_CSS's scale(1.4) !important by specificity; origin stays left-center). */
-.sa-ceq-choice[data-flame="on"] { transform: scale(1.25) !important; border-radius: 10px; }
-.sa-pv-node[data-flame="on"] { transform: scale(1.6) !important; border-radius: 12px; }
+.sa-ceq-choice[data-flame="on"] { transform: scale(1.08) !important; transform-origin: center center !important; border-radius: 10px; }
+.sa-pv-node[data-flame="on"] { transform: scale(1.12) !important; transform-origin: center center !important; border-radius: 12px; }
 /* MEMO ARROWS (Lee) — a spotlit arrow's dash flows choice→memo (left→right), like a
    reading eye; loops so re-reading feels natural. The path is drawn choice→memo, so a
    NEGATIVE stroke-dashoffset advances the dashes in that (reading) direction. */
@@ -263,11 +263,14 @@ function containSpot(state: "spot" | null, big = false): React.CSSProperties {
   // surface, free-floating) grows big with a thick amber rail + strong glow + lift and
   // rides above its neighbours; a CHOICE (inside the paper card, clipped) grows moderately
   // so it still reads without spilling into the frame. Radius matches the memo/choice box.
+  // POP, DON'T ZOOM (Lee, 2026-09-03, filming vertical: "it's zooming in and
+  // making it illegible. We want the spotlights to POP OUT something I've
+  // highlighted"). On a 9:16 frame a 1.4× memo or 1.18× full-width choice
+  // ran off the edge. So: a small lift (1.06 / 1.1), grown from the centre,
+  // and the emphasis carried by the amber rail, the glow and the shadow.
   return big
-    // grow from the CENTRE (not spotStyle's left-center) so a big memo expands evenly and
-    // is far less likely to spill off a frame edge on a take.
-    ? { ...s, transform: "scale(1.4)", transformOrigin: "center center", borderRadius: 12, zIndex: 30, boxShadow: "inset 5px 0 0 #FCA311, 0 0 36px rgba(252,163,17,0.8), 0 18px 36px -8px rgba(0,0,0,0.62)" }
-    : { ...s, transform: "scale(1.18)", borderRadius: 10 };
+    ? { ...s, transform: "scale(1.1) translateY(-2px)", transformOrigin: "center center", borderRadius: 12, zIndex: 30, boxShadow: "inset 5px 0 0 #FCA311, 0 0 36px rgba(252,163,17,0.8), 0 18px 36px -8px rgba(0,0,0,0.62)" }
+    : { ...s, transform: "scale(1.06)", transformOrigin: "center center", borderRadius: 10, boxShadow: "inset 4px 0 0 #FCA311, 0 0 22px rgba(252,163,17,0.65), 0 10px 24px -8px rgba(0,0,0,0.6)" };
 }
 // HOISTED ON PURPOSE — do not turn these back into `const` arrows.
 // `Cannot access X before initialization` killed the previewer in production

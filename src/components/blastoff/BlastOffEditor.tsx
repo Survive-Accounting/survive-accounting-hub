@@ -131,7 +131,9 @@ export function BlastOffEditor({ set, topicName, onCapture }: { set: BoothSetInf
             disabled={busy}
             onClick={() => {
               setBusy(true); setSyncNote("Writing frames into the set…");
-              syncBlastPlanToSet({ data: { setId: set.id, frames: filmFrames(plan.frames) } })
+              // Every frame goes over, skipped ones included: the sync stamps
+              // a skipped set card filmSkip so the canvas walk leaves it out.
+              syncBlastPlanToSet({ data: { setId: set.id, frames: plan.frames } })
                 .then((r) => {
                   setSyncNote(`✓ ${r.reordered + r.wrote} frames ordered${r.staged ? ` · ${r.staged} exhibit${r.staged > 1 ? "s" : ""} staged` : ""}${r.missing ? ` · ${r.missing} missing` : ""} — opening film`);
                   openFilmMode(set.id);

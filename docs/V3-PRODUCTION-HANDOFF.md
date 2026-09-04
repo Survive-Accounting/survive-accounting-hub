@@ -196,6 +196,40 @@ session (the build queue judged it too big — see docs/TWO-MACHINES.md).
 - Banked for later: film mode and the canvas mirrored, with a persistent
   vertical frame on the canvas (idea "Film mode canvas sync…").
 
+**Third pass (after Lee's first send-to-film, same night):**
+- `renderInline`: `__word__` underlines, a run of `___` is a blank line.
+- The detour card: the title is the bold heading, nothing auto-highlighted
+  (his own `==marks==` still work); a cheat code's body is the first line
+  under the heading; lines under the heading are uniform full ink on the
+  dark card for all three kinds (`frameBullets`, CalloutCard).
+- The prompter: **This slide / All stamps** toggle; proofread runs by
+  default and is remembered per set of words (`sa-prompter-tidy-v2`); each
+  phrase has a TITLE (→ slide makes title + first line); in All stamps every
+  phrase knows the card it was said on (↗ Q3 jumps there) and keep / → slide
+  act on that slide. Raw words under a fold.
+- Arrange: skipped cards struck through + SKIPPED; space / shift+space walk.
+- **Skipped cards stay out of the canvas walk**: send-to-film now sends every
+  frame; a skipped set card keeps its place and gets `data.filmSkip`, which
+  `CeqStudio`'s set walk and student practice both filter (practice: "the
+  final edit of slides is what practice will look like" — Lee's explicit yes).
+  Un-skip on Review and send again to clear it.
+- **The v3 film preset** (`FilmHandoff.openFilmMode`): the handoff writes the
+  studio's own preference keys — filming mode ON (`sa-filming-mode`, the F2
+  switch that drops the stem editor, script, mark-correct, spine, memo
+  library), `sa-orientation` 9:16, `sa-fade-ms` 120, `sa-brand-cursor` on.
+  Every one is still a toggle in the studio; nothing forked.
+- **Spotlight pops, doesn't zoom** (studio film surface): `containSpot` lifts
+  1.06 (choice) / 1.1 (memo, callout) from the centre with rail + glow; the
+  super-spotlight flame rules are 1.08 / 1.12 instead of 1.25 / 1.6.
+- **Background**: the film frame paints `deck.world`; a set with no world is
+  flat near-black. Send-to-film now gives a world-less deck the default world
+  so the backdrop is there on first open (View ▸ World changes it per set).
+- NOT verified by hand: everything on the canvas side (walk skip, preset,
+  spotlight feel, backdrop). Lee also reported CEQs not interactive in the
+  capture window — the code path (active card live, choice click in film,
+  highlight on mouse-up) looks intact; retest after the preset and report
+  which surface and what was clicked.
+
 ---
 
 ## Lee's open requests, in his priority order

@@ -337,7 +337,9 @@ export const fetchSetPractice = createServerFn({ method: "GET" })
     // inserting a question never corrupts history. Display numbers are derived client-side.
     // noteOnly = film chrome; draft/bankArchived = studio-only (master status law).
     const cards = o.nodes
-      .filter((n) => { const d = n.data as RawCard | undefined; return !d?.noteOnly && !d?.draft && !d?.bankArchived; })
+      // filmSkip (2026-09-03): Lee skipped it on the review deck and sent to
+      // film — "the final edit of slides is what practice will look like".
+      .filter((n) => { const d = n.data as (RawCard & { filmSkip?: boolean }) | undefined; return !d?.noteOnly && !d?.draft && !d?.bankArchived && !d?.filmSkip; })
       .map((n) => ({ nodeId: n.id ?? "", ...(n.data as RawCard) }));
     const questions: PracticeQuestion[] = cards
       .sort((a, b) => (a.stageOrder ?? 0) - (b.stageOrder ?? 0))
