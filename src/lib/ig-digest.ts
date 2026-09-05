@@ -12,10 +12,11 @@ export interface IgDigestInput {
   /** DISTINCT organization (chapter/council/club) Instagram handles on file, normalized —
    *  a chapter counted once no matter how many contact rows carry its account. */
   totalOrgIgs: number;
-  /** DISTINCT personal (an individual's own) handles on file. Real today: 0 — the scraper
-   *  finds ORG accounts only, so every handle in the table belongs to a chapter/council/club,
-   *  never to a person, even on a row for a named officer or advisor. Kept as its own field,
-   *  not folded into totalOrgIgs, so the day this changes the digest already has a place for it. */
+  /** DISTINCT personal (a named officer's own) handles on file — see classifyIgHandles below
+   *  for exactly what counts. Real, not a placeholder: council officers Lee and King hand-enter
+   *  (scholarship chairs, presidents) often have their own account on file, separate from the
+   *  council's. The bulk-scraped chapter accounts never do — that path only ever finds a
+   *  chapter's own page. */
   totalPersonalIgs: number;
   /** Campuses with at least one org IG on file, of campuses touched at all (any contact row). */
   campusesCovered: number;
@@ -61,6 +62,45 @@ function pct(n: number, d: number): string {
   return d > 0 ? `${Math.round((n / d) * 100)}%` : "n/a";
 }
 
+/** ORG vs PERSONAL (2026-09-05, corrected — Lee: "we are getting personal IG's, no?" — he was
+ *  right; the first cut of this digest missed them entirely).
+ *
+ *  Two very different pipelines feed growth_contact_qc:
+ *   - the automated chapter scraper (contact_source "growth_public_contacts" /
+ *     "growth_business_clubs") only ever FINDS a chapter's own social page — it has no way to
+ *     find an individual's account, and `ig_role_account` is never set true or false with
+ *     intent there (it just carries the column's default). Every handle from this path is an
+ *     org account.
+ *   - hand-entered council officers (contact_source "campus_council_contacts" — Lee and King
+ *     typing in a scholarship chair or council president from a school's own directory) are the
+ *     ONE place `ig_role_account` was ever deliberately reviewed and recorded. A named row
+ *     there flagged `ig_role_account: false` is a person's own account, checked by hand.
+ *
+ *  So: a handle counts as PERSONAL only when it comes from that hand-entered path, has a name
+ *  attached, and was reviewed as not a role account. Every other handle — including a named
+ *  row anywhere else, and an unreviewed council row — counts as ORG, because nothing ever
+ *  confirmed otherwise for it. This undercounts personal accounts a little (a handle could be
+ *  personal and simply never reviewed) rather than ever overclaiming one. */
+export interface IgRow {
+  instagram: string | null;
+  name: string | null;
+  contactSource: string | null;
+  igRoleAccount: boolean | null;
+}
+
+export function classifyIgHandles(rows: readonly IgRow[], normalize: (v: string) => string | null): { orgHandles: Set<string>; personalHandles: Set<string> } {
+  const all = new Set<string>();
+  const personal = new Set<string>();
+  for (const r of rows) {
+    const h = r.instagram ? normalize(r.instagram) : null;
+    if (!h) continue;
+    all.add(h);
+    if (r.contactSource === "campus_council_contacts" && !!r.name?.trim() && r.igRoleAccount === false) personal.add(h);
+  }
+  const org = new Set([...all].filter((h) => !personal.has(h)));
+  return { orgHandles: org, personalHandles: personal };
+}
+
 export function composeIgDigest(i: IgDigestInput): IgDigest {
   const total = i.byCampus.reduce((n, c) => n + c.n, 0);
   const who = i.byWho.length ? " (" + i.byWho.map((w) => `${firstName(w.who)} ${w.n}`).join(", ") + ")" : "";
@@ -73,8 +113,7 @@ export function composeIgDigest(i: IgDigestInput): IgDigest {
     subject + ".",
     "",
     `Total Org IG's: ${i.totalOrgIgs.toLocaleString()}`,
-    `Total Personal IG's: ${i.totalPersonalIgs.toLocaleString()}`
-      + (i.totalPersonalIgs === 0 ? " (not tracked yet — every handle on file is an org's, never a person's)" : ""),
+    `Total Personal IG's: ${i.totalPersonalIgs.toLocaleString()}`,
     "",
     `Campuses Covered vs Remaining: ${i.campusesCovered}/${i.campusesTotal} (${pct(i.campusesCovered, i.campusesTotal)})`,
     `Orgs Covered vs Remaining: ${i.orgsCovered.toLocaleString()}/${i.orgsTotal.toLocaleString()} (${pct(i.orgsCovered, i.orgsTotal)})`,

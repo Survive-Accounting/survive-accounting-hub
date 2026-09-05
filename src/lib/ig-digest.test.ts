@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { chicagoYesterday, composeIgDigest, zoneMidnightUtc } from "./ig-digest";
+import { chicagoYesterday, classifyIgHandles, composeIgDigest, zoneMidnightUtc } from "./ig-digest";
 
 describe("the daily IG digest", () => {
   test("yesterday in Chicago, DST-proof, with a human label", () => {
@@ -21,7 +21,7 @@ describe("the daily IG digest", () => {
     expect(d.subject).toBe("23 new IG handles Thu Sep 4");
     expect(d.sms).toBe("IG · Thu Sep 4: 23 new (King 21, Lee 2) · Indiana Bloomington 18, Purdue 5 · Org IGs 2,128 · Campuses 182/240 (76%) · Orgs 1,744/1,819 (96%)");
     expect(d.text).toContain("Total Org IG's: 2,128");
-    expect(d.text).toContain("Total Personal IG's: 0 (not tracked yet — every handle on file is an org's, never a person's)");
+    expect(d.text).toContain("Total Personal IG's: 0");
     expect(d.text).toContain("Campuses Covered vs Remaining: 182/240 (76%)");
     expect(d.text).toContain("Orgs Covered vs Remaining: 1,744/1,819 (96%)");
     expect(d.text).toContain("IG's found yesterday: 23");
@@ -41,5 +41,49 @@ describe("the daily IG digest", () => {
     });
     expect(d.text).toContain("(n/a)");
     expect(d.sms).not.toMatch(/NaN|Infinity/);
+  });
+});
+
+describe("org vs personal — the corrected split (Lee, 2026-09-05: \"we are getting personal IG's, no?\")", () => {
+  const norm = (v: string) => v.trim().toLowerCase().replace(/^@/, "") || null;
+
+  test("a hand-entered, named, reviewed council officer is personal; the org's own row on the same council is not", () => {
+    const { orgHandles, personalHandles } = classifyIgHandles([
+      // the IFC's own account — no name, never reviewed as personal
+      { instagram: "univmissifc", name: null, contactSource: "campus_council_contacts", igRoleAccount: false },
+      // a named officer, reviewed, NOT a role account — this is the fix
+      { instagram: "lukehabeeb", name: "Luke Habeeb", contactSource: "campus_council_contacts", igRoleAccount: false },
+      { instagram: "makaylabihlmeyer", name: "Makayla Bihlmeyer", contactSource: "campus_council_contacts", igRoleAccount: false },
+    ], norm);
+    expect(personalHandles).toEqual(new Set(["lukehabeeb", "makaylabihlmeyer"]));
+    expect(orgHandles).toEqual(new Set(["univmissifc"]));
+  });
+
+  test("the automated chapter scraper never counts as personal, even with a name on the row", () => {
+    const { orgHandles, personalHandles } = classifyIgHandles([
+      { instagram: "kappasigmaua", name: "Dr. Elizabeth Michael", contactSource: "growth_public_contacts", igRoleAccount: false },
+      { instagram: "syracuse_delts", name: null, contactSource: "growth_public_contacts", igRoleAccount: false },
+    ], norm);
+    expect(personalHandles.size).toBe(0);
+    expect(orgHandles).toEqual(new Set(["kappasigmaua", "syracuse_delts"]));
+  });
+
+  test("an unreviewed council row (no name, or ig_role_account not explicitly false) counts as org, not personal", () => {
+    const { orgHandles, personalHandles } = classifyIgHandles([
+      { instagram: "a", name: null, contactSource: "campus_council_contacts", igRoleAccount: false },
+      { instagram: "b", name: "Someone", contactSource: "campus_council_contacts", igRoleAccount: true },
+      { instagram: "c", name: "Someone Else", contactSource: "campus_council_contacts", igRoleAccount: null },
+    ], norm);
+    expect(personalHandles.size).toBe(0);
+    expect(orgHandles).toEqual(new Set(["a", "b", "c"]));
+  });
+
+  test("the same handle never counts in both buckets, and a null/unnormalizable handle is skipped", () => {
+    const { orgHandles, personalHandles } = classifyIgHandles([
+      { instagram: null, name: "No handle", contactSource: "campus_council_contacts", igRoleAccount: false },
+      { instagram: "x", name: "X", contactSource: "campus_council_contacts", igRoleAccount: false },
+    ], norm);
+    expect(orgHandles.has("x")).toBe(false);
+    expect(personalHandles.has("x")).toBe(true);
   });
 });

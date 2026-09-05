@@ -101,8 +101,13 @@ export const submitFastTrack = createServerFn({ method: "POST" })
       categories: ["SURVIVEACCOUNTING"], subcategory: "fast track", status: "SUBMITTED",
       source_path: data.path, prompt_md: prompt, prompt_filename: null,
       context: {
+        // AUTO-ARMED (2026-09-05 fix): a fast-track request is the whole point of skipping
+        // Lee's manual "add to build queue" step in the Idea Bank — the runner's pass() only
+        // ever looks at armed rows, so an unarmed fast-track row sat as SUBMITTED forever.
+        // King's first test (the Bucerias/Philippines navbar clock) found this the hard way.
         lane: FAST_TRACK_LANE, by: data.who, title: data.pageTitle, path: data.path, requestedAt: iso,
         model: FAST_TRACK_MODEL, ...(playground ? { playground } : {}), ...(online ? {} : { queuedOffline: "1" }),
+        armed: "1", armedAt: iso, queuePriority: "medium",
       },
       created_by: data.who, source_kind: "web", attachments: [], audio_path: null, transcript_status: null,
       created_at: iso, updated_at: iso,

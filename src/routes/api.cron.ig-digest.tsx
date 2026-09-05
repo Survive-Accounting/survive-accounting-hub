@@ -2,12 +2,15 @@
 // totals on file, and how much of the outreach universe is covered — texted AND emailed to
 // Lee at 8am Chicago (Lee, 2026-09-05).
 //
-// "Total Org IG's" / "Total Personal IG's" (Lee, 2026-09-05, after asking whether 3,178 was
-// real): every handle in growth_contact_qc belongs to an ORGANIZATION (a chapter, council or
-// club's own account) — even a row for a named officer or advisor carries that org's account,
-// never a personal one. So org handles are counted DISTINCT (normalized: case, @, the
-// instagram.com/ prefix, a trailing slash) so one chapter with three contact rows counts
-// once, and personal is reported honestly as 0 rather than invented.
+// "Total Org IG's" / "Total Personal IG's" (Lee, 2026-09-05 — first "after asking whether
+// 3,178 was real", then correctly pushing back with "we are getting personal IG's, no?" on a
+// screenshot of named council officers with their own handles). classifyIgHandles (ig-digest.ts)
+// is the real split: the automated chapter scraper only ever finds a chapter's own page, but
+// the council contacts Lee and King hand-enter (scholarship chairs, presidents) often carry
+// that person's own account, reviewed and flagged as such — see that function's comment for
+// exactly what counts as which. Handles are counted DISTINCT either way (normalized: case, @,
+// the instagram.com/ prefix, a trailing slash) so one chapter with three contact rows counts
+// once.
 //
 // "Covered vs remaining" is out of what we have TOUCHED at all (any contact row for that
 // campus or org), not out of every campus or org that exists — that would make the
@@ -21,7 +24,7 @@
 // gate for manual testing (and accepts ?day=YYYY-MM-DD to re-send any day).
 import { createFileRoute } from "@tanstack/react-router";
 
-import { chicagoYesterday, composeIgDigest, zoneMidnightUtc } from "@/lib/ig-digest";
+import { chicagoYesterday, classifyIgHandles, composeIgDigest, zoneMidnightUtc } from "@/lib/ig-digest";
 import { normalizeHandle } from "@/lib/find-contacts-shared";
 
 function json(body: unknown, status = 200): Response {
@@ -42,7 +45,10 @@ function authorize(request: Request): { ok: true } | { ok: false; res: Response 
   return { ok: true };
 }
 
-interface Row { campus_id: string | null; entity_id: string | null; instagram: string | null; qc_by: string | null; created_at: string }
+interface Row {
+  campus_id: string | null; entity_id: string | null; instagram: string | null; qc_by: string | null; created_at: string;
+  name: string | null; contact_source: string | null; ig_role_account: boolean | null;
+}
 
 async function handle({ request }: { request: Request }): Promise<Response> {
   const auth = authorize(request);
@@ -65,7 +71,7 @@ async function handle({ request }: { request: Request }): Promise<Response> {
   // what makes "yesterday's rows" and "everything on file" self-consistent by construction.
   const rows: Row[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await db.from("growth_contact_qc").select("campus_id,entity_id,instagram,qc_by,created_at").range(from, from + 999);
+    const { data, error } = await db.from("growth_contact_qc").select("campus_id,entity_id,instagram,qc_by,created_at,name,contact_source,ig_role_account").range(from, from + 999);
     if (error) return json({ error: error.message }, 500);
     const page = (data ?? []) as Row[];
     rows.push(...page);
@@ -81,13 +87,14 @@ async function handle({ request }: { request: Request }): Promise<Response> {
     perWho.set(who, (perWho.get(who) ?? 0) + 1);
   }
 
-  // TOTALS ON FILE: org handles counted once per distinct handle, wherever it appears.
-  const orgHandles = new Set<string>();
-  for (const r of rows) { const h = normalizeHandle(r.instagram); if (h) orgHandles.add(h); }
+  // TOTALS ON FILE: org vs personal, distinct handles either way — see classifyIgHandles and
+  // the file header for exactly what makes a handle count as personal.
+  const { orgHandles, personalHandles } = classifyIgHandles(
+    rows.map((r) => ({ instagram: r.instagram, name: r.name, contactSource: r.contact_source, igRoleAccount: r.ig_role_account })),
+    normalizeHandle,
+  );
   const totalOrgIgs = orgHandles.size;
-  // Personal handles: none exist in this table today — every row's instagram is an org's own
-  // account (see the file header). Reported as 0, not guessed at, until that changes.
-  const totalPersonalIgs = 0;
+  const totalPersonalIgs = personalHandles.size;
 
   // COVERAGE: campuses and orgs TOUCHED at all (any contact row), vs. how many of those have
   // landed at least one IG.
