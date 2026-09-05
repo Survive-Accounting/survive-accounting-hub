@@ -24,6 +24,19 @@ describe("the slide templates", () => {
     expect(camDefault("pass1", "intro").spot).toBe("corner");
     for (const k of ["open", "outro", "bolt", "ad"] as const) expect(camDefault("pass2", k).spot).toBe("off");
   });
+  test("memorize this / deeper idea / bio get a bigger home camera than every other card slide, in both templates", () => {
+    for (const k of ["phrase", "tip", "bio"] as const) {
+      expect(camDefault("pass1", k)).toEqual({ spot: "home", size: 0.34 });
+      expect(camDefault("pass2", k)).toEqual({ spot: "home", size: 0.34 });
+    }
+    expect(camDefault("pass2", "phrase").size!).toBeGreaterThan(camDefault("pass2", "ceq").size!);
+    // THE INVARIANT: even at this bigger size the camera still clears the fixed caption rail.
+    const W = 1080, H = 1920;
+    const cam = camRect("home", W, H, camDefault("pass2", "tip").size);
+    const rail = captionRailRect(W, H);
+    expect(rail.x).toBeGreaterThanOrEqual(cam.x + cam.w);
+    expect(captionRailClear(rail, null, cam)).toBe("clear");
+  });
   test("the intro's wordmark drops in pass 2 to leave the camera the top; the column is inside the safe zones", () => {
     expect(introWordmarkTop("pass2")).toBeGreaterThan(introWordmarkTop("pass1"));
     expect(SAFE.top).toBeGreaterThanOrEqual(0.09);

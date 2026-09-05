@@ -61,6 +61,13 @@ export function cardPlacement(layout: SlideLayout, kind: BlastFrame["kind"]): Ca
 /** The camera's default spot and size in a layout (absent frame.cam). */
 export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spot: CamSpot; size?: number } {
   if (kind === "open" || kind === "outro" || kind === "bolt" || kind === "ad") return { spot: "off" };
+  // MEMORIZE THIS / DEEPER IDEA / BIO (Lee, fast track 2026-09-05: "enlarge the camera frame
+  // … large enough to be viewable on a phone without blocking any text"). Bigger than every
+  // other card slide's home camera, in both templates. avoidCard (webcam-spots.ts) still
+  // shrinks it toward its own bottom-left corner if a tall card reaches into it, so it can
+  // never cover the stem or the bullets; CAPTION_RAIL.left below grew to match so the bigger
+  // circle never reaches the caption text either.
+  if (kind === "phrase" || kind === "tip" || kind === "bio") return { spot: "home", size: 0.34 };
   if (layout === "pass1") return { spot: kind === "intro" ? "corner" : "home" };
   // Pass 2 (polish pass, 2026-09-05). THE INTRO IS RECTANGULAR — the talking-head portrait —
   // but at .48w, not the hero spot's .62w default: at .62w its bottom lands at .529h, under
@@ -85,14 +92,17 @@ export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spo
  *                   (.745h–.791h) and the SAFE.bottom .78h caption zone. Below the hero
  *                   wordmark's bottom edge (.585h — webcam-spots.wordmarkHero) so the two can
  *                   never collide.
- *    left           .35w: the pass-2 home camera's right edge (.05w + .28w) plus a breath.
+ *    left           .41w (fast track, 2026-09-05): clears the bigger .34w memorize-this /
+ *                   deeper-idea / bio home camera (.05w + .34w) plus a breath — was .35w,
+ *                   sized to the plain .28w home camera every other card slide still uses;
+ *                   this wider bound clears both.
  *    wideLeft       .07w when the slide has no camera.
  *    right          .84w = SAFE.right, inside the like/share rail.
  *    size           4.0 % of the height (77 px at 1920) — phone-readable; two lines at most.
  *    spoken         a SOFT gold for the word being said, not the full brand gold — the
  *                   emphasis is a lift in brightness, not a colour change (Lee: restrained). */
 export const CAPTION_RAIL = {
-  top: 0.61, bottom: 0.735, left: 0.35, wideLeft: 0.07, right: 0.84,
+  top: 0.61, bottom: 0.735, left: 0.41, wideLeft: 0.07, right: 0.84,
   size: 0.04, lineHeight: 1.12, maxLines: 2,
   ink: "#FFFFFF", spoken: "#FFD98A", stroke: "#0B1220", strokeW: 0.005,
 } as const;
