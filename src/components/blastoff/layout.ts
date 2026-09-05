@@ -62,9 +62,13 @@ export function cardPlacement(layout: SlideLayout, kind: BlastFrame["kind"]): Ca
 export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spot: CamSpot; size?: number } {
   if (kind === "open" || kind === "outro" || kind === "bolt" || kind === "ad") return { spot: "off" };
   if (layout === "pass1") return { spot: kind === "intro" ? "corner" : "home" };
-  // Pass 2: bigger everywhere; above the wordmark on the intro.
-  if (kind === "intro") return { spot: "top", size: 0.34 };
-  return { spot: "home", size: 0.3 };
+  // Pass 2 (polish pass, 2026-09-05). THE INTRO IS RECTANGULAR — the talking-head portrait —
+  // but at .48w, not the hero spot's .62w default: at .62w its bottom lands at .529h, under
+  // the pass-2 wordmark block (introWordmarkTop .44h); at .48w the bottom is .434h and clears
+  // it by ~1 % h. layout.test.ts pins that invariant. THE HOME CIRCLE is .28w, ~7 % under the
+  // .30 it was (Lee: "test reducing its default size approximately 5–10 %").
+  if (kind === "intro") return { spot: "hero", size: 0.48 };
+  return { spot: "home", size: 0.28 };
 }
 
 /** The intro's wordmark block sits lower in pass 2 to leave the camera the top. */

@@ -98,7 +98,12 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   // Walking to another slide starts it clean: no emphasis, no spotlight. The
   // text highlights are the one thing that survives a walk (as on the canvas).
   useEffect(() => { setEmph(null); setResolved(new Set()); setSpots(NO_SPOTS); }, [frameId]);
-  const resetTake = useCallback(() => { setEmph(null); setResolved(new Set()); setSpots(NO_SPOTS); clearAllTextHls(); }, [clearAllTextHls]);
+  // THE HERO (2026-09-05): ctrl+click on the camera — the camera takes the top of the frame
+  // and the wordmark takes the centre. Lives here, not in the phone, so the next slide, the
+  // backtick wipe and B→off all end it (they could not reach the phone's private state).
+  const [hero, setHero] = useState(false);
+  useEffect(() => { setHero(false); }, [frameId]);
+  const resetTake = useCallback(() => { setEmph(null); setResolved(new Set()); setSpots(NO_SPOTS); clearAllTextHls(); setHero(false); }, [clearAllTextHls]);
 
   // ---- the plug-ins: camera, arrows, teleprompter sync, the 9:16 pop-out ----
   const camera = useCaptureCamera({ hostRef, frameId: frameId ?? "" });
@@ -127,7 +132,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
       else if (e.key === "Escape") { e.preventDefault(); onExit(); }
       else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
       else if (e.key.toLowerCase() === "p") { e.preventDefault(); setPrompter((v) => !v); }
-      else if (e.key.toLowerCase() === "b" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); setCamOverride(nextCamSpot(camNow)); }
+      else if (e.key.toLowerCase() === "b" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); const nx = nextCamSpot(camNow); setCamOverride(nx); if (nx === "off") setHero(false); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -156,7 +161,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
     <PersistContext.Provider value={camera.persist}>
     <div ref={hostRef} className={`film-mode${camera.rootClass ? ` ${camera.rootClass}` : ""}`} onWheel={camera.onWheel}
       style={{ minHeight: "100vh", background: "#000", display: "grid", placeItems: "center", position: "relative", overflow: "hidden" }}>
-      <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)}
+      <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero}
         progress={questionProgress(frames, ceqById).get(frame.id)} />
       <CaptureArrows hostRef={hostRef} frameId={frame.id} />
       {/* THE BRAND CURSOR — the bolt, as on the canvas popout. The native
@@ -170,7 +175,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
         }}>
           <span style={{ color: GOLD, fontWeight: 800 }}>{idx + 1} / {n}</span>
           <span>{FRAME_LABEL[frame.kind]}</span>
-          <span>B camera {camNow} · space next · shift+space back · wheel zooms, O pulls back, 0 resets · alt+drag moves, alt-hover grips resize · click a choice, click again to resolve · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · F1 move F1 draws an arrow, Delete removes · ` resets · H hide this · P prompter{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
+          <span>B camera {camNow} · space next · shift+space back · wheel zooms, O pulls back, 0 resets · alt+drag moves, alt-hover grips resize · click a choice, click again to resolve · ctrl+click the camera: hero (again, ` or next slide ends it) · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · F1 move F1 draws an arrow, Delete removes · ` resets · H hide this · P prompter{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
           {popout.open && !popout.isPopout && (
             <button onClick={popout.open} title="Open this page as its own 9:16 window, snapped to 1080×1920 for OBS"
               style={{ color: GOLD, background: "none", border: `1px solid ${GOLD}66`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>⧉ pop out 9:16</button>

@@ -19,15 +19,11 @@
 // glow and a navy shadow. No nametag (Lee: "simple, elegant, modern").
 import { useEffect, useRef, useState } from "react";
 
-import { avoidCard, camRect, type Box, type CamRect, type CamSpot } from "./webcam-spots";
+import { avoidCard, camRect, heroCamRect, type Box, type CamRect, type CamSpot } from "./webcam-spots";
 
 const CREAM = "#F5EFE6";
 
-/** The moment's frame: a big portrait, centred in the safe column. */
-function momentRect(w: number, h: number): CamRect {
-  const cw = Math.round(w * 0.78), ch = Math.round(cw * 1.25);
-  return { x: Math.round((w - cw) / 2), y: Math.round(h * 0.16), w: cw, h: ch, shape: "portrait" };
-}
+const OVERSHOOT = "cubic-bezier(0.34, 1.3, 0.64, 1)";
 
 export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirror = true, moment = false, onMoment }: {
   w: number; h: number;
@@ -49,9 +45,17 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
 }) {
   const base = camRect(spot, w, h, size, pos);
   const fit = avoidCard(base, spot, cardBox ?? null);
-  const r: CamRect = moment ? momentRect(w, h) : fit.rect;
+  const r: CamRect = moment ? heroCamRect(w, h) : fit.rect;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState<string | null>(null);
+  // THE CHOREOGRAPHY CURVE overshoots — right for a move between spots, wrong for a shrink
+  // in place: avoidCard pulling the ring in on a tall card read as a bounce on every slide
+  // entrance. A same-spot, same-mode, smaller ring gets a plain ease. A drag gets none.
+  const prevRef = useRef<{ spot: string; w: number; moment: boolean }>({ spot, w: r.w, moment });
+  const shrinkOnly = prevRef.current.spot === spot && prevRef.current.moment === moment && r.w < prevRef.current.w;
+  useEffect(() => { prevRef.current = { spot, w: r.w, moment }; });
+  const [dragging, setDragging] = useState(false);
+  const ease = shrinkOnly ? "ease" : OVERSHOOT;
 
   useEffect(() => {
     if (!live) return;
@@ -78,6 +82,7 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
     if (!editable) return;
     e.preventDefault(); e.stopPropagation();
     drag.current = { sx: e.clientX, sy: e.clientY, ox: r.x, oy: r.y };
+    setDragging(true);
     e.currentTarget.setPointerCapture(e.pointerId);
   }
   function onMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -87,7 +92,7 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
     const ny = Math.max(0, Math.min(h - r.h, d.oy + (e.clientY - d.sy)));
     onFree({ pos: { x: Math.round((nx / w) * 1000) / 1000, y: Math.round((ny / h) * 1000) / 1000 } });
   }
-  function onUp() { drag.current = null; }
+  function onUp() { drag.current = null; setDragging(false); }
   function onWheel(e: React.WheelEvent<HTMLDivElement>) {
     if (!editable || !onFree) return;
     e.preventDefault(); e.stopPropagation();
@@ -102,7 +107,7 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
       title={editable ? "Drag to move · wheel to resize · ctrl+click for the moment" : onMoment ? "ctrl+click: the camera takes the frame" : undefined}
       style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, zIndex: moment ? 30 : 12, cursor: editable ? "grab" : undefined, pointerEvents: editable || onMoment ? "auto" : "none",
         // The move between spots is the choreography — a touch of overshoot, never a snap.
-        transition: "left 480ms cubic-bezier(0.34, 1.3, 0.64, 1), top 480ms cubic-bezier(0.34, 1.3, 0.64, 1), width 480ms cubic-bezier(0.34, 1.3, 0.64, 1), height 480ms cubic-bezier(0.34, 1.3, 0.64, 1)" }}>
+        transition: dragging ? "none" : `left 480ms ${ease}, top 480ms ${ease}, width 480ms ${ease}, height 480ms ${ease}` }}>
       {/* the ring: cream, a soft outer glow, a navy shadow — never loud; the moment breathes */}
       <div style={{ position: "absolute", inset: 0, borderRadius: radius, padding: ring, background: `linear-gradient(160deg, ${CREAM}, rgba(245,239,230,0.7))`,
         boxShadow: moment

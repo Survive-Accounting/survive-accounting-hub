@@ -12,14 +12,14 @@
 // (the card centred); pass 2 is the vertical template — the card at the top
 // of the safe column, narrower and bigger so it reads portrait, the camera
 // bigger and placed to the content. The set picks its pass on /v3.
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { CampusBanner } from "@/components/brand-cards/BoltZoom";
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 
 import { WebcamFrame } from "./capture/Webcam";
-import { isCamSpot, type Box, type CamSpot } from "./capture/webcam-spots";
+import { isCamSpot, watermarkSize, wordmarkHero, type Box, type CamSpot } from "./capture/webcam-spots";
 import { FrameView } from "./frame-view";
 import { SAFE, camDefault, cardPlacement, type SlideLayout } from "./layout";
 import { backdropFor, isFullFrame, type BlastFrame } from "./plan";
@@ -48,7 +48,7 @@ export function watermarkOn(frame: BlastFrame, _backdrop: ReturnType<typeof back
   return !isFullFrame(frame.kind);
 }
 
-export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, stageStyle, camSpot, cardOverride: gripOverride, layout = "pass1" }: {
+export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, stageStyle, camSpot, cardOverride: gripOverride, layout = "pass1", hero: heroProp, onHero }: {
   frame: BlastFrame;
   /** The whole running order — the backdrop rule looks at the neighbours. */
   frames: readonly BlastFrame[];
@@ -75,6 +75,10 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   cardOverride?: CardOverride;
   /** The set's slide template (layout.ts). */
   layout?: SlideLayout;
+  /** THE HERO (2026-09-05): ctrl+click on the camera. Controlled by the capture (so backtick,
+   *  the next slide and B→off can end it); uncontrolled everywhere else. */
+  hero?: boolean;
+  onHero?: (on: boolean) => void;
 }) {
   const h = Math.round(w * 16 / 9);
   const backdrop = backdropFor(frames, index, (id) => !!set.ceqs.find((c) => c.id === id)?.noteOnly);
@@ -85,16 +89,23 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   // override; on the capture it measures the live card so it can shrink out of
   // its way.
   const def = camDefault(layout, frame.kind);
-  const cam: CamSpot = camSpot ?? (isCamSpot(frame.cam) ? frame.cam : def.spot);
-  const camSize = frame.camSize ?? (cam === def.spot ? def.size : undefined);
+  const own: CamSpot = isCamSpot(frame.cam) ? frame.cam : def.spot;
+  const cam: CamSpot = camSpot ?? own;
+  // A SAVED SIZE BELONGS TO THE SLIDE'S OWN SPOT. It used to apply to whatever spot was
+  // current, so a home/free size saved on the slide leaked onto B's corner/hero override.
+  const camSize = cam === own ? (frame.camSize ?? (cam === def.spot ? def.size : undefined)) : (cam === def.spot ? def.size : undefined);
   const edit = useContext(SlideEditContext);
   const phoneRef = useRef<HTMLDivElement>(null);
   const [cardBox, setCardBox] = useState<Box | null>(null);
-  // THE MOMENT: ctrl+click on the camera; ends with the next slide or `.
-  const [moment, setMoment] = useState(false);
-  useEffect(() => { setMoment(false); }, [frame.id]);
+  // THE HERO: ctrl+click on the camera. The capture owns it (see the props); on its own
+  // the phone keeps a local one so the Review stage still previews the gesture.
+  const [heroLocal, setHeroLocal] = useState(false);
+  const moment = heroProp ?? heroLocal;
+  const setMoment = onHero ?? setHeroLocal;
+  useEffect(() => { setHeroLocal(false); }, [frame.id]);
   useEffect(() => {
-    if (!capture || cam === "off") { setCardBox(null); return; }
+    // Measured whenever a camera is on — the Review placeholder ring avoids a tall card too.
+    if (cam === "off") { setCardBox(null); return; }
     const phone = phoneRef.current;
     if (!phone) return;
     const measure = () => {
@@ -110,7 +121,31 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
     const stage = phone.querySelector("[data-sa-stage]");
     if (stage) ro.observe(stage);
     return () => { window.clearTimeout(t); ro.disconnect(); };
-  }, [capture, cam, frame.id, w, layout]);
+    // stageStyle.transform: the ResizeObserver cannot see a CSS transform, so the zoom / O / Alt-move
+    // left cardBox stale and the ring could sit on the enlarged card. Re-measure when it changes.
+  }, [capture, cam, frame.id, w, layout, stageStyle?.transform]);
+  // THE WORDMARK'S MOVE. Measured at rest (never mid-hero: the rect would be the transformed one),
+  // then translated to the centre and scaled about its own centre — a transform, never a font-size
+  // change, because SurviveWordmark's bolt is JS-sized and would not animate.
+  const markRef = useRef<HTMLDivElement>(null);
+  const [markBox, setMarkBox] = useState<{ w: number; h: number } | null>(null);
+  useLayoutEffect(() => {
+    if (moment) return;
+    const el = markRef.current;
+    if (!el) { setMarkBox(null); return; }
+    const b = el.getBoundingClientRect();
+    setMarkBox({ w: b.width, h: b.height });
+  }, [w, frame.id, moment]);
+  const wmLeft = Math.round(w * 0.04), wmTop = Math.round(w * 0.05);
+  const wmHero = wordmarkHero(w, h);
+  const wmTransform = moment && markBox
+    ? (() => {
+        const cx = wmLeft + markBox.w / 2, cy = wmTop + markBox.h / 2;
+        const dx = w / 2 - cx;
+        const dy = (wmHero.bottom - (markBox.h * wmHero.scale) / 2) - cy;
+        return `translate(${Math.round(dx)}px, ${Math.round(dy)}px) scale(${wmHero.scale})`;
+      })()
+    : "none";
   const band: React.CSSProperties = { position: "absolute", left: 0, right: 0, background: "repeating-linear-gradient(135deg, rgba(125,211,252,0.10) 0 6px, transparent 6px 14px)", borderColor: "rgba(125,211,252,0.35)", pointerEvents: "none" };
   const tag: React.CSSProperties = { position: "absolute", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(125,211,252,0.7)", fontWeight: 800 };
   // PASS 2 puts a card at the top of the safe column; the full-frame kinds
@@ -122,8 +157,12 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
       {/* THE WATERMARK — the wordmark with the live bolt in the "i", top-left,
           sized like the film popout's (5.2% of the width). */}
       {watermarkOn(frame, backdrop) && (
-        <div style={{ position: "absolute", left: Math.round(w * 0.04), top: Math.round(w * 0.05), pointerEvents: "none", opacity: 0.92 }}>
-          <SurviveWordmark size={Math.max(12, Math.round(w * 0.052))} />
+        <div ref={markRef} style={{ position: "absolute", left: wmLeft, top: wmTop, pointerEvents: "none", opacity: moment ? 1 : 0.92,
+          // THE HERO: same 480 ms overshoot as the camera ring, so the two move as one gesture;
+          // above the camera's moment layer (30), below the arrows (40).
+          transformOrigin: "50% 50%", transform: wmTransform, transition: "transform 480ms cubic-bezier(0.34, 1.3, 0.64, 1), opacity 480ms ease",
+          zIndex: moment ? 31 : undefined, willChange: moment ? "transform" : undefined }}>
+          <SurviveWordmark size={watermarkSize(w)} />
         </div>
       )}
       <div key={capture ? frame.id : undefined} data-sa-stage="" style={{ display: "grid", placeItems: "center", position: "relative",

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { camRect } from "./capture/webcam-spots";
 import { SAFE, camDefault, cardPlacement, introWordmarkTop, isLayout } from "./layout";
 
 describe("the slide templates", () => {
@@ -12,9 +13,14 @@ describe("the slide templates", () => {
     // the same width on the phone as before (560 × 1.04), so it never leaves the column
     expect(p2.cardW! * p2.scaleMul!).toBeCloseTo(560 * 1.04, 0);
   });
-  test("the camera: bigger in pass 2, above the wordmark on the intro, off on the brand slides", () => {
-    expect(camDefault("pass2", "ceq")).toEqual({ spot: "home", size: 0.3 });
-    expect(camDefault("pass2", "intro")).toEqual({ spot: "top", size: 0.34 });
+  test("the camera: bigger in pass 2, a rectangular intro above the wordmark, off on the brand slides", () => {
+    expect(camDefault("pass2", "ceq")).toEqual({ spot: "home", size: 0.28 });
+    expect(camDefault("pass2", "intro")).toEqual({ spot: "hero", size: 0.48 });
+    // THE INVARIANT: the intro camera's bottom edge sits above the pass-2 wordmark block.
+    const W = 1080, H = 1920;
+    const intro = camDefault("pass2", "intro");
+    const rect = camRect(intro.spot as "hero", W, H, intro.size);
+    expect(rect.y + rect.h).toBeLessThan(H * introWordmarkTop("pass2"));
     expect(camDefault("pass1", "intro").spot).toBe("corner");
     for (const k of ["open", "outro", "bolt", "ad"] as const) expect(camDefault("pass2", k).spot).toBe("off");
   });

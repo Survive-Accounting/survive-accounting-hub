@@ -84,6 +84,24 @@ export function avoidCard(cam: CamRect, spot: Exclude<CamSpot, "off">, card: Box
   return { rect: cam, scale: 1, clear: false };
 }
 
+/** THE HERO (2026-09-05, polish pass). Ctrl+click on the camera and two things move
+ *  together: the camera swims to the top-centre as a big portrait, and the wordmark
+ *  leaves its watermark corner to sit under it, centred, large — the branded signature
+ *  moment. Both rects are here so the pair is one tested fact: the camera's bottom edge
+ *  clears the wordmark's top, and the wordmark's bottom edge (.585h) sits ABOVE the fixed
+ *  caption rail (.61h+) so a burned-in caption can never collide with it. The spec asked
+ *  for the bottom fifth; that band is the platform's own caption/title chrome, so the
+ *  signature lands just above the rail instead. */
+export function heroCamRect(w: number, h: number): CamRect {
+  const cw = Math.round(w * 0.6), ch = Math.round(cw * 1.2);
+  return { x: Math.round((w - cw) / 2), y: Math.round(h * 0.1), w: cw, h: ch, shape: "portrait" };
+}
+export function wordmarkHero(w: number, h: number): { scale: number; bottom: number } {
+  return { scale: 2.3, bottom: Math.round(h * 0.585) };
+}
+/** The watermark's resting type size on a phone `w` wide (PhoneFrame draws it at 5.2 % of the width). */
+export function watermarkSize(w: number): number { return Math.max(12, Math.round(w * 0.052)); }
+
 /** B cycles the spots on the take: home → corner → hero → top → off → home. */
 export function nextCamSpot(cur: CamSpot): CamSpot {
   const order: CamSpot[] = ["home", "corner", "hero", "top", "off"];

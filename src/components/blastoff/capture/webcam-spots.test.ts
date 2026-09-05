@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { avoidCard, camRect, camSpotOf, defaultCamFor, nextCamSpot, overlaps } from "./webcam-spots";
+import { avoidCard, camRect, camSpotOf, defaultCamFor, heroCamRect, nextCamSpot, overlaps, watermarkSize, wordmarkHero } from "./webcam-spots";
 
 const W = 1080, H = 1920;
 
@@ -53,5 +53,15 @@ describe("the camera's spots", () => {
     expect(nextCamSpot("top")).toBe("off");
     expect(nextCamSpot("off")).toBe("home");
     expect(nextCamSpot("free")).toBe("corner");
+  });
+  test("the hero: the camera sits above the wordmark, the wordmark sits above the caption rail", () => {
+    const cam = heroCamRect(W, H);
+    const wm = wordmarkHero(W, H);
+    const wmTop = wm.bottom - Math.round(watermarkSize(W) * wm.scale);
+    expect(cam.shape).toBe("portrait");
+    expect(cam.x + cam.w / 2).toBe(Math.round(W / 2));
+    expect(cam.y + cam.h).toBeLessThanOrEqual(wmTop);          // camera clears the wordmark
+    expect(wm.bottom).toBeLessThanOrEqual(H * 0.61);           // wordmark clears the caption rail
+    expect(wm.scale).toBeGreaterThanOrEqual(2);
   });
 });
