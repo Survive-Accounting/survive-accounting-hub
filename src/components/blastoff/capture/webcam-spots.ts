@@ -49,7 +49,9 @@ export function camRect(spot: Exclude<CamSpot, "off">, w: number, h: number, siz
   const r = (v: number) => Math.round(v);
   switch (spot) {
     case "home": { const d = r(w * (size ?? 0.24)); return { x: r(w * 0.05), y: r(h * 0.8) - d, w: d, h: d, shape: "circle" }; }
-    case "corner": { const d = r(w * (size ?? 0.17)); return { x: w - r(w * 0.05) - d, y: r(h * 0.105), w: d, h: d, shape: "circle" }; }
+    // CORNER at .22w (Lee, 2026-09-05: "comically small on memorize this, cheat code" at .17w) — the home
+    // circle's .28w less 20 %, so the two circles read as the same camera in two places, not two cameras.
+    case "corner": { const d = r(w * (size ?? 0.22)); return { x: w - r(w * 0.05) - d, y: r(h * 0.105), w: d, h: d, shape: "circle" }; }
     case "hero": { const cw = r(w * (size ?? 0.62)); const ch = r(cw * 1.2); return { x: r((w - cw) / 2), y: r(h * 0.11), w: cw, h: ch, shape: "portrait" }; }
     // TOP (pass 2): a big circle, centred, under the status bar — above the wordmark on the intro.
     case "top": { const d = r(w * (size ?? 0.34)); return { x: r((w - d) / 2), y: r(h * 0.105), w: d, h: d, shape: "circle" }; }
