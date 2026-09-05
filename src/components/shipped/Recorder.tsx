@@ -48,6 +48,15 @@ export function Recorder({ semester, dateLabel, notepadOpen, notesHtml, onNotesC
   const [outro, setOutro] = useState(false);
   const [interim, setInterim] = useState("");
   const [captionLine, setCaptionLine] = useState("");
+  // FLOATING CIRCLE (Lee, 2026-09-05, mid-recording: "press R again to go back and forth to
+  // either my browser tab, where my camera becomes floating circle frame, or come back to do
+  // the outro"). Collapses the full-screen recorder to a small draggable bubble so the rest of
+  // the site is fully clickable underneath — for showing something on camera without cutting
+  // the take. MediaRecorder and dictation both keep running; nothing about the recording itself
+  // changes, only how much of the screen the recorder's own UI occupies.
+  const [minimized, setMinimized] = useState(false);
+  const [bubblePos, setBubblePos] = useState<{ x: number; y: number } | null>(null); // null = default corner
+  const dragRef = useRef<{ startX: number; startY: number; fromX: number; fromY: number; moved: boolean } | null>(null);
 
   const dictation = useDictation((final, live) => {
     if (final) { finalTranscriptRef.current = (finalTranscriptRef.current + " " + final).trim(); setCaptionLine(final.trim()); }
@@ -119,6 +128,9 @@ export function Recorder({ semester, dateLabel, notepadOpen, notesHtml, onNotesC
         return;
       }
       if (e.key.toLowerCase() === "n" && !isTyping(e.target)) { e.preventDefault(); onToggleNotepad(); }
+      // R toggles the floating circle — ONLY while an actual take is running; before that, R
+      // already opened this recorder (ShippedDock) and has nothing else to do here.
+      if (e.key.toLowerCase() === "r" && !isTyping(e.target) && recording) { e.preventDefault(); setMinimized((v) => !v); }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -129,7 +141,58 @@ export function Recorder({ semester, dateLabel, notepadOpen, notesHtml, onNotesC
     onDiscard();
   };
 
+  // THE BUBBLE'S DRAG — a plain pointer-capture drag, exactly the pattern already used for the
+  // illustration's placement grip (IllustrationLayer.tsx): move past a few px counts as a drag,
+  // not a click, so tapping the bubble to restore the full view still works.
+  const bubbleDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    dragRef.current = { startX: e.clientX, startY: e.clientY, fromX: bubblePos?.x ?? rect.left, fromY: bubblePos?.y ?? rect.top, moved: false };
+  };
+  const bubbleMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true;
+    if (!d.moved) return;
+    const bubble = 96;
+    const x = Math.min(window.innerWidth - bubble - 8, Math.max(8, d.fromX + dx));
+    const y = Math.min(window.innerHeight - bubble - 8, Math.max(8, d.fromY + dy));
+    setBubblePos({ x, y });
+  };
+  const bubbleUp = () => {
+    const moved = dragRef.current?.moved;
+    dragRef.current = null;
+    if (!moved) setMinimized(false); // a plain tap restores the full recorder
+  };
+
   const shrink = notepadOpen || outro; // the camera becomes a small PiP so the foreground can take the space
+
+  if (minimized) {
+    const bubble = 96;
+    const pos = bubblePos ?? { x: window.innerWidth - bubble - 24, y: window.innerHeight - bubble - 24 };
+    return (
+      <div
+        onPointerDown={bubbleDown}
+        onPointerMove={bubbleMove}
+        onPointerUp={bubbleUp}
+        onPointerCancel={bubbleUp}
+        title="Tap to bring the recorder back — R does the same"
+        style={{
+          position: "fixed", left: pos.x, top: pos.y, width: bubble, height: bubble, zIndex: 2147483000,
+          borderRadius: "50%", overflow: "hidden", border: `3px solid ${GOLD}`, boxShadow: "0 12px 30px rgba(0,0,0,0.55)",
+          cursor: "grab", touchAction: "none", background: INK,
+        }}
+      >
+        <video autoPlay muted playsInline ref={(el) => { if (el && streamRef.current) el.srcObject = streamRef.current; }}
+          style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", pointerEvents: "none" }} />
+        <span aria-hidden style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", width: 9, height: 9, borderRadius: 5, background: REC_RED, boxShadow: `0 0 0 0 ${REC_RED}`, animation: "sa-rec-pulse 1.1s ease-in-out infinite", pointerEvents: "none" }} />
+        <span aria-hidden style={{ position: "absolute", bottom: 6, left: "50%", transform: "translateX(-50%)", fontSize: 11, fontWeight: 800, color: CREAM, textShadow: "0 1px 3px rgba(0,0,0,0.8)", pointerEvents: "none" }}>{fmtElapsed(elapsed)}</span>
+        <style>{`@keyframes sa-rec-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,59,48,0.55);} 50% { box-shadow: 0 0 0 6px rgba(255,59,48,0);} }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 2147483000, background: "rgba(3,5,10,0.94)", backdropFilter: "blur(6px)", display: "flex", flexDirection: "column", alignItems: "center", color: CREAM, fontFamily: BRAND_FONT }}>
@@ -197,6 +260,7 @@ export function Recorder({ semester, dateLabel, notepadOpen, notesHtml, onNotesC
         ) : (
           <Btn primary tone={REC_RED} onClick={stop}>■ Stop</Btn>
         )}
+        {recording && <Btn onClick={() => setMinimized(true)} title="Shrink to a floating circle so the rest of the site is clickable — R does the same">◯ Float</Btn>}
         {recording && <Btn onClick={onToggleNotepad} active={notepadOpen}>✎ Notes</Btn>}
         {recording && <Btn onClick={() => setOutro((v) => !v)} active={outro}>Outro</Btn>}
         <Btn onClick={discard} tone="#FF9F43">Discard</Btn>
@@ -211,11 +275,11 @@ function Centered({ children, tone }: { children: React.ReactNode; tone?: "bad" 
   return <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", padding: 20, textAlign: "center", fontSize: 13, color: tone === "bad" ? "#FF8B7E" : MUTED }}>{children}</div>;
 }
 
-function Btn({ children, onClick, primary, active, disabled, tone }: { children: React.ReactNode; onClick: () => void; primary?: boolean; active?: boolean; disabled?: boolean; tone?: string }) {
+function Btn({ children, onClick, primary, active, disabled, tone, title }: { children: React.ReactNode; onClick: () => void; primary?: boolean; active?: boolean; disabled?: boolean; tone?: string; title?: string }) {
   const color = tone ?? (primary ? "#0B0F1E" : CREAM);
   const bg = primary ? (tone ?? GOLD) : active ? "rgba(252,163,17,0.16)" : "transparent";
   return (
-    <button type="button" onClick={onClick} disabled={disabled}
+    <button type="button" onClick={onClick} disabled={disabled} title={title}
       style={{ font: "inherit", fontSize: 14, fontWeight: 800, padding: "10px 18px", borderRadius: 999, border: `1px solid ${primary ? "transparent" : active ? GOLD : EDGE}`, background: bg, color, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.45 : 1 }}>
       {children}
     </button>
