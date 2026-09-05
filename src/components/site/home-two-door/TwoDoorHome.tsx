@@ -55,7 +55,6 @@ import { ArrowLeftRight } from "lucide-react";
 
 import { SchoolPickerSheet } from "./SchoolPickerSheet";
 import { ChapterPickerSheet } from "./ChapterPickerSheet";
-import { MountainBackdrop } from "@/components/site/MountainBackdrop";
 import { ExamReminder } from "./ExamReminder";
 import type { School as PickerSchool } from "@/lib/schools";
 
@@ -346,9 +345,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
 
         {/* THE END CAP — a student who has read the whole page is deciding. One text, on a day they
             pick, is the smallest useful thing to offer them at the bottom of it. */}
-        <MountainBackdrop>
-          <ExamReminder campusId={campus.school?.campusId ?? null} courseCode={campus.code} />
-        </MountainBackdrop>
+        <ExamReminder campusId={campus.school?.campusId ?? null} courseCode={campus.code} />
       </main>
 
       <Footer onLanding />
