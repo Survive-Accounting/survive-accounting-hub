@@ -55,6 +55,7 @@ import { ArrowLeftRight } from "lucide-react";
 
 import { SchoolPickerSheet } from "./SchoolPickerSheet";
 import { ChapterPickerSheet } from "./ChapterPickerSheet";
+import { MountainBackdrop } from "@/components/site/MountainBackdrop";
 import { ExamReminder } from "./ExamReminder";
 import type { School as PickerSchool } from "@/lib/schools";
 
@@ -341,7 +342,9 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
 
         {/* THE END CAP — a student who has read the whole page is deciding. One text, on a day they
             pick, is the smallest useful thing to offer them at the bottom of it. */}
-        <ExamReminder campusId={campus.school?.campusId ?? null} courseCode={campus.code} />
+        <MountainBackdrop>
+          <ExamReminder campusId={campus.school?.campusId ?? null} courseCode={campus.code} />
+        </MountainBackdrop>
       </main>
 
       <Footer onLanding />
@@ -350,7 +353,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       {/* The Text-Lee bubble now waits for the BIO to scroll past, not the doors — so it appears
           only once you've met Lee, and it can't sit on top of the value cards' "Send your syllabus"
           on the way down. Framed photo above it: the same face you just read about, offering help. */}
-      <FloatingContact heroId="lee" tel={TEL} phone={PHONE} bottomOffset={16} photo="/lee-sunrise.jpg" />
+      <FloatingContact heroId="lee" tel={TEL} phone={PHONE} bottomOffset={16} photo="/lee-text-avatar.jpg" />
       {waitlistOpen && (
         <Exam1LaunchModal
           campusId={schoolObj?.campusId ?? null}

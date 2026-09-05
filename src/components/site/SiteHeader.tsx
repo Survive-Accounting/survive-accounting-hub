@@ -97,7 +97,11 @@ export function FitWordmark({ size, subline, className, style }: { size: number;
  *  Pass 2 makes this the ONLY wordmark on the page — the hero no longer carries one — so it is
  *  also the brand statement, not just a way home. Kept as its own component because
  *  FitWordmark's subline is proportional to the fitted size and would render ~3.4px here. */
-export function CompactLockup({ size = 19 }: { size?: number } = {}) {
+export function CompactLockup({ size = 19, animate = false }: { size?: number;
+  /** THE BOLT MOVES AGAIN (Lee, 2026-09-04): "bring the nav bar bolt animated back." The
+   *  earlier note below argued against motion in the corner; Lee overruled it for the
+   *  homepage bar. Off by default so the share screen and marketing lockups stay still. */
+  animate?: boolean } = {}) {
   // THE BOLT IS THE "i" — the real wordmark, as the footer and every large surface draw it, rather
   // than plain text with a bolt bolted on beside it (2026-09-02).
   //
@@ -114,12 +118,21 @@ export function CompactLockup({ size = 19 }: { size?: number } = {}) {
     <SurviveWordmark
       size={size}
       red="var(--brand-cream, #F5EFE6)"
-      blue="#AFB6C4"
+      // A DEEPER SEAM AT THIS SIZE. #AFB6C4 sat close enough to the cream that at 19px the two
+      // fills averaged together and the mark read as a forward slash. This is dark enough to draw
+      // the fold and still nowhere near the bar navy, which read as a hole punched through it.
+      blue="#6E7B92"
       boltCream="none"
-      // AND IT HOLDS STILL. The boil is a four-frame flipbook running forever; at 15px in the corner
-      // of every screen it is not readable as craft, only as something twitching while you read.
-      // One pinned frame keeps the drawn look and drops the movement.
-      boilFrame={0}
+      // TALLER, WITH MORE AIR. Sub-pixel teeth are the real cause of the slash — see the note on
+      // SurviveWordmark's boltScale. 0.95 gives the serrations something to be, and the wider gap
+      // stops the mark fusing to the letters either side so it reads as a glyph, not punctuation.
+      boltScale={0.95}
+      boltGap={0.075}
+      // Pinned to one frame unless the caller asks for the boil. When it does boil it runs at the
+      // calmer 1.2s cadence the cold open uses, not the 0.5s card flipbook — this is a corner of
+      // the eye, not a title card.
+      boilFrame={animate ? undefined : 0}
+      boilSeconds={animate ? 1.2 : undefined}
     />
   );
 }
@@ -377,7 +390,7 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
             so the small one is pure duplication. Every OTHER page keeps it, because there
             it is the only route home. */}
         {wordmark
-          ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup /></a>
+          ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup size={27} animate /></a>
           : <span style={{ minHeight: 44, display: "inline-flex" }} />}
         <span className="flex-1" />
 

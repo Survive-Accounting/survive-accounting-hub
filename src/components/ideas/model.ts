@@ -9,6 +9,8 @@
 
 export const CATEGORIES = [
   "AUTHORING", "FILMING", "PUBLISHING", "MARKETING", "CUSTOMER_SUCCESS", "UI_UX", "INFRASTRUCTURE",
+  // 2026-09-04 (Lee): two buckets for the clips he makes ABOUT the work, not the work itself.
+  "BUILD_IN_PUBLIC", "NONTRADITIONAL",
 ] as const;
 export type Category = (typeof CATEGORIES)[number];
 
@@ -23,6 +25,8 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   CUSTOMER_SUCCESS: "Customer success",
   UI_UX: "UI / UX",
   INFRASTRUCTURE: "Infrastructure",
+  BUILD_IN_PUBLIC: "Build in public",
+  NONTRADITIONAL: "Nontraditional",
 };
 export const CATEGORY_HINT: Record<Category, string> = {
   AUTHORING: "Talk Box, exhibits, CEQs, content creation",
@@ -32,6 +36,8 @@ export const CATEGORY_HINT: Record<Category, string> = {
   CUSTOMER_SUCCESS: "students, support, guarantees, onboarding — what a page DOES",
   UI_UX: "anything primarily about the interface — how a page LOOKS",
   INFRASTRUCTURE: "domains, inboxes, data, architecture",
+  BUILD_IN_PUBLIC: "side clips about building Survive — the tools, the studio, the vision, the journey",
+  NONTRADITIONAL: "vlog / podcast on nontraditional career paths — not about Survive's product",
 };
 
 export const STATUSES = ["IDEA", "DRAFTED", "SUBMITTED", "APPROVED", "PARKED"] as const;

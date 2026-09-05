@@ -10,8 +10,8 @@
 // DELIBERATELY NOT IMPORTED FROM ./routes/landing — landing imports THIS module, and a cycle
 // through a route file is exactly what trips the TanStack code-splitter. Anything landing owns
 // (TestimonialsSlider, the player) arrives through slots/props instead.
-import { useEffect, useState } from "react";
-import { ArrowLeftRight, ClipboardCheck, Play, Target, MessageCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeftRight, ClipboardCheck, Play, Target, MessageCircle, ZoomIn } from "lucide-react";
 
 import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/canvas/brand";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
@@ -283,6 +283,18 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
 
 /** Chip hover/focus styling — subtle brightness + a hair of lift, quick, reduced-motion safe. */
 export const MARKETING_CSS = `
+@media (hover: hover) and (pointer: fine) {
+  .sa-lee-zoom-img { transition: transform 480ms cubic-bezier(.22,.61,.36,1); }
+  /* Origin moves to the masthead, so the frame closes in on the magazine rather than
+     on the middle of the picture. */
+  .sa-lee-zoom:hover .sa-lee-zoom-img,
+  .sa-lee-zoom:focus-visible .sa-lee-zoom-img { transform: scale(3.1); transform-origin: 32% 63%; }
+}
+@media (prefers-reduced-motion: reduce) { .sa-lee-zoom-img { transition: none; } }
+@keyframes sa-detail-in { from { opacity: 0; transform: scale(0.975); } to { opacity: 1; transform: none; } }
+.sa-detail-in { animation: sa-detail-in 160ms cubic-bezier(.22,.61,.36,1) both; }
+@media (prefers-reduced-motion: reduce) { .sa-detail-in { animation: none; } }
+
 ${CAMPUS_LINE_CSS}
 /* CHANGE-SCHOOL SWAP. A 44px touch target around a 16px glyph, so it is quiet to look at and still
    comfortably tappable on a phone. It brightens rather than growing — nothing under the bolt should
@@ -486,7 +498,10 @@ const FOCUS_CSS = `
 // ── TUTOR CARD + FULL BIO ────────────────────────────────────────────────────────────────────
 // Lee's real photo — 4:5 crop centered on the face (moved here from landing.tsx unchanged; the
 // old cream SVG portrait stays retired for video frames).
-export function LeePortrait({ width = 200, caption = true, variant = "sunrise" }: {
+export function LeePortrait({ width = 200, caption = true, variant = "sunrise", onZoom }: {
+  /** Given, the frame becomes a button with a magnifier on it and pushes in on the
+   *  magazine while hovered. A phone never fires hover, so the button is the real route. */
+  onZoom?: () => void;
   width?: number;
   caption?: boolean;
   /** WHICH LEE. The card and the modal deliberately show different photographs — meeting the same
@@ -505,10 +520,15 @@ export function LeePortrait({ width = 200, caption = true, variant = "sunrise" }
         // The subject is in the LEFT column and object-position has nothing to give here — the
         // source is 0.75 against a 0.8 frame, so width fills exactly and only ~6% of height is
         // croppable. The zoom has to be anchored instead: scaling about the default centre framed
-        // the CAT. Origin at the top-left quarter puts the face and the masthead in the window.
+        // the CAT.
+        //
+        // ROOM AT THE BOTTOM (2026-09-04). scale(1.9) about 0% 25% showed a band from roughly the
+        // top of the frame down to 51% — and the magazine, the thing the caption is about, sits at
+        // 56-71%. It was cropped clean out. His head runs 6-44% and the magazine 56-71%, so the
+        // band has to span 6-71%: 65% of the height, which is scale 1/0.65, centred at ~38%.
         objectPosition: "50% 50%",
-        transformOrigin: "0% 25%",
-        transform: "scale(1.9)",
+        transformOrigin: "30% 38%",
+        transform: "scale(1.5)",
       }
     : {
         src: "/lee-sunrise.jpg",
@@ -523,11 +543,31 @@ export function LeePortrait({ width = 200, caption = true, variant = "sunrise" }
       };
   return (
     <figure className="mx-auto sm:mx-0" style={{ width, transform: "rotate(1.5deg)" }}>
-      <div style={{ width, aspectRatio: "4 / 5", borderRadius: 16, border: "3px solid var(--brand-cream)", overflow: "hidden" }}>
+      <div
+        // HOVER PUSHES IN ON THE MASTHEAD, not on the middle of the picture — the origin is the
+        // magazine. Held in a class rather than inline so the hover state has somewhere to live.
+        className={onZoom ? "group relative cursor-zoom-in sa-lee-zoom" : undefined}
+        onClick={onZoom}
+        role={onZoom ? "button" : undefined}
+        tabIndex={onZoom ? 0 : undefined}
+        onKeyDown={onZoom ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onZoom(); } } : undefined}
+        aria-label={onZoom ? "Zoom in on the Journal of Accountancy" : undefined}
+        style={{ width, aspectRatio: "4 / 5", borderRadius: 16, border: "3px solid var(--brand-cream)", overflow: "hidden" }}
+      >
         <img
           src={art.src} alt={art.alt}
+          className={onZoom ? "sa-lee-zoom-img" : undefined}
           style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: art.objectPosition, transformOrigin: art.transformOrigin, transform: art.transform, display: "block" }}
         />
+        {onZoom && (
+          <span
+            aria-hidden
+            className="absolute grid place-items-center rounded-full"
+            style={{ right: 5, bottom: 5, width: 24, height: 24, background: "rgba(11,18,32,0.82)", color: "#FFFFFF", pointerEvents: "none" }}
+          >
+            <ZoomIn style={{ width: 13, height: 13 }} />
+          </span>
+        )}
       </div>
       {caption && (
         <figcaption className="mt-3 text-center" style={{ fontFamily: BRAND_SANS }}>
@@ -586,8 +626,82 @@ export function TutorCard({ onMore }: { onMore: () => void }) {
 }
 
 /** The full bio, verbatim, in a modal — a chip or "Learn more" opens it; nothing navigates away. */
+/** A THUMBNAIL WITH A CAPTION, for a modal that wants one personal aside. The
+ *  thumbnail toggles a detail view the OWNER renders (see ContainedDetail) so the
+ *  detail can cover the panel the aside sits in rather than the narrow column. */
+function PhotoAside({ width, open, onToggle, caption, thumbRef, children }: {
+  width: number; open: boolean; onToggle: () => void; caption: React.ReactNode;
+  /** The owner passes a ref so focus can come back to the thumbnail when the detail closes. */
+  thumbRef: React.RefObject<HTMLDivElement | null>;
+  children: (onZoom: () => void) => React.ReactNode;
+}) {
+  return (
+    <figure className="shrink-0" style={{ width }}>
+      <div ref={thumbRef} aria-expanded={open}>{children(onToggle)}</div>
+      <figcaption className="mt-2 text-[11px] leading-snug" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
+        {caption}
+      </figcaption>
+    </figure>
+  );
+}
+
+/** THE CONTAINED DETAIL — a larger picture with a line or two of supporting text,
+ *  laid over the PANEL it is mounted in (the panel must be position: relative). It
+ *  never leaves that footprint: no viewport scrim, no second modal, no gallery.
+ *  Closes on ×, on a click anywhere on it outside the picture, and on Escape —
+ *  Escape is caught in the capture phase so the panel underneath does not also
+ *  close. Focus lands on × when it opens and goes back to `returnTo` after. */
+function ContainedDetail({ src, alt, lines, radius, onClose, returnTo }: {
+  src: string; alt: string; lines: React.ReactNode[]; radius: number; onClose: () => void;
+  returnTo: React.RefObject<HTMLElement | null>;
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
+    window.addEventListener("keydown", onKey, true);
+    // The wrapper the owner hands us is not itself focusable — the thumbnail's own
+    // button is — so focus goes to the first focusable thing inside it.
+    const back = returnTo.current;
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      const target = back?.matches?.("[tabindex],button,a") ? back : back?.querySelector<HTMLElement>("[tabindex],button,a");
+      target?.focus?.();
+    };
+  }, [onClose, returnTo]);
+  return (
+    <div
+      role="dialog" aria-modal="true" aria-label={alt}
+      onClick={onClose}
+      className="sa-detail-in absolute inset-0 grid place-items-center p-5"
+      style={{ borderRadius: radius, background: "rgba(11,18,32,0.94)", zIndex: 5 }}
+    >
+      <figure className="w-full" style={{ maxWidth: 380 }} onClick={(e) => e.stopPropagation()}>
+        <img src={src} alt={alt} style={{ width: "100%", borderRadius: 14, display: "block", boxShadow: "0 24px 60px -24px rgba(0,0,0,0.9)" }} />
+        <figcaption className="mt-3 text-[13px] leading-snug" style={{ fontFamily: BRAND_SANS, color: "var(--brand-cream)" }}>
+          {lines.map((l, i) => <span key={i} className="block" style={{ opacity: i === 0 ? 0.92 : 0.7, marginTop: i ? 3 : 0 }}>{l}</span>)}
+        </figcaption>
+      </figure>
+      <button
+        ref={closeRef}
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+        aria-label="Close"
+        className="absolute grid place-items-center rounded-full hover:bg-white/10 focus-visible:ring-2"
+        style={{ top: 12, right: 12, width: 40, height: 40, color: "var(--text-muted)" }}
+      >
+        <span aria-hidden style={{ fontSize: 20 }}>×</span>
+      </button>
+    </div>
+  );
+}
+
 export function TutorBioModal({ onClose }: { onClose: () => void }) {
   const panelRef = useDismiss<HTMLDivElement>(onClose, { enabled: true });
+  // The magazine detail. It lives INSIDE the panel (ContainedDetail), so the bio
+  // never hands the whole screen to a picture.
+  const [magazine, setMagazine] = useState(false);
+  const thumbRef = useRef<HTMLDivElement>(null);
   // Modal is appended late — lock page scroll on the documentElement (body is a no-op under
   // html.sa-navy) and restore on close.
   useEffect(() => {
@@ -599,9 +713,10 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
   const P = ({ children }: { children: React.ReactNode }) => (
     <p style={{ marginTop: 12, fontSize: 15, lineHeight: 1.6, color: "var(--brand-cream)", opacity: 0.9 }}>{children}</p>
   );
+  const RADIUS = 24;
   return (
     <div className="fixed inset-0 z-[300] grid place-items-center overflow-y-auto p-4" style={{ background: "rgba(5,8,16,0.72)" }} role="dialog" aria-modal="true" aria-label="About Lee Ingram">
-      <div ref={panelRef} className="relative w-full max-w-[560px] rounded-3xl p-6 sm:p-8" style={{ background: "var(--bg-page)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS, boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)" }}>
+      <div ref={panelRef} className="relative w-full max-w-[600px] overflow-hidden p-6 sm:p-8" style={{ borderRadius: RADIUS, background: "var(--bg-page)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS, boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)" }}>
         <button
           type="button"
           onClick={onClose}
@@ -611,17 +726,26 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
         >
           <span aria-hidden style={{ fontSize: 20 }}>×</span>
         </button>
-        <div className="flex items-start gap-5">
+
+        {/* TWO COLUMNS on a desktop — the photo and its caption in a narrow left column, the
+            bio in the wide right one, so the picture reads as a personal aside beside the
+            text rather than a header above it. ONE column on a phone, in this same source
+            order: photo, caption, heading, checks, paragraphs, contact. */}
+        <div className="grid gap-5 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-7">
           {/* A DIFFERENT PHOTO FROM THE CARD, on purpose: the same headshot twice in two clicks
               reads as a stock asset. The caption is not decoration — without it this is a picture
-              of a stranger's child, and with it it is the joke that makes the whole bio land. */}
-          <figure className="shrink-0" style={{ width: 104 }}>
-            <LeePortrait width={104} caption={false} variant="kid" />
-            <figcaption className="mt-2 text-[11px] leading-snug" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
-              Just reading the Journal of Accountancy as a kid, vibing.
-            </figcaption>
-          </figure>
-          <div className="min-w-0" style={{ marginTop: 8 }}>
+              of a stranger's child. */}
+          <PhotoAside
+            width={112}
+            open={magazine}
+            onToggle={() => setMagazine((o) => !o)}
+            thumbRef={thumbRef}
+            caption={<>Reading my dad&apos;s <span className="italic">Journal of Accountancy</span> from 1999. Chilling with my cat, Mr. Puddles.</>}
+          >
+            {(onZoom) => <LeePortrait width={112} caption={false} variant="kid" onZoom={onZoom} />}
+          </PhotoAside>
+
+          <div className="min-w-0">
             <h2 className="text-[24px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
               Hey, I&apos;m Lee.
             </h2>
@@ -632,15 +756,27 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
               <TutorCheck>Tutor since 2015</TutorCheck>
               <TutorCheck>1,000+ students tutored</TutorCheck>
             </ul>
+            <P>I built Survive because accounting exams get a lot easier once you&apos;ve already seen the kinds of problems you&apos;re about to get. Every video on here is me — no team, no scripts, just what I&apos;d tell you at the whiteboard.</P>
+            {/* The music/travel line stays — it's disarming and it works. The joke lands as its own
+                short sentence rather than as a fourth item buried in the list. */}
+            <P>Outside Survive I&apos;m usually traveling, seeing live music, or playing live music. Or working on Survive.</P>
+            <P>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a> if you have a question or just want to say hi. I read every one.</P>
           </div>
         </div>
-        <div className="mt-4">
-          <P>I built Survive because accounting exams get a lot easier once you&apos;ve already seen the kinds of problems you&apos;re about to get. Every video on here is me — no team, no scripts, just what I&apos;d tell you at the whiteboard.</P>
-          {/* The music/travel line stays — it's disarming and it works. The joke lands as its own
-              short sentence rather than as a fourth item buried in the list. */}
-          <P>Outside Survive I&apos;m usually traveling, seeing live music, or playing live music. Or working on Survive.</P>
-          <P>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a> if you have a question or just want to say hi. I read every one.</P>
-        </div>
+
+        {magazine && (
+          <ContainedDetail
+            src="/lee-kid-joa-detail.jpg"
+            alt="The Journal of Accountancy, close up"
+            lines={[
+              <>My dad&apos;s copy of the <span className="italic">Journal of Accountancy</span> — August 1999.</>,
+              <>Cover line: &ldquo;10 Commandments of Mutual Fund Investing.&rdquo;</>,
+            ]}
+            radius={RADIUS}
+            onClose={() => setMagazine(false)}
+            returnTo={thumbRef}
+          />
+        )}
       </div>
     </div>
   );
@@ -720,7 +856,7 @@ export function FloatingContact({ heroId, tel, phone, onText, onEmail, bottomOff
         {photo && (
           <img
             src={photo} alt="" aria-hidden
-            style={{ width: 50, height: 56, objectFit: "cover", objectPosition: "20% 45%", borderRadius: 12, border: "2px solid var(--brand-cream)", boxShadow: "0 12px 28px -10px rgba(0,0,0,0.85)", display: "block" }}
+            style={{ width: 50, height: 56, objectFit: "cover", objectPosition: "50% 30%", borderRadius: 12, border: "2px solid var(--brand-cream)", boxShadow: "0 12px 28px -10px rgba(0,0,0,0.85)", display: "block" }}
           />
         )}
         <span
@@ -738,7 +874,7 @@ export function FloatingContact({ heroId, tel, phone, onText, onEmail, bottomOff
         <img
           src={photo} alt="" aria-hidden
           className="hidden sm:block"
-          style={{ width: 54, height: 62, objectFit: "cover", objectPosition: "20% 45%", borderRadius: 12, border: "2px solid var(--brand-cream)", boxShadow: "0 12px 28px -10px rgba(0,0,0,0.8)", transform: "rotate(1.5deg)" }}
+          style={{ width: 54, height: 62, objectFit: "cover", objectPosition: "50% 30%", borderRadius: 12, border: "2px solid var(--brand-cream)", boxShadow: "0 12px 28px -10px rgba(0,0,0,0.8)", transform: "rotate(1.5deg)" }}
         />
       )}
       <a
