@@ -64,7 +64,7 @@ export function VideoCard({
         ) : (
           <span className="absolute inset-0 grid place-items-center">
             <span className="inline-block" style={{ height: compact ? 26 : 34, width: compact ? 16 : 21 }}>
-              <Bolt c1="#C62828" c2="#1565C0" />
+              <Bolt c1="#006BA6" c2="#00456E" />
             </span>
           </span>
         )}

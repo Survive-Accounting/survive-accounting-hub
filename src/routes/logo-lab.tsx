@@ -107,7 +107,7 @@ const DEFAULTS: State = {
   boltOffX: 0, boltOffY: 0, boltRotate: 0, boltDepth: "mid", boltOverlapL: 0, boltOverlapR: 0, boltPivotX: 50, boltPivotY: 50,
   fxInner: 0, fxShadow: 0, fxEmboss: 0, fxSticker: 0, fxVintage: 0, fxInk: 0, zoom: 1,
   showAcc: true, accText: "Accounting", accFont: "Rubik", accWeight: 600, accTracking: 0.34, accSize: 0.15,
-  rules: true, rulesFromBolt: true, ruleC1: "#C62828", ruleC2: "#1565C0",
+  rules: true, rulesFromBolt: true, ruleC1: "#006BA6", ruleC2: "#00456E",
   showSlogan: false, sloganMode: "scroller", sloganFont: "Rubik", sloganWeight: 600, sloganSize: 0.2,
   plain: "Cram videos by Lee Ingram", line1: "Not boring lecture videos.", pre: "More like ", cycle: "TikTok, Reels, Shorts", suf: " for cramming.", cycleMs: 1400,
   entrance: "none", animMs: 900,

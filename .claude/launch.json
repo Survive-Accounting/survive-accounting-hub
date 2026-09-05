@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "film-camera-dev",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "dev", "--port", "8097"],
+      "port": 8097
+    },
+    {
       "name": "growth-dashboard-dev",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["run", "dev", "--port", "8091"],

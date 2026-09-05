@@ -28,8 +28,9 @@ import { BOLT_OUTER, BOLT_RIGHT, SEC_SCHOOLS } from "@/components/canvas/brand";
 import { schoolBySlug } from "@/lib/schools";
 import { flyerQrCaption } from "@/lib/rep-earnings";
 
-const FALLBACK_C1 = "#CE1126";
-const FALLBACK_C2 = "#1D4E9E";
+// The house mark, for a flyer whose campus has no stored pair.
+const FALLBACK_C1 = "#006BA6";
+const FALLBACK_C2 = "#00456E";
 
 export type FlyerInput = {
   schoolSlug: string;

@@ -232,7 +232,7 @@ describe("curated rotation order", () => {
 
   test("an unknown id still yields a usable campus rather than throwing", () => {
     const miss = boltCampusFor("not-a-school");
-    expect(miss.primary).toBe("#C62828");
+    expect(miss.primary).toBe("#006BA6"); // the house mark, not a campus pair
     expect(miss.id).toBe("not-a-school");
   });
 

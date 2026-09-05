@@ -42,8 +42,6 @@ export const TUTOR = "Lee Ingram";
 const FONT = "'Rubik', system-ui, sans-serif";
 const HEAD_FONT = "'League Spartan', 'Rubik', system-ui, sans-serif";
 const WHITE = "#FFFFFF";
-const POWDER = "#B3E5FC";
-const SKY = "#7DD3FC";
 
 /** The quiet line under the wordmark block — "tutored by Lee Ingram", the domain. */
 function QUIET(h: number): React.CSSProperties {
@@ -146,27 +144,52 @@ export function GlowWordmark({ size, palette = "powder", live = true, second, bo
   second?: string;
   boilFrame?: number;
 }) {
-  const gradient = palette === "powder"
-    ? `linear-gradient(115deg, ${WHITE} 0%, ${POWDER} 28%, ${SKY} 50%, ${WHITE} 72%, ${POWDER} 100%)`
+  // PURE WHITE ON THE SLIDES (Lee, 2026-09-04): "remove the powderblue
+  // animation … we just want that to be pure white and maybe make it pop out a
+  // bit more with a clean shadow." So the powder palette no longer sweeps a
+  // gradient through the letters at all — it is flat #FFFFFF, lifted off the
+  // black by shadow instead of by hue.
+  //
+  // THREE STAGES, not one glow. A single soft glow hazes white type and is the
+  // first thing H.264 smears; a contact edge plus a near shadow plus a wide
+  // ambient reads as cut-out and survives compression:
+  //   1. a hairline contact edge, no blur — defines the letterform
+  //   2. a short near shadow — lifts it off the ground
+  //   3. a wide, weak ambient — gives the depth
+  // drop-shadow (not text-shadow) so the boiling bolt standing in for the "i"
+  // gets exactly the same lift as the letters around it.
+  const flat = palette === "powder";
+  const gradient = flat
+    ? null
     : `linear-gradient(115deg, ${BRAND_RED} 0%, ${BRAND_CREAM} 22%, ${BRAND_BLUE} 45%, ${BRAND_RED} 68%, ${BRAND_CREAM} 90%, ${BRAND_BLUE} 100%)`;
-  const glow = palette === "powder"
-    ? `drop-shadow(0 0 ${Math.round(size * 0.10)}px rgba(179,229,252,0.32))`
+  const glow = flat
+    ? [
+        `drop-shadow(0 ${Math.max(1, Math.round(size * 0.012))}px 0 rgba(0,0,0,0.55))`,
+        `drop-shadow(0 ${Math.round(size * 0.03)}px ${Math.round(size * 0.04)}px rgba(0,0,0,0.45))`,
+        `drop-shadow(0 ${Math.round(size * 0.09)}px ${Math.round(size * 0.20)}px rgba(0,0,0,0.38))`,
+      ].join(" ")
     : `drop-shadow(0 0 ${Math.round(size * 0.12)}px rgba(245,239,230,0.28))`;
-  const ink: React.CSSProperties = {
-    backgroundImage: gradient, backgroundSize: "300% 100%", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
-    ["--sweep" as string]: palette === "powder" ? "14s" : "9s",
-  };
+  const ink: React.CSSProperties = flat
+    ? { color: WHITE }
+    : {
+        backgroundImage: gradient!, backgroundSize: "300% 100%", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
+        ["--sweep" as string]: "9s",
+      };
+  // Nothing to sweep when the ink is flat, so the animation class comes off too
+  // — that also makes the open and the summary render identically frame by
+  // frame, which the offline renderer wants.
+  const sweep = flat ? undefined : "sa-zoom-sweep";
   return (
     <div className={live ? undefined : "sa-zoom-still"} style={{ display: "flex", flexDirection: "column", alignItems: "center", filter: glow, pointerEvents: "none" }}>
       {/* self-styled, so the glow moves on the ads and anywhere else BoltZoom's sheet is not mounted */}
       <style>{GLOW_CSS}</style>
       <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: FONT, fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
-        <span className="sa-zoom-sweep" style={ink}>surv</span>
+        <span className={sweep} style={ink}>surv</span>
         <BoltBoil height={size * 0.8} boilSeconds={1.2} boilFrame={boilFrame} style={{ marginLeft: size * -0.015, marginRight: size * 0.03, transform: `translate(${size * (-1 / 96)}px, ${size * 0.13}px) rotate(2deg)`, transformOrigin: "100% 51%" }} />
-        <span className="sa-zoom-sweep" style={{ ...ink, animationDelay: "-2s" }}>ve</span>
+        <span className={sweep} style={{ ...ink, animationDelay: "-2s" }}>ve</span>
       </span>
       {second && (
-        <span className="sa-zoom-sweep" style={{ ...ink, fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(size * 0.5), letterSpacing: "0.22em", textTransform: "uppercase", marginTop: Math.round(size * 0.12), animationDelay: "-4s" }}>{second}</span>
+        <span className={sweep} style={{ ...ink, fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(size * 0.5), letterSpacing: "0.22em", textTransform: "uppercase", marginTop: Math.round(size * 0.12), animationDelay: "-4s" }}>{second}</span>
       )}
     </div>
   );

@@ -10,9 +10,9 @@ describe("brand system", () => {
   test("primary is the kit's red/blue; white + black are single-colour house options", () => {
     expect(BOLT_PRESETS.map((p) => p.id)).toEqual(["red-blue", "white", "black"]);
     expect(BOLT_PRESETS[0].c1).toBe(BRAND_RED);
-    expect(BRAND_RED).toBe("#C62828");
+    expect(BRAND_RED).toBe("#006BA6");
     expect(BOLT_PRESETS[0].c2).toBe(BRAND_BLUE);
-    expect(BRAND_BLUE).toBe("#1565C0");
+    expect(BRAND_BLUE).toBe("#00456E");
   });
 
   test("the current 16-team SEC, all with two hex colours", () => {

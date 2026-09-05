@@ -121,7 +121,7 @@ export function canonicalSchoolName(slug: string | null | undefined, fallback: s
  *  row show the same school in the same colours. */
 export function boltForSlug(slug: string | null | undefined): { c1: string; c2: string } {
   const s = schoolBySlug(slug);
-  return s?.c1 && s.c2 ? { c1: s.c1, c2: s.c2 } : { c1: "#C62828", c2: "#1565C0" };
+  return s?.c1 && s.c2 ? { c1: s.c1, c2: s.c2 } : { c1: "#006BA6", c2: "#00456E" };
 }
 
 /** Course code for a slug, or null. Callers must render "your accounting course" for null rather

@@ -12,8 +12,9 @@ import { GENERATED_SCHOOLS } from "@/lib/schools.generated";
 import { BOLT_ACCENTS, CURATED_CAMPUS_ORDER } from "./bolt-config";
 import type { BoltCampus } from "./bolt-palette";
 
-/** Fallback colours for a campus row with no stored pair — the house red/blue, never a guess. */
-const HOUSE = { c1: "#C62828", c2: "#1565C0" };
+/** Fallback colours for a campus row with no stored pair — the house mark, never a guess.
+ *  A campus WITH a stored pair keeps its own two school colours; this is only the neutral. */
+const HOUSE = { c1: "#006BA6", c2: "#00456E" };
 
 /** Every school in the table as a campus the bolt can wear. Colours are the EXACT stored hex; the
  *  light-colour rule in bolt-palette decides what actually gets painted. */

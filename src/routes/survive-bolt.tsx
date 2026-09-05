@@ -34,7 +34,7 @@ const PANEL = "rgba(16,24,44,0.92)";
 
 /** Colourways that have to work: the brand, and three schools. */
 const WAYS = [
-  { name: "Survive", red: "#C62828", blue: "#1565C0" },
+  { name: "Survive", red: "#006BA6", blue: "#00456E" },
   { name: "Ole Miss", red: "#CE1126", blue: "#14213D" },
   { name: "LSU", red: "#461D7C", blue: "#FDD023" },
   { name: "Michigan", red: "#00274C", blue: "#FFCB05" },

@@ -83,6 +83,6 @@ export const getCampusPage = createServerFn({ method: "POST" })
 
     return {
       slug: s.slug, name: s.name, formalName, campusId: s.campusId, courseCode,
-      c1: s.c1 ?? "#C62828", c2: s.c2 ?? "#1565C0", chapterCount,
+      c1: s.c1 ?? "#006BA6", c2: s.c2 ?? "#00456E", chapterCount,
     };
   });

@@ -9,7 +9,7 @@
 // their shared edge is the seam, so no gap can appear; the white keyline is a
 // stroke on the outer path only.)
 //
-// COLOURS are data: primary red #C62828 / blue #1565C0, white/black mono, and
+// COLOURS are data: the house mark #006BA6 / #00456E, white/black mono, and
 // any SEC school's two colours. The seam split is identical across every use
 // (wordmark, lockup, emblem, favicon, school colours).
 import { useId } from "react";
@@ -26,8 +26,11 @@ export const BRAND_SERIF_VARIATION = "'opsz' 144, 'SOFT' 60, 'WONK' 0";
 export const BRAND_DISPLAY = "'Rubik', system-ui, -apple-system, sans-serif";
 export const BRAND_DISPLAY_WEIGHT = 900;
 
-export const BRAND_RED = "#C62828";
-export const BRAND_BLUE = "#1565C0";
+// THE MARK (2026-09-04) — one hue, two values; see bolt-boil.tsx for the why.
+export const BOLT_LIT = "#006BA6";
+export const BOLT_SHADE = "#00456E";
+export const BRAND_RED = BOLT_LIT;
+export const BRAND_BLUE = BOLT_SHADE;
 export const BRAND_WHITE = "#FFFFFF";
 
 // ---- bolt geometry — Lee's FINAL hand-edited bolt (Logo Lab preset) --------------
@@ -38,12 +41,22 @@ export const BRAND_WHITE = "#FFFFFF";
 // the top tip and both reach the bottom tip, meeting along the seam with NO white
 // between them; the white keyline is only on the OUTSIDE. To reshape: rebuild it in
 // /logo-lab, then paste the new BOLT_OUTER / BOLT_RIGHT / viewBox here.
+// 2026-09-04 - THE TOP TIP, REDRAWN (Lee, dialled in the Bolt Tip Lab). Three edits, all
+// above the last left tooth; the BOTTOM tip and every serration below are untouched.
+//   1. The barb that hung off the underside-left of the tip is gone (was 42.46 15.29 /
+//      seam 43.85 14.01), and so is the kink it left behind (57.55 18.89 / seam 56.41
+//      19.96) - the run into the tip is now ONE STRAIGHT LINE.
+//   2. The last left tooth turns back 23% sooner, at 25.99 39.73 (was 21.39 38.45).
+//   3. That straight run leaves the tooth at 27.8 deg above horizontal (was 32.3) and
+//      reaches 104%, putting the tip at 85.46 8.38. The shallower angle is the nod to the
+//      bottom-right run, which sits at 16.2 deg; matching it exactly cost too much height.
+// The mark is 129.25 units tall, 4.5 shorter than before, inside the same viewBox.
 const OUTLINE = 8; // white keyline stroke width (half shows outside the fill)
 /** Full silhouette (c1 fill + the white outer keyline). */
-export const BOLT_OUTER = "M76.02 3.9 L66.89 32.29 L85.06 31.98 L54.88 51.08 L77.05 50.77 L43.48 73.57 L76.74 73.57 L49.77 92.03 L63.19 94.82 L28.39 111.14 L42.56 112.07 L18.22 120.69 L22.53 128.7 L-8.27 137.63 L15.14 108.99 L-10.73 108.06 L26.85 92.35 L-11.54 90.51 L34.22 62.78 L3.83 64.94 L41.41 44 L21.39 38.45 L57.55 18.89 L42.46 15.29 Z";
+export const BOLT_OUTER = "M85.46 8.38 L66.89 32.29 L85.06 31.98 L54.88 51.08 L77.05 50.77 L43.48 73.57 L76.74 73.57 L49.77 92.03 L63.19 94.82 L28.39 111.14 L42.56 112.07 L18.22 120.69 L22.53 128.7 L-8.27 137.63 L15.14 108.99 L-10.73 108.06 L26.85 92.35 L-11.54 90.51 L34.22 62.78 L3.83 64.94 L41.41 44 L25.99 39.73 Z";
 /** BLUE (right) seam region, overlaid on the red base so red = left, blue = right,
  *  meeting along the seam with NO gap. */
-export const BOLT_RIGHT = "M75.53 3.74 L43.85 14.01 L56.41 19.96 L21.36 38.79 L42.92 44.46 L2.88 65.4 L34.3 61.71 L-10.67 90.66 L28.14 91.89 L-12.21 106.98 L14.99 110.04 L-10.11 138.7 L24.54 129.73 L19.03 121.61 L20.48 114.36 L23.38 107.69 L9.17 105.37 L46.87 95.8 L37.59 91.74 L61.08 78.4 L8.3 85.94 L59.34 56.36 L40.77 54.14 L70.06 35.77 L44.26 35.77 L69.77 22.72 Z";
+export const BOLT_RIGHT = "M84.97 8.22 L25.96 40.07 L42.92 44.46 L2.88 65.4 L34.3 61.71 L-10.67 90.66 L28.14 91.89 L-12.21 106.98 L14.99 110.04 L-10.11 138.7 L24.54 129.73 L19.03 121.61 L20.48 114.36 L23.38 107.69 L9.17 105.37 L46.87 95.8 L37.59 91.74 L61.08 78.4 L8.3 85.94 L59.34 56.36 L40.77 54.14 L70.06 35.77 L44.26 35.77 L69.77 22.72 Z";
 // viewBox + aspect straight from the Logo Lab export (dry bounds + keyline padding).
 export const BOLT_VIEWBOX = "-18.21 -2.26 109.27 146.96";
 export const BOLT_RATIO = 109.27 / 146.96;
