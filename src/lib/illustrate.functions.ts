@@ -12,13 +12,27 @@ import { composeIllustrationPrompt, illustrationStyle } from "@/components/blast
 
 const MISSING_BUCKET_HINT = "The canvas-media storage bucket is missing — see migration 0085.";
 
-/** Is generation possible right now? Lets the editor say so before Lee types a prompt. */
-export const illustrationStatus = createServerFn({ method: "GET" }).handler(async (): Promise<{ configured: boolean; provider: string }> => {
+/** Is generation possible right now? Says WHICH thing is missing — the server session or the
+ *  key — so the editor never blames the key for a missing cookie (2026-09-05). Never throws. */
+export const illustrationStatus = createServerFn({ method: "GET" }).handler(async (): Promise<{ signedIn: boolean; configured: boolean; provider: string; keyLength: number }> => {
+  const { adminSessionOk } = await import("@/lib/admin-session.functions");
+  let signedIn = false;
+  try { signedIn = (await adminSessionOk())?.ok === true; } catch { signedIn = false; }
+  const { providerFor } = await import("@/lib/recraft.server");
+  const style = illustrationStyle(null);
+  const keyLength = (process.env.RECRAFT_API_KEY ?? "").trim().length;
+  return { signedIn, configured: signedIn && providerFor(style.provider).configured(), provider: style.provider, keyLength: signedIn ? keyLength : 0 };
+});
+
+/** "Test the key": one free call to the provider. Admin-gated; the key itself never leaves. */
+export const testIllustrationKey = createServerFn({ method: "POST" }).handler(async (): Promise<{ ok: boolean; credits?: number; email?: string; error?: string }> => {
   const { assertAdmin } = await import("@/lib/admin-session.functions");
   await assertAdmin();
   const { providerFor } = await import("@/lib/recraft.server");
-  const style = illustrationStyle(null);
-  return { configured: providerFor(style.provider).configured(), provider: style.provider };
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 15_000);
+  try { return await providerFor(illustrationStyle(null).provider).check(ctl.signal); }
+  finally { clearTimeout(t); }
 });
 
 export const generateIllustration = createServerFn({ method: "POST" })

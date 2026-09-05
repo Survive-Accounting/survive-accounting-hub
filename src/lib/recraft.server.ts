@@ -30,6 +30,8 @@ export interface IllustrationProvider {
   id: string;
   /** True when the server holds a key for this provider. Never reveals the key. */
   configured(): boolean;
+  /** A free round-trip that proves the key: Recraft's /users/me. Never reveals the key. */
+  check(signal?: AbortSignal): Promise<{ ok: boolean; credits?: number; email?: string; error?: string }>;
   generate(req: IllustrationRequest, signal?: AbortSignal): Promise<IllustrationResult>;
 }
 
@@ -54,6 +56,16 @@ async function recraftError(res: Response): Promise<Error> {
 export const recraftProvider: IllustrationProvider = {
   id: "recraft",
   configured() { return keyOf() !== null; },
+  async check(signal) {
+    const key = keyOf();
+    if (!key) return { ok: false, error: "no RECRAFT_API_KEY on this server" };
+    try {
+      const res = await fetch(`${RECRAFT_BASE}/users/me`, { headers: { Authorization: `Bearer ${key}` }, signal });
+      if (!res.ok) return { ok: false, error: (await recraftError(res)).message };
+      const j = await res.json() as { credits?: number; email?: string };
+      return { ok: true, credits: j.credits, email: j.email };
+    } catch (e) { return { ok: false, error: `could not reach Recraft: ${(e as Error).message}` }; }
+  },
   async generate(req, signal) {
     const key = keyOf();
     if (!key) throw new Error("RECRAFT_API_KEY is not configured on the server — set it in .env (local) and in Vercel's environment variables.");

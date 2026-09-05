@@ -45,7 +45,9 @@ import { SlideEditContext } from "./slide-edit";
 import { CAM_LABEL, CAM_SPOTS, camSpotOf, isCamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf } from "./layout";
 import { ANIMATION_LABEL, ANIMATION_PRESETS, PROMPTING_TIPS, canIllustrate, emptyIllustration, illustrationStyle, isStaleIllustration } from "./illustration";
-import { generateIllustration, illustrationStatus } from "@/lib/illustrate.functions";
+import { generateIllustration, illustrationStatus, testIllustrationKey } from "@/lib/illustrate.functions";
+import { installPasscodeSession } from "@/lib/admin-session.functions";
+import { getAdminWho } from "@/components/AdminGate";
 import {
   PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups, readTidy, setStampCandidates, tidyCacheKey, writeTidy,
   type PrompterCandidate, type TidyPhrase, type TidyResult,
@@ -544,9 +546,26 @@ function IllustrationBlock({ sel, setId, onPatch }: { sel: BlastFrame; setId: st
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [tips, setTips] = useState(false);
-  const [avail, setAvail] = useState<{ configured: boolean; provider: string } | null>(null);
+  const [avail, setAvail] = useState<{ signedIn: boolean; configured: boolean; provider: string; keyLength: number } | null>(null);
+  const [availErr, setAvailErr] = useState<string | null>(null);
+  const [pass, setPass] = useState("");
+  const [keyTest, setKeyTest] = useState<string | null>(null);
   useEffect(() => { setPrompt(ill?.prompt ?? ""); setIntent(ill?.teachingIntent ?? ""); setErr(null); }, [sel.id]);   // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { let on = true; illustrationStatus().then((s) => { if (on) setAvail(s); }).catch(() => { if (on) setAvail({ configured: false, provider: "recraft" }); }); return () => { on = false; }; }, []);
+  const checkAvail = () => { illustrationStatus().then((s) => { setAvail(s); setAvailErr(null); }).catch((e) => { setAvail(null); setAvailErr((e as Error).message); }); };
+  useEffect(() => { checkAvail(); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  const signIn = async () => {
+    setKeyTest(null);
+    try {
+      const r = await installPasscodeSession({ data: { passcode: pass, who: getAdminWho() === "king" ? "king" : "lee" } });
+      if (!r.ok) { setKeyTest(r.error ?? "Wrong passcode."); return; }
+      setPass(""); checkAvail();
+    } catch (e) { setKeyTest((e as Error).message); }
+  };
+  const testKey = async () => {
+    setKeyTest("Asking Recraft…");
+    try { const r = await testIllustrationKey(); setKeyTest(r.ok ? `✓ Key works — ${r.credits ?? "?"} API units left${r.email ? ` (${r.email})` : ""}.` : `✗ ${r.error ?? "rejected"}`); }
+    catch (e) { setKeyTest(`✗ ${(e as Error).message}`); }
+  };
   const style = illustrationStyle(ill?.stylePreset);
   const stale = isStaleIllustration(ill);
   const seedIntent = () => intent.trim() || insertStem(sel) || (sel.bullets ?? []).join("; ") || "";
@@ -579,9 +598,27 @@ function IllustrationBlock({ sel, setId, onPatch }: { sel: BlastFrame; setId: st
           {PROMPTING_TIPS.map((t, i) => <li key={i} style={{ margin: "2px 0" }}>{t}</li>)}
         </ul>
       )}
-      {avail && !avail.configured && (
-        <div style={{ marginTop: 6, fontSize: 11, color: ORANGE }}>Generation is unavailable — the server has no {avail.provider} key (RECRAFT_API_KEY). You can still bank the idea.</div>
+      {/* THE THREE STATES, named (2026-09-05) — not signed in on the server · no key · ready. */}
+      {availErr && <div style={{ marginTop: 6, fontSize: 11, color: ORANGE }}>Couldn't check the server: {availErr}</div>}
+      {avail && !avail.signedIn && (
+        <div style={{ marginTop: 6, padding: "8px 10px", border: `1px solid ${ORANGE}88`, borderRadius: 8, fontSize: 11, color: CREAM, lineHeight: 1.45 }}>
+          <b style={{ color: ORANGE }}>Not signed in on the server.</b> This page unlocks in the browser only; generating (it costs money) needs the team passcode exchanged for a server session once per browser, per month.
+          <div className="flex" style={{ gap: 6, marginTop: 6 }}>
+            <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void signIn(); }} placeholder="team passcode" style={{ ...field, flex: 1, minHeight: 0, padding: "4px 8px" }} />
+            <button type="button" onClick={() => void signIn()} style={chip(true, GOLD)}>Sign in</button>
+          </div>
+        </div>
       )}
+      {avail && avail.signedIn && !avail.configured && (
+        <div style={{ marginTop: 6, fontSize: 11, color: ORANGE }}>Signed in, but the server has no {avail.provider} key: RECRAFT_API_KEY is empty on this deployment. Add it in Vercel (Production ticked), redeploy, reload. You can still bank the idea.</div>
+      )}
+      {avail && avail.configured && (
+        <div className="flex" style={{ gap: 8, marginTop: 6, alignItems: "center", fontSize: 10.5, color: MUTED }}>
+          <span>Key present on the server ({avail.keyLength} chars).</span>
+          <button type="button" onClick={() => void testKey()} style={chip(false, GOLD)} title="One free call to Recraft — proves the key and shows the balance">Test the key</button>
+        </div>
+      )}
+      {keyTest && <div style={{ marginTop: 4, fontSize: 11, color: keyTest.startsWith("✓") ? "#3BF5A0" : ORANGE }}>{keyTest}</div>}
       {!ill && <div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>None on this slide. Most slides should stay clean — 1–3 pictures per Short.</div>}
       <label style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 6 }}>Describe the visual
         <textarea rows={2} style={{ ...field, marginTop: 4, resize: "vertical" }} value={prompt} placeholder="e.g. a nervous investor peering at a financial statement through a magnifying glass" onChange={(e) => setPrompt(e.target.value)} /></label>
