@@ -9,6 +9,8 @@
 // cards can render Lee's saved Logo Lab preset (e.g. "FINAL") instead of the built-in default.
 import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
 
+import { BOLT_OUTER, BOLT_RATIO, BOLT_RIGHT, BOLT_VIEWBOX } from "@/components/canvas/brand";
+
 // THE MARK (2026-09-04) — ONE HUE, TWO VALUES. The seam is no longer a second
 // colour but the SHADOW of the first, so the bolt reads as one folded object
 // rather than two halves of a divided field. Two things fall out of that: the
@@ -32,11 +34,18 @@ export type BoilFrame = { outer: string; seam: string; sw: number;
   cap?: string };
 export type BoltSpec = { frames: BoilFrame[]; viewBox: string; ratio: number; red: string; blue: string; cream: string };
 
-// Lee's FINAL hand-edited bolt (baked from his Logo Lab preset — the canonical logo). These
-// are the exact dry rings; the boil wobbles their interiors. Keep in sync with brand.tsx
-// BOLT_OUTER / BOLT_RIGHT (same shape, decomposed into points so the boil can perturb them).
-const FINAL_OUTER: [number, number][] = [[85.46, 8.38], [66.89, 32.29], [85.06, 31.98], [54.88, 51.08], [77.05, 50.77], [43.48, 73.57], [76.74, 73.57], [49.77, 92.03], [63.19, 94.82], [28.39, 111.14], [42.56, 112.07], [18.22, 120.69], [22.53, 128.7], [-8.27, 137.63], [15.14, 108.99], [-10.73, 108.06], [26.85, 92.35], [-11.54, 90.51], [34.22, 62.78], [3.83, 64.94], [41.41, 44], [25.99, 39.73]];
-const FINAL_SEAM: [number, number][] = [[84.97, 8.22], [25.96, 40.07], [42.92, 44.46], [2.88, 65.4], [34.3, 61.71], [-10.67, 90.66], [28.14, 91.89], [-12.21, 106.98], [14.99, 110.04], [-10.11, 138.7], [24.54, 129.73], [19.03, 121.61], [20.48, 114.36], [23.38, 107.69], [9.17, 105.37], [46.87, 95.8], [37.59, 91.74], [61.08, 78.4], [8.3, 85.94], [59.34, 56.36], [40.77, 54.14], [70.06, 35.77], [44.26, 35.77], [69.77, 22.72]];
+// Lee's FINAL bolt — THE SAME PATHS brand.tsx draws, decomposed into points so the boil
+// can perturb their interiors. Derived, not copied: for a day (2026-09-04) this file held
+// its own hand-typed duplicate and the tip redraw had to be applied in two places; a
+// ratchet in brand.test.ts now fails if these rings ever stop matching BOLT_OUTER.
+// A function declaration, not an arrow const — canvas/tdz-graph.test.ts forbids new
+// module-scope arrow callables on the render path.
+function pathToPoints(d: string): [number, number][] {
+  return d.replace(/\s*Z\s*$/, "").split(/\s*[ML]\s*/).filter(Boolean)
+    .map((pair) => { const [x, y] = pair.trim().split(/\s+/).map(Number); return [x, y] as [number, number]; });
+}
+const FINAL_OUTER: [number, number][] = pathToPoints(BOLT_OUTER);
+const FINAL_SEAM: [number, number][] = pathToPoints(BOLT_RIGHT);
 
 /** A FIXED 4-frame boil for arbitrary rings: interior vertices wobble on a deterministic
  *  field (<=1.3px), each ring's top-most + bottom-most vertex PINNED so tip/base never drift,
@@ -56,7 +65,7 @@ export function makeBoil(outer: [number, number][], seam: [number, number][], ou
 
 // Built-in default = Lee's FINAL bolt (also the fallback when no preset is loaded). White
 // keyline per his config; red/blue are the brand primaries.
-export const DEFAULT_BOLT_SPEC: BoltSpec = { frames: makeBoil(FINAL_OUTER, FINAL_SEAM, 8), viewBox: "-18.21 -2.26 109.27 146.96", ratio: 109.27 / 146.96, red: BRAND_RED, blue: BRAND_BLUE, cream: "#FFFFFF" };
+export const DEFAULT_BOLT_SPEC: BoltSpec = { frames: makeBoil(FINAL_OUTER, FINAL_SEAM, 8), viewBox: BOLT_VIEWBOX, ratio: BOLT_RATIO, red: BRAND_RED, blue: BRAND_BLUE, cream: "#FFFFFF" };
 
 export const BoltContext = createContext<BoltSpec>(DEFAULT_BOLT_SPEC);
 

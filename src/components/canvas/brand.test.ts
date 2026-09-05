@@ -4,7 +4,9 @@
 // skull/circle (a plain bolt).
 import { describe, expect, test } from "bun:test";
 
-import { BOLT_OUTER, BOLT_PRESETS, BOLT_RIGHT, boltColorById, boltSvgMarkup, BRAND_BLUE, BRAND_RED, LOGO_MODES, SEC_SCHOOLS } from "./brand";
+import { DEFAULT_BOLT_SPEC } from "@/components/brand-cards/bolt-boil";
+
+import { BOLT_OUTER, BOLT_PRESETS, BOLT_RIGHT, BOLT_VIEWBOX, boltColorById, boltSvgMarkup, BRAND_BLUE, BRAND_RED, LOGO_MODES, SEC_SCHOOLS } from "./brand";
 
 describe("brand system", () => {
   test("primary is the kit's red/blue; white + black are single-colour house options", () => {
@@ -54,6 +56,18 @@ describe("brand system", () => {
     const m = boltSvgMarkup({ c1: "#161616", c2: "#161616" });
     expect(m).toContain(`d="${BOLT_OUTER}" fill="#161616"`);
     expect(m).not.toContain(BOLT_RIGHT); // no right-region overlay when mono
+  });
+
+  test("the boil draws THE SAME bolt as brand.tsx — pinned tip, vertex count, viewBox", () => {
+    // makeBoil pins each ring's top-most vertex, so frame 0 must open on brand.tsx's tip
+    // verbatim. This is the ratchet that stops bolt-boil.tsx drifting from the canvas bolt.
+    const tipOf = (d: string) => d.replace(/^M\s*/, "").split(/\s*L/)[0].trim();
+    const f0 = DEFAULT_BOLT_SPEC.frames[0];
+    expect(tipOf(f0.outer)).toBe(tipOf(BOLT_OUTER));
+    expect(tipOf(f0.seam)).toBe(tipOf(BOLT_RIGHT));
+    expect((f0.outer.match(/[ML]/g) ?? []).length).toBe((BOLT_OUTER.match(/[ML]/g) ?? []).length);
+    expect((f0.seam.match(/[ML]/g) ?? []).length).toBe((BOLT_RIGHT.match(/[ML]/g) ?? []).length);
+    expect(DEFAULT_BOLT_SPEC.viewBox).toBe(BOLT_VIEWBOX);
   });
 
   test("Dead-style bolt: silhouette + seam open at ~the same top tip, serrated + closed", () => {
