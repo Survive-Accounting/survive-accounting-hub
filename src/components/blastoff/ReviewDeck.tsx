@@ -63,7 +63,8 @@ const QUICK: readonly { kind: BlastFrameKind; label: string; patch?: Partial<Bla
   { kind: "bolt", label: "Bolt detour" },
   { kind: "ad", label: "Ad · Greek", patch: { ad: "greek" } },
   { kind: "ad", label: "Ad · reps", patch: { ad: "rep" } },
-  { kind: "ad", label: "Ad · syllabus", patch: { ad: "send" } },
+  { kind: "ad", label: "Ad · materials", patch: { ad: "send" } },
+  { kind: "ad", label: "Ad · behind the scenes", patch: { ad: "building" } },
 ];
 
 const SKY = "#7DD3FC";

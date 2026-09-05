@@ -75,8 +75,8 @@ function SendPage() {
       <SiteHeader />
       <main style={{ flex: 1, width: "100%", maxWidth: 640, margin: "0 auto", padding: "40px 20px 72px" }}>
         <div style={{ marginBottom: 18 }}><SurviveWordmark size={44} /></div>
-        <h1 style={{ fontFamily: BRAND_DISPLAY, fontSize: "clamp(30px, 6vw, 44px)", lineHeight: 1.04, margin: "0 0 12px", textWrap: "balance" as never }}>Send me your syllabus. I'll cram what's on your exam.</h1>
-        <p style={{ fontSize: 17, lineHeight: 1.5, color: MUTED, margin: "0 0 28px" }}>Any accounting class, any campus. The cram sets get built from what your professor actually tests — the syllabus, the exam schedule, a screenshot of the topic list, whatever you have.</p>
+        <h1 style={{ fontFamily: BRAND_DISPLAY, fontSize: "clamp(30px, 6vw, 44px)", lineHeight: 1.04, margin: "0 0 12px", textWrap: "balance" as never }}>Send me your syllabus + study guides.</h1>
+        <p style={{ fontSize: 17, lineHeight: 1.5, color: MUTED, margin: "0 0 28px" }}>Any accounting class, any campus. Your syllabus, study guides and the weird questions help me cover what your professor actually tests — and bring Survive to more campuses. A screenshot is plenty.</p>
 
         {done ? (
           <div style={{ border: `1px solid ${GOLD}`, borderRadius: 14, padding: "22px 20px", background: "rgba(252,163,17,0.08)" }}>

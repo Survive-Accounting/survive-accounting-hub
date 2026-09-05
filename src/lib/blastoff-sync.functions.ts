@@ -30,6 +30,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { frameSchema } from "@/lib/blastoff-frame-schema";
+
 import { BIO_CARD, bioCallout } from "@/components/blastoff/bio-card";
 import { verticalCardSpot } from "@/components/blastoff/film-spot";
 import { BLAST_FRAME_KINDS, INSERT_CALLOUT, backdropFor, insertStem } from "@/components/blastoff/plan";
@@ -40,29 +42,8 @@ const admin = async () => {
   return supabaseAdmin as unknown as { from: (t: string) => any };
 };
 
-const frameIn = z.object({
-  id: z.string().min(1).max(80),
-  kind: z.enum(BLAST_FRAME_KINDS),
-  ceqId: z.string().max(130).optional(),
-  text: z.string().max(4000).optional(),
-  title: z.string().max(400).optional(),
-  body: z.string().max(4000).optional(),
-  exhibitRef: z.string().max(60).optional(),
-  bankItemId: z.string().max(130).optional(),
-  skipped: z.boolean().optional(),
-  prompter: z.array(z.string().max(600)).max(40).optional(),
-  bullets: z.array(z.string().max(300)).max(12).optional(),
-  backdrop: z.enum(["zoom", "off"]).optional(),
-  variant: z.string().max(20).optional(),
-  psych: z.number().min(0).max(1).optional(),
-  banner: z.enum(["on", "off"]).optional(),
-  ad: z.enum(["greek", "rep", "send"]).optional(),
-  url: z.string().max(120).optional(),
-  portrait: z.enum(["on", "off"]).optional(),
-  cam: z.enum(["home", "corner", "hero", "top", "free", "off"]).optional(),
-  camPos: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(),
-  camSize: z.number().min(0.05).max(1).optional(),
-});
+// ONE schema with blastoff.functions.ts — see blastoff-frame-schema.ts.
+const frameIn = frameSchema;
 type FrameIn = z.infer<typeof frameIn>;
 
 // The insert → callout-kind mapping is SHARED with the Blast Off preview

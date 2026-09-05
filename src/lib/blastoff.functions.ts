@@ -8,6 +8,8 @@
 // plan is production data.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+
+import { frameSchema, type FrameRow } from "@/lib/blastoff-frame-schema";
 import { BLAST_FRAME_KINDS } from "@/components/blastoff/plan";
 
 /** Scene JSON is the store — same door talkthrough.functions.ts uses. */
@@ -17,33 +19,9 @@ const admin = async () => {
 };
 function rethrow(e: { code?: string; message: string }): never { throw new Error(e.message); }
 
-const frameSchema = z.object({
-  id: z.string().min(1).max(80),
-  kind: z.enum(BLAST_FRAME_KINDS),
-  ceqId: z.string().max(130).optional(),
-  text: z.string().max(4000).optional(),
-  title: z.string().max(400).optional(),
-  body: z.string().max(4000).optional(),
-  exhibitRef: z.string().max(60).optional(),
-  bankItemId: z.string().max(130).optional(),
-  // THE REVIEW STEP (2026-09-03): a skipped card, and the teleprompter lines
-  // Lee kept for the slide. Additive; old plans have neither.
-  skipped: z.boolean().optional(),
-  prompter: z.array(z.string().max(600)).max(40).optional(),
-  bullets: z.array(z.string().max(300)).max(12).optional(),
-  backdrop: z.enum(["zoom", "off"]).optional(),
-  variant: z.string().max(20).optional(),
-  psych: z.number().min(0).max(1).optional(),
-  banner: z.enum(["on", "off"]).optional(),
-  ad: z.enum(["greek", "rep", "send"]).optional(),
-  url: z.string().max(120).optional(),
-  portrait: z.enum(["on", "off"]).optional(),
-  cam: z.enum(["home", "corner", "hero", "top", "free", "off"]).optional(),
-  camPos: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(),
-  camSize: z.number().min(0.05).max(1).optional(),
-});
+// The frame schema lives in blastoff-frame-schema.ts — shared with blastoff-sync.functions.ts.
 
-export type BlastFrameRow = z.infer<typeof frameSchema>;
+export type BlastFrameRow = FrameRow;
 
 /** Read the stored plan for a set. null = never planned; the client generates. */
 export const loadBlastPlan = createServerFn({ method: "POST" })
