@@ -14,7 +14,24 @@
 import { z } from "zod";
 
 import { AD_KINDS } from "@/components/blastoff/ad-kinds";
+import { ANIMATION_PRESETS } from "@/components/blastoff/illustration";
 import { BLAST_FRAME_KINDS } from "@/components/blastoff/plan";
+
+// Validated generously: a bound tighter than a real Supabase public URL would flip loadBlastPlan
+// to null and the client would regenerate a fresh spine over Lee's running order.
+export const illustrationSchema = z.object({
+  requested: z.boolean(),
+  prompt: z.string().max(600).nullable(),
+  teachingIntent: z.string().max(600).nullable(),
+  provider: z.string().max(40).nullable(),
+  stylePreset: z.string().max(60).nullable(),
+  styleVersion: z.number().int().min(0).nullable(),
+  assetUrl: z.string().max(800).nullable(),
+  localAssetId: z.string().max(300).nullable(),
+  animationPreset: z.enum(ANIMATION_PRESETS).nullable(),
+  generatedAt: z.string().max(40).nullable(),
+  seed: z.number().int().min(0).max(4294967295).nullable(),
+});
 
 export const frameSchema = z.object({
   id: z.string().min(1).max(80),
@@ -40,6 +57,7 @@ export const frameSchema = z.object({
   cam: z.enum(["home", "corner", "hero", "top", "free", "off"]).optional(),
   camPos: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(),
   camSize: z.number().min(0.05).max(1).optional(),
+  illustration: illustrationSchema.nullable().optional(),
 });
 
 export type FrameRow = z.infer<typeof frameSchema>;

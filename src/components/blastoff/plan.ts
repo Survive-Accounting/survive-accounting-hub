@@ -87,6 +87,10 @@ export interface BlastFrame {
    *  ME"). The lines Lee kept for this slide — his own transcript words,
    *  proofread — shown beside the slide in film mode. */
   prompter?: string[];
+  /** THE OPTIONAL ILLUSTRATION (polish pass, 2026-09-05). Absent = never asked; null = Lee
+   *  cleared it; a value = an idea banked or a picture made. See illustration.ts. A slide
+   *  with none keeps every pixel of the negative space it has today. */
+  illustration?: FrameIllustration | null;
 }
 
 export interface BlastPlan {
@@ -107,6 +111,7 @@ export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip"
  *  syllabi"). The copy lives in AdSlide.tsx; a frame only says which one. */
 export { AD_KINDS, isAdKind, type AdKind } from "./ad-kinds";
 import type { AdKind } from "./ad-kinds";
+import type { FrameIllustration } from "./illustration";
 
 /** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
  *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
@@ -274,7 +279,7 @@ export function duplicateFrame(frames: readonly BlastFrame[], id: string): Blast
   const i = frames.findIndex((x) => x.id === id);
   if (i < 0) return [...frames];
   const src = frames[i];
-  const copy: BlastFrame = { ...src, id: newFrameId(src.kind), prompter: src.prompter ? [...src.prompter] : undefined };
+  const copy: BlastFrame = { ...src, id: newFrameId(src.kind), prompter: src.prompter ? [...src.prompter] : undefined, illustration: src.illustration ? { ...src.illustration } : src.illustration };
   return insertFrame(frames, copy, i);
 }
 
