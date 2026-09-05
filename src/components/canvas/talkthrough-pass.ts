@@ -388,7 +388,7 @@ export function buildReviewMessages(ctx: ReviewContext): { system: string; user:
   return { system, user };
 }
 
-const IDEA_KINDS = ["short", "nerdout", "exhibit", "memo", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memorize_this", "deeper_idea", "visual"] as const;
+const IDEA_KINDS = ["short", "nerdout", "exhibit", "memo", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memorize_this", "deeper_idea", "visual", "illustration"] as const;
 /** Retired kinds fold into the three standard ones at parse time. */
 const KIND_FOLD: Record<string, string> = { tip_trick: "cheat_code", real_world: "deeper_idea", memo: "memorize_this" };
 

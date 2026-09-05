@@ -451,6 +451,20 @@ async function runGenTask(
     return;
   }
 
+  // ILLUSTRATION IDEA (polish pass, 2026-09-05): a picture brief is BANKED verbatim — no model
+  // call, no cost, nothing invented. Lee decides in Review whether to spend a generation on it.
+  if (task.stampKind === "illustration") {
+    const brief = task.spoken.trim();
+    putBoardItem(mkItem({
+      kind: "idea",
+      title: brief.slice(0, 60) || "Illustration idea",
+      payload: { kind: "visual", body: brief, brief, origin: "lee", stamp: "illustration" },
+      quote: task.spoken,
+      ceqIds: task.ceqId && knownIds.has(task.ceqId) ? [task.ceqId] : [],
+    }));
+    return;
+  }
+
   // idea — one stamp, one card, his words proofread.
   const ceq = task.ceqId ? req.ceqs.find((c) => c.id === task.ceqId) ?? null : null;
   const styleKind = styleKindForKind(task.stampKind ?? "");

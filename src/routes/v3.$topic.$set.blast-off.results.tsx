@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminGate } from "@/components/AdminGate";
 import { ReviewDeck, type DeckApi } from "@/components/blastoff/ReviewDeck";
+import { emptyIllustration } from "@/components/blastoff/illustration";
 import { frameKindForStamp } from "@/components/blastoff/prompter";
 import { SessionView } from "@/components/talkthrough/SessionView";
 import { listSessions, sessionMeta } from "@/components/canvas/talkthrough";
@@ -54,6 +55,13 @@ function V3Results() {
   const deck = useRef<DeckApi | null>(null);
   const register = useCallback((api: DeckApi | null) => { deck.current = api; }, []);
   const addSlide = useCallback((kind: string, text: string, itemId: string) => {
+    // An illustration idea becomes a blank slide carrying the banked brief — the Editor's
+    // Generate button is where it (maybe) becomes a picture. Nothing is generated here.
+    if (kind === "illustration") {
+      deck.current?.addSlide("blank", { bankItemId: itemId, illustration: emptyIllustration({ prompt: text, teachingIntent: null }) });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     const frameKind = frameKindForStamp(kind);
     deck.current?.addSlide(frameKind, frameKind === "cheat" ? { title: text, bankItemId: itemId } : { text, bankItemId: itemId });
     window.scrollTo({ top: 0, behavior: "smooth" });

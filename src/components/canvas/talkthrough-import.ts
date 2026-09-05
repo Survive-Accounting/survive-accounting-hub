@@ -39,6 +39,7 @@ export interface ImportBlock {
 /** Stamp cue → stamp kind. Longer, more specific patterns first, so "cheat
  *  code" is never read as anything else and "tip or trick" is one cue. */
 const STAMP_CUES: readonly [string, StampKind][] = [
+  ["illustration(?:\\s+ideas?)?", "illustration"],
   ["cheat\\s*codes?", "cheat_code"],
   ["memori[sz]e\\s*this", "memorize_this"],
   ["deeper\\s*ideas?", "deeper_idea"],

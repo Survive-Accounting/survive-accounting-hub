@@ -197,7 +197,8 @@ type StampKind2 =
   | "reword" | "revise_choices" | "edit_other"
   | "blast_off" | "review_vibe"
   | "short" | "nerdout" | "exhibit" | "phrase" | "trigger_word" | "tip_trick" | "cheat_code" | "real_world" | "memo"
-  | "memorize_this" | "deeper_idea" | "visual";
+  | "memorize_this" | "deeper_idea" | "visual"
+  | "illustration";
 export const TAG_LABELS: Record<MomentTag | QuickKind, string> = {
   SHORT: "Short", NERDOUT: "Nerd Out", EXHIBIT: "Exhibit idea",
   PHRASE: "Phrase", TALK: "Talk moment", KEY: "Key",
@@ -218,6 +219,10 @@ export const STAMP_KINDS = [
   // canvas's own callout kinds one to one. tip_trick / real_world / memo stay
   // readable for old sessions but are off the board.
   "memorize_this", "deeper_idea", "visual",
+  // ILLUSTRATION IDEA (polish pass, 2026-09-05): a picture BRIEF for the Shorts slide. A tag
+  // kind, not a card kind — it is banked verbatim, never expanded by the model, and never
+  // generated until Lee presses Generate in Review.
+  "illustration",
 ] as const;
 export type StampKind = (typeof STAMP_KINDS)[number];
 
@@ -227,7 +232,7 @@ export type StampKind = (typeof STAMP_KINDS)[number];
 export const STAMP_GROUPS: readonly { id: string; label: string; kinds: readonly StampKind[] }[] = [
   { id: "edit", label: "EDIT THE CEQ", kinds: ["reword", "revise_choices", "edit_other"] },
   // Lee's 09-03 simplification: three standard card kinds, a visual, a phrase.
-  { id: "bank", label: "BANK A NEW:", kinds: ["cheat_code", "memorize_this", "deeper_idea", "visual", "phrase"] },
+  { id: "bank", label: "BANK A NEW:", kinds: ["cheat_code", "memorize_this", "deeper_idea", "visual", "illustration", "phrase"] },
   { id: "later", label: "TO MAKE LATER", kinds: ["blast_off", "short", "nerdout", "review_vibe"] },
   { id: "exhibit", label: "", kinds: ["exhibit"] },
 ] as const;
@@ -239,6 +244,7 @@ export const STAMP_LABELS: Record<StampKind, string> = {
   trigger_word: "Trigger Word", tip_trick: "Tip/Trick", cheat_code: "Cheat Code",
   real_world: "Real World Example", memo: "Other Memo",
   memorize_this: "Memorize This", deeper_idea: "Deeper Idea", visual: "Visual",
+  illustration: "Illustration idea",
 };
 
 /** VISUAL follow-up (Lee, 2026-09-03): when he stamps a visual, one more tap
@@ -554,7 +560,7 @@ export type StyleKind = (typeof STYLE_KINDS)[number];
  *  exists, so this half is callable without one). */
 export function styleKindForKind(k: string): StyleKind {
   if (k === "script" || k === "vibe_plan") return "script";
-  if (k === "exhibit" || k === "visual") return "exhibit";
+  if (k === "exhibit" || k === "visual" || k === "illustration") return "exhibit";
   if (k === "memo" || k === "phrase" || k === "trigger_word" || k === "memorize_this" || k === "cheat_code") return "memo";
   if (k === "short" || k === "nerdout" || k === "deeper_idea") return "short";
   return "general";

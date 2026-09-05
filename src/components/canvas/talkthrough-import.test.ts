@@ -23,11 +23,12 @@ describe("parseTranscriptImport — the speaking convention", () => {
       "Phrase: a", "Trigger word: b", "Tip: c", "Trick: d", "Cheat code: e", "Real world: f",
       "Memo: g", "Exhibit: h", "Short: i", "Nerd out: j", "Reword this: k", "Revise choices: l",
       "Blast off: m", "Review vibes: n", "Memorize this: o", "Deeper idea: p", "Visual: q",
+      "Illustration idea: r",
     ].join(" ");
     expect(parseTranscriptImport(text, 3).map((x) => x.stamp)).toEqual([
       "phrase", "trigger_word", "tip_trick", "tip_trick", "cheat_code", "real_world",
       "memo", "exhibit", "short", "nerdout", "reword", "revise_choices", "blast_off", "review_vibe",
-      "memorize_this", "deeper_idea", "visual",
+      "memorize_this", "deeper_idea", "visual", "illustration",
     ]);
   });
 

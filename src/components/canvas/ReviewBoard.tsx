@@ -417,7 +417,7 @@ function IdeaCard({ item, onRegen, film, onAddSlide }: {
   item: BoardItem; onRegen: (c: string) => Promise<void>; film?: { doc: TTDoc; setId: string };
   onAddSlide?: (kind: string, text: string, itemId: string) => void;
 }) {
-  const p = item.payload as { kind?: string; body?: string; origin?: string; visualKind?: string };
+  const p = item.payload as { kind?: string; body?: string; origin?: string; brief?: string; stamp?: string; visualKind?: string };
   const ai = p.origin === "ai";
   return (
     <ItemShell item={item} onRegen={onRegen} film={film} onAddSlide={onAddSlide ? () => onAddSlide(p.kind ?? "idea", p.body ?? item.title, item.id) : undefined}>
@@ -425,6 +425,7 @@ function IdeaCard({ item, onRegen, film, onAddSlide }: {
           mark for the model's own suggestions — "some way to know who it came from". */}
       <span title={ai ? "AI suggested — not from a stamp" : "From your stamp, cleaned up"} style={{ marginRight: 6, fontSize: 12 }}>{ai ? "✨" : "🧑‍🏫"}</span>
       <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ border: `1px solid ${EDGE}`, color: GOLD, marginRight: 6 }}>{stampLabel(p.kind ?? "idea")}</span>
+      {p.stamp === "illustration" && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: "rgba(252,163,17,0.14)", color: "#FCA311", border: "1px solid rgba(252,163,17,0.35)" }} title="A picture brief from the talkthrough — banked, not generated">🎨 illustration idea</span>}
       {p.visualKind && <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ border: `1px solid ${EDGE}`, color: NEON.muted, marginRight: 6 }}>{p.visualKind}</span>}
       {p.body ?? ""}
     </ItemShell>

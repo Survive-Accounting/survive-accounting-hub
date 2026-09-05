@@ -56,6 +56,8 @@ export const STAMPS_FOR_KIND: Partial<Record<BlastFrameKind, readonly string[]>>
   cheat: ["cheat_code", "tip_trick"],
   tip: ["deeper_idea", "real_world", "nerdout"],
   exhibit: ["visual", "exhibit"],
+  // An illustration idea rides on a blank slide (the results route hands it the banked brief).
+  blank: ["illustration"],
 };
 
 /** A stamp / board-idea kind → the slide kind it becomes on the film draft. */
