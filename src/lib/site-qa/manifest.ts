@@ -523,6 +523,17 @@ export const TEMPLATES: TemplateDef[] = [
     countKey: "static",
     trafficPaths: ["/terms", "/privacy"],
   },
+  {
+    id: "shipped",
+    label: "SHIPPED",
+    category: "public",
+    description: "Lee's build-in-public log — a feed of recordings, and one page per entry with the video, notes and transcript.",
+    routePattern: "/shipped · /shipped/:slug",
+    routes: ["shipped.tsx", "shipped.$slug.tsx"],
+    extraFiles: ["src/components/shipped", "src/lib/shipped.functions.ts"],
+    countKey: "static",
+    trafficPaths: ["/shipped"],
+  },
 ];
 
 /** Route files that are intentionally NOT QA templates, each with a reason. The

@@ -21,6 +21,7 @@ import { HOME_OG, ogMeta } from "../lib/og";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { TestModeBar } from "@/components/site/TestModeBar";
 import { IdeasDock } from "@/components/ideas/IdeasDock";
+import { ShippedDock } from "@/components/shipped/ShippedDock";
 import { CopyEdit } from "@/components/site/CopyEdit";
 
 function NotFoundComponent() {
@@ -156,6 +157,9 @@ function RootComponent() {
       {/* IDEAS TO SAVE — the pill + drawer. Renders itself only on internal
           surfaces (it checks the path); null everywhere a student can reach. */}
       <IdeasDock />
+      {/* SHIPPED (Lee, 2026-09-05): press R to record a build-in-public entry, N for the
+          notepad — an unlocked admin device only, never while typing. */}
+      <ShippedDock />
       {/* ?copyedit (Lee, 2026-09-04): applies saved copy overrides on every page; with
           ?copyedit in the address and the team passcode, click any text to change it. */}
       <CopyEdit />

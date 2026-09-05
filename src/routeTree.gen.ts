@@ -18,6 +18,7 @@ import { Route as TalkthroughRouteImport } from './routes/talkthrough'
 import { Route as SurviveBoltRouteImport } from './routes/survive-bolt'
 import { Route as StudyRouteImport } from './routes/study'
 import { Route as StartRouteImport } from './routes/start'
+import { Route as ShippedRouteImport } from './routes/shipped'
 import { Route as SendRouteImport } from './routes/send'
 import { Route as RepRouteImport } from './routes/rep'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -56,6 +57,7 @@ import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
 import { Route as StudyDashboardRouteImport } from './routes/study_.dashboard'
 import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
+import { Route as ShippedSlugRouteImport } from './routes/shipped.$slug'
 import { Route as RepJoinRouteImport } from './routes/rep_.join'
 import { Route as RepDashboardRouteImport } from './routes/rep_.dashboard'
 import { Route as RCodeRouteImport } from './routes/r.$code'
@@ -221,6 +223,11 @@ const StudyRoute = StudyRouteImport.update({
 const StartRoute = StartRouteImport.update({
   id: '/start',
   path: '/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShippedRoute = ShippedRouteImport.update({
+  id: '/shipped',
+  path: '/shipped',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SendRoute = SendRouteImport.update({
@@ -412,6 +419,11 @@ const StudyCanvasRoute = StudyCanvasRouteImport.update({
   id: '/study_/canvas',
   path: '/study/canvas',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ShippedSlugRoute = ShippedSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => ShippedRoute,
 } as any)
 const RepJoinRoute = RepJoinRouteImport.update({
   id: '/rep_/join',
@@ -1069,6 +1081,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/rep': typeof RepRoute
   '/send': typeof SendRoute
+  '/shipped': typeof ShippedRouteWithChildren
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
   '/survive-bolt': typeof SurviveBoltRoute
@@ -1129,6 +1142,7 @@ export interface FileRoutesByFullPath {
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
+  '/shipped/$slug': typeof ShippedSlugRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/dashboard': typeof StudyDashboardRoute
   '/study/foundations': typeof StudyFoundationsRoute
@@ -1238,6 +1252,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/rep': typeof RepRoute
   '/send': typeof SendRoute
+  '/shipped': typeof ShippedRouteWithChildren
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
   '/survive-bolt': typeof SurviveBoltRoute
@@ -1296,6 +1311,7 @@ export interface FileRoutesByTo {
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
+  '/shipped/$slug': typeof ShippedSlugRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/dashboard': typeof StudyDashboardRoute
   '/study/foundations': typeof StudyFoundationsRoute
@@ -1406,6 +1422,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/rep': typeof RepRoute
   '/send': typeof SendRoute
+  '/shipped': typeof ShippedRouteWithChildren
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
   '/survive-bolt': typeof SurviveBoltRoute
@@ -1466,6 +1483,7 @@ export interface FileRoutesById {
   '/r/$code': typeof RCodeRoute
   '/rep_/dashboard': typeof RepDashboardRoute
   '/rep_/join': typeof RepJoinRoute
+  '/shipped/$slug': typeof ShippedSlugRoute
   '/study_/canvas': typeof StudyCanvasRoute
   '/study_/dashboard': typeof StudyDashboardRoute
   '/study_/foundations': typeof StudyFoundationsRoute
@@ -1578,6 +1596,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/rep'
     | '/send'
+    | '/shipped'
     | '/start'
     | '/study'
     | '/survive-bolt'
@@ -1638,6 +1657,7 @@ export interface FileRouteTypes {
     | '/r/$code'
     | '/rep/dashboard'
     | '/rep/join'
+    | '/shipped/$slug'
     | '/study/canvas'
     | '/study/dashboard'
     | '/study/foundations'
@@ -1747,6 +1767,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/rep'
     | '/send'
+    | '/shipped'
     | '/start'
     | '/study'
     | '/survive-bolt'
@@ -1805,6 +1826,7 @@ export interface FileRouteTypes {
     | '/r/$code'
     | '/rep/dashboard'
     | '/rep/join'
+    | '/shipped/$slug'
     | '/study/canvas'
     | '/study/dashboard'
     | '/study/foundations'
@@ -1914,6 +1936,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/rep'
     | '/send'
+    | '/shipped'
     | '/start'
     | '/study'
     | '/survive-bolt'
@@ -1974,6 +1997,7 @@ export interface FileRouteTypes {
     | '/r/$code'
     | '/rep_/dashboard'
     | '/rep_/join'
+    | '/shipped/$slug'
     | '/study_/canvas'
     | '/study_/dashboard'
     | '/study_/foundations'
@@ -2085,6 +2109,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   RepRoute: typeof RepRoute
   SendRoute: typeof SendRoute
+  ShippedRoute: typeof ShippedRouteWithChildren
   StartRoute: typeof StartRoute
   StudyRoute: typeof StudyRoute
   SurviveBoltRoute: typeof SurviveBoltRoute
@@ -2223,6 +2248,13 @@ declare module '@tanstack/react-router' {
       path: '/start'
       fullPath: '/start'
       preLoaderRoute: typeof StartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shipped': {
+      id: '/shipped'
+      path: '/shipped'
+      fullPath: '/shipped'
+      preLoaderRoute: typeof ShippedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/send': {
@@ -2490,6 +2522,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/study/canvas'
       preLoaderRoute: typeof StudyCanvasRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/shipped/$slug': {
+      id: '/shipped/$slug'
+      path: '/$slug'
+      fullPath: '/shipped/$slug'
+      preLoaderRoute: typeof ShippedSlugRouteImport
+      parentRoute: typeof ShippedRoute
     }
     '/rep_/join': {
       id: '/rep_/join'
@@ -3451,6 +3490,17 @@ const OutreachRouteWithChildren = OutreachRoute._addFileChildren(
   OutreachRouteChildren,
 )
 
+interface ShippedRouteChildren {
+  ShippedSlugRoute: typeof ShippedSlugRoute
+}
+
+const ShippedRouteChildren: ShippedRouteChildren = {
+  ShippedSlugRoute: ShippedSlugRoute,
+}
+
+const ShippedRouteWithChildren =
+  ShippedRoute._addFileChildren(ShippedRouteChildren)
+
 interface AdminGrowthColdoutreachRouteChildren {
   AdminGrowthColdoutreachActivityRoute: typeof AdminGrowthColdoutreachActivityRoute
   AdminGrowthColdoutreachEngagedRoute: typeof AdminGrowthColdoutreachEngagedRoute
@@ -3581,6 +3631,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   RepRoute: RepRoute,
   SendRoute: SendRoute,
+  ShippedRoute: ShippedRouteWithChildren,
   StartRoute: StartRoute,
   StudyRoute: StudyRoute,
   SurviveBoltRoute: SurviveBoltRoute,

@@ -65,6 +65,44 @@ export async function getAsset(assetId: string): Promise<MuxAsset> {
   return json.data as MuxAsset;
 }
 
+// ── direct upload (browser → Mux, no proxy through our server) ───────────────
+
+export interface MuxUpload {
+  id: string;
+  status: string; // "waiting" | "asset_created" | "errored" | "cancelled" | "timed_out"
+  asset_id?: string;
+  /** Only present on the CREATE response — the PUT target. */
+  url?: string;
+}
+
+/**
+ * Start a Mux Direct Upload: the browser PUTs its file straight to the returned `url`, so a
+ * large recording never passes through our application server. `passthrough` keeps the Mux
+ * library searchable by our own id without Lee ever touching a Mux asset id.
+ */
+export async function createDirectUpload(opts: {
+  passthrough: string;
+  playbackPolicy?: "public" | "signed";
+  generatedSubtitles?: boolean;
+}): Promise<MuxUpload> {
+  const body = {
+    cors_origin: "*",
+    new_asset_settings: {
+      playback_policy: [opts.playbackPolicy ?? "public"],
+      passthrough: opts.passthrough,
+      video_quality: "basic",
+      ...(opts.generatedSubtitles === false ? {} : { generated_subtitles: [{ language_code: "en", name: "English" }] }),
+    },
+  };
+  const json = await muxFetch("/video/v1/uploads", { method: "POST", body: JSON.stringify(body) });
+  return json.data as MuxUpload;
+}
+
+export async function getUpload(uploadId: string): Promise<MuxUpload> {
+  const json = await muxFetch(`/video/v1/uploads/${uploadId}`);
+  return json.data as MuxUpload;
+}
+
 // ── signed playback ──────────────────────────────────────────────────────────
 
 function b64url(input: Buffer | string): string {

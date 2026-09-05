@@ -12,6 +12,7 @@ import { getAdminWho } from "@/components/AdminGate";
 import { installPasscodeSession } from "@/lib/admin-session.functions";
 import { generateIllustration, illustrationStatus, testIllustrationKey } from "@/lib/illustrate.functions";
 import { runMicro } from "@/lib/talkthrough.functions";
+import { useDictation } from "@/lib/use-dictation";
 
 import { ANIMATION_LABEL, ANIMATION_PRESETS, PROMPTING_TIPS, emptyIllustration, illustrationStyle, isStaleIllustration, type FrameIllustration } from "./illustration";
 import { buildBriefMessages, parseBrief, type IllustrationBrief } from "./illustration-brief";
@@ -29,33 +30,6 @@ const field: React.CSSProperties = {
 const subhead: React.CSSProperties = { fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTED, fontWeight: 800 };
 
 type Avail = { signedIn: boolean; configured: boolean; provider: string; keyLength: number };
-
-/** The browser's own dictation (Chrome). Live words land in the box as Lee talks. */
-function useDictation(onWords: (final: string, interim: string) => void) {
-  const recRef = useRef<{ stop: () => void } | null>(null);
-  const [on, setOn] = useState(false);
-  const supported = typeof window !== "undefined" && !!((window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition || (window as unknown as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition);
-  function stop() { recRef.current?.stop(); recRef.current = null; setOn(false); }
-  function start() {
-    const W = window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec };
-    const Ctor = W.SpeechRecognition ?? W.webkitSpeechRecognition; if (!Ctor) return;
-    const rec = new Ctor();
-    rec.continuous = true; rec.interimResults = true; rec.lang = "en-US";
-    rec.onresult = (e) => {
-      let final = "", interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r.isFinal) final += r[0].transcript + " "; else interim += r[0].transcript; }
-      onWords(final, interim);
-    };
-    rec.onend = () => { if (recRef.current === rec) { recRef.current = null; setOn(false); } };
-    rec.onerror = () => { recRef.current = null; setOn(false); };
-    rec.start(); recRef.current = rec; setOn(true);
-  }
-  useEffect(() => () => { recRef.current?.stop(); }, []);
-  return { supported, on, start, stop };
-}
-interface SpeechRec { continuous: boolean; interimResults: boolean; lang: string; start: () => void; stop: () => void;
-  onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null;
-  onend: (() => void) | null; onerror: (() => void) | null }
 
 export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   sel: BlastFrame; setId: string; setName: string; frames: readonly BlastFrame[]; onPatch: (p: Partial<BlastFrame>) => void;
