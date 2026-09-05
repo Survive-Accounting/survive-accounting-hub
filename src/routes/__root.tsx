@@ -21,6 +21,7 @@ import { HOME_OG, ogMeta } from "../lib/og";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { TestModeBar } from "@/components/site/TestModeBar";
 import { IdeasDock } from "@/components/ideas/IdeasDock";
+import { CopyEdit } from "@/components/site/CopyEdit";
 
 function NotFoundComponent() {
   return (
@@ -155,6 +156,9 @@ function RootComponent() {
       {/* IDEAS TO SAVE — the pill + drawer. Renders itself only on internal
           surfaces (it checks the path); null everywhere a student can reach. */}
       <IdeasDock />
+      {/* ?copyedit (Lee, 2026-09-04): applies saved copy overrides on every page; with
+          ?copyedit in the address and the team passcode, click any text to change it. */}
+      <CopyEdit />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>
