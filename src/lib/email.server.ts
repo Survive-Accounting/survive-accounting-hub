@@ -16,6 +16,8 @@ export async function sendResendEmail(opts: {
   subject: string;
   text: string;
   html?: string;
+  /** Copied in — the fast-track emails go to the requester with Lee (or King) on cc. */
+  cc?: string[];
 }): Promise<EmailResult> {
   if (!RESEND_API_KEY) return { ok: false, error: "RESEND_API_KEY not set in this environment" };
   const to = opts.to.trim();
@@ -29,6 +31,8 @@ export async function sendResendEmail(opts: {
       text: opts.text,
     };
     if (opts.html) payload.html = opts.html;
+    const cc = (opts.cc ?? []).map((c) => c.trim()).filter((c) => c && c !== to);
+    if (cc.length) payload.cc = cc;
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },

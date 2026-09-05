@@ -33,7 +33,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { buildSplitMessages } from "../src/lib/ideas-prompt";
-import { FAST_TRACK_RULES, isFastTrack } from "../src/lib/fast-track";
+import { FAST_TRACK_MODEL, FAST_TRACK_MODEL_LABEL, FAST_TRACK_RULES, fmtBuildTime, fmtCost, fmtStamp, isFastTrack } from "../src/lib/fast-track";
 import { PRODUCT_PRIMER } from "../src/lib/product-primer";
 
 const REPO = path.resolve(process.cwd());
@@ -76,6 +76,16 @@ const MAX_TURNS = Number(process.env.QUEUE_MAX_TURNS ?? 140);
  *  Opus is one env var away for a build worth it:
  *      QUEUE_MODEL=claude-opus-5 bun scripts/build-queue.ts --watch          */
 const MODEL = process.env.QUEUE_MODEL ?? "claude-sonnet-5";
+/** The fast-track lane's model (Lee, 2026-09-05: "Pick the best one you think for simple UI/UX
+ *  that's included in Max") — Sonnet, unless FAST_TRACK_MODEL says otherwise. */
+const FAST_MODEL = process.env.FAST_TRACK_MODEL ?? FAST_TRACK_MODEL;
+const EMAIL = { lee: "lee@surviveaccounting.com", king: "king@surviveaccounting.com" } as const;
+const SITE = "https://surviveaccounting.com";
+/** The fast-track emails go to the requester with the other of the two on cc. */
+function fastTrackTo(r: Row): { to: string; cc: string[] } {
+  const by = (r.created_by ?? r.context?.by ?? "lee") === "king" ? "king" : "lee";
+  return { to: EMAIL[by], cc: [EMAIL[by === "king" ? "lee" : "king"]] };
+}
 const BUILD_TIMEOUT_MS = Number(process.env.QUEUE_BUILD_MINUTES ?? 45) * 60_000;
 // THE HEARTBEAT: a build that has not committed anything for this long is
 // stalled — stop it and keep what exists, instead of burning the whole clock.
@@ -368,16 +378,18 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
     // message and tool call goes to the log as it happens (the first run
     // died at the turn limit with a blank log — text mode prints only at the
     // end). The raw event stream is kept beside it as .jsonl.
-    note(`  claude -p on ${MODEL} … (this is the long part; transcript streams below)`);
+    const model = isFastTrack({ context: r.context }) ? FAST_MODEL : MODEL;
+    note(`  claude -p on ${model} … (this is the long part; transcript streams below)`);
     const prompt = buildPrompt(r, branch, resuming);
     fs.writeFileSync(path.join(dir, ".build-queue-prompt.md"), prompt, "utf8");
     const jsonlFile = logFile.replace(/\.log$/, ".jsonl");
     const startedAt = Date.now();
-    const out = await new Promise<{ code: number | null; text: string; turns: number }>((resolve) => {
-      const child = spawn(CLAUDE.cmd, [...CLAUDE.args, "-p", "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions", "--model", MODEL, "--max-turns", String(MAX_TURNS)], {
+    const out = await new Promise<{ code: number | null; text: string; turns: number; costUsd: number | null; tokensIn: number | null; tokensOut: number | null }>((resolve) => {
+      const child = spawn(CLAUDE.cmd, [...CLAUDE.args, "-p", "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions", "--model", model, "--max-turns", String(MAX_TURNS)], {
         cwd: dir, env: { ...process.env, CI: "1" }, shell: false,
       });
       let buf = "", finalText = "", lastAssistant = "", turns = 0;
+      let costUsd: number | null = null, tokensIn: number | null = null, tokensOut: number | null = null;
       const timer = setTimeout(() => { note("  ! build timed out — killing"); child.kill(); }, BUILD_TIMEOUT_MS);
       // THE HEARTBEAT: nothing from Claude for STALL_MS → stalled → stop and
       // keep what exists. Any stream event counts (a thought, a tool call, a
@@ -393,7 +405,7 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
         if (!line.trim()) return;
         lastEventAt = Date.now();
         fs.appendFileSync(jsonlFile, line + "\n");
-        let ev: { type?: string; subtype?: string; result?: string; num_turns?: number; message?: { content?: unknown } } = {};
+        let ev: { type?: string; subtype?: string; result?: string; num_turns?: number; message?: { content?: unknown }; total_cost_usd?: number; usage?: { input_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number; output_tokens?: number } } = {};
         try { ev = JSON.parse(line); } catch { fs.appendFileSync(logFile, line + "\n"); return; }
         if (ev.type === "assistant") {
           turns++;
@@ -409,16 +421,24 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
         } else if (ev.type === "result") {
           if (typeof ev.result === "string") finalText = ev.result;
           if (typeof ev.num_turns === "number") turns = ev.num_turns;
-          note(`  ⏹ result: ${ev.subtype ?? "?"} after ${turns} turns`);
+          // THE INVOICE (2026-09-05): what the build cost, on the row — the fast-track log shows it.
+          if (typeof ev.total_cost_usd === "number") costUsd = ev.total_cost_usd;
+          if (ev.usage) {
+            tokensIn = (ev.usage.input_tokens ?? 0) + (ev.usage.cache_creation_input_tokens ?? 0) + (ev.usage.cache_read_input_tokens ?? 0);
+            tokensOut = ev.usage.output_tokens ?? null;
+          }
+          note(`  ⏹ result: ${ev.subtype ?? "?"} after ${turns} turns${costUsd !== null ? ` · ~${costUsd.toFixed(2)}` : ""}`);
         }
       };
       child.stdout.on("data", (d) => { buf += String(d); const parts = buf.split("\n"); buf = parts.pop() ?? ""; for (const p of parts) handle(p); });
       child.stderr.on("data", (d) => { fs.appendFileSync(logFile, String(d)); });
-      child.on("close", (code) => { clearTimeout(timer); if (buf.trim()) handle(buf); resolve({ code, text: finalText || lastAssistant, turns }); });
+      child.on("close", (code) => { clearTimeout(timer); if (buf.trim()) handle(buf); resolve({ code, text: finalText || lastAssistant, turns, costUsd, tokensIn, tokensOut }); });
       child.stdin.write(prompt);
       child.stdin.end();
     });
     fs.rmSync(path.join(dir, ".build-queue-prompt.md"), { force: true });
+    const buildSeconds = Math.round((Date.now() - startedAt) / 1000);
+    const invoice = { costUsd: out.costUsd === null ? undefined : out.costUsd.toFixed(4), buildSeconds: String(buildSeconds), tokensIn: out.tokensIn === null ? undefined : String(out.tokensIn), tokensOut: out.tokensOut === null ? undefined : String(out.tokensOut), model };
 
     // 3. SALVAGE FIRST, JUDGE SECOND. Commit whatever is in the worktree and
     // push the branch (never main) even when the build stopped early — a
@@ -435,7 +455,7 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
     }
     if (!finished) {
       const why = out.code !== 0 ? `claude exited ${out.code} after ${out.turns} turns` : "no REPORT section in the final message";
-      await mark({ runFailed: "1", runError: `${why}${ahead !== "0" ? ` — partial work is on ${branch}` : " — nothing to salvage"}`, sha: sha || undefined, runStartedAt: undefined });
+      await mark({ ...invoice, runFailed: "1", runError: `${why}${ahead !== "0" ? ` — partial work is on ${branch}` : " — nothing to salvage"}`, sha: sha || undefined, runStartedAt: undefined });
       note(`✗ stopped early: ${why}${ahead !== "0" ? ` (partial work pushed to ${branch})` : ""}`);
       return;
     }
@@ -454,13 +474,14 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
     if (DEPLOY_WAIT_MS > 0) note(`  preview: ${prev.url ?? `not found (${prev.state})`}`);
 
     await mark({
+      ...invoice,
       built: "1", builtAt: new Date().toISOString(), branch, sha, previewUrl: base ?? "", previewState: prev.state,
       report, testChecklist: JSON.stringify(withUrls), runStartedAt: undefined,
     });
     builtThisRun++;
     // The turn count IS the invoice — it is the one number that predicts what a
     // night costs, so it goes in the log beside the checks.
-    note(`✓ built — ${withUrls.length} checks · ${out.turns} turns on ${MODEL}`);
+    note(`✓ built — ${withUrls.length} checks · ${out.turns} turns on ${model}${out.costUsd !== null ? ` · ~${out.costUsd.toFixed(2)}` : ""} · ${fmtBuildTime(buildSeconds)}`);
     // FAST TRACK: Lee reviews from his inbox (Lee, 2026-09-05: "Once it's done, I'll get an
     // email notification, so I can review it"). Preview, checklist, and how to merge.
     if (isFastTrack({ context: r.context })) {
@@ -468,15 +489,19 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
         const { sendResendEmail } = await import("../src/lib/email.server");
         const text = [
           `⚡ FAST TRACK BUILT — "${r.title}"`, "",
-          `Requested by ${r.created_by ?? r.context?.by ?? "?"} from ${r.source_path ?? "?"}`, "",
+          `Requested by ${r.created_by ?? r.context?.by ?? "?"} on ${fmtStamp(r.context?.requestedAt ?? new Date())} from ${r.source_path ?? "?"}. Built ${fmtStamp(new Date())}.`,
+          `${model === FAST_MODEL ? FAST_TRACK_MODEL_LABEL : model} · ${fmtBuildTime(buildSeconds)} · ${out.tokensIn !== null ? `${Math.round(out.tokensIn / 1000)}k tokens in, ${Math.round((out.tokensOut ?? 0) / 1000)}k out` : "tokens n/a"} · est. ${fmtCost(out.costUsd)}`,
+          r.context?.playground ? `Landed on ${SITE}${r.context.playground} (the playground — /v2 untouched).` : "", "",
           "THE REQUEST", r.body, "",
           base ? `PREVIEW: ${base}` : `Preview: not found yet — branch ${branch}`, "",
           "TESTING CHECKLIST", ...withUrls, "",
-          `Merge it live: git fetch origin && git merge --ff-only origin/${branch} on main, then push. Or reject: leave it — the branch stays on origin.`,
-          "", "The queue: https://surviveaccounting.com/buildqueue",
-        ].join("\n");
-        await sendResendEmail({ to: "lee@surviveaccounting.com", subject: `[Fast track] Built: ${r.title}`, text });
-        note("  emailed Lee the preview + checklist");
+          `REVERT (take it off the plate, never merge it): ${SITE}/buildqueue?revert=${r.id}`,
+          `Rate it (required before the next request): ${SITE}/buildqueue`, "",
+          `Lee merges it live: git fetch origin && git merge --ff-only origin/${branch} on main, then push. Or leave it — the branch stays on origin.`,
+        ].filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n");
+        const who = fastTrackTo(r);
+        await sendResendEmail({ to: who.to, cc: who.cc, subject: `[Fast track] Built: ${r.title}`, text });
+        note(`  emailed ${who.to} (cc ${who.cc.join(", ")}) the preview + checklist`);
       } catch (e) { note(`  (fast-track email failed: ${e instanceof Error ? e.message : String(e)})`); }
     }
   } catch (e) {
@@ -486,7 +511,8 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
     if (isFastTrack({ context: r.context })) {
       try {
         const { sendResendEmail } = await import("../src/lib/email.server");
-        await sendResendEmail({ to: "lee@surviveaccounting.com", subject: `[Fast track] Stopped: ${r.title}`, text: `⚡ FAST TRACK STOPPED — "${r.title}"\n\nRequested by ${r.created_by ?? "?"}.\n\n${msg.slice(0, 1500)}\n\nThe queue: https://surviveaccounting.com/buildqueue` });
+        const who = fastTrackTo(r);
+        await sendResendEmail({ to: who.to, cc: who.cc, subject: `[Fast track] Stopped: ${r.title}`, text: `⚡ FAST TRACK STOPPED — "${r.title}"\n\nRequested by ${r.created_by ?? "?"} on ${fmtStamp(r.context?.requestedAt ?? new Date())}.\n\n${msg.slice(0, 1500)}\n\nRate it (a thumbs down and a line is fine) before the next request: ${SITE}/buildqueue\nThe queue: ${SITE}/buildqueue` });
       } catch { /* best effort */ }
     }
   } finally {
@@ -495,10 +521,21 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
   }
 }
 
+/** THE HEARTBEAT (2026-09-05): Ctrl+F reads it to say whether the machine is up. Written every
+ *  pass into the site_settings singleton, merged so nothing else in the row is touched. */
+async function heartbeat(db: { from: (t: string) => any }): Promise<void> {
+  try {
+    const { data } = await db.from("site_settings").select("settings").eq("id", 1).maybeSingle();
+    const settings = { ...((data?.settings ?? {}) as Record<string, unknown>), buildQueueHeartbeat: new Date().toISOString() };
+    await db.from("site_settings").upsert({ id: 1, settings, updated_at: new Date().toISOString() }, { onConflict: "id" });
+  } catch (e) { log(`  (heartbeat failed: ${e instanceof Error ? e.message : String(e)})`); }
+}
+
 async function pass(): Promise<boolean> {
   const { supabaseAdmin } = await import("../src/integrations/supabase/client.server");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabaseAdmin as unknown as { from: (t: string) => any };
+  await heartbeat(db);
   const { data, error } = await db.from("ideas").select("id,title,body,status,prompt_md,source_path,context,created_by,updated_at").eq("status", "SUBMITTED");
   if (error) throw new Error(error.message);
   const armed = ((data ?? []) as Row[]).filter((r) => r.context?.armed === "1" && r.context?.built !== "1" && r.context?.runFailed !== "1" && (!ONLY || ONLY === r.id));

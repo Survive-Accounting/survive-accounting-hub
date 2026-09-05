@@ -141,6 +141,7 @@ import { Route as AdminRepsRosterRouteImport } from './routes/admin.reps.roster'
 import { Route as AdminRepsPartnersRouteImport } from './routes/admin.reps.partners'
 import { Route as AdminRepsLinksRouteImport } from './routes/admin.reps.links'
 import { Route as AdminRepsConversionsRouteImport } from './routes/admin.reps.conversions'
+import { Route as AdminGrowthV3RouteImport } from './routes/admin.growth.v3'
 import { Route as AdminGrowthV2RouteImport } from './routes/admin.growth.v2'
 import { Route as AdminGrowthResultsRouteImport } from './routes/admin.growth.results'
 import { Route as AdminGrowthPrebuildRouteImport } from './routes/admin.growth.prebuild'
@@ -845,6 +846,11 @@ const AdminRepsConversionsRoute = AdminRepsConversionsRouteImport.update({
   path: '/conversions',
   getParentRoute: () => AdminRepsRoute,
 } as any)
+const AdminGrowthV3Route = AdminGrowthV3RouteImport.update({
+  id: '/v3',
+  path: '/v3',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
 const AdminGrowthV2Route = AdminGrowthV2RouteImport.update({
   id: '/v2',
   path: '/v2',
@@ -1148,6 +1154,7 @@ export interface FileRoutesByFullPath {
   '/admin/growth/prebuild': typeof AdminGrowthPrebuildRoute
   '/admin/growth/results': typeof AdminGrowthResultsRoute
   '/admin/growth/v2': typeof AdminGrowthV2Route
+  '/admin/growth/v3': typeof AdminGrowthV3Route
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -1313,6 +1320,7 @@ export interface FileRoutesByTo {
   '/admin/growth/prebuild': typeof AdminGrowthPrebuildRoute
   '/admin/growth/results': typeof AdminGrowthResultsRoute
   '/admin/growth/v2': typeof AdminGrowthV2Route
+  '/admin/growth/v3': typeof AdminGrowthV3Route
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -1483,6 +1491,7 @@ export interface FileRoutesById {
   '/admin/growth/prebuild': typeof AdminGrowthPrebuildRoute
   '/admin/growth/results': typeof AdminGrowthResultsRoute
   '/admin/growth/v2': typeof AdminGrowthV2Route
+  '/admin/growth/v3': typeof AdminGrowthV3Route
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -1654,6 +1663,7 @@ export interface FileRouteTypes {
     | '/admin/growth/prebuild'
     | '/admin/growth/results'
     | '/admin/growth/v2'
+    | '/admin/growth/v3'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -1819,6 +1829,7 @@ export interface FileRouteTypes {
     | '/admin/growth/prebuild'
     | '/admin/growth/results'
     | '/admin/growth/v2'
+    | '/admin/growth/v3'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -1988,6 +1999,7 @@ export interface FileRouteTypes {
     | '/admin/growth/prebuild'
     | '/admin/growth/results'
     | '/admin/growth/v2'
+    | '/admin/growth/v3'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -3074,6 +3086,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRepsConversionsRouteImport
       parentRoute: typeof AdminRepsRoute
     }
+    '/admin/growth/v3': {
+      id: '/admin/growth/v3'
+      path: '/v3'
+      fullPath: '/admin/growth/v3'
+      preLoaderRoute: typeof AdminGrowthV3RouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
     '/admin/growth/v2': {
       id: '/admin/growth/v2'
       path: '/v2'
@@ -3474,6 +3493,7 @@ interface AdminGrowthRouteChildren {
   AdminGrowthPrebuildRoute: typeof AdminGrowthPrebuildRoute
   AdminGrowthResultsRoute: typeof AdminGrowthResultsRoute
   AdminGrowthV2Route: typeof AdminGrowthV2Route
+  AdminGrowthV3Route: typeof AdminGrowthV3Route
   AdminGrowthIndexRoute: typeof AdminGrowthIndexRoute
 }
 
@@ -3492,6 +3512,7 @@ const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
   AdminGrowthPrebuildRoute: AdminGrowthPrebuildRoute,
   AdminGrowthResultsRoute: AdminGrowthResultsRoute,
   AdminGrowthV2Route: AdminGrowthV2Route,
+  AdminGrowthV3Route: AdminGrowthV3Route,
   AdminGrowthIndexRoute: AdminGrowthIndexRoute,
 }
 
