@@ -21,6 +21,7 @@ import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 import { WebcamFrame } from "./capture/Webcam";
 import { camRect, isCamSpot, watermarkSize, wordmarkHero, type Box, type CamSpot } from "./capture/webcam-spots";
 import { FrameView } from "./frame-view";
+import { IllustrationLayer } from "./IllustrationLayer";
 import { SAFE, camDefault, captionRailClear, captionRailRect, cardPlacement, type RailStatus, type SlideLayout } from "./layout";
 import { backdropFor, isFullFrame, type BlastFrame } from "./plan";
 import type { CardOverride } from "./SetCard";
@@ -113,9 +114,14 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
     if (!phone) return;
     const measure = () => {
       const card = phone.querySelector("[data-ceq-card]") as HTMLElement | null;
-      if (!card) { setCardBox(null); return; }
-      const p = phone.getBoundingClientRect(), c = card.getBoundingClientRect();
-      setCardBox({ x: c.left - p.left, y: c.top - p.top, w: c.width, h: c.height });
+      const art = phone.querySelector("[data-sa-illustration]") as HTMLElement | null;
+      if (!card && !art) { setCardBox(null); return; }
+      const p = phone.getBoundingClientRect();
+      // The camera keeps off the card AND the picture under it: one box around both.
+      const boxes = [card, art].filter(Boolean).map((el) => (el as HTMLElement).getBoundingClientRect());
+      const x1 = Math.min(...boxes.map((b) => b.left)), y1 = Math.min(...boxes.map((b) => b.top));
+      const x2 = Math.max(...boxes.map((b) => b.right)), y2 = Math.max(...boxes.map((b) => b.bottom));
+      setCardBox({ x: x1 - p.left, y: y1 - p.top, w: x2 - x1, h: y2 - y1 });
     };
     measure();
     const t = window.setTimeout(measure, 400);   // after the entrance settles
@@ -182,6 +188,10 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
         ...(moment ? { filter: "blur(2px) brightness(0.35)", transition: "filter 480ms ease" } : { transition: "filter 480ms ease" }),
         ...stageStyle }}>
         <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} layout={layout} />
+        {/* THE OPTIONAL ILLUSTRATION — second row of the stage grid, under the card; nothing when absent. */}
+        {frame.illustration?.assetUrl && !isFullFrame(frame.kind) && (
+          <IllustrationLayer ill={frame.illustration} w={w} h={h} live={capture} />
+        )}
       </div>
       {cam !== "off" && (
         <WebcamFrame w={w} h={h} spot={cam} size={camSize} pos={frame.camPos} live={capture} cardBox={cardBox} moment={moment}

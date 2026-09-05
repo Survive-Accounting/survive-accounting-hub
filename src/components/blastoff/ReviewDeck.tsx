@@ -37,16 +37,15 @@ import { BankPicker } from "./BankPicker";
 import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, FrameView, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
-import {
-  AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, toggleSkip,
-  type BackdropMode, type BlastFrame, type BlastFrameKind,
-} from "./plan";
+import { AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 import { ADS, AD_LABEL } from "./AdSlide";
 import { PhoneFrame } from "./PhoneFrame";
 import { SlideEditContext } from "./slide-edit";
 import { CAM_LABEL, CAM_SPOTS, camSpotOf, isCamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf } from "./layout";
+import { ANIMATION_LABEL, ANIMATION_PRESETS, PROMPTING_TIPS, emptyIllustration, illustrationStyle, isStaleIllustration } from "./illustration";
+import { generateIllustration, illustrationStatus } from "@/lib/illustrate.functions";
 import {
   PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups, readTidy, setStampCandidates, tidyCacheKey, writeTidy,
   type PrompterCandidate, type TidyPhrase, type TidyResult,
@@ -300,6 +299,12 @@ export function ReviewDeck({ set, topic, doc, register }: {
     });
     // THE CAMERA (2026-09-05): cycles the spots; "free" is placed by dragging the ring on the stage.
     items.push({ label: `📷 Camera · ${camSpotOf(f)}`, title: `Where Lee sits on this slide — ${CAM_LABEL[camSpotOf(f)]}. Click to cycle.`, run: () => patch(f.id, { cam: CAM_SPOTS[(CAM_SPOTS.indexOf(camSpotOf(f)) + 1) % CAM_SPOTS.length] }) });
+    // THE ILLUSTRATION (polish pass): bank the idea here; the Editor face generates it.
+    if (!isFullFrame(f.kind)) items.push({
+      label: `🎨 Illustration · ${f.illustration?.assetUrl ? "on" : f.illustration?.requested ? "idea banked" : "none"}`,
+      title: "An optional picture under the card. Bank the idea here, write and generate it in the Editor.",
+      run: () => patch(f.id, { illustration: f.illustration ? null : emptyIllustration({ teachingIntent: insertStem(f) || null }) }),
+    });
     if (f.kind === "bio") items.push({ label: `🖼 Portrait · ${f.portrait === "on" ? "on" : "off (parked)"}`, title: "The hand-drawn portrait over the black — on unless you turn it off", run: () => patch(f.id, { portrait: f.portrait === "on" ? undefined : "on" }) });
     const chips: MenuChips[] = [];
     if (f.kind === "bolt") chips.push({ label: "The animation", chips: ZOOM_VARIANTS.map((v) => ({ id: v.id, label: v.label, on: (f.variant ?? "zoom") === v.id, title: v.blurb })), pick: (id) => patch(f.id, { variant: id }) });
@@ -499,6 +504,85 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
  *  faster/better to have them left/right"). A set card edits the card itself;
  *  an insert edits its words; the brand slides and ads edit their few
  *  switches. Same shell as the prompter — the two are faces of one column. */
+/** THE ILLUSTRATION BLOCK (polish pass, 2026-09-05). Optional, occasional, never automatic:
+ *  Lee writes what the picture shows, the preset supplies Survive's art direction, Generate
+ *  spends ONE provider call, the result lands on the slide at once (the phone beside this
+ *  column is the preview), Regenerate rolls a new seed with the same words, Remove clears.
+ *  Idle · Generating · Success · Error; an error keeps the words. If the server has no key
+ *  the block says so and Generate is disabled — the editor never breaks. */
+function IllustrationBlock({ sel, setId, onPatch }: { sel: BlastFrame; setId: string; onPatch: (p: Partial<BlastFrame>) => void }) {
+  const ill = sel.illustration ?? null;
+  const [prompt, setPrompt] = useState(ill?.prompt ?? "");
+  const [intent, setIntent] = useState(ill?.teachingIntent ?? "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [tips, setTips] = useState(false);
+  const [avail, setAvail] = useState<{ configured: boolean; provider: string } | null>(null);
+  useEffect(() => { setPrompt(ill?.prompt ?? ""); setIntent(ill?.teachingIntent ?? ""); setErr(null); }, [sel.id]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { let on = true; illustrationStatus().then((s) => { if (on) setAvail(s); }).catch(() => { if (on) setAvail({ configured: false, provider: "recraft" }); }); return () => { on = false; }; }, []);
+  const style = illustrationStyle(ill?.stylePreset);
+  const stale = isStaleIllustration(ill);
+  const seedIntent = () => intent.trim() || insertStem(sel) || (sel.bullets ?? []).join("; ") || "";
+
+  const run = async (reseed: boolean) => {
+    const words = prompt.trim();
+    if (!words) { setErr("Describe the visual first — one subject, what it's doing."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const r = await generateIllustration({ data: { setId, frameId: sel.id, prompt: words, teachingIntent: seedIntent() || null, stylePreset: style.id, ...(reseed || !ill?.seed ? {} : { seed: ill.seed }) } });
+      onPatch({ illustration: {
+        ...(ill ?? emptyIllustration()), requested: true, prompt: words, teachingIntent: seedIntent() || null,
+        provider: r.provider, stylePreset: r.stylePreset, styleVersion: r.styleVersion, assetUrl: r.url, localAssetId: r.path,
+        animationPreset: ill?.animationPreset ?? style.defaultAnimation, generatedAt: r.generatedAt, seed: r.seed,
+      } });
+    } catch (e) { setErr((e as Error).message || "Couldn't generate. Your words are kept — try again."); }
+    finally { setBusy(false); }
+  };
+  const bank = () => onPatch({ illustration: { ...(ill ?? emptyIllustration()), requested: true, prompt: prompt.trim() || null, teachingIntent: seedIntent() || null } });
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ ...subhead, display: "flex", alignItems: "center", gap: 8 }}>
+        🎨 Illustration
+        <button type="button" onClick={() => setTips((v) => !v)} title="How to write a prompt that comes out right the first time"
+          style={{ marginLeft: "auto", width: 18, height: 18, borderRadius: 9, border: `1px solid ${GOLD}88`, background: tips ? GOLD : "transparent", color: tips ? "#17130A" : GOLD, fontSize: 11, fontWeight: 800, cursor: "pointer", lineHeight: 1 }}>?</button>
+      </div>
+      {tips && (
+        <ul style={{ margin: "6px 0 0", padding: "8px 10px 8px 22px", border: `1px solid ${EDGE}`, borderRadius: 8, fontSize: 11, color: CREAM, lineHeight: 1.45 }}>
+          {PROMPTING_TIPS.map((t, i) => <li key={i} style={{ margin: "2px 0" }}>{t}</li>)}
+        </ul>
+      )}
+      {avail && !avail.configured && (
+        <div style={{ marginTop: 6, fontSize: 11, color: ORANGE }}>Generation is unavailable — the server has no {avail.provider} key (RECRAFT_API_KEY). You can still bank the idea.</div>
+      )}
+      {!ill && <div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>None on this slide. Most slides should stay clean — 1–3 pictures per Short.</div>}
+      <label style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 6 }}>Describe the visual
+        <textarea rows={2} style={{ ...field, marginTop: 4, resize: "vertical" }} value={prompt} placeholder="e.g. a nervous investor peering at a financial statement through a magnifying glass" onChange={(e) => setPrompt(e.target.value)} /></label>
+      <label style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 6 }}>The teaching point it serves (optional)
+        <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={intent} placeholder={insertStem(sel) || "why this picture exists"} onChange={(e) => setIntent(e.target.value)} /></label>
+      <div className="flex" style={{ gap: 5, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}>
+        <span style={{ fontSize: 10.5, color: MUTED }}>{style.label} · v{style.version}{stale ? " · " : ""}{stale && <span style={{ color: ORANGE, fontWeight: 800 }}>stale — regenerate</span>}</span>
+        <span style={{ flex: 1 }} />
+        {ANIMATION_PRESETS.map((a) => (
+          <button key={a} style={chip((ill?.animationPreset ?? style.defaultAnimation) === a, ORANGE)} title={ANIMATION_LABEL[a]} disabled={!ill?.assetUrl}
+            onClick={() => ill && onPatch({ illustration: { ...ill, animationPreset: a } })}>{ANIMATION_LABEL[a]}</button>
+        ))}
+      </div>
+      <div className="flex" style={{ gap: 6, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <button type="button" disabled={busy || !avail?.configured} onClick={() => void run(!!ill?.assetUrl)}
+          style={{ ...chip(true, GOLD), opacity: busy || !avail?.configured ? 0.5 : 1, cursor: busy ? "wait" : "pointer" }}>
+          {busy ? "Generating…" : ill?.assetUrl ? "Regenerate" : "Generate"}
+        </button>
+        {!ill?.assetUrl && <button type="button" onClick={bank} style={chip(false, GOLD)} title="Keep the idea on the slide without spending a generation">Bank the idea</button>}
+        {ill && <button type="button" onClick={() => onPatch({ illustration: null })} style={chip(false, ORANGE)} title="Clear the picture and the idea from this slide">Remove</button>}
+        {ill?.assetUrl && <span style={{ fontSize: 10.5, color: MUTED }}>seed {ill.seed} · {ill.generatedAt ? new Date(ill.generatedAt).toLocaleDateString() : ""}</span>}
+      </div>
+      {err && <div style={{ marginTop: 6, fontSize: 11, color: ORANGE }}>{err}</div>}
+      {ill?.assetUrl && <div style={{ marginTop: 6, fontSize: 10.5, color: MUTED }}>It's on the slide to the left. Regenerate keeps the words and rolls a new seed; change the words when the subject is wrong.</div>}
+    </div>
+  );
+}
+
 function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onSaved }: {
   /** The set's slide template — the camera chips read their default from it. */
   layout: "pass1" | "pass2";
@@ -620,6 +704,7 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onSav
           </div>
           {(isCamSpot(sel.cam) ? sel.cam : camDefault(layout, sel.kind).spot) === "free" && <div style={{ fontSize: 10.5, color: MUTED, marginTop: 4 }}>Drag the ring on the stage to place it · wheel over it to resize.</div>}
         </div>
+        {!isFullFrame(sel.kind) && <IllustrationBlock sel={sel} setId={set.id} onPatch={onPatch} />}
         {sel.kind !== "open" && (
           <div style={{ marginTop: 8 }}>
             <button style={chip(sel.banner === "on", ORANGE)} title="Put the slow Power Four campus banner on this slide (any slide — an expansion moment)" onClick={() => onPatch({ banner: sel.banner === "on" ? undefined : "on" })}>🏫 campus banner · {sel.banner === "on" ? "on" : "off"}</button>
