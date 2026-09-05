@@ -22,7 +22,7 @@
 // above the wordmark; on the open it stays off. Nothing here moves outside
 // the column.
 import type { BlastFrame } from "./plan";
-import type { CamSpot } from "./capture/webcam-spots";
+import { overlaps, type Box, type CamSpot } from "./capture/webcam-spots";
 
 export const LAYOUTS = ["pass1", "pass2"] as const;
 export type SlideLayout = (typeof LAYOUTS)[number];
@@ -69,6 +69,53 @@ export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spo
   // .30 it was (Lee: "test reducing its default size approximately 5–10 %").
   if (kind === "intro") return { spot: "hero", size: 0.48 };
   return { spot: "home", size: 0.28 };
+}
+
+/** THE FIXED CAPTION RAIL (polish pass, 2026-09-05). Captions have ONE place on every slide,
+ *  whatever the camera is doing (Lee: "The camera intentionally moves/swims around the
+ *  composition between slides. Captions need their own fixed visual position."). Lower-middle
+ *  of the canvas — not flush to the bottom edge (the platform's caption/title chrome lives
+ *  there), never inside the card, never attached to the camera.
+ *
+ *  Read by three things, which is the point: the post-burn (lib/captions.ts, the ASS margins
+ *  and type size), the Review stage's dashed reservation, and the /film chrome's collision
+ *  readout. Change a number here and all three follow.
+ *
+ *    top / bottom   .61h – .735h. The text's bottom edge sits at .735h: above the campus banner
+ *                   (.745h–.791h) and the SAFE.bottom .78h caption zone. Below the hero
+ *                   wordmark's bottom edge (.585h — webcam-spots.wordmarkHero) so the two can
+ *                   never collide.
+ *    left           .35w: the pass-2 home camera's right edge (.05w + .28w) plus a breath.
+ *    wideLeft       .07w when the slide has no camera.
+ *    right          .84w = SAFE.right, inside the like/share rail.
+ *    size           4.0 % of the height (77 px at 1920) — phone-readable; two lines at most.
+ *    spoken         a SOFT gold for the word being said, not the full brand gold — the
+ *                   emphasis is a lift in brightness, not a colour change (Lee: restrained). */
+export const CAPTION_RAIL = {
+  top: 0.61, bottom: 0.735, left: 0.35, wideLeft: 0.07, right: 0.84,
+  size: 0.04, lineHeight: 1.12, maxLines: 2,
+  ink: "#FFFFFF", spoken: "#FFD98A", stroke: "#0B1220", strokeW: 0.005,
+} as const;
+
+/** The rail in px on a phone w × h; `wide` when the slide films with no camera. */
+export function captionRailRect(w: number, h: number, wide = false): Box {
+  const left = wide ? CAPTION_RAIL.wideLeft : CAPTION_RAIL.left;
+  return { x: Math.round(w * left), y: Math.round(h * CAPTION_RAIL.top), w: Math.round(w * (CAPTION_RAIL.right - left)), h: Math.round(h * (CAPTION_RAIL.bottom - CAPTION_RAIL.top)) };
+}
+
+/** Characters that fit on one rail line at `fontPx` — Rubik 900's average advance is ≈0.56em.
+ *  Clamped so a huge or tiny frame still produces 3–7-word cards. */
+export function captionLineChars(railWpx: number, fontPx: number): number {
+  return Math.max(8, Math.min(22, Math.floor(railWpx / (fontPx * 0.56))));
+}
+
+export type RailStatus = "clear" | "card" | "camera";
+
+/** Does anything sit on the rail? The card first (the worse collision), then the camera. */
+export function captionRailClear(rail: Box, card: Box | null, cam: Box | null): RailStatus {
+  if (card && overlaps(rail, card)) return "card";
+  if (cam && overlaps(rail, cam)) return "camera";
+  return "clear";
 }
 
 /** The intro's wordmark block sits lower in pass 2 to leave the camera the top. */

@@ -10,6 +10,9 @@
 // karaoke) and SRT (a sidecar for uploads). Everything here is deterministic
 // and tested; nothing touches the network or the disk.
 
+// Relative on purpose: the Bun CLI (scripts/captions.ts) imports this file outside Vite's alias.
+import { CAPTION_RAIL, captionLineChars } from "../components/blastoff/layout";
+
 export interface Word { t: string; s: number; e: number }
 
 export interface CaptionCard {
@@ -88,11 +91,17 @@ export interface CaptionStyle {
   strokeW: number;
 }
 
-/** The Shorts layout: the band to the right of the home-spot camera (the
- *  circle ends at 29 % of the width), text bottom at 78 % — above the 20 %
- *  caption zone, below the card. `cam: "none"` frees the whole width. */
+/** The Shorts layout = THE FIXED CAPTION RAIL (blastoff/layout.ts CAPTION_RAIL), so the
+ *  burned captions land exactly where the Review stage reserved them and the /film chrome
+ *  checked them. `cam: "none"` frees the whole width. Nothing here is a number of its own. */
 export function shortsStyle(w: number, h: number, cam: "home" | "none" = "home"): CaptionStyle {
-  return { w, h, font: "Rubik", size: 0.046, left: cam === "home" ? 0.31 : 0.07, right: 0.07, bottom: 0.78, ink: "#FFFFFF", spoken: "#FCA311", stroke: "#0B1220", strokeW: 0.0055 };
+  const R = CAPTION_RAIL;
+  return { w, h, font: "Rubik", size: R.size, left: cam === "home" ? R.left : R.wideLeft, right: 1 - R.right, bottom: R.bottom, ink: R.ink, spoken: R.spoken, stroke: R.stroke, strokeW: R.strokeW };
+}
+
+/** How many characters fit on one line of this style — the rail's width over the type's advance. */
+export function captionLineCharsFor(st: CaptionStyle): number {
+  return captionLineChars(st.w * (1 - st.left - st.right), st.h * st.size);
 }
 
 function assColour(hex: string): string {

@@ -18,12 +18,12 @@ Writes, next to the take: `take.words.json` (Whisper's word timings), `take.ass`
 
 - `--dry` — build the cards and print them, no burn.
 - `--words take.words.json` — reuse the timings (no Whisper call) after editing them.
-- `--cam none` — no camera on the slide: captions use the whole width.
+- `--cam none` (or `--wide`) — no camera on the slide: captions use the whole width.
 - `--out other.mp4` — a different output name.
 
 ## The style (src/lib/captions.ts)
 
-One or two lines, at most five words on a card, a new card every ~0.7–1.2 s (a sentence end, a comma after three words, a pause over 0.45 s, or the time cap all close a card). Rubik 900 at 4.6 % of the height, white with a navy stroke, no box, the spoken word in gold as it is said (ASS karaoke). Placed in the band to the RIGHT of the home-spot camera (31 %–93 % of the width), the text's bottom edge at 78 % of the height — above the Shorts caption zone, below the card. Change the numbers in `shortsStyle` and every future bake follows.
+One or two lines, at most five words on a card, a new card every ~0.7–1.2 s (a sentence end, a comma after three words, a pause over 0.45 s, or the time cap all close a card). Rubik 900 at 4.6 % of the height, white with a navy stroke, no box, the spoken word in gold as it is said (ASS karaoke). Placed on THE FIXED CAPTION RAIL — `CAPTION_RAIL` in `src/components/blastoff/layout.ts`: 35 %–84 % of the width (right of the pass-2 home camera, inside the like/share rail; 7 %–84 % with `--wide` / `--cam none`), the text's bottom edge at 73.5 % of the height — under the hero wordmark, above the campus banner and the Shorts caption zone. The same block draws the dashed reservation on the Review stage and the "captions clear / on the card / under the camera" readout in the /film chrome, so what you see before the take is where the burn lands. Change a number there and all three follow.
 
 ## Lip sync
 

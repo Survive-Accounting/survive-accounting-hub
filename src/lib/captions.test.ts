@@ -38,8 +38,10 @@ describe("the files", () => {
     const st = shortsStyle(1080, 1920);
     const ass = assFromCards(cardsFromWords(words("Internal users plan.")), st);
     expect(ass).toContain("PlayResX: 1080");
-    expect(ass).toContain("Style: Cram,Rubik,88,&H0011A3FC,&H00FFFFFF,&H0020120B");        // gold spoken, white ink, navy stroke (BGR)
-    expect(ass).toContain(",2,335,76,422,1");                                              // align bottom-centre, MarginL 31 %, MarginR 7 %, MarginV 22 %
+    // THE RAIL (layout.ts CAPTION_RAIL): 4.0 % type, soft-gold spoken, white ink, navy stroke (BGR);
+    // align bottom-centre, MarginL 35 % (right of the .28w home camera), MarginR 16 %, MarginV 26.5 % (text bottom at .735h).
+    expect(ass).toContain("Style: Cram,Rubik,77,&H008AD9FF,&H00FFFFFF,&H0020120B");
+    expect(ass).toContain(",2,378,173,509,1");
     expect(ass).toMatch(/Dialogue: 0,0:00:00\.00,0:00:0\d\.\d\d,Cram,,0,0,0,,\{\\k\d+\}Internal(\\N| )\{\\k\d+\}users \{\\k\d+\}plan\./);
   });
   test("no camera frees the whole width", () => {

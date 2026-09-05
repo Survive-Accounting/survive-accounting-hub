@@ -1,6 +1,6 @@
 // CAPTIONS — bake Shorts captions onto a take. Run with Bun, on this PC:
 //
-//   bun run captions <take.mp4> [--cam home|none] [--out <file>] [--dry] [--words <file.json>]
+//   bun run captions <take.mp4> [--cam home|none | --wide] [--out <file>] [--dry] [--words <file.json>]
 //
 // What it does, in order:
 //   1. finds ffmpeg (PATH, then the winget install, then $FFMPEG) — or tells you how to install it
@@ -20,7 +20,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
-import { assFromCards, cardsFromWords, shortsStyle, srtFromCards, type Word } from "../src/lib/captions";
+import { assFromCards, captionLineCharsFor, cardsFromWords, shortsStyle, srtFromCards, type Word } from "../src/lib/captions";
 
 const RUBIK_URL = "https://github.com/googlefonts/rubik/raw/main/fonts/ttf/Rubik-Black.ttf";
 const FONT_DIR = resolve(import.meta.dir, "captions-fonts");
@@ -112,7 +112,7 @@ async function main() {
   const take = resolve(input);
   if (!existsSync(take)) fail(`no such file: ${take}`);
   loadDotEnv();
-  const cam = (arg("--cam") ?? "home") as "home" | "none";
+  const cam = (flag("--wide") ? "none" : (arg("--cam") ?? "home")) as "home" | "none";
   if (cam !== "home" && cam !== "none") fail("--cam must be home or none");
   const stem = join(dirname(take), basename(take, extname(take)));
   const out = arg("--out") ?? `${stem}.captioned.mp4`;
@@ -138,8 +138,9 @@ async function main() {
     console.log(`  ${words.length} words → ${basename(stem)}.words.json`);
   }
 
-  const cards = cardsFromWords(words);
+  // The rail decides the line width: cards break where the burned text would.
   const style = shortsStyle(size.w, size.h, cam);
+  const cards = cardsFromWords(words, { lineChars: captionLineCharsFor(style) });
   const assPath = `${stem}.ass`, srtPath = `${stem}.srt`;
   writeFileSync(assPath, assFromCards(cards, style));
   writeFileSync(srtPath, srtFromCards(cards));

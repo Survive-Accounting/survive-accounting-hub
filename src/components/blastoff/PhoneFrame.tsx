@@ -19,9 +19,9 @@ import { CampusBanner } from "@/components/brand-cards/BoltZoom";
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 
 import { WebcamFrame } from "./capture/Webcam";
-import { isCamSpot, watermarkSize, wordmarkHero, type Box, type CamSpot } from "./capture/webcam-spots";
+import { camRect, isCamSpot, watermarkSize, wordmarkHero, type Box, type CamSpot } from "./capture/webcam-spots";
 import { FrameView } from "./frame-view";
-import { SAFE, camDefault, cardPlacement, type SlideLayout } from "./layout";
+import { SAFE, camDefault, captionRailClear, captionRailRect, cardPlacement, type RailStatus, type SlideLayout } from "./layout";
 import { backdropFor, isFullFrame, type BlastFrame } from "./plan";
 import type { CardOverride } from "./SetCard";
 import { SlideEditContext } from "./slide-edit";
@@ -48,7 +48,7 @@ export function watermarkOn(frame: BlastFrame, _backdrop: ReturnType<typeof back
   return !isFullFrame(frame.kind);
 }
 
-export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, stageStyle, camSpot, cardOverride: gripOverride, layout = "pass1", hero: heroProp, onHero }: {
+export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, stageStyle, camSpot, cardOverride: gripOverride, layout = "pass1", hero: heroProp, onHero, onRailStatus }: {
   frame: BlastFrame;
   /** The whole running order — the backdrop rule looks at the neighbours. */
   frames: readonly BlastFrame[];
@@ -79,6 +79,9 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
    *  the next slide and B→off can end it); uncontrolled everywhere else. */
   hero?: boolean;
   onHero?: (on: boolean) => void;
+  /** THE CAPTION RAIL CHECK (2026-09-05): on the capture, told whether the card or the camera
+   *  sits on the fixed caption rail — the /film chrome shows it. */
+  onRailStatus?: (s: RailStatus) => void;
 }) {
   const h = Math.round(w * 16 / 9);
   const backdrop = backdropFor(frames, index, (id) => !!set.ceqs.find((c) => c.id === id)?.noteOnly);
@@ -136,6 +139,14 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
     const b = el.getBoundingClientRect();
     setMarkBox({ w: b.width, h: b.height });
   }, [w, frame.id, moment]);
+  // THE RAIL: reserved on the Review stage (drawn with the safe zones), checked on the take.
+  // Nothing is ever drawn on the capture — OBS must not see a guide.
+  const rail = captionRailRect(w, h, cam === "off");
+  useEffect(() => {
+    if (!capture || !onRailStatus) return;
+    const camBox = cam === "off" ? null : camRect(cam, w, h, camSize, frame.camPos);
+    onRailStatus(captionRailClear(rail, cardBox, camBox));
+  }, [capture, onRailStatus, rail.x, rail.y, rail.w, rail.h, w, h, cam, camSize, frame.camPos, cardBox]);
   const wmLeft = Math.round(w * 0.04), wmTop = Math.round(w * 0.05);
   const wmHero = wordmarkHero(w, h);
   const wmTransform = moment && markBox
@@ -176,6 +187,11 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
         <WebcamFrame w={w} h={h} spot={cam} size={camSize} pos={frame.camPos} live={capture} cardBox={cardBox} moment={moment}
           onMoment={capture ? () => setMoment(!moment) : undefined}
           onFree={edit && !capture ? (p) => edit({ ...(p.pos ? { camPos: p.pos } : {}), ...(p.size ? { camSize: p.size } : {}) }) : undefined} />
+      )}
+      {safe && !moment && (
+        <div style={{ position: "absolute", left: rail.x, top: rail.y, width: rail.w, height: rail.h, border: "1px dashed rgba(252,163,17,0.55)", borderRadius: 6, pointerEvents: "none" }}>
+          <span style={{ ...tag, left: 6, top: 4, color: "rgba(252,163,17,0.8)" }}>captions</span>
+        </div>
       )}
       {safe && (
         <>
