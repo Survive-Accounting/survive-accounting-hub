@@ -590,6 +590,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "api.backfill.tsx": "token-gated backfill orchestrator endpoint",
   "api.cron.backup.tsx": "cron endpoint",
   "api.cron.king-digest.tsx": "cron endpoint",
+  "api.cron.ig-digest.tsx": "cron endpoint",
   "api.cron.growth-campaigns.tsx": "cron endpoint",
   "api.cron.comms-sequences.tsx": "cron endpoint",
   "api.cron.weekly-digest.tsx": "cron endpoint",

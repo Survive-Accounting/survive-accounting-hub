@@ -37,6 +37,14 @@
     {
       "path": "/api/cron/growth-campaigns",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/ig-digest",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/ig-digest",
+      "schedule": "0 14 * * *"
     }
   ]
 }
