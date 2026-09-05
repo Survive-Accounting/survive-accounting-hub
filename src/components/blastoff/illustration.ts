@@ -32,6 +32,11 @@ export interface FrameIllustration {
   /** WHERE IT SITS (2026-09-05): absent = the band under the card; a value = placed by hand
    *  (dragged / resized on Review), as fractions of the phone — centre x, centre y, width. */
   placement?: IllustrationPlacement | null;
+  /** THE BRIEF (2026-09-05): Lee's spoken words, the AI's summary of the prompt it prepped
+   *  (a title and three bullets), and the slide whose picture this one rhymes with. */
+  brief?: string | null;
+  summary?: { title: string; bullets: string[] } | null;
+  referenceFrameId?: string | null;
 }
 
 export interface IllustrationPlacement { x: number; y: number; w: number }
@@ -111,7 +116,15 @@ export function illustrationStyle(id: string | null | undefined): IllustrationSt
 export function composeIllustrationPrompt(style: IllustrationStyle, visual: string, teachingIntent: string | null): string {
   const subject = visual.trim().replace(/[.\s]+$/, "");
   const intent = (teachingIntent ?? "").trim().replace(/[.\s]+$/, "");
-  return style.promptPrefix + subject + style.promptSuffix + (intent ? " The idea it illustrates: " + intent + "." : "");
+  // A quoted label in the subject ("OUR COMPANY" on a sign) is the one text the picture may
+  // carry — the preset's "no text" steps aside for it, nothing else changes.
+  const suffix = promptHasLabel(subject) ? style.promptSuffix.replace(/,?\s*no text\b/i, "") : style.promptSuffix;
+  return style.promptPrefix + subject + suffix + (intent ? " The idea it illustrates: " + intent + "." : "");
+}
+
+/** A quoted label in a subject — the only text a Survive picture may carry. */
+export function promptHasLabel(prompt: string): boolean {
+  return /"[^"]{1,40}"|“[^”]{1,40}”/.test(prompt);
 }
 
 /** Made with an older registry version than the preset has now. */
@@ -125,7 +138,8 @@ export function isStaleIllustration(i: FrameIllustration | null | undefined): bo
 export function emptyIllustration(seed: Partial<FrameIllustration> = {}): FrameIllustration {
   return {
     requested: true, prompt: null, teachingIntent: null, provider: null, stylePreset: DEFAULT_STYLE_ID, styleVersion: null,
-    assetUrl: null, localAssetId: null, animationPreset: null, generatedAt: null, seed: null, placement: null, ...seed,
+    assetUrl: null, localAssetId: null, animationPreset: null, generatedAt: null, seed: null, placement: null,
+    brief: null, summary: null, referenceFrameId: null, ...seed,
   };
 }
 

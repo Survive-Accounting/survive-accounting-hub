@@ -44,10 +44,8 @@ import { PhoneFrame } from "./PhoneFrame";
 import { SlideEditContext } from "./slide-edit";
 import { CAM_LABEL, CAM_SPOTS, camSpotOf, isCamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf } from "./layout";
-import { ANIMATION_LABEL, ANIMATION_PRESETS, PROMPTING_TIPS, canIllustrate, emptyIllustration, illustrationStyle, isStaleIllustration } from "./illustration";
-import { generateIllustration, illustrationStatus, testIllustrationKey } from "@/lib/illustrate.functions";
-import { installPasscodeSession } from "@/lib/admin-session.functions";
-import { getAdminWho } from "@/components/AdminGate";
+import { canIllustrate } from "./illustration";
+import { IllustrationPanel } from "./IllustrationPanel";
 import {
   PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups, readTidy, setStampCandidates, tidyCacheKey, writeTidy,
   type PrompterCandidate, type TidyPhrase, type TidyResult,
@@ -429,7 +427,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
             <span style={{ fontSize: 11.5, color: MUTED }}>{labelOf(sel)}{sel.skipped ? " · skipped" : ""}</span>
           </div>
           {canIllustrate(sel.kind)
-            ? <IllustrationBlock key={sel.id} sel={sel} setId={set.id} onPatch={(p) => patch(sel.id, p)} />
+            ? <IllustrationPanel key={sel.id} sel={sel} setId={set.id} setName={set.name} frames={frames} onPatch={(p) => patch(sel.id, p)} />
             : <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5 }}>Pictures go on Memorize This, Cheat Code, Deeper Idea and blank slides. Pick one of those in the spine, or insert a <b style={{ color: CREAM }}>＋ Blank</b> — on a blank slide the picture is the slide: the watermark, the picture and the camera if you want it.</div>}
         </section>
       ) : rightTab === "editor" && sel ? (
@@ -533,120 +531,6 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
  *  faster/better to have them left/right"). A set card edits the card itself;
  *  an insert edits its words; the brand slides and ads edit their few
  *  switches. Same shell as the prompter — the two are faces of one column. */
-/** THE ILLUSTRATION BLOCK (polish pass, 2026-09-05). Optional, occasional, never automatic:
- *  Lee writes what the picture shows, the preset supplies Survive's art direction, Generate
- *  spends ONE provider call, the result lands on the slide at once (the phone beside this
- *  column is the preview), Regenerate rolls a new seed with the same words, Remove clears.
- *  Idle · Generating · Success · Error; an error keeps the words. If the server has no key
- *  the block says so and Generate is disabled — the editor never breaks. */
-function IllustrationBlock({ sel, setId, onPatch }: { sel: BlastFrame; setId: string; onPatch: (p: Partial<BlastFrame>) => void }) {
-  const ill = sel.illustration ?? null;
-  const [prompt, setPrompt] = useState(ill?.prompt ?? "");
-  const [intent, setIntent] = useState(ill?.teachingIntent ?? "");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [tips, setTips] = useState(false);
-  const [avail, setAvail] = useState<{ signedIn: boolean; configured: boolean; provider: string; keyLength: number } | null>(null);
-  const [availErr, setAvailErr] = useState<string | null>(null);
-  const [pass, setPass] = useState("");
-  const [keyTest, setKeyTest] = useState<string | null>(null);
-  useEffect(() => { setPrompt(ill?.prompt ?? ""); setIntent(ill?.teachingIntent ?? ""); setErr(null); }, [sel.id]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const checkAvail = () => { illustrationStatus().then((s) => { setAvail(s); setAvailErr(null); }).catch((e) => { setAvail(null); setAvailErr((e as Error).message); }); };
-  useEffect(() => { checkAvail(); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
-  const signIn = async () => {
-    setKeyTest(null);
-    try {
-      const r = await installPasscodeSession({ data: { passcode: pass, who: getAdminWho() === "king" ? "king" : "lee" } });
-      if (!r.ok) { setKeyTest(r.error ?? "Wrong passcode."); return; }
-      setPass(""); checkAvail();
-    } catch (e) { setKeyTest((e as Error).message); }
-  };
-  const testKey = async () => {
-    setKeyTest("Asking Recraft…");
-    try { const r = await testIllustrationKey(); setKeyTest(r.ok ? `✓ Key works — ${r.credits ?? "?"} API units left${r.email ? ` (${r.email})` : ""}.` : `✗ ${r.error ?? "rejected"}`); }
-    catch (e) { setKeyTest(`✗ ${(e as Error).message}`); }
-  };
-  const style = illustrationStyle(ill?.stylePreset);
-  const stale = isStaleIllustration(ill);
-  const seedIntent = () => intent.trim() || insertStem(sel) || (sel.bullets ?? []).join("; ") || "";
-
-  const run = async (reseed: boolean) => {
-    const words = prompt.trim();
-    if (!words) { setErr("Describe the visual first — one subject, what it's doing."); return; }
-    setBusy(true); setErr(null);
-    try {
-      const r = await generateIllustration({ data: { setId, frameId: sel.id, prompt: words, teachingIntent: seedIntent() || null, stylePreset: style.id, ...(reseed || !ill?.seed ? {} : { seed: ill.seed }) } });
-      onPatch({ illustration: {
-        ...(ill ?? emptyIllustration()), requested: true, prompt: words, teachingIntent: seedIntent() || null,
-        provider: r.provider, stylePreset: r.stylePreset, styleVersion: r.styleVersion, assetUrl: r.url, localAssetId: r.path,
-        animationPreset: ill?.animationPreset ?? style.defaultAnimation, generatedAt: r.generatedAt, seed: r.seed,
-      } });
-    } catch (e) { setErr((e as Error).message || "Couldn't generate. Your words are kept — try again."); }
-    finally { setBusy(false); }
-  };
-  const bank = () => onPatch({ illustration: { ...(ill ?? emptyIllustration()), requested: true, prompt: prompt.trim() || null, teachingIntent: seedIntent() || null } });
-
-  return (
-    <div style={{ marginTop: 10 }}>
-      <div style={{ ...subhead, display: "flex", alignItems: "center", gap: 8 }}>
-        🎨 Illustration
-        <button type="button" onClick={() => setTips((v) => !v)} title="How to write a prompt that comes out right the first time"
-          style={{ marginLeft: "auto", width: 18, height: 18, borderRadius: 9, border: `1px solid ${GOLD}88`, background: tips ? GOLD : "transparent", color: tips ? "#17130A" : GOLD, fontSize: 11, fontWeight: 800, cursor: "pointer", lineHeight: 1 }}>?</button>
-      </div>
-      {tips && (
-        <ul style={{ margin: "6px 0 0", padding: "8px 10px 8px 22px", border: `1px solid ${EDGE}`, borderRadius: 8, fontSize: 11, color: CREAM, lineHeight: 1.45 }}>
-          {PROMPTING_TIPS.map((t, i) => <li key={i} style={{ margin: "2px 0" }}>{t}</li>)}
-        </ul>
-      )}
-      {/* THE THREE STATES, named (2026-09-05) — not signed in on the server · no key · ready. */}
-      {availErr && <div style={{ marginTop: 6, fontSize: 11, color: ORANGE }}>Couldn't check the server: {availErr}</div>}
-      {avail && !avail.signedIn && (
-        <div style={{ marginTop: 6, padding: "8px 10px", border: `1px solid ${ORANGE}88`, borderRadius: 8, fontSize: 11, color: CREAM, lineHeight: 1.45 }}>
-          <b style={{ color: ORANGE }}>Not signed in on the server.</b> This page unlocks in the browser only; generating (it costs money) needs the team passcode exchanged for a server session once per browser, per month.
-          <div className="flex" style={{ gap: 6, marginTop: 6 }}>
-            <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void signIn(); }} placeholder="team passcode" style={{ ...field, flex: 1, minHeight: 0, padding: "4px 8px" }} />
-            <button type="button" onClick={() => void signIn()} style={chip(true, GOLD)}>Sign in</button>
-          </div>
-        </div>
-      )}
-      {avail && avail.signedIn && !avail.configured && (
-        <div style={{ marginTop: 6, fontSize: 11, color: ORANGE }}>Signed in, but the server has no {avail.provider} key: RECRAFT_API_KEY is empty on this deployment. Add it in Vercel (Production ticked), redeploy, reload. You can still bank the idea.</div>
-      )}
-      {avail && avail.configured && (
-        <div className="flex" style={{ gap: 8, marginTop: 6, alignItems: "center", fontSize: 10.5, color: MUTED }}>
-          <span>Key present on the server ({avail.keyLength} chars).</span>
-          <button type="button" onClick={() => void testKey()} style={chip(false, GOLD)} title="One free call to Recraft — proves the key and shows the balance">Test the key</button>
-        </div>
-      )}
-      {keyTest && <div style={{ marginTop: 4, fontSize: 11, color: keyTest.startsWith("✓") ? "#3BF5A0" : ORANGE }}>{keyTest}</div>}
-      {!ill && <div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>None on this slide. Most slides should stay clean — 1–3 pictures per Short.</div>}
-      <label style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 6 }}>Describe the visual
-        <textarea rows={2} style={{ ...field, marginTop: 4, resize: "vertical" }} value={prompt} placeholder="e.g. a nervous investor peering at a financial statement through a magnifying glass" onChange={(e) => setPrompt(e.target.value)} /></label>
-      <label style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 6 }}>The teaching point it serves (optional)
-        <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={intent} placeholder={insertStem(sel) || "why this picture exists"} onChange={(e) => setIntent(e.target.value)} /></label>
-      <div className="flex" style={{ gap: 5, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}>
-        <span style={{ fontSize: 10.5, color: MUTED }}>{style.label} · v{style.version}{stale ? " · " : ""}{stale && <span style={{ color: ORANGE, fontWeight: 800 }}>stale — regenerate</span>}</span>
-        <span style={{ flex: 1 }} />
-        {ANIMATION_PRESETS.map((a) => (
-          <button key={a} style={chip((ill?.animationPreset ?? style.defaultAnimation) === a, ORANGE)} title={ANIMATION_LABEL[a]} disabled={!ill?.assetUrl}
-            onClick={() => ill && onPatch({ illustration: { ...ill, animationPreset: a } })}>{ANIMATION_LABEL[a]}</button>
-        ))}
-      </div>
-      <div className="flex" style={{ gap: 6, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <button type="button" disabled={busy || !avail?.configured} onClick={() => void run(!!ill?.assetUrl)}
-          style={{ ...chip(true, GOLD), opacity: busy || !avail?.configured ? 0.5 : 1, cursor: busy ? "wait" : "pointer" }}>
-          {busy ? "Generating…" : ill?.assetUrl ? "Regenerate" : "Generate"}
-        </button>
-        {!ill?.assetUrl && <button type="button" onClick={bank} style={chip(false, GOLD)} title="Keep the idea on the slide without spending a generation">Bank the idea</button>}
-        {ill && <button type="button" onClick={() => onPatch({ illustration: null })} style={chip(false, ORANGE)} title="Clear the picture and the idea from this slide">Remove</button>}
-        {ill?.assetUrl && <span style={{ fontSize: 10.5, color: MUTED }}>seed {ill.seed} · {ill.generatedAt ? new Date(ill.generatedAt).toLocaleDateString() : ""}</span>}
-      </div>
-      {err && <div style={{ marginTop: 6, fontSize: 11, color: ORANGE }}>{err}</div>}
-      {ill?.assetUrl && <div style={{ marginTop: 6, fontSize: 10.5, color: MUTED }}>It's on the slide to the left — drag it to move, the corner grip resizes{ill.placement ? "" : " (a blank slide's sits dead centre)"}. Regenerate keeps the words and rolls a new seed; change the words when the subject is wrong.</div>}
-      {ill?.placement && <button type="button" onClick={() => onPatch({ illustration: { ...ill, placement: null } })} style={{ ...chip(false, GOLD), marginTop: 6 }} title="Back to the band under the card">Snap back under the card</button>}
-    </div>
-  );
-}
 
 function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onSaved }: {
   /** The set's slide template — the camera chips read their default from it. */
