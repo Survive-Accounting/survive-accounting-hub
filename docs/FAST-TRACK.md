@@ -6,11 +6,12 @@
 
 1. Go to the page you want changed. Press **Ctrl+F**.
 2. The box says whether the **build machine is up** and which model builds it (**Claude Sonnet 5**). If the machine is off, the button says *Save to the list* — it builds when the machine is back.
-3. Write what should change and what it should look like after — a sentence or two. The page is captured for you.
-4. **Send.** You get **10 a day** (resets at midnight Chicago). You get an email at once (Lee on cc) with a **CANCEL** link that works while it's still queued.
-5. When it's built (usually 10–40 minutes) you get a second email (Lee on cc): the preview, the checklist, what it cost, and a **REVERT** link.
-6. **Check it out before the next one.** Ctrl+F asks for 👍 / 👎 and one line on how it went. No new request until the last one is rated — and none while one is still building.
-7. **The Log** button in Ctrl+F lists everything you've sent: date/time, ~cost, time to build, your rating and comment, cancelled/reverted.
+3. Say what should change, in your own words — copy, a label, a color, a size. **Add a screenshot** if a picture says it faster (paste one with Win+Shift+S, or the 📷 button) — up to 3.
+4. **Prep the request.** The AI turns your words into a title, a couple of bullets, and the exact instruction for the build — shown to you before anything builds, with the full instruction behind a toggle if you want to read it. If the request isn't a UI/UX change, it says so and refuses — send that one through Ctrl+I instead.
+5. **Looks good — send.** You get **10 a day** (resets at midnight Chicago). You get an email at once (Lee on cc) with a **CANCEL** link that works while it's still queued.
+6. When it's built (usually 10–40 minutes) you get a second email (Lee on cc): the preview, the checklist, what it cost, and a **REVERT** link.
+7. **Check it out before the next one.** Ctrl+F asks for 👍 / 👎 and one line on how it went. No new request until the last one is rated — and none while one is still building.
+8. **The Log** button in Ctrl+F lists everything you've sent: date/time, ~cost, time to build, your rating and comment, cancelled/reverted — with any screenshots you attached.
 
 ## King's playground
 
@@ -18,10 +19,9 @@ King's changes land on **/admin/growth/v3** — a copy of the v2 command center 
 
 ## What fits
 
-- One small change you can describe in a sentence or two — copy, a label, a colour, a layout tweak, a new column in a table, a small tool on a page.
-- Say WHERE and WHAT.
+- **UI/UX only** — copy, a label, a colour, spacing, sizing something bigger or smaller. The prep step (`src/lib/fast-track-brief.ts`) checks this before anything is submitted and refuses anything else, with a reason.
 - Nothing that touches data, sign-in, payments, or texting/emailing students. Nothing needing a new database table.
-- If the build finds it's bigger than it looks, it stops and says so.
+- If the build finds it's bigger than it looks anyway, it stops and says so.
 
 ## What the build machine does with it
 

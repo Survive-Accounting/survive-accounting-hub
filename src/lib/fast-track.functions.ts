@@ -9,6 +9,16 @@ import {
   FAST_TRACK_LANE, FAST_TRACK_MODEL, FAST_TRACK_MODEL_LABEL, fastTrackAllowance, fastTrackPrompt, fmtStamp, isFastTrack, needsCheckout,
   playgroundFor, playgroundRules, queueStateOf, runnerOnline, type Checkout, type QueueState,
 } from "@/lib/fast-track";
+import type { Attachment } from "@/components/ideas/model";
+
+/** A screenshot (or up to a couple) pasted or picked into the fast-track box — "make the
+ *  camera bigger on my slides" is exactly the kind of request a picture makes unambiguous.
+ *  Uploaded client-side via uploadIdeaFile (the same canvas-media path the Idea Bank already
+ *  uses); this just validates the record and stores it on the row like any idea attachment. */
+const attachmentSchema = z.object({
+  id: z.string().min(1).max(400), name: z.string().max(300), mime: z.string().max(120),
+  size: z.number().int().nonnegative(), path: z.string().max(400), url: z.string().max(1000),
+});
 
 type DB = { from: (t: string) => any };
 async function ctx(): Promise<{ db: DB; sessionEmail: string }> {
@@ -19,10 +29,10 @@ async function ctx(): Promise<{ db: DB; sessionEmail: string }> {
   return { db: supabaseAdmin as unknown as DB, sessionEmail: s.email ?? "" };
 }
 
-interface Row { id: string; title: string; body: string; status: string; source_path: string | null; context: Record<string, string> | null; created_by: string | null; created_at: string; updated_at: string; prompt_md?: string | null }
+interface Row { id: string; title: string; body: string; status: string; source_path: string | null; context: Record<string, string> | null; created_by: string | null; created_at: string; updated_at: string; prompt_md?: string | null; attachments?: Attachment[] | null }
 
 async function fastTrackRows(db: DB): Promise<Row[]> {
-  const { data } = await db.from("ideas").select("id,title,body,status,source_path,context,created_by,created_at,updated_at,prompt_md")
+  const { data } = await db.from("ideas").select("id,title,body,status,source_path,context,created_by,created_at,updated_at,prompt_md,attachments")
     .contains("context", { lane: FAST_TRACK_LANE }).order("created_at", { ascending: false }).limit(500);
   return (data ?? []) as Row[];
 }
@@ -72,6 +82,7 @@ export const submitFastTrack = createServerFn({ method: "POST" })
     text: z.string().trim().min(8).max(2000),
     path: z.string().max(300),
     pageTitle: z.string().max(200).default(""),
+    attachments: z.array(attachmentSchema).max(3).default([]),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true; id: string; left: number | null; runnerOnline: boolean } | { ok: false; error: string; left: number | null; checkout?: Checkout }> => {
     const { db } = await ctx();
@@ -94,6 +105,9 @@ export const submitFastTrack = createServerFn({ method: "POST" })
     const title = data.text.trim().split("\n").find((l) => l.trim())?.replace(/^[#>\-*\s]+/, "").slice(0, 72) ?? "Fast track request";
     const prompt = [
       fastTrackPrompt({ text: data.text, path: data.path, pageTitle: data.pageTitle, who: data.who }),
+      // A screenshot makes "bigger" / "over here" / "like this" unambiguous — named for
+      // whoever builds this (human or agent) to open, not just filed as an attachment.
+      ...(data.attachments.length ? ["", data.attachments.length === 1 ? "SCREENSHOT ATTACHED:" : "SCREENSHOTS ATTACHED:", ...data.attachments.map((a) => `- ${a.url}`)] : []),
       ...(playground ? ["", ...playgroundRules(playground)] : []),
     ].join("\n");
     const { error } = await db.from("ideas").insert({
@@ -109,7 +123,7 @@ export const submitFastTrack = createServerFn({ method: "POST" })
         model: FAST_TRACK_MODEL, ...(playground ? { playground } : {}), ...(online ? {} : { queuedOffline: "1" }),
         armed: "1", armedAt: iso, queuePriority: "medium",
       },
-      created_by: data.who, source_kind: "web", attachments: [], audio_path: null, transcript_status: null,
+      created_by: data.who, source_kind: "web", attachments: data.attachments, audio_path: null, transcript_status: null,
       created_at: iso, updated_at: iso,
     });
     if (error) return { ok: false, error: error.message, left: allowance.left };
@@ -126,7 +140,9 @@ export const submitFastTrack = createServerFn({ method: "POST" })
           `Sent by ${data.who} on ${fmtStamp(iso)} from ${data.path || "(unknown page)"}.`,
           `Builds on ${FAST_TRACK_MODEL_LABEL}${playground ? ` · lands on ${SITE}${playground} (the playground — /v2 is never touched)` : ""}.`,
           online ? "The build machine is up — it picks this up on its next pass (within 3 minutes) and usually takes 10–40 minutes." : "The build machine is OFF right now — this is saved on the list and builds when it comes back.",
-          "", "THE REQUEST", data.text.trim(), "",
+          "", "THE REQUEST", data.text.trim(),
+          ...(data.attachments.length ? ["", ...data.attachments.map((a) => `Screenshot: ${a.url}`)] : []),
+          "",
           `CANCEL (only while it's still queued): ${SITE}/buildqueue?cancel=${id}`,
           `The queue: ${SITE}/buildqueue`,
         ].join("\n"),
@@ -140,6 +156,7 @@ export interface LogRow {
   costUsd: string | null; buildSeconds: string | null; model: string | null;
   rating: "up" | "down" | null; ratingNote: string | null; cancelled: boolean; reverted: boolean;
   previewUrl: string | null; branch: string | null; playground: string | null;
+  attachments: Attachment[];
 }
 
 function toLog(r: Row): LogRow {
@@ -151,6 +168,7 @@ function toLog(r: Row): LogRow {
     rating: c.rating === "up" || c.rating === "down" ? c.rating : null, ratingNote: c.ratingNote ?? null,
     cancelled: c.cancelled === "1", reverted: c.reverted === "1",
     previewUrl: c.previewUrl || null, branch: c.branch || null, playground: c.playground || null,
+    attachments: r.attachments ?? [],
   };
 }
 
@@ -237,13 +255,14 @@ export interface QueueRow {
   checklist: string[]; report: string | null;
   costUsd: string | null; buildSeconds: string | null; model: string | null; rating: string | null; ratingNote: string | null;
   cancelled: boolean; reverted: boolean; playground: string | null;
+  attachments: Attachment[];
 }
 
 /** Everything on the runner's plate, newest first: fast-track requests plus Lee's own queue. */
 export const listBuildQueue = createServerFn({ method: "GET" }).handler(async (): Promise<{ rows: QueueRow[]; runnerOnline: boolean; runnerSeenAt: string | null }> => {
   const { db } = await ctx();
   const [{ data }, seen] = await Promise.all([
-    db.from("ideas").select("id,title,body,status,source_path,context,created_by,created_at,updated_at")
+    db.from("ideas").select("id,title,body,status,source_path,context,created_by,created_at,updated_at,attachments")
       .in("status", ["SUBMITTED", "APPROVED", "PARKED"]).order("updated_at", { ascending: false }).limit(300),
     runnerSeenAt(db),
   ]);
@@ -261,6 +280,7 @@ export const listBuildQueue = createServerFn({ method: "GET" }).handler(async ()
         checklist, report: c.report || null,
         costUsd: c.costUsd ?? null, buildSeconds: c.buildSeconds ?? null, model: c.model ?? null, rating: c.rating ?? null, ratingNote: c.ratingNote ?? null,
         cancelled: c.cancelled === "1", reverted: c.reverted === "1", playground: c.playground || null,
+        attachments: r.attachments ?? [],
       };
     });
   return { rows, runnerOnline: runnerOnline(seen, new Date()), runnerSeenAt: seen };

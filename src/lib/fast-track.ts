@@ -12,13 +12,13 @@ export const FAST_TRACK_DAILY_LIMIT = 10;
 
 /** What counts as fast-track scope — shown to the requester, in plain words. */
 export const FAST_TRACK_GUIDELINES: readonly string[] = [
-  "One small change you can describe in a sentence or two — copy, a label, a colour, a layout tweak, a new column in a table, a small tool on a page.",
-  "Say WHERE (the page) and WHAT (what should change and what it should look like after). The page you press Ctrl+F on is captured automatically.",
+  "UI/UX only — copy, a label, a colour, spacing, making something bigger or smaller, moving something on screen. Say it in your own words; the AI preps the exact instruction and you confirm it before anything builds.",
+  "A screenshot helps more than a sentence for anything visual — paste one (Win+Shift+S) or add it, so \"bigger\" and \"like this\" point at something real.",
   "Nothing that touches data: no deleting, no moving records, no changing what students see on the public site.",
-  "Nothing that touches sign-in, passwords, payments, or texting/emailing students.",
-  "Nothing the build would need a new database table or migration for.",
-  "If the build finds the change is bigger than it looks, it stops and says so — nothing half-done ships.",
-  "What you get back: a preview link and a checklist, by email to Lee. Lee merges it live after a look.",
+  "Nothing that touches sign-in, passwords, payments, or texting/emailing students, and nothing that needs a new database table or migration.",
+  "If a request needs more than a UI/UX change, the prep step says so and refuses — send it through Ctrl+I to the Idea Bank instead.",
+  "If the build finds the change is bigger than it looks anyway, it stops and says so — nothing half-done ships.",
+  "What you get back: a preview link and a checklist, by email. Lee merges it live after a look.",
 ];
 
 /** The rules the runner prepends to a fast-track build. The enforceable half of the above. */
