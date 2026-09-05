@@ -20,8 +20,7 @@ import { Emph, HighlightContext, SEL_EMPH_CSS, wordRangeAtPoint } from "@/compon
 
 import type { AdKind } from "./ad-kinds";
 
-const FONT = "'Rubik', system-ui, sans-serif";
-const HEAD_FONT = "'League Spartan', 'Rubik', system-ui, sans-serif";
+import { BRAND_FONT as FONT, DISPLAY_FONT as HEAD_FONT } from "./stage";
 const GOLD = "#FCA311";
 
 export const ADS: Record<AdKind, { label: string; headline: string; lines: string[]; url: string; banner: boolean }> = {

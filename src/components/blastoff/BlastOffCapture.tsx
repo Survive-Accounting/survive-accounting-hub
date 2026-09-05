@@ -119,6 +119,8 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   const [camOverride, setCamOverride] = useState<CamSpot | null>(null);
   useEffect(() => { setCamOverride(null); }, [frameId]);
   const camNow: CamSpot = camOverride ?? (frame ? (isCamSpot(frame.cam) ? frame.cam : camDefault(layoutOf(plan), frame.kind).spot) : "off");
+  // A QA override left on the filming PC films the wrong pass — say so in the chrome (audit §2.15).
+  const qaLayout = (() => { try { return typeof window !== "undefined" ? window.localStorage.getItem("sa-layout-qa") : null; } catch { return null; } })();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -178,6 +180,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
         }}>
           <span style={{ color: GOLD, fontWeight: 800 }}>{idx + 1} / {n}</span>
           <span>{FRAME_LABEL[frame.kind]}</span>
+          {qaLayout && <span title="localStorage sa-layout-qa is set on this browser — the take films THIS pass, not the set's" style={{ color: "#FF7A59", fontWeight: 800 }}>layout override: {qaLayout}</span>}
           <span title="The fixed caption rail (layout.ts CAPTION_RAIL): where the burned captions will land on this slide"
             style={{ color: railStatus === "clear" ? MUTED : GOLD, fontWeight: railStatus === "clear" ? 500 : 800 }}>
             {railStatus === "clear" ? "captions clear" : railStatus === "card" ? "captions: ON THE CARD" : "captions: under the camera"}

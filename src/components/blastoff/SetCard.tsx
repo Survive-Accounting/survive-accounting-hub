@@ -113,7 +113,9 @@ export function SetCard({
           // canvas stage sits on, so the paper edge reads correctly.
           background: PAPER.navy,
           padding: 22 * s,
-          borderRadius: 12,
+          // Scaled like everything else on the card (audit §2.15): 12 px was nearly double
+          // the card's own 14·s corner at Review size.
+          borderRadius: Math.max(8, 12 * s),
         }}
       >
         <Card

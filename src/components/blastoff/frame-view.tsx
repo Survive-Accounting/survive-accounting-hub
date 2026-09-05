@@ -10,6 +10,7 @@
 import { useContext } from "react";
 
 import type { BoothCeq, BoothSetInfo } from "@/lib/talkthrough.functions";
+import { KindChip } from "@/components/canvas/cards/CalloutCard";
 import { CARD_W } from "@/components/canvas/ceq-geom";
 import { renderInline } from "@/components/canvas/inline-md";
 import { BoltZoom } from "@/components/brand-cards/BoltZoom";
@@ -19,7 +20,7 @@ import { AdSlide } from "./AdSlide";
 import { LeePortrait } from "./LeePortrait";
 import { SetCard, type CardOverride } from "./SetCard";
 import { BIO_CARD, bioCallout } from "./bio-card";
-import { V } from "./stage";
+import { DISPLAY_FONT, V } from "./stage";
 import { SurviveOutro } from "./SurviveOutro";
 import { INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isStandard, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
@@ -35,11 +36,20 @@ function isQuestion(f: BlastFrame, byId: Map<string, BoothCeq>): boolean {
 }
 
 /** frame id → "Q 3/8", questions only. Built once per plan. */
+// A duplicated card (same ceqId twice in the run) is ONE question asked twice — it keeps
+// the first number, and the total counts unique cards (audit §2.15).
 export function questionProgress(frames: readonly BlastFrame[], byId: Map<string, BoothCeq>): Map<string, { x: number; y: number }> {
-  const y = frames.filter((f) => isQuestion(f, byId)).length;
+  const seen = new Map<string, number>();
+  const y = new Set(frames.filter((f) => isQuestion(f, byId)).map((f) => f.ceqId ?? f.id)).size;
   const out = new Map<string, { x: number; y: number }>();
   let x = 0;
-  for (const f of frames) if (isQuestion(f, byId)) out.set(f.id, { x: ++x, y });
+  for (const f of frames) {
+    if (!isQuestion(f, byId)) continue;
+    const key = f.ceqId ?? f.id;
+    const n = seen.get(key) ?? ++x;
+    seen.set(key, n);
+    out.set(f.id, { x: n, y });
+  }
   return out;
 }
 
@@ -144,14 +154,13 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
  *  phrase. Not a canvas card — the canvas stages the real element instead. */
 function ExhibitDetour({ label, scale }: { label: string; scale: number }) {
   const navy = "#14213D";
+  // The same shell as a real detour (audit §2.15): chip above the box, 16·s padding, 13·s
+  // radius, a scaled border, League Spartan 31·s — so an exhibit slot reads as one of the family.
   return (
-    <div style={{ width: CARD_W * scale, background: navy, padding: 22 * scale, borderRadius: 12, display: "flex", justifyContent: "center" }}>
-      <div style={{ width: "100%", borderRadius: 14 * scale, border: "1.5px solid rgba(252,163,17,0.6)", padding: `${18 * scale}px ${20 * scale}px ${20 * scale}px`, background: navy, position: "relative" }}>
-        <span aria-hidden style={{ position: "absolute", top: -1, right: -1, width: 26 * scale, height: 26 * scale, background: GOLD, clipPath: "polygon(100% 0, 0 0, 100% 100%)", borderTopRightRadius: 13 * scale, opacity: 0.9 }} />
-        <div style={{ display: "inline-flex", padding: `${2 * scale}px ${8 * scale}px`, borderRadius: 6 * scale, fontSize: 10.5 * scale, fontWeight: 900, letterSpacing: "0.12em", color: GOLD, background: "rgba(252,163,17,0.14)", border: "1px solid rgba(252,163,17,0.27)", marginBottom: 8 * scale }}>
-          EXHIBIT
-        </div>
-        <div style={{ fontSize: 24 * scale, fontWeight: 800, lineHeight: 1.25, color: "#F5EFE6" }}>
+    <div style={{ width: CARD_W * scale, background: navy, padding: 22 * scale, borderRadius: Math.max(8, 12 * scale), display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <KindChip text="Exhibit" accent={GOLD} scale={scale} />
+      <div style={{ width: "100%", borderRadius: 13 * scale, border: `${Math.max(1, 1.5 * scale)}px solid rgba(252,163,17,0.6)`, padding: 16 * scale, background: navy, position: "relative", boxShadow: "0 8px 30px rgba(0,0,0,0.35)" }}>
+        <div style={{ fontFamily: DISPLAY_FONT, fontSize: 31 * scale, fontWeight: 800, lineHeight: 1.1, color: "#F5EFE6" }}>
           {renderInline(label.includes("==") ? label : `==${label}==`, { bg: GOLD, color: navy })}
         </div>
         <div style={{ fontSize: 11 * scale, color: "rgba(245,239,230,0.55)", marginTop: 8 * scale }}>

@@ -139,7 +139,7 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
   return (
     <div style={{ position: "relative" }}>
       {/* the little orange corner accent — the callout's signature, kept */}
-      <span aria-hidden style={{ position: "absolute", top: -16 * s, right: -16 * s, width: 26 * s, height: 26 * s, background: "#FCA311", clipPath: "polygon(100% 0, 0 0, 100% 100%)", borderTopRightRadius: 13 * s, opacity: 0.9 }} />
+      <span aria-hidden style={{ position: "absolute", top: -16 * s, right: -16 * s, width: 26 * s, height: 26 * s, background: dark ? darkAccent : "#FCA311", clipPath: "polygon(100% 0, 0 0, 100% 100%)", borderTopRightRadius: 13 * s, opacity: 0.9 }} />
       {meta && !dark && (
         <div style={{ display: "inline-flex", alignItems: "center", gap: 6 * s, marginBottom: 8 * s, padding: `${2 * s}px ${8 * s}px`, borderRadius: 6 * s, fontSize: 10.5 * s, fontWeight: 900, letterSpacing: "0.12em", color: meta.accent, background: meta.tint, border: `1px solid ${meta.accent}44` }}>
           {meta.label}

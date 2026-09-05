@@ -487,7 +487,7 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
         <PhoneFrame frame={sel} frames={frames} index={idx} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} w={STAGE_W} layout={layout} />
       ) : (
         <div style={{ border: `1px solid ${EDGE}`, borderRadius: 10, overflow: "hidden", display: "inline-block", maxWidth: "100%", opacity: sel.skipped ? 0.5 : 1 }}>
-          <FrameView frame={sel} set={viewSet} scale={0.78} topicName={topic.name} progress={progress} />
+          <FrameView frame={sel} set={viewSet} scale={0.78} topicName={topic.name} progress={progress} layout={layout} />
         </div>
       )}
       </SlideEditContext.Provider>

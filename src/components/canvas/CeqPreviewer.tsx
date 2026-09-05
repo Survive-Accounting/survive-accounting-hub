@@ -752,7 +752,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
       {/* THE DETOUR HEADING sits above the navy box (2026-09-04), so the card
           root is transparent and the box below carries the navy and the edge. */}
       {detourKind && !stemEditing && <KindChip text={calloutMeta(detourKind).label} accent={detourAccent(detourKind)} scale={s} />}
-      <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s, ...(detour ? { background: PAPER.navy, border: `1.5px solid ${detourAccent(detourKind)}99`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)" } : {}) }}>
+      <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s, ...(detour ? { background: PAPER.navy, border: `${Math.max(1, 1.5 * s)}px solid ${detourAccent(detourKind)}99`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)" } : {}) }}>
       {/* TOPIC kicker — name only (no Ch#), small uppercase above the stem so a
           viewer landing mid-clip knows the topic. */}
       {!isCallout && d.topic && <div style={{ display: "flex", alignItems: "center", gap: 6 * s, fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{/* no bolt here either — see the note above the boss bolt */}<span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</span></div>}

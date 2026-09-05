@@ -95,7 +95,7 @@ export function BlastOffEditor({ set, topicName, onCapture }: { set: BoothSetInf
   const [syncNote, setSyncNote] = useState<string | null>(null);
   const ceqById = useMemo(() => new Map(set.ceqs.map((c) => [c.id, c])), [set.ceqs]);
   const progressById = useMemo(
-    () => questionProgress(plan?.frames ?? [], ceqById),
+    () => questionProgress(filmFrames(plan?.frames ?? []), ceqById),
     [plan?.frames, ceqById],
   );
 
