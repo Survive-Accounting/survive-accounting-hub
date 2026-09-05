@@ -9,8 +9,20 @@ export interface IgDigestInput {
   byCampus: { campus: string; n: number }[];
   /** New handles yesterday, per person who added them, highest first. */
   byWho: { who: string; n: number }[];
-  /** Handles on file across every campus, after yesterday. */
-  totalOnFile: number;
+  /** DISTINCT organization (chapter/council/club) Instagram handles on file, normalized —
+   *  a chapter counted once no matter how many contact rows carry its account. */
+  totalOrgIgs: number;
+  /** DISTINCT personal (an individual's own) handles on file. Real today: 0 — the scraper
+   *  finds ORG accounts only, so every handle in the table belongs to a chapter/council/club,
+   *  never to a person, even on a row for a named officer or advisor. Kept as its own field,
+   *  not folded into totalOrgIgs, so the day this changes the digest already has a place for it. */
+  totalPersonalIgs: number;
+  /** Campuses with at least one org IG on file, of campuses touched at all (any contact row). */
+  campusesCovered: number;
+  campusesTotal: number;
+  /** Orgs (chapters/councils/clubs) with at least one IG on file, of orgs touched at all. */
+  orgsCovered: number;
+  orgsTotal: number;
   dashboardUrl: string;
 }
 
@@ -44,21 +56,32 @@ export function zoneMidnightUtc(ymd: string, timeZone: string): Date {
   return new Date(guess - offset);
 }
 
+/** "76%", or "n/a" when there is nothing to divide by yet — never a NaN or an Infinity. */
+function pct(n: number, d: number): string {
+  return d > 0 ? `${Math.round((n / d) * 100)}%` : "n/a";
+}
+
 export function composeIgDigest(i: IgDigestInput): IgDigest {
   const total = i.byCampus.reduce((n, c) => n + c.n, 0);
   const who = i.byWho.length ? " (" + i.byWho.map((w) => `${firstName(w.who)} ${w.n}`).join(", ") + ")" : "";
   const topCampuses = i.byCampus.slice(0, 3).map((c) => `${c.campus} ${c.n}`).join(", ");
   const subject = total === 0 ? `No new IG handles ${i.dayLabel}` : `${total} new IG handle${total === 1 ? "" : "s"} ${i.dayLabel}`;
-  const sms = total === 0
-    ? `IG · ${i.dayLabel}: no new handles · ${i.totalOnFile.toLocaleString()} on file`
-    : `IG · ${i.dayLabel}: ${total} new handle${total === 1 ? "" : "s"}${who} · ${topCampuses} · ${i.totalOnFile.toLocaleString()} on file`;
+  const sms = `IG · ${i.dayLabel}: ${total === 0 ? "no new handles" : `${total} new${who}`}${topCampuses ? " · " + topCampuses : ""}`
+    + ` · Org IGs ${i.totalOrgIgs.toLocaleString()} · Campuses ${i.campusesCovered}/${i.campusesTotal} (${pct(i.campusesCovered, i.campusesTotal)})`
+    + ` · Orgs ${i.orgsCovered.toLocaleString()}/${i.orgsTotal.toLocaleString()} (${pct(i.orgsCovered, i.orgsTotal)})`;
   const lines = [
     subject + ".",
     "",
+    `Total Org IG's: ${i.totalOrgIgs.toLocaleString()}`,
+    `Total Personal IG's: ${i.totalPersonalIgs.toLocaleString()}`
+      + (i.totalPersonalIgs === 0 ? " (not tracked yet — every handle on file is an org's, never a person's)" : ""),
+    "",
+    `Campuses Covered vs Remaining: ${i.campusesCovered}/${i.campusesTotal} (${pct(i.campusesCovered, i.campusesTotal)})`,
+    `Orgs Covered vs Remaining: ${i.orgsCovered.toLocaleString()}/${i.orgsTotal.toLocaleString()} (${pct(i.orgsCovered, i.orgsTotal)})`,
+    "",
+    `IG's found yesterday: ${total}`,
     ...(i.byWho.length ? ["Added by", ...i.byWho.map((w) => `  ${firstName(w.who)}  ${w.n}`), ""] : []),
     ...(i.byCampus.length ? ["By campus", ...i.byCampus.map((c) => `  ${c.campus}  ${c.n}`), ""] : []),
-    `${i.totalOnFile.toLocaleString()} handles on file across every campus.`,
-    "",
     i.dashboardUrl,
   ];
   return { subject, sms, text: lines.join("\n"), total };
