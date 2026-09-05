@@ -57,6 +57,16 @@ export function Recorder({ semester, dateLabel, notepadOpen, notesHtml, onNotesC
   const [minimized, setMinimized] = useState(false);
   const [bubblePos, setBubblePos] = useState<{ x: number; y: number } | null>(null); // null = default corner
   const dragRef = useRef<{ startX: number; startY: number; fromX: number; fromY: number; moved: boolean } | null>(null);
+  // POP OUT (Lee, 2026-09-05: "is it possible that the video could follow me around to other
+  // tabs?") — the in-page bubble only follows within this one tab; a real OS-level floating
+  // window (Document Picture-in-Picture, Chrome/Edge) follows across tabs and other apps too.
+  // An additional step ON the bubble, not a replacement for it — unsupported browsers just
+  // never see the button, and the bubble works exactly as before.
+  const pipSupported = typeof window !== "undefined" && !!window.documentPictureInPicture;
+  const [poppedOut, setPoppedOut] = useState(false);
+  const pipRef = useRef<Window | null>(null);
+  const pipTimerElRef = useRef<HTMLElement | null>(null);
+  const pipIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const dictation = useDictation((final, live) => {
     if (final) { finalTranscriptRef.current = (finalTranscriptRef.current + " " + final).trim(); setCaptionLine(final.trim()); }
@@ -167,6 +177,76 @@ export function Recorder({ semester, dateLabel, notepadOpen, notesHtml, onNotesC
     if (!moved) setMinimized(false); // a plain tap restores the full recorder
   };
 
+  // Ends the floating window from any cause — the bubble's own ×, the window's native close
+  // button, or the tab navigating away — so in-page state never drifts from what's on screen.
+  const closePip = useCallback(() => {
+    if (pipIntervalRef.current) { clearInterval(pipIntervalRef.current); pipIntervalRef.current = null; }
+    pipRef.current?.close();
+    pipRef.current = null;
+    pipTimerElRef.current = null;
+    setPoppedOut(false);
+  }, []);
+
+  const popOut = useCallback(async () => {
+    const stream = streamRef.current;
+    const docPip = typeof window !== "undefined" ? window.documentPictureInPicture : undefined;
+    if (!stream || !docPip) return;
+    try {
+      const pip = await docPip.requestWindow({ width: 220, height: 250 });
+      pip.document.title = "SHIPPED — recording";
+      const style = pip.document.createElement("style");
+      style.textContent = `
+        html,body{margin:0;height:100%;background:${INK};overflow:hidden;font-family:system-ui,sans-serif;}
+        .wrap{position:relative;width:100%;height:100%;}
+        video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block;}
+        .dot{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:10px;height:10px;border-radius:5px;background:${REC_RED};animation:sa-pip-pulse 1.1s ease-in-out infinite;}
+        .timer{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:800;color:${CREAM};text-shadow:0 1px 3px rgba(0,0,0,0.8);}
+        .back{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:11px;border:none;background:rgba(0,0,0,0.55);color:${CREAM};font-size:12px;font-weight:800;cursor:pointer;line-height:22px;padding:0;}
+        @keyframes sa-pip-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,59,48,.55);}50%{box-shadow:0 0 0 6px rgba(255,59,48,0);}}
+      `;
+      pip.document.head.append(style);
+
+      const wrap = pip.document.createElement("div");
+      wrap.className = "wrap";
+      const video = pip.document.createElement("video");
+      video.autoplay = true; video.muted = true; video.playsInline = true;
+      video.srcObject = stream;
+      const dot = pip.document.createElement("span"); dot.className = "dot";
+      const timer = pip.document.createElement("span"); timer.className = "timer";
+      timer.textContent = fmtElapsed(Math.round((Date.now() - startedAtRef.current) / 1000));
+      const back = pip.document.createElement("button");
+      back.type = "button"; back.className = "back"; back.textContent = "×";
+      back.title = "Close the floating window — the bubble comes back";
+      back.addEventListener("click", () => pip.close());
+      wrap.append(video, dot, timer, back);
+      pip.document.body.append(wrap);
+      void video.play().catch(() => { /* autoplay is muted + gesture-initiated; a rare denial just leaves a still frame */ });
+
+      pipTimerElRef.current = timer;
+      pipIntervalRef.current = setInterval(() => {
+        if (pipTimerElRef.current) pipTimerElRef.current.textContent = fmtElapsed(Math.round((Date.now() - startedAtRef.current) / 1000));
+      }, 250);
+      // Covers every way the window can end: the × above, the OS window's own close control,
+      // or the tab that opened it going away.
+      pip.addEventListener("pagehide", () => {
+        if (pipIntervalRef.current) { clearInterval(pipIntervalRef.current); pipIntervalRef.current = null; }
+        pipTimerElRef.current = null;
+        pipRef.current = null;
+        setPoppedOut(false);
+      }, { once: true });
+
+      pipRef.current = pip;
+      setPoppedOut(true);
+    } catch {
+      // Blocked, or the gesture requirement wasn't met — the in-page bubble is still right
+      // there, so this fails quietly rather than throwing an error over a live recording.
+    }
+  }, []);
+
+  // If the whole recorder unmounts (stop, discard, close) while a window is still floating,
+  // it goes with it — nothing keeps recording after the take has already ended.
+  useEffect(() => () => { if (pipIntervalRef.current) clearInterval(pipIntervalRef.current); pipRef.current?.close(); }, []);
+
   const shrink = notepadOpen || outro; // the camera becomes a small PiP so the foreground can take the space
 
   if (minimized) {
@@ -185,10 +265,21 @@ export function Recorder({ semester, dateLabel, notepadOpen, notesHtml, onNotesC
           cursor: "grab", touchAction: "none", background: INK,
         }}
       >
-        <video autoPlay muted playsInline ref={(el) => { if (el && streamRef.current) el.srcObject = streamRef.current; }}
-          style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", pointerEvents: "none" }} />
+        {poppedOut ? (
+          <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", color: MUTED, fontSize: 28, pointerEvents: "none" }}>⤢</div>
+        ) : (
+          <video autoPlay muted playsInline ref={(el) => { if (el && streamRef.current) el.srcObject = streamRef.current; }}
+            style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", pointerEvents: "none" }} />
+        )}
         <span aria-hidden style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", width: 9, height: 9, borderRadius: 5, background: REC_RED, boxShadow: `0 0 0 0 ${REC_RED}`, animation: "sa-rec-pulse 1.1s ease-in-out infinite", pointerEvents: "none" }} />
         <span aria-hidden style={{ position: "absolute", bottom: 6, left: "50%", transform: "translateX(-50%)", fontSize: 11, fontWeight: 800, color: CREAM, textShadow: "0 1px 3px rgba(0,0,0,0.8)", pointerEvents: "none" }}>{fmtElapsed(elapsed)}</span>
+        {pipSupported && (
+          <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); if (poppedOut) closePip(); else void popOut(); }}
+            title={poppedOut ? "Bring the preview back into this bubble" : "Pop out into its own floating window — follows you across tabs and other apps (Chrome/Edge)"}
+            style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: 10, border: "none", background: "rgba(0,0,0,0.5)", color: CREAM, fontSize: 11, fontWeight: 800, cursor: "pointer", lineHeight: "20px", padding: 0 }}>
+            {poppedOut ? "↩" : "⤢"}
+          </button>
+        )}
         <style>{`@keyframes sa-rec-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,59,48,0.55);} 50% { box-shadow: 0 0 0 6px rgba(255,59,48,0);} }`}</style>
       </div>
     );
