@@ -7,38 +7,105 @@
 // Pure — no React, no network. The drawer, the list and the Prioritize panel
 // all render what these return.
 
-export const CATEGORIES = [
-  "AUTHORING", "FILMING", "PUBLISHING", "MARKETING", "CUSTOMER_SUCCESS", "UI_UX", "INFRASTRUCTURE",
-  // 2026-09-04 (Lee): two buckets for the clips he makes ABOUT the work, not the work itself.
-  "BUILD_IN_PUBLIC", "NONTRADITIONAL",
-] as const;
-export type Category = (typeof CATEGORIES)[number];
+// THE CATEGORIES (Lee, 2026-09-05: "Drop the older categories for now. We'll
+// start fresh."). Two sides — the business first, personal at the bottom — in
+// the order that matters most for the business, working on down. Each is a
+// node in a small tree (Writing Ideas → Characters), and Lee can add his own
+// from the page (kept in site_settings, merged in by listIdeas). Custom keys
+// are plain UPPER_SNAKE strings, so `Category` is a string, not an enum.
+export type CategorySide = "work" | "personal";
+export interface CategoryDef {
+  key: string;
+  label: string;
+  /** What lands here — shown beside the chip and fed to the AI filer. */
+  hint: string;
+  side: CategorySide;
+  /** Nesting: the parent's key. Absent = top level. */
+  parent?: string;
+  /** True for the ones Lee added from the page. Built-ins cannot be hidden. */
+  custom?: boolean;
+  /** Hidden custom categories stay in the settings row so old ideas still resolve a label. */
+  hidden?: boolean;
+}
 
-/** What each bucket covers — shown next to the chip so the choice is obvious
- *  without a manual. The UI/UX vs CUSTOMER SUCCESS split is the one people get
- *  wrong, so both descriptions name it. */
-export const CATEGORY_LABEL: Record<Category, string> = {
-  AUTHORING: "Authoring",
-  FILMING: "Filming",
-  PUBLISHING: "Publishing",
-  MARKETING: "Marketing",
-  CUSTOMER_SUCCESS: "Customer success",
-  UI_UX: "UI / UX",
-  INFRASTRUCTURE: "Infrastructure",
-  BUILD_IN_PUBLIC: "Build in public",
-  NONTRADITIONAL: "Nontraditional",
+export const BUILT_IN_CATEGORIES: readonly CategoryDef[] = [
+  // ---- the business, most important first
+  { key: "SURVIVEACCOUNTING", label: "SurviveAccounting.com", side: "work", hint: "the app itself — pages, slides, filming tools, the Idea Bank, infrastructure, anything students touch" },
+  { key: "LEARN_DASHBOARD", label: "Learn dashboard", side: "work", hint: "/learn — the feed, the Shorts player, the share links, what a chapter sees" },
+  { key: "CAMPUS_REPS", label: "Campus reps", side: "work", hint: "the rep program — recruiting, the rep kit, rep pages, payouts" },
+  { key: "SCHOLARSHIP_CHAIRS", label: "Scholarship chairs", side: "work", hint: "Greek chapter scholarship chairs — outreach, the chair experience, chapter pages" },
+  { key: "YOUTUBE", label: "YouTube", side: "work", hint: "the channel — videos, titles, thumbnails, publishing cadence" },
+  { key: "INSTAGRAM", label: "Instagram", side: "work", hint: "IG — reels, DMs, the growth handles, the daily digest" },
+  { key: "TIKTOK", label: "TikTok", side: "work", hint: "TikTok — clips, hooks, what to repost" },
+  { key: "BUILD_IN_PUBLIC", label: "Build in public", side: "work", hint: "side clips about building Survive — the tools, the studio, the vision, the journey" },
+  { key: "NONTRADITIONAL", label: "Nontraditional", side: "work", hint: "vlog / podcast on nontraditional career paths — not about Survive's product" },
+  { key: "GREEKINTEL", label: "GreekIntel.com", side: "work", hint: "the Greek intelligence product — chapter data, councils, the intel dashboard" },
+  { key: "SURVIVESTUDIOS", label: "SurviveStudios.com", side: "work", hint: "the studio business — productizing the tutor, the capture system as a product" },
+  { key: "SURVIVEOCHEM", label: "Surviveochem.com", side: "work", hint: "the organic chemistry line" },
+  { key: "SURVIVEFINANCE", label: "survivefinance.com", side: "work", hint: "the finance line" },
+  { key: "SURVIVESTATS", label: "survivestats.com", side: "work", hint: "the statistics line" },
+  // ---- personal, at the bottom
+  { key: "PERSONAL_TODOS", label: "To Do's", side: "personal", hint: "things to do — errands, calls, the list" },
+  { key: "PERSONAL_CALENDAR", label: "Calendar Events", side: "personal", hint: "dates — events, trips, deadlines to put on the calendar" },
+  { key: "PERSONAL_WRITING", label: "Writing Ideas", side: "personal", hint: "the writing — stories, scenes, lines" },
+  { key: "PERSONAL_CHARACTERS", label: "Characters", side: "personal", parent: "PERSONAL_WRITING", hint: "characters for the writing — one per idea, or a note on one" },
+];
+
+/** The built-in keys, in order. Custom keys are validated by shape, not this list. */
+export const CATEGORIES = BUILT_IN_CATEGORIES.map((c) => c.key);
+export type Category = string;
+export const CATEGORY_KEY_RE = /^[A-Z0-9][A-Z0-9_]{1,59}$/;
+
+export const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(BUILT_IN_CATEGORIES.map((c) => [c.key, c.label]));
+export const CATEGORY_HINT: Record<string, string> = Object.fromEntries(BUILT_IN_CATEGORIES.map((c) => [c.key, c.hint]));
+
+/** The old buckets (2026-08-31 → 09-05) all described the app, so an idea filed
+ *  under one lands in SurviveAccounting.com — nothing goes unsorted. */
+export const LEGACY_CATEGORY: Record<string, string> = {
+  AUTHORING: "SURVIVEACCOUNTING", FILMING: "SURVIVEACCOUNTING", PUBLISHING: "SURVIVEACCOUNTING", MARKETING: "SURVIVEACCOUNTING",
+  CUSTOMER_SUCCESS: "SURVIVEACCOUNTING", UI_UX: "SURVIVEACCOUNTING", INFRASTRUCTURE: "SURVIVEACCOUNTING",
 };
-export const CATEGORY_HINT: Record<Category, string> = {
-  AUTHORING: "Talk Box, exhibits, CEQs, content creation",
-  FILMING: "capture, frames, Studio",
-  PUBLISHING: "production queue, YouTube, the app",
-  MARKETING: "outreach, campaigns, campus reps, landing pages",
-  CUSTOMER_SUCCESS: "students, support, guarantees, onboarding — what a page DOES",
-  UI_UX: "anything primarily about the interface — how a page LOOKS",
-  INFRASTRUCTURE: "domains, inboxes, data, architecture",
-  BUILD_IN_PUBLIC: "side clips about building Survive — the tools, the studio, the vision, the journey",
-  NONTRADITIONAL: "vlog / podcast on nontraditional career paths — not about Survive's product",
-};
+
+/** Legacy keys mapped, unknown shapes dropped, duplicates collapsed. Pure. */
+export function normalizeCategories(raw: readonly unknown[] | null | undefined): string[] {
+  const out: string[] = [];
+  for (const c of raw ?? []) {
+    if (typeof c !== "string") continue;
+    const k = LEGACY_CATEGORY[c] ?? c;
+    if (CATEGORY_KEY_RE.test(k) && !out.includes(k)) out.push(k);
+  }
+  return out;
+}
+
+/** Built-ins + Lee's custom ones (hidden ones kept so labels still resolve). */
+export function mergeCategories(custom: readonly CategoryDef[] = []): CategoryDef[] {
+  const seen = new Set(BUILT_IN_CATEGORIES.map((c) => c.key));
+  const extra = custom.filter((c) => c && CATEGORY_KEY_RE.test(c.key) && !seen.has(c.key)).map((c) => ({ ...c, custom: true }));
+  return [...BUILT_IN_CATEGORIES, ...extra];
+}
+export const visibleCategories = (defs: readonly CategoryDef[]): CategoryDef[] => defs.filter((c) => !c.hidden);
+export const categoryLabel = (key: string, defs: readonly CategoryDef[] = BUILT_IN_CATEGORIES): string =>
+  defs.find((c) => c.key === key)?.label ?? CATEGORY_LABEL[key] ?? key.toLowerCase().replace(/_/g, " ");
+export const categoryChildren = (key: string, defs: readonly CategoryDef[]): CategoryDef[] => defs.filter((c) => c.parent === key && !c.hidden);
+export const topCategories = (defs: readonly CategoryDef[], side?: CategorySide): CategoryDef[] =>
+  defs.filter((c) => !c.parent && !c.hidden && (!side || c.side === side));
+/** The key and every descendant's — an idea filed under Characters counts under Writing Ideas. */
+export function categoryFamily(key: string, defs: readonly CategoryDef[]): string[] {
+  const out = [key];
+  for (let i = 0; i < out.length; i++) for (const c of defs) if (c.parent === out[i] && !out.includes(c.key)) out.push(c.key);
+  return out;
+}
+/** A new key from a label: "Bucerias trip" → BUCERIAS_TRIP, made unique against what exists. */
+export function categoryKeyFor(label: string, defs: readonly CategoryDef[]): string {
+  const base = label.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "CATEGORY";
+  let k = base.length < 2 ? base + "_X" : base; let n = 2;
+  while (defs.some((c) => c.key === k)) k = `${base}_${n++}`;
+  return k;
+}
+/** The vocabulary line the AI filer reads — every visible category with its hint, work first. */
+export function categoryVocabulary(defs: readonly CategoryDef[] = BUILT_IN_CATEGORIES): string {
+  return visibleCategories(defs).map((c) => `${c.key} = ${c.label}${c.parent ? ` (under ${categoryLabel(c.parent, defs)})` : ""}: ${c.hint}`).join(" · ");
+}
 
 export const STATUSES = ["IDEA", "DRAFTED", "SUBMITTED", "APPROVED", "PARKED"] as const;
 export type Status = (typeof STATUSES)[number];
@@ -242,11 +309,11 @@ export const TIME_LABEL: Record<TimeBox, string> = {
 
 /** Which categories a focus actually advances. */
 const FOCUS_CATEGORIES: Record<Focus, Category[]> = {
-  filming: ["FILMING", "AUTHORING"],
-  outreach: ["MARKETING"],
-  product: ["UI_UX", "PUBLISHING", "INFRASTRUCTURE"],
-  launch: ["PUBLISHING", "CUSTOMER_SUCCESS", "MARKETING"],
-  unblock: ["INFRASTRUCTURE", "AUTHORING", "PUBLISHING"],
+  filming: ["SURVIVEACCOUNTING", "YOUTUBE", "INSTAGRAM", "TIKTOK", "BUILD_IN_PUBLIC", "NONTRADITIONAL"],
+  outreach: ["CAMPUS_REPS", "SCHOLARSHIP_CHAIRS", "INSTAGRAM"],
+  product: ["SURVIVEACCOUNTING", "LEARN_DASHBOARD", "GREEKINTEL"],
+  launch: ["SURVIVEACCOUNTING", "LEARN_DASHBOARD", "CAMPUS_REPS", "SCHOLARSHIP_CHAIRS"],
+  unblock: ["SURVIVEACCOUNTING", "LEARN_DASHBOARD", "CAMPUS_REPS"],
 };
 
 export interface Ranked { idea: Idea; why: string }
@@ -275,7 +342,7 @@ export function prioritize(ideas: readonly Idea[], focus: Focus, time: TimeBox, 
     let ready = "", stale = "", match = "";
 
     const hits = i.categories.filter((c) => wanted.includes(c));
-    if (hits.length) { score += 40 + hits.length * 5; match = `${hits.map((h) => CATEGORY_LABEL[h]).join(" + ")} — the work you said you're doing`; }
+    if (hits.length) { score += 40 + hits.length * 5; match = `${hits.map((h) => categoryLabel(h)).join(" + ")} — the work you said you're doing`; }
 
     // A written prompt is the cheapest thing on the list: it is ready to hand
     // to Claude Code right now.

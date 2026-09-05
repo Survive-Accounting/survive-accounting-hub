@@ -130,7 +130,7 @@ function ItemShell({ item, children, onRegen, printable, film, onAddSlide }: {
       id,
       title: item.title,
       body: [item.title, detail, item.quote ? `In Lee's words: "${item.quote}"` : ""].filter(Boolean).join("\n\n"),
-      categories: ["AUTHORING"],
+      categories: ["SURVIVEACCOUNTING"],
       subcategory: String(p.kind ?? item.kind).replace(/_/g, " "),
       status: "IDEA",
       sourcePath: typeof location !== "undefined" ? location.pathname : "/talkthrough",

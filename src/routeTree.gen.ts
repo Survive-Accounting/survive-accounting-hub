@@ -39,6 +39,7 @@ import { Route as ExhibitDemoRouteImport } from './routes/exhibit-demo'
 import { Route as ChaptersRouteImport } from './routes/chapters'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as CalloutDemoRouteImport } from './routes/callout-demo'
+import { Route as BuildqueueRouteImport } from './routes/buildqueue'
 import { Route as BrandingRouteImport } from './routes/branding'
 import { Route as BlastoffDemoRouteImport } from './routes/blastoff-demo'
 import { Route as BlastOffRouteImport } from './routes/blast-off'
@@ -131,6 +132,7 @@ import { Route as ApiIdeasSmsRouteImport } from './routes/api.ideas.sms'
 import { Route as ApiIdeasEmailRouteImport } from './routes/api.ideas.email'
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronKingDigestRouteImport } from './routes/api.cron.king-digest'
+import { Route as ApiCronIgDigestRouteImport } from './routes/api.cron.ig-digest'
 import { Route as ApiCronGrowthCampaignsRouteImport } from './routes/api.cron.growth-campaigns'
 import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.comms-sequences'
 import { Route as ApiCronChapterReportsRouteImport } from './routes/api.cron.chapter-reports'
@@ -323,6 +325,11 @@ const CeqRoute = CeqRouteImport.update({
 const CalloutDemoRoute = CalloutDemoRouteImport.update({
   id: '/callout-demo',
   path: '/callout-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BuildqueueRoute = BuildqueueRouteImport.update({
+  id: '/buildqueue',
+  path: '/buildqueue',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BrandingRoute = BrandingRouteImport.update({
@@ -793,6 +800,11 @@ const ApiCronKingDigestRoute = ApiCronKingDigestRouteImport.update({
   path: '/api/cron/king-digest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronIgDigestRoute = ApiCronIgDigestRouteImport.update({
+  id: '/api/cron/ig-digest',
+  path: '/api/cron/ig-digest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronGrowthCampaignsRoute = ApiCronGrowthCampaignsRouteImport.update({
   id: '/api/cron/growth-campaigns',
   path: '/api/cron/growth-campaigns',
@@ -1029,6 +1041,7 @@ export interface FileRoutesByFullPath {
   '/blast-off': typeof BlastOffRoute
   '/blastoff-demo': typeof BlastoffDemoRoute
   '/branding': typeof BrandingRoute
+  '/buildqueue': typeof BuildqueueRoute
   '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
@@ -1143,6 +1156,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
+  '/api/cron/ig-digest': typeof ApiCronIgDigestRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/api/ideas/email': typeof ApiIdeasEmailRoute
@@ -1196,6 +1210,7 @@ export interface FileRoutesByTo {
   '/blast-off': typeof BlastOffRoute
   '/blastoff-demo': typeof BlastoffDemoRoute
   '/branding': typeof BrandingRoute
+  '/buildqueue': typeof BuildqueueRoute
   '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
@@ -1306,6 +1321,7 @@ export interface FileRoutesByTo {
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
+  '/api/cron/ig-digest': typeof ApiCronIgDigestRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/api/ideas/email': typeof ApiIdeasEmailRoute
@@ -1360,6 +1376,7 @@ export interface FileRoutesById {
   '/blast-off': typeof BlastOffRoute
   '/blastoff-demo': typeof BlastoffDemoRoute
   '/branding': typeof BrandingRoute
+  '/buildqueue': typeof BuildqueueRoute
   '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
@@ -1474,6 +1491,7 @@ export interface FileRoutesById {
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
+  '/api/cron/ig-digest': typeof ApiCronIgDigestRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/api/ideas/email': typeof ApiIdeasEmailRoute
@@ -1529,6 +1547,7 @@ export interface FileRouteTypes {
     | '/blast-off'
     | '/blastoff-demo'
     | '/branding'
+    | '/buildqueue'
     | '/callout-demo'
     | '/ceq'
     | '/chapters'
@@ -1643,6 +1662,7 @@ export interface FileRouteTypes {
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
     | '/api/cron/growth-campaigns'
+    | '/api/cron/ig-digest'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
     | '/api/ideas/email'
@@ -1696,6 +1716,7 @@ export interface FileRouteTypes {
     | '/blast-off'
     | '/blastoff-demo'
     | '/branding'
+    | '/buildqueue'
     | '/callout-demo'
     | '/ceq'
     | '/chapters'
@@ -1806,6 +1827,7 @@ export interface FileRouteTypes {
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
     | '/api/cron/growth-campaigns'
+    | '/api/cron/ig-digest'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
     | '/api/ideas/email'
@@ -1859,6 +1881,7 @@ export interface FileRouteTypes {
     | '/blast-off'
     | '/blastoff-demo'
     | '/branding'
+    | '/buildqueue'
     | '/callout-demo'
     | '/ceq'
     | '/chapters'
@@ -1973,6 +1996,7 @@ export interface FileRouteTypes {
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
     | '/api/cron/growth-campaigns'
+    | '/api/cron/ig-digest'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
     | '/api/ideas/email'
@@ -2027,6 +2051,7 @@ export interface RootRouteChildren {
   BlastOffRoute: typeof BlastOffRoute
   BlastoffDemoRoute: typeof BlastoffDemoRoute
   BrandingRoute: typeof BrandingRoute
+  BuildqueueRoute: typeof BuildqueueRoute
   CalloutDemoRoute: typeof CalloutDemoRoute
   CeqRoute: typeof CeqRouteWithChildren
   ChaptersRoute: typeof ChaptersRoute
@@ -2093,6 +2118,7 @@ export interface RootRouteChildren {
   ApiCronChapterReportsRoute: typeof ApiCronChapterReportsRoute
   ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
   ApiCronGrowthCampaignsRoute: typeof ApiCronGrowthCampaignsRoute
+  ApiCronIgDigestRoute: typeof ApiCronIgDigestRoute
   ApiCronKingDigestRoute: typeof ApiCronKingDigestRoute
   ApiCronWeeklyDigestRoute: typeof ApiCronWeeklyDigestRoute
   ApiIdeasEmailRoute: typeof ApiIdeasEmailRoute
@@ -2332,6 +2358,13 @@ declare module '@tanstack/react-router' {
       path: '/callout-demo'
       fullPath: '/callout-demo'
       preLoaderRoute: typeof CalloutDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/buildqueue': {
+      id: '/buildqueue'
+      path: '/buildqueue'
+      fullPath: '/buildqueue'
+      preLoaderRoute: typeof BuildqueueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/branding': {
@@ -2978,6 +3011,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronKingDigestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/ig-digest': {
+      id: '/api/cron/ig-digest'
+      path: '/api/cron/ig-digest'
+      fullPath: '/api/cron/ig-digest'
+      preLoaderRoute: typeof ApiCronIgDigestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/growth-campaigns': {
       id: '/api/cron/growth-campaigns'
       path: '/api/cron/growth-campaigns'
@@ -3498,6 +3538,7 @@ const rootRouteChildren: RootRouteChildren = {
   BlastOffRoute: BlastOffRoute,
   BlastoffDemoRoute: BlastoffDemoRoute,
   BrandingRoute: BrandingRoute,
+  BuildqueueRoute: BuildqueueRoute,
   CalloutDemoRoute: CalloutDemoRoute,
   CeqRoute: CeqRouteWithChildren,
   ChaptersRoute: ChaptersRoute,
@@ -3564,6 +3605,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronChapterReportsRoute: ApiCronChapterReportsRoute,
   ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,
   ApiCronGrowthCampaignsRoute: ApiCronGrowthCampaignsRoute,
+  ApiCronIgDigestRoute: ApiCronIgDigestRoute,
   ApiCronKingDigestRoute: ApiCronKingDigestRoute,
   ApiCronWeeklyDigestRoute: ApiCronWeeklyDigestRoute,
   ApiIdeasEmailRoute: ApiIdeasEmailRoute,

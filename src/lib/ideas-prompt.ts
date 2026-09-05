@@ -8,6 +8,8 @@
 //   ## Testing checklist  — what he ticks on the laptop after the deploy
 //
 // Pure: no network, no React. The caller runs it through runAiTask.
+import { CATEGORIES, categoryVocabulary } from "@/components/ideas/model";
+
 import { PRODUCT_PRIMER } from "./product-primer";
 
 export interface IdeaForPrompt {
@@ -26,16 +28,19 @@ export const IDEA_PROMPT_SECTIONS = ["## TLDR", "## Summary", "## Prompt", "## T
 /** ORGANISE ON SAVE (Lee, 2026-09-03: "It's AI's job to get it organized and
  *  categorized and triaged"). One micro call titles, TLDRs, summarises and
  *  categorises a raw capture so the vault is clean without anyone thinking. */
-export const IDEA_CATEGORY_KEYS = ["AUTHORING", "FILMING", "PUBLISHING", "MARKETING", "CUSTOMER_SUCCESS", "UI_UX", "INFRASTRUCTURE"] as const;
+/** The category vocabulary the filer reads. Built-ins by default; the server passes the
+ *  live list (Lee's custom categories included) — see categoryVocabulary in the model. */
+export const IDEA_CATEGORY_KEYS = CATEGORIES;
 
-export function buildOrganizeMessages(idea: IdeaForPrompt & { existingPrompt?: string | null; intent?: string; other?: string }): { system: string; user: string } {
+export function buildOrganizeMessages(idea: IdeaForPrompt & { existingPrompt?: string | null; intent?: string; other?: string; vocabulary?: string }): { system: string; user: string } {
+  const vocabulary = idea.vocabulary || categoryVocabulary();
   const intentLine = idea.intent === "page" ? "THE AUTHOR PRESSED “IMPROVE THIS PAGE”: the idea is about the captured page; say so in the title and summary."
     : idea.intent === "todo" ? "THE AUTHOR PRESSED “TO-DO”: this is a task, not a build idea — title it as an imperative."
     : idea.intent === "other" && idea.other ? `THE AUTHOR LABELLED IT “${idea.other}”: keep that as the subcategory and let it steer the categories.`
     : "THE AUTHOR PRESSED “GENERAL IDEA”: it may be about anything; if the words name a category, use it.";
   const system = [
     "You tidy ONE raw idea from Survive Accounting's team (Lee, the founder; King, the VA) into a clean vault entry. The idea may be dictated, rambling, or a pasted Claude Code prompt. Keep every decision in it; drop filler.",
-    "Return ONLY a JSON object: {\"title\": str (≤ 60 chars, specific, noun phrase — what it is, not \"idea about\"), \"tldr\": str (ONE sentence: what changes for whom), \"summary\": str (2–3 sentences, plain words, Lee's intent), \"categories\": [str] (1–2 from: AUTHORING = Talk Box, exhibits, CEQs, content creation · FILMING = capture, frames, Studio · PUBLISHING = production queue, YouTube, the app · MARKETING = outreach, campaigns, campus reps, landing pages · CUSTOMER_SUCCESS = students, support, guarantees, onboarding, what a page DOES · UI_UX = how a page LOOKS · INFRASTRUCTURE = domains, inboxes, data, architecture), \"urgent\": bool (true only if the words say it blocks filming, launch, money, or a live bug for students)}",
+    "Return ONLY a JSON object: {\"title\": str (≤ 60 chars, specific, noun phrase — what it is, not \"idea about\"), \"tldr\": str (ONE sentence: what changes for whom), \"summary\": str (2–3 sentences, plain words, Lee's intent), \"categories\": [str] (1–2 KEYS from: " + vocabulary + " — a personal one (PERSONAL_*) only when the words are plainly not about the business), \"urgent\": bool (true only if the words say it blocks filming, launch, money, or a live bug for students)}",
   ].join("\n");
   const user = [
     `WORDS: ${idea.title}`,
@@ -113,8 +118,9 @@ export function suggestProject(sourcePath: string, categories: readonly string[]
   const p = sourcePath || "";
   const byPath = PROJECTS.find((x) => x.match.test(p));
   const pick = byPath
-    ?? (categories.includes("MARKETING") || categories.includes("CUSTOMER_SUCCESS") ? PROJECTS.find((x) => x.key === "growth")
-      : categories.includes("FILMING") || categories.includes("AUTHORING") ? PROJECTS.find((x) => x.key === "filming")
+    ?? (categories.some((c) => c === "CAMPUS_REPS" || c === "SCHOLARSHIP_CHAIRS" || c === "GREEKINTEL" || c === "INSTAGRAM") ? PROJECTS.find((x) => x.key === "growth")
+      : categories.some((c) => c === "YOUTUBE" || c === "TIKTOK" || c === "BUILD_IN_PUBLIC" || c === "NONTRADITIONAL") ? PROJECTS.find((x) => x.key === "filming")
+      : categories.includes("LEARN_DASHBOARD") ? PROJECTS.find((x) => x.key === "learn")
       : PROJECTS.find((x) => x.key === "growth"))!;
   return { key: pick.key, label: pick.label, worktree: pick.worktree };
 }

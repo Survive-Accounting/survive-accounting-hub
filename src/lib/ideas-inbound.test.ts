@@ -59,9 +59,9 @@ describe("normalisers", () => {
 
 describe("the category reply", () => {
   test("loose words map to real categories", () => {
-    expect(parseCategoryReply("ui")).toEqual(["UI_UX"]);
-    expect(parseCategoryReply("UI/UX")).toEqual(["UI_UX"]);
-    expect(parseCategoryReply("marketing infra")).toEqual(["MARKETING", "INFRASTRUCTURE"]);
+    expect(parseCategoryReply("ig")).toEqual(["INSTAGRAM"]);
+    expect(parseCategoryReply("UI/UX")).toEqual(["SURVIVEACCOUNTING"]);
+    expect(parseCategoryReply("reps youtube")).toEqual(["CAMPUS_REPS", "YOUTUBE"]);
   });
   test("unrecognised words are NOT guessed into a category", () => {
     expect(parseCategoryReply("billboard")).toEqual([]);
@@ -69,15 +69,15 @@ describe("the category reply", () => {
   });
   // The distinction that decides tag-vs-new-idea, so both directions are pinned.
   test("only a short, fully-recognised message is a tag reply", () => {
-    expect(looksLikeCategoryReply("ui")).toBe(true);
-    expect(looksLikeCategoryReply("ui ux")).toBe(true);
+    expect(looksLikeCategoryReply("ig")).toBe(true);
+    expect(looksLikeCategoryReply("reps youtube")).toBe(true);
     expect(looksLikeCategoryReply("the design of the learn page feels off")).toBe(false);
     expect(looksLikeCategoryReply("billboard rail should rotate slower")).toBe(false);
     expect(looksLikeCategoryReply("")).toBe(false);
   });
   test("the reply text names the categories and the open count", () => {
-    expect(taggedReply(["UI_UX"], 8)).toBe("Tagged UI/UX. 8 ideas open.");
-    expect(taggedReply(["MARKETING"], 1)).toBe("Tagged marketing. 1 idea open.");
+    expect(taggedReply(["SURVIVEACCOUNTING"], 8)).toBe("Tagged SurviveAccounting.com. 8 ideas open.");
+    expect(taggedReply(["CAMPUS_REPS"], 1)).toBe("Tagged Campus reps. 1 idea open.");
   });
 });
 

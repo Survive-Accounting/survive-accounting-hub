@@ -47,9 +47,9 @@ describe("capture conveniences", () => {
 
 describe("finding things", () => {
   const ideas = [
-    mk({ title: "Globe wordmark", body: "animated", categories: ["UI_UX"], status: "IDEA", updatedAt: daysAgo(1) }),
-    mk({ title: "Bio video index", body: "publishing thing", categories: ["PUBLISHING"], status: "DRAFTED", updatedAt: daysAgo(3) }),
-    mk({ title: "Rep dashboard", body: "distribution", categories: ["MARKETING", "UI_UX"], subcategory: "rep system", status: "PARKED", updatedAt: daysAgo(2) }),
+    mk({ title: "Globe wordmark", body: "animated", categories: ["SURVIVEACCOUNTING"], status: "IDEA", updatedAt: daysAgo(1) }),
+    mk({ title: "Bio video index", body: "publishing thing", categories: ["YOUTUBE"], status: "DRAFTED", updatedAt: daysAgo(3) }),
+    mk({ title: "Rep dashboard", body: "distribution", categories: ["CAMPUS_REPS", "SURVIVEACCOUNTING"], subcategory: "rep system", status: "PARKED", updatedAt: daysAgo(2) }),
   ];
   test("search covers titles, bodies and subcategories", () => {
     expect(searchIdeas(ideas, "animated").map((i) => i.title)).toEqual(["Globe wordmark"]);
@@ -57,7 +57,7 @@ describe("finding things", () => {
     expect(searchIdeas(ideas, "")).toHaveLength(3);
   });
   test("category filter matches ANY of a multi-select", () => {
-    expect(filterIdeas(ideas, { category: "UI_UX" }).map((i) => i.title)).toEqual(["Globe wordmark", "Rep dashboard"]);
+    expect(filterIdeas(ideas, { category: "SURVIVEACCOUNTING" }).map((i) => i.title)).toEqual(["Globe wordmark", "Rep dashboard"]);
   });
   test("status filter and sort by recency", () => {
     expect(filterIdeas(ideas, { status: "PARKED" })).toHaveLength(1);
@@ -68,8 +68,8 @@ describe("finding things", () => {
 describe("prioritize — a recommendation, not a score", () => {
   test("ranks the work that matches the week, and says why", () => {
     const ideas = [
-      mk({ title: "Cheat code frames", categories: ["FILMING"] }),
-      mk({ title: "Cold outreach tweak", categories: ["MARKETING"] }),
+      mk({ title: "Cheat code frames", categories: ["SURVIVEACCOUNTING"] }),
+      mk({ title: "Cold outreach tweak", categories: ["CAMPUS_REPS"] }),
     ];
     const r = prioritize(ideas, "filming", "evening", NOW);
     expect(r.items[0].idea.title).toBe("Cheat code frames");
@@ -79,7 +79,7 @@ describe("prioritize — a recommendation, not a score", () => {
 
   // THE POINT OF THE FEATURE: it has to be able to tell Lee to stop planning.
   test("says GO FILM when nothing matches the week", () => {
-    const r = prioritize([mk({ title: "Domain cleanup", categories: ["INFRASTRUCTURE"] })], "outreach", "hour", NOW);
+    const r = prioritize([mk({ title: "Domain cleanup", categories: ["SURVIVESTATS"] })], "outreach", "hour", NOW);
     expect(r.items).toEqual([]);
     expect(r.goFilm).toContain("Go film");
   });
@@ -89,8 +89,8 @@ describe("prioritize — a recommendation, not a score", () => {
 
   test("an already-written prompt outranks an unwritten one when time is short", () => {
     const ideas = [
-      mk({ title: "Written", categories: ["MARKETING"], status: "DRAFTED", promptMd: "# do it" }),
-      mk({ title: "Unwritten", categories: ["MARKETING"], status: "IDEA" }),
+      mk({ title: "Written", categories: ["CAMPUS_REPS"], status: "DRAFTED", promptMd: "# do it" }),
+      mk({ title: "Unwritten", categories: ["CAMPUS_REPS"], status: "IDEA" }),
     ];
     const r = prioritize(ideas, "outreach", "hour", NOW);
     expect(r.items[0].idea.title).toBe("Written");
@@ -98,7 +98,7 @@ describe("prioritize — a recommendation, not a score", () => {
   });
 
   test("an idea that has sat for weeks is surfaced with do-it-or-park-it", () => {
-    const old = mk({ title: "Old one", categories: ["MARKETING"], createdAt: daysAgo(40) });
+    const old = mk({ title: "Old one", categories: ["CAMPUS_REPS"], createdAt: daysAgo(40) });
     const r = prioritize([old], "outreach", "day", NOW);
     expect(r.items).toHaveLength(1);
     expect(r.items[0].idea.title).toBe("Old one");
@@ -106,9 +106,9 @@ describe("prioritize — a recommendation, not a score", () => {
 
   test("never recommends SUBMITTED, APPROVED or PARKED work", () => {
     const ideas = [
-      mk({ title: "Done", categories: ["MARKETING"], status: "APPROVED" }),
-      mk({ title: "Handed off", categories: ["MARKETING"], status: "SUBMITTED" }),
-      mk({ title: "Decided against", categories: ["MARKETING"], status: "PARKED" }),
+      mk({ title: "Done", categories: ["CAMPUS_REPS"], status: "APPROVED" }),
+      mk({ title: "Handed off", categories: ["CAMPUS_REPS"], status: "SUBMITTED" }),
+      mk({ title: "Decided against", categories: ["CAMPUS_REPS"], status: "PARKED" }),
     ];
     const r = prioritize(ideas, "outreach", "day", NOW);
     expect(r.items).toEqual([]);
@@ -116,7 +116,7 @@ describe("prioritize — a recommendation, not a score", () => {
   });
 
   test("returns at most five — a shortlist, not the backlog", () => {
-    const many = Array.from({ length: 12 }, (_, n) => mk({ title: `m${n}`, categories: ["MARKETING"] }));
+    const many = Array.from({ length: 12 }, (_, n) => mk({ title: `m${n}`, categories: ["CAMPUS_REPS"] }));
     expect(prioritize(many, "outreach", "day", NOW).items.length).toBeLessThanOrEqual(5);
   });
 });

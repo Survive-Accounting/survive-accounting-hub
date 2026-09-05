@@ -36,7 +36,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { CATEGORIES, STATUSES, type Status } from "../src/components/ideas/model";
+import { CATEGORY_KEY_RE, STATUSES, type Status } from "../src/components/ideas/model";
 import { buildIdeaPromptMessages, buildOrganizeMessages, hasPromptSections, pageLabel, suggestProject } from "../src/lib/ideas-prompt";
 
 const VAULT = process.env.OBSIDIAN_VAULT ?? "C:/Users/lee/Documents/Obsidian Vault";
@@ -410,7 +410,7 @@ async function main(): Promise<void> {
           if (typeof j.tldr === "string") ctx.tldr = j.tldr.trim();
           if (typeof j.summary === "string") ctx.summary = j.summary.trim();
           if (!(r.categories ?? []).length && Array.isArray(j.categories)) {
-            r.categories = j.categories.filter((c): c is string => typeof c === "string" && (CATEGORIES as readonly string[]).includes(c)).slice(0, 2);
+            r.categories = j.categories.filter((c): c is string => typeof c === "string" && CATEGORY_KEY_RE.test(c)).slice(0, 2);
           }
           if (j.urgent === true && !ctx.urgent) ctx.urgentSuggested = "1";
         }

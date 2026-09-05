@@ -1,24 +1,32 @@
 // /admin/ideas — THE IDEA BANK, the vault's full view.
 //
-// Lee (2026-09-03, second pass): "It's already getting really cluttered up
-// there … have urgent at the top, and then drafts, and then open. Each of
-// these three is a toggle. Only show the title for each prompt; if I click it
-// it can show the rest." So: three folds, titles only, everything else behind
-// a click. Reviewed (APPROVED) reads as strikethrough; anything can be
-// archived (PARKED) from its title line. Reviewed and Archived are two more
-// folds at the bottom, closed, so nothing is ever lost.
+// Lee (2026-09-05): "At the top, I want to see all the content ideas I've
+// stamped from talkthroughs … these are the most important things I need to
+// be ideating on." Then the pipeline (urgent, production, the build queue,
+// built), then the bank BY CATEGORY — the business first, most important
+// working on down, personal at the bottom — every category a toggle, nested
+// where it nests (Writing Ideas → Characters), with a Work / Personal / All
+// filter and a "+ category" that adds one in place. Toggles remember
+// themselves (localStorage), so the page opens the way it was left.
+//
+// Lee (2026-09-03): titles only, everything else behind a click. Reviewed
+// (APPROVED) reads as strikethrough; anything can be archived (PARKED) from
+// its title line. Reviewed and Archived are two more folds at the bottom,
+// closed, so nothing is ever lost.
 //
 // NO DELETE, anywhere. PARKED is the archive. A PROMPT can be removed.
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminGate, getAdminWho } from "@/components/AdminGate";
-import { armIdeas, listIdeas, organizeIdea, saveIdea, sendIdeaSummary, setUrgent } from "@/lib/ideas.functions";
+import { STAMP_LABELS } from "@/components/canvas/talkthrough";
+import { addIdeaCategory, armIdeas, hideIdeaCategory, listIdeas, listStampedIdeas, organizeIdea, saveIdea, sendIdeaSummary, setUrgent, type StampedIdea } from "@/lib/ideas.functions";
 import { hasPromptSections, ideaUpdateText, promptSection, replacePromptSection } from "@/lib/ideas-prompt";
 import {
-  CATEGORIES, CATEGORY_LABEL, FOCUS_LABEL, QUEUE_PRIORITIES, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
-  buildFailed, handsOnPlanOf, isArmed, isBuilding, isBuilt, isDraft, isHandsOn, isProduction, isTodoIdea, isUrgent, prioritize, priorityOf, queuePriorityOf, rankIdeas, rankQueue, summaryOf, testChecklistOf, tldrOf,
-  type Focus, type Idea, type QueuePriority, type Recommendation, type TimeBox,
+  BUILT_IN_CATEGORIES, FOCUS_LABEL, QUEUE_PRIORITIES, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
+  buildFailed, categoryChildren, categoryFamily, categoryLabel, handsOnPlanOf, isArmed, isBuilding, isBuilt, isDraft, isHandsOn, isProduction, isTodoIdea, isUrgent,
+  prioritize, priorityOf, queuePriorityOf, rankIdeas, rankQueue, summaryOf, testChecklistOf, tldrOf, topCategories, visibleCategories,
+  type CategoryDef, type CategorySide, type Focus, type Idea, type QueuePriority, type Recommendation, type TimeBox,
 } from "@/components/ideas/model";
 
 export const Route = createFileRoute("/admin/ideas")({
@@ -43,20 +51,39 @@ const EDGE = "rgba(244,239,230,0.16)";
 const BG = "#070B14";
 const URGENT = "#FF7A59";
 const APP_URL = "https://surviveaccounting.com/admin/ideas";
+const MINT = "#3BF5A0";
+const SKY = "#7DD3FC";
 
 function IdeasRoute() { return <AdminGate><Ideas /></AdminGate>; }
 
-type FoldKey = "urgent" | "production" | "queue" | "handsOn" | "built" | "drafts" | "open" | "todos" | "reviewed" | "archived";
+type FoldKey = string;
+type Side = "all" | CategorySide;
 const PRIORITY_COLOR: Record<QueuePriority, string> = { urgent: "#FF7A59", high: "#FCA311", medium: "#7DD3FC", low: "#9AA3B8" };
+
+// THE TOGGLES REMEMBER THEMSELVES. A fold not in the store takes its default.
+const FOLD_STORE = "sa-ideas-folds-v2";
+const SIDE_STORE = "sa-ideas-side";
+function readStore<T>(key: string, fallback: T): T {
+  try { const raw = localStorage.getItem(key); return raw ? (JSON.parse(raw) as T) : fallback; } catch { return fallback; }
+}
+function writeStore(key: string, v: unknown) { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode */ } }
 
 function Ideas() {
   const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [cats, setCats] = useState<CategoryDef[]>([...BUILT_IN_CATEGORIES]);
+  const [stamped, setStamped] = useState<StampedIdea[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [prio, setPrio] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [folds, setFolds] = useState<Record<FoldKey, boolean>>({ urgent: true, production: true, queue: true, handsOn: true, built: true, drafts: true, open: true, todos: false, reviewed: false, archived: false });
-  const toggle = (k: FoldKey) => setFolds((f) => ({ ...f, [k]: !f[k] }));
+  const [side, setSide] = useState<Side>("all");
+  const [folds, setFolds] = useState<Record<FoldKey, boolean>>({});
+  const [adding, setAdding] = useState<{ side: CategorySide; parent: string | null } | null>(null);
+  useEffect(() => { setFolds(readStore(FOLD_STORE, {})); setSide(readStore(SIDE_STORE, "all")); }, []);
+  const isOpen = (k: FoldKey, dflt: boolean) => folds[k] ?? dflt;
+  const toggle = (k: FoldKey, dflt: boolean) => setFolds((f) => { const n = { ...f, [k]: !(f[k] ?? dflt) }; writeStore(FOLD_STORE, n); return n; });
+  const pickSide = (s: Side) => { setSide(s); writeStore(SIDE_STORE, s); };
+
   // ADD TO BUILD QUEUE (Lee, 2026-09-03): tick some, pick a priority, add.
   // The runner on the build machine takes it from there — unattended.
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -72,12 +99,14 @@ function Ideas() {
   };
 
   const refresh = useCallback(() => {
-    listIdeas().then((r) => { setIdeas(r.ideas); setErr(null); })
+    listIdeas().then((r) => { setIdeas(r.ideas); setCats(r.categories); setErr(null); })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+    listStampedIdeas().then((r) => setStamped(r.items)).catch(() => setStamped([]));
   }, []);
   useEffect(refresh, [refresh]);
 
-  // THE THREE (plus the quiet ones). An idea lives in exactly one fold.
+  // THE PIPELINE (plus the quiet ones). An idea lives in exactly one fold
+  // here; what is left over is the bank, shown by category below.
   const sections = useMemo(() => {
     const live = ideas.filter((i) => i.status !== "PARKED");
     const reviewed = live.filter((i) => i.status === "APPROVED");
@@ -85,20 +114,52 @@ function Ideas() {
     const queued = working.filter((i) => isArmed(i) && !isBuilt(i) && !isTodoIdea(i));
     const built = working.filter((i) => isBuilt(i) && !isTodoIdea(i));
     const handsOn = working.filter((i) => isHandsOn(i) && !isProduction(i) && !isTodoIdea(i));
-    const rest = working.filter((i) => !isArmed(i) && !isBuilt(i) && !isProduction(i) && !isHandsOn(i));
+    const rest = working.filter((i) => !isArmed(i) && !isBuilt(i) && !isProduction(i) && !isHandsOn(i) && !isTodoIdea(i));
     return {
       production: rankIdeas(working.filter((i) => isProduction(i) && !isTodoIdea(i))),
-      urgent: rankIdeas(rest.filter((i) => isUrgent(i) && !isTodoIdea(i))),
+      urgent: rankIdeas(rest.filter(isUrgent)),
       queue: rankQueue(queued),
       handsOn: rankIdeas(handsOn),
       built: rankQueue(built),
-      drafts: rankIdeas(rest.filter((i) => !isUrgent(i) && isDraft(i) && !isTodoIdea(i))),
-      open: rankIdeas(rest.filter((i) => !isUrgent(i) && !isDraft(i) && !isTodoIdea(i))),
+      bank: rest.filter((i) => !isUrgent(i)),
       todos: rankIdeas(working.filter(isTodoIdea)),
       reviewed: rankIdeas(reviewed),
       archived: rankIdeas(ideas.filter((i) => i.status === "PARKED")),
     };
   }, [ideas]);
+
+  // THE BANK BY CATEGORY — the order is the model's (business first, personal
+  // last); a child category's ideas count under its parent; what fits none
+  // is Unsorted at the end. To Do's is the one category that also gathers
+  // the Ctrl+I to-dos (work ones under Work, personal ones under Personal).
+  const bySide = side === "all" ? undefined : side;
+  const known = useMemo(() => new Set(visibleCategories(cats).map((c) => c.key)), [cats]);
+  const inCategory = useCallback((key: string) => {
+    const fam = categoryFamily(key, cats);
+    const list = sections.bank.filter((i) => i.categories.some((c) => fam.includes(c)));
+    if (key === "PERSONAL_TODOS") {
+      const todos = sections.todos.filter((t) => side === "all" ? true : (t.context?.todo ?? "work") === side);
+      const seen = new Set(list.map((i) => i.id));
+      return rankIdeas([...list, ...todos.filter((t) => !seen.has(t.id))]);
+    }
+    return rankIdeas(list);
+  }, [sections, cats, side]);
+  const unsorted = useMemo(() => rankIdeas(sections.bank.filter((i) => !i.categories.some((c) => known.has(c)))), [sections, known]);
+  const tops = useMemo(() => {
+    const t = topCategories(cats, bySide);
+    // Work to-dos exist too: show the To Do's fold under Work when it has any.
+    if (side === "work" && sections.todos.some((x) => (x.context?.todo ?? "work") === "work")) {
+      const td = cats.find((c) => c.key === "PERSONAL_TODOS"); if (td) t.push(td);
+    }
+    return t;
+  }, [cats, bySide, side, sections.todos]);
+
+  // THE TALKTHROUGH IDEAS, grouped by set, newest set first.
+  const stampedBySet = useMemo(() => {
+    const m = new Map<string, StampedIdea[]>();
+    for (const s of stamped) m.set(s.setName || "(no set)", [...(m.get(s.setName || "(no set)") ?? []), s]);
+    return [...m.entries()];
+  }, [stamped]);
 
   const patch = useCallback((i: Idea, p: Partial<Idea>) => {
     const next = { ...i, ...p };
@@ -124,38 +185,87 @@ function Ideas() {
     }
   }, [patch]);
 
-  const fold = (key: FoldKey, label: string, list: Idea[], color = GOLD, hint?: string) => (
-    <section key={key} style={{ marginBottom: 14 }}>
-      <button onClick={() => toggle(key)}
-        className="flex items-center gap-2"
-        style={{ background: "transparent", border: "none", color: list.length ? CREAM : MUTED, cursor: "pointer", padding: "6px 0", fontFamily: "'League Spartan', sans-serif", fontWeight: 800, fontSize: 14, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-        <span style={{ color: MUTED, fontSize: 12, width: 12 }}>{folds[key] ? "▾" : "▸"}</span>
-        <span style={{ color }}>{label}</span>
-        <span style={{ color: MUTED, fontWeight: 700, fontSize: 12 }}>{list.length}</span>
-        {hint && <span style={{ color: MUTED, fontWeight: 400, fontSize: 11, letterSpacing: 0, textTransform: "none" }}>— {hint}</span>}
-      </button>
-      {folds[key] && (
-        list.length === 0
-          ? <div style={{ color: MUTED, fontSize: 12.5, padding: "2px 0 6px 20px" }}>nothing here</div>
-          : <div className="flex flex-col" style={{ gap: 4, maxWidth: 1040 }}>
-              {list.map((i) => (
-                <Row key={i.id} idea={i} expanded={open === i.id}
-                  selected={selected.has(i.id)} onSelect={() => toggleSelect(i.id)}
-                  onArm={(armed, p) => arm([i.id], armed, p)}
-                  onToggle={() => setOpen(open === i.id ? null : i.id)} onPatch={(p) => patch(i, p)} onChanged={refresh} />
-              ))}
-            </div>
-      )}
-    </section>
+  const rows = (list: Idea[]) => (
+    list.length === 0
+      ? <div style={{ color: MUTED, fontSize: 12.5, padding: "2px 0 6px 20px" }}>nothing here</div>
+      : <div className="flex flex-col" style={{ gap: 4, maxWidth: 1040 }}>
+          {list.map((i) => (
+            <Row key={i.id} idea={i} cats={cats} expanded={open === i.id}
+              selected={selected.has(i.id)} onSelect={() => toggleSelect(i.id)}
+              onArm={(armed, p) => arm([i.id], armed, p)}
+              onToggle={() => setOpen(open === i.id ? null : i.id)} onPatch={(p) => patch(i, p)} onChanged={refresh} />
+          ))}
+        </div>
   );
+
+  /** A fold: one line until clicked. `dflt` is what it does before Lee has ever touched it. */
+  const fold = (key: FoldKey, label: string, count: number, body: () => React.ReactNode, o: { color?: string; hint?: string; dflt?: boolean; depth?: number; extra?: React.ReactNode } = {}) => {
+    const on = isOpen(key, o.dflt ?? false);
+    const depth = o.depth ?? 0;
+    return (
+      <section key={key} style={{ marginBottom: depth ? 4 : 10, marginLeft: depth * 18 }}>
+        <div className="flex items-center gap-2" style={{ padding: depth ? "3px 0" : "6px 0" }}>
+          <button onClick={() => toggle(key, o.dflt ?? false)} className="flex items-center gap-2"
+            style={{ background: "transparent", border: "none", color: count ? CREAM : MUTED, cursor: "pointer", padding: 0, fontFamily: "'League Spartan', sans-serif", fontWeight: 800, fontSize: depth ? 13 : 15, letterSpacing: "0.06em", textTransform: "uppercase", textAlign: "left" }}>
+            <span style={{ color: MUTED, fontSize: 12, width: 12 }}>{on ? "▾" : "▸"}</span>
+            <span style={{ color: o.color ?? GOLD }}>{label}</span>
+            <span style={{ color: MUTED, fontWeight: 700, fontSize: 12 }}>{count}</span>
+          </button>
+          {o.hint && <span style={{ color: MUTED, fontSize: 11 }}>— {o.hint}</span>}
+          {o.extra}
+        </div>
+        {on && body()}
+      </section>
+    );
+  };
+
+  /** A category fold, its children nested under it, "+" to create one under it. */
+  const categoryFold = (c: CategoryDef, depth: number): React.ReactNode => {
+    const list = inCategory(c.key);
+    const kids = categoryChildren(c.key, cats);
+    const own = list.filter((i) => !kids.some((k) => i.categories.some((x) => categoryFamily(k.key, cats).includes(x))) || i.categories.includes(c.key));
+    const plus = (
+      <span className="flex items-center gap-2" style={{ marginLeft: 4 }}>
+        <button title={`Create a new category under ${c.label}`} onClick={() => setAdding({ side: c.side, parent: c.key })}
+          style={{ background: "transparent", border: `1px solid ${EDGE}`, color: MUTED, borderRadius: 999, width: 20, height: 20, fontSize: 13, lineHeight: 1, cursor: "pointer", padding: 0 }}>+</button>
+        {c.custom && (
+          <button title="Hide this category (the ideas in it stay)" onClick={() => { if (window.confirm(`Hide “${c.label}”? Its ideas stay; the fold goes.`)) void hideIdeaCategory({ data: { key: c.key } }).then(refresh).catch((e) => setErr(e instanceof Error ? e.message : String(e))); }}
+            style={{ background: "transparent", border: "none", color: MUTED, fontSize: 11, cursor: "pointer", padding: 0 }}>hide</button>
+        )}
+      </span>
+    );
+    return fold(`cat:${c.key}`, c.label, list.length, () => (
+      <>
+        {kids.map((k) => categoryFold(k, depth + 1))}
+        {kids.length > 0 && own.length > 0 && <div style={{ fontSize: 11, color: MUTED, margin: "4px 0 2px 20px" }}>{c.label} itself</div>}
+        {kids.length === 0 || own.length > 0 ? rows(own) : null}
+      </>
+    ), { color: c.side === "personal" ? SKY : GOLD, hint: depth ? undefined : c.hint, depth, extra: plus });
+  };
+
+  const sideBtn = (s: Side, label: string) => (
+    <button key={s} onClick={() => pickSide(s)}
+      style={{ background: side === s ? GOLD : "transparent", color: side === s ? "#0B1322" : CREAM, border: `1px solid ${side === s ? GOLD : EDGE}`, borderRadius: 999, padding: "5px 13px", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+      {label}
+    </button>
+  );
+
+  const showWork = side !== "personal";
 
   return (
     <div style={{ minHeight: "100vh", background: BG, color: CREAM, fontFamily: "'Rubik', system-ui, sans-serif", padding: "16px clamp(12px, 4vw, 26px) 90px" }}>
-      <header className="flex items-center gap-3" style={{ marginBottom: 18, flexWrap: "wrap" }}>
+      <header className="flex items-center gap-3" style={{ marginBottom: 14, flexWrap: "wrap" }}>
         <h1 style={{ fontFamily: "'League Spartan', sans-serif", fontWeight: 800, fontSize: 21, letterSpacing: "0.06em", textTransform: "uppercase", margin: 0 }}>
           ⚡ Idea Bank
         </h1>
-        <span style={{ fontSize: 12, color: MUTED }}>Ctrl/⌘ I captures from any page · AI titles, sums up and files each one</span>
+        <span style={{ fontSize: 12, color: MUTED }}>Ctrl/⌘ I captures from any page · Ctrl/⌘ F fast-tracks a small change</span>
+        <span className="flex items-center gap-1" style={{ marginLeft: 6 }}>
+          {sideBtn("all", "All")}{sideBtn("work", "Work")}{sideBtn("personal", "Personal")}
+        </span>
+        <button onClick={() => setAdding(adding ? null : { side: side === "personal" ? "personal" : "work", parent: null })}
+          style={{ background: "transparent", color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 10, padding: "7px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          + Category
+        </button>
         <button onClick={() => setUploading(true)} className="ml-auto"
           style={{ background: "transparent", color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 10, padding: "7px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
           ↑ Upload a prompt
@@ -167,34 +277,63 @@ function Ideas() {
       </header>
 
       {err && <div style={{ color: "#F87171", fontSize: 13, marginBottom: 12 }}>{err}</div>}
+      {adding && (
+        <AddCategory cats={cats} preset={adding} onClose={() => setAdding(null)}
+          onAdded={(r) => { setCats(r.categories); setAdding(null); setFolds((f) => { const n = { ...f, [`cat:${r.key}`]: true }; writeStore(FOLD_STORE, n); return n; }); }} />
+      )}
 
-      {ideas.length === 0 && <div style={{ color: MUTED, fontSize: 13 }}>Nothing here yet. Press Ctrl/⌘ I on any page, or upload a prompt you already wrote.</div>}
+      {ideas.length === 0 && stamped.length === 0 && <div style={{ color: MUTED, fontSize: 13 }}>Nothing here yet. Press Ctrl/⌘ I on any page, or upload a prompt you already wrote.</div>}
 
-      {fold("urgent", "🔥 Urgent", sections.urgent, URGENT)}
-      {/* THE PRODUCTION QUEUE — content to film. The 25 Blast Offs (one per
-          Exam 1 set) are the standing head of it and live on /v3, the queue
-          itself; the ideas here are the slides, exhibits and new CEQs routed
-          from review boards with "→ production". Order = Prioritize's. */}
-      <div style={{ fontSize: 12, color: MUTED, margin: "2px 0 -8px 20px" }}>
-        🎬 The 25 Exam 1 Blast Offs head the production queue — <a href="/v3" style={{ color: GOLD }}>they live on /v3 →</a>. Below: the slides, exhibits and CEQs sent to production from review boards.
+      {/* THE CONTENT IDEAS — stamped in talkthroughs. The booth owns them;
+          this is the one list across every session, the first thing on the
+          page because it is the first thing to ideate on. */}
+      {showWork && fold("tt", "🎙 Content ideas from talkthroughs", stamped.length, () => (
+        stampedBySet.length === 0
+          ? <div style={{ color: MUTED, fontSize: 12.5, padding: "2px 0 6px 20px" }}>none stamped yet — say “Cheat code:” or “Short:” in a talkthrough and it lands here</div>
+          : <div style={{ maxWidth: 1040 }}>
+              {stampedBySet.map(([setName, list], n) => fold(`tt:${setName}`, setName, list.length, () => (
+                <div className="flex flex-col" style={{ gap: 4, marginLeft: 18 }}>
+                  {list.map((s) => <StampedRow key={s.id} item={s} expanded={open === s.id} onToggle={() => setOpen(open === s.id ? null : s.id)} />)}
+                </div>
+              ), { color: CREAM, depth: 1, dflt: n === 0 }))}
+              <div style={{ fontSize: 11.5, color: MUTED, margin: "6px 0 0 20px" }}>
+                Approve, edit, or send one to production in <a href="/talkthrough" style={{ color: GOLD }}>the booth →</a>
+              </div>
+            </div>
+      ), { color: MINT, hint: "what you stamped while talking — newest set first", dflt: true })}
+
+      {/* THE PIPELINE — what is moving. */}
+      {showWork && fold("urgent", "🔥 Urgent", sections.urgent.length, () => rows(sections.urgent), { color: URGENT, dflt: true })}
+      {showWork && fold("production", "🎬 Production queue", sections.production.length, () => (
+        <>
+          <div style={{ fontSize: 12, color: MUTED, margin: "0 0 6px 20px" }}>
+            The 25 Exam 1 Blast Offs head the production queue — <a href="/v3" style={{ color: GOLD }}>they live on /v3 →</a>. Below: the slides, exhibits and CEQs sent from review boards.
+          </div>
+          {rows(sections.production)}
+        </>
+      ), { color: MINT, hint: "content to film — drag in Prioritize to reorder", dflt: true })}
+      {showWork && fold("queue", "⚙ Build queue", sections.queue.length, () => rows(sections.queue), { hint: "armed — the build machine works these in priority order, unattended", dflt: true })}
+      {showWork && fold("handsOn", "🖐 Build by hand", sections.handsOn.length, () => rows(sections.handsOn), { color: "#FCA311", hint: "too big or too design-dependent for an unattended build", dflt: true })}
+      {showWork && fold("built", "✅ Built — test these", sections.built.length, () => rows(sections.built), { color: MINT, hint: "a preview link and a checklist per idea; tick reviewed when it checks out", dflt: true })}
+
+      {/* THE BANK, BY CATEGORY — business first, personal last. */}
+      <div style={{ fontSize: 11, color: MUTED, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", margin: "18px 0 6px" }}>
+        {side === "personal" ? "Personal" : side === "work" ? "The business" : "The bank — the business first, personal at the bottom"}
       </div>
-      {fold("production", "🎬 Production queue", sections.production, "#3BF5A0", "content to film — sent from a review board; drag in Prioritize to reorder")}
-      {fold("queue", "⚙ Build queue", sections.queue, GOLD, "armed — the build machine works these in priority order, unattended")}
-      {fold("handsOn", "🖐 Build by hand", sections.handsOn, "#FCA311", "the runner stepped back — too big or too design-dependent for an unattended build; the brief is in Lee's email, work it in Claude Code, or queue anyway")}
-      {fold("built", "✅ Built — test these", sections.built, "#3BF5A0", "a preview link and a checklist per idea; tick reviewed when it checks out")}
-      {fold("drafts", "✎ Drafts", sections.drafts, "#7DD3FC", "words not finished — Ctrl+I to continue one")}
-      {fold("open", "Open", sections.open, GOLD, "in order — urgent first, then Prioritize's order, then newest")}
-      {fold("todos", "☐ To-dos", sections.todos, "#3BF5A0", "Terry's list — in Obsidian too")}
-      {fold("reviewed", "Reviewed", sections.reviewed, MUTED, "shipped and checked — archive when done with them")}
-      {fold("archived", "Archived", sections.archived, MUTED, "parked, never deleted — reopen any time")}
+      {tops.map((c) => categoryFold(c, 0))}
+      {showWork && fold("unsorted", "Unsorted", unsorted.length, () => rows(unsorted), { color: MUTED, hint: "no category yet — open one and pick, or let the next organise file it" })}
+
+      <div style={{ height: 14 }} />
+      {fold("reviewed", "Reviewed", sections.reviewed.length, () => rows(sections.reviewed), { color: MUTED, hint: "shipped and checked — archive when done with them" })}
+      {fold("archived", "Archived", sections.archived.length, () => rows(sections.archived), { color: MUTED, hint: "parked, never deleted — reopen any time" })}
 
       {/* THE ARM BAR — appears when something is ticked. */}
       {selected.size > 0 && (
-        <div style={{ position: "fixed", left: "50%", bottom: 18, transform: "translateX(-50%)", zIndex: 50, background: "#101A2E", border: `1px solid ${GOLD}`, borderRadius: 14, padding: "10px 14px", display: "flex", gap: 10, alignItems: "center", boxShadow: "0 18px 50px -14px rgba(0,0,0,0.9)", flexWrap: "wrap" }}>
+        <div style={{ position: "fixed", left: "50%", bottom: 18, transform: "translateX(-50%)", zIndex: 50, background: "#101A2E", border: `1px solid ${GOLD}`, borderRadius: 14, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 12px 40px rgba(0,0,0,0.5)", flexWrap: "wrap", maxWidth: "92vw" }}>
           <span style={{ fontSize: 12.5, fontWeight: 700 }}>{selected.size} ticked</span>
           {QUEUE_PRIORITIES.map((p) => (
             <button key={p} onClick={() => setQueuePrio(p)}
-              style={{ background: queuePrio === p ? PRIORITY_COLOR[p] : "transparent", color: queuePrio === p ? "#0B1322" : PRIORITY_COLOR[p], border: `1px solid ${PRIORITY_COLOR[p]}`, borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "capitalize" }}>
+              style={{ background: queuePrio === p ? PRIORITY_COLOR[p] : "transparent", color: queuePrio === p ? "#0B1322" : PRIORITY_COLOR[p], border: `1px solid ${PRIORITY_COLOR[p]}`, borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
               {p}
             </button>
           ))}
@@ -212,10 +351,88 @@ function Ideas() {
   );
 }
 
+// ------------------------------------------------------- a stamped idea
+
+/** One content idea from a talkthrough: the stamp, the title, and — on a click — the card and the words that made it. */
+function StampedRow({ item, expanded, onToggle }: { item: StampedIdea; expanded: boolean; onToggle: () => void }) {
+  const stamp = (STAMP_LABELS as Record<string, string>)[item.stamp] ?? item.stamp.replace(/_/g, " ");
+  const st = item.status === "approved" || item.status === "in_production" || item.status === "done" || item.status === "final" ? MINT : item.status === "suggested" ? GOLD : MUTED;
+  return (
+    <div className="rounded-xl" style={{ background: PANEL, border: `1px solid ${expanded ? GOLD + "55" : EDGE}` }}>
+      <div onClick={onToggle} className="flex items-center gap-3" style={{ padding: "7px 12px", cursor: "pointer" }}>
+        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: GOLD, border: `1px solid ${GOLD}66`, borderRadius: 999, padding: "1px 8px", whiteSpace: "nowrap" }}>{stamp}</span>
+        <div className="min-w-0" style={{ flex: 1, fontWeight: 700, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</div>
+        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: st }}>{item.status.replace(/_/g, " ")}</span>
+        <span style={{ fontSize: 11, color: MUTED }}>{new Date(item.createdAt).toLocaleDateString()}</span>
+        <span style={{ color: MUTED, fontSize: 12 }}>{expanded ? "▾" : "▸"}</span>
+      </div>
+      {expanded && (
+        <div style={{ padding: "0 14px 12px", borderTop: `1px solid ${EDGE}` }}>
+          {item.body && <div style={{ fontSize: 12.5, lineHeight: 1.5, color: CREAM, opacity: 0.9, whiteSpace: "pre-wrap", marginTop: 10 }}>{item.body}</div>}
+          {item.quote && (
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ fontSize: 11.5, color: MUTED, cursor: "pointer" }}>What you said</summary>
+              <div style={{ fontSize: 12, lineHeight: 1.5, color: CREAM, opacity: 0.75, whiteSpace: "pre-wrap", marginTop: 6, fontStyle: "italic" }}>“{item.quote}”</div>
+            </details>
+          )}
+          <div style={{ fontSize: 11, color: MUTED, marginTop: 8 }}>{item.setName} · <a href="/talkthrough" style={{ color: GOLD }}>open the booth →</a></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------- add a category
+
+/** "Make it easy to add a new category if I want." A label, which side, and — for nesting — what it sits under. */
+function AddCategory({ cats, preset, onClose, onAdded }: {
+  cats: CategoryDef[]; preset: { side: CategorySide; parent: string | null };
+  onClose: () => void; onAdded: (r: { categories: CategoryDef[]; key: string }) => void;
+}) {
+  const [label, setLabel] = useState("");
+  const [side, setSide] = useState<CategorySide>(preset.side);
+  const [parent, setParent] = useState<string>(preset.parent ?? "");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { ref.current?.focus(); }, []);
+  const parentDef = cats.find((c) => c.key === parent);
+  const submit = () => {
+    if (!label.trim() || busy) return;
+    setBusy(true); setNote(null);
+    addIdeaCategory({ data: { label: label.trim(), side, parent: parent || null, hint: "" } })
+      .then(onAdded)
+      .catch((e) => setNote(e instanceof Error ? e.message : String(e)))
+      .finally(() => setBusy(false));
+  };
+  const seg = (on: boolean) => ({ background: on ? GOLD : "transparent", color: on ? "#0B1322" : CREAM, border: `1px solid ${on ? GOLD : EDGE}`, borderRadius: 999, padding: "4px 12px", fontSize: 12, fontWeight: 800, cursor: "pointer" });
+  return (
+    <div className="flex items-center gap-2" style={{ flexWrap: "wrap", background: PANEL, border: `1px solid ${GOLD}55`, borderRadius: 12, padding: "10px 12px", marginBottom: 14, maxWidth: 1040 }}>
+      <span style={{ fontSize: 11, color: GOLD, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase" }}>New category</span>
+      <input ref={ref} value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") onClose(); }}
+        placeholder={parentDef ? `Under ${parentDef.label} — e.g. a character's name` : "e.g. Bucerias trip"}
+        style={{ flex: "1 1 220px", background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 9, color: CREAM, fontSize: 13, padding: "6px 10px", outline: "none" }} />
+      <button onClick={() => setSide("work")} style={seg(side === "work")}>Work</button>
+      <button onClick={() => setSide("personal")} style={seg(side === "personal")}>Personal</button>
+      <select value={parent} onChange={(e) => { setParent(e.target.value); const p = cats.find((c) => c.key === e.target.value); if (p) setSide(p.side); }}
+        style={{ background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 9, color: CREAM, fontSize: 12, padding: "5px 8px" }}>
+        <option value="">top level</option>
+        {visibleCategories(cats).map((c) => <option key={c.key} value={c.key}>under {c.parent ? `${categoryLabel(c.parent, cats)} › ` : ""}{c.label}</option>)}
+      </select>
+      <button onClick={submit} disabled={busy || !label.trim()}
+        style={{ background: GOLD, color: "#0B1322", border: "none", borderRadius: 10, padding: "6px 14px", fontSize: 12.5, fontWeight: 800, cursor: "pointer", opacity: busy || !label.trim() ? 0.6 : 1 }}>
+        {busy ? "Adding…" : "Add"}
+      </button>
+      <button onClick={onClose} style={{ background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 12 }}>cancel</button>
+      {note && <span style={{ fontSize: 11.5, color: "#F87171" }}>{note}</span>}
+    </div>
+  );
+}
+
 // -------------------------------------------------------------------- row
 
-function Row({ idea, expanded, selected, onSelect, onArm, onToggle, onPatch, onChanged }: {
-  idea: Idea; expanded: boolean; selected: boolean; onSelect: () => void;
+function Row({ idea, cats, expanded, selected, onSelect, onArm, onToggle, onPatch, onChanged }: {
+  idea: Idea; cats: CategoryDef[]; expanded: boolean; selected: boolean; onSelect: () => void;
   onArm: (armed: boolean, priority: QueuePriority) => Promise<void> | void;
   onToggle: () => void; onPatch: (p: Partial<Idea>) => Promise<void> | void; onChanged: () => void;
 }) {
@@ -377,7 +594,7 @@ function Row({ idea, expanded, selected, onSelect, onArm, onToggle, onPatch, onC
             <span style={{ color: STATUS_COLOR[idea.status], fontWeight: 700 }}>{idea.status.toLowerCase()}</span>
             {" "}{SOURCE_ICON[idea.sourceKind]}
             {idea.createdBy ? ` · ${idea.createdBy}` : ""}
-            {idea.categories.length ? ` · ${idea.categories.map((c) => CATEGORY_LABEL[c]).join(", ")}` : " · uncategorised"}
+            {idea.categories.length ? ` · ${idea.categories.map((c) => categoryLabel(c, cats)).join(", ")}` : " · uncategorised"}
             {idea.subcategory ? ` · ${idea.subcategory}` : ""}
             {priorityOf(idea) ? ` · #${Math.round(priorityOf(idea) / 10)}` : ""}
             {" · "}{new Date(idea.createdAt).toLocaleDateString()}
@@ -416,13 +633,17 @@ function Row({ idea, expanded, selected, onSelect, onArm, onToggle, onPatch, onC
 
           <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap", marginTop: 10 }}>
             <span style={{ fontSize: 11, color: MUTED }}>Categories</span>
-            {CATEGORIES.map((c) => {
-              const on = idea.categories.includes(c);
+            {visibleCategories(cats).map((c, n, all) => {
+              const on = idea.categories.includes(c.key);
+              const firstPersonal = c.side === "personal" && (n === 0 || all[n - 1].side !== "personal");
               return (
-                <button key={c} onClick={() => void onPatch({ categories: on ? idea.categories.filter((x) => x !== c) : [...idea.categories, c] })}
+                <span key={c.key} style={{ display: "contents" }}>
+                  {firstPersonal && <span style={{ width: 1, height: 18, background: EDGE, margin: "0 4px" }} />}
+                <button title={c.hint} onClick={() => void onPatch({ categories: on ? idea.categories.filter((x) => x !== c.key) : [...idea.categories, c.key] })}
                   style={{ background: on ? GOLD : "transparent", color: on ? "#0B1322" : CREAM, border: `1px solid ${on ? GOLD : EDGE}`, borderRadius: 999, padding: "2px 9px", fontSize: 10.5, fontWeight: 700, cursor: "pointer" }}>
-                  {CATEGORY_LABEL[c]}
+                  {c.parent ? `${categoryLabel(c.parent, cats)} › ` : ""}{c.label}
                 </button>
+                </span>
               );
             })}
           </div>

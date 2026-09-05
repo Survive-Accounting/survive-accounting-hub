@@ -13,7 +13,7 @@
 //   IDEAS_EMAIL_LEE / IDEAS_EMAIL_KING / IDEAS_EMAIL_MCKINSEY
 //
 // Anything unset simply has no sender — the path stays closed rather than open.
-import { PEOPLE, type Person } from "@/components/ideas/model";
+import { PEOPLE, categoryLabel, type Person } from "@/components/ideas/model";
 
 /** Digits only, so +1 (601) 555-1234 and +16015551234 are the same person. */
 export const normalizePhone = (raw: string): string => (raw || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
@@ -51,13 +51,24 @@ export function identifyEmail(from: string): Person | null {
  *  because nobody types an enum from a car. Unrecognised text is NOT a
  *  category — it stays unsorted rather than being guessed at. */
 const CATEGORY_WORDS: Record<string, string> = {
-  authoring: "AUTHORING", auth: "AUTHORING", content: "AUTHORING",
-  filming: "FILMING", film: "FILMING", capture: "FILMING", studio: "FILMING",
-  publishing: "PUBLISHING", publish: "PUBLISHING", youtube: "PUBLISHING",
-  marketing: "MARKETING", outreach: "MARKETING", reps: "MARKETING", rep: "MARKETING",
-  cs: "CUSTOMER_SUCCESS", customer: "CUSTOMER_SUCCESS", students: "CUSTOMER_SUCCESS", support: "CUSTOMER_SUCCESS",
-  ui: "UI_UX", ux: "UI_UX", uiux: "UI_UX", design: "UI_UX",
-  infra: "INFRASTRUCTURE", infrastructure: "INFRASTRUCTURE", data: "INFRASTRUCTURE", domains: "INFRASTRUCTURE",
+  app: "SURVIVEACCOUNTING", site: "SURVIVEACCOUNTING", accounting: "SURVIVEACCOUNTING", survive: "SURVIVEACCOUNTING",
+  ui: "SURVIVEACCOUNTING", ux: "SURVIVEACCOUNTING", design: "SURVIVEACCOUNTING", filming: "SURVIVEACCOUNTING", infra: "SURVIVEACCOUNTING",
+  learn: "LEARN_DASHBOARD", dashboard: "LEARN_DASHBOARD",
+  reps: "CAMPUS_REPS", rep: "CAMPUS_REPS", campus: "CAMPUS_REPS",
+  chairs: "SCHOLARSHIP_CHAIRS", chair: "SCHOLARSHIP_CHAIRS", scholarship: "SCHOLARSHIP_CHAIRS",
+  youtube: "YOUTUBE", yt: "YOUTUBE",
+  instagram: "INSTAGRAM", ig: "INSTAGRAM", insta: "INSTAGRAM",
+  tiktok: "TIKTOK", tt: "TIKTOK",
+  bip: "BUILD_IN_PUBLIC", public: "BUILD_IN_PUBLIC",
+  nontraditional: "NONTRADITIONAL", nontrad: "NONTRADITIONAL", podcast: "NONTRADITIONAL", vlog: "NONTRADITIONAL",
+  greek: "GREEKINTEL", greekintel: "GREEKINTEL", intel: "GREEKINTEL",
+  studios: "SURVIVESTUDIOS", studio: "SURVIVESTUDIOS",
+  ochem: "SURVIVEOCHEM", chem: "SURVIVEOCHEM",
+  finance: "SURVIVEFINANCE", stats: "SURVIVESTATS", statistics: "SURVIVESTATS",
+  todo: "PERSONAL_TODOS", todos: "PERSONAL_TODOS", personal: "PERSONAL_TODOS",
+  calendar: "PERSONAL_CALENDAR", event: "PERSONAL_CALENDAR",
+  writing: "PERSONAL_WRITING", story: "PERSONAL_WRITING",
+  character: "PERSONAL_CHARACTERS", characters: "PERSONAL_CHARACTERS",
 };
 
 export function parseCategoryReply(text: string): string[] {
@@ -81,7 +92,7 @@ export function looksLikeCategoryReply(text: string): boolean {
  *  path, not a conversation, and Lee is usually driving. */
 export const savedReply = (): string => "Saved. Reply with a category or ignore.";
 export const taggedReply = (cats: string[], openCount: number): string => {
-  const names = cats.map((c) => (c === "UI_UX" ? "UI/UX" : c.replace("_", " ").toLowerCase())).join(", ");
+  const names = cats.map((c) => categoryLabel(c)).join(", ");
   return `Tagged ${names}. ${openCount} idea${openCount === 1 ? "" : "s"} open.`;
 };
 

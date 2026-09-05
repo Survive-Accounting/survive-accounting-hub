@@ -50,7 +50,7 @@ export const submitFastTrack = createServerFn({ method: "POST" })
     const title = data.text.trim().split("\n").find((l) => l.trim())?.replace(/^[#>\-*\s]+/, "").slice(0, 72) ?? "Fast track request";
     const { error } = await db.from("ideas").insert({
       id, title, body: data.text.trim(),
-      categories: ["UI_UX"], subcategory: "fast track", status: "SUBMITTED",
+      categories: ["SURVIVEACCOUNTING"], subcategory: "fast track", status: "SUBMITTED",
       source_path: data.path, prompt_md: fastTrackPrompt({ text: data.text, path: data.path, pageTitle: data.pageTitle, who: data.who }), prompt_filename: null,
       context: { lane: FAST_TRACK_LANE, by: data.who, title: data.pageTitle, path: data.path, requestedAt: now },
       created_by: data.who, source_kind: "web", attachments: [], audio_path: null, transcript_status: null,

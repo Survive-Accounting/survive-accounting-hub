@@ -6,7 +6,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { CATEGORIES, SOURCE_KINDS, STATUSES, type Attachment, type Idea, type SourceKind } from "@/components/ideas/model";
+import {
+  CATEGORY_KEY_RE, SOURCE_KINDS, STATUSES, categoryKeyFor, categoryVocabulary, mergeCategories, normalizeCategories,
+  type Attachment, type CategoryDef, type CategorySide, type Idea, type SourceKind,
+} from "@/components/ideas/model";
 
 const MISSING = "ideas table missing — apply migration/supabase-migrations/20260831_0900_ideas_vault.sql";
 
@@ -34,7 +37,7 @@ interface Row {
 
 const toIdea = (r: Row): Idea => ({
   id: r.id, title: r.title, body: r.body,
-  categories: (r.categories ?? []).filter((c): c is Idea["categories"][number] => (CATEGORIES as readonly string[]).includes(c)),
+  categories: normalizeCategories(r.categories),
   subcategory: r.subcategory ?? "",
   status: (STATUSES as readonly string[]).includes(r.status) ? (r.status as Idea["status"]) : "IDEA",
   sourcePath: r.source_path ?? "",
@@ -47,18 +50,106 @@ const toIdea = (r: Row): Idea => ({
   createdAt: r.created_at, updatedAt: r.updated_at,
 });
 
-export const listIdeas = createServerFn({ method: "POST" }).handler(async (): Promise<{ ideas: Idea[] }> => {
+export const listIdeas = createServerFn({ method: "POST" }).handler(async (): Promise<{ ideas: Idea[]; categories: CategoryDef[] }> => {
   const db = await admin();
-  const { data, error } = await db.from("ideas").select("*").order("updated_at", { ascending: false });
+  const [{ data, error }, custom] = await Promise.all([
+    db.from("ideas").select("*").order("updated_at", { ascending: false }),
+    readCustomCategories(db),
+  ]);
   if (error) rethrow(error);
-  return { ideas: (data as Row[]).map(toIdea) };
+  return { ideas: (data as Row[]).map(toIdea), categories: mergeCategories(custom) };
+});
+
+// ------------------------------------------------------------ categories
+// LEE'S OWN CATEGORIES (2026-09-05: "Make it easy to add a new category if I
+// want"). Kept in the site_settings singleton under `ideaCategories`, merged
+// after the built-ins. Read-modify-write so the flyer URL and the council
+// pages living in the same row are never dropped. Hiding keeps the row (an
+// old idea still resolves its label); built-ins cannot be hidden.
+const SETTINGS_KEY = "ideaCategories";
+async function readCustomCategories(db: { from: (t: string) => any }): Promise<CategoryDef[]> {
+  try {
+    const { data } = await db.from("site_settings").select("settings").eq("id", 1).maybeSingle();
+    const raw = ((data?.settings ?? {}) as Record<string, unknown>)[SETTINGS_KEY];
+    return Array.isArray(raw) ? (raw as CategoryDef[]).filter((c) => c && typeof c.key === "string" && typeof c.label === "string") : [];
+  } catch { return []; }
+}
+async function writeCustomCategories(db: { from: (t: string) => any }, next: CategoryDef[]): Promise<void> {
+  const { data } = await db.from("site_settings").select("settings").eq("id", 1).maybeSingle();
+  const settings = { ...((data?.settings ?? {}) as Record<string, unknown>), [SETTINGS_KEY]: next };
+  const { error } = await db.from("site_settings").upsert({ id: 1, settings, updated_at: new Date().toISOString() }, { onConflict: "id" });
+  if (error) throw new Error(error.message);
+}
+
+export const addIdeaCategory = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    label: z.string().trim().min(1).max(60),
+    side: z.enum(["work", "personal"]),
+    parent: z.string().regex(CATEGORY_KEY_RE).nullable().default(null),
+    hint: z.string().trim().max(200).default(""),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ categories: CategoryDef[]; key: string }> => {
+    const db = await admin();
+    const custom = await readCustomCategories(db);
+    const all = mergeCategories(custom);
+    const parent = data.parent && all.some((c) => c.key === data.parent) ? data.parent : undefined;
+    const key = categoryKeyFor(data.label, all);
+    const def: CategoryDef = { key, label: data.label, hint: data.hint || data.label, side: data.side, ...(parent ? { parent } : {}), custom: true };
+    await writeCustomCategories(db, [...custom, def]);
+    return { categories: mergeCategories([...custom, def]), key };
+  });
+
+export const hideIdeaCategory = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ key: z.string().regex(CATEGORY_KEY_RE), hidden: z.boolean().default(true) }).parse(d))
+  .handler(async ({ data }): Promise<{ categories: CategoryDef[] }> => {
+    const db = await admin();
+    const custom = await readCustomCategories(db);
+    if (!custom.some((c) => c.key === data.key)) throw new Error("Only a category you added can be hidden.");
+    const next = custom.map((c) => (c.key === data.key ? { ...c, hidden: data.hidden } : c));
+    await writeCustomCategories(db, next);
+    return { categories: mergeCategories(next) };
+  });
+
+// --------------------------------------------- talkthrough content ideas
+/** THE CONTENT IDEAS STAMPED IN TALKTHROUGHS (Lee, 2026-09-05: "At the top, I
+ *  want to see all the content ideas I've stamped … these are the most
+ *  important things I need to be ideating on"). Read-only here — the booth's
+ *  board owns them; this is the one list across every session, newest first,
+ *  live rows only (archived and dismissed stay in the booth's own history). */
+export interface StampedIdea {
+  id: string; sessionId: string; setName: string; title: string; body: string;
+  stamp: string; kind: string; status: string; quote: string; createdAt: string;
+}
+export const listStampedIdeas = createServerFn({ method: "POST" }).handler(async (): Promise<{ items: StampedIdea[] }> => {
+  const db = await admin();
+  const [board, sessions] = await Promise.all([
+    db.from("talkthrough_board_items").select("*").eq("kind", "idea").is("archived_at", null).order("created_at", { ascending: false }).limit(400),
+    db.from("talkthrough_sessions").select("id,set_name").limit(1000),
+  ]);
+  if (board.error) {
+    // The booth's tables may not exist on a fresh database — an empty strip, not a broken page.
+    if (board.error.code === "42P01" || /does not exist/i.test(board.error.message)) return { items: [] };
+    throw new Error(board.error.message);
+  }
+  const setOf = new Map<string, string>(((sessions.data ?? []) as { id: string; set_name: string | null }[]).map((s) => [s.id, s.set_name ?? ""]));
+  type R = { id: string; session_id: string; title: string; payload: Record<string, unknown> | null; quote: string | null; status: string; created_at: string; dismissed?: boolean | null };
+  const items = ((board.data ?? []) as R[]).filter((r) => !r.dismissed).map((r) => {
+    const p = r.payload ?? {};
+    return {
+      id: r.id, sessionId: r.session_id, setName: setOf.get(r.session_id) ?? "",
+      title: r.title || String(p.body ?? "").slice(0, 60), body: typeof p.body === "string" ? p.body : "",
+      stamp: typeof p.stamp === "string" ? p.stamp : typeof p.kind === "string" ? p.kind : "",
+      kind: typeof p.kind === "string" ? p.kind : "", status: r.status, quote: r.quote ?? "", createdAt: r.created_at,
+    };
+  });
+  return { items };
 });
 
 const ideaInput = z.object({
   id: z.string().min(1).max(80),
   title: z.string().max(300).default(""),
   body: z.string().max(20_000).default(""),
-  categories: z.array(z.enum(CATEGORIES)).max(7).default([]),
+  categories: z.array(z.string().regex(CATEGORY_KEY_RE)).max(7).default([]),
   subcategory: z.string().max(120).default(""),
   status: z.enum(STATUSES).default("IDEA"),
   sourcePath: z.string().max(300).default(""),
@@ -86,7 +177,7 @@ export const saveIdea = createServerFn({ method: "POST" })
       id: data.id,
       title: data.title,
       body: data.body,
-      categories: data.categories,
+      categories: normalizeCategories(data.categories),
       subcategory: data.subcategory,
       status: data.status,
       source_path: data.sourcePath,
@@ -157,10 +248,12 @@ export const organizeIdea = createServerFn({ method: "POST" })
     // 1. Title · TLDR · summary · categories — the micro lane, cheap.
     const words = r.body?.trim() || r.title || "";
     if (words && data.organize) {
+      const defs = mergeCategories(await readCustomCategories(db));
+      const allowed = new Set(defs.filter((c) => !c.hidden).map((c) => c.key));
       const org = buildOrganizeMessages({
-        title: r.title || words.slice(0, 80), body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",
+        title: r.title || words.slice(0, 80), body: r.body, categories: normalizeCategories(r.categories), subcategory: r.subcategory ?? "",
         sourcePath: r.source_path ?? "", pageTitle: ctx.title ?? "", existingPrompt: r.prompt_md,
-        intent: ctx.intent, other: ctx.other,
+        intent: ctx.intent, other: ctx.other, vocabulary: categoryVocabulary(defs),
       });
       const res = await runAiTask("micro", { system: org.system, user: org.user, maxOutput: 700 });
       const m = res.text.match(/\{[\s\S]*\}/);
@@ -174,7 +267,7 @@ export const organizeIdea = createServerFn({ method: "POST" })
         // update the tags/categories. Let it figure that out.") — the modal no
         // longer offers chips; each organise re-decides.
         if (Array.isArray(j.categories)) {
-          const cats = j.categories.filter((c): c is string => typeof c === "string" && (CATEGORIES as readonly string[]).includes(c)).slice(0, 2);
+          const cats = j.categories.filter((c): c is string => typeof c === "string" && allowed.has(c)).slice(0, 2);
           if (cats.length) r.categories = cats;
         }
         // AI may FLAG urgency but never un-flag what a person set.
