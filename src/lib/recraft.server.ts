@@ -3,15 +3,20 @@
 // server fn): the key is read here, per call, from process.env and never leaves the server.
 //
 // Contract: docs/RECRAFT-API.md (fetched from the official docs and the live OpenAPI spec on
-// 2026-09-04). Raster first. Generated on a black ground with the house palette; the boil is
-// ours, not theirs. Recraft's URLs expire in ~24 h, so the bytes are pulled immediately.
+// 2026-09-04). Raster first. Generated on a black ground with the house palette, then TRANSPARENT
+// (Lee, 2026-09-05: "it needs transparent background, for sure") — Recraft's own docs say there
+// is no transparency flag on generation itself ("§6 Transparent background"): the fix they
+// document is exactly what `generate()` does below, one extra `removeBackground` call ($0.01,
+// 10 credits) on the freshly generated image before anything is downloaded or stored, so no
+// black square ever reaches the bucket. The boil is ours, not theirs. Recraft's URLs expire in
+// ~24 h, so every URL this file touches is used immediately, never persisted.
 
 export interface IllustrationRequest {
   prompt: string;
   model: string;
   size: string;
   seed?: number;
-  controls?: { background_color?: { rgb: [number, number, number] }; colors?: { rgb: [number, number, number] }[] };
+  controls?: { background_color?: { rgb: [number, number, number] }; colors?: { rgb: [number, number, number]; weight?: number }[] };
   /** A Recraft custom style id; when present the model becomes recraftv4_styles + precise. */
   styleId?: string | null;
 }
@@ -90,14 +95,32 @@ export const recraftProvider: IllustrationProvider = {
     const json = await res.json() as { credits?: number; data?: { image_id?: string; url?: string; revised_prompt?: string }[] };
     const first = json.data?.[0];
     if (!first?.url) throw new Error("Recraft returned no image URL.");
+
+    // STRIP THE BLACK GROUND. Recraft's own docs (§6): no generation-time transparency flag
+    // exists — "generate on black then call removeBackground rather than prompting for
+    // 'transparent'". The black ground stays a deliberate generation-time aid (it gives the
+    // model the cleanest subject to isolate); this call is what makes the STORED asset alpha.
+    const cut = await fetch(`${RECRAFT_BASE}/images/removeBackground`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ image_url: first.url, response_format: "url", image_format: "png" }),
+      signal,
+    });
+    if (!cut.ok) throw await recraftError(cut);
+    const cutJson = await cut.json() as { credits?: number; image?: { image_id?: string; url?: string } };
+    const cutUrl = cutJson.image?.url;
+    if (!cutUrl) throw new Error("Recraft's background removal returned no image URL.");
+
     // The URL is signed and expires in ~24 h — take the bytes now.
-    const img = await fetch(first.url, { signal });
+    const img = await fetch(cutUrl, { signal });
     if (!img.ok) throw new Error(`Could not download the generated image (${img.status}).`);
     const bytes = new Uint8Array(await img.arrayBuffer());
     const contentType = img.headers.get("content-type")?.split(";")[0].trim() || "image/png";
+    const genCredits = json.credits, cutCredits = cutJson.credits;
+    const credits = genCredits === undefined && cutCredits === undefined ? null : (genCredits ?? 0) + (cutCredits ?? 0);
     // Server-side breadcrumb for debugging, never the key, never the prompt in full.
-    console.info(`[recraft] ok ${bytes.length}B ${contentType} credits=${json.credits ?? "?"} model=${body.model}`);
-    return { bytes, contentType, providerAssetId: first.image_id ?? null, revisedPrompt: first.revised_prompt ?? null, credits: json.credits ?? null, model: String(body.model) };
+    console.info(`[recraft] ok ${bytes.length}B ${contentType} credits=${credits ?? "?"} (gen ${genCredits ?? "?"} + cutout ${cutCredits ?? "?"}) model=${body.model}`);
+    return { bytes, contentType, providerAssetId: cutJson.image?.image_id ?? first.image_id ?? null, revisedPrompt: first.revised_prompt ?? null, credits, model: String(body.model) };
   },
 };
 

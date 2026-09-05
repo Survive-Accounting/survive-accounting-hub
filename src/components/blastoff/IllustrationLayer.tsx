@@ -151,8 +151,13 @@ export function PlacedIllustration({ ill, w, h, live, boilFrame, kind, onPlace, 
       {onPlace && (
         <>
           <span aria-hidden style={{ position: "absolute", inset: 0, border: `1px dashed rgba(252,163,17,${drag ? 0.9 : 0.35})`, borderRadius: 4, pointerEvents: "none" }} />
+          {/* Lee, 2026-09-05: "it needs to be more resizable" — the grip itself was a 14px dot,
+              easy to miss. The visible dot stays small; the pointer target around it is much
+              bigger (36px), so grabbing it doesn't take a precise hit. */}
           <span role="button" aria-label="Resize the picture" onPointerDown={down("size")}
-            style={{ position: "absolute", right: -6, bottom: -6, width: 14, height: 14, borderRadius: 3, background: "#FCA311", border: "2px solid #0B1220", cursor: "nwse-resize", touchAction: "none" }} />
+            style={{ position: "absolute", right: -18, bottom: -18, width: 36, height: 36, cursor: "nwse-resize", touchAction: "none", display: "grid", placeItems: "center" }}>
+            <span aria-hidden style={{ width: 16, height: 16, borderRadius: 4, background: "#FCA311", border: "2px solid #0B1220", boxShadow: drag ? "0 0 0 4px rgba(252,163,17,0.25)" : "none" }} />
+          </span>
         </>
       )}
     </div>

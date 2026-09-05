@@ -84,6 +84,7 @@ Single-image endpoints (`vectorize`, `removeBackground`, `crispUpscale`, `creati
 - **No transparency flag on generation.** The generation body has only `controls.background_color` (`{"rgb":[0,0,0]}` for black); nothing in docs or spec produces alpha directly from a prompt.
 - **`POST /v1/images/removeBackground`** — described in getting-started.md as "produce a transparent-background cutout of the subject". Input `file` (multipart) or `image_url` (JSON); PNG/JPG/WEBP **or SVG**; ≤10 MB, ≤16 MP, max side 4096 px, min side 256 px. Raster in → raster out; SVG in → SVG out. Only documented param: `response_format` (`url`|`b64_json`). **[spec-only]** `image_format` (`png`|`webp`) is also accepted (`ProcessImageRequestBase`) — send `png` to be safe about alpha. Source: https://www.recraft.ai/docs/api-reference/endpoints.md
 - `replaceBackground` / `generateBackground` exist but are V3-only prompt-driven background swaps, not transparency.
+- **In production (2026-09-05):** `recraft.server.ts`'s `generate()` does exactly this — one `/images/generations` call, then one `image_url`-based `/images/removeBackground` call on the result, before anything is downloaded or stored. Every stored illustration is a transparent PNG; the black ground never leaves the two Recraft calls. `IllustrationResult.credits` is the sum of both calls' billing.
 
 ## 7. Vector / SVG output
 

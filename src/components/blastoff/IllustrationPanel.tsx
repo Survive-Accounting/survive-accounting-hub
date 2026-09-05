@@ -14,7 +14,7 @@ import { generateIllustration, illustrationStatus, testIllustrationKey } from "@
 import { runMicro } from "@/lib/talkthrough.functions";
 import { useDictation } from "@/lib/use-dictation";
 
-import { ANIMATION_LABEL, ANIMATION_PRESETS, PROMPTING_TIPS, emptyIllustration, illustrationStyle, isStaleIllustration, type FrameIllustration } from "./illustration";
+import { ANIMATION_LABEL, ANIMATION_PRESETS, PROMPTING_TIPS, composeIllustrationPrompt, emptyIllustration, illustrationStyle, isStaleIllustration, type FrameIllustration } from "./illustration";
 import { buildBriefMessages, parseBrief, type IllustrationBrief } from "./illustration-brief";
 import { FRAME_LABEL, insertStem, type BlastFrame } from "./plan";
 
@@ -86,7 +86,7 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   }
   function useMyWords() {
     const said = words.trim(); if (!said) return;
-    const b: IllustrationBrief = { title: said.split(/[,.]/)[0].slice(0, 40), bullets: [said.slice(0, 80), "as spoken — no AI prep", "no text unless you quoted it"], prompt: said };
+    const b: IllustrationBrief = { title: said.split(/[,.]/)[0].slice(0, 40), bullets: [said.slice(0, 80), "sent exactly as written — no AI rewrite", "no text unless you quoted it"], prompt: said };
     setBrief(b); keep({ brief: said, summary: { title: b.title, bullets: b.bullets }, prompt: said, teachingIntent: teaching() || null });
   }
 
@@ -180,10 +180,20 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
           </ul>
           {ref && <div style={{ marginTop: 4, fontSize: 10.5, color: MUTED }}>rhymes with “{ref.label}” — same cast, same seed</div>}
           <details open={showPrompt} onToggle={(e) => setShowPrompt((e.currentTarget as HTMLDetailsElement).open)} style={{ marginTop: 6 }}>
-            <summary style={{ fontSize: 10.5, color: MUTED, cursor: "pointer" }}>the full prompt (edit if you must)</summary>
+            <summary style={{ fontSize: 10.5, color: MUTED, cursor: "pointer" }}>the subject (edit if you must)</summary>
             <textarea rows={3} style={{ ...field, marginTop: 4, resize: "vertical", fontSize: 12 }} value={brief.prompt}
               onChange={(e) => { const b = { ...brief, prompt: e.target.value }; setBrief(b); keep({ prompt: e.target.value }); }} />
-            <div style={{ fontSize: 10.5, color: MUTED, marginTop: 2 }}>The preset adds the style, the black ground and the palette around this.</div>
+            <div style={{ fontSize: 10.5, color: MUTED, marginTop: 2 }}>Just what the picture shows — the style, the black ground and the palette get added below, at generation.</div>
+          </details>
+          {/* THE ACTUAL PROMPT — this is what Recraft receives, subject wrapped in the whole
+              Survive Dreamstate preset (Lee, 2026-09-05: "I didn't know if it actually did much
+              to change the prompt... what I saw was basically the same as what I wrote in" — that
+              was the subject only; this is everything, always computed live off it, never stale). */}
+          <details style={{ marginTop: 4 }}>
+            <summary style={{ fontSize: 10.5, color: MUTED, cursor: "pointer" }}>the exact instruction sent to Recraft</summary>
+            <div style={{ marginTop: 4, fontSize: 11, color: CREAM, opacity: 0.75, lineHeight: 1.4, whiteSpace: "pre-wrap", border: `1px solid ${EDGE}`, borderRadius: 8, padding: "6px 8px" }}>
+              {composeIllustrationPrompt(style, brief.prompt, teaching() || null)}
+            </div>
           </details>
           <div className="flex" style={{ gap: 6, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
             <button type="button" disabled={busy || !ready} onClick={() => void generate(!!ill?.assetUrl)} style={{ ...chip(true, MINT), opacity: busy || !ready ? 0.5 : 1, cursor: busy ? "wait" : "pointer" }} title={ready ? "Spend one generation on this brief" : "Sign in / add the key below first"}>

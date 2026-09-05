@@ -77,28 +77,38 @@ export interface IllustrationStyle {
   size: string;
   promptPrefix: string;
   promptSuffix: string;
-  /** Recraft `controls`: the ground is black, the palette is the house palette. */
-  controls: { background_color: { rgb: [number, number, number] }; colors: { rgb: [number, number, number] }[] };
+  /** Recraft `controls`: the ground is black (stripped to alpha after generation — see
+   *  recraft.server.ts), the palette is the house palette. An optional `weight` biases how much
+   *  of each colour the model reaches for; white dominant, the rest occasional accents. */
+  controls: { background_color: { rgb: [number, number, number] }; colors: { rgb: [number, number, number]; weight?: number }[] };
   /** The env var that may hold a Recraft custom style id for this preset. */
   styleIdEnv: string;
   defaultAnimation: AnimationPreset;
 }
 
-// SURVIVE DREAMSTATE v1. Written the way Recraft's own guide says a prompt works: subject
-// first (the prefix ends where Lee's words begin), then the medium and the line behaviour,
-// then the constraints as in-prompt negatives (V4.1 has no negative_prompt), then the
-// background reinforced by the controls. Structure, not adjectives.
+// SURVIVE DREAMSTATE v2 (Lee, 2026-09-05, on the v1 result: "a little creepy... needs
+// transparent background, for sure... it needs to be more resizable... what's cool is that the
+// most important element can be highlighted/glowing, but the rest just white"). Still written
+// the way Recraft's own guide says a prompt works — subject first, then the medium and the line
+// behaviour, then the constraints as in-prompt negatives, then the background reinforced by the
+// controls — but v2 tightens the frame (less dead margin baked into the square = a picture that
+// actually tracks the resize grip), keeps faces plain (the uncanny part of v1), and asks for
+// mostly-white line work with at most one glowing or coloured shape rather than a broad
+// two-colour fill. The black ground stays IN the prompt/controls on purpose — Recraft's own docs
+// say a strong solid ground gives the cleanest subject-isolation for the cutout — and
+// recraft.server.ts strips it to a transparent PNG with one extra `removeBackground` call before
+// the asset is ever stored, so nothing downstream sees black.
 export const ILLUSTRATION_STYLES: Record<string, IllustrationStyle> = {
   "survive-dreamstate": {
     id: "survive-dreamstate",
-    version: 1,
+    version: 2,
     label: "Survive Dreamstate",
     provider: "recraft",
     model: "recraftv4_1",
     size: "1024x1024",
     promptPrefix: "A single hand-drawn illustration of ",
-    promptSuffix: ", centered and isolated on a solid black background with generous empty space around it. Monoline white ink lines with a slightly irregular hand-drawn outline, a strong simple silhouette, minimal flat fill in one or two colours, playful and a little dreamlike, immediately readable on a phone. No shading, no gradients, no texture, no text, no background objects, no scenery.",
-    controls: { background_color: { rgb: [0, 0, 0] }, colors: [{ rgb: [255, 255, 255] }, { rgb: [252, 163, 17] }, { rgb: [0, 107, 166] }] },
+    promptSuffix: ", centered on a solid black background, filling most of the frame with only a small even margin around it. Monoline white pencil line, a slightly irregular soft hand-drawn outline, a strong simple silhouette. Plain white line with no fill anywhere, except at most one single shape may hold a soft warm gold glow or a flat colour, to draw the eye to the single most important detail — never fill more than one shape. A person's face stays plain and simple, no detailed eyes, eyebrows or mouth — a side profile, a back view, or a mostly blank face reads best. Playful and a little dreamlike, immediately readable on a phone. No shading, no gradients, no texture, no crosshatching, no text, no background objects, no scenery.",
+    controls: { background_color: { rgb: [0, 0, 0] }, colors: [{ rgb: [255, 255, 255], weight: 1 }, { rgb: [252, 163, 17], weight: 0.35 }, { rgb: [0, 107, 166], weight: 0.15 }] },
     styleIdEnv: "RECRAFT_STYLE_ID_DREAMSTATE",
     defaultAnimation: "boil",
   },

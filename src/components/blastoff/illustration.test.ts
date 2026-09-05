@@ -3,10 +3,10 @@ import { describe, expect, test } from "bun:test";
 import { ANIMATION_PRESETS, DEFAULT_STYLE_ID, ILLUSTRATION_STYLES, composeIllustrationPrompt, emptyIllustration, illustrationStyle, isStaleIllustration } from "./illustration";
 
 describe("the illustration registry", () => {
-  test("the house preset exists, is v1, black ground, house palette", () => {
+  test("the house preset exists, is v2, black ground, house palette", () => {
     const s = illustrationStyle(null);
     expect(s.id).toBe(DEFAULT_STYLE_ID);
-    expect(s.version).toBe(1);
+    expect(s.version).toBe(2);
     expect(s.controls.background_color.rgb).toEqual([0, 0, 0]);
     expect(s.controls.colors.length).toBeGreaterThanOrEqual(2);
     expect(illustrationStyle("nope").id).toBe(DEFAULT_STYLE_ID);
@@ -23,7 +23,8 @@ describe("the illustration registry", () => {
   });
   test("stale = made with an older registry version; never for an ungenerated request", () => {
     expect(isStaleIllustration(emptyIllustration())).toBe(false);
-    expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 1 })).toBe(false);
+    expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 2 })).toBe(false);
+    expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 1 })).toBe(true);
     expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 0 })).toBe(true);
     expect(isStaleIllustration(null)).toBe(false);
   });

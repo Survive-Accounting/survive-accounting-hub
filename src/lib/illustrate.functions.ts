@@ -62,12 +62,14 @@ export const generateIllustration = createServerFn({ method: "POST" })
     const { providerFor } = await import("@/lib/recraft.server");
     const provider = providerFor(style.provider);
     const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 60_000);
+    // Two chained Recraft calls now (generate, then removeBackground for a transparent asset —
+    // recraft.server.ts) — 90s gives the second call room without the button feeling stuck.
+    const timer = setTimeout(() => ctl.abort(), 90_000);
     let result;
     try {
       result = await provider.generate({ prompt, model: style.model, size: style.size, seed, controls: style.controls, styleId }, ctl.signal);
     } catch (e) {
-      if ((e as Error).name === "AbortError") throw new Error("Recraft took longer than 60 seconds. Try again — your prompt is kept.");
+      if ((e as Error).name === "AbortError") throw new Error("Recraft took longer than 90 seconds. Try again — your prompt is kept.");
       throw e;
     } finally { clearTimeout(timer); }
 
