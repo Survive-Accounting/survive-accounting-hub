@@ -346,8 +346,8 @@ html.sa-navy {
   --brand-cream: var(--text-primary);
   --text-muted: var(--text-secondary);
   --accent: var(--accent-primary);
-  --bolt-primary: #C62828;
-  --bolt-secondary: #1565C0;
+  --bolt-primary: #006BA6;   /* the house mark, 2026-09-04 — one hue, two values; a campus overrides both */
+  --bolt-secondary: #00456E;
 }
 
 /* CURRENT production palette, for comparison only. */

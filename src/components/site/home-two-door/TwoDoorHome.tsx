@@ -74,7 +74,11 @@ const DOORS_ID = "doors";
 const SOLO_BOLT_ID = "sa-solo-bolt";
 
 // ── PAGE ──────────────────────────────────────────────────────────────────────────────────────
-export function TwoDoorHome({ storedCampusId, initialCode, previewSoloHref }: {
+export function TwoDoorHome({ storedCampusId, initialCode, previewSoloHref, urlSchoolSlug = null }: {
+  /** THE CAMPUS PAGE (2026-09-05). /<school> renders this same two-door page with the campus
+   *  pinned from the URL, so an Ole Miss link is Ole Miss for everyone — including a visitor
+   *  whose stored campus is somewhere else. Null on "/" keeps the stored/account rungs in charge. */
+  urlSchoolSlug?: string | null;
   /** The returning visitor's campus, read from the request cookie by the route loader — same
    *  contract as LandingPage's storedCampusId (SSR renders the personalized hero, no flicker). */
   storedCampusId?: string | null;
@@ -86,7 +90,7 @@ export function TwoDoorHome({ storedCampusId, initialCode, previewSoloHref }: {
   previewSoloHref?: string;
 }) {
   return (
-    <CampusProvider urlSchoolSlug={null} accountCampusId={null} initialCode={initialCode ?? null} initialStoredId={storedCampusId ?? null}>
+    <CampusProvider urlSchoolSlug={urlSchoolSlug} accountCampusId={null} initialCode={initialCode ?? null} initialStoredId={storedCampusId ?? null}>
       <TwoDoorHomeInner previewSoloHref={previewSoloHref} />
     </CampusProvider>
   );

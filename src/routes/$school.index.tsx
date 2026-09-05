@@ -4,9 +4,10 @@
 // should find a page that names their course, wears their school's colours, and plays Exam 1 for
 // free — not a generic homepage that asks them who they are first.
 //
-// IT RENDERS THE REAL LANDING PAGE, campus pre-applied, rather than a bespoke marketing page. A
-// separate thin page would drift from the product the first time the player changed, and would be
-// exactly the "thin page" Google declines to rank. Everything below the fold is the working thing.
+// IT RENDERS THE HOMEPAGE, campus pre-applied (2026-09-05: the two-door page, the same one "/"
+// draws — until now this route still served the older LandingPage, so a shared campus link landed
+// on a different site than the homepage). A separate thin page would drift from the product the
+// first time the homepage changed, and would be exactly the "thin page" Google declines to rank.
 //
 // SERVER-RENDERED ON PURPOSE. The school name and course code come from the loader, so a crawler
 // (and a slow phone) sees "ACCY 201 at Ole Miss" in the initial HTML. Resolving them client-side
@@ -21,7 +22,7 @@ import { readCampusPrefs } from "@/lib/campus-prefs.functions";
 import { campusOgImageV, campusShareOg, ogMeta } from "@/lib/og";
 import { schoolBySlug } from "@/lib/schools";
 import { TEST_CAMPUS_SLUG } from "@/lib/test-mode";
-import { LandingPage } from "./landing";
+import { TwoDoorHome } from "@/components/site/home-two-door/TwoDoorHome";
 
 const ORIGIN = "https://surviveaccounting.com";
 
@@ -85,15 +86,10 @@ function CampusPage() {
   return (
     <>
       {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />}
-      {/* No bespoke hero any more — LandingPage derives the campus variant of the ONE
-          MarketingHero from campus context; chapterCount only gates the Greek secondary CTA. */}
-      <LandingPage
-        campusSlug={school}
-        initialCampusId={d.campusId}
-        initialCourseCode={d.courseCode}
-        chapterCount={d.chapterCount}
-        profSkipFor={d.profSkip}
-      />
+      {/* The two-door homepage with THIS campus pinned by the URL. storedCampusId/initialCode seed
+          the server render so a crawler sees "ACCY 201 at Ole Miss" in the first HTML; the URL slug
+          wins over a visitor's stored campus once the client resolves. */}
+      <TwoDoorHome urlSchoolSlug={school} storedCampusId={d.campusId} initialCode={d.courseCode} />
     </>
   );
 }
