@@ -15,7 +15,7 @@ import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { RepInterest } from "@/components/site/RepInterest";
 import { Footer } from "@/components/site/SiteFooter";
 import { CampusProvider } from "@/lib/campus-context";
-import { campusOgImage, HOME_OG, ogMeta } from "@/lib/og";
+import { campusOgImageV, HOME_OG, ogMeta } from "@/lib/og";
 import { schoolById, schoolBySlug } from "@/lib/schools";
 
 /** ACCEPTS EITHER NAMESPACE. The brief writes /ole-miss/rep — the PICKER id — while /go/ URLs
@@ -35,7 +35,7 @@ export const Route = createFileRoute("/$school/rep")({
         title: `Be the Survive Accounting rep at ${s.name}.`,
         description: "Share Survive Accounting with fraternities & sororities on your campus. Get a 10% commission for every sale. Easiest side gig imaginable.",
         path: `/${s.slug}/rep`,
-        image: campusOgImage(s.slug),
+        image: campusOgImageV(s.slug),
       }),
     };
   },
