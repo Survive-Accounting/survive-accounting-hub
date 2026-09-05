@@ -86,34 +86,52 @@ export interface IllustrationStyle {
   defaultAnimation: AnimationPreset;
 }
 
-// SURVIVE DREAMSTATE v2 (Lee, 2026-09-05, on the v1 result: "a little creepy... needs
-// transparent background, for sure... it needs to be more resizable... what's cool is that the
-// most important element can be highlighted/glowing, but the rest just white"). Still written
-// the way Recraft's own guide says a prompt works — subject first, then the medium and the line
-// behaviour, then the constraints as in-prompt negatives, then the background reinforced by the
-// controls — but v2 tightens the frame (less dead margin baked into the square = a picture that
-// actually tracks the resize grip), keeps faces plain (the uncanny part of v1), and asks for
-// mostly-white line work with at most one glowing or coloured shape rather than a broad
-// two-colour fill. The black ground stays IN the prompt/controls on purpose — Recraft's own docs
-// say a strong solid ground gives the cleanest subject-isolation for the cutout — and
-// recraft.server.ts strips it to a transparent PNG with one extra `removeBackground` call before
-// the asset is ever stored, so nothing downstream sees black.
+// SURVIVE WATERCOLOR v1 — the house default (Lee, 2026-09-05, on the monoline-on-black
+// experiment: "white pencil drawn isn't going to work. We need SOME colour... watercolor
+// maybe?... simple illustrations that help me teach, that's it... I don't think we want faces
+// really. We can opt for behind the head... walking up the stairs to the NYSE"). A soft
+// watercolor wash with a loose ink/pencil line under it — colour without going cartoonish, a
+// clean readable silhouette so it still lands at a glance on a phone. People are staged so a
+// detailed face is never needed — from behind, from the side, cropped — rather than drawn plain,
+// which was v1/v2's fix for the same complaint and read as flat rather than actually avoided.
+// Generated on WHITE, not black: Recraft's watercolor training is overwhelmingly "on paper," and
+// a black ground fought the medium; white is also a cleaner subject-isolation ground for the same
+// `removeBackground` cutout recraft.server.ts already does (any solid ground works — the cutout
+// isn't a black-key, it's a general subject cutout), so nothing downstream ever sees a ground
+// colour either way.
 export const ILLUSTRATION_STYLES: Record<string, IllustrationStyle> = {
+  "survive-watercolor": {
+    id: "survive-watercolor",
+    version: 1,
+    label: "Survive Watercolor",
+    provider: "recraft",
+    model: "recraftv4_1",
+    size: "1024x1024",
+    promptPrefix: "A single illustration of ",
+    promptSuffix: ", on a plain white background, filling most of the frame with only a small even margin around it. A loose, slightly imperfect ink or pencil outline, gently filled with a warm, muted watercolor wash — soft bleeding at the edges, a little visible paper texture, painterly but simple, a strong clear silhouette, at most two or three shapes so it reads instantly on a phone. If it includes a person, show them from behind, from the side, with their head turned away, or cropped out of frame — never a detailed front-facing face. No text, no logos, no signature, no photorealism, no glossy cartoon shading, no clip-art look.",
+    controls: { background_color: { rgb: [255, 255, 255] }, colors: [{ rgb: [252, 163, 17], weight: 0.35 }, { rgb: [0, 107, 166], weight: 0.3 }] },
+    styleIdEnv: "RECRAFT_STYLE_ID_WATERCOLOR",
+    defaultAnimation: "boil",
+  },
+  // LEGACY (2026-09-05): the monoline-on-black look, kept only so illustrations already made
+  // with it keep resolving and rendering correctly. Never the default again — colour weights
+  // fixed here to sum ≤ 1 (the v2 attempt shipped broken at 1.5 and Recraft rejected every
+  // generation with it: "Total color weight must be between 0 and 1").
   "survive-dreamstate": {
     id: "survive-dreamstate",
     version: 2,
-    label: "Survive Dreamstate",
+    label: "Survive Dreamstate (retired)",
     provider: "recraft",
     model: "recraftv4_1",
     size: "1024x1024",
     promptPrefix: "A single hand-drawn illustration of ",
     promptSuffix: ", centered on a solid black background, filling most of the frame with only a small even margin around it. Monoline white pencil line, a slightly irregular soft hand-drawn outline, a strong simple silhouette. Plain white line with no fill anywhere, except at most one single shape may hold a soft warm gold glow or a flat colour, to draw the eye to the single most important detail — never fill more than one shape. A person's face stays plain and simple, no detailed eyes, eyebrows or mouth — a side profile, a back view, or a mostly blank face reads best. Playful and a little dreamlike, immediately readable on a phone. No shading, no gradients, no texture, no crosshatching, no text, no background objects, no scenery.",
-    controls: { background_color: { rgb: [0, 0, 0] }, colors: [{ rgb: [255, 255, 255], weight: 1 }, { rgb: [252, 163, 17], weight: 0.35 }, { rgb: [0, 107, 166], weight: 0.15 }] },
+    controls: { background_color: { rgb: [0, 0, 0] }, colors: [{ rgb: [255, 255, 255], weight: 0.5 }, { rgb: [252, 163, 17], weight: 0.3 }, { rgb: [0, 107, 166], weight: 0.15 }] },
     styleIdEnv: "RECRAFT_STYLE_ID_DREAMSTATE",
     defaultAnimation: "boil",
   },
 };
-export const DEFAULT_STYLE_ID = "survive-dreamstate";
+export const DEFAULT_STYLE_ID = "survive-watercolor";
 
 /** The preset by id; null or unknown → the house default. */
 export function illustrationStyle(id: string | null | undefined): IllustrationStyle {
@@ -160,8 +178,11 @@ export const PROMPTING_TIPS: readonly string[] = [
   "Describe structure, not adjectives: \"a padlock with a key half-turned\" beats \"a beautiful minimal padlock\".",
   "Say what it is DOING — a pose or an action reads instantly; a list of objects does not.",
   "Keep it short. V4.1 does its best work on a sentence, not a paragraph.",
-  "Don't type the style. Black background, hand-drawn line, no text, no scenery — the preset already says all of it.",
+  "Don't type the style. Watercolor, ink line, background, no text — the preset already says all of it.",
   "For a metaphor, name the metaphor plainly: \"a leaky bucket labelled cash\", not the accounting concept.",
+  "Skip the face. Describe a person from behind, from the side, or mid-stride instead — \"climbing the steps\", \"a back at a desk\" — the preset already avoids a detailed front-facing face, but naming the angle yourself gets a better composition.",
+  "A real, specific place beats a generic one — name the actual landmark or prop if you have one in mind.",
+  "Two pictures on two different slides that should pair up (an inside one and an outside one, say) — generate the first, then pick it as the \"rhymes with\" reference for the second and describe only what's different; don't try to fit both into one picture.",
   "If it came out cluttered, remove a noun. If it came out generic, add a verb.",
   "Regenerate keeps the words and rolls a new seed; edit the words when the subject is wrong.",
 ];

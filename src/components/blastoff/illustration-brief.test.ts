@@ -35,7 +35,7 @@ describe("the illustration brief", () => {
     expect(promptHasLabel("a vault")).toBe(false);
     const withLabel = composeIllustrationPrompt(s, 'a sign with the words "OUR COMPANY" on it', null);
     expect(withLabel).not.toMatch(/no text\b/i);   // "no texture" stays
-    expect(withLabel).toMatch(/black background/i);
+    expect(withLabel).toMatch(/background/i);      // the preset's own ground, whichever style is default
     expect(composeIllustrationPrompt(s, "a vault", null)).toMatch(/no text\b/i);
   });
 });
