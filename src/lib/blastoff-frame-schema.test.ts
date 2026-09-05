@@ -25,6 +25,11 @@ describe("blastoff frame schema", () => {
     for (const ad of AD_KINDS) expect(frameSchema.safeParse({ id: "x", kind: "ad", ad }).success).toBe(true);
   });
 
+  test("a placed picture keeps its spot through the schema (a zod strip here would snap it back to the band)", () => {
+    const r = frameSchema.safeParse({ id: "x", kind: "blank", illustration: { requested: true, prompt: null, teachingIntent: null, provider: null, stylePreset: null, styleVersion: null, assetUrl: "u", localAssetId: null, animationPreset: null, generatedAt: null, seed: null, placement: { x: 0.5, y: 0.44, w: 0.72 } } });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.illustration?.placement).toEqual({ x: 0.5, y: 0.44, w: 0.72 });
+  });
   test("a cleared illustration (null) and an absent one both pass", () => {
     expect(frameSchema.safeParse({ id: "x", kind: "ceq", illustration: null }).success).toBe(true);
     expect(frameSchema.safeParse({ id: "x", kind: "ceq" }).success).toBe(true);

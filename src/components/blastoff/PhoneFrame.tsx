@@ -21,7 +21,8 @@ import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 import { WebcamFrame } from "./capture/Webcam";
 import { camRect, isCamSpot, watermarkSize, wordmarkHero, type Box, type CamSpot } from "./capture/webcam-spots";
 import { FrameView } from "./frame-view";
-import { IllustrationLayer } from "./IllustrationLayer";
+import { IllustrationLayer, PlacedIllustration } from "./IllustrationLayer";
+import { canIllustrate, isPlaced } from "./illustration";
 import { SAFE, camDefault, captionRailClear, captionRailRect, cardPlacement, type RailStatus, type SlideLayout } from "./layout";
 import { backdropFor, isFullFrame, type BlastFrame } from "./plan";
 import type { CardOverride } from "./SetCard";
@@ -189,11 +190,20 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
         ...(moment ? { filter: "blur(2px) brightness(0.35)", transition: "filter 480ms ease" } : { transition: "filter 480ms ease" }),
         ...stageStyle }}>
         <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} layout={layout} />
-        {/* THE OPTIONAL ILLUSTRATION — second row of the stage grid, under the card; nothing when absent. */}
-        {frame.illustration?.assetUrl && !isFullFrame(frame.kind) && (
-          <IllustrationLayer ill={frame.illustration} w={w} h={h} live={capture} />
+        {/* THE OPTIONAL ILLUSTRATION — second row of the stage grid, under the card; nothing when
+            absent. A placed one (or a blank slide's) is the phone-level layer below instead. */}
+        {frame.illustration?.assetUrl && canIllustrate(frame.kind) && !isPlaced(frame.kind, frame.illustration) && (
+          <IllustrationLayer ill={frame.illustration} w={w} h={h} live={capture}
+            onPlace={edit && !capture ? (p) => edit({ illustration: { ...frame.illustration!, placement: p } }) : undefined} />
         )}
       </div>
+      {/* THE PLACED PICTURE (2026-09-05): at its own spot, dragged and resized on Review; carries
+          the camera transform so it zooms and blurs with the slide. Dead centre on a blank slide. */}
+      {frame.illustration?.assetUrl && canIllustrate(frame.kind) && isPlaced(frame.kind, frame.illustration) && (
+        <PlacedIllustration key={capture ? `ill-${frame.id}` : undefined} ill={frame.illustration} w={w} h={h} live={capture} kind={frame.kind}
+          stageStyle={{ ...(moment ? { filter: "blur(2px) brightness(0.35)" } : {}), transition: "filter 480ms ease, transform 480ms ease", ...(stageStyle?.transform ? { transform: stageStyle.transform, transformOrigin: stageStyle.transformOrigin } : {}) }}
+          onPlace={edit && !capture ? (p) => edit({ illustration: { ...frame.illustration!, placement: p } }) : undefined} />
+      )}
       {cam !== "off" && (
         <WebcamFrame w={w} h={h} spot={cam} size={camSize} pos={frame.camPos} live={capture} cardBox={cardBox} moment={moment}
           onMoment={capture ? () => setMoment(!moment) : undefined}

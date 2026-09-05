@@ -16,7 +16,7 @@
 // Nothing here is deleted from the old canvas; /study/canvas is untouched and
 // stays the fallback until V3 has actually filmed something.
 import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { FlaskConical, Home } from "lucide-react";
 
 import { GenerationDock } from "@/components/talkthrough/GenerationDock";
@@ -38,7 +38,35 @@ export interface Crumb {
 /** The one chrome. Screens supply their crumbs and their body. `wide` is for
  *  a working surface (the Blast Off editor: list + frame preview side by side)
  *  rather than a menu column. */
+// THE TOP BAR COLLAPSES (Lee, 2026-09-05: "Make topbar collapsible") — a working surface
+// wants the height. Remembered per browser; a browser that refuses storage just forgets.
+const BAR_KEY = "sa-v3-topbar";
 export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; children: ReactNode; wide?: boolean }) {
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => { try { setCollapsed(localStorage.getItem(BAR_KEY) === "collapsed"); } catch { /* forgets */ } }, []);
+  const toggle = () => setCollapsed((v) => { try { localStorage.setItem(BAR_KEY, v ? "open" : "collapsed"); } catch { /* forgets */ } return !v; });
+  const here = crumbs[crumbs.length - 1];
+  const toggleBtn = (
+    <button type="button" onClick={toggle} title={collapsed ? "Show the top bar" : "Hide the top bar"} aria-expanded={!collapsed}
+      className="ml-auto rounded-lg px-2 py-1"
+      style={{ color: V3_MUTED, border: `1px solid ${V3_EDGE}`, background: "transparent", fontSize: 11, fontWeight: 800, cursor: "pointer", letterSpacing: "0.1em" }}>
+      {collapsed ? "▾ bar" : "▴ hide"}
+    </button>
+  );
+  if (collapsed) {
+    return (
+      <div style={{ minHeight: "100vh", background: V3_NAVY, color: V3_CREAM, fontFamily: V3_BODY }}>
+        <header className="flex items-center gap-2" style={{ padding: "4px 20px", borderBottom: `1px solid ${V3_EDGE}` }}>
+          <Link to="/v3" style={{ color: V3_MUTED, fontSize: 11.5, fontWeight: 700, textDecoration: "none" }}>V3</Link>
+          {here && <span style={{ color: V3_MUTED, fontSize: 11 }}>›</span>}
+          {here && <span style={{ color: V3_CREAM, fontSize: 11.5, fontWeight: 700 }}>{here.label}</span>}
+          {toggleBtn}
+        </header>
+        <main style={{ padding: "18px 20px 90px", maxWidth: wide ? 1440 : 1080, margin: "0 auto" }}>{children}</main>
+        <GenerationDock />
+      </div>
+    );
+  }
   return (
     <div style={{ minHeight: "100vh", background: V3_NAVY, color: V3_CREAM, fontFamily: V3_BODY }}>
       <header
@@ -50,7 +78,7 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
           className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5"
           style={{ color: V3_CREAM, border: `1px solid ${V3_EDGE}`, fontSize: 12.5, fontWeight: 700, textDecoration: "none" }}
         >
-          <Home style={{ width: 13, height: 13 }} /> The Queue
+          <Home style={{ width: 13, height: 13 }} /> V3
         </Link>
         {/* A NEW TAB, not a navigation: Exhibit Lab is its own surface, and
             leaving V3 for it lost the breadcrumb trail (Lee got stuck). The
@@ -63,7 +91,7 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
           style={{ color: V3_GOLD, border: `1px solid ${V3_EDGE}`, fontSize: 12.5, fontWeight: 700, textDecoration: "none" }}
           title="Opens in a new tab"
         >
-          <FlaskConical style={{ width: 13, height: 13 }} /> Exhibit Lab ↗
+          <FlaskConical style={{ width: 13, height: 13 }} /> Lab ↗
         </Link>
 
         {/* BREADCRUMB — the only way back, and the reason each screen is a URL. */}
@@ -83,6 +111,7 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
             </span>
           ))}
         </nav>
+        {toggleBtn}
       </header>
 
       <main style={{ padding: "34px 20px 90px", maxWidth: wide ? 1440 : 1080, margin: "0 auto" }}>{children}</main>

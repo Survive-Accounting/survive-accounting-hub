@@ -44,7 +44,7 @@ import { PhoneFrame } from "./PhoneFrame";
 import { SlideEditContext } from "./slide-edit";
 import { CAM_LABEL, CAM_SPOTS, camSpotOf, isCamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf } from "./layout";
-import { ANIMATION_LABEL, ANIMATION_PRESETS, PROMPTING_TIPS, emptyIllustration, illustrationStyle, isStaleIllustration } from "./illustration";
+import { ANIMATION_LABEL, ANIMATION_PRESETS, PROMPTING_TIPS, canIllustrate, emptyIllustration, illustrationStyle, isStaleIllustration } from "./illustration";
 import { generateIllustration, illustrationStatus } from "@/lib/illustrate.functions";
 import {
   PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups, readTidy, setStampCandidates, tidyCacheKey, writeTidy,
@@ -97,9 +97,17 @@ const subhead: React.CSSProperties = { fontSize: 10.5, letterSpacing: "0.14em", 
 // THE RIGHT PANEL has two faces (Lee, 2026-09-04: "Teleprompter maybe can be
 // toggleable between editor / teleprompter"). The face he left it on is
 // remembered per browser; a browser that refuses storage just forgets.
-type RightTab = "teleprompter" | "editor";
+// Three faces since 2026-09-05 (Lee: "Editor, Illustrator, Teleprompter in like a dropdown
+// on right side"): the Illustrator is its own face, offered only on the kinds that take a
+// picture (illustration.ts ILLUSTRATION_KINDS).
+type RightTab = "teleprompter" | "editor" | "illustrator";
+const RIGHT_TABS: { id: RightTab; label: string; title: string }[] = [
+  { id: "editor", label: "Editor", title: "Edit the selected slide here, beside it" },
+  { id: "illustrator", label: "Illustrator", title: "A picture for this slide — Memorize This, Cheat Code, Deeper Idea and blank slides" },
+  { id: "teleprompter", label: "Teleprompter", title: "Your own words for this slide — stamps, phrases, lines" },
+];
 const RIGHT_TAB_KEY = "sa-review-right-tab";
-const readRightTab = (): RightTab => { try { return localStorage.getItem(RIGHT_TAB_KEY) === "editor" ? "editor" : "teleprompter"; } catch { return "teleprompter"; } };
+const readRightTab = (): RightTab => { try { const v = localStorage.getItem(RIGHT_TAB_KEY); return v === "editor" || v === "illustrator" ? v : "teleprompter"; } catch { return "teleprompter"; } };
 const writeRightTab = (t: RightTab): void => { try { localStorage.setItem(RIGHT_TAB_KEY, t); } catch { /* storage refused — the tab simply won't stick */ } };
 /** The right column's shell, shared by both faces: sticky, so it rides along
  *  while the spine scrolls, and never taller than the viewport. */
@@ -299,11 +307,11 @@ export function ReviewDeck({ set, topic, doc, register }: {
     });
     // THE CAMERA (2026-09-05): cycles the spots; "free" is placed by dragging the ring on the stage.
     items.push({ label: `📷 Camera · ${camSpotOf(f)}`, title: `Where Lee sits on this slide — ${CAM_LABEL[camSpotOf(f)]}. Click to cycle.`, run: () => patch(f.id, { cam: CAM_SPOTS[(CAM_SPOTS.indexOf(camSpotOf(f)) + 1) % CAM_SPOTS.length] }) });
-    // THE ILLUSTRATION (polish pass): bank the idea here; the Editor face generates it.
-    if (!isFullFrame(f.kind)) items.push({
+    // THE ILLUSTRATION (polish pass): opens the Illustrator face for this slide.
+    if (canIllustrate(f.kind)) items.push({
       label: `🎨 Illustration · ${f.illustration?.assetUrl ? "on" : f.illustration?.requested ? "idea banked" : "none"}`,
-      title: "An optional picture under the card. Bank the idea here, write and generate it in the Editor.",
-      run: () => patch(f.id, { illustration: f.illustration ? null : emptyIllustration({ teachingIntent: insertStem(f) || null }) }),
+      title: "An optional picture — write and generate it in the Illustrator; drag it around on the slide.",
+      run: () => { setSelId(f.id); setRightTab("illustrator"); },
     });
     if (f.kind === "bio") items.push({ label: `🖼 Portrait · ${f.portrait === "on" ? "on" : "off (parked)"}`, title: "The hand-drawn portrait over the black — on unless you turn it off", run: () => patch(f.id, { portrait: f.portrait === "on" ? undefined : "on" }) });
     const chips: MenuChips[] = [];
@@ -332,7 +340,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
 
   const filmed = filmFrames(frames).length;
   const skipped = frames.length - filmed;
-  const tabs = <RightTabs tab={rightTab} onTab={setRightTab} />;
+  const tabs = <span style={{ marginLeft: "auto", order: 2 }}><RightTabs tab={rightTab} onTab={setRightTab} /></span>;
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 18, alignItems: "start" }}>
@@ -411,8 +419,18 @@ export function ReviewDeck({ set, topic, doc, register }: {
         )}
       </section>
 
-      {/* --------------------------------- RIGHT: teleprompter | editor */}
-      {rightTab === "editor" && sel ? (
+      {/* --------------------------------- RIGHT: editor | illustrator | teleprompter */}
+      {rightTab === "illustrator" && sel ? (
+        <section style={panelShell}>
+          <div className="flex items-center" style={{ gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+            {tabs}
+            <span style={{ fontSize: 11.5, color: MUTED }}>{labelOf(sel)}{sel.skipped ? " · skipped" : ""}</span>
+          </div>
+          {canIllustrate(sel.kind)
+            ? <IllustrationBlock key={sel.id} sel={sel} setId={set.id} onPatch={(p) => patch(sel.id, p)} />
+            : <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5 }}>Pictures go on Memorize This, Cheat Code, Deeper Idea and blank slides. Pick one of those in the spine, or insert a <b style={{ color: CREAM }}>＋ Blank</b> — on a blank slide the picture is the slide: the watermark, the picture and the camera if you want it.</div>}
+        </section>
+      ) : rightTab === "editor" && sel ? (
         <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs} layout={layoutOf(plan)}
           ceq={sel.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined}
           onPatch={(p) => patch(sel.id, p)}
@@ -431,16 +449,25 @@ export function ReviewDeck({ set, topic, doc, register }: {
 /** The right panel's toggle — drawn as the panel's heading, so the face he is
  *  on reads like the column's name (as "Film draft" and "Slide n of m" do). */
 function RightTabs({ tab, onTab }: { tab: RightTab; onTab: (t: RightTab) => void }) {
-  const one = (t: RightTab, label: string, title: string) => (
-    <button type="button" title={title} aria-pressed={tab === t} onClick={() => onTab(t)}
-      style={{ ...eyebrow, color: tab === t ? GOLD : MUTED, background: "none", border: "none", borderBottom: `2px solid ${tab === t ? GOLD : "transparent"}`, borderRadius: 0, padding: "0 0 2px", cursor: "pointer", fontFamily: "inherit" }}>
-      {label}
-    </button>
-  );
+  const [open, setOpen] = useState(false);
+  const cur = RIGHT_TABS.find((t) => t.id === tab) ?? RIGHT_TABS[0];
   return (
-    <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
-      {one("teleprompter", "Teleprompter", "Your own words for this slide — stamps, phrases, lines")}
-      {one("editor", "Editor", "Edit the selected slide here, beside it")}
+    <span style={{ position: "relative", display: "inline-flex" }}>
+      <button type="button" title={cur.title} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((v) => !v)}
+        style={{ ...eyebrow, color: GOLD, background: "none", border: `1px solid ${EDGE}`, borderRadius: 7, padding: "3px 8px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+        {cur.label} <span style={{ fontSize: 9, color: MUTED }}>▾</span>
+      </button>
+      {open && (
+        <span role="listbox" style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 20, minWidth: 150, background: "#101A2E", border: `1px solid ${EDGE}`, borderRadius: 9, padding: 4, boxShadow: "0 10px 30px rgba(0,0,0,0.45)", display: "flex", flexDirection: "column" }}
+          onMouseLeave={() => setOpen(false)}>
+          {RIGHT_TABS.map((t) => (
+            <button key={t.id} type="button" role="option" aria-selected={tab === t.id} title={t.title} onClick={() => { onTab(t.id); setOpen(false); }}
+              style={{ textAlign: "left", background: tab === t.id ? "rgba(252,163,17,0.14)" : "none", border: "none", color: tab === t.id ? GOLD : CREAM, borderRadius: 6, padding: "6px 9px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              {t.label}
+            </button>
+          ))}
+        </span>
+      )}
     </span>
   );
 }
@@ -578,7 +605,8 @@ function IllustrationBlock({ sel, setId, onPatch }: { sel: BlastFrame; setId: st
         {ill?.assetUrl && <span style={{ fontSize: 10.5, color: MUTED }}>seed {ill.seed} · {ill.generatedAt ? new Date(ill.generatedAt).toLocaleDateString() : ""}</span>}
       </div>
       {err && <div style={{ marginTop: 6, fontSize: 11, color: ORANGE }}>{err}</div>}
-      {ill?.assetUrl && <div style={{ marginTop: 6, fontSize: 10.5, color: MUTED }}>It's on the slide to the left. Regenerate keeps the words and rolls a new seed; change the words when the subject is wrong.</div>}
+      {ill?.assetUrl && <div style={{ marginTop: 6, fontSize: 10.5, color: MUTED }}>It's on the slide to the left — drag it to move, the corner grip resizes{ill.placement ? "" : " (a blank slide's sits dead centre)"}. Regenerate keeps the words and rolls a new seed; change the words when the subject is wrong.</div>}
+      {ill?.placement && <button type="button" onClick={() => onPatch({ illustration: { ...ill, placement: null } })} style={{ ...chip(false, GOLD), marginTop: 6 }} title="Back to the band under the card">Snap back under the card</button>}
     </div>
   );
 }
@@ -704,7 +732,6 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onSav
           </div>
           {(isCamSpot(sel.cam) ? sel.cam : camDefault(layout, sel.kind).spot) === "free" && <div style={{ fontSize: 10.5, color: MUTED, marginTop: 4 }}>Drag the ring on the stage to place it · wheel over it to resize.</div>}
         </div>
-        {!isFullFrame(sel.kind) && <IllustrationBlock sel={sel} setId={set.id} onPatch={onPatch} />}
         {sel.kind !== "open" && (
           <div style={{ marginTop: 8 }}>
             <button style={chip(sel.banner === "on", ORANGE)} title="Put the slow Power Four campus banner on this slide (any slide — an expansion moment)" onClick={() => onPatch({ banner: sel.banner === "on" ? undefined : "on" })}>🏫 campus banner · {sel.banner === "on" ? "on" : "off"}</button>

@@ -38,7 +38,7 @@ function V3Set() {
   return (
     <V3Shell
       crumbs={[
-        { label: "The Queue", to: "/v3" },
+        { label: "V3", to: "/v3" },
         { label: topic?.name ?? topicKey, to: `/v3/${topicKey}` },
         { label: set?.name ?? setKey },
       ]}

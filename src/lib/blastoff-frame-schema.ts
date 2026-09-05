@@ -31,6 +31,8 @@ export const illustrationSchema = z.object({
   animationPreset: z.enum(ANIMATION_PRESETS).nullable(),
   generatedAt: z.string().max(40).nullable(),
   seed: z.number().int().min(0).max(4294967295).nullable(),
+  // Where it sits, as fractions of the phone (absent/null = the band under the card).
+  placement: z.object({ x: z.number().min(-1).max(2), y: z.number().min(-1).max(2), w: z.number().min(0.05).max(1) }).nullable().optional(),
 });
 
 export const frameSchema = z.object({

@@ -30,7 +30,7 @@ import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
 
 export const Route = createFileRoute("/v3/")({
   component: V3Queue,
-  head: () => ({ meta: [{ title: "⚡ Survive — The Queue" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "⚡ Survive — V3" }, { name: "robots", content: "noindex" }] }),
 });
 
 const STEP_BUTTONS: { step: BlastOffStep; icon: LucideIcon; title: string }[] = [
@@ -83,7 +83,7 @@ function V3Queue() {
   const totalSets = (topics ?? []).reduce((n, t) => n + t.sets.length, 0);
 
   return (
-    <V3Shell crumbs={[{ label: "The Queue" }]}>
+    <V3Shell crumbs={[{ label: "V3" }]}>
       <div className="flex flex-col items-center" style={{ textAlign: "center", marginBottom: 36 }}>
         <SurviveWordmark size={96} />
         <div style={{ marginTop: 16, fontSize: 20, fontWeight: 600, color: V3_CREAM }}>

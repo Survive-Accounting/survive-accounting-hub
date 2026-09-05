@@ -68,7 +68,7 @@ function V3Results() {
   }, []);
 
   const crumbs = [
-    { label: "The Queue", to: "/v3" },
+    { label: "V3", to: "/v3" },
     { label: topic?.name ?? topicKey, to: `/v3/${topicKey}` },
     { label: set?.name ?? setKey, to: `/v3/${topicKey}/${setKey}` },
     { label: "Blast Off", to: `/v3/${topicKey}/${setKey}/blast-off` },

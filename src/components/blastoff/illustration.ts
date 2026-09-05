@@ -29,6 +29,27 @@ export interface FrameIllustration {
   generatedAt: string | null;
   /** The provider seed, for reproducibility. */
   seed: number | null;
+  /** WHERE IT SITS (2026-09-05): absent = the band under the card; a value = placed by hand
+   *  (dragged / resized on Review), as fractions of the phone — centre x, centre y, width. */
+  placement?: IllustrationPlacement | null;
+}
+
+export interface IllustrationPlacement { x: number; y: number; w: number }
+
+/** Which slides take a picture (Lee, 2026-09-05): Memorize This / a phrase, Cheat Code,
+ *  Deeper Idea / a tip, and a blank slide — where the picture IS the slide (watermark,
+ *  picture, optional camera, nothing else). */
+export const ILLUSTRATION_KINDS = ["phrase", "cheat", "tip", "blank"] as const;
+export function canIllustrate(kind: string): boolean { return (ILLUSTRATION_KINDS as readonly string[]).includes(kind); }
+
+/** Dead centre on a blank slide (a touch above the middle so the caption rail stays clear);
+ *  under the card elsewhere — only asked for when a picture is placed by hand. */
+export function defaultPlacement(kind: string): IllustrationPlacement {
+  return kind === "blank" ? { x: 0.5, y: 0.44, w: 0.72 } : { x: 0.5, y: 0.62, w: 0.5 };
+}
+/** A placed picture, or a blank slide's — the layer that sits at a spot rather than in the band. */
+export function isPlaced(kind: string, i: FrameIllustration | null | undefined): boolean {
+  return !!i && (kind === "blank" || !!i.placement);
 }
 
 export const ANIMATION_PRESETS = ["boil", "boil-calm", "none"] as const;
@@ -104,7 +125,7 @@ export function isStaleIllustration(i: FrameIllustration | null | undefined): bo
 export function emptyIllustration(seed: Partial<FrameIllustration> = {}): FrameIllustration {
   return {
     requested: true, prompt: null, teachingIntent: null, provider: null, stylePreset: DEFAULT_STYLE_ID, styleVersion: null,
-    assetUrl: null, localAssetId: null, animationPreset: null, generatedAt: null, seed: null, ...seed,
+    assetUrl: null, localAssetId: null, animationPreset: null, generatedAt: null, seed: null, placement: null, ...seed,
   };
 }
 
