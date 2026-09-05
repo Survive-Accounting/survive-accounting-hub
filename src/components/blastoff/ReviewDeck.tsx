@@ -523,7 +523,7 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onSav
         {sel.kind === "cheat" && (
           <div className="flex flex-col" style={{ gap: 8 }}>
             <label style={{ fontSize: 11, color: MUTED }}>Title — the bold heading
-              <input style={field} value={sel.title ?? ""} placeholder="e.g. The Paycheck Test" onChange={(e) => onPatch({ title: e.target.value })} /></label>
+              <textarea rows={1} style={{ ...field, resize: "vertical" }} value={sel.title ?? ""} placeholder="e.g. The Paycheck Test" onChange={(e) => onPatch({ title: e.target.value })} /></label>
             <label style={{ fontSize: 11, color: MUTED }}>First line under it
               <textarea style={{ ...field, minHeight: 48 }} value={sel.body ?? ""} placeholder="Ask yourself if they get a paycheck from the company. If so, they're internal." onChange={(e) => onPatch({ body: e.target.value })} /></label>
           </div>
@@ -539,11 +539,11 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onSav
         {detour && <div style={{ fontSize: 10.5, color: MUTED, marginTop: 6 }}>Nothing is highlighted on its own — highlight while filming, or type ==like this== for a fixed one. Type __word__ to underline, or ____ for a blank.</div>}
         {sel.kind === "intro" && (
           <label style={{ fontSize: 11, color: MUTED }}>Topic line on the intro (blank = the set's name)
-            <input style={{ ...field, marginTop: 4 }} value={sel.text ?? ""} placeholder={set.name} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+            <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder={set.name} onChange={(e) => onPatch({ text: e.target.value })} /></label>
         )}
         {sel.kind === "outro" && (
           <label style={{ fontSize: 11, color: MUTED }}>Tagline on the outro (blank = the standard one)
-            <input style={{ ...field, marginTop: 4 }} value={sel.text ?? ""} placeholder="Cram what's on your exam." onChange={(e) => onPatch({ text: e.target.value })} /></label>
+            <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder="Cram what's on your exam." onChange={(e) => onPatch({ text: e.target.value })} /></label>
         )}
         {sel.kind === "bio" && (
           <div className="flex flex-col" style={{ gap: 8 }}>
