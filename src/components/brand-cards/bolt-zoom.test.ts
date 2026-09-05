@@ -35,17 +35,17 @@ describe("zoomScales / zoomKeyframes — exponential so the zoom reads at consta
   });
 });
 
-describe("campusMix — Ole Miss first, then the Power Four dealt across conferences", () => {
-  test("leads with Ole Miss, covers every Power Four campus once, nothing outside it", () => {
+describe("campusMix — Ole Miss, LSU, Tennessee, Mississippi State, then the Power Four dealt across conferences", () => {
+  test("leads with the four named schools in order, covers every Power Four campus once, nothing outside it", () => {
     const m = campusMix();
-    expect(m[0].name).toMatch(/ole miss|mississippi/i);
+    expect(m.slice(0, 4).map((x) => x.name)).toEqual(["Ole Miss", "LSU", "Tennessee", "Mississippi State"]);
     expect(m.length).toBe(GENERATED_SCHOOLS.filter((s) => (POWER_FOUR as readonly string[]).includes(s.conference)).length);
     expect(new Set(m.map((x) => x.name)).size).toBe(m.length);
     expect(m.every((x) => (POWER_FOUR as readonly string[]).includes(x.conference))).toBe(true);
   });
-  test("no stretch of four is a single conference (round-robin), and the seed is deterministic", () => {
+  test("no stretch of four AFTER the leads is a single conference (round-robin), and the seed is deterministic", () => {
     const m = campusMix();
-    for (let i = 1; i + 3 < m.length; i++) expect(new Set(m.slice(i, i + 4).map((x) => x.conference)).size).toBeGreaterThan(1);
+    for (let i = 4; i + 3 < m.length; i++) expect(new Set(m.slice(i, i + 4).map((x) => x.conference)).size).toBeGreaterThan(1);
     expect(campusMix(GENERATED_SCHOOLS, 3)).toEqual(campusMix(GENERATED_SCHOOLS, 3));
     expect(campusMix(GENERATED_SCHOOLS, 3).map((x) => x.name)).not.toEqual(campusMix(GENERATED_SCHOOLS, 4).map((x) => x.name));
   });

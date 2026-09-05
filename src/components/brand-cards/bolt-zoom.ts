@@ -88,16 +88,32 @@ export function seededShuffle<T>(items: readonly T[], seed: number): T[] {
   return out;
 }
 
-function isOleMiss(s: GeneratedSchool): boolean { return /ole miss|university of mississippi$|^mississippi$/i.test(s.name) || s.slug === "ole-miss"; }
+/** THE FOUR LEADS (Lee, 2026-09-05: "Ole Miss LSU Tennessee MS State then randomized power
+ *  four after that" — the same sequence as the homepage bolt's CURATED_CAMPUS_ORDER, so the
+ *  slide scroller and the home page read as one system). Matched by name, not id, the same
+ *  defensive style as the rest of this mix — a school's own id spelling can drift, its name
+ *  in the seed data does not. */
+const LEAD_PATTERNS: readonly RegExp[] = [
+  /ole miss|university of mississippi$|^mississippi$/i,
+  /^lsu$|louisiana state/i,
+  /^tennessee$/i,
+  /mississippi state/i,
+];
+function leadRank(s: GeneratedSchool): number {
+  return LEAD_PATTERNS.findIndex((re) => re.test(s.name));
+}
 
-/** Ole Miss first, then the Power Four dealt round-robin across the four
- *  conferences (each conference shuffled by the seed), so no stretch is all
- *  one league. Lee: "always start with Ole Miss. Do a good mix." */
+/** Ole Miss, LSU, Tennessee, Mississippi State — in that order — then the rest of the Power
+ *  Four dealt round-robin across the four conferences (each conference shuffled by the seed),
+ *  so no stretch is all one league. */
 export function campusMix(schools: readonly GeneratedSchool[] = GENERATED_SCHOOLS, seed = 7): CampusLine[] {
   const line = (s: GeneratedSchool): CampusLine => ({ name: s.name, code: s.courseCode, conference: s.conference });
-  const lead = schools.find(isOleMiss);
-  const pools = POWER_FOUR.map((conf, k) => seededShuffle(schools.filter((s) => s.conference === conf && s !== lead), seed + k * 101));
-  const out: CampusLine[] = lead ? [line(lead)] : [];
+  const leads = schools
+    .filter((s) => leadRank(s) >= 0)
+    .sort((a, b) => leadRank(a) - leadRank(b));
+  const leadSet = new Set(leads);
+  const pools = POWER_FOUR.map((conf, k) => seededShuffle(schools.filter((s) => s.conference === conf && !leadSet.has(s)), seed + k * 101));
+  const out: CampusLine[] = leads.map(line);
   const longest = Math.max(0, ...pools.map((p) => p.length));
   for (let i = 0; i < longest; i++) for (const p of pools) if (p[i]) out.push(line(p[i]));
   return out;

@@ -194,86 +194,83 @@ export const BOLT_ACCENTS: Record<string, string> = {
 
 /** ═══ ROTATION ORDER ═══════════════════════════════════════════════════════════════════════ */
 
-/** THE CURATED SEQUENCE — hand-ordered, never alphabetical, never database order.
+/** THE CURATED SEQUENCE (Lee, 2026-09-05: "Ole Miss LSU Tennessee MS State then randomized
+ *  power four after that") — four named leads, then every other Power Four school in a fixed
+ *  mix: SEC, Big Ten, Big 12 and ACC each shuffled and dealt round-robin so no stretch is all
+ *  one conference, the same recipe as the slide scroller's campusMix (bolt-zoom.ts) with the
+ *  same seed (7) so the two surfaces read as one system.
  *
- *  Two jobs: put the schools we care most about first (a visitor who watches ten seconds should
- *  see the SEC), and make each ADJACENT PAIR a pleasing colour move — navy→purple→orange→navy
- *  rather than three maroons in a row.
+ *  BAKED, NOT COMPUTED AT RENDER: a `Math.random()` shuffle here would let the server and a
+ *  hydrating client disagree about the very first campus painted — a visible colour flash on
+ *  load. This exact order was generated once (seededShuffle, seed 7, round-robin across the
+ *  four Power Four pools minus the leads) and is checked in as a plain list, same as before.
+ *  Regenerate it with scripts/regen-bolt-order.ts if the leads or the seed ever change.
  *
  *  Ids are the landing-picker ids from src/lib/schools.generated.ts. An id that is not in the
  *  campus list passed to the bolt is simply skipped, and any campus NOT named here still plays —
- *  it just plays after everything that is. So this list is safe to trim, extend or reorder at
- *  will; it can never drop a campus off the rotation. */
+ *  it just plays after everything that is (every non-Power-Four live campus, unchanged). So this
+ *  list is safe to trim, extend or reorder at will; it can never drop a campus off the rotation. */
 export const CURATED_CAMPUS_ORDER: string[] = [
-  // ── the SEC opening, in the order Lee wants it seen ──────────────────────────────────────────
-  "ole-miss", // navy + red
-  "lsu", // purple + gold
-  "tennessee", // orange + burnt orange
-  "auburn", // navy + orange
-  "alabama", // crimson pair
-  "georgia", // red + black
-  "florida", // blue + orange
-  "florida-state", // garnet + gold
-  "south-carolina", // garnet + black
-  "kentucky", // blue pair
-  "arkansas", // cardinal pair
-  "mississippi-state", // maroon pair
-  "mizzou", // gold + black
-  "texas-aandm", // maroon pair
-  // ── the rest of the SEC ─────────────────────────────────────────────────────────────────────
-  "texas", // burnt orange
-  "oklahoma", // crimson
-  "vanderbilt", // black + gold
-  // ── everyone else, still hand-ordered so neighbours contrast ────────────────────────────────
-  "clemson", // orange + purple
-  "michigan-state", // green pair
-  "usc", // cardinal + gold
-  "washington", // purple + gold
-  "virginia-tech", // maroon + orange
-  "oregon", // green + yellow
-  "penn-state", // navy pair
-  "syracuse", // orange + navy
-  "wisconsin", // red pair
-  "west-virginia", // navy + gold
-  "iowa", // gold + black
-  "north-carolina", // carolina blue + navy
-  "nc-state", // red pair
-  "purdue", // old gold + black
-  "illinois", // orange + navy
-  "northwestern", // purple pair
-  "indiana", // crimson pair
-  "ohio-state", // scarlet pair
-  "kansas", // blue + red
-  "kansas-state", // purple pair
-  "baylor", // green + gold
-  "tcu", // purple pair
-  "texas-tech", // red + black
-  "houston", // red pair
-  "arizona-state", // maroon + gold
-  "arizona", // cardinal pair
-  "colorado", // gold + black
-  "colorado-state", // green + gold
-  "utah", // red pair
-  "oregon-state", // orange + black
-  "cal-poly", // green + gold
-  "san-diego-state", // scarlet + gold
-  "smu", // red + blue
-  "miami", // orange + green
-  "miami-oh", // red pair
-  "cincinnati", // red + black
-  "louisville", // red pair
-  "maryland", // red + gold
-  "rutgers", // scarlet pair
-  "pittsburgh", // navy + gold
-  "virginia", // orange + navy
-  "james-madison", // purple + gold
-  "delaware", // blue + gold
-  "minnesota", // maroon + gold
-  "nebraska", // scarlet pair
-  "iowa-state", // cardinal + gold
-  "oklahoma-state", // orange + black
-  "georgia-tech", // gold + navy
-  "ucf", // black + gold
+  // ── the four leads, in the order Lee wants them seen ────────────────────────────────────────
+  "ole-miss", // SEC — navy + red
+  "lsu", // SEC — purple + gold
+  "tennessee", // SEC — orange + white
+  "mississippi-state", // SEC — maroon pair
+  // ── the rest of the Power Four, mixed across conferences (seed 7 — see the note above) ──────
+  "oklahoma", // SEC — crimson + cream
+  "iowa", // Big Ten — gold + black
+  "iowa-state", // Big 12 — cardinal + gold
+  "pittsburgh", // ACC — navy + gold
+  "texas-aandm", // SEC — maroon pair
+  "purdue", // Big Ten — old gold + black
+  "arizona", // Big 12 — cardinal pair
+  "smu", // ACC — red + white
+  "florida", // SEC — blue + orange
+  "wisconsin", // Big Ten — red pair
+  "kansas", // Big 12 — blue + red
+  "louisville", // ACC — red pair
+  "kentucky", // SEC — blue pair
+  "ohio-state", // Big Ten — scarlet pair
+  "kansas-state", // Big 12 — purple pair
+  "nc-state", // ACC — red pair
+  "arkansas", // SEC — cardinal pair
+  "rutgers", // Big Ten — scarlet pair
+  "colorado", // Big 12 — gold + black
+  "georgia-tech", // ACC — gold + navy
+  "south-carolina", // SEC — garnet + black
+  "minnesota", // Big Ten — maroon + gold
+  "oklahoma-state", // Big 12 — orange + black
+  "florida-state", // ACC — garnet + gold
+  "auburn", // SEC — navy + orange
+  "illinois", // Big Ten — orange + navy
+  "houston", // Big 12 — red pair
+  "miami", // ACC — orange + green
+  "georgia", // SEC — red + black
+  "oregon", // Big Ten — green + yellow
+  "ucf", // Big 12 — black + gold
+  "syracuse", // ACC — orange + navy
+  "mizzou", // SEC — gold + black
+  "michigan-state", // Big Ten — green pair
+  "baylor", // Big 12 — green + gold
+  "virginia-tech", // ACC — maroon + orange
+  "texas", // SEC — burnt orange
+  "maryland", // Big Ten — red + gold
+  "texas-tech", // Big 12 — red + black
+  "north-carolina", // ACC — carolina blue + navy
+  "vanderbilt", // SEC — black + gold
+  "washington", // Big Ten — purple + gold
+  "cincinnati", // Big 12 — red + black
+  "clemson", // ACC — orange + purple
+  "alabama", // SEC — crimson pair
+  "usc", // Big Ten — cardinal + gold
+  "west-virginia", // Big 12 — navy + gold
+  "virginia", // ACC — orange + navy
+  "penn-state", // Big Ten — navy pair
+  "tcu", // Big 12 — purple pair
+  "nebraska", // Big Ten — scarlet pair
+  "utah", // Big 12 — red pair
+  "northwestern", // Big Ten — purple pair
+  "arizona-state", // Big 12 — maroon + gold
 ];
 
 /** The whole tuning desk as one object, so the lab can hand the component a modified copy without

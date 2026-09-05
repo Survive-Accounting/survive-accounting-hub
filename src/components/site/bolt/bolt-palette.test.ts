@@ -201,9 +201,9 @@ describe("shade", () => {
 });
 
 describe("curated rotation order", () => {
-  test("the SEC opening plays first, in the order the array lists it", () => {
+  test("the four leads play first, in the order the array lists them (Lee, 2026-09-05)", () => {
     const ids = curatedBoltCampuses().map((c) => c.id);
-    expect(ids.slice(0, 5)).toEqual(["ole-miss", "lsu", "tennessee", "auburn", "alabama"]);
+    expect(ids.slice(0, 4)).toEqual(["ole-miss", "lsu", "tennessee", "mississippi-state"]);
   });
 
   test("every id in the curated array is a real school", () => {
