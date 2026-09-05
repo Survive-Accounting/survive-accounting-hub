@@ -103,6 +103,10 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   const edit = useContext(SlideEditContext);
   const phoneRef = useRef<HTMLDivElement>(null);
   const [cardBox, setCardBox] = useState<Box | null>(null);
+  // The illustration's OWN box, measured separately from the card+picture union above (which
+  // exists only for the camera's keep-off math) — so a rail collision caused by a picture Lee
+  // dragged under the captions can be told apart from one caused by the card itself.
+  const [artBox, setArtBox] = useState<Box | null>(null);
   // THE HERO: ctrl+click on the camera. The capture owns it (see the props); on its own
   // the phone keeps a local one so the Review stage still previews the gesture.
   const [heroLocal, setHeroLocal] = useState(false);
@@ -117,8 +121,10 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
     const measure = () => {
       const card = phone.querySelector("[data-ceq-card]") as HTMLElement | null;
       const art = phone.querySelector("[data-sa-illustration]") as HTMLElement | null;
-      if (!card && !art) { setCardBox(null); return; }
+      if (!card && !art) { setCardBox(null); setArtBox(null); return; }
       const p = phone.getBoundingClientRect();
+      if (art) { const r = art.getBoundingClientRect(); setArtBox({ x: r.left - p.left, y: r.top - p.top, w: r.width, h: r.height }); }
+      else setArtBox(null);
       // The camera keeps off the card AND the picture under it: one box around both.
       const boxes = [card, art].filter(Boolean).map((el) => (el as HTMLElement).getBoundingClientRect());
       const x1 = Math.min(...boxes.map((b) => b.left)), y1 = Math.min(...boxes.map((b) => b.top));
@@ -153,8 +159,8 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   useEffect(() => {
     if (!capture || !onRailStatus) return;
     const camBox = cam === "off" ? null : camRect(cam, w, h, camSize, frame.camPos);
-    onRailStatus(captionRailClear(rail, cardBox, camBox));
-  }, [capture, onRailStatus, rail.x, rail.y, rail.w, rail.h, w, h, cam, camSize, frame.camPos, cardBox]);
+    onRailStatus(captionRailClear(rail, cardBox, camBox, artBox));
+  }, [capture, onRailStatus, rail.x, rail.y, rail.w, rail.h, w, h, cam, camSize, frame.camPos, cardBox, artBox]);
   const wmLeft = Math.round(w * 0.04), wmTop = Math.round(w * 0.05);
   const wmHero = wordmarkHero(w, h);
   const wmTransform = moment && markBox

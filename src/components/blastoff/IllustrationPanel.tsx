@@ -14,7 +14,7 @@ import { generateIllustration, illustrationStatus, testIllustrationKey } from "@
 import { runMicro } from "@/lib/talkthrough.functions";
 import { useDictation } from "@/lib/use-dictation";
 
-import { ANIMATION_LABEL, ANIMATION_PRESETS, PROMPTING_TIPS, composeIllustrationPrompt, emptyIllustration, illustrationStyle, isStaleIllustration, type FrameIllustration } from "./illustration";
+import { ANIMATION_LABEL, ANIMATION_PRESETS, DEFAULT_STYLE_ID, ILLUSTRATION_STYLES, PROMPTING_TIPS, composeIllustrationPrompt, emptyIllustration, illustrationStyle, isStaleIllustration, type FrameIllustration } from "./illustration";
 import { buildBriefMessages, parseBrief, type IllustrationBrief } from "./illustration-brief";
 import { FRAME_LABEL, insertStem, type BlastFrame } from "./plan";
 
@@ -208,6 +208,21 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
       {err && <div style={{ marginTop: 6, fontSize: 11, color: ORANGE }}>{err}</div>}
 
       {/* 3. THE PICTURE'S CONTROLS */}
+      {/* A frame keeps whichever preset it was generated with on purpose (never rewritten
+          silently) — but that means a frame started before Survive Watercolor existed is stuck
+          on the retired look until told otherwise. This is that "otherwise" (Lee, 2026-09-05,
+          on a "second round" picture that was still the old monoline-on-black style despite the
+          new default already being live: it never switched because this frame's own stylePreset
+          was already pinned). Free — it only clears the picture, the brief and words are kept. */}
+      {ill?.stylePreset && ill.stylePreset !== DEFAULT_STYLE_ID && (
+        <div style={{ marginTop: 8, padding: "6px 10px", border: `1px solid ${ORANGE}88`, borderRadius: 8, fontSize: 11.5, color: CREAM, lineHeight: 1.4 }}>
+          This picture was made with an earlier, retired look ({style.label}).
+          <button type="button" onClick={() => keep({ stylePreset: DEFAULT_STYLE_ID, assetUrl: null, localAssetId: null, styleVersion: null, seed: null, generatedAt: null })}
+            style={{ ...chip(false, ORANGE), marginLeft: 8 }} title="Keeps your words and brief; clears the picture so Generate makes a fresh one in the current style">
+            switch to {ILLUSTRATION_STYLES[DEFAULT_STYLE_ID].label}
+          </button>
+        </div>
+      )}
       <div className="flex" style={{ gap: 5, flexWrap: "wrap", marginTop: 10, alignItems: "center" }}>
         <span style={{ fontSize: 10.5, color: MUTED }}>{style.label} · v{style.version}{stale ? " · " : ""}{stale && <span style={{ color: ORANGE, fontWeight: 800 }}>stale — regenerate</span>}</span>
         <span style={{ flex: 1 }} />

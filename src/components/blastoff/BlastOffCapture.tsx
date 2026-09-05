@@ -183,7 +183,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
           {qaLayout && <span title="localStorage sa-layout-qa is set on this browser — the take films THIS pass, not the set's" style={{ color: "#FF7A59", fontWeight: 800 }}>layout override: {qaLayout}</span>}
           <span title="The fixed caption rail (layout.ts CAPTION_RAIL): where the burned captions will land on this slide"
             style={{ color: railStatus === "clear" ? MUTED : GOLD, fontWeight: railStatus === "clear" ? 500 : 800 }}>
-            {railStatus === "clear" ? "captions clear" : railStatus === "card" ? "captions: ON THE CARD" : "captions: under the camera"}
+            {railStatus === "clear" ? "captions clear" : railStatus === "card" ? "captions: ON THE CARD" : railStatus === "illustration" ? "captions: ON THE PICTURE" : "captions: under the camera"}
           </span>
           <span>B camera {camNow} · space next · shift+space back · wheel zooms, O pulls back, 0 resets · alt+drag moves, alt-hover grips resize · click a choice, click again to resolve · ctrl+click the camera: hero (again, ` or next slide ends it) · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · F1 move F1 draws an arrow, Delete removes · ` resets · H hide this · P prompter{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
           {popout.open && !popout.isPopout && (

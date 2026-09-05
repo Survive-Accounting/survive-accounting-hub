@@ -51,5 +51,11 @@ describe("the slide templates", () => {
     expect(captionRailClear(rail, null, cam)).toBe("clear");
     expect(captionRailClear(rail, { x: 0, y: rail.y - 50, w: W, h: 100 }, null)).toBe("card");
     expect(captionRailClear(rail, null, { ...cam, x: rail.x + 10 })).toBe("camera");
+    // a placed illustration dragged onto the rail reads "illustration", not "card" — even
+    // when the card+picture union handed in as `card` also overlaps (PhoneFrame's cardBox is
+    // that union; art must win so the readout names the actual culprit)
+    const onRail = { x: 0, y: rail.y - 50, w: W, h: 100 };
+    expect(captionRailClear(rail, null, null, onRail)).toBe("illustration");
+    expect(captionRailClear(rail, onRail, null, onRail)).toBe("illustration");
   });
 });

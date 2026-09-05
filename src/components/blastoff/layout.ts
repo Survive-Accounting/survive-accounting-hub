@@ -109,10 +109,14 @@ export function captionLineChars(railWpx: number, fontPx: number): number {
   return Math.max(8, Math.min(22, Math.floor(railWpx / (fontPx * 0.56))));
 }
 
-export type RailStatus = "clear" | "card" | "camera";
+export type RailStatus = "clear" | "card" | "illustration" | "camera";
 
-/** Does anything sit on the rail? The card first (the worse collision), then the camera. */
-export function captionRailClear(rail: Box, card: Box | null, cam: Box | null): RailStatus {
+/** Does anything sit on the rail? `art` first — it's the one Lee is most likely to have just
+ *  dragged there on purpose (2026-09-05: the readout used to call this "ON THE CARD" even when
+ *  the actual culprit was a placed illustration, since the card box handed in was already a
+ *  card+picture union) — then the card, then the camera. */
+export function captionRailClear(rail: Box, card: Box | null, cam: Box | null, art: Box | null = null): RailStatus {
+  if (art && overlaps(rail, art)) return "illustration";
   if (card && overlaps(rail, card)) return "card";
   if (cam && overlaps(rail, cam)) return "camera";
   return "clear";
