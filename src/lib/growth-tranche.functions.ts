@@ -374,15 +374,33 @@ function readinessFor(chaps: { id: string; name?: string; orgType: string; size:
   return { councilOk, fratOk, sororityOk, clubOk, ready: councilOk && clubOk && fratOk && sororityOk };
 }
 
+/** EVERY ROW, NOT THE FIRST THOUSAND. Supabase caps an unpaged read at 1000 rows and says
+ *  nothing. A pool of 73 campuses carries ~1500 contact rows and ~1900 chapters, so the board
+ *  used to see the first 1000 of each and report every later campus as "add contacts to start"
+ *  — with its contacts sitting in the database (King, 2026-09-05: Indiana Bloomington). */
+async function pageAll<T>(run: (from: number, to: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
+  const PAGE = 1000;
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await run(from, from + PAGE - 1);
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < PAGE) return out;
+  }
+}
+
 // Turn partner_tranches rows into hydrated board tranches (names, est seats, contact progress, READY).
 async function hydrateTranches(db: DB, rows: any[]): Promise<{ tranches: BoardTranche[]; totalSeats: number }> {
     const allIds = [...new Set(((rows ?? []) as any[]).flatMap((t) => t.campus_ids ?? []))];
-    const [names, market, elig, chaps] = await Promise.all([
-      allIds.length ? db.from("campuses").select("id,name,display_name,state,campus_status").in("id", allIds) : Promise.resolve({ data: [] }),
-      allIds.length ? db.from("campus_market_intelligence").select("campus_id,estimated_intro1_annual").in("campus_id", allIds) : Promise.resolve({ data: [] }),
-      allIds.length ? db.from("growth_contact_qc").select("campus_id,entity_type,entity_id,council_type,contact_type,name,email,instagram").in("campus_id", allIds) : Promise.resolve({ data: [] }),
-      allIds.length ? db.from("campus_greek_chapters").select("id,campus_id,greek_org_id,chapter_size").in("campus_id", allIds).is("archived_at", null) : Promise.resolve({ data: [] }),
+    const none = Promise.resolve([] as any[]);
+    const [namesRows, marketRows, eligRows, chapRows] = await Promise.all([
+      allIds.length ? pageAll<any>((f, t) => db.from("campuses").select("id,name,display_name,state,campus_status").in("id", allIds).range(f, t)) : none,
+      allIds.length ? pageAll<any>((f, t) => db.from("campus_market_intelligence").select("campus_id,estimated_intro1_annual").in("campus_id", allIds).range(f, t)) : none,
+      allIds.length ? pageAll<any>((f, t) => db.from("growth_contact_qc").select("campus_id,entity_type,entity_id,council_type,contact_type,name,email,instagram").in("campus_id", allIds).range(f, t)) : none,
+      allIds.length ? pageAll<any>((f, t) => db.from("campus_greek_chapters").select("id,campus_id,greek_org_id,chapter_size").in("campus_id", allIds).is("archived_at", null).range(f, t)) : none,
     ]);
+    // The shapes the code below already reads.
+    const names = { data: namesRows }, market = { data: marketRows }, elig = { data: eligRows }, chaps = { data: chapRows };
     const nameOf = new Map<string, any>(((names as any).data ?? []).map((c: any) => [c.id, c]));
     const seatsOf = new Map<string, number>(((market as any).data ?? []).filter((m: any) => m.estimated_intro1_annual != null).map((m: any) => [m.campus_id, m.estimated_intro1_annual]));
 
