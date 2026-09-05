@@ -20,7 +20,8 @@ describe("navigate / select", () => {
   test("film clicks select — choices and the stem — and Alt is reserved for boss", () => {
     expect(src).toContain("prLive.select?.(i);");
     expect(src).toContain("prLive.select?.(-1);");
-    expect(src).toMatch(/onClick=\{film \? \(e\) => \{ if \(e\.altKey \|\| inert\) return;/);
+    // ctrl/meta belong to the spotlight (polish pass, 2026-09-05): a ctrl+click must not also select.
+    expect(src).toMatch(/onClick=\{film \? \(e\) => \{ if \(e\.altKey \|\| e\.ctrlKey \|\| e\.metaKey \|\| inert\) return;/);
   });
 });
 

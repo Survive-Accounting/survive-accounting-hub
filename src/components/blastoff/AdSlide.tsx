@@ -11,10 +11,12 @@
 // Black, the glow wordmark exactly as on slide one, the pitch, GO TO + the
 // address (lighter, smaller, with a link mark), and the campus ticker.
 import { ArrowUpRight } from "lucide-react";
+import { useContext, useRef } from "react";
 
 import { BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
 import { CampusBanner, GlowWordmark, WORDMARK_SIZE } from "@/components/brand-cards/BoltZoom";
 import { Editable } from "@/components/brand-cards/Editable";
+import { Emph, HighlightContext, SEL_EMPH_CSS, wordRangeAtPoint } from "@/components/canvas/text-highlights";
 
 import type { AdKind } from "./ad-kinds";
 
@@ -79,14 +81,36 @@ export function adCopyOf(ad: AdKind, copy?: AdCopy | null): { label: string; hea
   };
 }
 
-export function AdSlide({ ad, w, h, live = true, copy, onEdit }: { ad: AdKind; w: number; h: number; live?: boolean; copy?: AdCopy | null;
+/** A WORD ON THE TAKE. Shift+click a word in the ad and it stays amber — the same
+ *  store, the same gesture and the same paint as a card's stem or choice, keyed by the
+ *  frame so it survives a walk and clears with the backtick. Function declaration:
+ *  AdSlide is on the canvas render path (the tdz-graph ratchet). */
+function Mark({ text, k }: { text: string; k: string }) {
+  const hlx = useContext(HighlightContext);
+  const ref = useRef<HTMLSpanElement>(null);
+  function onClick(e: React.MouseEvent<HTMLSpanElement>) {
+    if (!e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+    e.preventDefault(); e.stopPropagation();
+    const r = wordRangeAtPoint(ref.current, e.clientX, e.clientY);
+    if (r) hlx.setMemo(k, r);
+  }
+  return <span ref={ref} onClick={onClick} style={{ display: "inline" }}><Emph text={text} range={hlx.memo(k)} /></span>;
+}
+
+export function AdSlide({ ad, w, h, live = true, copy, onEdit, hlKey }: { ad: AdKind; w: number; h: number; live?: boolean; copy?: AdCopy | null;
   /** The Review stage's click-to-edit — absent everywhere else. */
-  onEdit?: (patch: AdCopy) => void }) {
+  onEdit?: (patch: AdCopy) => void;
+  /** THE TAKE (polish pass, 2026-09-05): given, the headline and lines are highlightable
+   *  (shift+click a word) under this key — the frame id. Absent on Review/Arrange/canvas. */
+  hlKey?: string }) {
   const a = adCopyOf(ad, copy);
   const editLine = onEdit ? (i: number, v: string) => { const lines = [...a.lines]; if (v) lines[i] = v; else lines.splice(i, 1); onEdit({ lines }); } : undefined;
+  const film = !!hlKey && !onEdit;
   const pad = Math.round(w * 0.09);
+  const headStyle: React.CSSProperties = { fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(h * 0.046), lineHeight: 1.06, letterSpacing: "0.005em", textWrap: "balance" as never };
   return (
     <div style={{ position: "relative", width: w, height: h, overflow: "hidden", background: "#000", fontFamily: FONT, color: BRAND_CREAM }}>
+      {film && <style>{SEL_EMPH_CSS}</style>}
       {/* LEFT-ALIGNED (Lee, 2026-09-05): on the copy column's own left edge, so the wordmark reads as
           the editorial masthead of the ad rather than a centred logo above it — and leaves the top
           right free for the camera. The tiny negative margin cancels Rubik's side bearing so the
@@ -97,11 +121,14 @@ export function AdSlide({ ad, w, h, live = true, copy, onEdit }: { ad: AdKind; w
       </div>
       <div style={{ position: "absolute", left: pad, right: pad, top: Math.round(h * 0.245), display: "flex", flexDirection: "column", gap: Math.round(h * 0.018) }}>
         <Editable value={a.label} onEdit={onEdit ? (v) => onEdit({ label: v }) : undefined} style={{ alignSelf: "flex-start", padding: `${Math.round(h * 0.006)}px ${Math.round(h * 0.014)}px`, borderRadius: Math.round(h * 0.008), fontSize: Math.round(h * 0.016), fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase", color: GOLD, background: "rgba(252,163,17,0.14)", border: "1px solid rgba(252,163,17,0.3)" }} />
-        <Editable value={a.headline} onEdit={onEdit ? (v) => onEdit({ headline: v }) : undefined} multiline style={{ fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(h * 0.046), lineHeight: 1.06, letterSpacing: "0.005em", textWrap: "balance" as never }} />
+        {film
+          ? <div style={headStyle}><Mark text={a.headline} k={`${hlKey}:h`} /></div>
+          : <Editable value={a.headline} onEdit={onEdit ? (v) => onEdit({ headline: v }) : undefined} multiline style={headStyle} />}
         <div style={{ display: "flex", flexDirection: "column", gap: Math.round(h * 0.009), marginTop: Math.round(h * 0.008) }}>
           {a.lines.map((l, i) => (
             <div key={i} style={{ display: "flex", gap: Math.round(h * 0.012), alignItems: "baseline", fontSize: Math.round(h * 0.024), fontWeight: 600, lineHeight: 1.3, color: "rgba(245,239,230,0.88)" }}>
-              <span style={{ color: GOLD, fontWeight: 900 }}>–</span><Editable value={l} onEdit={editLine ? (v) => editLine(i, v) : undefined} style={{ display: "inline" }} />
+              <span style={{ color: GOLD, fontWeight: 900 }}>–</span>
+              {film ? <Mark text={l} k={`${hlKey}:${i}`} /> : <Editable value={l} onEdit={editLine ? (v) => editLine(i, v) : undefined} style={{ display: "inline" }} />}
             </div>
           ))}
         </div>

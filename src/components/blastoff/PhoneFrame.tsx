@@ -174,7 +174,7 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
       </div>
       {cam !== "off" && (
         <WebcamFrame w={w} h={h} spot={cam} size={camSize} pos={frame.camPos} live={capture} cardBox={cardBox} moment={moment}
-          onMoment={capture ? () => setMoment((v) => !v) : undefined}
+          onMoment={capture ? () => setMoment(!moment) : undefined}
           onFree={edit && !capture ? (p) => edit({ ...(p.pos ? { camPos: p.pos } : {}), ...(p.size ? { camSize: p.size } : {}) }) : undefined} />
       )}
       {safe && (

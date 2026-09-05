@@ -331,8 +331,9 @@ function containSpot(state: "spot" | null, big = false): React.CSSProperties {
   // ran off the edge. So: a small lift (1.06 / 1.1), grown from the centre,
   // and the emphasis carried by the amber rail, the glow and the shadow.
   return big
-    ? { ...s, transform: "scale(1.1) translateY(-2px)", transformOrigin: "center center", borderRadius: 12, zIndex: 30, boxShadow: "inset 5px 0 0 #FCA311, 0 0 36px rgba(252,163,17,0.8), 0 18px 36px -8px rgba(0,0,0,0.62)" }
-    : { ...s, transform: "scale(1.06)", transformOrigin: "center center", borderRadius: 10, boxShadow: "inset 4px 0 0 #FCA311, 0 0 22px rgba(252,163,17,0.65), 0 10px 24px -8px rgba(0,0,0,0.6)" };
+    // fontWeight inherit: spotStyle's 700 rewrapped a 600-weight choice on the take (polish pass).
+    ? { ...s, fontWeight: "inherit", transform: "scale(1.1) translateY(-2px)", transformOrigin: "center center", borderRadius: 12, zIndex: 30, boxShadow: "inset 5px 0 0 #FCA311, 0 0 36px rgba(252,163,17,0.8), 0 18px 36px -8px rgba(0,0,0,0.62)" }
+    : { ...s, fontWeight: "inherit", transform: "scale(1.06)", transformOrigin: "center center", borderRadius: 10, boxShadow: "inset 4px 0 0 #FCA311, 0 0 22px rgba(252,163,17,0.65), 0 10px 24px -8px rgba(0,0,0,0.6)" };
 }
 // HOISTED ON PURPOSE — do not turn these back into `const` arrows.
 // `Cannot access X before initialization` killed the previewer in production
@@ -807,7 +808,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
           onDragOver={film ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
           onDrop={film ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); attachMemo("__stem__", mid); } }}
           ref={stemRef}
-          onClick={film ? (e) => { if (e.altKey || inert) return; e.stopPropagation(); if (e.shiftKey) { const r = wordRangeAtPoint(e.currentTarget, e.clientX, e.clientY); if (r) hlx.setStem(id, r); return; } const sel = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (sel && !sel.isCollapsed) return; prLive.select?.(-1); } : undefined}
+          onClick={film ? (e) => { if (e.altKey || e.ctrlKey || e.metaKey || inert) return; e.stopPropagation(); if (e.shiftKey) { const r = wordRangeAtPoint(e.currentTarget, e.clientX, e.clientY); if (r) hlx.setStem(id, r); return; } const sel = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (sel && !sel.isCollapsed) return; prLive.select?.(-1); } : undefined}
           onMouseUp={film ? readStemSelection : undefined}
           onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined}
           title={canEditStem ? "Double-click to edit the question" : undefined}
@@ -837,7 +838,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
               data-flame-tone={flamed ? spot.tone(key) : undefined}
               data-spot-lit={spState === "spot" ? "on" : undefined}
               onPointerDownCapture={(e) => spot.onClick(key, e)}
-              onClick={film ? (e) => { if (e.altKey || inert) return; e.stopPropagation(); if (e.shiftKey) { const r = wordRangeAtPoint(e.currentTarget, e.clientX, e.clientY); if (r) hlx.setChoice(id, i, r); return; } const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; if (pr.emph === i) prLive.resolveChoice?.(i); else prLive.select?.(i); } : (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; onViewChoice?.(i); }}
+              onClick={film ? (e) => { if (e.altKey || e.ctrlKey || e.metaKey || inert) return; e.stopPropagation(); if (e.shiftKey) { const r = wordRangeAtPoint(e.currentTarget, e.clientX, e.clientY); if (r) hlx.setChoice(id, i, r); return; } const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; if (pr.emph === i) prLive.resolveChoice?.(i); else prLive.select?.(i); } : (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; onViewChoice?.(i); }}
               onContextMenu={(e) => choiceMenu(c.id, e)}
               // DRAG-TO-CHAIN (Lee) — drop a library memo straight onto a choice here in
               // the previewer (same-window drag) to chain it, exactly like the Pane-2 rows.

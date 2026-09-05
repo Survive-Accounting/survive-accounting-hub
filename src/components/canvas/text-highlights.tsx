@@ -64,10 +64,17 @@ export function useTextHighlights(): { api: HighlightApi; clearAll: () => void }
 }
 
 /** KEPT SELECTION EMPHASIS (Lee) — after you release, the highlighted text stays
- *  BOLD + amber; when the memo is spotlit it also grows a touch, so it reads as
- *  "spotlighted". Injected by whichever surface renders highlights. */
+ *  amber; when the memo is spotlit it also grows a touch, so it reads as
+ *  "spotlighted". Injected by whichever surface renders highlights.
+ *
+ *  PAINT ONLY (polish pass, 2026-09-05). The rule used to set font-weight 900 and
+ *  padding 0 2px. On the take that REFLOWED the slide: a choice at weight 600 jumped
+ *  to 800 and rewrapped, and 4 px of inline advance per run moved line breaks — the
+ *  slide dimensions changed under the camera. Now only paint properties: background,
+ *  colour, radius, and the 2 px inset faked with a box-shadow (which never takes
+ *  layout). text-highlights.test.ts pins that no layout property comes back. */
 export const SEL_EMPH_CSS = `
-.sa-sel-emph { font-weight: 900; background: rgba(252,163,17,0.92); color: #0B0F1E; border-radius: 3px; padding: 0 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.sa-sel-emph { background: rgba(252,163,17,0.92); color: #0B0F1E; border-radius: 3px; box-shadow: 0 0 0 2px rgba(252,163,17,0.92); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .sa-sel-emph-spot { font-size: 1.18em; }`;
 
 /** Read the live selection as CHARACTER OFFSETS into `el`'s plain text.

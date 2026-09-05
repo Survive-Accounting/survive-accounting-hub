@@ -94,7 +94,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   // THE BOLT DETOUR (Lee, 2026-09-04): "just black backdrop and the bolt zoom
   // animation. Nothing else … a blank canvas to put things on."
   if (frame.kind === "bolt") return <BoltZoom w={fw} h={fh} mode="bolt" variant={isZoomVariant(frame.variant) ? frame.variant : "zoom"} psych={frame.psych ?? 0.1} live />;
-  if (frame.kind === "ad") return <AdSlide ad={isAdKind(frame.ad) ? frame.ad : "greek"} w={fw} h={fh} live copy={{ label: frame.text, headline: frame.title, lines: frame.bullets, url: frame.url }}
+  if (frame.kind === "ad") return <AdSlide ad={isAdKind(frame.ad) ? frame.ad : "greek"} w={fw} h={fh} live hlKey={live ? frame.id : undefined} copy={{ label: frame.text, headline: frame.title, lines: frame.bullets, url: frame.url }}
     onEdit={edit ? (p) => edit({ ...(p.label !== undefined ? { text: p.label } : {}), ...(p.headline !== undefined ? { title: p.headline } : {}), ...(p.lines !== undefined ? { bullets: p.lines } : {}), ...(p.url !== undefined ? { url: p.url } : {}) }) : undefined} />;
 
   if (frame.kind === "ceq") {
