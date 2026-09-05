@@ -33,6 +33,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { buildSplitMessages } from "../src/lib/ideas-prompt";
+import { FAST_TRACK_RULES, isFastTrack } from "../src/lib/fast-track";
 import { PRODUCT_PRIMER } from "../src/lib/product-primer";
 
 const REPO = path.resolve(process.cwd());
@@ -124,6 +125,7 @@ const claude = (cmdArgs: string[], cwd: string, quiet = true) => sh(CLAUDE.cmd, 
  *  actually shipped, and names the route for every line. */
 function buildPrompt(r: Row, branch: string, resuming: boolean): string {
   const ideaPrompt = (r.prompt_md ?? "").trim() || `${r.title}\n\n${r.body}`;
+  const fast = isFastTrack({ context: r.context });
   return [
     `You are building ONE change, unattended, in this worktree of the Survive Accounting repo (survive-accounting-hub — TanStack Start, React 19, TypeScript, Supabase, Bun). You are on branch ${branch}${resuming ? ", which ALREADY HOLDS PARTIAL WORK from an earlier build that stopped early" : ", cut from origin/main"}. Nobody is watching; the owner (Lee) will test the result later from a checklist you write. Read CLAUDE.md and docs/SESSION-CONTEXT.md first.`,
     ...(resuming ? [
@@ -136,6 +138,7 @@ function buildPrompt(r: Row, branch: string, resuming: boolean): string {
     "STUDY BEFORE YOU BUILD (this is not optional): spend your first turns reading — the two docs named in the primer, then the actual files behind the surface you are changing, then a neighbouring feature that does something similar. Say in the REPORT what you read. A build that hardcodes one set's route, invents a parallel store, or misuses a product word (CEQ, set, stamp, session, board) is a failed build even if it runs.",
     "",
     "HARD RULES",
+    ...(fast ? ["", ...FAST_TRACK_RULES, ""] : []),
     "- Additive only. New files, new routes, new fields, new tables via a numbered additive migration FILE under migration/supabase-migrations/ — never run it; list it under SQL LEE MUST RUN.",
     "- Never push. Never touch main. Commit your finished work to THIS branch with a clear message (the runner pushes the branch).",
     "- DO NOT BURN TURNS. Every turn costs Lee real money. Never poll a long command in a loop (`wc -c` on a log, `ps`, repeated `cat`): run ONE blocking command that waits (`until grep -q EXIT= file; do sleep 15; done`) and let it return. Do not re-read a file you already read. Do not re-run a test that already passed.",
@@ -458,10 +461,34 @@ async function runOne(db: { from: (t: string) => any }, r: Row): Promise<void> {
     // The turn count IS the invoice — it is the one number that predicts what a
     // night costs, so it goes in the log beside the checks.
     note(`✓ built — ${withUrls.length} checks · ${out.turns} turns on ${MODEL}`);
+    // FAST TRACK: Lee reviews from his inbox (Lee, 2026-09-05: "Once it's done, I'll get an
+    // email notification, so I can review it"). Preview, checklist, and how to merge.
+    if (isFastTrack({ context: r.context })) {
+      try {
+        const { sendResendEmail } = await import("../src/lib/email.server");
+        const text = [
+          `⚡ FAST TRACK BUILT — "${r.title}"`, "",
+          `Requested by ${r.created_by ?? r.context?.by ?? "?"} from ${r.source_path ?? "?"}`, "",
+          "THE REQUEST", r.body, "",
+          base ? `PREVIEW: ${base}` : `Preview: not found yet — branch ${branch}`, "",
+          "TESTING CHECKLIST", ...withUrls, "",
+          `Merge it live: git fetch origin && git merge --ff-only origin/${branch} on main, then push. Or reject: leave it — the branch stays on origin.`,
+          "", "The queue: https://surviveaccounting.com/buildqueue",
+        ].join("\n");
+        await sendResendEmail({ to: "lee@surviveaccounting.com", subject: `[Fast track] Built: ${r.title}`, text });
+        note("  emailed Lee the preview + checklist");
+      } catch (e) { note(`  (fast-track email failed: ${e instanceof Error ? e.message : String(e)})`); }
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     note(`✗ failed: ${msg}`);
     await mark({ runFailed: "1", runError: msg.slice(0, 500), runStartedAt: undefined });
+    if (isFastTrack({ context: r.context })) {
+      try {
+        const { sendResendEmail } = await import("../src/lib/email.server");
+        await sendResendEmail({ to: "lee@surviveaccounting.com", subject: `[Fast track] Stopped: ${r.title}`, text: `⚡ FAST TRACK STOPPED — "${r.title}"\n\nRequested by ${r.created_by ?? "?"}.\n\n${msg.slice(0, 1500)}\n\nThe queue: https://surviveaccounting.com/buildqueue` });
+      } catch { /* best effort */ }
+    }
   } finally {
     // The worktree goes; the branch stays on origin for the preview and the review.
     sh("git", ["worktree", "remove", "--force", dir], REPO, { quiet: true });

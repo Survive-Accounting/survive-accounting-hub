@@ -27,6 +27,7 @@ import { getAdminWho, isAdminUnlocked, unlockAdmin, type AdminWho } from "@/comp
 import { IdeaRecorder, judgeTranscript, shouldTranscribe } from "./voice";
 import { uploadIdeaFile, transcribeIdeaAudio } from "./upload";
 import { deriveTitle, isDraft, newIdeaId, unsubmittedCount, type Attachment, type Idea } from "./model";
+import { FastTrackSheet } from "./FastTrackSheet";
 
 const GOLD = "#FCA311";
 const CREAM = "#F4EFE6";
@@ -63,6 +64,9 @@ export function IdeasDock() {
 
   const [unlocked, setUnlocked] = useState(false);
   useEffect(() => { setUnlocked(isAdminUnlocked()); }, [pathname]);
+  // FAST TRACK (Lee, 2026-09-05): Ctrl+F on an unlocked device opens the small-change request.
+  // Only once the device is unlocked — a student's Ctrl+F stays the browser's find.
+  const [ftOpen, setFtOpen] = useState(false);
   const listen = pathname !== VAULT;
   const show = listen && (isInternalPath(pathname) || unlocked);
   useEffect(() => { if (show) refresh(); }, [show, refresh]);
@@ -79,6 +83,16 @@ export function IdeasDock() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [listen]);
+  useEffect(() => {
+    if (!listen || !show) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") { e.preventDefault(); setFtOpen(true); }
+    };
+    const onOpen = () => setFtOpen(true);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("sa:fasttrack", onOpen);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("sa:fasttrack", onOpen); };
+  }, [listen, show]);
 
   useEffect(() => {
     if (!toast) return;
@@ -105,6 +119,7 @@ export function IdeasDock() {
           page; the count lives on /admin/ideas. `show` and `count` stay computed
           for the modal's own header. */}
 
+      <FastTrackSheet open={ftOpen} onClose={() => setFtOpen(false)} pathname={pathname} />
       {toast && (
         <div role="status" style={{
           position: "fixed", top: 18, left: "50%", transform: "translateX(-50%)", zIndex: 2147483002,
