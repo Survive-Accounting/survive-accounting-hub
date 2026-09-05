@@ -7,7 +7,7 @@
 // ports it to v2 by hand. Do not "sync" the two files; they are meant to drift.
 //
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, ChevronDown, ChevronRight, Radar, Plus, Minus } from "lucide-react";
 
@@ -27,6 +27,24 @@ export const Route = createFileRoute("/admin/growth/v3")({ component: GrowthV3Pa
 
 const GREY = { c1: "#6b7280", c2: "#4b5563" };
 const OWNERS: { id: BoardOwner; label: string }[] = [{ id: "lee", label: "Lee" }, { id: "king", label: "King" }];
+
+// Lee's in Bucerias, Mexico; King's in the Philippines — a quick "what time is it for them" readout
+// in the navbar's top-right corner. Ticks once a minute; nothing else depends on it.
+function DualClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const fmt = (timeZone: string) => new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", minute: "2-digit" }).format(now);
+  return (
+    <div className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground md:flex">
+      <span>Bucerias, Mexico {fmt("America/Bahia_Banderas")}</span>
+      <span className="text-muted-foreground/40">|</span>
+      <span>Philippines {fmt("Asia/Manila")}</span>
+    </div>
+  );
+}
 
 // Same queue order as coldoutreach: Ole Miss → LSU → Florida by size → rest; King straight by size.
 function queueSort(campuses: BoardCampus[], owner: BoardOwner): BoardCampus[] {
@@ -77,6 +95,7 @@ function GrowthV3Page() {
             <button key={o.id} onClick={() => { setOwner(o.id); setExpanded(null); }} className={cn("px-4 py-2 font-medium", owner === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>{o.label}</button>
           ))}
         </div>
+        <DualClock />
       </div>
 
       {renderQueryState(board)}
