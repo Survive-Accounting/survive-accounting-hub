@@ -39,6 +39,7 @@ import { Route as ExhibitLabRouteImport } from './routes/exhibit-lab'
 import { Route as ExhibitDemoRouteImport } from './routes/exhibit-demo'
 import { Route as ChaptersRouteImport } from './routes/chapters'
 import { Route as CeqRouteImport } from './routes/ceq'
+import { Route as CareersRouteImport } from './routes/careers'
 import { Route as CalloutDemoRouteImport } from './routes/callout-demo'
 import { Route as BuildqueueRouteImport } from './routes/buildqueue'
 import { Route as BrandingRouteImport } from './routes/branding'
@@ -329,6 +330,11 @@ const ChaptersRoute = ChaptersRouteImport.update({
 const CeqRoute = CeqRouteImport.update({
   id: '/ceq',
   path: '/ceq',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CareersRoute = CareersRouteImport.update({
+  id: '/careers',
+  path: '/careers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CalloutDemoRoute = CalloutDemoRouteImport.update({
@@ -1067,6 +1073,7 @@ export interface FileRoutesByFullPath {
   '/branding': typeof BrandingRoute
   '/buildqueue': typeof BuildqueueRoute
   '/callout-demo': typeof CalloutDemoRoute
+  '/careers': typeof CareersRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
   '/exhibit-demo': typeof ExhibitDemoRoute
@@ -1240,6 +1247,7 @@ export interface FileRoutesByTo {
   '/branding': typeof BrandingRoute
   '/buildqueue': typeof BuildqueueRoute
   '/callout-demo': typeof CalloutDemoRoute
+  '/careers': typeof CareersRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
   '/exhibit-demo': typeof ExhibitDemoRoute
@@ -1410,6 +1418,7 @@ export interface FileRoutesById {
   '/branding': typeof BrandingRoute
   '/buildqueue': typeof BuildqueueRoute
   '/callout-demo': typeof CalloutDemoRoute
+  '/careers': typeof CareersRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
   '/exhibit-demo': typeof ExhibitDemoRoute
@@ -1585,6 +1594,7 @@ export interface FileRouteTypes {
     | '/branding'
     | '/buildqueue'
     | '/callout-demo'
+    | '/careers'
     | '/ceq'
     | '/chapters'
     | '/exhibit-demo'
@@ -1758,6 +1768,7 @@ export interface FileRouteTypes {
     | '/branding'
     | '/buildqueue'
     | '/callout-demo'
+    | '/careers'
     | '/ceq'
     | '/chapters'
     | '/exhibit-demo'
@@ -1927,6 +1938,7 @@ export interface FileRouteTypes {
     | '/branding'
     | '/buildqueue'
     | '/callout-demo'
+    | '/careers'
     | '/ceq'
     | '/chapters'
     | '/exhibit-demo'
@@ -2101,6 +2113,7 @@ export interface RootRouteChildren {
   BrandingRoute: typeof BrandingRoute
   BuildqueueRoute: typeof BuildqueueRoute
   CalloutDemoRoute: typeof CalloutDemoRoute
+  CareersRoute: typeof CareersRoute
   CeqRoute: typeof CeqRouteWithChildren
   ChaptersRoute: typeof ChaptersRoute
   ExhibitDemoRoute: typeof ExhibitDemoRoute
@@ -2408,6 +2421,13 @@ declare module '@tanstack/react-router' {
       path: '/ceq'
       fullPath: '/ceq'
       preLoaderRoute: typeof CeqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/careers': {
+      id: '/careers'
+      path: '/careers'
+      fullPath: '/careers'
+      preLoaderRoute: typeof CareersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/callout-demo': {
@@ -3631,6 +3651,7 @@ const rootRouteChildren: RootRouteChildren = {
   BrandingRoute: BrandingRoute,
   BuildqueueRoute: BuildqueueRoute,
   CalloutDemoRoute: CalloutDemoRoute,
+  CareersRoute: CareersRoute,
   CeqRoute: CeqRouteWithChildren,
   ChaptersRoute: ChaptersRoute,
   ExhibitDemoRoute: ExhibitDemoRoute,

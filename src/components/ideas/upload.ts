@@ -33,6 +33,12 @@ export async function uploadReferencePhoto(file: File): Promise<Attachment> {
   return uploadAttachment(file, "illustration-references");
 }
 
+/** A résumé attached to a /careers application (2026-09-05) — same signed-upload path, public
+ *  (createPipelineTestStagingUpload isn't admin-gated), its own folder. */
+export async function uploadResume(file: File): Promise<Attachment> {
+  return uploadAttachment(file, "job-applications");
+}
+
 async function uploadAttachment(file: File, folder: string): Promise<Attachment> {
   const staged = await createPipelineTestStagingUpload({
     data: { ext: extOf(file.name, file.type), folder },

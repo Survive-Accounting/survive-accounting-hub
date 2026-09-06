@@ -83,7 +83,9 @@ export default function SiteFooter(_props: SiteFooterProps = {}) {
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={faint}>Explore</p>
             <nav className="mt-3 flex flex-col gap-2">
-              {/* /order is deprecated — nothing to link but Press here now. */}
+              {/* /order is deprecated. Careers (2026-09-05): "put it in the footer and
+                  advertise it a little." */}
+              <a href="/careers" className={linkClass} style={muted}>Careers</a>
               <button onClick={() => setPressOpen(true)} className={`${linkClass} text-left`} style={muted}>Press</button>
             </nav>
           </div>

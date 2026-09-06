@@ -534,6 +534,17 @@ export const TEMPLATES: TemplateDef[] = [
     countKey: "static",
     trafficPaths: ["/shipped"],
   },
+  {
+    id: "careers",
+    label: "Careers",
+    category: "public",
+    description: "Four open roles (tutor content creator, national campaign manager, operations lead, platform engineer) with a real job-description shape and a shared application form; Campus Rep hands off to /rep/join.",
+    routePattern: "/careers",
+    routes: ["careers.tsx"],
+    extraFiles: ["src/lib/careers.functions.ts"],
+    countKey: "static",
+    trafficPaths: ["/careers"],
+  },
 ];
 
 /** Route files that are intentionally NOT QA templates, each with a reason. The
