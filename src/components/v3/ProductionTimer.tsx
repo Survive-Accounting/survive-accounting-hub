@@ -75,6 +75,15 @@ function ProductionTimerInner() {
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
   };
 
+  // NEVER ON FILM (2026-09-06, Lee: "start time has to be out of the capture window for sure").
+  // BlastOffCapture's OWN chrome can be hidden with H before a take, but this widget is mounted
+  // globally and has no way to know that toggle — the only guarantee that actually holds "for
+  // sure" is never rendering here at all, in EITHER phase, whether or not the session was
+  // started elsewhere. The timer keeps running in the background regardless (this component
+  // never unmounts on navigation) — it just draws nothing while Lee is on the page OBS is
+  // capturing, and reappears the moment he's back on any other Blast Off screen.
+  if (detected?.step === "film") return null;
+
   // IDLE, on a Blast Off page: a small, easy-to-ignore prompt. Top-left (2026-09-06, Lee: "it's
   // blocking stuff on bottom menu") — capture's own chrome, the Rehearsal chip and the prompter
   // panel all live at the bottom or the right; top-left is clear on every Blast Off screen.
