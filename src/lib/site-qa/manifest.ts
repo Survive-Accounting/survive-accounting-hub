@@ -589,6 +589,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "v3.$topic.$set.blast-off.results.tsx": "V3 Blast Off step 2, Review (AdminGate, noindex) — the film draft, now also the running order (Arrange folded in 2026-09-05)",
   "v3.$topic.$set.blast-off.arrange.tsx": "redirect (2026-09-05) → the results (Review) step — Arrange retired, its own job was already Review's",
   "v3.$topic.$set.blast-off.film.tsx": "V3 Blast Off step 3, Film (AdminGate, noindex) — in-page capture, its own step since 2026-09-05",
+  "v3.post.tsx": "V3 Blast Off step 4, Post (AdminGate, noindex) — the cross-set publish queue, added 2026-09-06",
   "v3.teleprompter.tsx": "Teleprompter mirror (AdminGate, noindex) — a second window showing the banked SAY IT phrases while Lee films",
   "study_.canvas.tsx": "internal authoring lab (noindex)",
   "study_.dashboard.tsx": "prototype (noindex)",

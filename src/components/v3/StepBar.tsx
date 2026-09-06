@@ -15,9 +15,8 @@
 // disappearing, so an old link or bookmark still lands somewhere real. Film
 // gets its own numbered step for the first time (it always had its own page,
 // just never its own door — see the old "arrange"'s "Capture in-page →"
-// link, now redundant since Film is a step click away). Post has no page
-// yet — its step renders as a plain disabled pill, exactly what Door.tsx
-// already does for "soon" elsewhere in V3, not a broken link.
+// link, now redundant since Film is a step click away). Post got its page
+// 2026-09-06 (/v3/post — a cross-set queue, not nested under a topic/set).
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
@@ -31,7 +30,9 @@ export const STEPS: readonly { step: BlastOffStep; n: number; label: string; blu
   // getting it SOLID before I do the film run." The AI board folds under it.
   { step: "results", n: 2, label: "Review", blurb: "The film draft: see the slides, edit, add, skip, rearrange, drop in what you've banked — your own words beside each one. The AI board folds underneath." },
   { step: "film", n: 3, label: "Film", blurb: "Capture — one frame at a time, spacebar forward, nothing else in the shot." },
-  { step: "post", n: 4, label: "Post", blurb: "Queue up what's filmed across every topic and set, process it, publish it.", soon: true },
+  // Post got its own page 2026-09-06 — a cross-set queue at /v3/post (blastOffPath special-cases
+  // this step to point there instead of nesting under the current topic/set).
+  { step: "post", n: 4, label: "Post", blurb: "Queue up what's filmed across every topic and set, process it, publish it." },
 ];
 
 export function StepBar({ topic, set, active, right }: {

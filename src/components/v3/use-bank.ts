@@ -100,7 +100,11 @@ export function nextSetAfter(topics: BoothTopic[], setId: string): { topic: Boot
 // step with no page as a plain disabled door ("soon"), which is exactly what Post is today.
 export type BlastOffStep = "talkthrough" | "results" | "arrange" | "film" | "post";
 
-/** /v3/$topic/$set/blast-off[/step] — the one place the nested URL is spelled. */
+/** /v3/$topic/$set/blast-off[/step] — the one place the nested URL is spelled. Post is the one
+ *  exception (2026-09-06): it's a cross-set queue, not a per-set page — StepBar's own blurb says
+ *  so ("across every topic and set") — so it always points at /v3/post regardless of which
+ *  topic/set you clicked it from. */
 export function blastOffPath(topic: BoothTopic, set: BoothSetInfo, step?: BlastOffStep): string {
+  if (step === "post") return "/v3/post";
   return `/v3/${slugOf(topic.name)}/${slugOf(set.name)}/blast-off${step ? `/${step}` : ""}`;
 }
