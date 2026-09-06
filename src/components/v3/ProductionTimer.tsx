@@ -37,6 +37,11 @@ function ProductionTimerInner() {
   const [session, setSession] = useState<Session | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // DISMISS (2026-09-06, Lee: "it's blocking stuff on bottom menu... make sure it's dismissable")
+  // — keyed to the detected step+set, not a blanket "never show again": dismissing the prompt on
+  // this page hides THIS one, but a different set or step is a fresh prompt.
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+  const detectedKey = detected ? `${detected.topicSlug}/${detected.setSlug}/${detected.step}` : null;
 
   useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current); }, []);
   const startTicking = () => { tickRef.current = setInterval(() => setSeconds((s) => s + 1), 1000); };
@@ -70,14 +75,22 @@ function ProductionTimerInner() {
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
   };
 
-  // IDLE, on a Blast Off page: a small, easy-to-ignore prompt — not yet top-right.
+  // IDLE, on a Blast Off page: a small, easy-to-ignore prompt. Top-left (2026-09-06, Lee: "it's
+  // blocking stuff on bottom menu") — capture's own chrome, the Rehearsal chip and the prompter
+  // panel all live at the bottom or the right; top-left is clear on every Blast Off screen.
   if (phase === "idle") {
-    if (!detected) return null;
+    if (!detected || dismissedKey === detectedKey) return null;
     return (
-      <button type="button" onClick={start} title={`Time the ${STEP_LABEL[detected.step]} step on this set`}
-        style={{ position: "fixed", left: 16, bottom: 16, zIndex: 2147482900, font: "inherit", fontSize: 12.5, fontWeight: 700, padding: "8px 14px", borderRadius: 999, border: `1px solid ${EDGE}`, background: INK, color: CREAM, cursor: "pointer", boxShadow: "0 8px 20px rgba(0,0,0,0.35)" }}>
-        ⏱ Start timer — {STEP_LABEL[detected.step]}
-      </button>
+      <div style={{ position: "fixed", left: 16, top: 16, zIndex: 2147482900, display: "flex", alignItems: "center", gap: 4 }}>
+        <button type="button" onClick={start} title={`Time the ${STEP_LABEL[detected.step]} step on this set`}
+          style={{ font: "inherit", fontSize: 12.5, fontWeight: 700, padding: "8px 14px", borderRadius: 999, border: `1px solid ${EDGE}`, background: INK, color: CREAM, cursor: "pointer", boxShadow: "0 8px 20px rgba(0,0,0,0.35)" }}>
+          ⏱ Start timer — {STEP_LABEL[detected.step]}
+        </button>
+        <button type="button" onClick={() => setDismissedKey(detectedKey)} title="Dismiss — reappears on a different set or step"
+          style={{ width: 22, height: 22, borderRadius: "50%", border: `1px solid ${EDGE}`, background: INK, color: MUTED, cursor: "pointer", fontSize: 12, lineHeight: 1, boxShadow: "0 8px 20px rgba(0,0,0,0.35)" }}>
+          ×
+        </button>
+      </div>
     );
   }
 
