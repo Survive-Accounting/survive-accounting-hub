@@ -18,11 +18,17 @@ import { getAdminWho } from "@/components/AdminGate";
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 import { runMicro } from "@/lib/talkthrough.functions";
 import { logTeleprompterFeedback, topRehearsalExamples, type RehearsalAction } from "@/lib/rehearsal.functions";
+import { logCannedLineUse, recentCannedLineUses } from "@/lib/canned-lines.functions";
 
+import { cannedLinesFor, cannedWarnings, pickCannedLine, type CannedLine, type CannedSlot } from "./canned-lines";
 import { FRAME_LABEL, insertStem, type BlastFrame } from "./plan";
 import { buildRehearsalMessages, parseRehearsalSuggestion, type StyleExample } from "./rehearsal-brief";
 
 const GOLD = "#FCA311", CREAM = "#F4EFE6", MUTED = "#9AA3B8", EDGE = "rgba(244,239,230,0.16)", INK = "#05070D", MINT = "#3BF5A0", ORANGE = "#FF9F43";
+
+/** "Intro is two slides too — wordmark and slogan, then one with topic name" (Lee). Both count,
+ *  alongside the outro, as canned rather than AI-suggested. */
+const isIntroOrOutro = (k: BlastFrame["kind"]): boolean => k === "open" || k === "intro" || k === "outro";
 
 function slideContextFor(f: BlastFrame, ceqById: Map<string, { stem: string }>): string {
   if (f.kind === "ceq" && f.ceqId) return ceqById.get(f.ceqId)?.stem ?? "";
@@ -39,7 +45,10 @@ export function RehearsalReview({ set, frames, ceqById, segments, onCommitLine, 
   onCommitLine: (frameId: string, line: string) => void;
   onClose: (stopRehearsing: boolean) => void;
 }) {
-  const candidates = useMemo(() => frames.filter((f) => (segments[f.id] ?? "").trim()), [frames, segments]);
+  // Intro/outro NEVER go through the AI suggester — Lee: "teleprompter really only needs to
+  // generate for non intro/outro slides." They're canned (CannedPickerSection below), even if
+  // Lee happened to talk over them while walking through in rehearsal mode.
+  const candidates = useMemo(() => frames.filter((f) => !isIntroOrOutro(f.kind) && (segments[f.id] ?? "").trim()), [frames, segments]);
   const [examples, setExamples] = useState<StyleExample[]>([]);
   const [suggestions, setSuggestions] = useState<Record<string, SlideSuggestion>>({});
   const [done, setDone] = useState<Set<string>>(new Set());
@@ -81,6 +90,8 @@ export function RehearsalReview({ set, frames, ceqById, segments, onCommitLine, 
           <button type="button" onClick={() => onClose(false)} style={btn()}>← keep rehearsing</button>
           <button type="button" onClick={() => onClose(true)} style={btn(GOLD)}>Done — start filming →</button>
         </div>
+        <CannedPickerSection setId={set.id} frames={frames} onCommitLine={onCommitLine} />
+
         {candidates.length === 0 && <p style={{ color: MUTED, fontSize: 13.5, marginTop: 20 }}>Nothing was said yet — close this and talk through a few slides first.</p>}
         <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 12 }}>
           {candidates.map((f) => (
@@ -177,6 +188,78 @@ function SlideCard({ frame, raw, suggestion, isDone, onRevise, onConfirm }: {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** THE CANNED INTRO/OUTRO (2026-09-06). Lee: "much faster to have AI pick it versus me pick it."
+ *  Always shown — unlike the AI candidates below, it never waits on Lee having said anything,
+ *  since these seven lines are fixed and picking one is instant. "Intro is two slides too" — the
+ *  same text lands on BOTH the open and intro frames when one exists, so the prompter reads
+ *  correctly whichever of the two is up when the take rolls; usage is still logged once per
+ *  commit, not twice. */
+function CannedPickerSection({ setId, frames, onCommitLine }: {
+  setId: string; frames: readonly BlastFrame[]; onCommitLine: (frameId: string, line: string) => void;
+}) {
+  const openFrame = useMemo(() => frames.find((f) => f.kind === "open"), [frames]);
+  const introFrame = useMemo(() => frames.find((f) => f.kind === "intro"), [frames]);
+  const outroFrame = useMemo(() => frames.find((f) => f.kind === "outro"), [frames]);
+  if (!openFrame && !introFrame && !outroFrame) return null;
+
+  return (
+    <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: MUTED }}>Canned — picked for you, change it if you want</div>
+      {(openFrame || introFrame) && (
+        <CannedSlotPicker slot="intro" setId={setId}
+          onUse={(text) => { if (openFrame) onCommitLine(openFrame.id, text); if (introFrame) onCommitLine(introFrame.id, text); }} />
+      )}
+      {outroFrame && <CannedSlotPicker slot="outro" setId={setId} onUse={(text) => onCommitLine(outroFrame.id, text)} />}
+    </div>
+  );
+}
+
+function CannedSlotPicker({ slot, setId, onUse }: { slot: CannedSlot; setId: string; onUse: (text: string) => void }) {
+  const pool = useMemo(() => cannedLinesFor(slot), [slot]);
+  const [recent, setRecent] = useState<string[] | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [used, setUsed] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    recentCannedLineUses({ data: { slot } }).then((r) => {
+      if (!live) return;
+      setRecent(r);
+      setSelectedId(pickCannedLine(pool, slot, r)?.id ?? pool[0]?.id ?? null);
+    }).catch(() => { if (live) { setRecent([]); setSelectedId(pool[0]?.id ?? null); } });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slot]);
+
+  const selected: CannedLine | null = pool.find((l) => l.id === selectedId) ?? null;
+  const warnings = recent && selectedId ? cannedWarnings(selectedId, recent) : [];
+
+  const use = () => {
+    if (!selected) return;
+    onUse(selected.text);
+    setUsed(true);
+    void logCannedLineUse({ data: { setId, slot, lineId: selected.id } });
+  };
+
+  return (
+    <div style={{ border: `1px solid ${used ? MINT + "55" : EDGE}`, borderRadius: 12, padding: "12px 14px", opacity: used ? 0.6 : 1 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: GOLD }}>{slot === "intro" ? "Intro" : "Outro"}</span>
+        {used && <span style={{ fontSize: 11, color: MINT }}>✓ kept</span>}
+        <select value={selectedId ?? ""} onChange={(e) => setSelectedId(e.target.value)} disabled={used}
+          style={{ marginLeft: "auto", background: "rgba(255,255,255,0.04)", border: `1px solid ${EDGE}`, borderRadius: 8, padding: "4px 8px", color: CREAM, font: "inherit", fontSize: 12.5 }}>
+          {pool.map((l) => <option key={l.id} value={l.id}>{l.title}</option>)}
+        </select>
+      </div>
+      {selected && <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.4 }}>{selected.text}</div>}
+      {warnings.length > 0 && (
+        <div style={{ marginTop: 6, fontSize: 11.5, color: ORANGE }}>{warnings.map((w) => `⚠ ${w}`).join("  ")}</div>
+      )}
+      {!used && <button type="button" onClick={use} style={{ ...btn(MINT), marginTop: 8 }}>✓ Use this</button>}
     </div>
   );
 }
