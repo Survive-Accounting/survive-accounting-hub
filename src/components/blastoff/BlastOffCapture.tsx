@@ -27,7 +27,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 import { BrandCursor } from "@/components/canvas/BrandCursor";
 import { MoveContext, PersistContext, PracticeContext, PreviewSpotContext, ScaleContext, WidthContext, type PreviewSpotApi } from "@/components/canvas/CeqPreviewer";
-import { playSfx } from "@/components/canvas/sfx";
 import { applyRegularClick, applySuperClick, type SpotSets } from "@/components/canvas/spotlight";
 import { HighlightContext, useTextHighlights } from "@/components/canvas/text-highlights";
 import { recentCannedLineUses } from "@/lib/canned-lines.functions";
@@ -153,18 +152,16 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   const cannedSuggestion = cannedSlot ? cannedPicks[cannedSlot] ?? null : null;
 
   // ---- PRACTICE: click a choice to emphasise it, click it again to resolve ----
-  // Correct no longer cues a sound here (Lee, 2026-09-06: "Remove cha ching in capture mode") —
-  // the canvas's own per-question confirmSfx toggle is untouched; this is Blast Off Film's own
-  // resolve, and it never had that toggle to begin with, it just always played. Wrong still
-  // scratches — only the correct-answer cue was asked to go.
+  // No sound cue at all now (Lee, 2026-09-06: "Remove cha ching in capture mode"... "Remove
+  // scratch out sound too") — the canvas's own per-question confirmSfx toggle is untouched;
+  // this is Blast Off Film's own resolve, and it never had that toggle to begin with, it just
+  // always played both.
   const [emph, setEmph] = useState<number | null>(null);
   const [resolved, setResolved] = useState<Set<number>>(() => new Set());
   const resolveChoice = useCallback((k: number) => {
-    const choice = ceq?.choices[k];
     if (resolved.has(k)) return;
     setEmph(k);
     setResolved((r) => new Set(r).add(k));
-    if (choice && !choice.correct) playSfx("vinylScratch");
   }, [ceq, resolved]);
   const practice = useMemo(() => ({ emph, resolved, select: (k: number) => setEmph(k), resolveChoice }), [emph, resolved, resolveChoice]);
 
@@ -286,7 +283,10 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
       <CaptureArrows hostRef={hostRef} frameId={frame.id} />
       {/* THE BRAND CURSOR — the bolt, as on the canvas popout. The native
           cursor is hidden; turn "Capture Cursor" off on the OBS source. */}
-      <BrandCursor hostRef={hostRef} />
+      {/* Lee, 2026-09-06: "don't show the bolt cursor on intro 1 and intro 2 slides" — the
+          wordmark itself already has an animated bolt there; a second one following the mouse
+          competes with it. */}
+      <BrandCursor hostRef={hostRef} enabled={frame.kind !== "open" && frame.kind !== "intro"} />
       {chrome && (
         <div style={{
           position: "fixed", left: 12, bottom: 12, display: "flex", gap: 12, alignItems: "center", zIndex: 30,
