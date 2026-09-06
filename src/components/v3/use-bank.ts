@@ -93,7 +93,12 @@ export function nextSetAfter(topics: BoothTopic[], setId: string): { topic: Boot
   return i >= 0 && i + 1 < flat.length ? flat[i + 1] : null;
 }
 
-export type BlastOffStep = "talkthrough" | "results" | "arrange" | "film";
+// "arrange" stays a valid step (its URL still resolves — v3.$topic.$set.blast-off.arrange.tsx —
+// as a redirect into Review, so an old link never 404s) even though it's no longer one of the
+// four numbered steps (StepBar.tsx STEPS, 2026-09-05: "fold Arrange into Review, renumber the
+// steps"). "post" is real in the vocabulary before it has a page — Door.tsx already renders a
+// step with no page as a plain disabled door ("soon"), which is exactly what Post is today.
+export type BlastOffStep = "talkthrough" | "results" | "arrange" | "film" | "post";
 
 /** /v3/$topic/$set/blast-off[/step] — the one place the nested URL is spelled. */
 export function blastOffPath(topic: BoothTopic, set: BoothSetInfo, step?: BlastOffStep): string {

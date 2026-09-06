@@ -1,18 +1,22 @@
 // /v3/$topic/$set/blast-off — WHICH STEP ARE YOU ON?
 //
-// The production line for one Blast Off, as three doors in the order the work
-// happens (V3 handoff, Lee's words):
+// The production line for one Blast Off, as four doors in the order the work
+// happens (2026-09-05, "fold Arrange into Review, renumber the steps"):
 //   TALKTHROUGH — pure brainstorming. Look through the set and stamp out ideas:
 //                 phrases, trigger words, cheat codes, tips, real-world
 //                 examples, exhibits. Nothing is arranged here.
-//   ARRANGE     — the ideas become reusable elements dropped between slides.
-//                 Review each slide, add and remove.
-//   FILM        — capture.
+//   REVIEW      — the film draft: see the slides, edit, add, skip, rearrange,
+//                 drop in what you've banked (what "Arrange" used to be its
+//                 own step for — retired into a redirect, since Review
+//                 already did all of it).
+//   FILM        — capture. Its own door for the first time.
+//   POST        — queue what's filmed, process it, publish it. No page yet;
+//                 renders as Door's own "soon" state, not a broken link.
 //
 // Every step is its own URL so browser back works and a step can be linked to.
 // Nothing here loads the canvas; it is a menu.
 import { createFileRoute } from "@tanstack/react-router";
-import { Clapperboard, Mic, Wand2 } from "lucide-react";
+import { Clapperboard, Mic, Send, Wand2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -30,7 +34,7 @@ export const Route = createFileRoute("/v3/$topic/$set/blast-off/")({
   head: () => ({ meta: [{ title: "⚡ Survive — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
 
-const STEP_ICON: Record<BlastOffStep, LucideIcon> = { talkthrough: Mic, results: Wand2, arrange: Clapperboard, film: Clapperboard };
+const STEP_ICON: Record<BlastOffStep, LucideIcon> = { talkthrough: Mic, results: Wand2, arrange: Clapperboard, film: Clapperboard, post: Send };
 
 function V3BlastOff() {
   const { topic: topicKey, set: setKey } = Route.useParams();
@@ -73,6 +77,7 @@ function V3BlastOff() {
                 title={s.label}
                 blurb={s.blurb}
                 to={blastOffPath(topic, set, s.step)}
+                soon={s.soon}
               />
             ))}
           </div>
