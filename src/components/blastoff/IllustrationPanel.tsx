@@ -51,13 +51,16 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [tips, setTips] = useState(false);
+  // THE COST OF THIS ONE (2026-09-05: "show the cost of the generations I'm doing") — set the
+  // moment a generation finishes, so the number is right there without hunting the library.
+  const [lastCost, setLastCost] = useState<number | null>(null);
   // A REFERENCE PHOTO (2026-09-05: "make sure I can just ctrl+v right into it... and upload
   // file, but paste is my preferred mode"). Lives on the frame itself (ill.referencePhoto), not
   // local state, so it survives switching slides and away/back like everything else here.
   const [photoUploading, setPhotoUploading] = useState(false);
   const photoFileRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    setWords(ill?.brief ?? ""); setInterim(""); setRevision(""); setErr(null);
+    setWords(ill?.brief ?? ""); setInterim(""); setRevision(""); setErr(null); setLastCost(null);
     setBrief(ill?.summary && ill.prompt ? { title: ill.summary.title, bullets: ill.summary.bullets, prompt: ill.prompt } : null);
     setRefId(ill?.referenceFrameId ?? "");
   }, [sel.id]);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -153,6 +156,8 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
         provider: r.provider, stylePreset: r.stylePreset, styleVersion: r.styleVersion, assetUrl: r.url, localAssetId: r.path,
         animationPreset: ill?.animationPreset ?? style.defaultAnimation, generatedAt: r.generatedAt, seed: r.seed,
       });
+      setLastCost(r.credits === null ? null : r.credits / 1000);
+      if (credits !== null && r.credits !== null) setCredits(credits - r.credits);   // don't wait on a refresh to reflect the spend
       refreshLibrary();
     } catch (e) { setErr((e as Error).message || "Couldn't generate. Your words are kept — try again."); }
     finally { setBusy(false); }
@@ -163,7 +168,12 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   const [availErr, setAvailErr] = useState<string | null>(null);
   const [pass, setPass] = useState("");
   const [keyTest, setKeyTest] = useState<string | null>(null);
-  const checkAvail = () => { illustrationStatus().then((s) => { setAvail(s); setAvailErr(null); }).catch((e) => { setAvail(null); setAvailErr((e as Error).message); }); };
+  // THE BALANCE (2026-09-05: "add a balance of recraft API credits... I want to keep track of
+  // how much it's going down"). Recraft's own /users/me check is free, so it's fine to run it
+  // automatically rather than wait for a manual "Test the key" click — that button still exists
+  // to refresh it on demand. credits is Recraft's own unit; 1000 = $1.
+  const [credits, setCredits] = useState<number | null>(null);
+  const checkAvail = () => { illustrationStatus().then((s) => { setAvail(s); setAvailErr(null); if (s.configured) void testKey(true); }).catch((e) => { setAvail(null); setAvailErr((e as Error).message); }); };
   useEffect(() => { checkAvail(); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   const signIn = async () => {
     setKeyTest(null);
@@ -173,10 +183,13 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
       setPass(""); checkAvail();
     } catch (e) { setKeyTest((e as Error).message); }
   };
-  const testKey = async () => {
-    setKeyTest("Asking Recraft…");
-    try { const r = await testIllustrationKey(); setKeyTest(r.ok ? `✓ Key works — ${r.credits ?? "?"} API units left${r.email ? ` (${r.email})` : ""}.` : `✗ ${r.error ?? "rejected"}`); }
-    catch (e) { setKeyTest(`✗ ${(e as Error).message}`); }
+  const testKey = async (silent = false) => {
+    if (!silent) setKeyTest("Asking Recraft…");
+    try {
+      const r = await testIllustrationKey();
+      setCredits(r.ok ? r.credits ?? null : null);
+      if (!silent) setKeyTest(r.ok ? `✓ Key works${r.email ? ` (${r.email})` : ""}.` : `✗ ${r.error ?? "rejected"}`);
+    } catch (e) { if (!silent) setKeyTest(`✗ ${(e as Error).message}`); }
   };
 
   const ready = !!avail?.configured;
@@ -302,7 +315,12 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
       <div className="flex" style={{ gap: 6, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
         {!ill?.assetUrl && words.trim() && !brief && <button type="button" onClick={() => keep({ brief: words.trim(), prompt: ill?.prompt ?? null, teachingIntent: teaching() || null })} style={chip(false, GOLD)} title="Keep the idea on the slide without spending a generation">Bank the idea</button>}
         {ill && <button type="button" onClick={() => onPatch({ illustration: null })} style={chip(false, ORANGE)} title="Clear the picture and the idea from this slide">Remove</button>}
-        {ill?.assetUrl && <span style={{ fontSize: 10.5, color: MUTED }}>seed {ill.seed} · {ill.generatedAt ? new Date(ill.generatedAt).toLocaleDateString() : ""}</span>}
+        {ill?.assetUrl && (() => {
+          // This session's own figure first; otherwise whatever the library has for this exact
+          // asset (a picture generated earlier, or on a reload) — never a guess, just "unknown".
+          const cost = lastCost ?? library?.find((r) => r.assetUrl === ill.assetUrl)?.costUsd ?? null;
+          return <span style={{ fontSize: 10.5, color: MUTED }}>seed {ill.seed} · {ill.generatedAt ? new Date(ill.generatedAt).toLocaleDateString() : ""}{cost !== null ? ` · $${cost.toFixed(2)}` : ""}</span>;
+        })()}
       </div>
       {ill?.assetUrl && <div style={{ marginTop: 6, fontSize: 10.5, color: MUTED }}>It's on the slide to the left — drag it to move, the corner grip resizes{ill.placement ? "" : " (a blank slide's sits dead centre)"}. Regenerate keeps the brief and rolls a new seed; revise the brief when the subject is wrong.</div>}
       {ill?.placement && <button type="button" onClick={() => onPatch({ illustration: { ...ill, placement: null } })} style={{ ...chip(false, GOLD), marginTop: 6 }} title="Back to the band under the card">Snap back under the card</button>}
@@ -362,9 +380,14 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
           <div style={{ fontSize: 11, color: ORANGE }}>Signed in, but the server has no {avail.provider} key: RECRAFT_API_KEY is empty on this deployment. Add it in Vercel (Production ticked), redeploy, reload.</div>
         )}
         {avail && avail.configured && (
-          <div className="flex" style={{ gap: 8, alignItems: "center", fontSize: 10.5, color: MUTED }}>
+          <div className="flex" style={{ gap: 8, alignItems: "center", fontSize: 10.5, color: MUTED, flexWrap: "wrap" }}>
             <span>Key present on the server ({avail.keyLength} chars).</span>
-            <button type="button" onClick={() => void testKey()} style={chip(false, GOLD)} title="One free call to Recraft — proves the key and shows the balance">Test the key</button>
+            {credits !== null && (
+              <span title="Recraft's own balance — 1000 credits = $1" style={{ color: credits < 500 ? ORANGE : MUTED, fontWeight: credits < 500 ? 800 : 400 }}>
+                {credits < 500 ? "⚠ " : ""}${(credits / 1000).toFixed(2)} in Recraft credits left
+              </span>
+            )}
+            <button type="button" onClick={() => void testKey()} style={chip(false, GOLD)} title="One free call to Recraft — refreshes the balance">↻ refresh balance</button>
           </div>
         )}
         {keyTest && <div style={{ marginTop: 4, fontSize: 11, color: keyTest.startsWith("✓") ? MINT : ORANGE }}>{keyTest}</div>}
