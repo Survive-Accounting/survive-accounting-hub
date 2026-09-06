@@ -99,29 +99,34 @@ export interface IllustrationStyle {
   defaultAnimation: AnimationPreset;
 }
 
-// SURVIVE WATERCOLOR v1 — the house default (Lee, 2026-09-05, on the monoline-on-black
+// SURVIVE WATERCOLOR v2 — the house default. v1 (Lee, 2026-09-05, on the monoline-on-black
 // experiment: "white pencil drawn isn't going to work. We need SOME colour... watercolor
-// maybe?... simple illustrations that help me teach, that's it... I don't think we want faces
-// really. We can opt for behind the head... walking up the stairs to the NYSE"). A soft
-// watercolor wash with a loose ink/pencil line under it — colour without going cartoonish, a
-// clean readable silhouette so it still lands at a glance on a phone. People are staged so a
-// detailed face is never needed — from behind, from the side, cropped — rather than drawn plain,
-// which was v1/v2's fix for the same complaint and read as flat rather than actually avoided.
-// Generated on WHITE, not black: Recraft's watercolor training is overwhelmingly "on paper," and
-// a black ground fought the medium; white is also a cleaner subject-isolation ground for the same
-// `removeBackground` cutout recraft.server.ts already does (any solid ground works — the cutout
-// isn't a black-key, it's a general subject cutout), so nothing downstream ever sees a ground
-// colour either way.
+// maybe?... I don't think we want faces really. We can opt for behind the head... walking up
+// the stairs to the NYSE") landed well on four real test pictures — Lee: "the stock exchange
+// one... pretty nice", "the black and white people worked pretty well for board of directors" —
+// but flagged one concrete defect: "The black on black in particular [needs fixing]... The
+// paycheck one didn't quite land" (a suited figure rendered dark-on-dark, disappearing into the
+// generation ground). v2 fixes exactly that: the ink outline is now named a specific warm colour
+// instead of left to the model's own (evidently black-leaning) default, and no fill or outline
+// may go true black or near-black even for a realistically dark subject like a suit — so nothing
+// can vanish once the white paper is stripped to alpha, regardless of how dark the wash itself
+// reads. Also new: a person defaults to reading young — entry-level, not a generic older
+// professional — matching who Survive is actually teaching (Lee: "shouldn't these people look
+// more like younger college entry level grads?"); a request that specifically wants someone
+// senior (a board, an executive) still gets one, per illustration-brief.ts's own PEOPLE rule.
+// Bumping the version is what makes this apply to work already done, on request, without
+// retyping anything: any picture stamped v1 shows "stale — regenerate" the moment this ships,
+// and Regenerate reuses the exact same brief — the subject never changes, only the render.
 export const ILLUSTRATION_STYLES: Record<string, IllustrationStyle> = {
   "survive-watercolor": {
     id: "survive-watercolor",
-    version: 1,
+    version: 2,
     label: "Survive Watercolor",
     provider: "recraft",
     model: "recraftv4_1",
     size: "1024x1024",
     promptPrefix: "A single illustration of ",
-    promptSuffix: ", on a plain white background, filling most of the frame with only a small even margin around it. A loose, slightly imperfect ink or pencil outline, gently filled with a warm, muted watercolor wash — soft bleeding at the edges, a little visible paper texture, painterly but simple, a strong clear silhouette, at most two or three shapes so it reads instantly on a phone. If it includes a person, show them from behind, from the side, with their head turned away, or cropped out of frame — never a detailed front-facing face. No text, no logos, no signature, no photorealism, no glossy cartoon shading, no clip-art look.",
+    promptSuffix: ", on a plain white background, filling most of the frame with only a small even margin around it. A loose, slightly imperfect ink outline in a warm dark brown — never black or near-black — gently filled with a warm, muted watercolor wash. No fill and no outline anywhere is ever true black or a very dark neutral grey, even for something realistically dark like a suit or a shadow — keep every shape a clear, visibly-coloured tone so nothing can blend into a black background once the white paper behind it is removed. Soft bleeding at the edges, a little visible paper texture, painterly but simple, a strong clear silhouette, at most two or three shapes so it reads instantly on a phone. If it includes a person, show them from behind, from the side, with their head turned away, or cropped out of frame — never a detailed front-facing face. No text, no logos, no signature, no photorealism, no glossy cartoon shading, no clip-art look.",
     controls: { background_color: { rgb: [255, 255, 255] }, colors: [{ rgb: [252, 163, 17], weight: 0.35 }, { rgb: [0, 107, 166], weight: 0.3 }] },
     styleIdEnv: "RECRAFT_STYLE_ID_WATERCOLOR",
     defaultAnimation: "boil",

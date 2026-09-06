@@ -18,6 +18,8 @@ describe("the illustration brief", () => {
     expect(m.system).toMatch(/single clear divider/);
     expect(m.system).toMatch(/at most one short label/i);
     expect(m.system).toMatch(/NEVER write the style/);
+    // 2026-09-05: "shouldn't these people look more like younger college entry level grads?"
+    expect(m.system).toMatch(/reading YOUNG/);
   });
   test("the answer parses to a title, three bullets and a subject; junk does not", () => {
     const b = parseBrief('here you go {"title":"Insider at the desk","bullets":["a man in a suit","reading at a desk","sign says OUR COMPANY"],"prompt":"a man in a suit at a desk reading a report, with the words \\"OUR COMPANY\\" on the wall sign"}');
