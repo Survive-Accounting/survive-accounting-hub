@@ -37,7 +37,7 @@ import { BankPicker } from "./BankPicker";
 import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, FrameView, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
-import { AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
+import { AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 import { ADS, AD_LABEL } from "./AdSlide";
 import { PhoneFrame } from "./PhoneFrame";
@@ -235,6 +235,9 @@ export function ReviewDeck({ set, topic, doc, register }: {
   useEffect(() => { register?.({ addSlide: (k, p) => add(k, p) }); return () => register?.(null); }, [register, add]);
 
   const patch = useCallback((id: string, p: Partial<BlastFrame>) => { if (plan) commit(patchFrame(plan.frames, id, p)); }, [plan, commit]);
+  /** Lee, 2026-09-05: "resize it from its fixed spot and it would apply to any other slides
+   *  using that setting" — one click instead of a fast-track round trip. */
+  const patchKind = useCallback((kind: BlastFrameKind, p: Partial<BlastFrame>) => { if (plan) commit(patchFramesOfKind(plan.frames, kind, p)); }, [plan, commit]);
 
   // Which row's ⋯ menu is open (one at a time). A row that leaves the plan
   // while its menu is up takes the menu with it.
@@ -434,6 +437,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
         <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs} layout={layoutOf(plan)}
           ceq={sel.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined}
           onPatch={(p) => patch(sel.id, p)}
+          onPatchKind={(p) => patchKind(sel.kind, p)}
           onSaved={(d) => { if (sel.ceqId) setOverrides((o) => ({ ...o, [sel.ceqId!]: d })); }} />
       ) : (
         <Prompter tabs={tabs} frame={sel} frames={frames} set={set} doc={doc} labelOf={labelOf} snippetOf={snippet}
@@ -532,13 +536,16 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
  *  an insert edits its words; the brand slides and ads edit their few
  *  switches. Same shell as the prompter — the two are faces of one column. */
 
-function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onSaved }: {
+function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onPatchKind, onSaved }: {
   /** The set's slide template — the camera chips read their default from it. */
   layout: "pass1" | "pass2";
   sel: BlastFrame; label: string; ceq?: BoothCeq; set: BoothSetInfo; topic: BoothTopic;
   /** The Teleprompter | Editor toggle, drawn by the deck. */
   tabs: ReactNode;
-  onPatch: (p: Partial<BlastFrame>) => void; onSaved: (d: CeqDraft) => void;
+  onPatch: (p: Partial<BlastFrame>) => void;
+  /** Same fields, but written onto every OTHER slide of this same kind too (2026-09-05). */
+  onPatchKind: (p: Partial<BlastFrame>) => void;
+  onSaved: (d: CeqDraft) => void;
 }) {
   const bulletsText = (sel.bullets ?? []).join("\n");
   const detour = sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "cheat";
@@ -652,6 +659,29 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onSav
             ))}
           </div>
           {(isCamSpot(sel.cam) ? sel.cam : camDefault(layout, sel.kind).spot) === "free" && <div style={{ fontSize: 10.5, color: MUTED, marginTop: 4 }}>Drag the ring on the stage to place it · wheel over it to resize.</div>}
+          {/* SIZE (2026-09-05: "allow me to choose a camera on this slide location and resize
+              it from its fixed spot and it would apply to any other slides using that setting"
+              — instead of a fast-track round trip every time). Works on any spot but off; "apply
+              to every ⟨kind⟩ slide" writes the size onto every other slide of this kind at once
+              — one that's already been resized by hand individually keeps its own (plan.ts
+              patchFramesOfKind). */}
+          {(isCamSpot(sel.cam) ? sel.cam : camDefault(layout, sel.kind).spot) !== "off" && (() => {
+            const current = sel.camSize ?? camDefault(layout, sel.kind).size ?? 0.28;
+            return (
+              <div style={{ marginTop: 8 }}>
+                <label style={{ fontSize: 11, color: MUTED, display: "flex", alignItems: "center", gap: 8 }}>
+                  Size — {Math.round(current * 100)}% of the frame width
+                  <input type="range" min={12} max={90} value={Math.round(current * 100)}
+                    onChange={(e) => onPatch({ camSize: Number(e.target.value) / 100 })} style={{ flex: 1 }} />
+                </label>
+                <div className="flex" style={{ gap: 6, marginTop: 4, flexWrap: "wrap", alignItems: "center" }}>
+                  {sel.camSize !== undefined && <button style={chip(false)} title="Back to the built-in default — this slide only" onClick={() => onPatch({ camSize: undefined })}>↺ this slide's default</button>}
+                  <button style={chip(false, ORANGE)} title={`Every ${FRAME_LABEL[sel.kind]} slide gets this size too. One you've already resized by hand keeps its own.`}
+                    onClick={() => onPatchKind({ camSize: current })}>apply to every {FRAME_LABEL[sel.kind]} slide</button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
         {sel.kind !== "open" && (
           <div style={{ marginTop: 8 }}>

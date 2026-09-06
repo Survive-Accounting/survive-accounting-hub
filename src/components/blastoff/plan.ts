@@ -292,6 +292,14 @@ export const filmFrames = (frames: readonly BlastFrame[]): BlastFrame[] => frame
 export const patchFrame = (frames: readonly BlastFrame[], id: string, patch: Partial<BlastFrame>): BlastFrame[] =>
   frames.map((x) => (x.id === id ? { ...x, ...patch } : x));
 
+/** Write the SAME fields onto every frame of one kind (2026-09-05: "resize it from its fixed
+ *  spot and it would apply to any other slides using that setting" — the fast-track cycle for a
+ *  camera-size tweak costs real time and money; this is the free, immediate alternative). A
+ *  frame that already has its OWN individual override for one of these fields is left alone —
+ *  Lee's earlier deliberate per-slide choice always wins over a later bulk one. */
+export const patchFramesOfKind = (frames: readonly BlastFrame[], kind: BlastFrameKind, patch: Partial<BlastFrame>): BlastFrame[] =>
+  frames.map((x) => (x.kind === kind && !Object.keys(patch).some((k) => (x as unknown as Record<string, unknown>)[k] !== undefined) ? { ...x, ...patch } : x));
+
 /** THE DETOUR CARD'S WORDS. An insert films as a dark card between the bright
  *  CEQ cards, and the thing that makes it read at short-form speed is ONE
  *  highlighted key phrase: a cheat code's rule, a phrase itself. Lee's own

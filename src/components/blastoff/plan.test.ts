@@ -250,7 +250,7 @@ describe("inserts", () => {
 });
 
 // ---- THE REVIEW STEP's verbs (2026-09-03) ----------------------------------
-import { dropFrame, duplicateFrame, filmFrames, frameBullets, frameCount, patchFrame, toggleSkip } from "./plan";
+import { dropFrame, duplicateFrame, filmFrames, frameBullets, frameCount, patchFrame, patchFramesOfKind, toggleSkip } from "./plan";
 
 describe("the review step: skip, duplicate, patch — the set is never touched", () => {
   const ceqs: PlanCeq[] = [{ id: "c1", label: "Q1", stem: "one" }, { id: "c2", label: "Q2", stem: "two" }];
@@ -293,6 +293,15 @@ describe("the review step: skip, duplicate, patch — the set is never touched",
     expect(next.find((f) => f.id === ceqFrame.id)?.prompter).toEqual(["a", "b"]);
     expect(next.filter((f) => f.id !== ceqFrame.id)).toEqual(plan.frames.filter((f) => f.id !== ceqFrame.id));
     expect(patchFrame(plan.frames, "nope", { text: "x" })).toEqual(plan.frames);
+  });
+
+  test("patchFramesOfKind writes every frame of one kind, and skips one already resized by hand (2026-09-05: a camera-size bulk apply)", () => {
+    const withInsert = insertFrame(plan.frames, { id: "ins-1", kind: "tip", title: "a tip" }, 1);
+    const withSecond = insertFrame(withInsert, { id: "ins-2", kind: "tip", title: "another tip", camSize: 0.5 }, 2);
+    const next = patchFramesOfKind(withSecond, "tip", { camSize: 0.34 });
+    expect(next.find((f) => f.id === "ins-1")?.camSize).toBe(0.34);        // no prior override — gets the bulk value
+    expect(next.find((f) => f.id === "ins-2")?.camSize).toBe(0.5);         // already resized by hand — untouched
+    expect(next.filter((f) => f.kind !== "tip")).toEqual(withSecond.filter((f) => f.kind !== "tip"));
   });
 });
 
