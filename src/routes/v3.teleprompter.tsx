@@ -62,12 +62,19 @@ function FramePrompter({ setId }: { setId: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [active, setActive] = useState<FilmActive | null>(() => readActive());
 
+  // POPOUT (2026-09-06, Lee: "prompter appears in the popped out one, it's in the way of
+  // filming. Can we have a popout for teleprompter too?"). Opened as its own window now, so it
+  // sits open through a whole rehearse → review → film session — a one-shot load would go stale
+  // the moment Lee commits a new line via Review after this window was already up. Cheap (a
+  // read) and small (a few seconds), so a plain poll beats wiring a second live-update channel.
   useEffect(() => {
     let live = true;
-    loadBlastPlan({ data: { setId } })
+    const load = () => loadBlastPlan({ data: { setId } })
       .then((p) => { if (live) setFrames(p?.frames ?? []); })
       .catch((e) => { if (live) setErr(e instanceof Error ? e.message : String(e)); });
-    return () => { live = false; };
+    load();
+    const id = window.setInterval(load, 4000);
+    return () => { live = false; window.clearInterval(id); };
   }, [setId]);
 
   // Follow the Studio: the storage event fires across windows; the poll

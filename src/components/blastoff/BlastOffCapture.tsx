@@ -39,6 +39,7 @@ import { CaptureArrows } from "./capture/arrows";
 import { useCaptureCamera } from "./capture/camera";
 import { useCapturePopout } from "./capture/popout";
 import { useCapturePrompterSyncFrame } from "./capture/prompter-sync";
+import { useTeleprompterPopout } from "./capture/teleprompter-popout";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf, type RailStatus } from "./layout";
 import { questionProgress } from "./frame-view";
@@ -152,16 +153,18 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   const cannedSuggestion = cannedSlot ? cannedPicks[cannedSlot] ?? null : null;
 
   // ---- PRACTICE: click a choice to emphasise it, click it again to resolve ----
-  // (the canvas's own rule: wrong scratches, correct confirms — with the cue).
+  // Correct no longer cues a sound here (Lee, 2026-09-06: "Remove cha ching in capture mode") —
+  // the canvas's own per-question confirmSfx toggle is untouched; this is Blast Off Film's own
+  // resolve, and it never had that toggle to begin with, it just always played. Wrong still
+  // scratches — only the correct-answer cue was asked to go.
   const [emph, setEmph] = useState<number | null>(null);
   const [resolved, setResolved] = useState<Set<number>>(() => new Set());
   const resolveChoice = useCallback((k: number) => {
     const choice = ceq?.choices[k];
-    if (resolved.has(k)) { if (choice?.correct) playSfx("chaching"); return; }
+    if (resolved.has(k)) return;
     setEmph(k);
     setResolved((r) => new Set(r).add(k));
-    if (choice?.correct) playSfx("chaching");
-    else if (choice) playSfx("vinylScratch");
+    if (choice && !choice.correct) playSfx("vinylScratch");
   }, [ceq, resolved]);
   const practice = useMemo(() => ({ emph, resolved, select: (k: number) => setEmph(k), resolveChoice }), [emph, resolved, resolveChoice]);
 
@@ -197,6 +200,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   // ---- the plug-ins: camera, arrows, teleprompter sync, the 9:16 pop-out ----
   const camera = useCaptureCamera({ hostRef, frameId: frameId ?? "" });
   const popout = useCapturePopout();
+  const openTeleprompter = useTeleprompterPopout(set.id);
   useCapturePrompterSyncFrame(set.id, frame ?? null);
   // Inside the popped-out window the chrome starts hidden — the window IS the shot.
   const [chrome, setChrome] = useState(!popout.isPopout);
@@ -319,6 +323,13 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
             <button onClick={popout.open} title="Open this page as its own 9:16 window, snapped to 1080×1920 for OBS"
               style={{ color: GOLD, background: "none", border: `1px solid ${GOLD}66`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>⧉ pop out 9:16</button>
           )}
+          {/* TELEPROMPTER POPOUT (2026-09-06): its own window, not the embedded panel below —
+              Lee: "prompter appears in the popped out one, it's in the way of filming... I can
+              place it to the side of popped out film capture." */}
+          {!popout.isPopout && (
+            <button onClick={openTeleprompter} title="Open the teleprompter in its own window — place it beside the film pop-out, off camera"
+              style={{ color: GOLD, background: "none", border: `1px solid ${GOLD}66`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>⧉ pop out teleprompter</button>
+          )}
           {popout.status && <span style={{ color: CREAM }}>{popout.status}</span>}
         </div>
       )}
@@ -339,7 +350,11 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
           {interim && <span style={{ color: MUTED }}> {interim}</span>}
         </div>
       )}
-      {prompter && (() => {
+      {/* Never inside the true film pop-out (2026-09-06, Lee: "prompter appears in the popped
+          out one, it's in the way of filming") — that window IS the shot; the teleprompter now
+          has its own separate pop-out (the button above) instead. Still shown in the main
+          window (P toggles it there) and, harmlessly, in Review/authoring contexts. */}
+      {prompter && !popout.isPopout && (() => {
         // A committed prompter line always wins; otherwise, on a canned slide (open/intro/outro/
         // bio) with nothing committed yet, the auto-picked suggestion fills the panel so Lee can
         // already rehearse with it — Lee: "I want to already have the suggested intro/outro/bio
