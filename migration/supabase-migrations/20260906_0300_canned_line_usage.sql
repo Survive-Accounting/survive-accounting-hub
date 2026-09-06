@@ -6,13 +6,14 @@
 --
 -- RLS: deny-by-default like every other new table this session — all access rides the
 -- service-role server fns in src/lib/canned-lines.functions.ts.
+-- BIO joined the same system 2026-09-06 ("can the bio slide too... same process as above").
 create table if not exists public.canned_line_usage (
   id uuid primary key default gen_random_uuid(),
   set_id text not null,
   slot text not null,
   line_id text not null,
   used_at timestamptz not null default now(),
-  constraint canned_line_usage_slot_ck check (slot in ('intro', 'outro'))
+  constraint canned_line_usage_slot_ck check (slot in ('intro', 'outro', 'bio'))
 );
 
 -- The one read is "give me the last N uses for this slot, newest first."

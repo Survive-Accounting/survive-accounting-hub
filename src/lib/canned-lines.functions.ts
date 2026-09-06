@@ -19,7 +19,7 @@ async function cannedDb(): Promise<CannedDB> {
 
 export const logCannedLineUse = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
-    setId: z.string().min(1).max(160), slot: z.enum(["intro", "outro"]), lineId: z.string().min(1).max(80),
+    setId: z.string().min(1).max(160), slot: z.enum(["intro", "outro", "bio"]), lineId: z.string().min(1).max(80),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
     const { assertAdmin } = await import("@/lib/admin-session.functions");
@@ -39,7 +39,7 @@ export const logCannedLineUse = createServerFn({ method: "POST" })
  *  and "how often lately," never a full history. Missing table → empty, not an error: nothing
  *  used yet is the normal starting state. */
 export const recentCannedLineUses = createServerFn({ method: "GET" })
-  .inputValidator((d: unknown) => z.object({ slot: z.enum(["intro", "outro"]) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ slot: z.enum(["intro", "outro", "bio"]) }).parse(d))
   .handler(async ({ data }): Promise<string[]> => {
     const { assertAdmin } = await import("@/lib/admin-session.functions");
     await assertAdmin();

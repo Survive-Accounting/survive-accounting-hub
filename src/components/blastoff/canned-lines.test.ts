@@ -3,9 +3,10 @@ import { describe, expect, test } from "bun:test";
 import { CANNED_LINES, cannedLinesFor, cannedWarnings, pickCannedLine, type CannedLine } from "./canned-lines";
 
 describe("the canned intro/outro registry", () => {
-  test("Lee's seven lines, split cleanly by slot", () => {
+  test("Lee's ten lines, split cleanly by slot", () => {
     expect(cannedLinesFor("intro")).toHaveLength(4);
     expect(cannedLinesFor("outro")).toHaveLength(3);
+    expect(cannedLinesFor("bio")).toHaveLength(3);
     for (const l of CANNED_LINES) expect(l.text.trim().length).toBeGreaterThan(0);
   });
   test("the Standard outro is weighted 3; everything else defaults to 1", () => {

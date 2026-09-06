@@ -27,8 +27,8 @@ import { buildRehearsalMessages, parseRehearsalSuggestion, type StyleExample } f
 const GOLD = "#FCA311", CREAM = "#F4EFE6", MUTED = "#9AA3B8", EDGE = "rgba(244,239,230,0.16)", INK = "#05070D", MINT = "#3BF5A0", ORANGE = "#FF9F43";
 
 /** "Intro is two slides too — wordmark and slogan, then one with topic name" (Lee). Both count,
- *  alongside the outro, as canned rather than AI-suggested. */
-const isIntroOrOutro = (k: BlastFrame["kind"]): boolean => k === "open" || k === "intro" || k === "outro";
+ *  alongside the outro and the bio, as canned rather than AI-suggested. */
+const isCannedFrameKind = (k: BlastFrame["kind"]): boolean => k === "open" || k === "intro" || k === "outro" || k === "bio";
 
 function slideContextFor(f: BlastFrame, ceqById: Map<string, { stem: string }>): string {
   if (f.kind === "ceq" && f.ceqId) return ceqById.get(f.ceqId)?.stem ?? "";
@@ -48,7 +48,7 @@ export function RehearsalReview({ set, frames, ceqById, segments, onCommitLine, 
   // Intro/outro NEVER go through the AI suggester — Lee: "teleprompter really only needs to
   // generate for non intro/outro slides." They're canned (CannedPickerSection below), even if
   // Lee happened to talk over them while walking through in rehearsal mode.
-  const candidates = useMemo(() => frames.filter((f) => !isIntroOrOutro(f.kind) && (segments[f.id] ?? "").trim()), [frames, segments]);
+  const candidates = useMemo(() => frames.filter((f) => !isCannedFrameKind(f.kind) && (segments[f.id] ?? "").trim()), [frames, segments]);
   const [examples, setExamples] = useState<StyleExample[]>([]);
   const [suggestions, setSuggestions] = useState<Record<string, SlideSuggestion>>({});
   const [done, setDone] = useState<Set<string>>(new Set());
@@ -204,7 +204,10 @@ function CannedPickerSection({ setId, frames, onCommitLine }: {
   const openFrame = useMemo(() => frames.find((f) => f.kind === "open"), [frames]);
   const introFrame = useMemo(() => frames.find((f) => f.kind === "intro"), [frames]);
   const outroFrame = useMemo(() => frames.find((f) => f.kind === "outro"), [frames]);
-  if (!openFrame && !introFrame && !outroFrame) return null;
+  // "I'm planning to try the bio in different places" (Lee) — found by kind, not position, so
+  // moving it around the running order never breaks this picker.
+  const bioFrame = useMemo(() => frames.find((f) => f.kind === "bio"), [frames]);
+  if (!openFrame && !introFrame && !outroFrame && !bioFrame) return null;
 
   return (
     <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -213,6 +216,7 @@ function CannedPickerSection({ setId, frames, onCommitLine }: {
         <CannedSlotPicker slot="intro" setId={setId}
           onUse={(text) => { if (openFrame) onCommitLine(openFrame.id, text); if (introFrame) onCommitLine(introFrame.id, text); }} />
       )}
+      {bioFrame && <CannedSlotPicker slot="bio" setId={setId} onUse={(text) => onCommitLine(bioFrame.id, text)} />}
       {outroFrame && <CannedSlotPicker slot="outro" setId={setId} onUse={(text) => onCommitLine(outroFrame.id, text)} />}
     </div>
   );
@@ -248,7 +252,7 @@ function CannedSlotPicker({ slot, setId, onUse }: { slot: CannedSlot; setId: str
   return (
     <div style={{ border: `1px solid ${used ? MINT + "55" : EDGE}`, borderRadius: 12, padding: "12px 14px", opacity: used ? 0.6 : 1 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: GOLD }}>{slot === "intro" ? "Intro" : "Outro"}</span>
+        <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: GOLD }}>{slot === "intro" ? "Intro" : slot === "outro" ? "Outro" : "Bio"}</span>
         {used && <span style={{ fontSize: 11, color: MINT }}>✓ kept</span>}
         <select value={selectedId ?? ""} onChange={(e) => setSelectedId(e.target.value)} disabled={used}
           style={{ marginLeft: "auto", background: "rgba(255,255,255,0.04)", border: `1px solid ${EDGE}`, borderRadius: 8, padding: "4px 8px", color: CREAM, font: "inherit", fontSize: 12.5 }}>

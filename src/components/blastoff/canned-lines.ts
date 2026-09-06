@@ -12,8 +12,12 @@
 // "Intro is two slides too... wordmark and slogan then one with topic name" — one spoken line
 // covers BOTH the "open" and "intro" frame kinds (RehearsalReview writes the same text to both,
 // so the prompter panel keeps reading correctly whichever of the two is up when the take rolls).
-// Usage is still logged ONCE per commit, keyed by slot ("intro" or "outro"), not per frame.
-export type CannedSlot = "intro" | "outro";
+// Usage is still logged ONCE per commit, keyed by slot ("intro"/"outro"/"bio"), not per frame.
+//
+// BIO joined the same system 2026-09-06 ("can the bio slide too... same process as above. Also,
+// I'm planning to try the bio in different places.") — the picker keys off frame.kind === "bio"
+// wherever that frame actually sits in the running order, so moving it around never breaks this.
+export type CannedSlot = "intro" | "outro" | "bio";
 
 export interface CannedLine {
   id: string;
@@ -34,6 +38,9 @@ export const CANNED_LINES: readonly CannedLine[] = [
   { id: "outro-standard", slot: "outro", title: "Standard", text: "Hope this helped. Thanks for using Survive.", weight: 3 },
   { id: "outro-more-like-this", slot: "outro", title: "More Like This", text: "That's it. A lot more like this at surviveaccounting.com." },
   { id: "outro-exam1-free", slot: "outro", title: "Exam 1 Free", text: "Exam 1 is completely free. Go get it — surviveaccounting.com." },
+  { id: "bio-ten-years", slot: "bio", title: "Ten Years", text: "I've tutored this for 10 years." },
+  { id: "bio-1000-students", slot: "bio", title: "1000 Students", text: "I've tutored over 1000 students." },
+  { id: "bio-love-helping", slot: "bio", title: "Love Helping", text: "I love helping students in this course." },
 ];
 
 export function cannedLinesFor(slot: CannedSlot, lines: readonly CannedLine[] = CANNED_LINES): CannedLine[] {
