@@ -106,6 +106,7 @@ import { Route as ApiPracticePackRouteImport } from './routes/api.practice-pack'
 import { Route as ApiBackfillRouteImport } from './routes/api.backfill'
 import { Route as AdminSiteQaRouteImport } from './routes/admin.site-qa'
 import { Route as AdminRepsRouteImport } from './routes/admin.reps'
+import { Route as AdminProductionRouteImport } from './routes/admin.production'
 import { Route as AdminIdeasRouteImport } from './routes/admin.ideas'
 import { Route as AdminGrowthRouteImport } from './routes/admin.growth'
 import { Route as SchoolRepRouteImport } from './routes/$school.rep'
@@ -669,6 +670,11 @@ const AdminRepsRoute = AdminRepsRouteImport.update({
   path: '/admin/reps',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminProductionRoute = AdminProductionRouteImport.update({
+  id: '/admin/production',
+  path: '/admin/production',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminIdeasRoute = AdminIdeasRouteImport.update({
   id: '/admin/ideas',
   path: '/admin/ideas',
@@ -1094,6 +1100,7 @@ export interface FileRoutesByFullPath {
   '/$school/rep': typeof SchoolRepRoute
   '/admin/growth': typeof AdminGrowthRouteWithChildren
   '/admin/ideas': typeof AdminIdeasRoute
+  '/admin/production': typeof AdminProductionRoute
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
@@ -1264,6 +1271,7 @@ export interface FileRoutesByTo {
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
   '/admin/ideas': typeof AdminIdeasRoute
+  '/admin/production': typeof AdminProductionRoute
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
   '/api/practice-pack': typeof ApiPracticePackRoute
@@ -1435,6 +1443,7 @@ export interface FileRoutesById {
   '/$school/rep': typeof SchoolRepRoute
   '/admin/growth': typeof AdminGrowthRouteWithChildren
   '/admin/ideas': typeof AdminIdeasRoute
+  '/admin/production': typeof AdminProductionRoute
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
@@ -1609,6 +1618,7 @@ export interface FileRouteTypes {
     | '/$school/rep'
     | '/admin/growth'
     | '/admin/ideas'
+    | '/admin/production'
     | '/admin/reps'
     | '/admin/site-qa'
     | '/api/backfill'
@@ -1779,6 +1789,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/$school/rep'
     | '/admin/ideas'
+    | '/admin/production'
     | '/admin/site-qa'
     | '/api/backfill'
     | '/api/practice-pack'
@@ -1949,6 +1960,7 @@ export interface FileRouteTypes {
     | '/$school/rep'
     | '/admin/growth'
     | '/admin/ideas'
+    | '/admin/production'
     | '/admin/reps'
     | '/admin/site-qa'
     | '/api/backfill'
@@ -2122,6 +2134,7 @@ export interface RootRouteChildren {
   SchoolRepRoute: typeof SchoolRepRoute
   AdminGrowthRoute: typeof AdminGrowthRouteWithChildren
   AdminIdeasRoute: typeof AdminIdeasRoute
+  AdminProductionRoute: typeof AdminProductionRoute
   AdminRepsRoute: typeof AdminRepsRouteWithChildren
   AdminSiteQaRoute: typeof AdminSiteQaRoute
   ApiBackfillRoute: typeof ApiBackfillRoute
@@ -2864,6 +2877,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/reps'
       fullPath: '/admin/reps'
       preLoaderRoute: typeof AdminRepsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/production': {
+      id: '/admin/production'
+      path: '/admin/production'
+      fullPath: '/admin/production'
+      preLoaderRoute: typeof AdminProductionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/ideas': {
@@ -3644,6 +3664,7 @@ const rootRouteChildren: RootRouteChildren = {
   SchoolRepRoute: SchoolRepRoute,
   AdminGrowthRoute: AdminGrowthRouteWithChildren,
   AdminIdeasRoute: AdminIdeasRoute,
+  AdminProductionRoute: AdminProductionRoute,
   AdminRepsRoute: AdminRepsRouteWithChildren,
   AdminSiteQaRoute: AdminSiteQaRoute,
   ApiBackfillRoute: ApiBackfillRoute,

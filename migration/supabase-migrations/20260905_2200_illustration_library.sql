@@ -31,6 +31,10 @@ create table if not exists public.illustration_library (
   asset_url text not null,
   asset_path text not null,
   seed bigint null,
+  -- Recraft's own credits, converted to dollars (1000 credits = $1) — the generation call plus
+  -- the removeBackground cutout and, when attached, the reference-photo style creation, already
+  -- summed by recraft.server.ts. Lee, 2026-09-05: "for anything generative, let it track costs."
+  cost_usd numeric null,
   created_by text null,
   generated_at timestamptz not null default now()
 );

@@ -336,7 +336,7 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
                 <img src={row.assetUrl} alt={row.title ?? row.prompt} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: 11.5, fontWeight: 700, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.title || row.prompt}</div>
-                  <div style={{ fontSize: 10, color: MUTED }}>{new Date(row.generatedAt).toLocaleDateString()}{row.createdBy ? ` · ${row.createdBy}` : ""}</div>
+                  <div style={{ fontSize: 10, color: MUTED }}>{new Date(row.generatedAt).toLocaleDateString()}{row.createdBy ? ` · ${row.createdBy}` : ""}{row.costUsd !== null ? ` · $${row.costUsd.toFixed(2)}` : ""}</div>
                 </div>
                 <button type="button" onClick={() => useLibraryRow(row)} style={chip(false, MINT)} title="Attach this picture to the current slide — free, no generation">use this</button>
                 {sel.kind === "blank" && <button type="button" onClick={() => pairLibraryRow(row)} style={chip(ill?.pairedAssetUrl === row.assetUrl, GOLD)} title="Show this beside the slide's own picture">📎 beside</button>}

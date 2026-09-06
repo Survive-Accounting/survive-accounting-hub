@@ -31,6 +31,7 @@ export interface CategoryDef {
 export const BUILT_IN_CATEGORIES: readonly CategoryDef[] = [
   // ---- the business, most important first
   { key: "SURVIVEACCOUNTING", label: "SurviveAccounting.com", side: "work", hint: "the app itself — pages, slides, filming tools, the Idea Bank, infrastructure, anything students touch" },
+  { key: "PRODUCTION_EFFICIENCY", label: "Production Efficiency", side: "work", hint: "making a video faster or cheaper to produce — Talkthrough, Review, Film, Post: a slow step, a manual one that should be automatic, a bottleneck" },
   { key: "LEARN_DASHBOARD", label: "Learn dashboard", side: "work", hint: "/learn — the feed, the Shorts player, the share links, what a chapter sees" },
   { key: "CAMPUS_REPS", label: "Campus reps", side: "work", hint: "the rep program — recruiting, the rep kit, rep pages, payouts" },
   { key: "SCHOLARSHIP_CHAIRS", label: "Scholarship chairs", side: "work", hint: "Greek chapter scholarship chairs — outreach, the chair experience, chapter pages" },

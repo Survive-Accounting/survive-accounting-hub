@@ -113,7 +113,8 @@ export const generateIllustration = createServerFn({ method: "POST" })
       const { error: libErr } = await db.from("illustration_library").insert({
         set_id: data.setId, frame_id: data.frameId, title: data.title ?? null, prompt,
         teaching_intent: data.teachingIntent ?? null, style_preset: style.id, style_version: style.version,
-        asset_url: pub.publicUrl, asset_path: path, seed, created_by: data.who ?? null, generated_at: generatedAt,
+        asset_url: pub.publicUrl, asset_path: path, seed, cost_usd: result.credits === null ? null : result.credits / 1000,
+        created_by: data.who ?? null, generated_at: generatedAt,
       });
       if (libErr) {
         if (isMissingLibrary(libErr)) console.warn("[illustrate] library not catalogued — run migration/supabase-migrations/20260905_2200_illustration_library.sql");
@@ -129,7 +130,7 @@ export const generateIllustration = createServerFn({ method: "POST" })
 
 export interface LibraryRow {
   id: string; frameId: string; title: string | null; prompt: string; assetUrl: string;
-  stylePreset: string; styleVersion: number; seed: number | null; createdBy: string | null; generatedAt: string;
+  stylePreset: string; styleVersion: number; seed: number | null; costUsd: number | null; createdBy: string | null; generatedAt: string;
 }
 
 /** THE LIBRARY, for one CEQ set — every illustration ever generated for it, newest first, free
@@ -142,7 +143,7 @@ export const listIllustrationLibrary = createServerFn({ method: "GET" })
     await assertAdmin();
     const db = await libraryDb();
     const { data: rows, error } = await db.from("illustration_library")
-      .select("id,frame_id,title,prompt,asset_url,style_preset,style_version,seed,created_by,generated_at")
+      .select("id,frame_id,title,prompt,asset_url,style_preset,style_version,seed,cost_usd,created_by,generated_at")
       .eq("set_id", data.setId).order("generated_at", { ascending: false }).limit(200);
     if (error) { if (isMissingLibrary(error)) return { rows: [] }; throw new Error(`Could not load the library: ${error.message}`); }
     // seed is bigint (int8) in Postgres — supabase-js hands those back as strings to protect
@@ -150,6 +151,8 @@ export const listIllustrationLibrary = createServerFn({ method: "GET" })
     return { rows: (rows ?? []).map((r: Record<string, unknown>) => ({
       id: r.id as string, frameId: r.frame_id as string, title: r.title as string | null, prompt: r.prompt as string,
       assetUrl: r.asset_url as string, stylePreset: r.style_preset as string, styleVersion: r.style_version as number,
-      seed: r.seed === null || r.seed === undefined ? null : Number(r.seed), createdBy: r.created_by as string | null, generatedAt: r.generated_at as string,
+      seed: r.seed === null || r.seed === undefined ? null : Number(r.seed),
+      costUsd: r.cost_usd === null || r.cost_usd === undefined ? null : Number(r.cost_usd),
+      createdBy: r.created_by as string | null, generatedAt: r.generated_at as string,
     })) };
   });
