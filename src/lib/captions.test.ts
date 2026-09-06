@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { assFromCards, assTime, cardsFromWords, shortsStyle, splitLines, srtFromCards, srtTime, type Word } from "./captions";
+import { assFromCards, assTime, cardsFromWords, excludeRanges, shortsStyle, splitLines, srtFromCards, srtTime, type Word } from "./captions";
 
 function words(text: string, start = 0, per = 0.3): Word[] {
   return text.split(" ").map((t, i) => ({ t, s: start + i * per, e: start + i * per + per * 0.8 }));
@@ -30,6 +30,23 @@ describe("caption cards", () => {
     expect(two).toHaveLength(2);
     expect(two[0].map((w) => w.t).join(" ")).toBe("managers inside");
     expect(splitLines(words("plan control"), 16)).toHaveLength(1);
+  });
+});
+
+describe("excludeRanges — 2026-09-05: \"ensure captions don't run on an ad slide\"", () => {
+  test("drops every word inside a skip range, keeps the rest untouched", () => {
+    const w = words("one two three four five", 0, 1);   // one@0-.8 two@1-1.8 three@2-2.8 four@3-3.8 five@4-4.8
+    const cut = excludeRanges(w, [{ start: 1.5, end: 3.5 }]);
+    expect(cut.map((x) => x.t)).toEqual(["one", "five"]);   // two, three, four all overlap the range
+  });
+  test("a word straddling a boundary is dropped whole, never split", () => {
+    const w: Word[] = [{ t: "ad-word", s: 9.9, e: 10.5 }];
+    expect(excludeRanges(w, [{ start: 10, end: 12 }])).toEqual([]);
+  });
+  test("multiple ranges, and no ranges at all", () => {
+    const w = words("a b c d e", 0, 1);   // a@0-.8 b@1-1.8 c@2-2.8 d@3-3.8 e@4-4.8
+    expect(excludeRanges(w, [{ start: 0.9, end: 1.9 }, { start: 2.9, end: 3.9 }]).map((x) => x.t)).toEqual(["a", "c", "e"]);
+    expect(excludeRanges(w, [])).toEqual(w);
   });
 });
 

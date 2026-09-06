@@ -1,6 +1,6 @@
 // CAPTIONS — bake Shorts captions onto a take. Run with Bun, on this PC:
 //
-//   bun run captions <take.mp4> [--cam home|none | --wide] [--out <file>] [--dry] [--words <file.json>]
+//   bun run captions <take.mp4> [--cam home|none | --wide] [--out <file>] [--dry] [--words <file.json>] [--skip start-end ...]
 //
 // What it does, in order:
 //   1. finds ffmpeg (PATH, then the winget install, then $FFMPEG) — or tells you how to install it
@@ -15,12 +15,15 @@
 //
 // --dry stops after step 4 and prints the cards. --words reuses a saved
 // words file (no Whisper call). --cam none uses the whole width (no camera
-// on the slide). Nothing here touches the database.
+// on the slide). --skip start-end (repeatable, seconds into the take) drops every word in that
+// window before any card is built — the way to make sure captions never run on an ad slide
+// (2026-09-05): scrub the take to find where the ad starts and ends, then e.g.
+// --skip 18.4-26.9. Nothing here touches the database.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
-import { assFromCards, captionLineCharsFor, cardsFromWords, shortsStyle, srtFromCards, type Word } from "../src/lib/captions";
+import { assFromCards, captionLineCharsFor, cardsFromWords, excludeRanges, shortsStyle, srtFromCards, type TimeRange, type Word } from "../src/lib/captions";
 
 const RUBIK_URL = "https://github.com/googlefonts/rubik/raw/main/fonts/ttf/Rubik-Black.ttf";
 const FONT_DIR = resolve(import.meta.dir, "captions-fonts");
@@ -29,6 +32,24 @@ function fail(msg: string): never { console.error(`\n✗ ${msg}\n`); process.exi
 
 function arg(name: string): string | undefined { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; }
 const flag = (name: string) => process.argv.includes(name);
+/** Every value for a repeatable flag — --skip is given once per range to cut. */
+function args(name: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < process.argv.length; i++) if (process.argv[i] === name && process.argv[i + 1]) out.push(process.argv[i + 1]);
+  return out;
+}
+/** "12.5-14" → {start:12.5, end:14} — ad-slide time ranges to cut from the captions entirely
+ *  (Lee, 2026-09-05: "ensure captions don't run on an ad slide"). Scrub the take to find the
+ *  numbers; captions have no idea which slide is on screen, so this is how you tell it. */
+function parseSkipRanges(): TimeRange[] {
+  return args("--skip").map((s) => {
+    const m = /^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/.exec(s.trim());
+    if (!m) fail(`--skip wants start-end in seconds, e.g. --skip 12.5-14 — got "${s}"`);
+    const start = Number(m[1]), end = Number(m[2]);
+    if (end <= start) fail(`--skip ${s}: end must be after start`);
+    return { start, end };
+  });
+}
 
 function loadDotEnv(): void {
   for (const p of [resolve(import.meta.dir, "..", ".env"), resolve(import.meta.dir, "..", "..", "sa-growth-dashboard", ".env")]) {
@@ -108,12 +129,13 @@ function filterPath(p: string): string { return p.replace(/\\/g, "/").replace(/:
 
 async function main() {
   const input = process.argv[2];
-  if (!input || input.startsWith("--")) fail("usage: bun run captions <take.mp4> [--cam home|none] [--out <file>] [--dry] [--words <file.json>]");
+  if (!input || input.startsWith("--")) fail("usage: bun run captions <take.mp4> [--cam home|none] [--out <file>] [--dry] [--words <file.json>] [--skip start-end ...]");
   const take = resolve(input);
   if (!existsSync(take)) fail(`no such file: ${take}`);
   loadDotEnv();
   const cam = (flag("--wide") ? "none" : (arg("--cam") ?? "home")) as "home" | "none";
   if (cam !== "home" && cam !== "none") fail("--cam must be home or none");
+  const skip = parseSkipRanges();
   const stem = join(dirname(take), basename(take, extname(take)));
   const out = arg("--out") ?? `${stem}.captioned.mp4`;
 
@@ -136,6 +158,12 @@ async function main() {
     words = await whisperWords(wav, key);
     writeFileSync(`${stem}.words.json`, JSON.stringify(words, null, 1));
     console.log(`  ${words.length} words → ${basename(stem)}.words.json`);
+  }
+
+  if (skip.length) {
+    const before = words.length;
+    words = excludeRanges(words, skip);
+    console.log(`  --skip ${skip.map((r) => `${r.start}-${r.end}`).join(", ")} → ${before - words.length} word(s) cut (ad slide, no captions there)`);
   }
 
   // The rail decides the line width: cards break where the burned text would.

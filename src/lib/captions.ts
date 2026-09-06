@@ -15,6 +15,18 @@ import { CAPTION_RAIL, captionLineChars } from "../components/blastoff/layout";
 
 export interface Word { t: string; s: number; e: number }
 
+export interface TimeRange { start: number; end: number }
+
+/** Drop every word inside any of the given ranges — the way to make sure captions never run on
+ *  an ad slide (Lee, 2026-09-05): captions are burned from the take's spoken audio alone, with
+ *  no idea which slide was on screen when, so excluding a segment means naming its start and end
+ *  in seconds (scripts/captions.ts --skip start-end, repeatable — read them off the take while
+ *  scrubbing to the ad slide). A word straddling a boundary is dropped whole, never split. */
+export function excludeRanges(words: readonly Word[], ranges: readonly TimeRange[]): Word[] {
+  if (!ranges.length) return [...words];
+  return words.filter((w) => !ranges.some((r) => w.s < r.end && w.e > r.start));
+}
+
 export interface CaptionCard {
   s: number; e: number;
   /** One or two lines, each a list of words in order. */
