@@ -104,44 +104,43 @@ export interface IllustrationStyle {
   defaultAnimation: AnimationPreset;
 }
 
-// SURVIVE WATERCOLOR v2 — the house default. v1 (Lee, 2026-09-05, on the monoline-on-black
+// SURVIVE WATERCOLOR v4 — the house default. v1 (Lee, 2026-09-05, on the monoline-on-black
 // experiment: "white pencil drawn isn't going to work. We need SOME colour... watercolor
-// maybe?... I don't think we want faces really. We can opt for behind the head... walking up
-// the stairs to the NYSE") landed well on four real test pictures — Lee: "the stock exchange
-// one... pretty nice", "the black and white people worked pretty well for board of directors" —
-// but flagged one concrete defect: "The black on black in particular [needs fixing]... The
-// paycheck one didn't quite land" (a suited figure rendered dark-on-dark, disappearing into the
-// generation ground). v2 fixes exactly that: the ink outline is now named a specific warm colour
-// instead of left to the model's own (evidently black-leaning) default, and no fill or outline
-// may go true black or near-black even for a realistically dark subject like a suit — so nothing
-// can vanish once the white paper is stripped to alpha, regardless of how dark the wash itself
-// reads. Also new: a person defaults to reading young — entry-level, not a generic older
-// professional — matching who Survive is actually teaching (Lee: "shouldn't these people look
-// more like younger college entry level grads?"); a request that specifically wants someone
-// senior (a board, an executive) still gets one, per illustration-brief.ts's own PEOPLE rule.
-// Bumping the version is what makes this apply to work already done, on request, without
-// retyping anything: any picture stamped v1 shows "stale — regenerate" the moment this ships,
-// and Regenerate reuses the exact same brief — the subject never changes, only the render.
+// maybe?") landed well on four real test pictures but flagged one defect: "the black on black
+// in particular" (a suited figure rendered dark-on-dark, disappearing into the generation
+// ground). v2 fixed that by naming the ink outline a warm colour and banning true black or
+// near-black from any fill. v3 fixed the hole v2's own fix opened in the exact place Lee found
+// it — a face: pushing every fill away from black landed skin on near-white, and near-white
+// sits right next to the generation ground (also white), so removeBackground's cutout couldn't
+// tell "pale skin" from "the white page" and cut it away, reading as a solid black face. v3's
+// fix: every fill sits in a visible MIDDLE band, clearly darker than white and clearly lighter
+// than black — skin named explicitly, since that was the one place v2 pushed toward "light"
+// without saying how light is still safe.
+//
+// v4 (2026-09-06, Lee relaying feedback from elsewhere on why "watercolor" alone sometimes reads
+// splotchy — "paint bleeds, uneven opacity, muddy faces, random splatters, washed-out edges" —
+// on a construction-worker generation that had real marks but wouldn't survive two seconds at
+// phone size): the wash now stays CONTAINED inside the ink line instead of being told it may
+// bleed loosely at the edges — magazine-editorial-and-screen-print, watercolor as texture rather
+// than the whole instruction. The v2/v3 color-safety rules are NOT relaxed: the "never black,
+// never near-white" middle-band rule stays exactly as it was — that was an empirical fix for a
+// real Recraft failure mode (the model doesn't reliably paint a plain white background, so a
+// same-tone element can vanish into whatever it actually rendered), and generic illustration
+// advice from outside this codebase has no way to know that. Also new: "one clear subject,
+// minimal secondary objects" and an explicit phone-scannability line, both said plainly rather
+// than implied. Bumping the version is what makes this apply to work already done, on request,
+// without retyping anything: any picture stamped older than 4 shows "stale — regenerate," and
+// Regenerate reuses the exact same brief — the subject never changes, only the render.
 export const ILLUSTRATION_STYLES: Record<string, IllustrationStyle> = {
   "survive-watercolor": {
     id: "survive-watercolor",
-    version: 3,
+    version: 4,
     label: "Survive Watercolor",
     provider: "recraft",
     model: "recraftv4_1",
     size: "1024x1024",
     promptPrefix: "A single illustration of ",
-    // v3 (2026-09-06): the v2 fix for "black on black" caused a NEW hole in the exact place Lee
-    // found it — a face. Pushing every fill away from black landed skin on near-white instead,
-    // and near-white sits right next to the generation ground itself (also white — see
-    // recraft.server.ts's own note on why): removeBackground's cutout doesn't distinguish "pale
-    // skin" from "the white page," so it cut the face away as if it were background, leaving a
-    // transparent hole that shows Lee's own dark slide through it — reading as a solid black
-    // face, not a rendering choice at all. The real fix is the same idea in both directions at
-    // once: every fill has to sit in a visible MIDDLE band, clearly darker than the white ground
-    // and clearly lighter than black, with skin named explicitly since it's the one area v2
-    // pushed toward "light" without saying how light is still safe.
-    promptSuffix: ", on a plain white background, filling most of the frame with only a small even margin around it. A loose, slightly imperfect ink outline in a warm dark brown — never black or near-black — gently filled with a warm, muted watercolor wash. Every fill sits clearly between the two extremes: never true black or near-black (a suit, a shadow), and never white or near-white either (skin, a pale shirt) — a fill that pale is indistinguishable from the white background and gets cut away with it, leaving a hole. Skin and faces are always a warm tan, light brown, or warm peach, visibly darker than the white page. Soft bleeding at the edges, a little visible paper texture, painterly but simple, a strong clear silhouette, at most two or three shapes so it reads instantly on a phone. If it includes a person, show them from behind, from the side, with their head turned away, or cropped out of frame — never a detailed front-facing face. No text, no logos, no signature, no photorealism, no glossy cartoon shading, no clip-art look.",
+    promptSuffix: ", on a plain white background, filling most of the frame with only a small even margin around it. Bold editorial ink illustration: a clean, controlled hand-drawn outline in a warm dark brown — never black or near-black — with a watercolor fill that stays CONTAINED inside that line. No paint splatters, no muddy or uneven washes, no cloudy or bleeding backgrounds, no loose bleeding edges outside the outline — the wash is texture, not the whole picture. Every fill sits clearly between the two extremes: never true black or near-black (a suit, a shadow), and never white or near-white either (skin, a pale shirt) — a fill that pale is indistinguishable from the white background and gets cut away with it, leaving a hole. Skin and faces are always a warm tan, light brown, or warm peach, visibly darker than the white page. Subtle paper texture, high contrast, simplified shapes, a strong readable silhouette, one clear subject with minimal secondary objects and no unnecessary detail, at most two or three shapes total — designed to be immediately recognizable at small mobile-screen size, on screen for as little as two seconds. Vintage educational magazine illustration, modern composition. If it includes a person, show them from behind, from the side, with their head turned away, or cropped out of frame — never a detailed front-facing face. No text, no logos, no signature, no photorealism, no glossy cartoon shading, no clip-art look.",
     controls: { background_color: { rgb: [255, 255, 255] }, colors: [{ rgb: [252, 163, 17], weight: 0.35 }, { rgb: [0, 107, 166], weight: 0.3 }] },
     styleIdEnv: "RECRAFT_STYLE_ID_WATERCOLOR",
     defaultAnimation: "drift",

@@ -154,17 +154,19 @@ const LAYOUT_CARD = { prompt: "**LAYOUT** — the question card deals here", cho
 /** In the film popout the resize grips are HOVER-ONLY (like the real canvas film
  *  mode) — invisible on camera, but there when Lee reaches in to nudge a card. */
 export const PV_CSS = `
-/* THE NEON LABEL (Lee, 2026-09-03) — a detour card's kind name breathes like a
-   neon tube: a slow brightness swell with one quick flicker, in the kind's own
-   colour (--neon). Motion only under .film-mode, like the world backdrops. */
+/* THE NEON LABEL — a detour card's kind name, in the kind's own colour (--neon). Motion only
+   under .film-mode, like the world backdrops.
+   v2 (2026-09-06, Lee relaying feedback from elsewhere): the original had TWO flickers packed
+   into its cycle (a double dip-then-flare near the midpoint) — busy enough to read as blinking
+   in a 30–60s Short, which is exactly what that feedback warned against. Now it's an old
+   arcade/status-indicator light, not a SaaS shimmer: rest at a steady low glow, one clean
+   brightness surge (~500ms of a 2.75s loop), a slow fade back to rest — once every 2.75s, never
+   a flicker. */
 @keyframes sa-neon {
-  0%, 100% { opacity: 1; text-shadow: 0 0 6px var(--neon), 0 0 18px color-mix(in srgb, var(--neon) 45%, transparent); }
-  46% { opacity: 0.88; text-shadow: 0 0 4px var(--neon), 0 0 10px color-mix(in srgb, var(--neon) 30%, transparent); }
-  49% { opacity: 1; text-shadow: 0 0 10px var(--neon), 0 0 28px color-mix(in srgb, var(--neon) 60%, transparent); }
-  52% { opacity: 0.8; text-shadow: 0 0 3px var(--neon), 0 0 8px color-mix(in srgb, var(--neon) 25%, transparent); }
-  55% { opacity: 1; text-shadow: 0 0 8px var(--neon), 0 0 22px color-mix(in srgb, var(--neon) 55%, transparent); }
+  0%, 78%, 100% { opacity: 0.92; text-shadow: 0 0 5px var(--neon), 0 0 14px color-mix(in srgb, var(--neon) 35%, transparent); }
+  10% { opacity: 1; text-shadow: 0 0 11px var(--neon), 0 0 28px color-mix(in srgb, var(--neon) 62%, transparent); }
 }
-.film-mode .sa-neon-label { animation: sa-neon 5.5s ease-in-out infinite; }
+.film-mode .sa-neon-label { animation: sa-neon 2.75s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .film-mode .sa-neon-label { animation: none; } }
 /* THE TYPEWRITER (Lee, 2026-09-03) — a detour card's heading types in, then each
    line under it, word by word, quick: ~45 ms a word, so a five-line card is on
