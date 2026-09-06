@@ -94,6 +94,19 @@ const field: React.CSSProperties = {
 };
 const eyebrow: React.CSSProperties = { fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, fontWeight: 800 };
 const subhead: React.CSSProperties = { fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTED, fontWeight: 800 };
+// PROFESSOR PASS (Lee, 2026-09-06: "make this look... like a professor would be using
+// it"). One small change reused everywhere: a hairline rule under a section's header
+// row, the way a printed syllabus rules off "Section 2" from what sits under it —
+// spread into every header row's own style rather than a new wrapper, so nothing
+// about the columns' structure changes. Chips, colors and copy are untouched.
+const HEAD_RULE: React.CSSProperties = { borderBottom: `1px solid ${EDGE}`, paddingBottom: 8 };
+/** A slide's kind, read as a stamped tag rather than plain colored text — the
+ *  same information (colorOf/labelOf), boxed like a card catalog label. */
+const kindTag = (color: string): React.CSSProperties => ({
+  fontSize: 9.5, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color,
+  border: `1px solid ${color}55`, borderRadius: 4, padding: "1px 5px", minWidth: 92,
+  textAlign: "center", boxSizing: "border-box", flexShrink: 0,
+});
 
 // THE RIGHT PANEL has two faces (Lee, 2026-09-04: "Teleprompter maybe can be
 // toggleable between editor / teleprompter"). The face he left it on is
@@ -124,6 +137,18 @@ const SPINE_CSS = `
 .sa-spine-row:hover .sa-spine-tools,.sa-spine-row.is-on .sa-spine-tools,.sa-spine-row.is-menu .sa-spine-tools,.sa-spine-row .sa-spine-tools:focus-within{opacity:1}
 .sa-slide-menu button:hover{background:rgba(255,255,255,0.06)}
 `;
+
+// THE SKIPPED FOLDER (Lee, 2026-09-06: "once a slide is skipped, move it to bottom
+// in a skipped folder... make this look like an actual folder on a desktop"). A
+// shade warmer than the spine's own panel so it reads as manila against navy —
+// its own surface, not just another row — and the same three tones the professor
+// pass's hairline rule already uses, just tinted gold instead of neutral.
+const FOLDER_TAB = "rgba(252,163,17,0.16)";
+const FOLDER_BODY = "rgba(252,163,17,0.05)";
+const FOLDER_EDGE = "rgba(252,163,17,0.34)";
+const SKIP_FOLDER_KEY = "sa-review-skip-folder";
+const readFolderOpen = (): boolean => { try { return localStorage.getItem(SKIP_FOLDER_KEY) === "open"; } catch { return false; } };
+const writeFolderOpen = (v: boolean): void => { try { localStorage.setItem(SKIP_FOLDER_KEY, v ? "open" : "closed"); } catch { /* storage refused — it just won't stick */ } };
 
 // THE SLIDE'S MENU (Lee, 2026-09-04: "for any slides, give them a … menu with
 // any settings, tools, etc relevant to that slide. Maybe put that menu to
@@ -166,6 +191,37 @@ function SlideMenu({ items, chips, onClose }: { items: MenuItem[]; chips: MenuCh
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** THE FOLDER ITSELF — a tab riding above a body, the way a manila folder sits on
+ *  a desktop. Skipped cards keep their real place in the plan (see toggleSkip in
+ *  plan.ts); nothing here reorders the running order or touches backdropFor —
+ *  this only changes where the SPINE DRAWS them. Un-skipping one just stops
+ *  hiding it, and it is already sitting at its real position — there is no
+ *  "remembered slot" to put it back in, because it never actually left. */
+function SkipFolder({ count, open, onToggle, children }: { count: number; open: boolean; onToggle: () => void; children: ReactNode }) {
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button type="button" onClick={onToggle} aria-expanded={open}
+        title={open ? "Collapse the skipped folder" : "Expand the skipped folder"}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6, position: "relative", top: 1, zIndex: 1,
+          background: FOLDER_TAB, border: `1px solid ${FOLDER_EDGE}`, borderBottom: "none",
+          borderRadius: "7px 7px 0 0", padding: "5px 12px", cursor: "pointer",
+          fontSize: 10.5, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: GOLD,
+        }}>
+        <span aria-hidden>{open ? "📂" : "📁"}</span> Skipped <span style={{ color: MUTED }}>· {count}</span>
+        <span aria-hidden style={{ fontSize: 9, color: MUTED }}>{open ? "▾" : "▸"}</span>
+      </button>
+      <div style={{
+        background: FOLDER_BODY, border: `1px solid ${FOLDER_EDGE}`, borderRadius: "0 8px 8px 8px",
+        padding: open ? 8 : "0 8px", maxHeight: open ? 4000 : 0, overflow: "hidden",
+        transition: "max-height .15s ease",
+      }}>
+        {open && <div className="flex flex-col" style={{ gap: 5 }}>{children}</div>}
+      </div>
     </div>
   );
 }
@@ -245,6 +301,12 @@ export function ReviewDeck({ set, topic, doc, register }: {
   const [menuId, setMenuId] = useState<string | null>(null);
   const closeMenu = useCallback(() => setMenuId(null), []);
   useEffect(() => { if (menuId && !frames.some((f) => f.id === menuId)) setMenuId(null); }, [frames, menuId]);
+
+  // THE SKIPPED FOLDER's open/closed state (Lee, 2026-09-06) — remembered per
+  // browser like the right panel's face; closed by default, since the point of
+  // the folder is to get skipped cards out of the way.
+  const [folderOpen, setFolderOpenState] = useState<boolean>(readFolderOpen);
+  const setFolderOpen = useCallback((v: boolean) => { setFolderOpenState(v); writeFolderOpen(v); }, []);
 
   // SPACE / SHIFT+SPACE walk the slides (Lee: "I like to do this to prep
   // myself to film through them") — the same keys as film mode. Never while
@@ -346,16 +408,82 @@ export function ReviewDeck({ set, topic, doc, register }: {
   const skipped = frames.length - filmed;
   const tabs = <span style={{ marginLeft: "auto", order: 2 }}><RightTabs tab={rightTab} onTab={setRightTab} /></span>;
 
+  // THE SKIPPED FOLDER (Lee, 2026-09-06: "once a slide is skipped, move it to
+  // bottom in a skipped folder"). JUDGMENT CALL: this splits how the spine DRAWS
+  // the running order, not the running order itself — frames keeps its real
+  // indices untouched (toggleSkip in plan.ts never moves anything), so
+  // backdropFor, filmFrames and every index a menu action closes over below
+  // still mean exactly what they meant before. Un-skipping a card from inside
+  // the folder needs no "restore its old slot" logic because it never left one.
+  const indexed = frames.map((f, i) => ({ f, i }));
+  const activeRows = indexed.filter((r) => !r.f.skipped);
+  const skippedRows = indexed.filter((r) => r.f.skipped);
+
+  /** One spine row, shared by the running order and the folder — `number` is the
+   *  row's place in the actual film order (undefined inside the folder, where a
+   *  slide has no such place); `foldered` turns off drag (a skipped card's order
+   *  relative to other skipped cards films nothing, so there is nothing to reorder). */
+  const spineRow = (f: BlastFrame, i: number, opts: { number?: number; foldered?: boolean } = {}) => {
+    const on = f.id === sel?.id;
+    const menu = menuId === f.id;
+    const lineAbove = !opts.foldered && over?.i === i && !over.below && dragId !== f.id;
+    const lineBelow = !opts.foldered && over?.i === i && over.below && dragId !== f.id;
+    // Foldered rows accept neither drag (nothing to reorder — a skipped card's
+    // order relative to other skipped cards films nothing) nor drop (dragging an
+    // active card into the folder isn't how a card gets skipped; the ⊘ button is).
+    // An active row with its own menu open keeps accepting drops, same as before —
+    // only picking IT up is disabled, so a press inside the menu never drags the row.
+    const canDrop = !opts.foldered;
+    const draggableRow = !menu && canDrop;
+    return (
+      <div key={f.id} draggable={draggableRow} className={`sa-spine-row${on ? " is-on" : ""}${menu ? " is-menu" : ""}`}
+        onDragStart={() => setDragId(f.id)}
+        onDragOver={canDrop ? (e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setOver({ i, below: e.clientY > r.top + r.height / 2 }); } : undefined}
+        onDrop={canDrop ? (e) => { e.preventDefault(); drop(); } : undefined}
+        onDragEnd={() => { setDragId(null); setOver(null); }}
+        onClick={() => setSelId(f.id)}
+        title={canDrop ? "Click to open · drag to reorder" : "Click to open"}
+        style={{
+          position: "relative", display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 7,
+          background: opts.foldered ? "rgba(9,13,26,0.35)" : PANEL,
+          border: `1px solid ${on ? GOLD : opts.foldered ? FOLDER_EDGE : EDGE}`,
+          boxShadow: lineAbove ? `0 -3px 0 0 ${SKY}` : lineBelow ? `0 3px 0 0 ${SKY}` : "none",
+          opacity: opts.foldered ? 0.8 : dragId === f.id ? 0.5 : 1, cursor: draggableRow ? "grab" : "pointer",
+        }}>
+        <span style={{ color: MUTED, fontSize: 11, fontWeight: 800, minWidth: 18, borderRight: `1px solid ${EDGE}`, paddingRight: 6, fontVariantNumeric: "tabular-nums" }}>
+          {opts.number != null ? opts.number : "⊘"}
+        </span>
+        <span style={kindTag(colorOf(f))}>{labelOf(f)}</span>
+        <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{snippet(f)}</span>
+        {(f.prompter?.length ?? 0) > 0 && <span title={`${f.prompter!.length} teleprompter line${f.prompter!.length > 1 ? "s" : ""}`} style={{ fontSize: 10, color: MINT, fontWeight: 800 }}>🗒{f.prompter!.length}</span>}
+        <span className="sa-spine-tools" style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: 2 }}>
+          <button style={tiny} title="A copy right after this one" onClick={(e) => { e.stopPropagation(); duplicateAt(f.id, i); }}>⧉</button>
+          {f.skipped ? (
+            <button style={{ ...tiny, color: MINT }} title="Film this slide again" onClick={(e) => { e.stopPropagation(); commit(toggleSkip(frames, f.id)); }}>↺</button>
+          ) : isInsert(f.kind) ? (
+            <button style={{ ...tiny, color: RED }} title="Remove this slide" onClick={(e) => { e.stopPropagation(); removeAt(f.id, i); }}>✕</button>
+          ) : (
+            <button style={{ ...tiny, color: RED }} title="Skip this card in the film (it stays in the set)" onClick={(e) => { e.stopPropagation(); commit(toggleSkip(frames, f.id)); }}>⊘</button>
+          )}
+          <button className="sa-spine-more" style={{ ...tiny, color: menu ? GOLD : MUTED }} title="Everything for this slide — edit, duplicate, skip, backdrop, banner, and what only this kind has"
+            aria-haspopup="menu" aria-expanded={menu} onClick={(e) => { e.stopPropagation(); setMenuId(menu ? null : f.id); }}>⋯</button>
+        </span>
+        {menu && <SlideMenu {...menuFor(f, i)} onClose={closeMenu} />}
+      </div>
+    );
+  };
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 18, alignItems: "start" }}>
       {/* ------------------------------------------------ LEFT: the spine */}
       <section>
         <style>{SPINE_CSS}</style>
-        <div className="flex items-center" style={{ gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+        <div className="flex items-center" style={{ gap: 8, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
           <span style={eyebrow}>Film draft</span>
-          <span style={{ fontSize: 11.5, color: MUTED }}>{filmed} slides{skipped ? ` · ${skipped} skipped` : ""}</span>
+          <span style={{ fontSize: 11.5, color: MUTED }}>{filmed} slides{skipped ? ` · ${skipped} in the skipped folder` : ""}</span>
           {saving && <span style={{ fontSize: 11, color: saving.startsWith("⚠") ? RED : saving === "saved" ? MINT : MUTED, marginLeft: "auto" }}>{saving}</span>}
         </div>
+        <div style={{ ...subhead, marginTop: 10, marginBottom: 5 }}>Insert a slide</div>
         <div className="flex" style={{ gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
           {QUICK.map((q) => (
             <button key={q.label} style={chip(false, KIND_COLOR[q.kind])} title={`Insert a ${q.label} slide after slide ${selIdx + 1}`} onClick={() => add(q.kind, q.patch)}>＋ {q.label}</button>
@@ -366,48 +494,16 @@ export function ReviewDeck({ set, topic, doc, register }: {
         <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 10 }}>inserts land after the selected slide · space / shift+space walk the slides · drag to reorder</div>
         {picker && <BankPicker kind={picker} setId={set.id} setName={set.name} onPick={(p) => add(picker, p)} onClose={() => setPicker(null)} />}
 
+        <div style={{ ...subhead, marginBottom: 5 }}>Running order</div>
         <div className="flex flex-col" style={{ gap: 5 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
-          {frames.map((f, i) => {
-            const on = f.id === sel?.id;
-            const menu = menuId === f.id;
-            const lineAbove = over?.i === i && !over.below && dragId !== f.id;
-            const lineBelow = over?.i === i && over.below && dragId !== f.id;
-            return (
-              // A row with its menu open is not draggable — a press inside the menu must never pick the row up.
-              <div key={f.id} draggable={!menu} className={`sa-spine-row${on ? " is-on" : ""}${menu ? " is-menu" : ""}`}
-                onDragStart={() => setDragId(f.id)}
-                onDragOver={(e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setOver({ i, below: e.clientY > r.top + r.height / 2 }); }}
-                onDrop={(e) => { e.preventDefault(); drop(); }}
-                onDragEnd={() => { setDragId(null); setOver(null); }}
-                onClick={() => setSelId(f.id)}
-                title="Click to open · drag to reorder"
-                style={{
-                  position: "relative", display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 10, background: PANEL,
-                  border: `1px solid ${on ? GOLD : EDGE}`,
-                  boxShadow: lineAbove ? `0 -3px 0 0 ${SKY}` : lineBelow ? `0 3px 0 0 ${SKY}` : "none",
-                  opacity: f.skipped ? 0.45 : dragId === f.id ? 0.5 : 1, cursor: "grab",
-                }}>
-                <span style={{ color: MUTED, fontSize: 11, fontWeight: 800, minWidth: 18, fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
-                <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: colorOf(f), minWidth: 92 }}>{labelOf(f)}</span>
-                <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{snippet(f)}</span>
-                {(f.prompter?.length ?? 0) > 0 && <span title={`${f.prompter!.length} teleprompter line${f.prompter!.length > 1 ? "s" : ""}`} style={{ fontSize: 10, color: MINT, fontWeight: 800 }}>🗒{f.prompter!.length}</span>}
-                <span className="sa-spine-tools" style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: 2 }}>
-                  <button style={tiny} title="A copy right after this one" onClick={(e) => { e.stopPropagation(); duplicateAt(f.id, i); }}>⧉</button>
-                  {f.skipped ? (
-                    <button style={{ ...tiny, color: MINT }} title="Film this slide again" onClick={(e) => { e.stopPropagation(); commit(toggleSkip(frames, f.id)); }}>↺</button>
-                  ) : isInsert(f.kind) ? (
-                    <button style={{ ...tiny, color: RED }} title="Remove this slide" onClick={(e) => { e.stopPropagation(); removeAt(f.id, i); }}>✕</button>
-                  ) : (
-                    <button style={{ ...tiny, color: RED }} title="Skip this card in the film (it stays in the set)" onClick={(e) => { e.stopPropagation(); commit(toggleSkip(frames, f.id)); }}>⊘</button>
-                  )}
-                  <button className="sa-spine-more" style={{ ...tiny, color: menu ? GOLD : MUTED }} title="Everything for this slide — edit, duplicate, skip, backdrop, banner, and what only this kind has"
-                    aria-haspopup="menu" aria-expanded={menu} onClick={(e) => { e.stopPropagation(); setMenuId(menu ? null : f.id); }}>⋯</button>
-                </span>
-                {menu && <SlideMenu {...menuFor(f, i)} onClose={closeMenu} />}
-              </div>
-            );
-          })}
+          {activeRows.map(({ f, i }, pos) => spineRow(f, i, { number: pos + 1 }))}
         </div>
+
+        {skippedRows.length > 0 && (
+          <SkipFolder count={skippedRows.length} open={folderOpen} onToggle={() => setFolderOpen(!folderOpen)}>
+            {skippedRows.map(({ f, i }) => spineRow(f, i, { foldered: true }))}
+          </SkipFolder>
+        )}
       </section>
 
       {/* --------------------------------------------- MIDDLE: the slide */}
@@ -426,7 +522,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
       {/* --------------------------------- RIGHT: editor | illustrator | teleprompter */}
       {rightTab === "illustrator" && sel ? (
         <section style={panelShell}>
-          <div className="flex items-center" style={{ gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+          <div className="flex items-center" style={{ gap: 6, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
             {tabs}
             <span style={{ fontSize: 11.5, color: MUTED }}>{labelOf(sel)}{sel.skipped ? " · skipped" : ""}</span>
           </div>
@@ -502,7 +598,7 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
   const [safe, setSafe] = useState(true);
   return (
     <>
-      <div className="flex items-center" style={{ gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+      <div className="flex items-center" style={{ gap: 6, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
         <span style={eyebrow}>Slide {idx + 1} of {count}</span>
         <span style={{ fontSize: 11.5, color: MUTED }}>{label}{sel.skipped ? " · skipped" : ""}</span>
         <span style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
@@ -559,7 +655,7 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, saving, onPatc
   const adOwn = sel.text !== undefined || sel.title !== undefined || sel.bullets !== undefined || sel.url !== undefined;
   return (
     <section style={panelShell}>
-      <div className="flex items-center" style={{ gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+      <div className="flex items-center" style={{ gap: 6, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
         {tabs}
         <span style={{ fontSize: 11.5, color: MUTED }}>{label}{sel.skipped ? " · skipped" : ""}</span>
         {/* Lee, 2026-09-06: "if I edit any text when editing slides, instant
@@ -938,7 +1034,7 @@ function Prompter({ tabs, frame, frames, set, doc, labelOf, snippetOf, slideText
 
   return (
     <section style={panelShell}>
-      <div className="flex items-center" style={{ gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+      <div className="flex items-center" style={{ gap: 6, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
         {tabs}
         <span style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
           <button style={{ ...chip(view === "slide"), padding: "2px 8px", fontSize: 10.5 }} onClick={() => setView("slide")}>This slide</button>
