@@ -103,6 +103,17 @@ export function detourAccent(kind?: CalloutKind): string {
   return DETOUR.gold;
 }
 
+/** A NESTED BULLET (2026-09-06, Lee: "let me tab over to nest bullets into another indention
+ *  under... format that well so it's clear that a nested one is part of the hierarchy above").
+ *  A leading tab is the depth marker — one per level, written by the ReviewDeck bullets editor's
+ *  Tab/Shift+Tab. Must agree with plan.ts's frameBullets, which is the only thing that produces
+ *  the strings this reads. */
+export function parseBulletLine(raw: string): { depth: number; text: string } {
+  const m = /^\t+/.exec(raw);
+  const depth = m ? m[0].length : 0;
+  return { depth, text: raw.slice(depth) };
+}
+
 /** THE TYPEWRITER (Lee, 2026-09-03: "Internal users typewrites in, each of the
  *  bullet points typewrite in after that … can just be the title then all
  *  three bullets after that"). LINE BY LINE: the heading is step 0, each line
@@ -187,28 +198,37 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
                 {renderInline(mainText || "Callout", hl)}
               </div>
               {extraStems.length > 0 && (
-                <ul style={{ margin: `${10 * s}px 0 0 ${6 * s}px`, padding: 0, listStyle: "none", display: "grid", gap: 5 * s }}>
-                  {extraStems.map((t, i) => (
+                <ul style={{ margin: `${10 * s}px 0 0 ${6 * s}px`, padding: 0, listStyle: "none", display: "grid", gap: 8 * s }}>
+                  {extraStems.map((raw, i) => {
+                    // NESTING (2026-09-06): a top-level bullet (›) stays the uniform, full-weight
+                    // line Lee originally asked for; a nested one (–, Tab in the editor) reads
+                    // one step quieter and indented, so the hierarchy is visible without a second
+                    // glance — never a second bullet character system, just weight + indent + glyph.
+                    const { depth, text } = parseBulletLine(raw);
+                    const nested = depth > 0;
+                    return (
                     <li
                       key={i}
                       {...spotProps(`line:${i}`)}
                       className={[dark ? "sa-type" : "", spotProps(`line:${i}`).className ?? ""].join(" ").trim() || undefined}
                       onDoubleClick={onEditBullet ? (e) => { e.stopPropagation(); onEditBullet(i); } : undefined}
-                      // On the dark detour card the lines under the heading are
-                      // UNIFORM across cheat code / memorize this / deeper idea —
-                      // full ink, one weight, the brand face, phone-sized, and
-                      // no line break inside a bullet (Lee, 2026-09-03).
+                      // On the dark detour card the lines under the heading are UNIFORM across
+                      // cheat code / memorize this / deep question at depth 0 — full ink, one
+                      // weight, the brand face, phone-sized, no line break inside a bullet (Lee,
+                      // 2026-09-03) — a nested line only drops weight and opacity, indented under
+                      // whichever top-level bullet precedes it.
                       style={dark
                         // Sized so a short bullet never breaks; a long one wraps
                         // rather than clipping off the card on camera.
-                        ? { ...typeStep(i + 1), display: "flex", gap: 8 * s, alignItems: "baseline", fontFamily: BRAND_FONT, fontSize: 19 * s, fontWeight: 600, lineHeight: 1.3, color: ink, whiteSpace: "normal", textWrap: "pretty" as never, borderRadius: 8 * s, padding: `${2 * s}px ${4 * s}px`, margin: `0 ${-4 * s}px`, cursor: onEditBullet ? "text" : undefined }
-                        : { display: "flex", gap: 7 * s, alignItems: "baseline", fontSize: 15.5 * s, fontWeight: 600, lineHeight: 1.32, color: inkMuted, cursor: onEditBullet ? "text" : undefined }}
-                      title={onEditBullet ? "Double-click to edit · empty text removes it" : undefined}
+                        ? { ...typeStep(i + 1), display: "flex", gap: 8 * s, alignItems: "baseline", fontFamily: BRAND_FONT, fontSize: nested ? 16.5 * s : 19 * s, fontWeight: nested ? 500 : 600, lineHeight: 1.3, color: nested ? inkMuted : ink, whiteSpace: "normal", textWrap: "pretty" as never, borderRadius: 8 * s, padding: `${2 * s}px ${4 * s}px`, marginTop: 0, marginBottom: 0, marginRight: -4 * s, marginLeft: nested ? 18 * s * depth - 4 * s : -4 * s, cursor: onEditBullet ? "text" : undefined }
+                        : { display: "flex", gap: 7 * s, alignItems: "baseline", marginLeft: nested ? 18 * s * depth : 0, fontSize: nested ? 14 * s : 15.5 * s, fontWeight: nested ? 500 : 600, lineHeight: 1.32, color: inkMuted, opacity: nested ? 0.85 : 1, cursor: onEditBullet ? "text" : undefined }}
+                      title={onEditBullet ? "Double-click to edit · Tab nests, Shift+Tab un-nests · empty text removes it" : undefined}
                     >
-                      <span style={{ opacity: 0.55 }}>–</span>
-                      <span>{renderInline(t, hl)}</span>
+                      <span style={{ opacity: 0.55 }}>{nested ? "–" : "›"}</span>
+                      <span>{renderInline(text, hl)}</span>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
               {footer && (

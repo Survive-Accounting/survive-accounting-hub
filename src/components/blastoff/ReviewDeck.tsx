@@ -34,6 +34,7 @@ import type { TTDoc } from "@/components/canvas/talkthrough";
 import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
 import { refreshBank } from "@/components/v3/use-bank";
 import { BankPicker } from "./BankPicker";
+import { indentBulletLine } from "./bullet-indent";
 import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, FrameView, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
@@ -573,8 +574,20 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onPat
             <textarea style={{ ...field, minHeight: 48, marginTop: 4 }} value={sel.text ?? ""} placeholder={sel.kind === "phrase" ? "e.g. Internal users" : sel.kind === "tip" ? "e.g. Why the board feels like a gray area" : "say it the way you'd say it on camera"} onChange={(e) => onPatch({ text: e.target.value })} /></label>
         )}
         {detour && (
-          <label style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 8 }}>{sel.kind === "cheat" ? "More lines under it" : "Lines under it"} — one per line
-            <textarea style={{ ...field, minHeight: 64, marginTop: 4 }} value={bulletsText} placeholder={"Management\nBudgets, costs, forecasts\nProduction"} onChange={(e) => onPatch({ bullets: e.target.value.split("\n") })} /></label>
+          <label style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 8 }}>{sel.kind === "cheat" ? "More lines under it" : "Lines under it"} — one per line, Tab to nest
+            <textarea style={{ ...field, minHeight: 64, marginTop: 4, tabSize: 2 }} value={bulletsText} placeholder={"Management\nBudgets, costs, forecasts\nProduction"}
+              onChange={(e) => onPatch({ bullets: e.target.value.split("\n") })}
+              // NESTING (2026-09-06, Lee: "let me tab over to nest bullets into another
+              // indention under"): Tab/Shift+Tab on the current LINE, not the whole field —
+              // a plain textarea Tab would otherwise just jump focus to the next control.
+              onKeyDown={(e) => {
+                if (e.key !== "Tab") return;
+                e.preventDefault();
+                const ta = e.currentTarget;
+                const r = indentBulletLine(ta.value, ta.selectionStart, e.shiftKey ? -1 : 1);
+                onPatch({ bullets: r.text.split("\n") });
+                requestAnimationFrame(() => ta.setSelectionRange(r.cursor, r.cursor));
+              }} /></label>
         )}
         {detour && <div style={{ fontSize: 10.5, color: MUTED, marginTop: 6 }}>Nothing is highlighted on its own — highlight while filming, or type ==like this== for a fixed one. Type __word__ to underline, or ____ for a blank.</div>}
         {sel.kind === "intro" && (

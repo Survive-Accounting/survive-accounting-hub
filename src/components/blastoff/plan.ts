@@ -347,9 +347,18 @@ export function backdropFor(frames: readonly BlastFrame[], index: number, isNote
 }
 
 /** The lines under the heading, uniform for all three kinds: a cheat code's
- *  body is simply its first line, then the bullets. Trimmed, blanks dropped. */
+ *  body is simply its first line, then the bullets. Trimmed, blanks dropped.
+ *
+ *  NESTING (2026-09-06, Lee: "let me tab over to nest bullets into another indention under"):
+ *  a leading tab character on a bullet is the depth marker — Tab in the editor (ReviewDeck)
+ *  inserts one per level, Shift+Tab removes one. Only the LEADING run of tabs is meaningful and
+ *  is kept here; everything else is trimmed exactly as before, so a plain (depth-0) bullet's
+ *  behavior is unchanged. CalloutCard.tsx's parseBulletLine reads this same convention to render
+ *  the hierarchy — the two must never disagree about what a leading tab means. */
 export const frameBullets = (f: BlastFrame): string[] =>
-  [...(f.kind === "cheat" && f.body ? [f.body] : []), ...(f.bullets ?? [])].map((b) => b.trim()).filter(Boolean);
+  [...(f.kind === "cheat" && f.body ? [f.body] : []), ...(f.bullets ?? [])]
+    .map((b) => { const tabs = /^\t+/.exec(b)?.[0] ?? ""; return tabs + b.slice(tabs.length).trim(); })
+    .filter((b) => b.replace(/^\t+/, "").length > 0);
 
 /** How many real takes this plan is — what Lee is about to talk through. */
 export const frameCount = (plan: BlastPlan): number => filmFrames(plan.frames).length;
