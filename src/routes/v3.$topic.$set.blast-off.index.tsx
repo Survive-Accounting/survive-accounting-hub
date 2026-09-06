@@ -14,11 +14,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Clapperboard, Mic, Wand2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
+import { usePlan } from "@/components/blastoff/BlastOffEditor";
+import { estimatedLengthSeconds, fmtRange, slideCounts } from "@/components/blastoff/film-summary";
 import { Door } from "@/components/v3/Door";
 import { STEPS } from "@/components/v3/StepBar";
 import { blastOffPath, useV3Set, type BlastOffStep } from "@/components/v3/use-bank";
-import { V3Shell, V3Note, V3_DISPLAY, V3_MUTED } from "@/components/v3/Shell";
+import { V3Shell, V3Note, V3_DISPLAY, V3_MUTED, V3_GOLD, V3_EDGE, V3_CREAM } from "@/components/v3/Shell";
+import { listIllustrationLibrary } from "@/lib/illustrate.functions";
+import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/")({
   component: V3BlastOff,
@@ -71,8 +76,55 @@ function V3BlastOff() {
               />
             ))}
           </div>
+
+          <FilmPreflight set={set} />
         </>
       )}
     </V3Shell>
+  );
+}
+
+/** THE FILM SUMMARY (Lee, 2026-09-05: "just a summary of total slides... # of Q's, # of
+ *  memorize this, # of cheat code, # of deep idea, # of illustration, and total production
+ *  cost") — a pre-flight readout before Lee commits to a take. Its own component, mounted only
+ *  once a real set exists, so usePlan's fetch never fires against a placeholder id. */
+function FilmPreflight({ set }: { set: BoothSetInfo }) {
+  const { plan } = usePlan(set);
+  const [illoCost, setIlloCost] = useState<number | null>(null);
+  useEffect(() => {
+    listIllustrationLibrary({ data: { setId: set.id } })
+      .then((r) => setIlloCost(r.rows.reduce((sum, row) => sum + (row.costUsd ?? 0), 0)))
+      .catch(() => setIlloCost(null));
+  }, [set.id]);
+
+  if (!plan) return null;
+  const counts = slideCounts(plan.frames);
+  const range = estimatedLengthSeconds(counts);
+  const stat = (label: string, n: number) => (
+    <div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: V3_CREAM, fontVariantNumeric: "tabular-nums" }}>{n}</div>
+      <div style={{ fontSize: 10.5, color: V3_MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
+    </div>
+  );
+  return (
+    <div style={{ marginTop: 26, padding: "14px 18px", border: `1px solid ${V3_EDGE}`, borderRadius: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+        <span style={{ fontFamily: V3_DISPLAY, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: V3_GOLD }}>Before you film</span>
+        <span style={{ fontSize: 12, color: V3_MUTED }}>~{fmtRange(range)} on camera, and this is what's in it — a rough range, not a promise</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(76px, 1fr))", gap: 10 }}>
+        {stat("Slides", counts.total)}
+        {stat("Questions", counts.questions)}
+        {stat("Memorize this", counts.memorizeThis)}
+        {stat("Cheat code", counts.cheatCode)}
+        {stat("Deeper idea", counts.deeperIdea)}
+        {stat("Illustrations", counts.illustrations)}
+      </div>
+      {illoCost !== null && illoCost > 0 && (
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${V3_EDGE}`, fontSize: 12, color: V3_MUTED }}>
+          Production cost so far: <b style={{ color: V3_CREAM }}>${illoCost.toFixed(2)}</b> (illustrations — Mux joins this once Post is wired up)
+        </div>
+      )}
+    </div>
   );
 }
