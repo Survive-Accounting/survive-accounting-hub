@@ -9,24 +9,35 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { AdminGate } from "@/components/AdminGate";
 import { BlastOffCapture } from "@/components/blastoff/BlastOffCapture";
+import { Rehearsal } from "@/components/blastoff/Rehearsal";
 import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
 import { V3Shell, V3Note } from "@/components/v3/Shell";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/film")({
-  // ?popout=1 marks the 9:16 pop-out window (components/blastoff/capture/popout.ts).
-  // Declared so TanStack keeps it through its search handling; the hook reads the location.
-  validateSearch: (s: Record<string, unknown>): { popout?: 1 } => (s.popout === 1 || s.popout === "1" || s.popout === true ? { popout: 1 } : {}),
+  // ?popout=1 marks the 9:16 pop-out window (components/blastoff/capture/popout.ts). ?rehearse=1
+  // (2026-09-06) opens the rehearsal walk-through instead of the real capture surface — its own
+  // search flag rather than a button inside BlastOffCapture, since that surface is deliberately
+  // "nothing else in the shot" for OBS. Declared so TanStack keeps both through its search
+  // handling; the hooks read the location.
+  validateSearch: (s: Record<string, unknown>): { popout?: 1; rehearse?: 1 } => ({
+    ...(s.popout === 1 || s.popout === "1" || s.popout === true ? { popout: 1 as const } : {}),
+    ...(s.rehearse === 1 || s.rehearse === "1" || s.rehearse === true ? { rehearse: 1 as const } : {}),
+  }),
   component: () => <AdminGate><V3Film /></AdminGate>,
   head: () => ({ meta: [{ title: "🎬 Film — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
 
 function V3Film() {
   const { topic: topicKey, set: setKey } = Route.useParams();
+  const { rehearse } = Route.useSearch();
   const navigate = useNavigate();
   const { topics, error, topic, set } = useV3Set(topicKey, setKey);
 
   if (set && topic) {
-    return <BlastOffCapture set={set} topicName={topic.name} onExit={() => void navigate({ to: blastOffPath(topic, set) })} />;
+    const exit = () => void navigate({ to: blastOffPath(topic, set) });
+    return rehearse
+      ? <Rehearsal set={set} topicName={topic.name} onExit={exit} />
+      : <BlastOffCapture set={set} topicName={topic.name} onExit={exit} />;
   }
 
   const crumbs = [

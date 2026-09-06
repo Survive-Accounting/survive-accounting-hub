@@ -22,7 +22,8 @@ describe("the URL", () => {
   });
   test("the film route declares the flag, so TanStack's search handling keeps it", () => {
     expect(route).toContain("validateSearch");
-    expect(route).toContain("{ popout: 1 }");
+    expect(route).toContain("popout?: 1");
+    expect(route).toContain("popout: 1");
   });
   test("its own window name and a popup (not a tab), so OBS sees one window", () => {
     expect(POPOUT_NAME).toBe("sa-film-popout");

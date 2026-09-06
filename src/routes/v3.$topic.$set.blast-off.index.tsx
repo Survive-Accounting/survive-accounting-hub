@@ -27,7 +27,7 @@ import { STEPS } from "@/components/v3/StepBar";
 import { blastOffPath, useV3Set, type BlastOffStep } from "@/components/v3/use-bank";
 import { V3Shell, V3Note, V3_DISPLAY, V3_MUTED, V3_GOLD, V3_EDGE, V3_CREAM } from "@/components/v3/Shell";
 import { listIllustrationLibrary } from "@/lib/illustrate.functions";
-import type { BoothSetInfo } from "@/lib/talkthrough.functions";
+import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/")({
   component: V3BlastOff,
@@ -82,7 +82,7 @@ function V3BlastOff() {
             ))}
           </div>
 
-          <FilmPreflight set={set} />
+          <FilmPreflight set={set} topic={topic} />
         </>
       )}
     </V3Shell>
@@ -93,7 +93,7 @@ function V3BlastOff() {
  *  memorize this, # of cheat code, # of deep idea, # of illustration, and total production
  *  cost") — a pre-flight readout before Lee commits to a take. Its own component, mounted only
  *  once a real set exists, so usePlan's fetch never fires against a placeholder id. */
-function FilmPreflight({ set }: { set: BoothSetInfo }) {
+function FilmPreflight({ set, topic }: { set: BoothSetInfo; topic: BoothTopic }) {
   const { plan } = usePlan(set);
   const [illoCost, setIlloCost] = useState<number | null>(null);
   useEffect(() => {
@@ -116,6 +116,12 @@ function FilmPreflight({ set }: { set: BoothSetInfo }) {
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
         <span style={{ fontFamily: V3_DISPLAY, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: V3_GOLD }}>Before you film</span>
         <span style={{ fontSize: 12, color: V3_MUTED }}>~{fmtRange(range)} on camera, and this is what's in it — a rough range, not a promise</span>
+        {/* REHEARSE (2026-09-06): "give me a rehearsal option... it makes more sense in Film
+            step." Its own search flag on the Film route, not a button inside the actual capture
+            surface — that surface stays clean for OBS. */}
+        <a href={`${blastOffPath(topic, set, "film")}?rehearse=1`} style={{ marginLeft: "auto", fontSize: 12, color: V3_GOLD, textDecoration: "underline", textUnderlineOffset: 3, whiteSpace: "nowrap" }}>
+          🎙 Rehearse first — fill the teleprompter
+        </a>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(76px, 1fr))", gap: 10 }}>
         {stat("Slides", counts.total)}
