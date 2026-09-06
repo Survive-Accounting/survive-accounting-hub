@@ -437,6 +437,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
       ) : rightTab === "editor" && sel ? (
         <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs} layout={layoutOf(plan)}
           ceq={sel.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined}
+          saving={saving}
           onPatch={(p) => patch(sel.id, p)}
           onPatchKind={(p) => patchKind(sel.kind, p)}
           onSaved={(d) => { if (sel.ceqId) setOverrides((o) => ({ ...o, [sel.ceqId!]: d })); }} />
@@ -537,12 +538,16 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
  *  an insert edits its words; the brand slides and ads edit their few
  *  switches. Same shell as the prompter — the two are faces of one column. */
 
-function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onPatchKind, onSaved }: {
+function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, saving, onPatch, onPatchKind, onSaved }: {
   /** The set's slide template — the camera chips read their default from it. */
   layout: "pass1" | "pass2";
   sel: BlastFrame; label: string; ceq?: BoothCeq; set: BoothSetInfo; topic: BoothTopic;
   /** The Teleprompter | Editor toggle, drawn by the deck. */
   tabs: ReactNode;
+  /** usePlan's own save state — every field below writes through onPatch, which
+   *  debounces into the same commit. Shown here too (not just on the spine)
+   *  because the spine is out of view while typing in this panel. */
+  saving: string | null;
   onPatch: (p: Partial<BlastFrame>) => void;
   /** Same fields, but written onto every OTHER slide of this same kind too (2026-09-05). */
   onPatchKind: (p: Partial<BlastFrame>) => void;
@@ -557,6 +562,11 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, onPatch, onPat
       <div className="flex items-center" style={{ gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
         {tabs}
         <span style={{ fontSize: 11.5, color: MUTED }}>{label}{sel.skipped ? " · skipped" : ""}</span>
+        {/* Lee, 2026-09-06: "if I edit any text when editing slides, instant
+            save it." It already did (onPatch → commit, debounced 500ms) — the
+            "saving…/saved" readout just lived on the spine, off to the left,
+            out of sight while typing here. Same readout, closer to the fields. */}
+        {saving && <span style={{ fontSize: 11, color: saving.startsWith("⚠") ? RED : saving === "saved" ? MINT : MUTED }}>{saving}</span>}
       </div>
       <div>
         {sel.kind === "ceq" && ceq && <CeqEditor key={ceq.id} ceq={ceq} topicName={topic.name} onSaved={onSaved} />}
