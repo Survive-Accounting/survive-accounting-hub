@@ -30,6 +30,12 @@ export function SurviveOutro({
 }) {
   const tag = reveal(progress, 0.10);
   const url = reveal(progress, 0.28);
+  // THE ARRIVAL FLASH (2026-09-06, Lee: "the final transition to outro should be a white flash
+  // type emoji — like this came out of heaven"). A quick white-out that's already fading by the
+  // time the wordmark itself would be visible — one held instant, not a strobe. Only on the
+  // live transition; the static still (progress undefined, used for a finished preview/export
+  // frame) shows no flash, since there's no arrival to mark.
+  const flash = progress === undefined ? 0 : Math.max(0, 1 - progress / 0.12);
   return (
     <VStage scale={scale} transparent={transparent}>
       <div style={{
@@ -44,6 +50,7 @@ export function SurviveOutro({
           {domain}
         </div>
       </div>
+      {flash > 0 && <div aria-hidden style={{ position: "absolute", inset: 0, background: "#FFFFFF", opacity: flash, pointerEvents: "none" }} />}
     </VStage>
   );
 }

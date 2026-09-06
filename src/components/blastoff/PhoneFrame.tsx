@@ -51,7 +51,7 @@ export function watermarkOn(frame: BlastFrame, _backdrop: ReturnType<typeof back
   return !isFullFrame(frame.kind);
 }
 
-export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, stageStyle, camSpot, cardOverride: gripOverride, layout = "pass1", hero: heroProp, onHero, onRailStatus }: {
+export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, popout = false, stageStyle, camSpot, cardOverride: gripOverride, layout = "pass1", hero: heroProp, onHero, onRailStatus }: {
   frame: BlastFrame;
   /** The whole running order — the backdrop rule looks at the neighbours. */
   frames: readonly BlastFrame[];
@@ -69,6 +69,11 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
    *  card stylesheet keys its motion on (typewriter, neon, outro fade), and
    *  the slide re-keys per frame so entrances play on every walk. */
   capture?: boolean;
+  /** THE 9:16 POP-OUT WINDOW (2026-09-06, Lee: "let the illustrations be picked up and movable
+   *  resizable from capture pop out window"). Only meaningfully different from plain `capture`
+   *  in one way: an illustration can be dragged and resized here, same as on Review — nowhere
+   *  else during capture, on purpose (slide-edit.ts's own rule). */
+  popout?: boolean;
   /** A transform on the slide itself (the capture camera: zoom, pull-back). */
   stageStyle?: React.CSSProperties;
   /** The take's camera override (B on the capture); absent = the slide's own. */
@@ -187,7 +192,11 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
           // above the camera's moment layer (30), below the arrows (40).
           transformOrigin: "50% 50%", transform: wmTransform, transition: "transform 480ms cubic-bezier(0.34, 1.3, 0.64, 1), opacity 480ms ease",
           zIndex: moment ? 31 : undefined, willChange: moment ? "transform" : undefined }}>
-          <SurviveWordmark size={watermarkSize(w)} />
+          {/* 1.2s, not the house 0.5s (2026-09-06, Lee: "the animated bolt on the slides is very
+              laggy and flickery... smoothen this out") — the same fast cadence a small nav icon
+              uses reads as a strobe at this size; the slower "calm" cadence already used
+              elsewhere (BOIL_SECONDS["boil-calm"]) is the same technique, just easier to watch. */}
+          <SurviveWordmark size={watermarkSize(w)} boilSeconds={1.2} />
         </div>
       )}
       <div key={capture ? frame.id : undefined} data-sa-stage="" style={{ display: "grid", placeItems: "center", position: "relative",
@@ -199,16 +208,16 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
         {/* THE OPTIONAL ILLUSTRATION — second row of the stage grid, under the card; nothing when
             absent. A placed one (or a blank slide's) is the phone-level layer below instead. */}
         {frame.illustration?.assetUrl && canIllustrate(frame.kind) && !isPlaced(frame.kind, frame.illustration) && (
-          <IllustrationLayer ill={frame.illustration} w={w} h={h} live={capture}
-            onPlace={edit && !capture ? (p) => edit({ illustration: { ...frame.illustration!, placement: p } }) : undefined} />
+          <IllustrationLayer ill={frame.illustration} w={w} h={h}
+            onPlace={edit && (!capture || popout) ? (p) => edit({ illustration: { ...frame.illustration!, placement: p } }) : undefined} />
         )}
       </div>
       {/* THE PLACED PICTURE (2026-09-05): at its own spot, dragged and resized on Review; carries
           the camera transform so it zooms and blurs with the slide. Dead centre on a blank slide. */}
       {frame.illustration?.assetUrl && canIllustrate(frame.kind) && isPlaced(frame.kind, frame.illustration) && (
-        <PlacedIllustration key={capture ? `ill-${frame.id}` : undefined} ill={frame.illustration} w={w} h={h} live={capture} kind={frame.kind}
+        <PlacedIllustration key={capture ? `ill-${frame.id}` : undefined} ill={frame.illustration} w={w} h={h} kind={frame.kind}
           stageStyle={{ ...(moment ? { filter: "blur(2px) brightness(0.35)" } : {}), transition: "filter 480ms ease, transform 480ms ease", ...(stageStyle?.transform ? { transform: stageStyle.transform, transformOrigin: stageStyle.transformOrigin } : {}) }}
-          onPlace={edit && !capture ? (p) => edit({ illustration: { ...frame.illustration!, placement: p } }) : undefined} />
+          onPlace={edit && (!capture || popout) ? (p) => edit({ illustration: { ...frame.illustration!, placement: p } }) : undefined} />
       )}
       {cam !== "off" && (
         <WebcamFrame w={w} h={h} spot={cam} size={camSize} pos={frame.camPos} live={capture} cardBox={cardBox} moment={moment}

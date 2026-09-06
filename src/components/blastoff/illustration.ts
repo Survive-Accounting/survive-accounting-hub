@@ -70,9 +70,14 @@ export function isPlaced(kind: string, i: FrameIllustration | null | undefined):
   return !!i && (kind === "blank" || !!i.placement);
 }
 
-export const ANIMATION_PRESETS = ["boil", "boil-calm", "none"] as const;
+// "drift" (2026-09-06, Lee: "the boiling animations are horrible for the illustrations...
+// more flowy... suspended in space... a cloudy, foggy dream space... a light touch") — one
+// smooth, continuous CSS animation (DriftBoil.tsx) instead of the Boil's discrete flipbook,
+// which is what reads as flicker. New default for illustrations; the Boil stays for the bolt
+// and anything already using it.
+export const ANIMATION_PRESETS = ["boil", "boil-calm", "drift", "none"] as const;
 export type AnimationPreset = (typeof ANIMATION_PRESETS)[number];
-export const ANIMATION_LABEL: Record<AnimationPreset, string> = { boil: "Survive boil", "boil-calm": "calm boil", none: "still" };
+export const ANIMATION_LABEL: Record<AnimationPreset, string> = { boil: "Survive boil", "boil-calm": "calm boil", drift: "drift", none: "still" };
 export function isAnimationPreset(v: unknown): v is AnimationPreset { return typeof v === "string" && (ANIMATION_PRESETS as readonly string[]).includes(v); }
 
 /** A style preset: everything about Survive's art direction that Lee should never have to
@@ -120,16 +125,26 @@ export interface IllustrationStyle {
 export const ILLUSTRATION_STYLES: Record<string, IllustrationStyle> = {
   "survive-watercolor": {
     id: "survive-watercolor",
-    version: 2,
+    version: 3,
     label: "Survive Watercolor",
     provider: "recraft",
     model: "recraftv4_1",
     size: "1024x1024",
     promptPrefix: "A single illustration of ",
-    promptSuffix: ", on a plain white background, filling most of the frame with only a small even margin around it. A loose, slightly imperfect ink outline in a warm dark brown — never black or near-black — gently filled with a warm, muted watercolor wash. No fill and no outline anywhere is ever true black or a very dark neutral grey, even for something realistically dark like a suit or a shadow — keep every shape a clear, visibly-coloured tone so nothing can blend into a black background once the white paper behind it is removed. Soft bleeding at the edges, a little visible paper texture, painterly but simple, a strong clear silhouette, at most two or three shapes so it reads instantly on a phone. If it includes a person, show them from behind, from the side, with their head turned away, or cropped out of frame — never a detailed front-facing face. No text, no logos, no signature, no photorealism, no glossy cartoon shading, no clip-art look.",
+    // v3 (2026-09-06): the v2 fix for "black on black" caused a NEW hole in the exact place Lee
+    // found it — a face. Pushing every fill away from black landed skin on near-white instead,
+    // and near-white sits right next to the generation ground itself (also white — see
+    // recraft.server.ts's own note on why): removeBackground's cutout doesn't distinguish "pale
+    // skin" from "the white page," so it cut the face away as if it were background, leaving a
+    // transparent hole that shows Lee's own dark slide through it — reading as a solid black
+    // face, not a rendering choice at all. The real fix is the same idea in both directions at
+    // once: every fill has to sit in a visible MIDDLE band, clearly darker than the white ground
+    // and clearly lighter than black, with skin named explicitly since it's the one area v2
+    // pushed toward "light" without saying how light is still safe.
+    promptSuffix: ", on a plain white background, filling most of the frame with only a small even margin around it. A loose, slightly imperfect ink outline in a warm dark brown — never black or near-black — gently filled with a warm, muted watercolor wash. Every fill sits clearly between the two extremes: never true black or near-black (a suit, a shadow), and never white or near-white either (skin, a pale shirt) — a fill that pale is indistinguishable from the white background and gets cut away with it, leaving a hole. Skin and faces are always a warm tan, light brown, or warm peach, visibly darker than the white page. Soft bleeding at the edges, a little visible paper texture, painterly but simple, a strong clear silhouette, at most two or three shapes so it reads instantly on a phone. If it includes a person, show them from behind, from the side, with their head turned away, or cropped out of frame — never a detailed front-facing face. No text, no logos, no signature, no photorealism, no glossy cartoon shading, no clip-art look.",
     controls: { background_color: { rgb: [255, 255, 255] }, colors: [{ rgb: [252, 163, 17], weight: 0.35 }, { rgb: [0, 107, 166], weight: 0.3 }] },
     styleIdEnv: "RECRAFT_STYLE_ID_WATERCOLOR",
-    defaultAnimation: "boil",
+    defaultAnimation: "drift",
   },
   // LEGACY (2026-09-05): the monoline-on-black look, kept only so illustrations already made
   // with it keep resolving and rendering correctly. Never the default again — colour weights

@@ -3,11 +3,11 @@ import { describe, expect, test } from "bun:test";
 import { ANIMATION_PRESETS, DEFAULT_STYLE_ID, ILLUSTRATION_STYLES, composeIllustrationPrompt, emptyIllustration, illustrationStyle, isStaleIllustration } from "./illustration";
 
 describe("the illustration registry", () => {
-  test("the house default is Survive Watercolor v2, white ground, house palette", () => {
+  test("the house default is Survive Watercolor v3, white ground, house palette", () => {
     const s = illustrationStyle(null);
     expect(s.id).toBe(DEFAULT_STYLE_ID);
     expect(s.id).toBe("survive-watercolor");
-    expect(s.version).toBe(2);
+    expect(s.version).toBe(3);
     expect(s.controls.background_color.rgb).toEqual([255, 255, 255]);
     expect(s.controls.colors.length).toBeGreaterThanOrEqual(2);
     expect(illustrationStyle("nope").id).toBe(DEFAULT_STYLE_ID);
@@ -33,13 +33,19 @@ describe("the illustration registry", () => {
     expect(s.promptSuffix).toMatch(/no text/i);
     expect(s.promptSuffix).toMatch(/watercolor/i);
     expect(s.promptSuffix).toMatch(/white background/i);
-    // v2 (2026-09-05): the "black on black" fix — nothing may render as true black, even a
-    // realistically dark subject, so a shape can never vanish once the white paper is stripped.
+    // v2: the "black on black" fix — nothing may render as true black, even a realistically
+    // dark subject, so a shape can never vanish once the white paper is stripped.
     expect(s.promptSuffix).toMatch(/never black/i);
+    // v3 (2026-09-06): the OTHER half of the same fix — a fill can't go near-white either
+    // (skin, a pale shirt), or removeBackground cuts it away with the white ground, leaving a
+    // hole that reads as a black face once it's sitting on Lee's dark slide.
+    expect(s.promptSuffix).toMatch(/near-white/i);
+    expect(s.promptSuffix).toMatch(/skin/i);
   });
   test("stale = made with an older registry version; never for an ungenerated request", () => {
     expect(isStaleIllustration(emptyIllustration())).toBe(false);
-    expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 2 })).toBe(false);
+    expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 3 })).toBe(false);
+    expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 2 })).toBe(true);
     expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 1 })).toBe(true);
     expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 0 })).toBe(true);
     expect(isStaleIllustration(null)).toBe(false);

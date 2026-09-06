@@ -40,12 +40,13 @@ import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf, type RailStatus } from "./layout";
 import { questionProgress } from "./frame-view";
 import { PhoneFrame } from "./PhoneFrame";
-import { FRAME_LABEL, filmFrames } from "./plan";
+import { FRAME_LABEL, filmFrames, patchFrame, type BlastFrame } from "./plan";
+import { SlideEditContext } from "./slide-edit";
 
 const NO_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
 export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo; topicName?: string; onExit: () => void }) {
-  const { plan } = usePlan(set);
+  const { plan, commit } = usePlan(set);
   const [i, setI] = useState(0);
   const ceqById = useMemo(() => new Map(set.ceqs.map((c) => [c.id, c])), [set.ceqs]);
   // The SHARED highlight store (canvas/text-highlights) — same gesture, same
@@ -64,6 +65,13 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   const frame = frames[idx];
   const frameId = frame?.id ?? null;
   const ceq = frame?.kind === "ceq" && frame.ceqId ? ceqById.get(frame.ceqId) : undefined;
+
+  // POPOUT-ONLY EDITING (2026-09-06, Lee: "let the illustrations be picked up and movable
+  // resizable from capture popout window"). slide-edit.ts's own rule is that capture never
+  // provides this context — a real, deliberate choice so nothing shifts mid-take by accident —
+  // so this only reaches PhoneFrame at all when popout.isPopout is true (below), never in the
+  // plain in-page capture. Patches the CURRENT frame only, straight onto the plan.
+  const patchCurrentFrame = useCallback((p: Partial<BlastFrame>) => { if (plan && frameId) commit(patchFrame(plan.frames, frameId, p)); }, [plan, commit, frameId]);
 
   // ---- PRACTICE: click a choice to emphasise it, click it again to resolve ----
   // (the canvas's own rule: wrong scratches, correct confirms — with the cue).
@@ -166,8 +174,10 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
     <PersistContext.Provider value={camera.persist}>
     <div ref={hostRef} className={`film-mode${camera.rootClass ? ` ${camera.rootClass}` : ""}`} onWheel={camera.onWheel}
       style={{ minHeight: "100vh", background: "#000", display: "grid", placeItems: "center", position: "relative", overflow: "hidden" }}>
-      <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} onRailStatus={setRailStatus}
-        progress={questionProgress(frames, ceqById).get(frame.id)} />
+      <SlideEditContext.Provider value={popout.isPopout ? patchCurrentFrame : null}>
+        <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture popout={popout.isPopout} stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} onRailStatus={setRailStatus}
+          progress={questionProgress(frames, ceqById).get(frame.id)} />
+      </SlideEditContext.Provider>
       <CaptureArrows hostRef={hostRef} frameId={frame.id} />
       {/* THE BRAND CURSOR — the bolt, as on the canvas popout. The native
           cursor is hidden; turn "Capture Cursor" off on the OBS source. */}

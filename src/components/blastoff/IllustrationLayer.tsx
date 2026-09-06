@@ -16,6 +16,7 @@
 // blank. Hoisted function declarations only — this file is on the canvas graph via PhoneFrame.
 import { useRef, useState } from "react";
 
+import { DriftBoil } from "@/components/brand-cards/DriftBoil";
 import { RasterBoil } from "@/components/brand-cards/RasterBoil";
 import { BOIL_SECONDS } from "@/components/brand-cards/raster-boil";
 
@@ -38,9 +39,16 @@ export function clampPlacement(p: IllustrationPlacement): IllustrationPlacement 
 }
 
 /** The picture itself, at a given box. `data-sa-illustration` marks it for the camera's
- *  keep-off measurement (PhoneFrame reads the attribute, not the component). */
-function Picture({ ill, width, height, live, boilFrame, onFail }: {
-  ill: FrameIllustration; width: number; height: number; live: boolean; boilFrame?: number; onFail: () => void;
+ *  keep-off measurement (PhoneFrame reads the attribute, not the component).
+ *
+ *  ANIMATES REGARDLESS OF `live` NOW (2026-09-06, Lee: "it's only viewable in capture mode. Is
+ *  it possible to view it beforehand in edit?") — `live` used to come straight from `capture`
+ *  (PhoneFrame), freezing the animation everywhere but the actual take. No caller ever pins an
+ *  illustration's `boilFrame` (unlike the bolt/wordmark, which do, extensively — grep confirms
+ *  it), so nothing here ever relied on that freeze; it was just an accidental side effect of
+ *  reusing the same prop the camera's OWN `live` (a real hardware concern) already needed. */
+function Picture({ ill, width, height, boilFrame, onFail }: {
+  ill: FrameIllustration; width: number; height: number; boilFrame?: number; onFail: () => void;
 }) {
   const preset = ill.animationPreset ?? "boil";
   if (preset === "none") {
@@ -51,9 +59,17 @@ function Picture({ ill, width, height, live, boilFrame, onFail }: {
       </span>
     );
   }
+  if (preset === "drift") {
+    return (
+      <span style={{ display: "block", width, height }} onErrorCapture={onFail}>
+        <DriftBoil src={ill.assetUrl ?? ""} width={width} height={height} alt={ill.prompt ?? ""} live pinned={boilFrame !== undefined}
+          options={{ seed: ill.seed ?? 3 }} />
+      </span>
+    );
+  }
   return (
     <span style={{ display: "block", width, height }} onErrorCapture={onFail}>
-      <RasterBoil src={ill.assetUrl ?? ""} width={width} height={height} alt={ill.prompt ?? ""} live={live} boilFrame={boilFrame}
+      <RasterBoil src={ill.assetUrl ?? ""} width={width} height={height} alt={ill.prompt ?? ""} live boilFrame={boilFrame}
         boilSeconds={preset === "boil-calm" ? BOIL_SECONDS["boil-calm"] : BOIL_SECONDS.boil}
         options={{ seed: ill.seed ?? 7 }} />
     </span>
@@ -70,8 +86,8 @@ function Failed({ w, h }: { w: number; h: number }) {
 
 /** THE BAND — under the card, inside the stage. `onPlace` (Review only) lets a drag lift it
  *  out of the band into a placed picture: the first move converts the band box to fractions. */
-export function IllustrationLayer({ ill, w, h, live, boilFrame, onPlace }: {
-  ill: FrameIllustration; w: number; h: number; live: boolean; boilFrame?: number;
+export function IllustrationLayer({ ill, w, h, boilFrame, onPlace }: {
+  ill: FrameIllustration; w: number; h: number; boilFrame?: number;
   onPlace?: (p: IllustrationPlacement) => void;
 }) {
   const [failed, setFailed] = useState(false);
@@ -91,7 +107,7 @@ export function IllustrationLayer({ ill, w, h, live, boilFrame, onPlace }: {
     <span ref={ref} data-sa-illustration="" onPointerDown={onPlace ? lift : undefined}
       style={{ display: "block", marginTop, width: bw, height: bh, cursor: onPlace ? "grab" : undefined }}
       title={onPlace ? "Drag to place the picture anywhere on the slide" : undefined}>
-      <Picture ill={ill} width={bw} height={bh} live={live} boilFrame={boilFrame} onFail={() => setFailed(true)} />
+      <Picture ill={ill} width={bw} height={bh} boilFrame={boilFrame} onFail={() => setFailed(true)} />
     </span>
   );
 }
@@ -99,8 +115,8 @@ export function IllustrationLayer({ ill, w, h, live, boilFrame, onPlace }: {
 /** PLACED — a phone-level layer at `placement` (or the blank slide's centre). Drag moves,
  *  the corner grip resizes; both commit through `onPlace` on release. Carries the capture
  *  camera's transform (`stageStyle`) so it zooms and blurs with the slide. */
-export function PlacedIllustration({ ill, w, h, live, boilFrame, kind, onPlace, stageStyle }: {
-  ill: FrameIllustration; w: number; h: number; live: boolean; boilFrame?: number; kind: string;
+export function PlacedIllustration({ ill, w, h, boilFrame, kind, onPlace, stageStyle }: {
+  ill: FrameIllustration; w: number; h: number; boilFrame?: number; kind: string;
   onPlace?: (p: IllustrationPlacement) => void;
   stageStyle?: React.CSSProperties;
 }) {
@@ -156,16 +172,16 @@ export function PlacedIllustration({ ill, w, h, live, boilFrame, kind, onPlace, 
       {pairedUrl ? (
         <div style={{ display: "flex", width: "100%", height: "100%", gap }}>
           <div style={{ width: size, height: size, flexShrink: 0 }}>
-            <Picture ill={ill} width={size} height={size} live={live} boilFrame={boilFrame} onFail={() => setFailed(true)} />
+            <Picture ill={ill} width={size} height={size} boilFrame={boilFrame} onFail={() => setFailed(true)} />
           </div>
           {/* The paired half is a snapshot from the library — its own onFail is a no-op
               (a broken second image should never take down the slide's own picture). */}
           <div style={{ width: size, height: size, flexShrink: 0 }}>
-            <Picture ill={{ ...ill, assetUrl: pairedUrl, animationPreset: "none" }} width={size} height={size} live={false} onFail={() => {}} />
+            <Picture ill={{ ...ill, assetUrl: pairedUrl, animationPreset: "none" }} width={size} height={size} onFail={() => {}} />
           </div>
         </div>
       ) : (
-        <Picture ill={ill} width={size} height={size} live={live} boilFrame={boilFrame} onFail={() => setFailed(true)} />
+        <Picture ill={ill} width={size} height={size} boilFrame={boilFrame} onFail={() => setFailed(true)} />
       )}
       {onPlace && (
         <>

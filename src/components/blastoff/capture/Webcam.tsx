@@ -48,6 +48,14 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
   const r: CamRect = moment ? heroCamRect(w, h) : fit.rect;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState<string | null>(null);
+  // FIRST-FRAME FADE (2026-09-06, Lee: "ensure the camera loads instantly... if we can't get it
+  // loading instantly perfect, then first entrance of camera should have a fade in"). The very
+  // first getUserMedia call in a session is genuinely slow — the browser's own permission
+  // prompt and device negotiation, not anything this app controls — so a real pixel is on
+  // screen the instant it exists, but it fades in over the actual video element rather than
+  // popping in the moment the stream attaches.
+  const [ready, setReady] = useState(false);
+  useEffect(() => { setReady(false); }, [live]);
   // THE CHOREOGRAPHY CURVE overshoots — right for a move between spots, wrong for a shrink
   // in place: avoidCard pulling the ring in on a tall card read as a bounce on every slide
   // entrance. A same-spot, same-mode, smaller ring gets a plain ease. A drag gets none.
@@ -115,7 +123,8 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
           : `0 0 0 ${Math.round(ring * 2.2)}px rgba(245,239,230,0.10), 0 ${Math.round(r.w * 0.06)}px ${Math.round(r.w * 0.16)}px -${Math.round(r.w * 0.05)}px rgba(0,0,0,0.75)`,
         transition: "box-shadow 480ms ease, border-radius 480ms ease" }}>
         <div style={{ width: "100%", height: "100%", borderRadius: radius, overflow: "hidden", background: live ? "#000" : "rgba(20,33,61,0.55)", position: "relative", transition: "border-radius 480ms ease" }}>
-          {live && !err && <video ref={videoRef} autoPlay muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", transform: mirror ? "scaleX(-1)" : undefined, display: "block" }} />}
+          {live && !err && <video ref={videoRef} autoPlay muted playsInline onLoadedData={() => setReady(true)}
+            style={{ width: "100%", height: "100%", objectFit: "cover", transform: mirror ? "scaleX(-1)" : undefined, display: "block", opacity: ready ? 1 : 0, transition: "opacity 400ms ease" }} />}
           {(!live || err) && (
             <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: CREAM, fontFamily: "'Rubik', system-ui, sans-serif", textAlign: "center", padding: "8%" }}>
               <div>
