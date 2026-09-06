@@ -192,8 +192,17 @@ export const PV_CSS = `
 @keyframes sa-glow-sweep { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
 .sa-glow-sweep { animation: sa-glow-sweep 14s linear infinite alternate; }
 @media (prefers-reduced-motion: reduce) { .sa-glow-sweep { animation: none; } }
-.sa-detour-spot { transform: scale(1.06) !important; transform-origin: center center; background: rgba(255,255,255,0.06); animation: sa-lsd 3.4s ease-in-out infinite !important; opacity: 1 !important; position: relative; z-index: 3; }
-@media (prefers-reduced-motion: reduce) { .sa-detour-spot { animation: none !important; } }
+/* v2 (2026-09-06, Lee: "spotlighting a bullet point... if you click again to unspotlight it
+   should go back to the original, goes blank then comes back like it's starting animation over").
+   "animation" is a shorthand — putting sa-lsd directly on the bullet REPLACED its animation-name
+   from sa-type-in (the entrance, held at its finished state via "forwards") to sa-lsd, and
+   un-spotlighting flipped it right back, which restarts sa-type-in from its 0% keyframe (opacity
+   0) instead of resuming — a real animation-name change, not a class-only cosmetic change, is
+   always a fresh start per the CSS spec. The glow now lives on its own ::after box instead, so
+   toggling the class never touches the bullet's own "animation" property at all. */
+.sa-detour-spot { transform: scale(1.06) !important; transform-origin: center center; background: rgba(255,255,255,0.06); opacity: 1 !important; position: relative; z-index: 3; }
+.sa-detour-spot::after { content: ""; position: absolute; inset: -3px; border-radius: inherit; pointer-events: none; z-index: -1; animation: sa-lsd 3.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .sa-detour-spot::after { animation: none !important; } }
 /* THE CEQ PIN (Lee, 09-01) — z-order between ReactFlow nodes belongs to the
    .react-flow__node WRAPPER, so a z-index on our inner counter-transform div
    cannot lift the question above an exhibit Lee has zoomed into. :has() reaches
@@ -754,7 +763,16 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
       {/* THE DETOUR HEADING sits above the navy box (2026-09-04), so the card
           root is transparent and the box below carries the navy and the edge. */}
       {detourKind && !stemEditing && <KindChip text={calloutMeta(detourKind).label} accent={detourAccent(detourKind)} scale={s} />}
-      <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s, ...(detour ? { background: PAPER.navy, border: `${Math.max(1, 1.5 * s)}px solid ${detourAccent(detourKind)}99`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)" } : {}) }}>
+      {/* BOUNDARY FOR data-ceq-card's clear-all click (2026-09-06, Lee: "highlights to choices
+          don't persist... stem highlights do"). The 8px gaps between choice rows and this box's
+          own 16px padding have no click handler of their own, so a click landing there (very
+          easy — Lee clicks a choice, clicks the next one down, clicks near the edge) used to
+          bubble straight up to the card root and fire hlx.clearCeq, wiping the choice AND stem
+          highlights it just set. Stopping it here means the box catches every incidental click
+          inside the stem/choices content; the card's own outer chrome (the margin OUTSIDE this
+          box) still clears on click, so "click the box to clear" still works as designed. */}
+      <div onClick={film && !inert ? (e) => e.stopPropagation() : undefined}
+        style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s, ...(detour ? { background: PAPER.navy, border: `${Math.max(1, 1.5 * s)}px solid ${detourAccent(detourKind)}99`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)" } : {}) }}>
       {/* TOPIC kicker — name only (no Ch#), small uppercase above the stem so a
           viewer landing mid-clip knows the topic. */}
       {!isCallout && d.topic && <div style={{ display: "flex", alignItems: "center", gap: 6 * s, fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{/* no bolt here either — see the note above the boss bolt */}<span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</span></div>}
@@ -811,7 +829,12 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
           onDrop={film ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); attachMemo("__stem__", mid); } }}
           ref={stemRef}
           onClick={film ? (e) => { if (e.altKey || e.ctrlKey || e.metaKey || inert) return; e.stopPropagation(); if (e.shiftKey) { const r = wordRangeAtPoint(e.currentTarget, e.clientX, e.clientY); if (r) hlx.setStem(id, r); return; } const sel = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (sel && !sel.isCollapsed) return; prLive.select?.(-1); } : undefined}
-          onMouseUp={film ? readStemSelection : undefined}
+          // SHIFT REQUIRED (2026-09-06, Lee: "require shift held down to do a highlight, because
+          // I want to just click and hold sometimes for [something else] on click") — a plain
+          // drag-select used to persist as a highlight on release with no modifier at all; now
+          // every highlight gesture (this drag-release, the single-word shift+click above) needs
+          // Shift, freeing a plain click/hold for other uses.
+          onMouseUp={film ? (e) => { if (e.shiftKey) readStemSelection(); } : undefined}
           onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined}
           title={canEditStem ? "Double-click to edit the question" : undefined}
           style={{ minWidth: 0, flex: 1, fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, whiteSpace: "pre-wrap", ...(film ? { userSelect: "text", WebkitUserSelect: "text", cursor: "text" } : canEditStem ? { cursor: "text" } : {}) }}
@@ -858,6 +881,7 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
               <span style={{ fontSize: 18 * s, fontWeight: 600, color: PAPER.ink }}>
                 <TextAnchor subId={c.id} nodeId={id} strike={st === "wrong"}><span
                   onMouseUp={film && !inert ? (e) => {
+                    if (!e.shiftKey) return; // shift required — see the stem's own onMouseUp for why
                     const el = e.currentTarget; const v = el.ownerDocument.defaultView; const sl = v?.getSelection();
                     if (!el || !sl || sl.rangeCount === 0 || sl.isCollapsed) return;
                     const r = sl.getRangeAt(0); if (!el.contains(r.commonAncestorContainer)) return;
