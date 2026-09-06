@@ -364,7 +364,11 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
         <>
           <div style={{ width: Math.round(w * 0.56), height: 1, background: "rgba(245,239,230,0.28)", marginTop: Math.round(h * 0.006) }} />
           <Editable value={topic || "Set name"} onEdit={onEdit ? (v) => onEdit({ topic: v }) : undefined} multiline style={{ fontFamily: HEAD_FONT, fontWeight: 800, fontSize: Math.round(h * 0.042), lineHeight: 1.08, letterSpacing: "0.02em", textTransform: "uppercase", color: BRAND_CREAM, textAlign: "center", maxWidth: Math.round(w * 0.84), textWrap: "balance" as never }} />
-          <Editable value={tutorLine ?? `tutored by ${tutor}`} onEdit={onEdit ? (v) => onEdit({ tutorLine: v }) : undefined} style={{ ...QUIET(h), textAlign: "center" }} />
+          {/* "tutored by {tutor}" removed (Lee, 2026-09-06): "the bio slide will be doing that" —
+              the bio's own canned lines (canned-lines.ts) now carry that credential. `tutorLine`
+              stays a real prop (an explicit one still renders, for anything that sets it) so
+              nothing downstream breaks; only the bare default fallback is gone. */}
+          {tutorLine && <Editable value={tutorLine} onEdit={onEdit ? (v) => onEdit({ tutorLine: v }) : undefined} style={{ ...QUIET(h), textAlign: "center" }} />}
           <Editable value={domain} onEdit={onEdit ? (v) => onEdit({ domain: v }) : undefined} style={{ ...QUIET(h), opacity: 0.75, marginTop: Math.round(h * -0.008), textAlign: "center" }} />
         </>,
       )}
