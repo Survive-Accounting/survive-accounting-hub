@@ -310,11 +310,22 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
     } catch (e) { setVoiceMsg(`Could not save the audio — ${e instanceof Error ? e.message : String(e)}`); }
   };
 
-  const addFiles = async (list: FileList) => {
+  const addFiles = async (list: FileList | File[]) => {
     for (const f of Array.from(list)) {
       try { const a = await uploadIdeaFile(f); setFiles((v) => [...v, a]); }
       catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     }
+  };
+
+  /** Ctrl+V straight into the box (Lee, 2026-09-05: "let's also allow for pasting screenshots"
+   *  — Win+Shift+S lands the clipboard image here, no file picker needed). A plain text paste
+   *  is left alone so pasting words still works exactly as before. */
+  const onPaste = (e: React.ClipboardEvent) => {
+    const img = [...e.clipboardData.items].find((i) => i.type.startsWith("image/"));
+    if (!img) return;
+    e.preventDefault();
+    const f = img.getAsFile();
+    if (f) void addFiles([f]);
   };
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -449,6 +460,7 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
               ref={ta}
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onPaste={onPaste}
               rows={7}
               placeholder={intent === "todo" ? "What needs doing?" : "Say it however it comes out. Mention the category if you like — AI does the rest."}
               style={{
