@@ -115,20 +115,14 @@ function FilmPreflight({ set, topic }: { set: BoothSetInfo; topic: BoothTopic })
     <div style={{ marginTop: 26, padding: "14px 18px", border: `1px solid ${V3_EDGE}`, borderRadius: 12 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
         <span style={{ fontFamily: V3_DISPLAY, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: V3_GOLD }}>Before you film</span>
-        <span style={{ fontSize: 12, color: V3_MUTED }}>~{fmtRange(range)} on camera, and this is what's in it — a rough range, not a promise</span>
-        {/* REHEARSE (2026-09-06): "give me a rehearsal option... it makes more sense in Film
-            step." Its own search flag on the Film route, not a button inside the actual capture
-            surface — that surface stays clean for OBS. */}
-        <a href={`${blastOffPath(topic, set, "film")}?rehearse=1`} style={{ marginLeft: "auto", fontSize: 12, color: V3_GOLD, textDecoration: "underline", textUnderlineOffset: 3, whiteSpace: "nowrap" }}>
-          🎙 Rehearse first — fill the teleprompter
-        </a>
+        <span style={{ fontSize: 12, color: V3_MUTED, marginLeft: "auto" }}>🎙 Rehearse lives on Film itself now — press R once you're there.</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(76px, 1fr))", gap: 10 }}>
         {stat("Slides", counts.total)}
         {stat("Questions", counts.questions)}
         {stat("Memorize this", counts.memorizeThis)}
         {stat("Cheat code", counts.cheatCode)}
-        {stat("Deeper idea", counts.deeperIdea)}
+        {stat("Deep question", counts.deeperIdea)}
         {stat("Illustrations", counts.illustrations)}
       </div>
       {illoCost !== null && illoCost > 0 && (

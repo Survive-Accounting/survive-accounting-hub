@@ -30,6 +30,7 @@ import { MoveContext, PersistContext, PracticeContext, PreviewSpotContext, Scale
 import { playSfx } from "@/components/canvas/sfx";
 import { applyRegularClick, applySuperClick, type SpotSets } from "@/components/canvas/spotlight";
 import { HighlightContext, useTextHighlights } from "@/components/canvas/text-highlights";
+import { useDictation } from "@/lib/use-dictation";
 
 import { BG, CREAM, EDGE, GOLD, MUTED, usePlan } from "./BlastOffEditor";
 import { CaptureArrows } from "./capture/arrows";
@@ -41,6 +42,7 @@ import { camDefault, layoutOf, type RailStatus } from "./layout";
 import { questionProgress } from "./frame-view";
 import { PhoneFrame } from "./PhoneFrame";
 import { FRAME_LABEL, filmFrames, patchFrame, type BlastFrame } from "./plan";
+import { RehearsalReview } from "./RehearsalReview";
 import { SlideEditContext } from "./slide-edit";
 
 const NO_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
@@ -72,6 +74,35 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   // so this only reaches PhoneFrame at all when popout.isPopout is true (below), never in the
   // plain in-page capture. Patches the CURRENT frame only, straight onto the plan.
   const patchCurrentFrame = useCallback((p: Partial<BlastFrame>) => { if (plan && frameId) commit(patchFrame(plan.frames, frameId, p)); }, [plan, commit, frameId]);
+
+  // ---- REHEARSAL (2026-09-06, second pass). Lee: "I can't see the teleprompter or understand
+  // how it works... I'd prefer to see it somewhere on film. Flip on teleprompter, then I record
+  // like I normally would. Same pop out window. But it's letting me talk about each slide and
+  // run through what I plan to say. Then we have the review at the end, then we go nail it and
+  // move to next video." So this lives right here, in the real capture surface — R toggles
+  // rehearsing (or the chip in the chrome bar); walking slide to slide while it's on (the exact
+  // same spacebar navigation as a real take) dictates into `segments`, keyed by frame id; Review
+  // turns each into a suggested line Lee approves/revises/edits, which lands on frame.prompter —
+  // the SAME prompter panel below then shows it once he's back to actually filming.
+  const [rehearsing, setRehearsing] = useState(false);
+  const [segments, setSegments] = useState<Record<string, string>>({});
+  const [showReview, setShowReview] = useState(false);
+  const frameIdRef = useRef(frameId);
+  frameIdRef.current = frameId;
+  const dictation = useDictation((final) => {
+    const fid = frameIdRef.current;
+    if (!final.trim() || !fid) return;
+    setSegments((s) => ({ ...s, [fid]: (s[fid] ? s[fid] + " " : "") + final.trim() }));
+  });
+  useEffect(() => {
+    if (!rehearsing || !dictation.supported) return;
+    dictation.start();
+    return () => dictation.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rehearsing]);
+  const commitPrompterLine = useCallback((fid: string, line: string) => { if (plan) commit(patchFrame(plan.frames, fid, { prompter: [line] })); }, [plan, commit]);
+  const closeReview = useCallback((stopRehearsing: boolean) => { setShowReview(false); if (stopRehearsing) setRehearsing(false); }, []);
+  const segmentCount = Object.keys(segments).length;
 
   // ---- PRACTICE: click a choice to emphasise it, click it again to resolve ----
   // (the canvas's own rule: wrong scratches, correct confirms — with the cue).
@@ -134,6 +165,13 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (showReview) {
+        // The review overlay is a modal on top of capture — Escape backs out of IT first,
+        // never straight past it out of Film. Every other shortcut is capture's own and stays
+        // inert while it's up (the overlay has its own buttons/inputs).
+        if (e.key === "Escape") { e.preventDefault(); closeReview(false); }
+        return;
+      }
       if (e.key === " " || e.code === "Space") {
         e.preventDefault();
         if (e.shiftKey) setI((v) => Math.max(0, v - 1));
@@ -145,11 +183,12 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
       else if (e.key === "Escape") { e.preventDefault(); onExit(); }
       else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
       else if (e.key.toLowerCase() === "p") { e.preventDefault(); setPrompter((v) => !v); }
+      else if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); setRehearsing((v) => !v); }
       else if (e.key.toLowerCase() === "b" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); const nx = nextCamSpot(camNow); setCamOverride(nx); if (nx === "off") setHero(false); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [n, onExit, resetTake, camNow]);
+  }, [n, onExit, resetTake, camNow, showReview, closeReview]);
 
   // FIT THE PHONE to the window: as tall as the window allows, 9:16. Size the
   // browser window to 9:16 (or pop it out) and the phone IS the window.
@@ -195,13 +234,34 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
             style={{ color: railStatus === "clear" ? MUTED : GOLD, fontWeight: railStatus === "clear" ? 500 : 800 }}>
             {railStatus === "clear" ? "captions clear" : railStatus === "card" ? "captions: ON THE CARD" : railStatus === "illustration" ? "captions: ON THE PICTURE" : "captions: under the camera"}
           </span>
-          <span>B camera {camNow} · space next · shift+space back · wheel zooms, O pulls back, 0 resets · alt+drag moves, alt-hover grips resize · click a choice, click again to resolve · ctrl+click the camera: hero (again, ` or next slide ends it) · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · F1 move F1 draws an arrow, Delete removes · ` resets · H hide this · P prompter{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
+          <span>B camera {camNow} · space next · shift+space back · wheel zooms, O pulls back, 0 resets · alt+drag moves, alt-hover grips resize · click a choice, click again to resolve · ctrl+click the camera: hero (again, ` or next slide ends it) · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · F1 move F1 draws an arrow, Delete removes · ` resets · H hide this · P prompter · R rehearse{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
+          {/* REHEARSAL (2026-09-06, second pass): the toggle lives right here, in the same chrome
+              bar as everything else about this take — Lee: "I'd prefer to see it somewhere on
+              film." On: dictation runs, accumulating what's said per slide as you walk normally. */}
+          <button onClick={() => setRehearsing((v) => !v)} title="Talk through each slide (R) — nothing is recorded, just transcribed, so you can fill the prompter before the real take"
+            style={{ color: rehearsing ? "#000" : GOLD, background: rehearsing ? "#3BF5A0" : "none", border: `1px solid ${rehearsing ? "#3BF5A0" : GOLD + "66"}`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>
+            {rehearsing ? "🎙 rehearsing" : "🎙 rehearse"}
+          </button>
+          {rehearsing && (
+            <span style={{ color: dictation.on ? "#3BF5A0" : "#FF9F43", fontWeight: 700 }}>
+              {dictation.supported ? (dictation.on ? "listening" : "not listening") : "dictation unsupported — try Chrome"}
+            </span>
+          )}
+          {segmentCount > 0 && (
+            <button onClick={() => setShowReview(true)} title="Turn what's been said into suggested lines for the prompter"
+              style={{ color: "#14213D", background: GOLD, border: `1px solid ${GOLD}`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>
+              review {segmentCount} →
+            </button>
+          )}
           {popout.open && !popout.isPopout && (
             <button onClick={popout.open} title="Open this page as its own 9:16 window, snapped to 1080×1920 for OBS"
               style={{ color: GOLD, background: "none", border: `1px solid ${GOLD}66`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>⧉ pop out 9:16</button>
           )}
           {popout.status && <span style={{ color: CREAM }}>{popout.status}</span>}
         </div>
+      )}
+      {showReview && (
+        <RehearsalReview set={set} frames={frames} ceqById={ceqById} segments={segments} onCommitLine={commitPrompterLine} onClose={closeReview} />
       )}
       {prompter && (frame.prompter?.length ?? 0) > 0 && (
         <div style={{
