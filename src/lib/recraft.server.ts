@@ -10,6 +10,14 @@
 // 10 credits) on the freshly generated image before anything is downloaded or stored, so no
 // black square ever reaches the bucket. The boil is ours, not theirs. Recraft's URLs expire in
 // ~24 h, so every URL this file touches is used immediately, never persisted.
+//
+// A REFERENCE PHOTO (2026-09-05): Lee can attach one photo per generation (pasted or picked in
+// IllustrationPanel, already uploaded to OUR bucket by the time it reaches here). Recraft has no
+// per-call "use this photo loosely" endpoint on /images/generations itself — `style_references` /
+// `style_reference_urls` is the documented mechanism, and it works by creating a small PRIVATE
+// style from the image(s) first, billed as style creation ($0.005) + generation. `style_match:
+// "flexible"` keeps it a nudge rather than a lock (the docs' "precise" is for a trained HOUSE
+// style, which this deliberately is not).
 
 export interface IllustrationRequest {
   prompt: string;
@@ -19,6 +27,11 @@ export interface IllustrationRequest {
   controls?: { background_color?: { rgb: [number, number, number] }; colors?: { rgb: [number, number, number]; weight?: number }[] };
   /** A Recraft custom style id; when present the model becomes recraftv4_styles + precise. */
   styleId?: string | null;
+  /** A photo Lee attached for THIS generation only (2026-09-05) — a loose visual nudge
+   *  (style_reference_urls, style_match: "flexible"), never a saved house style. Recraft's own
+   *  docs mark style_id and style references mutually exclusive; a reference photo wins when
+   *  both are present, since attaching one is Lee's explicit, per-picture choice. */
+  referenceImageUrl?: string | null;
 }
 
 export interface IllustrationResult {
@@ -74,16 +87,20 @@ export const recraftProvider: IllustrationProvider = {
   async generate(req, signal) {
     const key = keyOf();
     if (!key) throw new Error("RECRAFT_API_KEY is not configured on the server — set it in .env (local) and in Vercel's environment variables.");
-    const useStyle = !!req.styleId;
+    const useReference = !!req.referenceImageUrl;
+    const useStyle = !!req.styleId && !useReference;
     const body: Record<string, unknown> = {
       prompt: req.prompt,
-      model: useStyle ? "recraftv4_styles" : req.model,
+      model: useStyle || useReference ? "recraftv4_styles" : req.model,
       size: req.size,
       n: 1,
       response_format: "url",
       ...(req.seed !== undefined ? { random_seed: req.seed } : {}),
       ...(req.controls ? { controls: req.controls } : {}),
       ...(useStyle ? { style_id: req.styleId, style_match: "precise" } : {}),
+      // "flexible", not "precise": a reference photo is a nudge toward its subject/composition,
+      // not a locked house style — precise would fight the watercolor treatment the preset asks for.
+      ...(useReference ? { style_reference_urls: [req.referenceImageUrl], style_match: "flexible" } : {}),
     };
     const res = await fetch(`${RECRAFT_BASE}/images/generations`, {
       method: "POST",

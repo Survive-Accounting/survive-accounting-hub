@@ -17,6 +17,13 @@ import { AD_KINDS } from "@/components/blastoff/ad-kinds";
 import { ANIMATION_PRESETS } from "@/components/blastoff/illustration";
 import { BLAST_FRAME_KINDS } from "@/components/blastoff/plan";
 
+// Matches the Attachment shape (components/ideas/model.ts) — its own copy, the way
+// fast-track.functions.ts also keeps its own, rather than a cross-file type import here.
+const attachmentSchema = z.object({
+  id: z.string().min(1).max(400), name: z.string().max(300), mime: z.string().max(120),
+  size: z.number().int().nonnegative(), path: z.string().max(400), url: z.string().max(1000),
+});
+
 // Validated generously: a bound tighter than a real Supabase public URL would flip loadBlastPlan
 // to null and the client would regenerate a fresh spine over Lee's running order.
 export const illustrationSchema = z.object({
@@ -37,6 +44,10 @@ export const illustrationSchema = z.object({
   brief: z.string().max(4000).nullable().optional(),
   summary: z.object({ title: z.string().max(80), bullets: z.array(z.string().max(200)).max(5) }).nullable().optional(),
   referenceFrameId: z.string().max(80).nullable().optional(),
+  // A reference photo (2026-09-05) and a paired library picture, side by side on a blank slide.
+  referencePhoto: attachmentSchema.nullable().optional(),
+  pairedAssetUrl: z.string().max(800).nullable().optional(),
+  pairedTitle: z.string().max(120).nullable().optional(),
 });
 
 export const frameSchema = z.object({

@@ -111,7 +111,13 @@ export function PlacedIllustration({ ill, w, h, live, boilFrame, kind, onPlace, 
   const base = ill.placement ?? defaultPlacement(kind);
   const p = drag ?? base;
   const size = Math.round(p.w * w);
-  const left = Math.round(p.x * w - size / 2), top = Math.round(p.y * h - size / 2);
+  // SIDE BY SIDE (2026-09-05, blank slides only): a second, already-made picture from the
+  // library beside this one — a wider box, still centred on the same spot, both pictures move
+  // and resize together as one unit.
+  const pairedUrl = kind === "blank" ? (ill.pairedAssetUrl ?? null) : null;
+  const gap = Math.round(size * 0.06);
+  const boxW = pairedUrl ? size * 2 + gap : size;
+  const left = Math.round(p.x * w - boxW / 2), top = Math.round(p.y * h - size / 2);
 
   function down(mode: "move" | "size") {
     return (e: React.PointerEvent) => {
@@ -145,9 +151,22 @@ export function PlacedIllustration({ ill, w, h, live, boilFrame, kind, onPlace, 
   return (
     <div data-sa-illustration="" onPointerDown={down("move")} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
       title={onPlace ? "Drag to move · the corner grip resizes" : undefined}
-      style={{ position: "absolute", left, top, width: size, height: size, cursor: onPlace ? (drag ? "grabbing" : "grab") : undefined,
+      style={{ position: "absolute", left, top, width: boxW, height: size, cursor: onPlace ? (drag ? "grabbing" : "grab") : undefined,
         touchAction: "none", userSelect: "none", ...stageStyle }}>
-      <Picture ill={ill} width={size} height={size} live={live} boilFrame={boilFrame} onFail={() => setFailed(true)} />
+      {pairedUrl ? (
+        <div style={{ display: "flex", width: "100%", height: "100%", gap }}>
+          <div style={{ width: size, height: size, flexShrink: 0 }}>
+            <Picture ill={ill} width={size} height={size} live={live} boilFrame={boilFrame} onFail={() => setFailed(true)} />
+          </div>
+          {/* The paired half is a snapshot from the library — its own onFail is a no-op
+              (a broken second image should never take down the slide's own picture). */}
+          <div style={{ width: size, height: size, flexShrink: 0 }}>
+            <Picture ill={{ ...ill, assetUrl: pairedUrl, animationPreset: "none" }} width={size} height={size} live={false} onFail={() => {}} />
+          </div>
+        </div>
+      ) : (
+        <Picture ill={ill} width={size} height={size} live={live} boilFrame={boilFrame} onFail={() => setFailed(true)} />
+      )}
       {onPlace && (
         <>
           <span aria-hidden style={{ position: "absolute", inset: 0, border: `1px dashed rgba(252,163,17,${drag ? 0.9 : 0.35})`, borderRadius: 4, pointerEvents: "none" }} />

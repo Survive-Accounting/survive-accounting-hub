@@ -7,6 +7,7 @@
 // motion (the Survive Boil). Illustrations are occasional — 1–3 per Short, never automatic.
 // An idea dictated in the talkthrough is BANKED here as `requested: true` with a brief, and
 // nothing is generated until Lee presses Generate.
+import type { Attachment } from "@/components/ideas/model";
 
 /** What a slide knows about its picture. Absent = never asked; null = Lee cleared it. */
 export interface FrameIllustration {
@@ -37,6 +38,18 @@ export interface FrameIllustration {
   brief?: string | null;
   summary?: { title: string; bullets: string[] } | null;
   referenceFrameId?: string | null;
+  /** A REFERENCE PHOTO (2026-09-05, "how do we keep this looking good — reference photos?"):
+   *  pasted or picked by Lee for THIS generation only — never saved as a house style. Recraft
+   *  treats it as a loose visual nudge (style_reference_urls, style_match: "flexible"), not a
+   *  literal composite; a specific real landmark or prop is the case it earns its keep. */
+  referencePhoto?: Attachment | null;
+  /** A SECOND PICTURE, SIDE BY SIDE (2026-09-05: "could I add that internal one and show them
+   *  side by side... set up a blank slide and add them"): a blank slide only. A snapshot of
+   *  another picture's own URL and title, from the library below — not a live reference, since
+   *  a library entry never changes after it's made. Cleared independently of the slide's own
+   *  picture via `pairedAssetUrl: null`. */
+  pairedAssetUrl?: string | null;
+  pairedTitle?: string | null;
 }
 
 export interface IllustrationPlacement { x: number; y: number; w: number }
@@ -167,7 +180,7 @@ export function emptyIllustration(seed: Partial<FrameIllustration> = {}): FrameI
   return {
     requested: true, prompt: null, teachingIntent: null, provider: null, stylePreset: DEFAULT_STYLE_ID, styleVersion: null,
     assetUrl: null, localAssetId: null, animationPreset: null, generatedAt: null, seed: null, placement: null,
-    brief: null, summary: null, referenceFrameId: null, ...seed,
+    brief: null, summary: null, referenceFrameId: null, referencePhoto: null, pairedAssetUrl: null, pairedTitle: null, ...seed,
   };
 }
 

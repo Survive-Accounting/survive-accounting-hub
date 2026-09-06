@@ -9,8 +9,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import { getAdminWho } from "@/components/AdminGate";
+import { uploadReferencePhoto } from "@/components/ideas/upload";
 import { installPasscodeSession } from "@/lib/admin-session.functions";
-import { generateIllustration, illustrationStatus, testIllustrationKey } from "@/lib/illustrate.functions";
+import { generateIllustration, illustrationStatus, listIllustrationLibrary, testIllustrationKey, type LibraryRow } from "@/lib/illustrate.functions";
 import { runMicro } from "@/lib/talkthrough.functions";
 import { useDictation } from "@/lib/use-dictation";
 
@@ -50,12 +51,53 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [tips, setTips] = useState(false);
+  // A REFERENCE PHOTO (2026-09-05: "make sure I can just ctrl+v right into it... and upload
+  // file, but paste is my preferred mode"). Lives on the frame itself (ill.referencePhoto), not
+  // local state, so it survives switching slides and away/back like everything else here.
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const photoFileRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     setWords(ill?.brief ?? ""); setInterim(""); setRevision(""); setErr(null);
     setBrief(ill?.summary && ill.prompt ? { title: ill.summary.title, bullets: ill.summary.bullets, prompt: ill.prompt } : null);
     setRefId(ill?.referenceFrameId ?? "");
   }, [sel.id]);   // eslint-disable-line react-hooks/exhaustive-deps
   const dictation = useDictation((final, live) => { if (final) setWords((w) => (w ? w.replace(/\s+$/, "") + " " : "") + final.trim()); setInterim(live); });
+
+  const addPhoto = async (file: File) => {
+    setPhotoUploading(true); setErr(null);
+    try { const a = await uploadReferencePhoto(file); keep({ referencePhoto: a }); }
+    catch (e) { setErr((e as Error).message); }
+    finally { setPhotoUploading(false); }
+  };
+  /** Ctrl+V straight into the "say it" box — a plain text paste still lands as words. */
+  const onWordsPaste = (e: React.ClipboardEvent) => {
+    const img = [...e.clipboardData.items].find((i) => i.type.startsWith("image/"));
+    if (!img) return;
+    e.preventDefault();
+    const f = img.getAsFile();
+    if (f) void addPhoto(f);
+  };
+
+  // THE LIBRARY (2026-09-05: "catalog these illustrations as we build them... a library we're
+  // building versus one-offs") — every picture ever generated for THIS set, free to reuse: "use
+  // this" copies a row straight onto the current frame, no Recraft call, no cost. Refetched
+  // after each successful generate so the newest one is there to reuse right away.
+  const [library, setLibrary] = useState<LibraryRow[] | null>(null);
+  const refreshLibrary = () => { listIllustrationLibrary({ data: { setId } }).then((r) => setLibrary(r.rows)).catch(() => setLibrary([])); };
+  useEffect(refreshLibrary, [setId]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const useLibraryRow = (row: LibraryRow) => {
+    keep({
+      stylePreset: row.stylePreset, styleVersion: row.styleVersion, assetUrl: row.assetUrl, localAssetId: null,
+      prompt: row.prompt, brief: ill?.brief ?? row.prompt, summary: row.title ? { title: row.title, bullets: [] } : (ill?.summary ?? null),
+      seed: row.seed, generatedAt: row.generatedAt, teachingIntent: ill?.teachingIntent ?? (teaching() || null),
+      animationPreset: ill?.animationPreset ?? illustrationStyle(row.stylePreset).defaultAnimation,
+    });
+  };
+  /** BLANK SLIDES ONLY (2026-09-05: "could I add that internal one and show them side by
+   *  side... set up a blank slide and add them") — a second, already-made picture from the
+   *  library, shown beside this frame's own. A snapshot, not a live link: pairing never changes
+   *  again even if that other picture is later regenerated. */
+  const pairLibraryRow = (row: LibraryRow | null) => keep({ pairedAssetUrl: row?.assetUrl ?? null, pairedTitle: row?.title ?? null });
 
   // Other slides' pictures — the ones this one can rhyme with.
   const references = frames.filter((f) => f.id !== sel.id && f.illustration?.prompt).map((f) => ({
@@ -98,13 +140,20 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
       // A referenced picture's seed makes the composition rhyme; otherwise the slide's own seed
       // unless Lee asked for a fresh roll.
       const seed = ref?.seed ?? (reseed || !ill?.seed ? undefined : ill.seed);
-      const r = await generateIllustration({ data: { setId, frameId: sel.id, prompt: subject, teachingIntent: teaching() || null, stylePreset: style.id, ...(seed !== undefined ? { seed } : {}) } });
+      const r = await generateIllustration({
+        data: {
+          setId, frameId: sel.id, prompt: subject, teachingIntent: teaching() || null, stylePreset: style.id,
+          ...(seed !== undefined ? { seed } : {}), referenceImageUrl: ill?.referencePhoto?.url ?? null,
+          title: brief?.title ?? null, who: getAdminWho(),
+        },
+      });
       keep({
         brief: words.trim() || ill?.brief || null, summary: brief ? { title: brief.title, bullets: brief.bullets } : ill?.summary ?? null, referenceFrameId: refId || null,
         prompt: subject, teachingIntent: teaching() || null,
         provider: r.provider, stylePreset: r.stylePreset, styleVersion: r.styleVersion, assetUrl: r.url, localAssetId: r.path,
         animationPreset: ill?.animationPreset ?? style.defaultAnimation, generatedAt: r.generatedAt, seed: r.seed,
       });
+      refreshLibrary();
     } catch (e) { setErr((e as Error).message || "Couldn't generate. Your words are kept — try again."); }
     finally { setBusy(false); }
   }
@@ -155,8 +204,8 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
         )}
       </div>
       <textarea rows={3} style={{ ...field, marginTop: 4, resize: "vertical" }} value={words + (interim ? (words ? " " : "") + interim : "")}
-        onChange={(e) => { setInterim(""); setWords(e.target.value); }}
-        placeholder="e.g. a suited guy at his desk with a magnifying glass over the financials, the report says OUR COMPANY, and outside the window an investor is peering in at the same report" />
+        onChange={(e) => { setInterim(""); setWords(e.target.value); }} onPaste={onWordsPaste}
+        placeholder="e.g. a suited guy at his desk with a magnifying glass over the financials, the report says OUR COMPANY, and outside the window an investor is peering in at the same report — or paste a reference photo (Ctrl+V)" />
       <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
         <button type="button" disabled={drafting || !words.trim()} onClick={() => void draft(false)} style={{ ...chip(true, GOLD), opacity: drafting || !words.trim() ? 0.5 : 1 }}>
           {drafting ? "Prepping…" : brief ? "Prep again from my words" : "Prep the prompt"}
@@ -168,6 +217,25 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
             <option value="">no reference</option>
             {references.map((r) => <option key={r.id} value={r.id}>rhymes with: {r.label}</option>)}
           </select>
+        )}
+      </div>
+
+      {/* A REFERENCE PHOTO — Ctrl+V into the box above is the preferred way in; this is the
+          fallback and the "what's attached" readout. Loose guidance for Recraft, not a lock —
+          best for a specific real landmark or prop a plain sentence won't nail on its own. */}
+      <div className="flex" style={{ gap: 8, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <input ref={photoFileRef} type="file" accept="image/*" style={{ display: "none" }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void addPhoto(f); e.target.value = ""; }} />
+        {ill?.referencePhoto ? (
+          <>
+            <img src={ill.referencePhoto.url} alt={ill.referencePhoto.name} style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, border: `1px solid ${EDGE}` }} />
+            <span style={{ fontSize: 10.5, color: MUTED }}>reference photo attached</span>
+            <button type="button" onClick={() => keep({ referencePhoto: null })} style={chip(false, ORANGE)} title="Remove the reference photo — words alone drive the next generation">remove photo</button>
+          </>
+        ) : (
+          <button type="button" disabled={photoUploading} onClick={() => photoFileRef.current?.click()} style={{ ...chip(false, GOLD), opacity: photoUploading ? 0.6 : 1 }} title="Or paste one straight into the box above (Ctrl+V)">
+            {photoUploading ? "Uploading…" : "📷 Add a reference photo"}
+          </button>
         )}
       </div>
 
@@ -238,6 +306,45 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
       </div>
       {ill?.assetUrl && <div style={{ marginTop: 6, fontSize: 10.5, color: MUTED }}>It's on the slide to the left — drag it to move, the corner grip resizes{ill.placement ? "" : " (a blank slide's sits dead centre)"}. Regenerate keeps the brief and rolls a new seed; revise the brief when the subject is wrong.</div>}
       {ill?.placement && <button type="button" onClick={() => onPatch({ illustration: { ...ill, placement: null } })} style={{ ...chip(false, GOLD), marginTop: 6 }} title="Back to the band under the card">Snap back under the card</button>}
+
+      {/* SIDE BY SIDE — blank slides only (2026-09-05: "could I add that internal one and show
+          them side by side... set up a blank slide and add them"). A second, already-made
+          picture from the library, never a fresh generation — pick one below. */}
+      {sel.kind === "blank" && (
+        <div style={{ marginTop: 8, padding: "6px 10px", border: `1px solid ${EDGE}`, borderRadius: 8, fontSize: 11, color: CREAM }}>
+          {ill?.pairedAssetUrl ? (
+            <div className="flex" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <img src={ill.pairedAssetUrl} alt={ill.pairedTitle ?? ""} style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 6, border: `1px solid ${EDGE}` }} />
+              <span style={{ color: MUTED }}>beside it: {ill.pairedTitle || "a library picture"}</span>
+              <button type="button" onClick={() => pairLibraryRow(null)} style={chip(false, ORANGE)}>un-pair</button>
+            </div>
+          ) : (
+            <span style={{ color: MUTED }}>This slide can show a second, already-made picture beside its own — pick one from the library below (📎 next to it).</span>
+          )}
+        </div>
+      )}
+
+      {/* THE LIBRARY (2026-09-05: "catalog these illustrations as we build them... a library
+          we're building versus one-offs") — every picture ever generated for this set, free to
+          reuse: "use this" attaches a row to THIS frame with no Recraft call. */}
+      {library && library.length > 0 && (
+        <details style={{ marginTop: 10 }}>
+          <summary style={{ ...subhead, cursor: "pointer" }}>📚 Library · {library.length} for this set</summary>
+          <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
+            {library.map((row) => (
+              <div key={row.id} style={{ display: "flex", gap: 8, alignItems: "center", border: `1px solid ${EDGE}`, borderRadius: 8, padding: "5px 7px" }}>
+                <img src={row.assetUrl} alt={row.title ?? row.prompt} style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, flexShrink: 0 }} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 700, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.title || row.prompt}</div>
+                  <div style={{ fontSize: 10, color: MUTED }}>{new Date(row.generatedAt).toLocaleDateString()}{row.createdBy ? ` · ${row.createdBy}` : ""}</div>
+                </div>
+                <button type="button" onClick={() => useLibraryRow(row)} style={chip(false, MINT)} title="Attach this picture to the current slide — free, no generation">use this</button>
+                {sel.kind === "blank" && <button type="button" onClick={() => pairLibraryRow(row)} style={chip(ill?.pairedAssetUrl === row.assetUrl, GOLD)} title="Show this beside the slide's own picture">📎 beside</button>}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
       {/* 4. THE SERVER — named states */}
       <div style={{ marginTop: 10, borderTop: `1px solid ${EDGE}`, paddingTop: 8 }}>

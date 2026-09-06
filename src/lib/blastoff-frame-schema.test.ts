@@ -14,7 +14,14 @@ describe("blastoff frame schema", () => {
       id: "f1", kind: "ad", ceqId: "c1", text: "t", title: "T", body: "B", exhibitRef: "je", bankItemId: "b1",
       skipped: true, prompter: ["one", "two"], bullets: ["a", "b"], backdrop: "off", variant: "zoom", psych: 0.1,
       banner: "on", ad: "building", url: "surviveaccounting.com", portrait: "on", cam: "hero", camPos: { x: 0.2, y: 0.8 }, camSize: 0.4,
-      illustration: { requested: true, prompt: "a vault with two doors", teachingIntent: "Internal vs external users", provider: "recraft", stylePreset: "survive-dreamstate", styleVersion: 1, assetUrl: "https://x/y.png", localAssetId: "illustrations/s/f-1.png", animationPreset: "boil", generatedAt: "2026-09-05T00:00:00.000Z", seed: 42 },
+      illustration: {
+        requested: true, prompt: "a vault with two doors", teachingIntent: "Internal vs external users", provider: "recraft", stylePreset: "survive-watercolor", styleVersion: 1, assetUrl: "https://x/y.png", localAssetId: "illustrations/s/f-1.png", animationPreset: "boil", generatedAt: "2026-09-05T00:00:00.000Z", seed: 42,
+        placement: { x: 0.5, y: 0.62, w: 0.5 }, brief: "a vault, two doors, one labelled internal", summary: { title: "Two doors", bullets: ["a vault", "two doors", "no text"] }, referenceFrameId: "f0",
+        // A reference photo Lee attached, and a second picture paired beside this one — both
+        // new 2026-09-05 and exactly the kind of field a schema gap silently drops.
+        referencePhoto: { id: "illustration-references/raw-abc.png", name: "bull.png", mime: "image/png", size: 12345, path: "illustration-references/raw-abc.png", url: "https://x/bull.png" },
+        pairedAssetUrl: "https://x/paired.png", pairedTitle: "External users",
+      },
     };
     const out = frameSchema.parse(full);
     expect(out).toEqual(full);

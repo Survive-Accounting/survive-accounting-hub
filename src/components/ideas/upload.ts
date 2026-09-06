@@ -24,8 +24,18 @@ const extOf = (name: string, mime: string): string => {
 
 /** Upload one file and return the attachment record to store on the idea. */
 export async function uploadIdeaFile(file: File): Promise<Attachment> {
+  return uploadAttachment(file, "idea-attachments");
+}
+
+/** A photo Lee attaches to an illustration request (2026-09-05) — same signed-upload path,
+ *  its own bucket folder so the two purposes never mix in storage. */
+export async function uploadReferencePhoto(file: File): Promise<Attachment> {
+  return uploadAttachment(file, "illustration-references");
+}
+
+async function uploadAttachment(file: File, folder: string): Promise<Attachment> {
   const staged = await createPipelineTestStagingUpload({
-    data: { ext: extOf(file.name, file.type), folder: "idea-attachments" },
+    data: { ext: extOf(file.name, file.type), folder },
   });
   const { putSignedUpload } = await import("@/components/canvas/ceq-takes");
   const err = await putSignedUpload(staged.path, staged.token, file);
