@@ -126,7 +126,7 @@ export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, classNam
 /** "surv[bolt]ve" — the wordmark with the boiling bolt standing in for the "i". `size` is
  *  the cap-height in px; the bolt tracks it and drops slightly to sit on the baseline.
  *  Colours default to the active BoltSpec (so a loaded preset carries through). */
-export function SurviveWordmark({ size, cream = BRAND_CREAM, style, boilFrame, boilSeconds, red, blue, boltCream, boltScale = 0.8, boltGap = 0.03 }: { size: number; cream?: string; style?: CSSProperties; boilFrame?: number;
+export function SurviveWordmark({ size, cream = BRAND_CREAM, style, boilFrame, boilSeconds, red, blue, boltCream, boltScale = 0.8, boltGap = 0.03, boltOpacity = 1 }: { size: number; cream?: string; style?: CSSProperties; boilFrame?: number;
   /** A calmer boil for the bolt-as-"i" (the navbar runs it at 1.2 s). */
   boilSeconds?: number;
   /** Recolour the bolt-as-"i". Left off it keeps the brand red/blue. A MONOCHROME lockup passes the
@@ -141,14 +141,19 @@ export function SurviveWordmark({ size, cream = BRAND_CREAM, style, boilFrame, b
    *  and the mark reads as a forward slash between "surv" and "ve". A taller bolt
    *  with more air either side gives the teeth something to be and separates it
    *  from the letters, so it reads as a glyph rather than as punctuation. */
-  boltScale?: number; boltGap?: number }) {
+  boltScale?: number; boltGap?: number;
+  /** THE ARRIVAL (2026-09-06, hero camera entrance — see PhoneFrame.tsx's own note): 0 leaves
+   *  "surv[ ]ve" with the bolt's own box still reserved (an opacity change never reflows text)
+   *  but nothing drawn in it. Always 1 outside that one sequence — this never changes the
+   *  wordmark's footprint, only whether the mark is visible. */
+  boltOpacity?: number }) {
   // Bolt-as-"i" placement baked from Lee's FINAL Logo Lab wordmark params so the cards match
   // /logo-lab exactly (previously the bolt was oversized): boltScale 0.8, baseline drop 0.13,
   // kerning 0.005 + overlap L -0.02 / R 0.025, offX -1px@wordSize96, rotate 2°, pivot 100%/51%.
   return (
     <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "-0.01em", color: cream, whiteSpace: "nowrap", ...style }}>
       surv
-      <BoltBoil height={size * boltScale} boilFrame={boilFrame} boilSeconds={boilSeconds} red={red} blue={blue} cream={boltCream} style={{ marginLeft: size * (boltGap * -0.5), marginRight: size * boltGap, transform: `translate(${size * (-1 / 96)}px, ${size * 0.13}px) rotate(2deg)`, transformOrigin: "100% 51%" }} />
+      <BoltBoil height={size * boltScale} boilFrame={boilFrame} boilSeconds={boilSeconds} red={red} blue={blue} cream={boltCream} style={{ marginLeft: size * (boltGap * -0.5), marginRight: size * boltGap, transform: `translate(${size * (-1 / 96)}px, ${size * 0.13}px) rotate(2deg)`, transformOrigin: "100% 51%", opacity: boltOpacity, transition: "opacity 500ms ease" }} />
       ve
     </span>
   );

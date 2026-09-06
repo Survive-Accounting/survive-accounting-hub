@@ -19,13 +19,15 @@
 // glow and a navy shadow. No nametag (Lee: "simple, elegant, modern").
 import { useEffect, useRef, useState } from "react";
 
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+
 import { avoidCard, camRect, heroCamRect, type Box, type CamRect, type CamSpot } from "./webcam-spots";
 
 const CREAM = "#F5EFE6";
 
 const OVERSHOOT = "cubic-bezier(0.34, 1.3, 0.64, 1)";
 
-export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirror = true, moment = false, onMoment }: {
+export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirror = true, moment = false, onMoment, onReadyChange }: {
   w: number; h: number;
   spot: Exclude<CamSpot, "off">;
   /** Free spot (and an override on the fixed spots): width as a fraction of the phone. */
@@ -42,20 +44,30 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
   moment?: boolean;
   /** Ctrl+click on the camera. */
   onMoment?: () => void;
+  /** Fires whenever the first-frame `ready` flag changes — PhoneFrame uses this to hold the
+   *  hero wordmark's own bolt invisible until the camera actually arrives (2026-09-06, see the
+   *  arrival note by `ready` below). */
+  onReadyChange?: (ready: boolean) => void;
 }) {
   const base = camRect(spot, w, h, size, pos);
   const fit = avoidCard(base, spot, cardBox ?? null);
   const r: CamRect = moment ? heroCamRect(w, h) : fit.rect;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState<string | null>(null);
-  // FIRST-FRAME FADE (2026-09-06, Lee: "ensure the camera loads instantly... if we can't get it
-  // loading instantly perfect, then first entrance of camera should have a fade in"). The very
-  // first getUserMedia call in a session is genuinely slow — the browser's own permission
-  // prompt and device negotiation, not anything this app controls — so a real pixel is on
-  // screen the instant it exists, but it fades in over the actual video element rather than
-  // popping in the moment the stream attaches.
+  // THE ARRIVAL (2026-09-06, second pass. Lee: "fade into the camera is weird, it's black at
+  // first... just have the boiling animated bolt in the whole hero frame and time it where when
+  // my camera is coming in the bolt is firing down to the Survive wordmark"). The very first
+  // getUserMedia call in a session is genuinely slow — the browser's own permission prompt and
+  // device negotiation, not anything this app controls — and a plain opacity-0 video over a
+  // black ring (the first pass's fix) still LOOKS like a black hole the whole time it's
+  // negotiating. Now the boiling bolt fills the ring while it waits, so there's something alive
+  // and on-brand on screen instead of dead black; `onReadyChange` lets the wordmark (hero mode
+  // only — see PhoneFrame.tsx) hold ITS bolt invisible until this moment, so the mark reads as
+  // "the bolt found its way home" rather than two unrelated bolts on screen at once.
   const [ready, setReady] = useState(false);
-  useEffect(() => { setReady(false); }, [live]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setReady(false); onReadyChange?.(false); }, [live]);
+  const setReadyAndNotify = (v: boolean) => { setReady(v); onReadyChange?.(v); };
   // THE CHOREOGRAPHY CURVE overshoots — right for a move between spots, wrong for a shrink
   // in place: avoidCard pulling the ring in on a tall card read as a bounce on every slide
   // entrance. A same-spot, same-mode, smaller ring gets a plain ease. A drag gets none.
@@ -123,8 +135,17 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
           : `0 0 0 ${Math.round(ring * 2.2)}px rgba(245,239,230,0.10), 0 ${Math.round(r.w * 0.06)}px ${Math.round(r.w * 0.16)}px -${Math.round(r.w * 0.05)}px rgba(0,0,0,0.75)`,
         transition: "box-shadow 480ms ease, border-radius 480ms ease" }}>
         <div style={{ width: "100%", height: "100%", borderRadius: radius, overflow: "hidden", background: live ? "#000" : "rgba(20,33,61,0.55)", position: "relative", transition: "border-radius 480ms ease" }}>
-          {live && !err && <video ref={videoRef} autoPlay muted playsInline onLoadedData={() => setReady(true)}
+          {live && !err && <video ref={videoRef} autoPlay muted playsInline onLoadedData={() => setReadyAndNotify(true)}
             style={{ width: "100%", height: "100%", objectFit: "cover", transform: mirror ? "scaleX(-1)" : undefined, display: "block", opacity: ready ? 1 : 0, transition: "opacity 400ms ease" }} />}
+          {/* THE PLACEHOLDER, live but not ready: the boiling bolt fills the ring instead of the
+              plain black the video's own container shows underneath — something alive and
+              on-brand while getUserMedia negotiates, not a hole. Fades out as the video fades
+              in, never a hard cut. */}
+          {live && !err && (
+            <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: ready ? 0 : 1, transition: "opacity 400ms ease", pointerEvents: "none" }}>
+              <BoltBoil height={Math.round(r.w * 0.42)} boilSeconds={1.2} />
+            </div>
+          )}
           {(!live || err) && (
             <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: CREAM, fontFamily: "'Rubik', system-ui, sans-serif", textAlign: "center", padding: "8%" }}>
               <div>

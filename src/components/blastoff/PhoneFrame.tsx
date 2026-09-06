@@ -32,6 +32,16 @@ import { BRAND_FONT } from "./stage";
 /** The Review stage width; everything else scales from it. */
 export const PHONE_W = 306;
 
+// THE FADE FROM INTRO (2026-09-06) — same shape as CeqPreviewer.tsx's sa-outro-fade (a plain
+// opacity fade-in, film-only, "both" so it holds its start state until the animation actually
+// begins rather than flashing the full card for one frame first). Scoped to PhoneFrame's own
+// stylesheet rather than reusing that class name directly: sa-outro-fade lives in the older
+// canvas pipeline's own file and this is the V3 Blast Off capture path — same idea, own home.
+const STAGE_FADE_CSS = `
+@keyframes sa-stage-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.film-mode .sa-stage-fade-in { animation: sa-stage-fade-in 900ms ease-out both; }
+@media (prefers-reduced-motion: reduce) { .film-mode .sa-stage-fade-in { animation: none; } }`;
+
 /** FrameView's `scale` for a frame on a stage `w` wide: full-frame kinds fill
  *  the stage (a 1080 frame drawn at scale·0.34); the tutor card is a bit
  *  bigger than a detour card so it renders smaller here to fit; every other
@@ -116,6 +126,10 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   // the phone keeps a local one so the Review stage still previews the gesture.
   const [heroLocal, setHeroLocal] = useState(false);
   const moment = heroProp ?? heroLocal;
+  // THE ARRIVAL (2026-09-06): whether Webcam.tsx's first-frame video has actually shown up yet
+  // — see the note there. Only spent on the hero wordmark's own bolt (below); every other camera
+  // spot doesn't care, the ring handles its own placeholder entirely on its own.
+  const [cameraReady, setCameraReady] = useState(false);
   const setMoment = onHero ?? setHeroLocal;
   useEffect(() => { setHeroLocal(false); }, [frame.id]);
   useEffect(() => {
@@ -181,6 +195,16 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   // PASS 2 puts a card at the top of the safe column; the full-frame kinds
   // and pass 1 keep the centre.
   const topAligned = place.align === "top" && !isFullFrame(frame.kind);
+  // THE FADE FROM INTRO (2026-09-06, Lee: "we probably need a good fade from intro 2 to first
+  // slide as well"). Every other cut in the deck is instant — that's the house rule (Lee: "a
+  // cool transition" is asked for only at named, special moments, never as a general slide-to-
+  // slide behavior) — but going from the branded intro card straight into the first real slide
+  // is the one hard cut in the whole rip that reads as a splice rather than a beat. `frames`+
+  // `index` are already this component's own props, so "the previous frame was the intro" needs
+  // no new plumbing; the stage div already remounts per frame.id, so the animation just plays
+  // once, exactly on arrival, the same way sa-outro-fade (CeqPreviewer.tsx) already does for the
+  // sign-off.
+  const fadeInFromIntro = capture && frames[index - 1]?.kind === "intro";
   return (
     <div ref={phoneRef} className={capture ? "film-mode" : undefined} data-sa-phone="" data-sa-layout={layout} style={{ fontFamily: BRAND_FONT, width: w, height: h, background: "#000", borderRadius: rounded ? Math.round(w * 0.072) : 0, border: rounded ? "1px solid rgba(244,239,230,0.16)" : "none", position: "relative", overflow: "hidden", display: "grid", placeItems: topAligned ? "start center" : "center", opacity: dim ? 0.5 : 1, ...style }}>
       {frame.kind !== "open" && frame.kind !== "intro" && frame.banner === "on" && <CampusBanner w={w} h={h} live={live} />}
@@ -196,10 +220,17 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
               laggy and flickery... smoothen this out") — the same fast cadence a small nav icon
               uses reads as a strobe at this size; the slower "calm" cadence already used
               elsewhere (BOIL_SECONDS["boil-calm"]) is the same technique, just easier to watch. */}
-          <SurviveWordmark size={watermarkSize(w)} boilSeconds={1.2} />
+          {/* THE ARRIVAL (2026-09-06, Lee: "have the boiling animated bolt... time it where when
+              my camera is coming in the bolt is firing down to the Survive wordmark"). In hero
+              mode, before the camera's own placeholder bolt has handed off to the real feed
+              (Webcam.tsx), the wordmark holds ITS bolt invisible — "surv[ ]ve" — so the one bolt
+              on screen is the camera ring's, and the moment it arrives, this one fades in as if
+              it just landed. Every non-hero appearance is untouched: always full opacity. */}
+          <SurviveWordmark size={watermarkSize(w)} boilSeconds={1.2} boltOpacity={moment && !cameraReady ? 0 : 1} />
         </div>
       )}
-      <div key={capture ? frame.id : undefined} data-sa-stage="" style={{ display: "grid", placeItems: "center", position: "relative",
+      {fadeInFromIntro && <style>{STAGE_FADE_CSS}</style>}
+      <div key={capture ? frame.id : undefined} data-sa-stage="" className={fadeInFromIntro ? "sa-stage-fade-in" : undefined} style={{ display: "grid", placeItems: "center", position: "relative",
         // The safe column: below the status bar (and the watermark), inside the rail.
         ...(topAligned ? { marginTop: Math.round(h * (SAFE.top + 0.02)), maxWidth: Math.round(w * (SAFE.right - SAFE.left)) } : {}),
         ...(moment ? { filter: "blur(2px) brightness(0.35)", transition: "filter 480ms ease" } : { transition: "filter 480ms ease" }),
@@ -221,7 +252,7 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
       )}
       {cam !== "off" && (
         <WebcamFrame w={w} h={h} spot={cam} size={camSize} pos={frame.camPos} live={capture} cardBox={cardBox} moment={moment}
-          onMoment={capture ? () => setMoment(!moment) : undefined}
+          onMoment={capture ? () => setMoment(!moment) : undefined} onReadyChange={setCameraReady}
           onFree={edit && !capture ? (p) => edit({ ...(p.pos ? { camPos: p.pos } : {}), ...(p.size ? { camSize: p.size } : {}) }) : undefined} />
       )}
       {safe && !moment && (
