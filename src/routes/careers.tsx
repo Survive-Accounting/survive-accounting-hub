@@ -20,7 +20,7 @@ export const Route = createFileRoute("/careers")({
   head: () => ({
     meta: [
       { title: "Careers — Survive Accounting" },
-      { name: "description", content: "Help build Survive Accounting from the ground floor — tutor content creators, campus marketing, operations, and platform engineering." },
+      { name: "description", content: "Help build Survive Accounting from the ground floor — tutor content creators, campus marketing, and operations." },
     ],
     links: [{ rel: "canonical", href: "https://surviveaccounting.com/careers" }],
   }),
@@ -72,7 +72,7 @@ const ROLES: RoleDef[] = [
   },
   {
     key: "operations-lead",
-    title: "Operations Lead",
+    title: "Operations Manager",
     hook: "Help me delegate, build real processes, and get this ready to scale — we're about to bring on a wave of campus reps.",
     responsibilities: [
       "Work directly with Lee to figure out what should be delegated, and to whom",
@@ -85,28 +85,13 @@ const ROLES: RoleDef[] = [
     ],
     comp: "Negotiated directly with Lee.",
   },
-  {
-    key: "platform-engineer",
-    title: "Platform Engineer",
-    hook: "Improve the actual product — performance, security, and the day-to-day experience of using Survive Accounting.",
-    responsibilities: [
-      "Improve app performance and page speed",
-      "Strengthen security — including things like detecting shared accounts",
-      "General UX and product improvements across the platform",
-    ],
-    looking: [
-      "Comfortable in a real, live codebase, whatever your background — students genuinely welcome",
-      "Wants real ownership on an early-stage product, not a sandbox",
-    ],
-    comp: "Commission-based, potentially tied to paid ad performance (Google, Facebook) once that's running — if it starts producing, you share in it.",
-  },
+  // "Platform Engineer" removed for now (Lee, 2026-09-05) — may come back later.
 ];
 
 const ROLE_LABEL: Record<JobRole, string> = {
   "tutor-content-creator": "Tutor Content Creator",
   "national-campaign-manager": "National Campaign Manager",
-  "operations-lead": "Operations Lead",
-  "platform-engineer": "Platform Engineer",
+  "operations-lead": "Operations Manager",
   other: "Other",
 };
 

@@ -18,7 +18,9 @@ async function jobsDb(): Promise<JobsDB> {
   return supabaseAdmin as unknown as JobsDB;
 }
 
-export const JOB_ROLES = ["tutor-content-creator", "national-campaign-manager", "operations-lead", "platform-engineer", "other"] as const;
+export const JOB_ROLES = ["tutor-content-creator", "national-campaign-manager", "operations-lead", "other"] as const;
+// "platform-engineer" removed from the live list for now (Lee, 2026-09-05) — the value stays out
+// of the enum entirely rather than just hidden, since nothing has applied under it yet.
 export type JobRole = (typeof JOB_ROLES)[number];
 
 export const submitJobApplication = createServerFn({ method: "POST" })
@@ -37,8 +39,7 @@ export const submitJobApplication = createServerFn({ method: "POST" })
     const roleLabel: Record<JobRole, string> = {
       "tutor-content-creator": "Tutor Content Creator",
       "national-campaign-manager": "National Campaign Manager",
-      "operations-lead": "Operations Lead",
-      "platform-engineer": "Platform Engineer",
+      "operations-lead": "Operations Manager",
       other: "Other",
     };
     // BEST-EFFORT STORAGE. The email below is the real notification — a missing migration or a

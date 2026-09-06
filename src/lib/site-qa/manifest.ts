@@ -538,7 +538,7 @@ export const TEMPLATES: TemplateDef[] = [
     id: "careers",
     label: "Careers",
     category: "public",
-    description: "Four open roles (tutor content creator, national campaign manager, operations lead, platform engineer) with a real job-description shape and a shared application form; Campus Rep hands off to /rep/join.",
+    description: "Three open roles (tutor content creator, national campaign manager, operations manager) with a real job-description shape and a shared application form; Campus Rep hands off to /rep/join.",
     routePattern: "/careers",
     routes: ["careers.tsx"],
     extraFiles: ["src/lib/careers.functions.ts"],
