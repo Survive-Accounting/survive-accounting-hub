@@ -10,7 +10,8 @@
 // is a covered outro. Nothing renders above it — the landscape version used to
 // carry a header here and it does not belong on camera.
 import { SurviveWordmark, BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
-import { UPPER_THIRD_Y, VStage, boilAt, reveal, riseIn } from "./stage";
+import { CampusBanner } from "@/components/brand-cards/BoltZoom";
+import { UPPER_THIRD_Y, V, VStage, boilAt, reveal, riseIn } from "./stage";
 
 const WORD = 190; // cap-height px — the wordmark is the loudest thing on screen
 
@@ -20,6 +21,7 @@ export function SurviveOutro({
   progress,
   scale = 1,
   transparent = false,
+  banner = false,
 }: {
   tagline?: string;
   domain?: string;
@@ -27,6 +29,11 @@ export function SurviveOutro({
   progress?: number;
   scale?: number;
   transparent?: boolean;
+  /** The slow Power Four ticker (2026-09-06, Lee: "let me add campus scroller at the end outro
+   *  card") — the ReviewDeck "🏫 campus banner" toggle already writes frame.banner for any
+   *  slide, outro included; this was just never reading it. Same relative Y as the open/intro
+   *  cards' own banner, so all three read as one consistent strip. */
+  banner?: boolean;
 }) {
   const tag = reveal(progress, 0.10);
   const url = reveal(progress, 0.28);
@@ -50,6 +57,7 @@ export function SurviveOutro({
           {domain}
         </div>
       </div>
+      {banner && <CampusBanner w={V.w} h={V.h} live={progress === undefined} />}
       {flash > 0 && <div aria-hidden style={{ position: "absolute", inset: 0, background: "#FFFFFF", opacity: flash, pointerEvents: "none" }} />}
     </VStage>
   );
