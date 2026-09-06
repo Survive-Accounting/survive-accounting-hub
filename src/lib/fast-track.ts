@@ -30,6 +30,7 @@ export const FAST_TRACK_RULES: readonly string[] = [
   "- Nothing a STUDENT sees changes: only /admin, /growth, /v3 and other internal surfaces, unless the request names a public page and the change is copy only.",
   "- Never delete, skip or weaken a test. Run the tests that cover what you touched, then the full suite once at the end; a red suite means STOP and report.",
   "- Keep the change exactly as asked. Do not add features, refactor neighbours, or 'improve' nearby code.",
+  "- READ ONLY WHAT THIS CHANGE NEEDS (Lee, 2026-09-05, on a $2.06 / 16-minute fast-track build: \"is there any way we can streamline this so it doesn't cost that much?\"). Do NOT read docs/SESSION-CONTEXT.md or docs/V3-PRODUCTION-HANDOFF.md in full as a matter of course — those are for RISKY / multi-session / unattended work, which a ≤6-file fast-track change is not. Read the specific file(s) you're editing and, only if genuinely unclear from those, the one section of a reference doc that answers the specific question — never a whole doc 'to be safe' on a change this small.",
 ];
 
 export interface FastTrackable {
