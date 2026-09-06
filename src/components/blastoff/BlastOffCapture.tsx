@@ -30,9 +30,11 @@ import { MoveContext, PersistContext, PracticeContext, PreviewSpotContext, Scale
 import { playSfx } from "@/components/canvas/sfx";
 import { applyRegularClick, applySuperClick, type SpotSets } from "@/components/canvas/spotlight";
 import { HighlightContext, useTextHighlights } from "@/components/canvas/text-highlights";
+import { recentCannedLineUses } from "@/lib/canned-lines.functions";
 import { useDictation } from "@/lib/use-dictation";
 
 import { BG, CREAM, EDGE, GOLD, MUTED, usePlan } from "./BlastOffEditor";
+import { cannedLinesFor, pickCannedLine, type CannedLine, type CannedSlot } from "./canned-lines";
 import { CaptureArrows } from "./capture/arrows";
 import { useCaptureCamera } from "./capture/camera";
 import { useCapturePopout } from "./capture/popout";
@@ -44,6 +46,14 @@ import { PhoneFrame } from "./PhoneFrame";
 import { FRAME_LABEL, filmFrames, patchFrame, type BlastFrame } from "./plan";
 import { RehearsalReview } from "./RehearsalReview";
 import { SlideEditContext } from "./slide-edit";
+
+/** open/intro share the "intro" slot (one spoken line, two frames); bio and outro are their own. */
+function cannedSlotOf(kind: BlastFrame["kind"]): CannedSlot | null {
+  if (kind === "open" || kind === "intro") return "intro";
+  if (kind === "outro") return "outro";
+  if (kind === "bio") return "bio";
+  return null;
+}
 
 const NO_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
@@ -86,11 +96,17 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   // the SAME prompter panel below then shows it once he's back to actually filming.
   const [rehearsing, setRehearsing] = useState(false);
   const [segments, setSegments] = useState<Record<string, string>>({});
+  // LIVE CAPTION (2026-09-06): Lee: "as I'm talking, just live dictate over there... seeing the
+  // words populate will help me get a feel for brevity visually." `interim` is the in-progress,
+  // not-yet-finalized chunk SpeechRecognition is still working out — shown live, replaced (not
+  // accumulated) on every event; only a FINAL chunk joins `segments`.
+  const [interim, setInterim] = useState("");
   const [showReview, setShowReview] = useState(false);
   const frameIdRef = useRef(frameId);
   frameIdRef.current = frameId;
-  const dictation = useDictation((final) => {
+  const dictation = useDictation((final, live) => {
     const fid = frameIdRef.current;
+    setInterim(live);
     if (!final.trim() || !fid) return;
     setSegments((s) => ({ ...s, [fid]: (s[fid] ? s[fid] + " " : "") + final.trim() }));
   });
@@ -100,9 +116,40 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
     return () => dictation.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rehearsing]);
+  useEffect(() => { setInterim(""); }, [frameId]);
   const commitPrompterLine = useCallback((fid: string, line: string) => { if (plan) commit(patchFrame(plan.frames, fid, { prompter: [line] })); }, [plan, commit]);
   const closeReview = useCallback((stopRehearsing: boolean) => { setShowReview(false); if (stopRehearsing) setRehearsing(false); }, []);
   const segmentCount = Object.keys(segments).length;
+  // R to STOP auto-opens review — Lee: "once I finish, I can hit R and stop, and it will auto
+  // generate the suggested lines." Turning ON is unchanged (just starts listening).
+  const toggleRehearsing = useCallback(() => {
+    setRehearsing((v) => { const next = !v; if (!next) setShowReview(true); return next; });
+  }, []);
+
+  // ---- CANNED INTRO/OUTRO/BIO (2026-09-06). Lee: "when I am in rehearse mode, I want to
+  // already have the suggested intro/outro/bio canned ready. So I can start practicing using
+  // it." Picked ONCE per mount (not re-rolled every time Lee walks back to the slide — a
+  // suggestion that changes under him mid-rehearsal would be its own kind of confusing), fed to
+  // the prompter panel below as a clearly-marked SUGGESTION until Review actually commits one,
+  // and handed to RehearsalReview as the seed for its own picker so the line Lee practiced with
+  // is the same one preselected there — never a second, different roll.
+  const [cannedPicks, setCannedPicks] = useState<Partial<Record<CannedSlot, CannedLine>>>({});
+  useEffect(() => {
+    let live = true;
+    Promise.all((["intro", "outro", "bio"] as const).map((slot) =>
+      recentCannedLineUses({ data: { slot } })
+        .then((recent) => [slot, pickCannedLine(cannedLinesFor(slot), slot, recent)] as const)
+        .catch(() => [slot, cannedLinesFor(slot)[0] ?? null] as const)
+    )).then((entries) => {
+      if (!live) return;
+      const picks: Partial<Record<CannedSlot, CannedLine>> = {};
+      for (const [slot, pick] of entries) if (pick) picks[slot] = pick;
+      setCannedPicks(picks);
+    });
+    return () => { live = false; };
+  }, []);
+  const cannedSlot = cannedSlotOf(frame?.kind ?? "ceq");
+  const cannedSuggestion = cannedSlot ? cannedPicks[cannedSlot] ?? null : null;
 
   // ---- PRACTICE: click a choice to emphasise it, click it again to resolve ----
   // (the canvas's own rule: wrong scratches, correct confirms — with the cue).
@@ -177,18 +224,28 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
         if (e.shiftKey) setI((v) => Math.max(0, v - 1));
         else setI((v) => Math.min(n - 1, v + 1));
       }
-      // ` = the full wipe, same mental model as every other filming surface:
-      // temporary state goes (emphasis, spotlight, highlights), nothing saved is touched.
-      else if (e.code === "Backquote" || e.key === "`") { e.preventDefault(); resetTake(); }
+      // ` = the full wipe, same mental model as every other filming surface: temporary state
+      // goes (emphasis, spotlight, highlights), nothing saved is touched. While rehearsing, it
+      // ALSO clears this slide's dictated segment — Lee: "I'll run through up to 3 takes of
+      // it" — so a take he doesn't like doesn't just pile onto the next attempt. And it drops
+      // chrome (2026-09-06, Lee: "selector box and resize tools visible on one of my
+      // illustrations. Not let those be shown. Or if I hit ` it can override to remove them from
+      // screen if needed") — the illustration's drag/resize decorations are gated on chrome
+      // (below), so this is the guaranteed "get it off screen" reset, on top of chrome already
+      // defaulting off in the popout.
+      else if (e.code === "Backquote" || e.key === "`") {
+        e.preventDefault(); resetTake(); setInterim(""); setChrome(false);
+        if (rehearsing && frameId) setSegments((s) => { if (!(frameId in s)) return s; const n = { ...s }; delete n[frameId]; return n; });
+      }
       else if (e.key === "Escape") { e.preventDefault(); onExit(); }
       else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
       else if (e.key.toLowerCase() === "p") { e.preventDefault(); setPrompter((v) => !v); }
-      else if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); setRehearsing((v) => !v); }
+      else if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); toggleRehearsing(); }
       else if (e.key.toLowerCase() === "b" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); const nx = nextCamSpot(camNow); setCamOverride(nx); if (nx === "off") setHero(false); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [n, onExit, resetTake, camNow, showReview, closeReview]);
+  }, [n, onExit, resetTake, camNow, showReview, closeReview, rehearsing, frameId, toggleRehearsing]);
 
   // FIT THE PHONE to the window: as tall as the window allows, 9:16. Size the
   // browser window to 9:16 (or pop it out) and the phone IS the window.
@@ -213,7 +270,12 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
     <PersistContext.Provider value={camera.persist}>
     <div ref={hostRef} className={`film-mode${camera.rootClass ? ` ${camera.rootClass}` : ""}`} onWheel={camera.onWheel}
       style={{ minHeight: "100vh", background: "#000", display: "grid", placeItems: "center", position: "relative", overflow: "hidden" }}>
-      <SlideEditContext.Provider value={popout.isPopout ? patchCurrentFrame : null}>
+      {/* Gated on `chrome` too (2026-09-06) — not just popout — so the illustration's drag/
+          resize decorations (IllustrationLayer.tsx's dashed border + grip, drawn any time
+          onPlace exists at all) never persist into the shot: they're only live while chrome is
+          visible (H, or off by default in the popout, or forced off by ` — see the keydown
+          handler above), same as everything else that's setup-only, never filmed. */}
+      <SlideEditContext.Provider value={popout.isPopout && chrome ? patchCurrentFrame : null}>
         <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture popout={popout.isPopout} stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} onRailStatus={setRailStatus}
           progress={questionProgress(frames, ceqById).get(frame.id)} />
       </SlideEditContext.Provider>
@@ -238,7 +300,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
           {/* REHEARSAL (2026-09-06, second pass): the toggle lives right here, in the same chrome
               bar as everything else about this take — Lee: "I'd prefer to see it somewhere on
               film." On: dictation runs, accumulating what's said per slide as you walk normally. */}
-          <button onClick={() => setRehearsing((v) => !v)} title="Talk through each slide (R) — nothing is recorded, just transcribed, so you can fill the prompter before the real take"
+          <button onClick={toggleRehearsing} title="Talk through each slide (R) — nothing is recorded, just transcribed. Stop (R again) opens the review"
             style={{ color: rehearsing ? "#000" : GOLD, background: rehearsing ? "#3BF5A0" : "none", border: `1px solid ${rehearsing ? "#3BF5A0" : GOLD + "66"}`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>
             {rehearsing ? "🎙 rehearsing" : "🎙 rehearse"}
           </button>
@@ -261,20 +323,47 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
         </div>
       )}
       {showReview && (
-        <RehearsalReview set={set} frames={frames} ceqById={ceqById} segments={segments} onCommitLine={commitPrompterLine} onClose={closeReview} />
+        <RehearsalReview set={set} frames={frames} ceqById={ceqById} segments={segments} initialPicks={cannedPicks} onCommitLine={commitPrompterLine} onClose={closeReview} />
       )}
-      {prompter && (frame.prompter?.length ?? 0) > 0 && (
+      {/* LIVE DICTATION CAPTION (2026-09-06). Lee: "as I'm talking, just live dictate over
+          there... seeing the words populate will help me get a feel for brevity visually." What's
+          already final for this slide, plus whatever's still in progress — cleared by walking to
+          a new slide or by ` (a fresh take). */}
+      {rehearsing && (segments[frameId ?? ""] || interim) && (
         <div style={{
-          position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", width: 300, maxHeight: "80vh", overflowY: "auto", zIndex: 30,
-          background: "rgba(7,11,20,0.88)", border: `1px solid ${EDGE}`, borderRadius: 12, padding: "10px 14px",
-          fontFamily: "'Rubik', system-ui, sans-serif", color: CREAM,
+          position: "fixed", left: "50%", bottom: chrome ? 60 : 16, transform: "translateX(-50%)", zIndex: 30,
+          maxWidth: "min(640px, 86vw)", background: "rgba(7,11,20,0.88)", border: `1px solid ${EDGE}`, borderRadius: 12,
+          padding: "10px 16px", fontFamily: "'Rubik', system-ui, sans-serif", color: CREAM, fontSize: 15, lineHeight: 1.4, textAlign: "center",
         }}>
-          <div style={{ fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 6 }}>Prompter</div>
-          {frame.prompter!.map((line, k) => (
-            <div key={k} style={{ fontSize: 17, lineHeight: 1.35, fontWeight: 600, padding: "5px 0", borderTop: k ? `1px solid ${EDGE}` : "none" }}>{line}</div>
-          ))}
+          {segments[frameId ?? ""]}
+          {interim && <span style={{ color: MUTED }}> {interim}</span>}
         </div>
       )}
+      {prompter && (() => {
+        // A committed prompter line always wins; otherwise, on a canned slide (open/intro/outro/
+        // bio) with nothing committed yet, the auto-picked suggestion fills the panel so Lee can
+        // already rehearse with it — Lee: "I want to already have the suggested intro/outro/bio
+        // canned ready. So I can start practicing using it." Clearly marked SUGGESTED until
+        // Review actually commits one.
+        const committed = frame.prompter ?? [];
+        const lines = committed.length ? committed : cannedSuggestion ? [cannedSuggestion.text] : [];
+        if (lines.length === 0) return null;
+        const suggested = committed.length === 0;
+        return (
+          <div style={{
+            position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", width: 300, maxHeight: "80vh", overflowY: "auto", zIndex: 30,
+            background: "rgba(7,11,20,0.88)", border: `1px ${suggested ? "dashed" : "solid"} ${EDGE}`, borderRadius: 12, padding: "10px 14px",
+            fontFamily: "'Rubik', system-ui, sans-serif", color: CREAM,
+          }}>
+            <div style={{ fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 6 }}>
+              Prompter{suggested ? " · suggested" : ""}
+            </div>
+            {lines.map((line, k) => (
+              <div key={k} style={{ fontSize: 17, lineHeight: 1.35, fontWeight: 600, padding: "5px 0", borderTop: k ? `1px solid ${EDGE}` : "none" }}>{line}</div>
+            ))}
+          </div>
+        );
+      })()}
     </div>
     </PersistContext.Provider>
     </ScaleContext.Provider>

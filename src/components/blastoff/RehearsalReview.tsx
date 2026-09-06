@@ -40,8 +40,13 @@ interface SlideSuggestion { status: "loading" | "ready" | "error"; suggestion: s
 /** `onClose(stopRehearsing)` — "← keep rehearsing" just closes (rehearsal mode stays on, Lee can
  *  talk through more slides); "Done — start filming" closes AND turns rehearsal mode off, since
  *  the next thing on screen is the real take. */
-export function RehearsalReview({ set, frames, ceqById, segments, onCommitLine, onClose }: {
+export function RehearsalReview({ set, frames, ceqById, segments, initialPicks, onCommitLine, onClose }: {
   set: BoothSetInfo; frames: readonly BlastFrame[]; ceqById: Map<string, { stem: string }>; segments: Record<string, string>;
+  /** The SAME canned suggestions BlastOffCapture already picked and showed Lee while he was
+   *  rehearsing — seeded here so Review preselects the exact line he practiced with, never a
+   *  second, different roll. Absent slot → CannedSlotPicker rolls its own (e.g. this overlay
+   *  opened before that fetch resolved). */
+  initialPicks?: Partial<Record<CannedSlot, CannedLine>>;
   onCommitLine: (frameId: string, line: string) => void;
   onClose: (stopRehearsing: boolean) => void;
 }) {
@@ -90,7 +95,7 @@ export function RehearsalReview({ set, frames, ceqById, segments, onCommitLine, 
           <button type="button" onClick={() => onClose(false)} style={btn()}>← keep rehearsing</button>
           <button type="button" onClick={() => onClose(true)} style={btn(GOLD)}>Done — start filming →</button>
         </div>
-        <CannedPickerSection setId={set.id} frames={frames} onCommitLine={onCommitLine} />
+        <CannedPickerSection setId={set.id} frames={frames} initialPicks={initialPicks} onCommitLine={onCommitLine} />
 
         {candidates.length === 0 && <p style={{ color: MUTED, fontSize: 13.5, marginTop: 20 }}>Nothing was said yet — close this and talk through a few slides first.</p>}
         <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -198,8 +203,9 @@ function SlideCard({ frame, raw, suggestion, isDone, onRevise, onConfirm }: {
  *  same text lands on BOTH the open and intro frames when one exists, so the prompter reads
  *  correctly whichever of the two is up when the take rolls; usage is still logged once per
  *  commit, not twice. */
-function CannedPickerSection({ setId, frames, onCommitLine }: {
-  setId: string; frames: readonly BlastFrame[]; onCommitLine: (frameId: string, line: string) => void;
+function CannedPickerSection({ setId, frames, initialPicks, onCommitLine }: {
+  setId: string; frames: readonly BlastFrame[]; initialPicks?: Partial<Record<CannedSlot, CannedLine>>;
+  onCommitLine: (frameId: string, line: string) => void;
 }) {
   const openFrame = useMemo(() => frames.find((f) => f.kind === "open"), [frames]);
   const introFrame = useMemo(() => frames.find((f) => f.kind === "intro"), [frames]);
@@ -213,19 +219,22 @@ function CannedPickerSection({ setId, frames, onCommitLine }: {
     <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: MUTED }}>Canned — picked for you, change it if you want</div>
       {(openFrame || introFrame) && (
-        <CannedSlotPicker slot="intro" setId={setId}
+        <CannedSlotPicker slot="intro" setId={setId} initial={initialPicks?.intro ?? null}
           onUse={(text) => { if (openFrame) onCommitLine(openFrame.id, text); if (introFrame) onCommitLine(introFrame.id, text); }} />
       )}
-      {bioFrame && <CannedSlotPicker slot="bio" setId={setId} onUse={(text) => onCommitLine(bioFrame.id, text)} />}
-      {outroFrame && <CannedSlotPicker slot="outro" setId={setId} onUse={(text) => onCommitLine(outroFrame.id, text)} />}
+      {bioFrame && <CannedSlotPicker slot="bio" setId={setId} initial={initialPicks?.bio ?? null} onUse={(text) => onCommitLine(bioFrame.id, text)} />}
+      {outroFrame && <CannedSlotPicker slot="outro" setId={setId} initial={initialPicks?.outro ?? null} onUse={(text) => onCommitLine(outroFrame.id, text)} />}
     </div>
   );
 }
 
-function CannedSlotPicker({ slot, setId, onUse }: { slot: CannedSlot; setId: string; onUse: (text: string) => void }) {
+function CannedSlotPicker({ slot, setId, initial, onUse }: { slot: CannedSlot; setId: string; initial: CannedLine | null; onUse: (text: string) => void }) {
   const pool = useMemo(() => cannedLinesFor(slot), [slot]);
   const [recent, setRecent] = useState<string[] | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Seeded from BlastOffCapture's own pick when it has one — the exact line Lee already saw (and
+  // may have rehearsed against) in the prompter panel, never a second, independent roll here.
+  const [selectedId, setSelectedId] = useState<string | null>(initial?.id ?? null);
+
   const [used, setUsed] = useState(false);
 
   useEffect(() => {
@@ -233,8 +242,10 @@ function CannedSlotPicker({ slot, setId, onUse }: { slot: CannedSlot; setId: str
     recentCannedLineUses({ data: { slot } }).then((r) => {
       if (!live) return;
       setRecent(r);
-      setSelectedId(pickCannedLine(pool, slot, r)?.id ?? pool[0]?.id ?? null);
-    }).catch(() => { if (live) { setRecent([]); setSelectedId(pool[0]?.id ?? null); } });
+      // `initial` already answers "what to show" when BlastOffCapture supplied one — this fetch
+      // is still needed for `recent` (the warnings below), just not for re-picking a selection.
+      setSelectedId((cur) => cur ?? pickCannedLine(pool, slot, r)?.id ?? pool[0]?.id ?? null);
+    }).catch(() => { if (live) { setRecent([]); setSelectedId((cur) => cur ?? pool[0]?.id ?? null); } });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slot]);
