@@ -42,7 +42,11 @@ const STAMP_CUES: readonly [string, StampKind][] = [
   ["illustration(?:\\s+ideas?)?", "illustration"],
   ["cheat\\s*codes?", "cheat_code"],
   ["memori[sz]e\\s*this", "memorize_this"],
-  ["deeper\\s*ideas?", "deeper_idea"],
+  // "Deep Question" (2026-09-06) is the new spoken word for this stamp — Lee: "Deep Question
+  // seems a bit better" (it tells the student what to DO: stop and reason it out, where "Deeper
+  // Idea" didn't). "Deeper idea(s)" keeps parsing too, so an old habit or an old recording still
+  // stamps correctly; the internal kind stays deeper_idea either way.
+  ["deep\\s*questions?|deeper\\s*ideas?", "deeper_idea"],
   ["visuals?", "visual"],
   ["trigger\\s*words?", "trigger_word"],
   ["real[\\s-]*world(?:\\s+examples?)?", "real_world"],

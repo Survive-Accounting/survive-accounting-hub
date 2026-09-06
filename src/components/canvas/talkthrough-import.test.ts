@@ -32,6 +32,14 @@ describe("parseTranscriptImport — the speaking convention", () => {
     ]);
   });
 
+  test("'Deep question' is the new word for the deeper_idea stamp; 'Deeper idea' still works too", () => {
+    const b = parseTranscriptImport("Deep question: why does this matter. Deeper idea: the old way of saying it.", 3);
+    expect(b.map((x) => [x.stamp, x.text])).toEqual([
+      ["deeper_idea", "why does this matter."],
+      ["deeper_idea", "the old way of saying it."],
+    ]);
+  });
+
   test("the same words mid-sentence are speech, not stamps", () => {
     const b = parseTranscriptImport("In short, the memo is a phrase students forget, so the tip here is the exhibit.", 3);
     expect(b).toHaveLength(1);

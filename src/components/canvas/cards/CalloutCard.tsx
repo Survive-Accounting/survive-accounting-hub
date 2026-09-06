@@ -23,7 +23,9 @@ import type { CalloutKind } from "../types";
 export const CALLOUT_KINDS: Record<Exclude<CalloutKind, "tutor" | "found-on-exam">, { label: string; accent: string; tint: string }> = {
   "cheat-code": { label: "CHEAT CODE", accent: "#1F9D57", tint: "rgba(31,157,87,0.10)" },
   "memorize-this": { label: "MEMORIZE THIS", accent: "#C77D0A", tint: "rgba(199,125,10,0.10)" },
-  "deeper-idea": { label: "DEEPER IDEA", accent: "#1D7FA8", tint: "rgba(29,127,168,0.10)" },
+  // Display only — the key stays "deeper-idea" (Lee, 2026-09-06: "Deep Question seems a bit
+  // better" — it tells the student what to DO, stop and reason it out).
+  "deeper-idea": { label: "DEEP QUESTION", accent: "#1D7FA8", tint: "rgba(29,127,168,0.10)" },
   recap: { label: "RECAP", accent: "#6D5BB8", tint: "rgba(109,91,184,0.10)" },
   distractor: { label: "DISTRACTOR", accent: "#C22B45", tint: "rgba(194,43,69,0.10)" },
 };

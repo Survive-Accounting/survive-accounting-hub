@@ -14,7 +14,7 @@ import { fetchSetCramCards, type CramCard } from "@/lib/student.functions";
 const LOOK: Record<CramCard["kind"], { label: string; accent: string }> = {
   cheat: { label: "CHEAT CODE", accent: "#FCA311" },
   phrase: { label: "MEMORIZE THIS", accent: "#FF9F43" },
-  tip: { label: "DEEPER IDEA", accent: "#7DD3FC" },
+  tip: { label: "DEEP QUESTION", accent: "#7DD3FC" },
 };
 
 export const DEMO_CRAM_CARDS: CramCard[] = [

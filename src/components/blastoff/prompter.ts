@@ -73,7 +73,7 @@ export function frameKindForStamp(kind: string | null | undefined): BlastFrameKi
 export const PHRASE_SLIDE_KINDS: readonly { kind: BlastFrameKind; label: string }[] = [
   { kind: "phrase", label: "Memorize this" },
   { kind: "cheat", label: "Cheat code" },
-  { kind: "tip", label: "Deeper idea" },
+  { kind: "tip", label: "Deep question" },
 ];
 
 /** The set's live talk: its sessions' segments and stamp contexts. */

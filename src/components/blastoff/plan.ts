@@ -157,7 +157,9 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   // Lee's 09-03 standard kinds, one to one with the canvas callouts.
   phrase: "Memorize this",
   cheat: "Cheat code",
-  tip: "Deeper idea",
+  // Lee, 2026-09-06: "Deep Question seems a bit better" — it tells the student what to DO (stop
+  // and reason it out), where "Deeper idea" didn't. The internal kind stays "tip" everywhere.
+  tip: "Deep question",
   exhibit: "Exhibit",
   blank: "Blank",
   bolt: "Bolt detour",

@@ -20,7 +20,9 @@ export type PlaybookKind = (typeof CALLOUT_MEMO_KINDS)[number] | (typeof SUPPORT
 export const MEMO_KIND_META: Record<PlaybookKind, { label: string; group: "CALLOUT" | "SUPPORT"; glyph: string }> = {
   "cheat-code": { label: "Cheat code", group: "CALLOUT", glyph: "💡" },
   "memorize-this": { label: "Memorize this", group: "CALLOUT", glyph: "🧠" },
-  "deeper-idea": { label: "Deeper idea", group: "CALLOUT", glyph: "🌊" },
+  // Display only — the key stays "deeper-idea" everywhere (Lee, 2026-09-06: "Deep Question
+  // seems a bit better").
+  "deeper-idea": { label: "Deep question", group: "CALLOUT", glyph: "🌊" },
   recap: { label: "Recap", group: "CALLOUT", glyph: "🔁" },
   distractor: { label: "Distractor", group: "CALLOUT", glyph: "🎭" },
   steps: { label: "Steps", group: "SUPPORT", glyph: "🔢" },

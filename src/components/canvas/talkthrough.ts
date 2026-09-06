@@ -243,7 +243,7 @@ export const STAMP_LABELS: Record<StampKind, string> = {
   short: "Other Short", nerdout: "Nerd Out", exhibit: "Exhibit", phrase: "Phrase",
   trigger_word: "Trigger Word", tip_trick: "Tip/Trick", cheat_code: "Cheat Code",
   real_world: "Real World Example", memo: "Other Memo",
-  memorize_this: "Memorize This", deeper_idea: "Deeper Idea", visual: "Visual",
+  memorize_this: "Memorize This", deeper_idea: "Deep Question", visual: "Visual",
   illustration: "Illustration idea",
 };
 

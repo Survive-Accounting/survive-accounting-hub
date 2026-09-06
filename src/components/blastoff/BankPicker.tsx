@@ -30,7 +30,7 @@ const MATCHES: Record<string, (b: BoardItem) => boolean> = {
   // Idea. Retired kinds still surface where they used to.
   phrase: (b) => b.kind === "phrase" || pk(b) === "phrase" || pk(b) === "trigger_word" || pk(b) === "memorize_this" || pk(b) === "memo" || tagged(b, "Memorize This"),
   cheat: (b) => pk(b) === "cheat_code" || pk(b) === "tip_trick" || tagged(b, "Cheat Code"),
-  tip: (b) => pk(b) === "deeper_idea" || pk(b) === "real_world" || pk(b) === "nerdout" || tagged(b, "Deeper Idea") || tagged(b, "Formula to Remember"),
+  tip: (b) => pk(b) === "deeper_idea" || pk(b) === "real_world" || pk(b) === "nerdout" || tagged(b, "Deeper Idea") || tagged(b, "Deep Question") || tagged(b, "Formula to Remember"),
 };
 const pk = (b: BoardItem): string => String((b.payload as { kind?: string }).kind ?? "");
 const tagged = (b: BoardItem, tag: string): boolean =>

@@ -57,7 +57,7 @@ export interface DeckApi { addSlide: (kind: BlastFrameKind, patch: Partial<Blast
 const QUICK: readonly { kind: BlastFrameKind; label: string; patch?: Partial<BlastFrame> }[] = [
   { kind: "phrase", label: "Memorize this" },
   { kind: "cheat", label: "Cheat code" },
-  { kind: "tip", label: "Deeper idea" },
+  { kind: "tip", label: "Deep question" },
   // 2026-09-04: the bolt detour (Lee's OBS camera bed) and the three ads.
   { kind: "bolt", label: "Bolt detour" },
   { kind: "ad", label: "Ad · Greek", patch: { ad: "greek" } },
@@ -103,7 +103,7 @@ const subhead: React.CSSProperties = { fontSize: 10.5, letterSpacing: "0.14em", 
 type RightTab = "teleprompter" | "editor" | "illustrator";
 const RIGHT_TABS: { id: RightTab; label: string; title: string }[] = [
   { id: "editor", label: "Editor", title: "Edit the selected slide here, beside it" },
-  { id: "illustrator", label: "Illustrator", title: "A picture for this slide — Memorize This, Cheat Code, Deeper Idea and blank slides" },
+  { id: "illustrator", label: "Illustrator", title: "A picture for this slide — Memorize This, Cheat Code, Deep Question and blank slides" },
   { id: "teleprompter", label: "Teleprompter", title: "Your own words for this slide — stamps, phrases, lines" },
 ];
 const RIGHT_TAB_KEY = "sa-review-right-tab";
@@ -431,7 +431,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
           </div>
           {canIllustrate(sel.kind)
             ? <IllustrationPanel key={sel.id} sel={sel} setId={set.id} setName={set.name} frames={frames} onPatch={(p) => patch(sel.id, p)} />
-            : <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5 }}>Pictures go on Memorize This, Cheat Code, Deeper Idea and blank slides. Pick one of those in the spine, or insert a <b style={{ color: CREAM }}>＋ Blank</b> — on a blank slide the picture is the slide: the watermark, the picture and the camera if you want it.</div>}
+            : <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5 }}>Pictures go on Memorize This, Cheat Code, Deep Question and blank slides. Pick one of those in the spine, or insert a <b style={{ color: CREAM }}>＋ Blank</b> — on a blank slide the picture is the slide: the watermark, the picture and the camera if you want it.</div>}
         </section>
       ) : rightTab === "editor" && sel ? (
         <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs} layout={layoutOf(plan)}
