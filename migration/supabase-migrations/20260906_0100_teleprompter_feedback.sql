@@ -27,7 +27,11 @@ create table if not exists public.teleprompter_feedback (
   comment text null,
   created_by text null,
   created_at timestamptz not null default now(),
-  constraint teleprompter_feedback_action_ck check (action in ('approved', 'revised', 'edited')),
+  -- 2026-09-06, third pass (edited in place, in case this hasn't run yet): the review now logs
+  -- 'said' / 'suggested' / 'edited' (which card Lee took); 'approved' / 'revised' are the retired
+  -- one-line review's. A database that already ran the narrow version gets the wide one from
+  -- 20260906_0400_teleprompter_feedback_actions.sql.
+  constraint teleprompter_feedback_action_ck check (action in ('said', 'suggested', 'edited', 'approved', 'revised')),
   constraint teleprompter_feedback_rating_ck check (rating is null or (rating >= 1 and rating <= 5))
 );
 

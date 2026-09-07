@@ -22,7 +22,7 @@
 // card stylesheet keys its motion on, with the brand cursor. The camera
 // (zoom, O, Alt-move, grips), the F1 arrows, the teleprompter sync and the
 // 9:16 pop-out each live in ./capture/* and plug in here.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 import { BrandCursor } from "@/components/canvas/BrandCursor";
@@ -36,8 +36,10 @@ import { BG, CREAM, EDGE, GOLD, MUTED, usePlan } from "./BlastOffEditor";
 import { cannedLinesFor, pickCannedLine, type CannedLine, type CannedSlot } from "./canned-lines";
 import { CaptureArrows } from "./capture/arrows";
 import { useCaptureCamera } from "./capture/camera";
+import { HotkeysModal } from "./capture/HotkeysModal";
 import { useCapturePopout } from "./capture/popout";
 import { useCapturePrompterSyncFrame } from "./capture/prompter-sync";
+import { fmtClock, historyLabel, initialRounds, opensReview, prompterEditable, reduceRounds, roundLabel, roundMode, roundSegments, showsPrompterInRound } from "./capture/rehearsal-rounds";
 import { useTeleprompterPopout } from "./capture/teleprompter-popout";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf, type RailStatus } from "./layout";
@@ -91,40 +93,89 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   // run through what I plan to say. Then we have the review at the end, then we go nail it and
   // move to next video." So this lives right here, in the real capture surface — R toggles
   // rehearsing (or the chip in the chrome bar); walking slide to slide while it's on (the exact
-  // same spacebar navigation as a real take) dictates into `segments`, keyed by frame id; Review
-  // turns each into a suggested line Lee approves/revises/edits, which lands on frame.prompter —
-  // the SAME prompter panel below then shows it once he's back to actually filming.
-  const [rehearsing, setRehearsing] = useState(false);
-  const [segments, setSegments] = useState<Record<string, string>>({});
+  // same spacebar navigation as a real take) dictates into the round's segments, keyed by frame
+  // id; Review turns each into two lines (his words cleaned, and a suggestion) Lee picks from or
+  // overwrites, which lands on frame.prompter — the SAME prompter panel below then shows it once
+  // he's back to actually filming.
+  //
+  // ROUNDS (2026-09-06, third pass — capture/rehearsal-rounds.ts has the whole design record).
+  // Lee: "Putting this into rounds... round 1, round 2." "Time the rehearsal... it should start
+  // with a spacebar. So, I enter rehearsal mode, then press space to start." R arms, space
+  // starts (from slide 1, clock and dictation running), space on the last slide walks off the end
+  // and finishes; rounds 1 and 2 end in the review, 3+ just show the time. Round 1 is blind.
+  const [rounds, dispatchRounds] = useReducer(reduceRounds, undefined, initialRounds);
+  const phase = rounds.phase;
+  const running = phase === "running";
+  /** 0 when not rehearsing — what the prompter panel's gating reads. */
+  const rehearsalRound = phase === "off" ? 0 : rounds.round;
+  /** THIS round's transcript, per frame id. */
+  const segments = roundSegments(rounds);
   // LIVE CAPTION (2026-09-06): Lee: "as I'm talking, just live dictate over there... seeing the
   // words populate will help me get a feel for brevity visually." `interim` is the in-progress,
   // not-yet-finalized chunk SpeechRecognition is still working out — shown live, replaced (not
-  // accumulated) on every event; only a FINAL chunk joins `segments`.
+  // accumulated) on every event; only a FINAL chunk joins the round's segments.
   const [interim, setInterim] = useState("");
   const [showReview, setShowReview] = useState(false);
+  const [showHotkeys, setShowHotkeys] = useState(false);
   const frameIdRef = useRef(frameId);
   frameIdRef.current = frameId;
   const dictation = useDictation((final, live) => {
     const fid = frameIdRef.current;
     setInterim(live);
     if (!final.trim() || !fid) return;
-    setSegments((s) => ({ ...s, [fid]: (s[fid] ? s[fid] + " " : "") + final.trim() }));
+    dispatchRounds({ type: "addFinal", frameId: fid, text: final });
   });
   useEffect(() => {
-    if (!rehearsing || !dictation.supported) return;
+    if (!running || !dictation.supported) return;
     dictation.start();
     return () => dictation.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rehearsing]);
-  useEffect(() => { setInterim(""); }, [frameId]);
+  }, [running]);
+  // Walking to another slide restarts the slide clock (and clears the in-progress caption).
+  useEffect(() => { setInterim(""); if (running) dispatchRounds({ type: "slide", now: Date.now() }); }, [frameId, running]);
+  // The clock pill re-renders four times a second while a round is armed or running — nothing
+  // else keys on this, so it's the cheapest honest clock there is.
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (phase === "off") return;
+    const t = setInterval(() => tick((v) => v + 1), 250);
+    return () => clearInterval(t);
+  }, [phase]);
+  // Round 3+ ends without a review — "just show the round time" for a moment, then nothing on
+  // screen that could film.
+  const [lastRound, setLastRound] = useState<{ round: number; seconds: number } | null>(null);
+  useEffect(() => {
+    if (!lastRound) return;
+    const t = setTimeout(() => setLastRound(null), 4000);
+    return () => clearTimeout(t);
+  }, [lastRound]);
+
+  const finishRound = useCallback(() => {
+    if (rounds.phase !== "running") return;
+    const now = Date.now();
+    dispatchRounds({ type: "finish", now });
+    if (opensReview(rounds.round)) setShowReview(true);
+    else setLastRound({ round: rounds.round, seconds: Math.round((now - (rounds.startedAt ?? now)) / 1000) });
+  }, [rounds]);
+  /** R: off → armed · armed → off · running → finished (review after rounds 1 and 2). */
+  const pressR = useCallback(() => {
+    if (rounds.phase === "off") dispatchRounds({ type: "arm" });
+    else if (rounds.phase === "armed") dispatchRounds({ type: "cancel" });
+    else finishRound();
+  }, [rounds.phase, finishRound]);
+  /** Space while armed: from slide 1, clock and dictation on. */
+  const startRound = useCallback(() => { setI(0); dispatchRounds({ type: "start", now: Date.now() }); }, []);
+  /** Shift+R / "↺ start over" — Lee: "Start over? Scratch previous take?" The round from the top. */
+  const startOver = useCallback(() => { if (rounds.phase !== "running") return; setI(0); setInterim(""); dispatchRounds({ type: "startOver", now: Date.now() }); }, [rounds.phase]);
+  /** ` / "✕ scratch take" — this slide's take, this round. */
+  const scratchTake = useCallback(() => { setInterim(""); if (frameId) dispatchRounds({ type: "scratch", frameId }); }, [frameId]);
+
   const commitPrompterLine = useCallback((fid: string, line: string) => { if (plan) commit(patchFrame(plan.frames, fid, { prompter: [line] })); }, [plan, commit]);
-  const closeReview = useCallback((stopRehearsing: boolean) => { setShowReview(false); if (stopRehearsing) setRehearsing(false); }, []);
+  const commitPrompterLines = useCallback((fid: string, lines: string[]) => { if (plan) commit(patchFrame(plan.frames, fid, { prompter: lines })); }, [plan, commit]);
+  // The round already ended when the review opened, so closing it — by "← back to rehearsal" or
+  // by Done — is just closing it; the next R arms the next round.
+  const closeReview = useCallback((_done: boolean) => { setShowReview(false); }, []);
   const segmentCount = Object.keys(segments).length;
-  // R to STOP auto-opens review — Lee: "once I finish, I can hit R and stop, and it will auto
-  // generate the suggested lines." Turning ON is unchanged (just starts listening).
-  const toggleRehearsing = useCallback(() => {
-    setRehearsing((v) => { const next = !v; if (!next) setShowReview(true); return next; });
-  }, []);
 
   // ---- CANNED INTRO/OUTRO/BIO (2026-09-06). Lee: "when I am in rehearse mode, I want to
   // already have the suggested intro/outro/bio canned ready. So I can start practicing using
@@ -220,8 +271,20 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
         if (e.key === "Escape") { e.preventDefault(); closeReview(false); }
         return;
       }
+      if (showHotkeys) {
+        // The hotkeys card is a reference, not a surface — Escape or ? closes it, nothing else
+        // fires through it.
+        if (e.key === "Escape" || e.key === "?") { e.preventDefault(); setShowHotkeys(false); }
+        return;
+      }
+      if (e.key === "?") { e.preventDefault(); setShowHotkeys(true); return; }
       if (e.key === " " || e.code === "Space") {
         e.preventDefault();
+        // REHEARSAL: space while armed STARTS the round (Lee: "I enter rehearsal mode, then press
+        // space to start"); space on the LAST slide while running walks off the end and FINISHES
+        // it — no wrap, the slide stays. Otherwise it's the same walk as a real take.
+        if (rounds.phase === "armed" && !e.shiftKey) { startRound(); return; }
+        if (rounds.phase === "running" && !e.shiftKey && idx >= n - 1) { finishRound(); return; }
         if (e.shiftKey) setI((v) => Math.max(0, v - 1));
         else setI((v) => Math.min(n - 1, v + 1));
       }
@@ -235,18 +298,18 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
       // (below), so this is the guaranteed "get it off screen" reset, on top of chrome already
       // defaulting off in the popout.
       else if (e.code === "Backquote" || e.key === "`") {
-        e.preventDefault(); resetTake(); setInterim(""); setChrome(false);
-        if (rehearsing && frameId) setSegments((s) => { if (!(frameId in s)) return s; const n = { ...s }; delete n[frameId]; return n; });
+        e.preventDefault(); resetTake(); setChrome(false); scratchTake();
       }
       else if (e.key === "Escape") { e.preventDefault(); onExit(); }
       else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
       else if (e.key.toLowerCase() === "p") { e.preventDefault(); setPrompter((v) => !v); }
-      else if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); toggleRehearsing(); }
+      // R arms / cancels / finishes a round; Shift+R starts the running round over.
+      else if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); if (e.shiftKey) startOver(); else pressR(); }
       else if (e.key.toLowerCase() === "b" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); const nx = nextCamSpot(camNow); setCamOverride(nx); if (nx === "off") setHero(false); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [n, onExit, resetTake, camNow, showReview, closeReview, rehearsing, frameId, toggleRehearsing]);
+  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake]);
 
   // FIT THE PHONE to the window: as tall as the window allows, 9:16. Size the
   // browser window to 9:16 (or pop it out) and the phone IS the window.
@@ -300,21 +363,30 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
             style={{ color: railStatus === "clear" ? MUTED : GOLD, fontWeight: railStatus === "clear" ? 500 : 800 }}>
             {railStatus === "clear" ? "captions clear" : railStatus === "card" ? "captions: ON THE CARD" : railStatus === "illustration" ? "captions: ON THE PICTURE" : "captions: under the camera"}
           </span>
-          <span>B camera {camNow} · space next · shift+space back · wheel zooms, O pulls back, 0 resets · alt+drag moves, alt-hover grips resize · click a choice, click again to resolve · ctrl+click the camera: hero (again, ` or next slide ends it) · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · F1 twice draws an arrow (move between), Delete removes · ` resets · H hide this · P prompter · R rehearse{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
+          {/* The long hotkey sentence that used to sit here is the "?" card now (capture/
+              HotkeysModal.tsx) — Lee: "put that all behind a modal link. It's a lot of text in
+              bottom left." B's camera state stays visible since it changes per take. */}
+          <span title="B cycles the camera">B camera {camNow}</span>
           {/* REHEARSAL (2026-09-06, second pass): the toggle lives right here, in the same chrome
               bar as everything else about this take — Lee: "I'd prefer to see it somewhere on
-              film." On: dictation runs, accumulating what's said per slide as you walk normally. */}
-          <button onClick={toggleRehearsing} title="Talk through each slide (R) — nothing is recorded, just transcribed. Stop (R again) opens the review"
-            style={{ color: rehearsing ? "#000" : GOLD, background: rehearsing ? "#3BF5A0" : "none", border: `1px solid ${rehearsing ? "#3BF5A0" : GOLD + "66"}`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>
-            {rehearsing ? "🎙 rehearsing" : "🎙 rehearse"}
+              film." Third pass: the chip is the same R the key is — arm, cancel, or finish. */}
+          <button onClick={pressR} title={phase === "off" ? "Arm a rehearsal round (R) — then space to start it" : phase === "armed" ? "Armed — space starts, R cancels" : "Rehearsing — R (or space on the last slide) ends the round"}
+            style={{ color: phase === "off" ? GOLD : "#000", background: phase === "off" ? "none" : phase === "armed" ? GOLD : "#3BF5A0", border: `1px solid ${phase === "off" ? GOLD + "66" : phase === "armed" ? GOLD : "#3BF5A0"}`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>
+            {phase === "off" ? "🎙 rehearse" : phase === "armed" ? `${roundLabel(rounds.round)} armed` : `${roundLabel(rounds.round)} rehearsing`}
           </button>
-          {rehearsing && (
+          {running && (
             <span style={{ color: dictation.on ? "#3BF5A0" : "#FF9F43", fontWeight: 700 }}>
               {dictation.supported ? (dictation.on ? "listening" : "not listening") : "dictation unsupported — try Chrome"}
             </span>
           )}
-          {segmentCount > 0 && (
-            <button onClick={() => setShowReview(true)} title="Turn what's been said into suggested lines for the prompter"
+          {running && (
+            <>
+              <button onClick={startOver} title="Start this round over (shift+R): transcript wiped, clock to zero, back to slide 1" style={chip()}>↺ start over</button>
+              <button onClick={scratchTake} title="Scratch this slide's take (`) — this round only" style={chip()}>✕ scratch take</button>
+            </>
+          )}
+          {phase === "off" && segmentCount > 0 && (
+            <button onClick={() => setShowReview(true)} title={`Review round ${rounds.round}'s lines again`}
               style={{ color: "#14213D", background: GOLD, border: `1px solid ${GOLD}`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>
               review {segmentCount} →
             </button>
@@ -331,16 +403,45 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
               style={{ color: GOLD, background: "none", border: `1px solid ${GOLD}66`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>⧉ pop out teleprompter</button>
           )}
           {popout.status && <span style={{ color: CREAM }}>{popout.status}</span>}
+          {rounds.history.length > 0 && <span title="This session's rehearsal rounds" style={{ color: CREAM, fontWeight: 700 }}>{historyLabel(rounds.history)}</span>}
+          <button onClick={() => setShowHotkeys(true)} title="Every shortcut (?)" style={{ ...chip(), padding: "2px 7px" }}>?</button>
         </div>
       )}
+      {/* ARMED: the banner over the phone — Lee: "I enter rehearsal mode, then press space to
+          start." Round 1 says it's blind before he starts, so the empty prompter isn't a surprise. */}
+      {phase === "armed" && (
+        <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", zIndex: 40, pointerEvents: "none", fontFamily: "'Rubik', system-ui, sans-serif" }}>
+          <div style={{ background: "rgba(7,11,20,0.9)", border: `1px solid ${GOLD}66`, borderRadius: 14, padding: "18px 28px", textAlign: "center" }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: GOLD }}>Round {rounds.round} · press space to start</div>
+            <div style={{ fontSize: 13, color: MUTED, marginTop: 6 }}>{roundMode(rounds.round)}</div>
+          </div>
+        </div>
+      )}
+      {/* THE CLOCK (Lee: "Any rehearsal I do should have a running time"). Fixed to the WINDOW,
+          not the phone's chrome bar — visible with chrome hidden — and it only exists while a
+          round is armed or running, so it can never be in a real take. */}
+      {phase !== "off" && (() => {
+        const now = Date.now();
+        return (
+          <div style={{ position: "fixed", top: 10, right: 12, zIndex: 40, background: "rgba(7,11,20,0.88)", border: `1px solid ${running ? "#3BF5A0" : GOLD}66`, borderRadius: 999, padding: "4px 12px", fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 12.5, fontWeight: 800, color: CREAM, fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ color: running ? "#3BF5A0" : GOLD }}>{roundLabel(rounds.round)}</span> · {fmtClock(rounds.startedAt ? now - rounds.startedAt : 0)} · <span style={{ color: MUTED, fontWeight: 600 }}>slide {fmtClock(rounds.slideStartedAt ? now - rounds.slideStartedAt : 0)}</span>
+          </div>
+        );
+      })()}
+      {lastRound && phase === "off" && (
+        <div style={{ position: "fixed", top: 10, right: 12, zIndex: 40, background: "rgba(7,11,20,0.88)", border: `1px solid ${EDGE}`, borderRadius: 999, padding: "4px 12px", fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 12.5, fontWeight: 800, color: CREAM }}>
+          {roundLabel(lastRound.round)} · {fmtClock(lastRound.seconds * 1000)} <span style={{ color: MUTED, fontWeight: 600 }}>done</span>
+        </div>
+      )}
+      {showHotkeys && <HotkeysModal onClose={() => setShowHotkeys(false)} />}
       {showReview && (
-        <RehearsalReview set={set} frames={frames} ceqById={ceqById} segments={segments} initialPicks={cannedPicks} onCommitLine={commitPrompterLine} onClose={closeReview} />
+        <RehearsalReview set={set} frames={frames} ceqById={ceqById} segments={segments} round={rounds.round} initialPicks={cannedPicks} onCommitLine={commitPrompterLine} onClose={closeReview} />
       )}
       {/* LIVE DICTATION CAPTION (2026-09-06). Lee: "as I'm talking, just live dictate over
           there... seeing the words populate will help me get a feel for brevity visually." What's
           already final for this slide, plus whatever's still in progress — cleared by walking to
           a new slide or by ` (a fresh take). */}
-      {rehearsing && (segments[frameId ?? ""] || interim) && (
+      {running && (segments[frameId ?? ""] || interim) && (
         <div style={{
           position: "fixed", left: "50%", bottom: chrome ? 60 : 16, transform: "translateX(-50%)", zIndex: 30,
           maxWidth: "min(640px, 86vw)", background: "rgba(7,11,20,0.88)", border: `1px solid ${EDGE}`, borderRadius: 12,
@@ -354,7 +455,11 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
           out one, it's in the way of filming") — that window IS the shot; the teleprompter now
           has its own separate pop-out (the button above) instead. Still shown in the main
           window (P toggles it there) and, harmlessly, in Review/authoring contexts. */}
-      {prompter && !popout.isPopout && (() => {
+      {/* ROUND 1 IS BLIND (2026-09-06): "I want it to intentionally let me practice blind first in
+          round 1... Round 1 is about getting the feel down." The panel is hidden on every frame
+          but the canned ones — even a line committed in an earlier session — and the canned
+          suggestion still shows on open/intro/outro/bio, since practicing with those IS the point. */}
+      {prompter && !popout.isPopout && showsPrompterInRound(rehearsalRound, frame.kind) && (() => {
         // A committed prompter line always wins; otherwise, on a canned slide (open/intro/outro/
         // bio) with nothing committed yet, the auto-picked suggestion fills the panel so Lee can
         // already rehearse with it — Lee: "I want to already have the suggested intro/outro/bio
@@ -364,6 +469,10 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
         const lines = committed.length ? committed : cannedSuggestion ? [cannedSuggestion.text] : [];
         if (lines.length === 0) return null;
         const suggested = committed.length === 0;
+        // "Only editable manually after round 2, to try to avoid over doing the review process."
+        // Click a line → textarea; Enter saves, Escape cancels. Main window only (this panel never
+        // renders in the film pop-out at all).
+        const editable = prompterEditable(rounds);
         return (
           <div style={{
             position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", width: 300, maxHeight: "80vh", overflowY: "auto", zIndex: 30,
@@ -371,10 +480,11 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
             fontFamily: "'Rubik', system-ui, sans-serif", color: CREAM,
           }}>
             <div style={{ fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 6 }}>
-              Prompter{suggested ? " · suggested" : ""}
+              Prompter{suggested ? " · suggested" : ""}{editable ? <span style={{ color: MUTED, letterSpacing: "0.06em", textTransform: "none", fontWeight: 600 }}> · click a line to edit</span> : null}
             </div>
             {lines.map((line, k) => (
-              <div key={k} style={{ fontSize: 17, lineHeight: 1.35, fontWeight: 600, padding: "5px 0", borderTop: k ? `1px solid ${EDGE}` : "none" }}>{line}</div>
+              <PrompterLine key={`${frame.id}:${k}:${line}`} line={line} editable={editable} first={k === 0}
+                onSave={(text) => commitPrompterLines(frame.id, committed.length ? committed.map((l, j) => (j === k ? text : l)) : [text])} />
             ))}
           </div>
         );
@@ -387,5 +497,31 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
     </PreviewSpotContext.Provider>
     </PracticeContext.Provider>
     </HighlightContext.Provider>
+  );
+}
+
+/** A small chrome-bar button, gold outline. */
+const chip = (): React.CSSProperties => ({ color: GOLD, background: "none", border: `1px solid ${GOLD}66`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 });
+
+/** One prompter line — plain text, or (after round 2) click-to-edit. Enter saves, Escape cancels,
+ *  clicking away cancels too. The global keydown handler ignores textareas, so Escape here never
+ *  exits Film. */
+function PrompterLine({ line, editable, first, onSave }: { line: string; editable: boolean; first: boolean; onSave: (text: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(line);
+  const base: React.CSSProperties = { fontSize: 17, lineHeight: 1.35, fontWeight: 600, padding: "5px 0", borderTop: first ? "none" : `1px solid ${EDGE}` };
+  if (!editing) {
+    return (
+      <div onClick={editable ? () => { setDraft(line); setEditing(true); } : undefined} title={editable ? "Click to edit — Enter saves, Escape cancels" : undefined}
+        style={{ ...base, cursor: editable ? "text" : undefined }}>{line}</div>
+    );
+  }
+  return (
+    <textarea autoFocus rows={3} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => setEditing(false)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); const t = draft.trim(); if (t && t !== line) onSave(t); setEditing(false); }
+        else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setEditing(false); }
+      }}
+      style={{ ...base, display: "block", width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.05)", border: `1px solid ${GOLD}66`, borderRadius: 8, color: CREAM, font: "inherit", fontSize: 15, padding: "6px 8px", resize: "vertical" }} />
   );
 }
