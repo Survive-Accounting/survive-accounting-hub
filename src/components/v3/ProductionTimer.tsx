@@ -40,20 +40,35 @@
 // NEVER IN THE TAKE. The 9:16 pop-out window (?popout=1, components/blastoff/capture/popout.ts)
 // is what OBS captures; the widget draws nothing there. The main window keeps the pill (the
 // film step has tasks to tick — setup, rounds, the take).
+//
+// THE RETRO BY VOICE (2026-09-07, docs/USE-YOUR-WORDS-AUDIT.md #6, #19). Lee: "'Use your words'
+// is the fundamental value… Wherever we can click, talk, get suggestions." The finish sheet has
+// a mic: he talks the retro, the model (retro-brief.ts) follows along on the rehearsal review's
+// throttle and proposes the one-line note + bottleneck tags, shown for confirmation before
+// "Finish". The tags land on the step (StepRun.tags) and in production_time_log's note as
+// "[tag] note", so the consultant reads tags, not prose. The pause reason has a mic and NO
+// model — a spoken reason is already the artifact.
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { getAdminWho, isAdminUnlocked } from "@/components/AdminGate";
 import { startTT, subscribeTT, ttState } from "@/components/canvas/talkthrough-sync";
 import { findSet, findTopic, slugOf, useBank } from "@/components/v3/use-bank";
+import { logCostEvent } from "@/lib/cost-ledger.functions";
 import { logProductionTime } from "@/lib/production-time.functions";
 import {
   currentStep, DEFAULT_TASK_LISTS, fmtElapsed, isPaused, LOG_STEP, newRun, nextPendingStep, normalizeRun, pillLabel, recordingSignal,
   reduceRun, RUN_STEP_LABEL, RUN_STEPS, runningTask, runStepFromPath, runTotalSeconds, stepSeconds, taskSeconds,
-  type ProductionRun, type RunAction, type RunStepId, type TaskLists,
+  type ProductionRun, type RunAction, type RunStepId, type StepRun, type TaskLists,
 } from "@/lib/production-run";
 import { getActiveRun, getProductionTaskLists, listProductionRuns, upsertProductionRun } from "@/lib/production-run.functions";
-import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
+import { buildRetroMessages, parseRetro, retroLogNote, type Retro } from "@/lib/retro-brief";
+import { runMicro, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
+import { useDictation } from "@/lib/use-dictation";
+
+/** The rehearsal review's live-brief cadence (RehearsalReview.tsx LIVE_BRIEF_EVERY_MS) — a
+ *  throttle, not a debounce, so continuous speech still briefs every 2.5 s. */
+const LIVE_BRIEF_EVERY_MS = 2500;
 
 const GOLD = "#FCA311", CREAM = "#F4EFE6", MUTED = "#9AA3B8", EDGE = "rgba(244,239,230,0.16)", INK = "#0B0F1E", MINT = "#3BF5A0", ORANGE = "#FF9F43", ROSE = "#FF8B7E";
 const FONT = "'Rubik', system-ui, sans-serif";
@@ -202,20 +217,24 @@ function ProductionRunInner() {
     return () => window.removeEventListener("sa:production", on);
   }, [dispatch]);
 
-  /** finishStep + the production_time_log row (the old report's shape) — best-effort. */
-  const finishStep = useCallback((step: RunStepId, note: string) => {
+  /** finishStep + the production_time_log row (the old report's shape) — best-effort. The
+   *  retro's tags ride the step (one commit, beside the reducer's own result) and prefix the
+   *  log note as "[tag] note" (retro-brief.ts retroLogNote). */
+  const finishStep = useCallback((step: RunStepId, note: string, tags: string[] = []) => {
     const cur = runRef.current;
     if (!cur) return;
-    const next = dispatch({ type: "finishStep", step, note: note || null });
-    if (!next) return;
+    let next = reduceRun(cur, { type: "finishStep", step, note: note || null }, new Date());
+    if (next === cur) return;
+    if (tags.length) next = { ...next, steps: { ...next.steps, [step]: { ...next.steps[step], tags } } };
+    commit(next);
     const s = next.steps[step];
     if (!s.startedAt || !s.endedAt) return;
     logProductionTime({ data: {
       setId: next.setId, setName: next.setName || null, topicSlug: next.topicSlug || null, topicName: next.topicName || null,
       step: LOG_STEP[step], seconds: stepSeconds(s, new Date(s.endedAt)), startedAt: s.startedAt, endedAt: s.endedAt, who: who(),
-      note: s.note ? s.note.slice(0, 500) : null,
+      note: retroLogNote(s.note, tags)?.slice(0, 500) ?? null,
     } }).then((r) => { if (!r.ok) setSaveErr(r.error ?? "Couldn't write the time log."); }).catch(() => { /* the run itself is saved; the log row is the legacy report's */ });
-  }, [dispatch]);
+  }, [commit]);
 
   // Escape closes the popover.
   useEffect(() => {
@@ -280,7 +299,7 @@ function ProductionRunInner() {
 
 function Pill({ run, now, open, setOpen, saveErr, dispatch, finishStep, clear }: {
   run: ProductionRun; now: Date; open: boolean; setOpen: (v: boolean) => void; saveErr: string | null;
-  dispatch: (a: RunAction) => ProductionRun | null; finishStep: (step: RunStepId, note: string) => void; clear: () => void;
+  dispatch: (a: RunAction) => ProductionRun | null; finishStep: (step: RunStepId, note: string, tags?: string[]) => void; clear: () => void;
 }) {
   const step = currentStep(run);
   const stepRun = step ? run.steps[step] : null;
@@ -288,9 +307,7 @@ function Pill({ run, now, open, setOpen, saveErr, dispatch, finishStep, clear }:
   const done = run.status !== "running";
   const dot = done ? GOLD : paused ? ORANGE : MINT;
   const [confirmPause, setConfirmPause] = useState(false);
-  const [reason, setReason] = useState("");
   const [finishing, setFinishing] = useState(false);
-  const [note, setNote] = useState("");
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   useEffect(() => { if (!open) { setConfirmPause(false); setFinishing(false); setConfirmAbandon(false); } }, [open]);
 
@@ -350,25 +367,16 @@ function Pill({ run, now, open, setOpen, saveErr, dispatch, finishStep, clear }:
               )}
 
               {confirmPause ? (
-                <div style={{ marginTop: 10, border: `1px solid ${ORANGE}66`, borderRadius: 10, padding: 10 }}>
-                  <div style={{ fontSize: 12.5, lineHeight: 1.45, marginBottom: 6 }}>Pausing counts against you — only if you really have to stop. Why?</div>
-                  <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="one line — what pulled you away"
-                    onKeyDown={(e) => { if (e.key === "Enter") { dispatch({ type: "pause", step, reason }); setConfirmPause(false); setReason(""); } }}
-                    style={field()} />
-                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                    <button type="button" onClick={() => { setConfirmPause(false); setReason(""); }} style={btn()}>Cancel</button>
-                    <button type="button" onClick={() => { dispatch({ type: "pause", step, reason }); setConfirmPause(false); setReason(""); }} style={btn(ORANGE)}>Pause</button>
-                  </div>
-                </div>
+                <PauseSheet
+                  onCancel={() => setConfirmPause(false)}
+                  onPause={(reason) => { dispatch({ type: "pause", step, reason }); setConfirmPause(false); }}
+                />
               ) : finishing ? (
-                <div style={{ marginTop: 10, border: `1px solid ${GOLD}66`, borderRadius: 10, padding: 10 }}>
-                  <div style={{ fontSize: 12.5, lineHeight: 1.45, marginBottom: 6 }}>What sucked, what would've been better? (optional)</div>
-                  <textarea autoFocus value={note} onChange={(e) => setNote(e.target.value)} rows={3} style={{ ...field(), resize: "vertical" }} />
-                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                    <button type="button" onClick={() => setFinishing(false)} style={btn()}>Back</button>
-                    <button type="button" onClick={() => { finishStep(step, note.trim()); setFinishing(false); setNote(""); }} style={btn(MINT)}>✓ Finish {RUN_STEP_LABEL[step]}</button>
-                  </div>
-                </div>
+                <RetroSheet
+                  step={step} stepRun={stepRun} now={now} setId={run.setId}
+                  onBack={() => setFinishing(false)}
+                  onFinish={(note, tags) => { finishStep(step, note, tags); setFinishing(false); }}
+                />
               ) : (
                 <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
                   {paused
@@ -425,6 +433,150 @@ function Pill({ run, now, open, setOpen, saveErr, dispatch, finishStep, clear }:
 
 function RUN_STEPS_DONE(run: ProductionRun): number {
   return RUN_STEPS.filter((s) => run.steps[s].status === "done" || run.steps[s].status === "skipped").length;
+}
+
+// ------------------------------------------------------------------ the pause sheet
+
+/** The pause reason, spoken (#19). Mic only, no model: "a spoken reason is already the
+ *  artifact." Words land in the field as he says them; typing still works. */
+function PauseSheet({ onCancel, onPause }: { onCancel: () => void; onPause: (reason: string) => void }) {
+  const [reason, setReason] = useState("");
+  const [interim, setInterim] = useState("");
+  const mic = useDictation((final, live) => { setInterim(live); if (final.trim()) setReason((r) => `${r} ${final}`.trim()); });
+  const shown = reason + (interim ? (reason ? " " : "") + interim : "");
+  const pause = () => { mic.stop(); onPause(reason.trim()); };
+  return (
+    <div style={{ marginTop: 10, border: `1px solid ${ORANGE}66`, borderRadius: 10, padding: 10 }}>
+      <div style={{ fontSize: 12.5, lineHeight: 1.45, marginBottom: 6 }}>Pausing counts against you — only if you really have to stop. Why?</div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input autoFocus value={shown} onChange={(e) => { setInterim(""); setReason(e.target.value); }} placeholder="one line — what pulled you away"
+          onKeyDown={(e) => { if (e.key === "Enter") pause(); }}
+          style={field()} />
+        <MicButton mic={mic} />
+      </div>
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        <button type="button" onClick={() => { mic.stop(); onCancel(); }} style={btn()}>Cancel</button>
+        <button type="button" onClick={pause} style={btn(ORANGE)}>Pause</button>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ the retro sheet
+
+/** "What sucked, what would've been better?" — talked (#6). Speech lands in the box AND drives
+ *  the brief on the throttle; the model's one-line note + bottleneck tags sit under it for
+ *  confirmation (edit the line, × a tag). Typed words brief on "Sum it up". Finish with no
+ *  brief at all still works — the raw words are the note, as before. */
+function RetroSheet({ step, stepRun, now, setId, onBack, onFinish }: {
+  step: RunStepId; stepRun: StepRun; now: Date; setId: string;
+  onBack: () => void; onFinish: (note: string, tags: string[]) => void;
+}) {
+  const [text, setText] = useState("");
+  const [interim, setInterim] = useState("");
+  /** Speech only — what the throttle keys on, so typing never fires a call per keystroke. */
+  const [take, setTake] = useState("");
+  const [retro, setRetro] = useState<Retro | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const mic = useDictation((final, live) => {
+    setInterim(live);
+    if (final.trim()) { setText((t) => `${t} ${final}`.trim()); setTake((t) => `${t} ${final}`.trim()); }
+  });
+
+  const brief = useCallback(async (spoken: string) => {
+    if (!spoken.trim()) return;
+    setBusy(true); setErr(null);
+    try {
+      const m = buildRetroMessages({
+        step: RUN_STEP_LABEL[step],
+        taskMinutes: stepRun.tasks.map((t) => ({ label: t.label, minutes: taskSeconds(t, stepRun, now) / 60, status: t.status })),
+        pauses: stepRun.pauses.map((p) => ({
+          taskLabel: stepRun.tasks.find((t) => t.key === p.taskKey)?.label ?? null, reason: p.reason,
+          seconds: p.endedAt ? Math.max(0, Math.round((new Date(p.endedAt).getTime() - new Date(p.startedAt).getTime()) / 1000)) : 0,
+        })),
+        spoken,
+      });
+      const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 300 } });
+      void logCostEvent({ data: { setId, kind: "ai", usd: r.usage.costUsd, model: r.model, label: "retro", who: getAdminWho() } });
+      const parsed = parseRetro(r.text, spoken);
+      if (!parsed) throw new Error("The retro didn't come back clean — say it once more, or just finish with your words.");
+      setRetro(parsed);
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+    // stepRun/now are read at call time on purpose — the sheet is open for seconds, not minutes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, setId]);
+
+  // The rehearsal review's throttle: first new speech briefs at once, then at most once per
+  // LIVE_BRIEF_EVERY_MS, and the tail always lands.
+  const lastAt = useRef(0);
+  const briefed = useRef("");
+  useEffect(() => {
+    if (!take || take === briefed.current) return;
+    const wait = Math.max(0, lastAt.current + LIVE_BRIEF_EVERY_MS - Date.now());
+    const id = window.setTimeout(() => { lastAt.current = Date.now(); briefed.current = take; void brief(take); }, wait);
+    return () => window.clearTimeout(id);
+  }, [take, brief]);
+
+  const shown = text + (interim ? (text ? " " : "") + interim : "");
+  const finish = () => { mic.stop(); onFinish((retro?.note ?? text).trim(), retro?.tags ?? []); };
+
+  return (
+    <div style={{ marginTop: 10, border: `1px solid ${GOLD}66`, borderRadius: 10, padding: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+        <span style={{ fontSize: 12.5, lineHeight: 1.45, flex: 1 }}>What sucked, what would've been better? (optional)</span>
+        <MicButton mic={mic} />
+      </div>
+      <textarea autoFocus value={shown} onChange={(e) => { setInterim(""); setText(e.target.value); }} rows={3} style={{ ...field(), resize: "vertical" }}
+        placeholder={mic.supported ? "talk, or type" : ""} />
+      {!mic.on && text.trim() && (!retro || text !== briefed.current) && (
+        <button type="button" disabled={busy} onClick={() => { briefed.current = text; void brief(text); }} style={{ ...btn(GOLD), flex: "none", marginTop: 6, padding: "4px 9px", fontSize: 11 }}>
+          {busy ? "Summing up…" : "Sum it up"}
+        </button>
+      )}
+      {(retro || busy) && (
+        <div style={{ marginTop: 8, borderTop: `1px dashed ${EDGE}`, paddingTop: 8 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTED, marginBottom: 4 }}>
+            The note{busy ? " · thinking…" : ""}
+          </div>
+          {retro && (
+            <>
+              <input value={retro.note} onChange={(e) => setRetro({ ...retro, note: e.target.value })} style={field()} />
+              {retro.tags.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                  {retro.tags.map((t) => (
+                    <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, padding: "2px 7px", borderRadius: 999, border: `1px solid ${ORANGE}66`, color: ORANGE }}>
+                      {t}
+                      <button type="button" onClick={() => setRetro({ ...retro, tags: retro.tags.filter((x) => x !== t) })} title="Drop this tag"
+                        style={{ font: "inherit", background: "transparent", border: "none", color: MUTED, cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div style={{ fontSize: 10.5, color: MUTED, marginTop: 4 }}>The tags are what the consultant reads — drop one that isn't a real bottleneck.</div>
+            </>
+          )}
+        </div>
+      )}
+      {err && <div style={{ marginTop: 6, fontSize: 11, color: ORANGE }}>{err}</div>}
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        <button type="button" onClick={() => { mic.stop(); onBack(); }} style={btn()}>Back</button>
+        <button type="button" onClick={finish} style={btn(MINT)}>✓ Finish {RUN_STEP_LABEL[step]}</button>
+      </div>
+    </div>
+  );
+}
+
+/** One mic, the same everywhere in the pill. Hidden where the browser can't dictate. */
+function MicButton({ mic }: { mic: ReturnType<typeof useDictation> }) {
+  if (!mic.supported) return null;
+  return (
+    <button type="button" onClick={() => (mic.on ? mic.stop() : mic.start())} title={mic.on ? "Stop listening" : "Talk — the words land here as you speak (Chrome)"}
+      style={{ ...btn(mic.on ? ORANGE : CREAM), flex: "none", padding: "4px 9px", fontSize: 11, borderColor: mic.on ? `${ORANGE}88` : EDGE, whiteSpace: "nowrap" }}>
+      {mic.on ? "■ listening…" : "🎙 Talk"}
+    </button>
+  );
 }
 
 // ------------------------------------------------------------------ the ready modals

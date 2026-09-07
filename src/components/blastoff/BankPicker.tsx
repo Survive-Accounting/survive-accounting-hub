@@ -8,14 +8,27 @@
 //
 // Reads the same local-first Talkthrough store the booth writes, so a bank item
 // approved thirty seconds ago is already here.
-import { useEffect, useMemo, useState } from "react";
+//
+// BY VOICE (2026-09-07, docs/USE-YOUR-WORDS-AUDIT.md #7). Lee: "'Use your words' is the
+// fundamental value… Wherever we can click, talk, get suggestions." A mic on "In Lee's
+// words": he says the phrase and why, the model (bank-phrase-brief.ts) follows along on the
+// rehearsal review's throttle and fills the two fields in his register; the same Enter as
+// before banks + places it. Typing is the fallback — edit what it filled.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { getAdminWho } from "@/components/AdminGate";
 import {
   newTTId, touchRow, type BoardItem, type TTDoc,
 } from "@/components/canvas/talkthrough";
 import { putBoardItem, startTT, subscribeTT, ttState } from "@/components/canvas/talkthrough-sync";
-import { EXHIBIT_REGISTRY } from "@/lib/talkthrough.functions";
+import { buildBankPhraseMessages, parseBankPhrase, type BankPhraseKind } from "@/lib/bank-phrase-brief";
+import { logCostEvent } from "@/lib/cost-ledger.functions";
+import { EXHIBIT_REGISTRY, runMicro } from "@/lib/talkthrough.functions";
+import { useDictation } from "@/lib/use-dictation";
 import type { BlastFrame, BlastFrameKind } from "./plan";
+
+/** The rehearsal review's cadence (RehearsalReview.tsx LIVE_BRIEF_EVERY_MS). */
+const LIVE_BRIEF_EVERY_MS = 2500;
 
 const GOLD = "#FCA311";
 const CREAM = "#F4EFE6";
@@ -60,6 +73,41 @@ export function BankPicker({ kind, setId, setName, onPick, onClose }: {
     setDoc(ttState().doc);
     return subscribeTT(() => setDoc(ttState().doc));
   }, []);
+
+  // THE MIC. Speech accumulates in `take` (what the throttle keys on — never the typed
+  // fields, so a keystroke never costs a call); the live words show under the box while
+  // he talks; the brief fills title + body, and he edits or Enters.
+  const [take, setTake] = useState("");
+  const [interim, setInterim] = useState("");
+  const [briefing, setBriefing] = useState(false);
+  const [briefErr, setBriefErr] = useState<string | null>(null);
+  const mic = useDictation((final, live) => { setInterim(live); if (final.trim()) setTake((t) => `${t} ${final}`.trim()); });
+  const briefKind: BankPhraseKind = kind === "cheat" ? "cheat" : kind === "tip" ? "tip" : "phrase";
+  const brief = useCallback(async (spoken: string) => {
+    setBriefing(true); setBriefErr(null);
+    try {
+      const m = buildBankPhraseMessages({ kind: briefKind, setName, spoken });
+      const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 200 } });
+      void logCostEvent({ data: { setId, kind: "ai", usd: r.usage.costUsd, model: r.model, label: "bank phrase", who: getAdminWho() } });
+      const p = parseBankPhrase(r.text);
+      if (!p) throw new Error("Didn't come back clean — say it once more, or type it.");
+      setFree(p.title); setFreeBody(p.body);
+    } catch (e) { setBriefErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBriefing(false); }
+  }, [briefKind, setName, setId]);
+  const lastAt = useRef(0);
+  const briefed = useRef("");
+  useEffect(() => {
+    if (!take || take === briefed.current) return;
+    const wait = Math.max(0, lastAt.current + LIVE_BRIEF_EVERY_MS - Date.now());
+    const id = window.setTimeout(() => { lastAt.current = Date.now(); briefed.current = take; void brief(take); }, wait);
+    return () => window.clearTimeout(id);
+  }, [take, brief]);
+  const toggleMic = () => {
+    if (mic.on) { mic.stop(); setInterim(""); return; }
+    setTake(""); setInterim(""); briefed.current = "";
+    mic.start();
+  };
 
   const items = useMemo(() => {
     const match = MATCHES[kind];
@@ -107,8 +155,12 @@ export function BankPicker({ kind, setId, setName, onPick, onClose }: {
     };
     putBoardItem(item);
     onPick(kind === "cheat" ? { title, body: freeBody.trim() || undefined, bankItemId: item.id } : { text: title, bankItemId: item.id });
-    setFree(""); setFreeBody("");
+    if (mic.on) mic.stop();
+    setFree(""); setFreeBody(""); setTake(""); setInterim("");
   };
+  // The "Why / when" line: always for a cheat code; for the other kinds only once the mic
+  // (or a hand) put something there — it's banked either way (payload.body).
+  const showBody = kind === "cheat" || !!freeBody;
 
   return (
     <Shell title={kind === "phrase" ? "Phrase" : kind === "cheat" ? "Cheat code" : "Tip / Trick"} onClose={onClose}>
@@ -132,13 +184,28 @@ export function BankPicker({ kind, setId, setName, onPick, onClose }: {
       )}
 
       <div style={{ borderTop: `1px dashed ${EDGE}`, marginTop: 10, paddingTop: 10 }}>
-        <div style={{ fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: MUTED, fontWeight: 800, marginBottom: 6 }}>
-          Not banked yet
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+          <span style={{ fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: MUTED, fontWeight: 800 }}>
+            Not banked yet
+          </span>
+          <span style={{ flex: 1 }} />
+          {mic.supported && (
+            <button type="button" onClick={toggleMic} title={mic.on ? "Stop listening" : "Say the phrase and why — it fills the fields as you talk (Chrome)"}
+              style={{ background: mic.on ? "rgba(255,159,67,0.14)" : "transparent", border: `1px solid ${mic.on ? "#FF9F43aa" : EDGE}`, color: mic.on ? "#FF9F43" : CREAM, borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+              {mic.on ? "■ listening…" : "🎙 Say it"}
+            </button>
+          )}
         </div>
+        {(mic.on || briefing) && (
+          <div style={{ fontSize: 11, color: MUTED, marginBottom: 6, lineHeight: 1.4, minHeight: 15 }}>
+            {briefing ? "tidying… " : ""}{take}{interim ? <span style={{ opacity: 0.6 }}> {interim}</span> : null}{!take && !interim && !briefing ? "say the phrase, then why it works" : ""}
+          </div>
+        )}
+        {briefErr && <div style={{ fontSize: 11, color: "#FF9F43", marginBottom: 6 }}>{briefErr}</div>}
         <input value={free} onChange={(e) => setFree(e.target.value)}
           placeholder={kind === "cheat" ? "The rule" : "In Lee's words"} style={inputStyle}
           onKeyDown={(e) => { if (e.key === "Enter") addFree(); }} />
-        {kind === "cheat" && (
+        {showBody && (
           <input value={freeBody} onChange={(e) => setFreeBody(e.target.value)} placeholder="Why / when (optional)"
             style={{ ...inputStyle, marginTop: 6 }} onKeyDown={(e) => { if (e.key === "Enter") addFree(); }} />
         )}

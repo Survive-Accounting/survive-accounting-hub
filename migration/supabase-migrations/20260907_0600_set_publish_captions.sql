@@ -1,0 +1,15 @@
+-- TALK THE CAPTION (2026-09-07, docs/USE-YOUR-WORDS-AUDIT.md §3). Cross-post (/v3/post) had no
+-- caption, title, description or hashtag field at all — two inputs, a search and the pasted
+-- URL. Lee: "'Use your words' is the fundamental value… Wherever we can click, talk, get
+-- suggestions." And on this moment: "now we're at the final editing point. Maybe one last thing
+-- comes around to enhance our video… Every second matters."
+--
+-- One column on the existing row: a per-destination map the model writes from what already
+-- exists (the kept prompter lines, the cards, the talkthrough notes) plus twenty seconds of him
+-- talking about the set, edited in place, saved with one click —
+--   { "youtube":   { "title": str, "caption": str, "hashtags": [str] },
+--     "instagram": { ... }, "tiktok": { ... }, "site": { ... } }
+-- (src/lib/caption-brief.ts normalizeCaptions is the shape's one definition; the server fn
+-- defends a stored row the same way it defends a model answer). Nothing here posts anything —
+-- the copy buttons on the sheet put the text where Lee's hands are. Additive, idempotent.
+alter table public.set_publish_status add column if not exists captions jsonb null;

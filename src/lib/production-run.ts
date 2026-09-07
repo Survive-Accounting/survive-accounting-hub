@@ -156,6 +156,11 @@ export interface StepRun {
   tasks: TaskRun[];
   /** "What sucked, what would've been better?" — Step 5 reads these. */
   note: string | null;
+  /** THE RETRO'S TAGS (2026-09-07, additive; retro-brief.ts). Lee talks the retro, the model
+   *  returns the one-line note above plus a few bottleneck tags ("waiting on Recraft",
+   *  "re-recorded slide 4 ×3") — the consultant reads tags, not prose. Absent on every run
+   *  written before this field existed, and on a step finished without the mic. */
+  tags?: string[];
   pauses: Pause[];
 }
 
@@ -228,6 +233,8 @@ export function normalizeRun(raw: unknown): ProductionRun | null {
       startedAt: typeof s.startedAt === "string" ? s.startedAt : null,
       endedAt: typeof s.endedAt === "string" ? s.endedAt : null,
       note: typeof s.note === "string" ? s.note : null,
+      // Present in the output only when the row had them — the round-trip of an older document stays exact.
+      ...(Array.isArray(s.tags) ? { tags: s.tags.filter((t): t is string => typeof t === "string" && !!t.trim()).slice(0, 5) } : {}),
       tasks: tasks.filter((t): t is Record<string, unknown> => !!t && typeof t === "object" && typeof t.key === "string").map((t) => ({
         key: t.key as string, label: str(t.label, t.key as string),
         status: t.status === "running" || t.status === "done" || t.status === "skipped" ? t.status : "pending",

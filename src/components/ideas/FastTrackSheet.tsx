@@ -9,6 +9,7 @@ import { FAST_TRACK_GUIDELINES, fmtBuildTime, fmtCost } from "@/lib/fast-track";
 import { buildFastTrackBriefMessages, parseFastTrackBrief, type FastTrackBrief } from "@/lib/fast-track-brief";
 import { fastTrackAllowanceFn, listFastTrackLog, rateFastTrack, submitFastTrack, type Allowance, type LogRow } from "@/lib/fast-track.functions";
 import { runMicro } from "@/lib/talkthrough.functions";
+import { useDictation } from "@/lib/use-dictation";
 import { uploadIdeaFile } from "@/components/ideas/upload";
 import type { Attachment } from "@/components/ideas/model";
 
@@ -37,6 +38,10 @@ export function FastTrackSheet({ open, onClose, pathname }: { open: boolean; onC
   const [drafting, setDrafting] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
   const [revision, setRevision] = useState("");
+  // THE MIC (2026-09-07, docs/USE-YOUR-WORDS-AUDIT.md #23 — the placeholder said "say", the box
+  // only typed). Words land in the box as he speaks; "Prep the request" is the same click.
+  const [interim, setInterim] = useState("");
+  const mic = useDictation((final, live) => { setInterim(live); if (final.trim()) { setText((t) => `${t} ${final}`.trim()); setBrief(null); } });
 
   const refresh = useCallback(() => {
     fastTrackAllowanceFn({ data: { who } }).then(setA).catch(() => setA(null));
@@ -153,12 +158,18 @@ export function FastTrackSheet({ open, onClose, pathname }: { open: boolean; onC
                 <b style={{ color: SKY }}>One at a time.</b> “{checkout.title}” is still {checkout.state === "building" ? "building" : "in the queue"}. The next request opens when it's built and you've rated it. Watch it on <a href="/buildqueue" style={{ color: GOLD }}>/buildqueue</a>.
               </div>
             )}
-            <textarea autoFocus={!blocked} value={text} onChange={(e) => { setText(e.target.value); setBrief(null); }} onPaste={onPaste} rows={4} disabled={blocked}
+            <textarea autoFocus={!blocked} value={text + (interim ? (text ? " " : "") + interim : "")} onChange={(e) => { setInterim(""); setText(e.target.value); setBrief(null); }} onPaste={onPaste} rows={4} disabled={blocked}
               placeholder={blocked ? "" : `Say what should change, in your own words — copy, a label, a color, a size. Paste a screenshot (Win+Shift+S) if a picture says it faster.`}
               style={{ marginTop: 12, width: "100%", boxSizing: "border-box", resize: "vertical", background: "rgba(255,255,255,0.04)", color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 10, padding: "10px 12px", font: "inherit", fontSize: 14, lineHeight: 1.45, opacity: blocked ? 0.5 : 1 }} />
             <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11.5, color: MUTED }}>Page: <code style={{ color: CREAM }}>{pathname}</code> · captured automatically</span>
               <span style={{ flex: 1 }} />
+              {!blocked && mic.supported && (
+                <button type="button" onClick={() => { if (mic.on) { mic.stop(); setInterim(""); } else mic.start(); }} title={mic.on ? "Stop listening" : "Talk — the words land in the box as you speak (Chrome)"}
+                  style={{ ...btn, padding: "3px 10px", fontSize: 11.5, color: mic.on ? ORANGE : CREAM, borderColor: mic.on ? `${ORANGE}88` : EDGE }}>
+                  {mic.on ? "■ listening…" : "🎙 Talk"}
+                </button>
+              )}
               <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void addShot(f); e.target.value = ""; }} />
               {!blocked && shots.length < 3 && (
                 <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} style={{ ...btn, padding: "3px 10px", fontSize: 11.5, opacity: uploading ? 0.6 : 1 }}>

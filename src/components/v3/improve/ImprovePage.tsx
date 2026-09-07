@@ -58,6 +58,7 @@ import {
 } from "@/lib/production-run";
 import { getProductionTaskLists, listProductionRuns, setProductionTaskLists, upsertProductionRun } from "@/lib/production-run.functions";
 import { runMicro, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
+import { useDictation } from "@/lib/use-dictation";
 
 const MINT = "#3BF5A0", ORANGE = "#FF9F43", ROSE = "#FF8B7E", SKY = "#7DD3FC";
 
@@ -514,7 +515,7 @@ function TaskListEditor() {
                 <button type="button" disabled={lists[step].length <= 1} onClick={() => edit(step, (l) => l.filter((_, j) => j !== i))} style={{ ...small, color: ROSE }} title="Remove">×</button>
               </div>
             ))}
-            <button type="button" onClick={() => { const label = window.prompt("New task"); if (label?.trim()) edit(step, (l) => [...l, { key: taskKeyFor(label, l), label: label.trim() }]); }} style={{ ...small, marginTop: 2 }}>+ add a task</button>
+            <NewTaskField onAdd={(label) => edit(step, (l) => [...l, { key: taskKeyFor(label, l), label }])} />
           </div>
         ))}
         {lists && (
@@ -526,6 +527,31 @@ function TaskListEditor() {
         )}
       </div>
     </details>
+  );
+}
+
+/** "+ add a task" → an inline field with a mic (2026-09-07, docs/USE-YOUR-WORDS-AUDIT.md #20:
+ *  the `window.prompt("New task")` this replaces). Enter or Add appends; Escape closes. */
+function NewTaskField({ onAdd }: { onAdd: (label: string) => void }) {
+  const [openField, setOpenField] = useState(false);
+  const [label, setLabel] = useState("");
+  const [interim, setInterim] = useState("");
+  const mic = useDictation((final, live) => { setInterim(live); if (final.trim()) setLabel((l) => `${l} ${final}`.trim()); });
+  const close = () => { if (mic.on) mic.stop(); setInterim(""); setLabel(""); setOpenField(false); };
+  const add = () => { const l = label.trim(); if (!l) return; onAdd(l); close(); };
+  if (!openField) return <button type="button" onClick={() => setOpenField(true)} style={{ ...small, marginTop: 2 }}>+ add a task</button>;
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 2 }}>
+      <input autoFocus value={label + (interim ? (label ? " " : "") + interim : "")} onChange={(e) => { setInterim(""); setLabel(e.target.value); }} placeholder="the new task, as you'd say it"
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } if (e.key === "Escape") { e.preventDefault(); close(); } }} style={input} />
+      {mic.supported && (
+        <button type="button" onClick={() => (mic.on ? mic.stop() : mic.start())} title={mic.on ? "Stop listening" : "Say it (Chrome)"} style={{ ...small, color: mic.on ? V3_GOLD : V3_CREAM }}>
+          {mic.on ? "■" : "🎙"}
+        </button>
+      )}
+      <button type="button" onClick={add} disabled={!label.trim()} style={small}>Add</button>
+      <button type="button" onClick={close} style={{ ...small, color: V3_MUTED }}>Cancel</button>
+    </div>
   );
 }
 

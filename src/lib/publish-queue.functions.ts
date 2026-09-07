@@ -9,6 +9,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { normalizeCaptions, type PublishCaptions } from "./caption-brief";
 import { isMissingSchema } from "./pg-errors";
 
 const isMissingTable = (e: { code?: string; message: string }) => isMissingSchema(e, /set_publish_status/i);
@@ -29,6 +30,10 @@ export type SetPublishStatus = Record<PublishDestination, DestinationStatus> & {
   /** Lee's manual "this set is shot" flag (2026-09-06 audit). Null = never confirmed; the stage
    *  chip (components/v3/set-stage.ts) then falls back to the Film timer's evidence. */
   filmedAt: string | null;
+  /** TALK THE CAPTION (2026-09-07, docs/USE-YOUR-WORDS-AUDIT.md §3): the per-destination title /
+   *  caption / hashtags Lee talked and saved on /v3/post. Null = never written. The shape is
+   *  caption-brief.ts's; a stored row is defended the same way a model answer is. */
+  captions: PublishCaptions | null;
 };
 
 function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
@@ -40,6 +45,9 @@ function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
     // A DB that ran 20260906_0200 before filmed_at existed simply has no such key on the row
     // (select("*") never errors on an absent column) — it reads as "not confirmed", never as broken.
     filmedAt: (r.filmed_at as string | null) ?? null,
+    // Same story as filmed_at: a DB that hasn't run 20260907_0600 has no such key — "no
+    // captions yet", never broken. A row someone hand-edited into a shape we don't know → null.
+    captions: normalizeCaptions(r.captions),
   };
 }
 
@@ -110,6 +118,35 @@ export const setFilmed = createServerFn({ method: "POST" })
       if (error) {
         if (isMissingTable(error)) return { ok: false, error: "Run migration/supabase-migrations/20260906_0200_set_publish_status.sql first." };
         if (isMissingSchema(error, /filmed_at/i)) return { ok: false, error: "Run migration/supabase-migrations/20260906_0500_set_publish_status_filmed.sql first (adds filmed_at)." };
+        return { ok: false, error: error.message };
+      }
+      return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };
+    } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+  });
+
+const captionShape = z.object({ title: z.string().max(200), caption: z.string().max(2000), hashtags: z.array(z.string().max(60)).max(20) });
+
+/** TALK THE CAPTION — save (or clear, with null) the per-destination copy Lee talked on
+ *  /v3/post. The map is normalized before it's stored (limits, no emoji — caption-brief.ts), so
+ *  what's on the row is exactly what the sheet will show back. A DB that has the table but not
+ *  the column gets told which migration to run — the column is the only new thing. */
+export const setPublishCaptions = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    setId: z.string().min(1).max(160),
+    captions: z.object({ youtube: captionShape, instagram: captionShape, tiktok: captionShape, site: captionShape }).nullable(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; status?: SetPublishStatus }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const captions = data.captions ? normalizeCaptions(data.captions) : null;
+    try {
+      const db = await publishDb();
+      const { data: row, error } = await db.from("set_publish_status")
+        .upsert({ set_id: data.setId, captions, updated_at: new Date().toISOString() }, { onConflict: "set_id" })
+        .select("*").single();
+      if (error) {
+        if (isMissingTable(error)) return { ok: false, error: "Run migration/supabase-migrations/20260906_0200_set_publish_status.sql first." };
+        if (isMissingSchema(error, /captions/i)) return { ok: false, error: "Run migration/supabase-migrations/20260907_0600_set_publish_captions.sql first (adds captions)." };
         return { ok: false, error: error.message };
       }
       return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };
