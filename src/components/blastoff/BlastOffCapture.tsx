@@ -211,7 +211,9 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
   /** ` / "✕ scratch take" — this slide's take, this round. */
   const scratchTake = useCallback(() => { setInterim(""); if (frameId) dispatchRounds({ type: "scratch", frameId }); }, [frameId]);
 
-  const commitPrompterLine = useCallback((fid: string, line: string) => { if (plan) commit(patchFrame(plan.frames, fid, { prompter: [line] })); }, [plan, commit]);
+  // Keys + the hand-off (2026-09-07): the rehearsal review passes the scan keywords and the
+  // transition of the line Lee kept; the teleprompter's keyword mode reads them off the frame.
+  const commitPrompterLine = useCallback((fid: string, line: string, keys?: string[], transition?: string) => { if (plan) commit(patchFrame(plan.frames, fid, { prompter: [line], ...(keys ? { prompterKeys: keys } : {}), ...(transition !== undefined ? { prompterTransition: transition } : {}) })); }, [plan, commit]);
   const commitPrompterLines = useCallback((fid: string, lines: string[]) => { if (plan) commit(patchFrame(plan.frames, fid, { prompter: lines })); }, [plan, commit]);
   // The round already ended when the review opened, so closing it — by "← back to rehearsal" or
   // by Done — is just closing it; the next R arms the next round.
@@ -549,7 +551,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
       )}
       {showHotkeys && <HotkeysModal onClose={() => setShowHotkeys(false)} />}
       {showReview && (
-        <RehearsalReview set={set} frames={frames} ceqById={ceqById} segments={segments} round={rounds.round} initialPicks={cannedPicks} onCommitLine={commitPrompterLine} onClose={closeReview} />
+        <RehearsalReview set={set} frames={frames} ceqById={ceqById} segments={segments} round={rounds.round} initialPicks={cannedPicks} onCommitLine={commitPrompterLine} onClose={closeReview} layout={layoutOf(plan)} />
       )}
       {/* LIVE DICTATION CAPTION (2026-09-06). Lee: "as I'm talking, just live dictate over
           there... seeing the words populate will help me get a feel for brevity visually." What's
