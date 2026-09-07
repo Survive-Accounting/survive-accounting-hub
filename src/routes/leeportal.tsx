@@ -57,6 +57,7 @@ const SIDES: PortalSide[] = [
       { label: "Bolt Lab", href: "/lab/bolt", note: "The animated brand bolt." },
       { label: "Callout Demo", href: "/callout-demo", note: "Callout styles on film." },
       { label: "Illustration Bank", href: "/admin/illustrations", note: "Every set's pictures — off-style / stale — regenerate in the current house style, one at a time." },
+      { label: "Illustration Styles", href: "/admin/illustrations/styles", note: "The style registry as data — edit the suffix and palette, bump a version, test a draft on the phone stage." },
     ],
   },
   {

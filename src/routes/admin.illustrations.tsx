@@ -25,9 +25,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { AdminGate, getAdminWho } from "@/components/AdminGate";
-import { illustrationStyle } from "@/components/blastoff/illustration";
+import { illustrationStyle, type IllustrationRegistry } from "@/components/blastoff/illustration";
+import { useIllustrationRegistry } from "@/components/blastoff/use-illustration-registry";
 import {
-  BANK_STATUSES, defaultBankFilter, estimateCost, frameKindLabel, tallyStatuses, targetStyleIdFor, usd,
+  BANK_STATUSES, defaultBankFilter, estimateCost, frameKindLabel, rowsNeedingWork, tallyStatuses, targetStyleIdFor, usd,
   type BankRow, type BankStatus,
 } from "@/lib/illustration-bank";
 import { MISSING_LIBRARY_HINT, listIllustrationsAcrossBank, regenerateIllustrationInPlace, type IllustrationBank } from "@/lib/illustrate.functions";
@@ -80,7 +81,7 @@ function Thumb({ url, size = 56, title, onClick }: { url: string; size?: number;
 /** THE POP-OUT: the picture on the black 9:16 stage at phone proportions — what a student
  *  sees, not a square on white — with its subject beside it and the way to its slide. Escape
  *  or a click outside closes. */
-function Lightbox({ row, onClose }: { row: BankRow | null; onClose: () => void }) {
+function Lightbox({ row, reg, onClose }: { row: BankRow | null; reg: IllustrationRegistry; onClose: () => void }) {
   useEffect(() => {
     if (!row) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -88,7 +89,7 @@ function Lightbox({ row, onClose }: { row: BankRow | null; onClose: () => void }
     return () => window.removeEventListener("keydown", onKey);
   }, [row, onClose]);
   if (!row) return null;
-  const style = illustrationStyle(row.stylePreset);
+  const style = illustrationStyle(row.stylePreset, reg);
   const stageH = Math.min(760, typeof window !== "undefined" ? window.innerHeight * 0.84 : 760);
   const stageW = Math.round(stageH * 9 / 16);
   return (
@@ -138,6 +139,9 @@ function Bank() {
   // Stop never aborts a Recraft call mid-draw (that would still be billed).
   const [run, setRun] = useState<{ total: number; done: number; current: BankRow | null; spent: number; stopped: boolean } | null>(null);
   const stopRef = useRef(false);
+  // THE REGISTRY (2026-09-06, v6): the labels and targets on this page read the same DB-backed
+  // registry the server classified the rows by (getRegistry) — edited at /admin/illustrations/styles.
+  const { registry: reg } = useIllustrationRegistry();
 
   const refresh = useCallback(() => {
     listIllustrationsAcrossBank().then((b) => {
@@ -178,10 +182,19 @@ function Bank() {
   // The style each selected picture would land in — riso for exam content, watercolor for a
   // strategy short — named on the button so Lee sees the split before he pays for it.
   const targetLabel = useMemo(() => {
-    const ids = [...new Set(selectedRows.map((r) => targetStyleIdFor(r.topicKind)))];
-    return ids.map((id) => illustrationStyle(id).label.replace(/\s*\(.*\)$/, "")).join(" / ") || "the house style";
-  }, [selectedRows]);
+    const ids = [...new Set(selectedRows.map((r) => targetStyleIdFor(r.topicKind, undefined, reg)))];
+    return ids.map((id) => illustrationStyle(id, reg).label.replace(/\s*\(.*\)$/, "")).join(" / ") || "the house style";
+  }, [selectedRows, reg]);
   const estimate = estimateCost(bank?.medianCostUsd ?? null, selectedRows.length);
+  /** "REGENERATE ALL STALE" (2026-09-06, v6 Part 2: "a 'Regenerate all stale' action with a
+   *  count and a confirm"): every stale and off-style picture in the bank — not only the
+   *  visible ones — selected in one go and straight to the same confirm (count + estimate). */
+  const needing = useMemo(() => rowsNeedingWork(rows), [rows]);
+  const selectAllNeedingWork = () => {
+    setSelected(new Set(needing.map((r) => r.key)));
+    setFilter("all");
+    setConfirming(true);
+  };
 
   /** One picture, one call. Returns what it cost, or throws with the server's exact message. */
   const regenerateOne = useCallback(async (r: BankRow): Promise<number> => {
@@ -234,6 +247,7 @@ function Bank() {
         <h1 style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 21, letterSpacing: "0.06em", textTransform: "uppercase", margin: 0 }}>🖼 Illustration bank</h1>
         <a href="/v3" style={{ color: MUTED, fontSize: 13, textDecoration: "underline" }}>← /v3</a>
         <a href="/leeportal" style={{ color: MUTED, fontSize: 13, textDecoration: "underline" }}>portal</a>
+        <a href="/admin/illustrations/styles" style={{ color: GOLD, fontSize: 13, textDecoration: "underline" }} title="Edit the styles, bump a version, test a draft on the phone stage">style editor →</a>
       </header>
       <p style={{ fontSize: 12.5, color: MUTED, margin: "0 0 12px", maxWidth: 820 }}>
         Every generated picture on every live set's plan, judged by the style registry as it stands right now
@@ -243,7 +257,7 @@ function Bank() {
       {err && <div style={{ color: RED, fontSize: 13, marginBottom: 12 }}>{err}</div>}
       {!bank && !err && <div style={{ color: MUTED, fontSize: 13 }}>Reading every plan…</div>}
       {bank?.libraryMissing && <div style={{ color: ORANGE, fontSize: 12.5, marginBottom: 12 }}>The illustration library table is missing — {MISSING_LIBRARY_HINT}. Costs below are the stated guess.</div>}
-      <Lightbox row={view} onClose={closeView} />
+      <Lightbox row={view} reg={reg} onClose={closeView} />
 
       {bank && (
         <>
@@ -257,6 +271,11 @@ function Bank() {
             <span style={{ width: 1, height: 18, background: EDGE, margin: "0 4px" }} />
             <button onClick={() => setTopic(null)} style={chip(CREAM, topic === null)}>every topic</button>
             {topics.map(([id, name]) => <button key={id} onClick={() => setTopic(id)} style={chip(CREAM, topic === id)}>{name}</button>)}
+            <span style={{ flex: 1 }} />
+            <button disabled={!needing.length || running} onClick={selectAllNeedingWork} style={{ ...btn("ghost"), borderColor: needing.length ? `${ORANGE}88` : EDGE, color: needing.length ? ORANGE : MUTED, opacity: !needing.length || running ? 0.5 : 1 }}
+              title="Select every stale and off-style picture in the whole bank and go to the confirm — count and cost first, nothing spent yet">
+              Regenerate all stale · {needing.length}
+            </button>
           </div>
 
           {/* THE RUN BAR */}
@@ -318,7 +337,7 @@ function Bank() {
                           const oc = outcomes[r.key];
                           const isOpen = open === r.key && oc?.state === "ok";
                           return (
-                            <Row key={r.key} r={r} oc={oc} checked={selected.has(r.key)} disabled={running} isOpen={isOpen}
+                            <Row key={r.key} r={r} reg={reg} oc={oc} checked={selected.has(r.key)} disabled={running} isOpen={isOpen}
                               onToggle={() => toggle(r.key)} onOpen={() => setOpen(isOpen ? null : r.key)} onRetry={() => void retry(r)} onView={() => setView(r)} />
                           );
                         })}
@@ -335,11 +354,11 @@ function Bank() {
   );
 }
 
-function Row({ r, oc, checked, disabled, isOpen, onToggle, onOpen, onRetry, onView }: {
-  r: BankRow; oc: Outcome | undefined; checked: boolean; disabled: boolean; isOpen: boolean;
+function Row({ r, reg, oc, checked, disabled, isOpen, onToggle, onOpen, onRetry, onView }: {
+  r: BankRow; reg: IllustrationRegistry; oc: Outcome | undefined; checked: boolean; disabled: boolean; isOpen: boolean;
   onToggle: () => void; onOpen: () => void; onRetry: () => void; onView: () => void;
 }) {
-  const style = illustrationStyle(r.stylePreset);
+  const style = illustrationStyle(r.stylePreset, reg);
   const styleName = r.stylePreset && r.stylePreset === style.id ? style.label.replace(/\s*\(.*\)$/, "") : (r.stylePreset ?? "no preset");
   const cellStyle: CSSProperties = { padding: "6px 8px", borderTop: `1px solid ${EDGE}`, verticalAlign: "middle" };
   return (
@@ -378,7 +397,7 @@ function Row({ r, oc, checked, disabled, isOpen, onToggle, onOpen, onRetry, onVi
             <div className="flex items-center gap-4" style={{ flexWrap: "wrap" }}>
               <div><div style={{ fontSize: 10.5, color: MUTED, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>before</div><Thumb url={oc.before} size={160} /></div>
               <span style={{ color: MUTED, fontSize: 18 }}>→</span>
-              <div><div style={{ fontSize: 10.5, color: GOLD, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>after · {illustrationStyle(oc.after.stylePreset).label.replace(/\s*\(.*\)$/, "")} v{oc.after.styleVersion}</div><Thumb url={oc.after.assetUrl} size={160} /></div>
+              <div><div style={{ fontSize: 10.5, color: GOLD, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>after · {illustrationStyle(oc.after.stylePreset, reg).label.replace(/\s*\(.*\)$/, "")} v{oc.after.styleVersion}</div><Thumb url={oc.after.assetUrl} size={160} /></div>
             </div>
           </td>
         </tr>
