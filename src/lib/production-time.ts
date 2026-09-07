@@ -12,6 +12,14 @@
 // SCHEMA (production_time_log.step), so they keep their old spellings; only STEP_LABEL changed.
 // The fifth step is not timed: it's where the timed minutes get read, not spent — adding it
 // here would put a row in the report for looking at the report.
+//
+// 2026-09-07, later: the widget became the PRODUCTION RUN checklist (production-run.ts — one
+// document per set, tasks, pauses, notes, in production_runs). This file stays the SCHEMA of
+// production_time_log: every finished step still writes one row here through logProductionTime
+// (LOG_STEP maps results → review), so productionBottleneckReport and set-stage's "filmed?"
+// read exactly what they always did. blastOffStepFromPath is superseded by
+// production-run.ts runStepFromPath (which also knows /v3/post and /improve) and stays for
+// its test and any older reader.
 
 export const PRODUCTION_STEPS = ["talkthrough", "review", "film", "post"] as const;
 export type ProductionStep = (typeof PRODUCTION_STEPS)[number];
