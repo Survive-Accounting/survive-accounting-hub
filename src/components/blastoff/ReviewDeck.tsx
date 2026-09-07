@@ -36,15 +36,31 @@
 // (stamps → phrases → slides, the "Proofread" micro call) left this file. The
 // frame.prompter data is untouched — /film, the rehearsal review and the pop-out
 // window still read and write it; this step just stops showing it.
+//
+// 2026-09-07, later: AUTOSAVE and SHORTEN. Lee: "Editing a ceq test should be automatic. No
+// 'save to bank' needed." — so a card's stem and choices save themselves 800 ms after the last
+// keystroke through the same door (applyCeqEdit); the Save button became a saving… / saved
+// line; Revert stays. And: "Editor in any CEQ card or callout needs a 'shorten' button. Shorten
+// could also be thought of as standardize … it's easier to scan and teach … I want the app/AI
+// to make note of the edits I'm making, so 'shorten' (aka standardize) button gets smarter over
+// time." The ✂ Shorten chip sits on the stage toolbar where the phone toggle was ("We won't use
+// the phone button. So put Shorten to left of safe zones" — the phone stage is always on now);
+// its BEFORE | AFTER panel opens at the top of the Editor face. Every settled save is logged
+// (edit-log.functions.ts) and the newest pairs ride into the next Shorten as examples.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { applyCeqEdit, revertCeqEdit, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
+import { applyCeqEdit, revertCeqEdit, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
+import { logCeqEdit, recentEditExamples, type EditSource } from "@/lib/edit-log.functions";
+import { logCostEvent } from "@/lib/cost-ledger.functions";
+import { buildShortenMessages, parseShorten, type EditExample, type ShortenFields, type ShortenRequest, type ShortenResult } from "@/lib/shorten-brief";
 import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
+import { renderInline } from "@/components/canvas/inline-md";
+import { getAdminWho } from "@/components/AdminGate";
 import { refreshBank } from "@/components/v3/use-bank";
 import { BankPicker } from "./BankPicker";
 import { indentBulletLine } from "./bullet-indent";
 import { BIO_CARD } from "./bio-card";
-import { CREAM, EDGE, FrameView, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
+import { CREAM, EDGE, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
 import { AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
@@ -86,6 +102,37 @@ const STAGE_W = 306;
 type CeqDraft = { stem: string; choices: { text: string; correct: boolean; feedback: string }[] };
 const draftOf = (c: BoothCeq): CeqDraft => ({ stem: c.stem, choices: c.choices.map((x) => ({ text: x.text, correct: x.correct, feedback: x.feedback ?? "" })) });
 const sameDraft = (a: CeqDraft, b: CeqDraft): boolean => JSON.stringify(a) === JSON.stringify(b);
+/** What the edit log stores for a card: the words, not the feedback. */
+const ceqFieldsOf = (d: CeqDraft): ShortenFields => ({ stem: d.stem, choices: d.choices.map((c) => ({ text: c.text, correct: c.correct })) });
+/** Can applyCeqEdit take this draft as it stands? Mid-edit a draft is often momentarily not
+ *  (two corrects while re-ticking, an empty new choice) — the autosave just waits. */
+const draftValid = (d: CeqDraft, noteOnly: boolean): true | string => {
+  if (!d.stem.trim()) return "needs a stem";
+  if (noteOnly) return true;
+  if (d.choices.some((c) => !c.text.trim())) return "an empty choice — fill it in or remove it";
+  if (d.choices.filter((c) => c.correct).length !== 1) return "tick exactly one correct choice";
+  return true;
+};
+
+// THE CALLOUT'S WORDS as Shorten and the edit log see them (2026-09-07): a cheat code has a
+// bold title, a first line (body) and lines; a phrase or deep question has the heading (text)
+// and lines — no separate first line. Same three kinds the detour editor below calls `detour`.
+const isCallout = (k: BlastFrameKind): boolean => k === "phrase" || k === "tip" || k === "cheat";
+function calloutFieldsOf(f: BlastFrame): ShortenFields | null {
+  if (!isCallout(f.kind)) return null;
+  const bullets = (f.bullets ?? []).filter((b) => b.trim());
+  return f.kind === "cheat" ? { title: f.title ?? "", text: f.body ?? "", bullets } : { title: f.text ?? "", bullets };
+}
+function calloutPatchOf(kind: BlastFrameKind, r: ShortenFields): Partial<BlastFrame> {
+  const bullets = r.bullets ?? [];
+  return kind === "cheat" ? { title: r.title ?? "", body: r.text ?? "", bullets } : { text: r.title ?? "", bullets };
+}
+/** A Shorten applied within this long is still "his edit over the shortening" — the strongest
+ *  signal the edit log holds (source "shorten-edited"), like the rehearsal review's "wrote my own". */
+const SHORTEN_EDIT_WINDOW_MS = 60_000;
+type ShortenApplied = { target: string; at: number } | null;
+const sourceFor = (applied: ShortenApplied, target: string): EditSource =>
+  applied && applied.target === target && Date.now() - applied.at < SHORTEN_EDIT_WINDOW_MS ? "shorten-edited" : "manual";
 
 const chip = (on: boolean, color = GOLD): React.CSSProperties => ({
   border: `1px solid ${on ? color : EDGE}`, background: on ? `${color}22` : "transparent", color: on ? color : CREAM,
@@ -255,12 +302,14 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
 }) {
   // CEQ edits saved this visit: the bank reloads on the next page load; until
   // then the preview and the list read the edited card from here.
-  const [overrides, setOverrides] = useState<Record<string, CeqDraft>>({});
+  // `edits` rides along (2026-09-07) so the Revert count stays right whether the card's own
+  // autosave or a Shorten Apply made the save.
+  const [overrides, setOverrides] = useState<Record<string, CeqDraft & { edits: number }>>({});
   const viewSet = useMemo<BoothSetInfo>(() => ({
     ...set,
     ceqs: set.ceqs.map((c) => {
       const o = overrides[c.id];
-      return o ? { ...c, stem: o.stem, choices: o.choices.map((x) => ({ text: x.text, correct: x.correct, feedback: x.feedback || undefined })) } : c;
+      return o ? { ...c, stem: o.stem, choices: o.choices.map((x) => ({ text: x.text, correct: x.correct, feedback: x.feedback || undefined })), edits: o.edits } : c;
     }),
   }), [set, overrides]);
 
@@ -311,6 +360,67 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   /** Lee, 2026-09-05: "resize it from its fixed spot and it would apply to any other slides
    *  using that setting" — one click instead of a fast-track round trip. */
   const patchKind = useCallback((kind: BlastFrameKind, p: Partial<BlastFrame>) => { if (plan) commit(patchFramesOfKind(plan.frames, kind, p)); }, [plan, commit]);
+
+  // SHORTEN (2026-09-07) — which slide's BEFORE | AFTER panel is open; it closes itself when
+  // the selection moves. Opening it lands the right column on the Editor face, where it shows.
+  const [shortenId, setShortenId] = useState<string | null>(null);
+  const openShorten = useCallback(() => { if (!sel) return; setShortenId(sel.id); setRightTab("editor"); }, [sel, setRightTab]);
+  /** The last Shorten applied — an edit on that target within the minute logs as "shorten-edited". */
+  const shortenApplied = useRef<ShortenApplied>(null);
+  const selCeq = sel?.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined;
+  const shortenReq = useMemo<ShortenRequest | null>(() => {
+    if (!sel) return null;
+    if (sel.kind === "ceq") return selCeq ? { kind: "ceq", stem: selCeq.stem, choices: selCeq.choices.map((c) => ({ text: c.text, correct: c.correct })) } : null;
+    const f = calloutFieldsOf(sel);
+    return f ? { kind: "callout", ...f } : null;
+  }, [sel, selCeq]);
+
+  // THE EDIT LOG for callouts (Lee: "make note of the edits I'm making"). Callouts autosave
+  // through usePlan already; this only watches the words settle — 1.2 s after the last change
+  // to the selected callout's title / line / bullets, one row: what it said when he started (or
+  // after the last row) → what it says now. One row per settled save, never per keystroke.
+  const calloutBase = useRef<{ id: string; json: string } | null>(null);
+  const calloutJson = sel && isCallout(sel.kind) ? JSON.stringify(calloutFieldsOf(sel)) : null;
+  useEffect(() => {
+    if (!sel || calloutJson === null) { calloutBase.current = null; return; }
+    if (calloutBase.current?.id !== sel.id) { calloutBase.current = { id: sel.id, json: calloutJson }; return; }
+    if (calloutBase.current.json === calloutJson) return;
+    const id = sel.id;
+    const t = setTimeout(() => {
+      const base = calloutBase.current;
+      if (!base || base.id !== id || base.json === calloutJson) return;
+      calloutBase.current = { id, json: calloutJson };
+      void logCeqEdit({ data: { setId: set.id, target: id, kind: "callout", source: sourceFor(shortenApplied.current, id), before: JSON.parse(base.json) as ShortenFields, after: JSON.parse(calloutJson) as ShortenFields, who: getAdminWho() } });
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [sel, calloutJson, set.id]);
+
+  /** Apply from the Shorten panel: a card writes through applyCeqEdit (the same door the
+   *  autosave uses), a callout patches the plan; either way one "shorten" row in the log. */
+  const applyShorten = useCallback(async (r: ShortenResult) => {
+    if (!sel || !shortenReq) return;
+    const who = getAdminWho();
+    if (sel.kind === "ceq" && selCeq) {
+      const before = draftOf(selCeq);
+      // The feedback lines are not Shorten's to touch — they ride along by position.
+      const after: CeqDraft = { stem: r.stem ?? before.stem, choices: (r.choices ?? []).map((c, i) => ({ text: c.text, correct: c.correct, feedback: before.choices[i]?.feedback ?? "" })) };
+      await applyCeqEdit({ data: { ceqNodeId: selCeq.id, stem: after.stem, ...(!selCeq.noteOnly && after.choices.length ? { choices: after.choices.map((c) => ({ text: c.text, correct: c.correct, feedback: c.feedback || null })) } : {}) } });
+      setOverrides((o) => ({ ...o, [selCeq.id]: { ...after, edits: selCeq.edits + 1 } }));
+      refreshBank();
+      shortenApplied.current = { target: selCeq.id, at: Date.now() };
+      void logCeqEdit({ data: { setId: set.id, target: selCeq.id, kind: "ceq", source: "shorten", before: ceqFieldsOf(before), after: ceqFieldsOf(after), who } });
+    } else {
+      const before = calloutFieldsOf(sel);
+      if (!before) return;
+      const after: ShortenFields = { title: r.title ?? "", ...(before.text !== undefined ? { text: r.text ?? "" } : {}), bullets: r.bullets ?? [] };
+      // The watcher above must not read this patch as a manual edit: its baseline moves first.
+      calloutBase.current = { id: sel.id, json: JSON.stringify(after) };
+      patch(sel.id, calloutPatchOf(sel.kind, after));
+      shortenApplied.current = { target: sel.id, at: Date.now() };
+      void logCeqEdit({ data: { setId: set.id, target: sel.id, kind: "callout", source: "shorten", before, after, who } });
+    }
+    setShortenId(null);
+  }, [sel, selCeq, shortenReq, set.id, patch]);
 
   // Which row's ⋯ menu is open (one at a time). A row that leaves the plan
   // while its menu is up takes the menu with it.
@@ -534,7 +644,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
             frames={frames}
             layout={layoutOf(plan)}
             onMove={(d) => commit(moveFrame(frames, selIdx, selIdx + d))}
-            onPatch={(p) => patch(sel.id, p)} />
+            onPatch={(p) => patch(sel.id, p)}
+            shorten={shortenReq ? { on: shortenId === sel.id, open: openShorten } : null} />
         )}
       </section>
 
@@ -553,11 +664,15 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
         </section>
       ) : (
         <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs} layout={layoutOf(plan)}
-          ceq={sel.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined}
+          ceq={selCeq}
           saving={saving}
+          shortenApplied={shortenApplied}
+          above={shortenId === sel.id && shortenReq
+            ? <ShortenPanel key={sel.id} req={shortenReq} setId={set.id} topicName={selCeq?.noteOnly ? NOTE_EYEBROW : topic.name} onApply={applyShorten} onClose={() => setShortenId(null)} />
+            : null}
           onPatch={(p) => patch(sel.id, p)}
           onPatchKind={(p) => patchKind(sel.kind, p)}
-          onSaved={(d) => { if (sel.ceqId) setOverrides((o) => ({ ...o, [sel.ceqId!]: d })); }} />
+          onSaved={(d, edits) => { if (sel.ceqId) setOverrides((o) => ({ ...o, [sel.ceqId!]: { ...d, edits } })); }} />
       )}
     </div>
   );
@@ -593,7 +708,7 @@ function RightTabs({ tab, onTab, canIllustrate: can }: { tab: RightTab; onTab: (
 
 // ------------------------------------------------------ the middle column
 
-function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop, frames, layout, onMove, onPatch }: {
+function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop, frames, layout, onMove, onPatch, shorten }: {
   sel: BlastFrame; idx: number; count: number; label: string; viewSet: BoothSetInfo; topic: BoothTopic;
   progress?: { x: number; y: number };
   /** The bolt-zoom backdrop the rule (or the override) gives this slide. */
@@ -605,8 +720,12 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
   onMove: (d: -1 | 1) => void;
   /** Only the backdrop toggle patches from here; the words are edited in SlideEditor. */
   onPatch: (p: Partial<BlastFrame>) => void;
+  /** ✂ Shorten (2026-09-07) — null on a slide with no words to shorten (the brand slides, ads,
+   *  the bolt); `on` while its panel is up in the Editor. */
+  shorten: { on: boolean; open: () => void } | null;
 }) {
-  const [phone, setPhone] = useState(true);
+  // The stage is ALWAYS the phone since 2026-09-07 (Lee: "We won't use the phone button") — the
+  // flat FrameView preview and its toggle left with that; every video is vertical.
   const [safe, setSafe] = useState(true);
   return (
     <>
@@ -614,8 +733,11 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
         <span style={eyebrow}>Slide {idx + 1} of {count}</span>
         <span style={{ fontSize: 11.5, color: MUTED }}>{label}{sel.skipped ? " · skipped" : ""}</span>
         <span style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
-          <button style={chip(phone, SKY)} title="Show the slide on a 9:16 phone stage" onClick={() => setPhone((v) => !v)}>📱 phone</button>
-          {phone && <button style={chip(safe, SKY)} title="Shade the zones TikTok and Shorts paint their own UI over" onClick={() => setSafe((v) => !v)}>safe zones</button>}
+          {/* Lee: "put Shorten to left of safe zones". Disabled, with the reason, where there is nothing to shorten. */}
+          <button style={{ ...chip(!!shorten?.on), opacity: shorten ? 1 : 0.45, cursor: shorten ? "pointer" : "not-allowed" }} disabled={!shorten}
+            title={shorten ? "Shorten (standardize) this card's words with AI — cram, not teach; you see before and after first" : "Shorten works on a set card or a callout (Memorize This, Cheat Code, Deep Question)"}
+            onClick={() => shorten?.open()}>✂ Shorten</button>
+          <button style={chip(safe, SKY)} title="Shade the zones TikTok and Shorts paint their own UI over" onClick={() => setSafe((v) => !v)}>safe zones</button>
           <button style={tiny} title="Move up" onClick={() => onMove(-1)}>↑</button>
           <button style={tiny} title="Move down" onClick={() => onMove(1)}>↓</button>
         </span>
@@ -624,13 +746,7 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
       {/* CLICK THE WORDS (Lee, 2026-09-04): the tagline, the tutor line, the domain,
           an ad's every line — editable on the slide itself. Cards keep the Editor tab. */}
       <SlideEditContext.Provider value={onPatch}>
-      {phone ? (
         <PhoneFrame frame={sel} frames={frames} index={idx} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} w={STAGE_W} layout={layout} />
-      ) : (
-        <div style={{ border: `1px solid ${EDGE}`, borderRadius: 10, overflow: "hidden", display: "inline-block", maxWidth: "100%", opacity: sel.skipped ? 0.5 : 1 }}>
-          <FrameView frame={sel} set={viewSet} scale={0.78} topicName={topic.name} progress={progress} layout={layout} />
-        </div>
-      )}
       </SlideEditContext.Provider>
     </>
   );
@@ -648,7 +764,7 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
  *  switches. Same shell as the Illustrator — the two are faces of one column
  *  (the prompter was the other face until 2026-09-07). */
 
-function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, saving, onPatch, onPatchKind, onSaved }: {
+function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplied, above, onPatch, onPatchKind, onSaved }: {
   /** The set's slide template — the camera chips read their default from it. */
   layout: "pass1" | "pass2";
   sel: BlastFrame; label: string; ceq?: BoothCeq; set: BoothSetInfo; topic: BoothTopic;
@@ -658,10 +774,16 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, saving, onPatc
    *  debounces into the same commit. Shown here too (not just on the spine)
    *  because the spine is out of view while typing in this panel. */
   saving: string | null;
+  /** The deck's record of the last Shorten applied — the card's autosave reads it to log an
+   *  edit within the minute as "shorten-edited". */
+  shortenApplied: React.MutableRefObject<ShortenApplied>;
+  /** The Shorten panel, when it is up for this slide — sits above the fields (2026-09-07). */
+  above?: ReactNode;
   onPatch: (p: Partial<BlastFrame>) => void;
   /** Same fields, but written onto every OTHER slide of this same kind too (2026-09-05). */
   onPatchKind: (p: Partial<BlastFrame>) => void;
-  onSaved: (d: CeqDraft) => void;
+  /** A card's save landed: the words, and how many saved edits Revert can now undo. */
+  onSaved: (d: CeqDraft, edits: number) => void;
 }) {
   const bulletsText = (sel.bullets ?? []).join("\n");
   const detour = sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "cheat";
@@ -678,8 +800,9 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, saving, onPatc
             out of sight while typing here. Same readout, closer to the fields. */}
         {saving && <span style={{ fontSize: 11, color: saving.startsWith("⚠") ? RED : saving === "saved" ? MINT : MUTED }}>{saving}</span>}
       </div>
+      {above}
       <div>
-        {sel.kind === "ceq" && ceq && <CeqEditor key={ceq.id} ceq={ceq} topicName={topic.name} onSaved={onSaved} />}
+        {sel.kind === "ceq" && ceq && <CeqEditor key={ceq.id} ceq={ceq} setId={set.id} shortenApplied={shortenApplied} onSaved={onSaved} />}
         {sel.kind === "ceq" && !ceq && <div style={{ fontSize: 12, color: RED }}>This card is no longer in the set — skip it.</div>}
         {sel.kind === "cheat" && (
           <div className="flex flex-col" style={{ gap: 8 }}>
@@ -826,90 +949,109 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, saving, onPatc
   );
 }
 
-// --------------------------------------------------------- CEQ: before → after
+// --------------------------------------------------------- CEQ: it saves itself
 
-/** Edit the card itself. The bank is the truth, so a save goes through the
- *  one door the review board already uses (applyCeqEdit) — the slide that
- *  films IS the card. Before and after side by side while it is dirty. */
-function CeqEditor({ ceq, topicName, onSaved }: { ceq: BoothCeq; topicName: string; onSaved: (d: CeqDraft) => void }) {
+/** Edit the card itself. The bank is the truth, so a save goes through the one door the
+ *  review board already uses (applyCeqEdit) — the slide that films IS the card.
+ *
+ *  AUTOSAVE (2026-09-07). Lee: "Editing a ceq test should be automatic. No 'save to bank'
+ *  needed … We definitely want to have it autosave, so I don't lose work." 800 ms after the
+ *  last keystroke the draft goes to applyCeqEdit; a draft that is momentarily not saveable
+ *  (two corrects while re-ticking, an empty new choice, an empty stem) just waits for the next
+ *  change — it never errors at him. The "saving… / saved 12:04 / couldn't save" line took the
+ *  Save button's place; Revert stays (the history is on the node, server side). The dirty
+ *  before/after preview left with the button — dirty lasts under a second now, and the Shorten
+ *  panel is the side-by-side. Every settled save also logs one edit-log row (manual, or
+ *  shorten-edited within a minute of an applied Shorten) — "make note of the edits I'm making". */
+function CeqEditor({ ceq, setId, shortenApplied, onSaved }: { ceq: BoothCeq; setId: string; shortenApplied: React.MutableRefObject<ShortenApplied>; onSaved: (d: CeqDraft, edits: number) => void }) {
   const base = useMemo(() => draftOf(ceq), [ceq]);
   const [d, setD] = useState<CeqDraft>(base);
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
-  useEffect(() => { setD(base); setNote(null); }, [base]);
+  const [status, setStatus] = useState<{ tone: "muted" | "ok" | "bad"; text: string } | null>(null);
+  // The draft the last save sent. When `base` catches up with it (the deck's overrides re-read
+  // the card) the fields are left alone — he may have typed on during the round trip. Any OTHER
+  // base change (a revert, a bank reload) replaces the draft, as before.
+  const lastSaved = useRef<CeqDraft | null>(null);
+  useEffect(() => {
+    if (lastSaved.current && sameDraft(base, lastSaved.current)) return;
+    setD(base);
+  }, [base]);
   const dirty = !sameDraft(d, base);
-  const oneCorrect = ceq.noteOnly || d.choices.filter((c) => c.correct).length === 1;
+  const valid = draftValid(d, ceq.noteOnly);
   const setChoice = (i: number, p: Partial<CeqDraft["choices"][number]>) =>
     setD((v) => ({ ...v, choices: v.choices.map((c, k) => (k === i ? { ...c, ...p } : p.correct ? { ...c, correct: false } : c)) }));
+  // The deck hands onSaved in as an inline arrow; read through a ref so a parent re-render never
+  // rebuilds `save` and restarts the 800 ms clock under him.
+  const onSavedRef = useRef(onSaved);
+  onSavedRef.current = onSaved;
+  // A draft the server refused is not retried on its own — that would be a request every
+  // second until he fixes it. The next keystroke makes a different draft, and that one goes.
+  const failedFor = useRef<string | null>(null);
 
-  const save = async () => {
-    setBusy(true); setNote(null);
+  const save = useCallback(async (snap: CeqDraft, from: CeqDraft) => {
+    setBusy(true);
+    setStatus({ tone: "muted", text: "saving…" });
     try {
       await applyCeqEdit({ data: {
         ceqNodeId: ceq.id,
-        ...(d.stem !== base.stem ? { stem: d.stem } : {}),
-        ...(!ceq.noteOnly && JSON.stringify(d.choices) !== JSON.stringify(base.choices) ? { choices: d.choices.map((c) => ({ text: c.text, correct: c.correct, feedback: c.feedback || null })) } : {}),
+        ...(snap.stem !== from.stem ? { stem: snap.stem } : {}),
+        ...(!ceq.noteOnly && JSON.stringify(snap.choices) !== JSON.stringify(from.choices) ? { choices: snap.choices.map((c) => ({ text: c.text, correct: c.correct, feedback: c.feedback || null })) } : {}),
       } });
-      onSaved(d);
+      lastSaved.current = snap;
+      failedFor.current = null;
+      onSavedRef.current(snap, ceq.edits + 1);
       refreshBank();
-      setNote("✓ saved to the bank — this is the card that films");
-      setEdits((n) => n + 1);
-    } catch (e) { setNote(`⚠ ${e instanceof Error ? e.message : String(e)}`); } finally { setBusy(false); }
-  };
+      setStatus({ tone: "ok", text: `saved ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` });
+      void logCeqEdit({ data: { setId, target: ceq.id, kind: "ceq", source: sourceFor(shortenApplied.current, ceq.id), before: ceqFieldsOf(from), after: ceqFieldsOf(snap), who: getAdminWho() } });
+    } catch (e) {
+      failedFor.current = JSON.stringify(snap);
+      setStatus({ tone: "bad", text: `couldn't save: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { setBusy(false); }
+  }, [ceq.id, ceq.noteOnly, ceq.edits, setId, shortenApplied]);
+
+  // THE DEBOUNCE: 800 ms of quiet, a saveable draft, nothing in flight → save. While a save is
+  // in flight further typing just waits; when it lands, `busy` flips and this runs again.
+  const failed = failedFor.current !== null && failedFor.current === JSON.stringify(d);
+  useEffect(() => {
+    if (!dirty || busy || valid !== true || failed) return;
+    const t = setTimeout(() => void save(d, base), 800);
+    return () => clearTimeout(t);
+  }, [d, base, dirty, busy, valid, failed, save]);
+
   // REVERT (Lee, 2026-09-03: "I'm just nervous to use it. Would be great if we
   // could revert on this after the fact"): the card's words before the last
-  // save come back — one step at a time, as many times as there were saves.
-  const [edits, setEdits] = useState(ceq.edits);
-  useEffect(() => { setEdits(ceq.edits); }, [ceq.edits]);
+  // save come back — one step at a time, as many times as there were saves. The count is the
+  // card's (ceq.edits, kept current by the deck's overrides), so a Shorten Apply counts too.
+  const edits = ceq.edits;
   const revert = async () => {
     if (!window.confirm("Put back the words this card had before the last save?")) return;
-    setBusy(true); setNote(null);
+    setBusy(true);
     try {
       const r = await revertCeqEdit({ data: { ceqNodeId: ceq.id } });
       const restored: CeqDraft = { stem: r.stem, choices: r.choices.map((c) => ({ text: c.text, correct: c.correct, feedback: c.feedback ?? "" })) };
-      onSaved(restored);
+      lastSaved.current = null;
+      setD(restored);
+      onSaved(restored, r.edits);
       refreshBank();
-      setEdits(r.edits);
-      setNote(`↶ reverted — ${r.edits ? `${r.edits} earlier save${r.edits > 1 ? "s" : ""} left to undo` : "back to the original"}`);
-    } catch (e) { setNote(`⚠ ${e instanceof Error ? e.message : String(e)}`); } finally { setBusy(false); }
+      setStatus({ tone: "ok", text: `↶ reverted — ${r.edits ? `${r.edits} earlier save${r.edits > 1 ? "s" : ""} left to undo` : "back to the original"}` });
+    } catch (e) { setStatus({ tone: "bad", text: `couldn't revert: ${e instanceof Error ? e.message : String(e)}` }); } finally { setBusy(false); }
   };
 
+  // What the line under "Edit the card" says: a draft waiting on a fix, the save in flight, or
+  // the last outcome. A momentarily unsaveable draft reads muted, never red.
+  const line = dirty && valid !== true ? { tone: "muted" as const, text: `will save once you ${valid}` } : dirty && !busy && !failed ? { tone: "muted" as const, text: "saving…" } : status;
   return (
     <div>
       <div className="flex items-center" style={{ gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
         <span style={eyebrow}>Edit the card</span>
-        {dirty && <span style={{ fontSize: 11, color: GOLD }}>unsaved</span>}
-        {note && <span style={{ fontSize: 11, color: note.startsWith("⚠") ? RED : MINT }}>{note}</span>}
-        {!dirty && edits > 0 && (
-          <button style={{ ...chip(false), marginLeft: "auto" }} disabled={busy} title={`Undo the last save on this card (${edits} saved edit${edits > 1 ? "s" : ""} can be undone, one at a time)`} onClick={() => void revert()}>
+        <span style={{ fontSize: 11, color: MUTED }}>saves itself</span>
+        {line && <span style={{ fontSize: 11, color: line.tone === "bad" ? RED : line.tone === "ok" ? MINT : MUTED }}>{line.text}</span>}
+        {edits > 0 && (
+          <button style={{ ...chip(false), marginLeft: "auto" }} disabled={busy || dirty} title={`Undo the last save on this card (${edits} saved edit${edits > 1 ? "s" : ""} can be undone, one at a time)`} onClick={() => void revert()}>
             {busy ? "…" : `↶ Revert last save · ${edits}`}
           </button>
         )}
-        {dirty && (
-          <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-            <button style={chip(false)} onClick={() => setD(base)} disabled={busy}>discard</button>
-            <button style={{ ...chip(true, MINT), opacity: oneCorrect && !busy ? 1 : 0.5 }} disabled={!oneCorrect || busy} title={oneCorrect ? "Write this to the bank" : "Exactly one choice must be correct"} onClick={() => void save()}>
-              {busy ? "saving…" : "✓ Save to bank"}
-            </button>
-          </span>
-        )}
       </div>
-      {dirty && (
-        <div className="flex" style={{ gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: 10, color: MUTED, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 3 }}>Before</div>
-            <div style={{ border: `1px solid ${EDGE}`, borderRadius: 8, overflow: "hidden" }}>
-              <SetCard id={`${ceq.id}-before`} stem={base.stem} choices={base.choices} topic={ceq.noteOnly ? NOTE_EYEBROW : topicName} scale={0.42} />
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: GOLD, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 3 }}>After</div>
-            <div style={{ border: `1px solid ${GOLD}`, borderRadius: 8, overflow: "hidden" }}>
-              <SetCard id={`${ceq.id}-after`} stem={d.stem} choices={d.choices} topic={ceq.noteOnly ? NOTE_EYEBROW : topicName} scale={0.42} />
-            </div>
-          </div>
-        </div>
-      )}
       <label style={{ fontSize: 11, color: MUTED }}>{ceq.noteOnly ? "The summary (one line per point)" : "Stem"}
         <textarea style={{ ...field, minHeight: 64, marginTop: 4 }} value={d.stem} onChange={(e) => setD((v) => ({ ...v, stem: e.target.value }))} /></label>
       <div style={{ fontSize: 10.5, color: MUTED, marginTop: 4 }}>Type __word__ to underline, ____ for a blank, ==word== to highlight.</div>
@@ -933,3 +1075,113 @@ function CeqEditor({ ceq, topicName, onSaved }: { ceq: BoothCeq; topicName: stri
   );
 }
 
+
+// ------------------------------------------------------------- ✂ Shorten
+
+/** THE SHORTEN PANEL (2026-09-07). Lee: "AI that will make the stem more simple/concise,
+ *  choices too, and make choices standardized if possible, it's easier to scan and teach …
+ *  Showing these side by side is cool." BEFORE (the card as it is) | AFTER (the proposal, its
+ *  one gold word rendered), the note on what was cut, then Apply / Try again / Close. Apply
+ *  writes through the deck's applyShorten — the same doors the autosave uses. "Try again"
+ *  re-runs with the last pass shown and a nudge to go tighter. Escape closes. Runs once on
+ *  mount: the newest edit-log pairs first (his own hand as examples), then the micro lane;
+ *  the price goes to the cost ledger, fire-and-forget. */
+function ShortenPanel({ req, setId, topicName, onApply, onClose }: {
+  req: ShortenRequest; setId: string; topicName: string;
+  onApply: (r: ShortenResult) => Promise<void>; onClose: () => void;
+}) {
+  const [state, setState] = useState<{ status: "loading" | "ready" | "error" | "applying"; result?: ShortenResult; error?: string }>({ status: "loading" });
+  const examples = useRef<readonly EditExample[] | null>(null);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  // The request is rebuilt whenever the plan commits (the frame object changes identity) — read
+  // it through a ref so ONE call goes out on mount and "Try again" sees the current words,
+  // rather than a call per keystroke while the panel is up beside the fields.
+  const reqRef = useRef(req);
+  reqRef.current = req;
+
+  const run = useCallback(async (previous: ShortenFields | null) => {
+    const current = reqRef.current;
+    setState((s) => ({ status: "loading", result: s.result }));
+    try {
+      if (!examples.current) examples.current = await recentEditExamples({ data: { limit: 5 } }).catch(() => []);
+      const m = buildShortenMessages({ ...current, examples: examples.current, previous });
+      // One quiet retry on an unparseable answer — the model's problem, not Lee's.
+      let result: ShortenResult | null = null;
+      for (let attempt = 0; attempt < 2 && !result; attempt++) {
+        const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 700 } });
+        void logCostEvent({ data: { setId, kind: "ai", usd: r.usage.costUsd, model: r.model, label: "shorten" } });
+        result = parseShorten(r.text, current);
+      }
+      if (!alive.current) return;
+      if (!result) throw new Error("The shortening didn't come back clean, twice — try again.");
+      setState({ status: "ready", result });
+    } catch (e) {
+      if (alive.current) setState((s) => ({ status: "error", result: s.result, error: e instanceof Error ? e.message : String(e) }));
+    }
+  }, [setId]);
+  useEffect(() => { void run(null); }, [run]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const apply = async () => {
+    if (!state.result) return;
+    const r = state.result;
+    setState({ status: "applying", result: r });
+    try { await onApply(r); }
+    catch (e) { if (alive.current) setState({ status: "error", result: r, error: `couldn't apply: ${e instanceof Error ? e.message : String(e)}` }); }
+  };
+
+  const r = state.result;
+  const busy = state.status === "loading" || state.status === "applying";
+  const before: ShortenFields = req;
+  const col = (label: string, gold: boolean, fields: ShortenFields | null) => (
+    <div style={{ flex: "1 1 190px", minWidth: 0 }}>
+      <div style={{ fontSize: 10, color: gold ? GOLD : MUTED, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 3 }}>{label}</div>
+      <div style={{ border: `1px solid ${gold ? GOLD : EDGE}`, borderRadius: 8, overflow: "hidden", minHeight: 48 }}>
+        {fields ? (req.kind === "ceq"
+          ? <SetCard id={`shorten-${gold ? "after" : "before"}`} stem={fields.stem ?? ""} choices={fields.choices ?? []} topic={topicName} scale={0.36} />
+          : <CalloutWords f={fields} />)
+          : <div style={{ padding: 10, fontSize: 11.5, color: MUTED }}>{state.status === "loading" ? "shortening…" : "—"}</div>}
+      </div>
+    </div>
+  );
+  return (
+    <div role="dialog" aria-label="Shorten this slide" style={{ border: `1px solid ${GOLD}55`, background: "rgba(252,163,17,0.05)", borderRadius: 10, padding: "8px 10px", marginBottom: 10 }}>
+      <div className="flex items-center" style={{ gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+        <span style={eyebrow}>✂ Shorten</span>
+        <span style={{ fontSize: 11, color: MUTED }}>cram, not teach — one gold word</span>
+        <button style={{ ...tiny, marginLeft: "auto" }} title="Close (Esc)" onClick={onClose}>✕</button>
+      </div>
+      <div className="flex" style={{ gap: 8, flexWrap: "wrap" }}>
+        {col("Before", false, before)}
+        {col("After", true, r ?? null)}
+      </div>
+      {r?.note && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 6 }}>{r.note}</div>}
+      {state.status === "error" && <div style={{ fontSize: 11.5, color: RED, marginTop: 6 }}>⚠ {state.error}</div>}
+      <div className="flex" style={{ gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+        <button style={{ ...chip(true, MINT), opacity: r && !busy ? 1 : 0.5 }} disabled={!r || busy} title="Write this — it saves the same way your own edits do" onClick={() => void apply()}>
+          {state.status === "applying" ? "applying…" : "✓ Apply"}
+        </button>
+        <button style={chip(false)} disabled={busy} title="Another pass, tighter" onClick={() => void run(r ?? null)}>{state.status === "loading" ? "shortening…" : "↻ Try again"}</button>
+        <button style={chip(false)} disabled={state.status === "applying"} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+/** A callout's words the way the card reads them — title bold, first line, the bullets — with
+ *  the ==highlight== painted, so the AFTER column shows the gold word. */
+function CalloutWords({ f }: { f: ShortenFields }) {
+  return (
+    <div style={{ padding: "8px 10px", fontSize: 12, lineHeight: 1.4, color: CREAM }}>
+      {f.title && <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 3 }}>{renderInline(f.title)}</div>}
+      {f.text && <div style={{ color: MUTED, marginBottom: 3 }}>{renderInline(f.text)}</div>}
+      {(f.bullets ?? []).map((b, i) => <div key={i} style={{ display: "flex", gap: 6 }}><span style={{ color: GOLD }}>•</span><span>{renderInline(b)}</span></div>)}
+    </div>
+  );
+}
