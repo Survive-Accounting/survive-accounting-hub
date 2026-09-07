@@ -628,6 +628,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "api.cron.chapter-reports.tsx": "cron endpoint (chapter signup reports)",
   "api.cron.rep-nudges.tsx": "cron endpoint (rep onboarding reminders + Lee's daily rep summary)",
   "admin.reps_.onboarding-videos.tsx": "internal (noindex) — upload / paste the four rep onboarding shorts, beta-mode switch",
+  "admin.illustrations.tsx": "internal (noindex) — the illustration bank: every generated picture across every set, off-style / stale / current, bulk regenerate one at a time (costs money)",
   "api.og.$school.$chapter.tsx": "generated image endpoint",
   "api.stripe.webhook.tsx": "webhook endpoint",
 };
