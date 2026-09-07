@@ -8,7 +8,8 @@
 // Sessions are the booth's own: the set's open session is resumed, or a fresh
 // one starts (one open session per set, the same rule as the booth home).
 // "End Session → Review" runs the usual pre-flight and queues the AI review;
-// the review itself is read in the Talkthrough studio (/talkthrough), which
+// the review itself is read on Step 2 (/results — the AI board folds under the
+// film draft there since 2026-09-03). The Talkthrough studio (/talkthrough)
 // stays the place for sessions, boards and the bank.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";

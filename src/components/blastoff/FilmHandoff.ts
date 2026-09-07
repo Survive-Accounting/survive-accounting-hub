@@ -5,6 +5,11 @@
 // choices, the spotlight rig, chains, reveal, and the brand bolt cursor. So
 // blast-off does not film; it hands over.
 //
+// THE OLD /blast-off ROUTE'S PATH ONLY. Since 2026-09-04 V3's Step 3 films
+// in-page on /v3/$topic/$set/blast-off/film (BlastOffCapture.tsx, with the
+// same tools); nothing in V3 reaches this handoff (see the film route's own
+// header).
+//
 // Reuses the same 2-minute localStorage intent the film-pick handoff uses, and
 // the same consume-once effect on the canvas side. One mechanism, not two.
 import { writeFilmHandoff } from "@/lib/film-handoff";

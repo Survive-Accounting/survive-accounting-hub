@@ -84,7 +84,8 @@ export function SetCard({
   /** THE CAPTURE SURFACE (2026-09-04): the card is the live one — practice
    *  clicks, spotlight, shift-click highlights, Alt-move all reach it — and it
    *  plays its entrance. Off (the default) it is the inert still the Review
-   *  and Arrange stages draw. The contexts those tools read are provided by
+   *  stage draws (and the Arrange preview drew, until it folded into Review on
+   *  2026-09-05). The contexts those tools read are provided by
    *  BlastOffCapture; without them a live card is merely not inert. */
   live?: boolean;
   /** The grips' width override, in flow units (see CardOverride). */

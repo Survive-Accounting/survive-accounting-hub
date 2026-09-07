@@ -82,7 +82,8 @@ function V3Set() {
   );
 }
 
-/** Pass 1 / pass 2 for this set — saved on the plan, read by Review, Arrange and /film. */
+/** Pass 1 / pass 2 for this set — saved on the plan, read by Review and /film (and by Arrange,
+ *  until it folded into Review on 2026-09-05). */
 function TemplatePicker({ set }: { set: BoothSetInfo }) {
   const { plan, saving, setLayout } = usePlan(set);
   const cur = plan?.layout ?? "pass1";

@@ -1,6 +1,7 @@
 // /v3/$topic/$set/blast-off/film — STEP 3. Capture.
 //
-// The /blast-off capture surface (components/blastoff/BlastOffEditor.tsx),
+// The /blast-off capture surface (components/blastoff/BlastOffCapture.tsx — it
+// lived inside BlastOffEditor.tsx until 2026-09-04),
 // full screen: one frame, spacebar forward, nothing else in the shot — OBS
 // captures this window. No V3 shell here on purpose; Escape goes back to the
 // step menu. This is Step 3 of four in its own right since 2026-09-05 (StepBar.tsx);

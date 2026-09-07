@@ -170,8 +170,9 @@ export function useCaptureCamera({ hostRef, frameId }: { hostRef: RefObject<HTML
   useEffect(() => () => { attachedRef.current?.removeEventListener("wheel", onWheelNative); attachedRef.current = null; }, [onWheelNative]);
 
   // ---- KEYS: O, 0, and the Alt latch ----
-  // Space / Shift+Space / ` / Escape / H / P / F1 / Delete belong to other
-  // handlers and are not touched here.
+  // Space / Shift+Space / ` / Escape / H / P / F1 / Delete — and, since
+  // 2026-09-05/06, B / R / Shift+R / ? / F — belong to other handlers and are
+  // not touched here (capture/HotkeysModal.tsx is the full list).
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;

@@ -10,8 +10,10 @@
 //                 own step for — retired into a redirect, since Review
 //                 already did all of it).
 //   FILM        — capture. Its own door for the first time.
-//   POST        — queue what's filmed, process it, publish it. No page yet;
-//                 renders as Door's own "soon" state, not a broken link.
+//   POST        — queue what's filmed, process it, publish it. Its own page
+//                 since 2026-09-06 (/v3/post, cross-set — blastOffPath sends
+//                 this door there); until then it rendered as Door's own
+//                 "soon" state, not a broken link.
 //
 // Every step is its own URL so browser back works and a step can be linked to.
 // Nothing here loads the canvas; it is a menu.
@@ -68,7 +70,7 @@ function V3BlastOff() {
             Which step are you on?
           </h2>
 
-          {/* The same three steps the StepBar shows on every step screen —
+          {/* The same steps the StepBar shows on every step screen (four since 2026-09-05) —
               one list, so the doors and the bar can never disagree. */}
           <div className="flex flex-wrap gap-3">
             {STEPS.map((s) => (

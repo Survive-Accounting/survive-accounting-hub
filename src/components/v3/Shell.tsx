@@ -36,8 +36,8 @@ export interface Crumb {
 }
 
 /** The one chrome. Screens supply their crumbs and their body. `wide` is for
- *  a working surface (the Blast Off editor: list + frame preview side by side)
- *  rather than a menu column. */
+ *  a working surface (the Review deck's three columns — originally the Blast
+ *  Off editor's list + frame preview side by side) rather than a menu column. */
 // THE TOP BAR COLLAPSES (Lee, 2026-09-05: "Make topbar collapsible") — a working surface
 // wants the height. Remembered per browser; a browser that refuses storage just forgets.
 const BAR_KEY = "sa-v3-topbar";

@@ -12,6 +12,8 @@
 //           like/share rail — for a slide where the card needs the floor.
 //   hero    a big rounded portrait, top-centre — the talking-head framing
 //           (the intro, the bio, a straight-to-camera moment).
+//   top     a big circle, centred under the status bar (pass 2, 2026-09-05 —
+//           the camera above the wordmark on the intro).
 //   free    anywhere, any size (dragged on the Review stage or in the take).
 //   off     no camera.
 //

@@ -5,9 +5,11 @@
 // admin-gated the same way: nothing runs, not even the bank fetch, until unlocked.
 //
 // The step and the set are AUTO-DETECTED from the URL (production-time.ts) the moment Lee is on
-// a Blast Off page — no picker, no setup, matching "starting with the next CEQ set" being a
-// single click. Once started, the session is frozen (captured at the click) so navigating away
-// mid-timer never loses or silently reassigns it.
+// a per-set Blast Off page — no picker, no setup, matching "starting with the next CEQ set"
+// being a single click. (Not on /v3/post: the cross-set Post page, 2026-09-06, names no set to
+// log against, so the widget stays hidden there — production-time.ts.) Once started, the
+// session is frozen (captured at the click) so navigating away mid-timer never loses or
+// silently reassigns it.
 import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 

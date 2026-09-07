@@ -6,7 +6,9 @@
 // should also show the slide … consistency as we push this slide through the
 // process." So there is ONE phone: the Review stage, the Arrange preview and
 // the /film capture all mount this, at different widths, with the same rules
-// for the layout, the banner, the watermark and the camera.
+// for the layout, the banner, the watermark and the camera. (The Arrange
+// preview lives on in BlastOffEditor.tsx for the old /blast-off route only —
+// V3's /arrange has redirected into Review since 2026-09-05.)
 //
 // TWO TEMPLATES (2026-09-05, layout.ts): pass 1 is the deal that filmed first
 // (the card centred); pass 2 is the vertical template — the card at the top

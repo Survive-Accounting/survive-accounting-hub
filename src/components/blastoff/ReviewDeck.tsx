@@ -624,7 +624,8 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
   );
 }
 
-// The phone stage itself is ./PhoneFrame.tsx — shared with Arrange and /film.
+// The phone stage itself is ./PhoneFrame.tsx — shared with /film (and the Arrange preview,
+// retired into Review on 2026-09-05).
 
 // ------------------------------------------------- the editor (right column)
 

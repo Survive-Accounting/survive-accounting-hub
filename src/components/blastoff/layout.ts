@@ -61,7 +61,8 @@ export function cardPlacement(layout: SlideLayout, kind: BlastFrame["kind"]): Ca
 /** The camera's default spot and size in a layout (absent frame.cam). */
 export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spot: CamSpot; size?: number } {
   if (kind === "open" || kind === "outro" || kind === "bolt" || kind === "ad") return { spot: "off" };
-  // MEMORIZE THIS / DEEPER IDEA / BIO (Lee, fast track 2026-09-05: "enlarge the camera frame
+  // MEMORIZE THIS / DEEPER IDEA (Deep Question since 2026-09-06; kind "tip") / BIO (Lee, fast
+  // track 2026-09-05: "enlarge the camera frame
   // … large enough to be viewable on a phone without blocking any text"). Bigger than every
   // other card slide's home camera, in both templates. avoidCard (webcam-spots.ts) still
   // shrinks it toward its own bottom-left corner if a tall card reaches into it, so it can

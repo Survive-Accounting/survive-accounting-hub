@@ -100,7 +100,8 @@ export function AdSlide({ ad, w, h, live = true, copy, onEdit, hlKey }: { ad: Ad
   /** The Review stage's click-to-edit — absent everywhere else. */
   onEdit?: (patch: AdCopy) => void;
   /** THE TAKE (polish pass, 2026-09-05): given, the headline and lines are highlightable
-   *  (shift+click a word) under this key — the frame id. Absent on Review/Arrange/canvas. */
+   *  (shift+click a word) under this key — the frame id. Absent on Review, the canvas and the
+   *  Arrange preview (retired into Review 2026-09-05). */
   hlKey?: string }) {
   const a = adCopyOf(ad, copy);
   const editLine = onEdit ? (i: number, v: string) => { const lines = [...a.lines]; if (v) lines[i] = v; else lines.splice(i, 1); onEdit({ lines }); } : undefined;

@@ -27,7 +27,8 @@ const EDGE = "rgba(244,239,230,0.16)";
 const MATCHES: Record<string, (b: BoardItem) => boolean> = {
   // The three standard kinds (Lee, 2026-09-03) map one to one onto the
   // insert kinds: phrase = Memorize This, cheat = Cheat Code, tip = Deeper
-  // Idea. Retired kinds still surface where they used to.
+  // Idea (shown as Deep Question since 2026-09-06; the kind and the bank's
+  // deeper_idea id are unchanged). Retired kinds still surface where they used to.
   phrase: (b) => b.kind === "phrase" || pk(b) === "phrase" || pk(b) === "trigger_word" || pk(b) === "memorize_this" || pk(b) === "memo" || tagged(b, "Memorize This"),
   cheat: (b) => pk(b) === "cheat_code" || pk(b) === "tip_trick" || tagged(b, "Cheat Code"),
   tip: (b) => pk(b) === "deeper_idea" || pk(b) === "real_world" || pk(b) === "nerdout" || tagged(b, "Deeper Idea") || tagged(b, "Deep Question") || tagged(b, "Formula to Remember"),

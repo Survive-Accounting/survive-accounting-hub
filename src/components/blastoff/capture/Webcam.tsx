@@ -13,10 +13,11 @@
 // the frame — grows to a big portrait in the middle, the slide dims behind it —
 // for the line that matters. Ctrl+click again, ` or the next slide ends it.
 //
-// live=false (the Review and Arrange stages) draws a placeholder — no camera
-// permission prompt while Lee is arranging. live=true (the capture) asks for
-// the webcam, mirrors it, and fails soft. The look: a cream ring with a soft
-// glow and a navy shadow. No nametag (Lee: "simple, elegant, modern").
+// live=false (the Review stage; the Arrange preview too, until it folded into
+// Review on 2026-09-05) draws a placeholder — no camera permission prompt while
+// Lee is arranging. live=true (the capture) asks for the webcam, mirrors it,
+// and fails soft. The look: a cream ring with a soft glow and a navy shadow.
+// No nametag (Lee: "simple, elegant, modern").
 import { useEffect, useRef, useState } from "react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";

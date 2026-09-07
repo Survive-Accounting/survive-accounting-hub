@@ -1,7 +1,9 @@
 // ONE FRAME, DRAWN — the single renderer every Blast Off surface uses: the
-// Review phone stage, the Arrange preview, the /film capture and the canvas's
-// staged brand slides all draw a frame through here (or through the same brand
-// components), so what Lee approves on /results is what films.
+// Review phone stage, the Arrange preview (BlastOffEditor — the old /blast-off
+// route only, since V3's /arrange folded into Review on 2026-09-05), the /film
+// capture and the canvas's staged brand slides all draw a frame through here
+// (or through the same brand components), so what Lee approves on /results is
+// what films.
 //
 // Moved out of BlastOffEditor.tsx on 2026-09-04 so PhoneFrame can wrap it
 // without an import cycle. Nothing here re-implements a card — a set frame

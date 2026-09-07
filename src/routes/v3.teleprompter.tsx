@@ -3,7 +3,10 @@
 // ?set=<deckId> (2026-09-03, the v3 film surface): the lines Lee kept on the
 // Review step (frame.prompter on the Blast Off plan) for whichever frame is
 // UP — the Studio publishes the active frame to localStorage "sa-film-active"
-// and this window follows it. Nothing to click; it just keeps up.
+// and this window follows it. Nothing to click; it just keeps up. Since
+// 2026-09-04 /film publishes the same record (capture/prompter-sync.ts), and
+// since 2026-09-06 this is the window capture/teleprompter-popout.ts opens
+// beside the 9:16 film pop-out, which hides its own in-page prompter panel.
 //
 // No ?set: the older phrase-bank mirror — the results board's banked script
 // lines, one at a time, Enter / Shift+Enter / ` to walk them.

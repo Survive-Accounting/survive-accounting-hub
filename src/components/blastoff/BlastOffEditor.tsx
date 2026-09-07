@@ -1,9 +1,15 @@
-// BLAST OFF — the arrangement editor, the frame preview and the in-page capture.
+// BLAST OFF — the arrangement editor and the frame preview (the in-page capture
+// moved out to BlastOffCapture.tsx on 2026-09-04).
 //
 // Extracted from routes/blast-off.tsx (2026-09-02) so the SAME screens mount
 // under /v3/$topic/$set/blast-off/{arrange,film}. Lee, on the move: "the design
 // is right, the route is wrong" — so nothing here is redesigned; the route just
 // stopped owning it. /blast-off still mounts these for its own set list.
+//
+// SUPERSEDED IN V3 (2026-09-05, "fold Arrange into Review, renumber the steps"):
+// /arrange redirects into Review, whose ReviewDeck.tsx does everything this
+// editor did and more. This file stays for the old /blast-off route and for
+// usePlan, which every V3 step still reads the plan through.
 //
 // The plan lives ON THE SET (deck.blastOff in scene JSON), so it travels with
 // the questions it films and reconciles against them every time it loads: add

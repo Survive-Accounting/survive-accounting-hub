@@ -21,7 +21,9 @@
 // (Shift+click a word, drag to highlight) — and is the `film-mode` root the
 // card stylesheet keys its motion on, with the brand cursor. The camera
 // (zoom, O, Alt-move, grips), the F1 arrows, the teleprompter sync and the
-// 9:16 pop-out each live in ./capture/* and plug in here.
+// 9:16 pop-out each live in ./capture/* and plug in here — joined on
+// 2026-09-06 by the rehearsal rounds (R), the teleprompter's own pop-out
+// window and the "?" hotkeys card, same folder, same shape.
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
@@ -253,7 +255,8 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   // Inside the popped-out window the chrome starts hidden — the window IS the shot.
   const [chrome, setChrome] = useState(!popout.isPopout);
   // THE CAMERA for this take: the slide's own spot, or B's override (home →
-  // corner → hero → off), which lasts until the next slide.
+  // corner → hero → top → off — nextCamSpot in webcam-spots.ts; "top" joined
+  // the cycle with pass 2, 2026-09-05), which lasts until the next slide.
   const [camOverride, setCamOverride] = useState<CamSpot | null>(null);
   useEffect(() => { setCamOverride(null); }, [frameId]);
   const camNow: CamSpot = camOverride ?? (frame ? (isCamSpot(frame.cam) ? frame.cam : camDefault(layoutOf(plan), frame.kind).spot) : "off");

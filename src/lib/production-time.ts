@@ -2,9 +2,10 @@
 // (components/v3/ProductionTimer.tsx) and the server fns (production-time.functions.ts).
 //
 // Lee, 2026-09-05: "I want to time how long it takes for each step for blast offs, talkthrough,
-// review, film... starting with the next CEQ set." Four named steps — "post" doesn't have a
-// page yet (Lee's own Step 4 plan), but the step vocabulary is fixed now so the schema and the
-// report never need a second migration when it arrives.
+// review, film... starting with the next CEQ set." Four named steps — "post" had no page when
+// this was written (Lee's own Step 4 plan; it got one on 2026-09-06, /v3/post), but the step
+// vocabulary was fixed up front so the schema and the report never needed a second migration
+// when it arrived.
 
 export const PRODUCTION_STEPS = ["talkthrough", "review", "film", "post"] as const;
 export type ProductionStep = (typeof PRODUCTION_STEPS)[number];
@@ -18,13 +19,17 @@ export const STEP_LABEL: Record<ProductionStep, string> = {
 
 /** Which step a Blast Off URL is on, and the topic/set slugs — auto-detected so starting the
  *  timer never asks Lee to pick anything. "results" is the Review page (its own head title is
- *  literally "Review — Blast Off"); "arrange" folds into Review too — Lee named three steps,
- *  not four, and Arrange is review-time rearranging, not a step of its own. Absent (a page this
- *  can't place, or off /v3 entirely) → null: the widget simply has nothing to auto-start. */
+ *  literally "Review — Blast Off"); "arrange" folds into Review too — "Lee named three steps,
+ *  not four" was the 2026-09-02 count; since 2026-09-05 ("fold Arrange into Review, renumber the
+ *  steps") there are four, Talkthrough · Review · Film · Post (StepBar.tsx), and /arrange is a
+ *  redirect into Review — still review-time rearranging, not a step of its own. Absent (a page
+ *  this can't place, or off /v3 entirely) → null: the widget simply has nothing to auto-start. */
 export function blastOffStepFromPath(pathname: string): { topicSlug: string; setSlug: string; step: ProductionStep } | null {
   // "post" isn't in this match on purpose: Lee's Post step is a cross-set queue (every topic/set
-  // in one list, per his own description), not a page under one set's own URL — it gets its own
-  // detection once that page exists. "post" stays a valid STEP for the schema either way.
+  // in one list, per his own description), not a page under one set's own URL. That page exists
+  // since 2026-09-06 (/v3/post) and still isn't detected here — its URL names no topic/set to
+  // log the time against, so the widget draws nothing on Post. "post" stays a valid STEP for the
+  // schema either way.
   const m = /^\/v3\/([^/]+)\/([^/]+)\/blast-off\/(talkthrough|results|arrange|film)(?:\/|$)/.exec(pathname);
   if (!m) return null;
   const page = m[3];
