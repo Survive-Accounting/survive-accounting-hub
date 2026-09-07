@@ -2,7 +2,7 @@
 // The registry's own predicates decide; these tests pin the bank's reading of them.
 import { describe, expect, test } from "bun:test";
 
-import { DEFAULT_STYLE_ID, ILLUSTRATION_STYLES, STRATEGY_STYLE_ID, emptyIllustration, type FrameIllustration } from "@/components/blastoff/illustration";
+import { DEFAULT_STYLE_ID, STYLE_SEEDS, STRATEGY_STYLE_ID, emptyIllustration, type FrameIllustration } from "@/components/blastoff/illustration";
 
 import {
   COST_GUESS_USD, bankKey, bankStyleDefaults, classifyIllustration, defaultBankFilter, estimateCost, frameKindLabel,
@@ -13,7 +13,7 @@ const made = (stylePreset: string, styleVersion: number, extra: Partial<FrameIll
   ({ ...emptyIllustration(), prompt: "a padlock with a key half-turned", stylePreset, styleVersion, assetUrl: "https://x/y.png", ...extra });
 
 describe("classifyIllustration — the registry's verdict, one word", () => {
-  const riso = ILLUSTRATION_STYLES[DEFAULT_STYLE_ID], water = ILLUSTRATION_STYLES[STRATEGY_STYLE_ID];
+  const riso = STYLE_SEEDS[DEFAULT_STYLE_ID], water = STYLE_SEEDS[STRATEGY_STYLE_ID];
 
   test("a riso picture at the current version on an exam set is current", () => {
     expect(classifyIllustration(made(riso.id, riso.version), undefined)).toBe("current");
@@ -57,7 +57,8 @@ describe("targetStyleIdFor — which style a regeneration lands in", () => {
   });
   test("bankStyleDefaults reports the registry as it stands", () => {
     const d = bankStyleDefaults();
-    expect(d.exam).toEqual({ id: "survive-riso", version: 1, label: ILLUSTRATION_STYLES["survive-riso"].label });
+    // v6 (2026-09-06): riso is at version 2 — the doc's "v6", numbered per id here.
+    expect(d.exam).toEqual({ id: "survive-riso", version: 2, label: STYLE_SEEDS["survive-riso"].label });
     expect(d.strategy.id).toBe("survive-watercolor");
     expect(d.strategy.version).toBe(4);
   });

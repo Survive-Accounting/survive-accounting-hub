@@ -1,26 +1,34 @@
 import { describe, expect, test } from "bun:test";
 
-import { ANIMATION_PRESETS, DEFAULT_STYLE_ID, ILLUSTRATION_STYLES, STRATEGY_STYLE_ID, composeIllustrationPrompt, defaultStyleIdFor, emptyIllustration, illustrationStyle, isOffStyleIllustration, isStaleIllustration } from "./illustration";
+import { ANIMATION_PRESETS, DEFAULT_STYLE_ID, STYLE_SEEDS, STRATEGY_STYLE_ID, composeIllustrationPrompt, defaultStyleIdFor, emptyIllustration, illustrationStyle, isOffStyleIllustration, isStaleIllustration } from "./illustration";
 
 describe("the illustration registry", () => {
   // v5 (2026-09-06, docs/ILLUSTRATION-STYLE-V5-PROPOSAL.md): the house default moved from
   // watercolor to riso; watercolor is kept, at v4, as the strategy shorts' style.
-  test("the house default is Survive Riso v1, white ground, gold / blue / cream summing to exactly 1", () => {
+  // v6 (2026-09-06, docs/ILLUSTRATION-STYLE-V6-DIRECTION.md, the same night): riso becomes
+  // VERSION 2 — "psychedelic '68" — with heat added to the palette. The doc calls it "v6"
+  // (counting the whole line); the registry versions per id.
+  test("the house default is Survive Riso v2 (the doc's v6), white ground, gold / magenta / blue / violet summing to exactly 1", () => {
     const s = illustrationStyle(null);
     expect(s.id).toBe(DEFAULT_STYLE_ID);
     expect(s.id).toBe("survive-riso");
-    expect(s.version).toBe(1);
+    expect(s.version).toBe(2);
+    expect(s.label).toBe("Survive Riso — psychedelic '68");
     expect(s.controls.background_color.rgb).toEqual([255, 255, 255]);
-    expect(s.controls.colors.map((c) => c.rgb)).toEqual([[252, 163, 17], [0, 107, 166], [245, 239, 230]]);
-    // "Total = 1.00. No free third for the model to fill with whatever it likes."
+    expect(s.controls.colors.map((c) => c.rgb)).toEqual([[252, 163, 17], [230, 57, 132], [0, 107, 166], [76, 44, 130]]);
+    expect(s.controls.colors.map((c) => c.weight)).toEqual([0.35, 0.25, 0.25, 0.15]);
+    // "Total 1.00 … Nothing is left to the model's discretion."
     expect(s.controls.colors.reduce((sum, c) => sum + (c.weight ?? 0), 0)).toBeCloseTo(1, 10);
     expect(s.styleIdEnv).toBe("RECRAFT_STYLE_ID_RISO");
     expect(s.defaultAnimation).toBe("drift");
     expect(illustrationStyle("nope").id).toBe(DEFAULT_STYLE_ID);
   });
-  test("the riso suffix keeps every empirical v1–v4 rule and drops the watercolor-only ones", () => {
-    const suffix = ILLUSTRATION_STYLES["survive-riso"].promptSuffix;
-    expect(suffix).toContain("Risograph");
+  test("the riso v2 suffix is the v6 direction's, verbatim: psychedelic in colour and light, modernist in composition, every empirical v1–v4 rule kept", () => {
+    const suffix = STYLE_SEEDS["survive-riso"].promptSuffix;
+    expect(suffix).toContain("Late-1960s psychedelic screenprint poster illustration in a modernist composition");
+    expect(suffix).toContain("three or four flat saturated spot inks");
+    expect(suffix).toContain("A glowing halo or concentric aura radiating behind the subject");
+    expect(suffix).toContain("the psychedelia is in the color and the light, never in warped or hard-to-read shapes");
     expect(suffix).toContain("off-register");
     // kept verbatim: the v2 outline/fill rule, the v3 skin rule, the v4 no-face rule
     expect(suffix).toContain("never black or near-black");
@@ -29,10 +37,16 @@ describe("the illustration registry", () => {
     expect(suffix).toMatch(/near-white/);
     expect(suffix).toMatch(/two seconds/);
     expect(suffix).toMatch(/no text/i);
-    // gone: the medium, and "the textbook reference"
+    // gone: the medium, "the textbook reference", and v1's "modern editorial" line (the v6
+    // suffix says "modernist composition" instead)
     expect(suffix).not.toMatch(/watercolor/i);
     expect(suffix).not.toContain("Vintage educational magazine");
-    expect(suffix).toContain("Modern editorial illustration, poster composition");
+    expect(suffix).not.toContain("Modern editorial illustration, poster composition");
+  });
+  test("the registry is data now: the seeds carry the rows' extra fields (retired, note) and dreamstate is retired", () => {
+    expect(STYLE_SEEDS["survive-dreamstate"].retired).toBe(true);
+    expect(STYLE_SEEDS["survive-riso"].retired).toBeFalsy();
+    expect(STYLE_SEEDS["survive-riso"].note).toMatch(/v6 direction/);
   });
   test("watercolor stays, at v4, as the strategy shorts' style — the library isn't wasted", () => {
     const w = illustrationStyle("survive-watercolor");
@@ -60,7 +74,7 @@ describe("the illustration registry", () => {
     expect(isOffStyleIllustration(null, undefined)).toBe(false);
   });
   test("every preset's colour weights stay within what Recraft accepts (total ≤ 1) — a real bug: v2 of the old preset shipped at 1.5 and every generation failed", () => {
-    for (const style of Object.values(ILLUSTRATION_STYLES)) {
+    for (const style of Object.values(STYLE_SEEDS)) {
       const total = style.controls.colors.reduce((sum, c) => sum + (c.weight ?? 0), 0);
       expect(total).toBeLessThanOrEqual(1);
     }
@@ -71,7 +85,7 @@ describe("the illustration registry", () => {
     expect(legacy.version).toBe(2);
   });
   test("the prompt is subject-first, preset around it, intent last", () => {
-    for (const s of [ILLUSTRATION_STYLES[DEFAULT_STYLE_ID], ILLUSTRATION_STYLES[STRATEGY_STYLE_ID]]) {
+    for (const s of [STYLE_SEEDS[DEFAULT_STYLE_ID], STYLE_SEEDS[STRATEGY_STYLE_ID]]) {
       const p = composeIllustrationPrompt(s, "a nervous investor holding a magnifying glass.", "External users judge the company from outside.");
       expect(p.startsWith(s.promptPrefix + "a nervous investor holding a magnifying glass" + s.promptSuffix)).toBe(true);
       expect(p.endsWith("The idea it illustrates: External users judge the company from outside.")).toBe(true);
@@ -79,7 +93,7 @@ describe("the illustration registry", () => {
     }
     // the watercolor preset carries the constraints so Lee never types them (the riso ones are
     // pinned in their own test above)
-    const s = ILLUSTRATION_STYLES[STRATEGY_STYLE_ID];
+    const s = STYLE_SEEDS[STRATEGY_STYLE_ID];
     expect(s.promptSuffix).toMatch(/no text/i);
     expect(s.promptSuffix).toMatch(/watercolor/i);
     expect(s.promptSuffix).toMatch(/white background/i);
@@ -98,7 +112,8 @@ describe("the illustration registry", () => {
   });
   test("stale = made with an older registry version; never for an ungenerated request", () => {
     // watercolor is at v4 — every earlier watercolor picture is stale (the pins the v2/v3/v4
-    // bumps earned); riso starts at v1, so only a v0 stamp is stale there. Off-style (a
+    // bumps earned); riso is at v2 since the v6 direction, so every riso v1 picture is stale
+    // too — "Old pictures show stale and regenerate from the same subject." Off-style (a
     // watercolor picture on an exam set) is a separate question, tested above.
     const water = emptyIllustration({}, "strategy");
     expect(isStaleIllustration(water)).toBe(false);
@@ -108,7 +123,8 @@ describe("the illustration registry", () => {
     expect(isStaleIllustration({ ...water, assetUrl: "x", styleVersion: 1 })).toBe(true);
     expect(isStaleIllustration({ ...water, assetUrl: "x", styleVersion: 0 })).toBe(true);
     expect(isStaleIllustration(emptyIllustration())).toBe(false);
-    expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 1 })).toBe(false);
+    expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 2 })).toBe(false);
+    expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 1 })).toBe(true);
     expect(isStaleIllustration({ ...emptyIllustration(), assetUrl: "x", styleVersion: 0 })).toBe(true);
     expect(isStaleIllustration(null)).toBe(false);
   });

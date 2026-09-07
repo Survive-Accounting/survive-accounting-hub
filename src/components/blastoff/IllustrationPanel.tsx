@@ -16,9 +16,10 @@ import { generateIllustration, illustrationStatus, listIllustrationLibrary, test
 import { runMicro } from "@/lib/talkthrough.functions";
 import { useDictation } from "@/lib/use-dictation";
 
-import { ANIMATION_LABEL, ANIMATION_PRESETS, ILLUSTRATION_STYLES, PROMPTING_TIPS, composeIllustrationPrompt, defaultStyleIdFor, emptyIllustration, illustrationStyle, isOffStyleIllustration, isStaleIllustration, type FrameIllustration } from "./illustration";
-import { buildBriefMessages, parseBrief, type IllustrationBrief } from "./illustration-brief";
+import { ANIMATION_LABEL, ANIMATION_PRESETS, PROMPTING_TIPS, composeIllustrationPrompt, defaultStyleIdFor, emptyIllustration, illustrationStyle, isOffStyleIllustration, isStaleIllustration, type FrameIllustration } from "./illustration";
+import { BRIEF_SYSTEM, buildBriefMessages, parseBrief, type IllustrationBrief } from "./illustration-brief";
 import { FRAME_LABEL, insertStem, type BlastFrame } from "./plan";
+import { useIllustrationRegistry } from "./use-illustration-registry";
 
 const GOLD = "#FCA311", CREAM = "#F4EFE6", MUTED = "#9AA3B8", EDGE = "rgba(244,239,230,0.16)", ORANGE = "#FF9F43", MINT = "#3BF5A0";
 const chip = (on: boolean, color = GOLD): React.CSSProperties => ({
@@ -44,10 +45,13 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   // only way it changes).
   const { topics } = useBank();
   const kind = topics ? topicOfSet(topics, setId)?.kind : undefined;
-  const houseId = defaultStyleIdFor(kind);
-  const style = illustrationStyle(ill?.stylePreset ?? houseId);
-  const stale = isStaleIllustration(ill);
-  const offStyle = isOffStyleIllustration(ill, kind);
+  // THE REGISTRY (2026-09-06, v6): the DB-backed styles and settings from
+  // /admin/illustrations/styles — the code registry until it arrives, so nothing here waits.
+  const { registry: reg } = useIllustrationRegistry();
+  const houseId = defaultStyleIdFor(kind, reg);
+  const style = illustrationStyle(ill?.stylePreset ?? houseId, reg);
+  const stale = isStaleIllustration(ill, reg);
+  const offStyle = isOffStyleIllustration(ill, kind, reg);
   const teaching = () => (ill?.teachingIntent ?? "").trim() || insertStem(sel) || (sel.bullets ?? []).join("; ") || "";
 
   // THE BRAINSTORM → THE BRIEF
@@ -103,7 +107,7 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
       stylePreset: row.stylePreset, styleVersion: row.styleVersion, assetUrl: row.assetUrl, localAssetId: null,
       prompt: row.prompt, brief: ill?.brief ?? row.prompt, summary: row.title ? { title: row.title, bullets: [] } : (ill?.summary ?? null),
       seed: row.seed, generatedAt: row.generatedAt, teachingIntent: ill?.teachingIntent ?? (teaching() || null),
-      animationPreset: ill?.animationPreset ?? illustrationStyle(row.stylePreset).defaultAnimation,
+      animationPreset: ill?.animationPreset ?? illustrationStyle(row.stylePreset, reg).defaultAnimation,
     });
   };
   /** BLANK SLIDES ONLY (2026-09-05: "could I add that internal one and show them side by
@@ -118,7 +122,7 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   }));
   const ref = references.find((r) => r.id === refId) ?? null;
 
-  const keep = (patch: Partial<FrameIllustration>) => onPatch({ illustration: { ...(ill ?? emptyIllustration({}, kind)), requested: true, ...patch } });
+  const keep = (patch: Partial<FrameIllustration>) => onPatch({ illustration: { ...(ill ?? emptyIllustration({}, kind, reg)), requested: true, ...patch } });
 
   async function draft(revise: boolean) {
     const said = words.trim();
@@ -130,7 +134,7 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
         reference: ref ? { title: ref.title, prompt: ref.prompt } : null,
         previous: revise && brief ? { title: brief.title, prompt: brief.prompt } : null,
         revision: revise ? revision.trim() || null : null,
-      });
+      }, reg.briefSystem ?? BRIEF_SYSTEM);   // the one Lee edited on /admin/illustrations/styles, else the code's
       const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 500 } });
       const b = parseBrief(r.text);
       if (!b) throw new Error("The draft didn't come back clean — try once more, or say it a little differently.");
@@ -310,10 +314,10 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
           off-style too, not only the retired dreamstate (isOffStyleIllustration). */}
       {offStyle && (
         <div style={{ marginTop: 8, padding: "6px 10px", border: `1px solid ${ORANGE}88`, borderRadius: 8, fontSize: 11.5, color: CREAM, lineHeight: 1.4 }}>
-          This picture is in {style.label}, not this set's house style. v5, 2026-09-06: riso for exam content, watercolor stays for strategy shorts.
+          This picture is in {style.label}, not this set's house style ({illustrationStyle(houseId, reg).label} — set on /admin/illustrations/styles).
           <button type="button" onClick={() => keep({ stylePreset: houseId, assetUrl: null, localAssetId: null, styleVersion: null, seed: null, generatedAt: null })}
             style={{ ...chip(false, ORANGE), marginLeft: 8 }} title="Keeps your words and brief; clears the picture so Generate makes a fresh one in this set's style">
-            switch to {ILLUSTRATION_STYLES[houseId].label}
+            switch to {illustrationStyle(houseId, reg).label}
           </button>
         </div>
       )}

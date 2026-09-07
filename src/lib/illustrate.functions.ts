@@ -9,9 +9,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { composeIllustrationPrompt, illustrationStyle, type FrameIllustration, type IllustrationStyle, type IllustrationTopicKind } from "@/components/blastoff/illustration";
+import { CODE_REGISTRY, composeIllustrationPrompt, illustrationStyle, type FrameIllustration, type IllustrationRegistry, type IllustrationStyle, type IllustrationTopicKind } from "@/components/blastoff/illustration";
 import { frameSchema, type FrameRow } from "@/lib/blastoff-frame-schema";
 import { bankKey, bankStyleDefaults, classifyIllustration, illustrationTitle, medianOf, tallyStatuses, targetStyleIdFor, type BankRow, type BankStyleDefault, type BankTotals } from "@/lib/illustration-bank";
+import { PREVIEW_SET_ID, previewFrameId, styleDraftSchema } from "@/lib/illustration-registry";
+import { getRegistry } from "@/lib/illustration-registry.functions";
 import { isMissingSchema } from "@/lib/pg-errors";
 import { slugOf } from "@/components/v3/use-bank";
 
@@ -27,6 +29,20 @@ async function libraryDb(): Promise<LibraryDB> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin as unknown as LibraryDB;
 }
+/** THE REGISTRY, as the server sees it (2026-09-06, v6): the DB rows over the code seeds plus
+ *  the settings. Every style lookup in this file goes through this — never the code registry
+ *  directly — so a version Lee saved on /admin/illustrations/styles is what Recraft gets. */
+async function registry(): Promise<IllustrationRegistry> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return await getRegistry(supabaseAdmin as unknown as { from: (t: string) => any });
+  } catch (e) {
+    // getRegistry itself never throws; this guards the client import (a server with no
+    // Supabase env) so illustrationStatus keeps its "never throws" promise.
+    console.warn("[illustrate] registry unavailable — serving the code seeds:", e instanceof Error ? e.message : String(e));
+    return CODE_REGISTRY;
+  }
+}
 
 /** Is generation possible right now? Says WHICH thing is missing — the server session or the
  *  key — so the editor never blames the key for a missing cookie (2026-09-05). Never throws. */
@@ -35,7 +51,7 @@ export const illustrationStatus = createServerFn({ method: "GET" }).handler(asyn
   let signedIn = false;
   try { signedIn = (await adminSessionOk())?.ok === true; } catch { signedIn = false; }
   const { providerFor } = await import("@/lib/recraft.server");
-  const style = illustrationStyle(null);
+  const style = illustrationStyle(null, await registry());
   const keyLength = (process.env.RECRAFT_API_KEY ?? "").trim().length;
   return { signedIn, configured: signedIn && providerFor(style.provider).configured(), provider: style.provider, keyLength: signedIn ? keyLength : 0 };
 });
@@ -47,7 +63,7 @@ export const testIllustrationKey = createServerFn({ method: "POST" }).handler(as
   const { providerFor } = await import("@/lib/recraft.server");
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), 15_000);
-  try { return await providerFor(illustrationStyle(null).provider).check(ctl.signal); }
+  try { return await providerFor(illustrationStyle(null, await registry()).provider).check(ctl.signal); }
   finally { clearTimeout(t); }
 });
 
@@ -75,7 +91,7 @@ export const generateIllustration = createServerFn({ method: "POST" })
     await assertAdmin();
     return runGeneration({
       setId: data.setId, frameId: data.frameId, prompt: data.prompt, teachingIntent: data.teachingIntent ?? null,
-      style: illustrationStyle(data.stylePreset ?? null), seed: data.seed, referenceImageUrl: data.referenceImageUrl ?? null,
+      style: illustrationStyle(data.stylePreset ?? null, await registry()), seed: data.seed, referenceImageUrl: data.referenceImageUrl ?? null,
       title: data.title ?? null, who: data.who ?? null,
     });
   });
@@ -84,6 +100,31 @@ export interface GenerationResult {
   url: string; path: string; prompt: string; provider: string; model: string; seed: number;
   generatedAt: string; stylePreset: string; styleVersion: number; credits: number | null;
 }
+
+export interface PreviewResult { url: string; seed: number; credits: number | null; costUsd: number | null; prompt: string; model: string }
+
+/** THE TEST PANEL (2026-09-06, v6 Part 2: "the important part") — a subject against the
+ *  editor's CURRENT UNSAVED DRAFT, or against any saved version, with a fixed seed so rows are
+ *  a fair comparison. The same runGeneration as every real picture (the draft's own prefix,
+ *  suffix, controls, model — nothing is stubbed), catalogued in the library under set
+ *  "_preview" so the cost is tracked, and NEVER written to any frame. Admin-gated: money. */
+export const previewIllustration = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    draft: styleDraftSchema,
+    subject: z.string().trim().min(2).max(600),
+    seed: z.number().int().min(0).max(4294967295),
+    who: z.string().max(40).nullable().optional(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<PreviewResult> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const style: IllustrationStyle = { ...data.draft, retired: !!data.draft.retired, note: data.draft.note ?? null };
+    const r = await runGeneration({
+      setId: PREVIEW_SET_ID, frameId: previewFrameId(data.subject), prompt: data.subject, teachingIntent: null, style,
+      seed: data.seed, referenceImageUrl: null, title: `preview · ${style.id} v${style.version}`, who: data.who ?? null,
+    });
+    return { url: r.url, seed: r.seed, credits: r.credits, costUsd: r.credits === null ? null : r.credits / 1000, prompt: r.prompt, model: r.model };
+  });
 
 /** THE ONE PROVIDER PATH. Compose → Recraft → our bucket → the library catalogue. Shared by the
  *  editor's Generate (generateIllustration, above) and the bank's regenerate-in-place
@@ -176,7 +217,7 @@ async function topicLookup(db: { from: (t: string) => any }): Promise<(deck: Raw
 
 const setDisplayName = (n?: string) => (n ?? "Set").replace(/^\s*ch\s*\d+\s*·\s*/i, "").trim() || "Set";
 
-function bankRowFor(frame: FrameRow, i: FrameIllustration & { assetUrl: string }, deck: RawPlanDeck, topic: { id: string; name: string; kind: IllustrationTopicKind }): BankRow {
+function bankRowFor(frame: FrameRow, i: FrameIllustration & { assetUrl: string }, deck: RawPlanDeck, topic: { id: string; name: string; kind: IllustrationTopicKind }, reg: IllustrationRegistry): BankRow {
   return {
     key: bankKey(deck.id, frame.id), setId: deck.id, setName: setDisplayName(deck.name),
     topicId: topic.id, topicName: topic.name, topicKind: topic.kind,
@@ -184,7 +225,7 @@ function bankRowFor(frame: FrameRow, i: FrameIllustration & { assetUrl: string }
     reviewPath: `/v3/${slugOf(topic.name)}/${slugOf(deck.name ?? "")}/blast-off/results?frame=${encodeURIComponent(frame.id)}`,
     frameId: frame.id, frameKind: frame.kind, title: illustrationTitle(i), prompt: i.prompt ?? "",
     teachingIntent: i.teachingIntent, stylePreset: i.stylePreset, styleVersion: i.styleVersion, seed: i.seed,
-    assetUrl: i.assetUrl, generatedAt: i.generatedAt, status: classifyIllustration(i, topic.kind),
+    assetUrl: i.assetUrl, generatedAt: i.generatedAt, status: classifyIllustration(i, topic.kind, reg),
   };
 }
 
@@ -218,6 +259,7 @@ export async function listIllustrationBankCore(db: { from: (t: string) => any })
     const { loadDecksDeduped, liveDecks } = await import("@/lib/student.functions");
     const owned = await loadDecksDeduped(db);
     const topicOf = await topicLookup(db);
+    const reg = await getRegistry(db);
 
     const groups: { number: number; name: string; rows: BankRow[] }[] = [];
     for (const o of liveDecks(owned)) {
@@ -232,7 +274,7 @@ export async function listIllustrationBankCore(db: { from: (t: string) => any })
         if (!parsed.success) continue;
         const ill = parsed.data.illustration;
         if (!ill?.assetUrl) continue;
-        rows.push(bankRowFor(parsed.data, ill as FrameIllustration & { assetUrl: string }, deck, topic));
+        rows.push(bankRowFor(parsed.data, ill as FrameIllustration & { assetUrl: string }, deck, topic, reg));
       }
       if (rows.length) groups.push({ number: topic.number, name: topic.name, rows });
     }
@@ -252,7 +294,7 @@ export async function listIllustrationBankCore(db: { from: (t: string) => any })
       medianCostUsd = medianOf(((costs ?? []) as { cost_usd: unknown }[]).map((r) => Number(r.cost_usd)));
     }
 
-    return { rows, totals: tallyStatuses(rows), defaults: bankStyleDefaults(), medianCostUsd, libraryMissing };
+    return { rows, totals: tallyStatuses(rows), defaults: bankStyleDefaults(reg), medianCostUsd, libraryMissing };
 }
 
 /** REGENERATE IN PLACE: the same subject, the current style, written straight back onto the
@@ -300,7 +342,8 @@ export async function regenerateIllustrationCore(
     if (!ill?.prompt?.trim()) throw new Error("This slide has no subject to regenerate from — write one on Review first.");
     const previousAssetUrl = ill.assetUrl ?? "";
 
-    const style = illustrationStyle(targetStyleIdFor(topic.kind, data.stylePreset ?? null));
+    const reg = await getRegistry(db);
+    const style = illustrationStyle(targetStyleIdFor(topic.kind, data.stylePreset ?? null, reg), reg);
     const keepSeed = data.keepSeed ?? true;
     const r = await runGeneration({
       setId: data.setId, frameId: data.frameId, prompt: ill.prompt, teachingIntent: ill.teachingIntent, style,
@@ -333,7 +376,7 @@ export async function regenerateIllustrationCore(
     if (up.error) throw new Error(up.error.message);
 
     return {
-      row: bankRowFor({ ...frame, illustration: next }, next as FrameIllustration & { assetUrl: string }, liveDeck, topic),
+      row: bankRowFor({ ...frame, illustration: next }, next as FrameIllustration & { assetUrl: string }, liveDeck, topic, reg),
       previousAssetUrl, credits: r.credits, costUsd: r.credits === null ? null : r.credits / 1000,
     };
 }

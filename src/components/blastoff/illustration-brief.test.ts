@@ -14,8 +14,8 @@ describe("the illustration brief", () => {
     expect(RECURRING_STUDENT).toMatch(/hoodie/);
     expect(RECURRING_STUDENT).toMatch(/never face-on/);
     expect(BRIEF_SYSTEM).toMatch(/never Lee/);
-    // the reject list — each one, by name
-    expect(BANNED_SUBJECTS).toHaveLength(7);
+    // the reject list — each one, by name (v5's seven; v6 adds the five Grateful Dead marks below)
+    expect(BANNED_SUBJECTS).toHaveLength(12);
     for (const s of ["money piles", "handshakes", "lightbulbs", "gears", "target with arrow", "ladder of success", "jigsaw pieces"]) {
       expect(BANNED_SUBJECTS).toContain(s);
       expect(BRIEF_SYSTEM).toContain(s);
@@ -43,8 +43,32 @@ describe("the illustration brief", () => {
     expect(m.system).toMatch(/single clear divider/);
     expect(m.system).toMatch(/at most one short label/i);
     expect(m.system).toMatch(/NEVER write the style/);
-    // 2026-09-05: "shouldn't these people look more like younger college entry level grads?"
-    expect(m.system).toMatch(/reading YOUNG/);
+    // 2026-09-06 (v6): the cast direction REPLACED the 2026-09-05 "reads YOUNG" rule
+    expect(m.system).not.toMatch(/reading YOUNG/);
+    expect(m.system).toMatch(/CAST DIRECTION/);
+  });
+  // v6 (2026-09-06, docs/ILLUSTRATION-STYLE-V6-DIRECTION.md): the cast direction, the setting,
+  // the legal reject list, and the system prompt as a parameter (the editor's textarea).
+  test("v6: the cast direction and the setting line are the doc's, verbatim; the student is the one the pictures follow", () => {
+    expect(BRIEF_SYSTEM).toContain("People are sharp young professionals in a major city — New York, Chicago, London. Tailored, confident, mid-stride or mid-work. Convey standing through posture, silhouette, tailoring, and scale against architecture, never through facial expression. They are creative or startup professionals, not corporate drones and not students at a desk.");
+    expect(BRIEF_SYSTEM).toContain("Favor a real urban setting with recognizable architecture, elevated viewpoints, glass, steel, and street level — a specific place beats a generic office.");
+    // the two rules don't fight: the professionals are the world the student moves through
+    expect(BRIEF_SYSTEM).toMatch(/the world they move through/);
+    expect(BRIEF_SYSTEM).toMatch(/never parked at a desk/);
+    // the senior exception survives as the way to say who is NOT the student
+    expect(BRIEF_SYSTEM).toMatch(/a board member, an executive or a veteran of the room is not the student/);
+  });
+  test("v6: Grateful Dead iconography is on the reject list by name — protected marks, not an aesthetic", () => {
+    for (const s of ["dancing bears", "skull and roses", "Steal Your Face", "13-point lightning bolts", "tie-dye spirals"]) {
+      expect(BANNED_SUBJECTS).toContain(s);
+      expect(BRIEF_SYSTEM).toContain(s);
+    }
+  });
+  test("the system prompt is a parameter: the editor's edited brief goes out as-is; the default is the code's", () => {
+    const req = { brainstorm: "a vault", teachingIntent: null };
+    expect(buildBriefMessages(req).system).toBe(BRIEF_SYSTEM);
+    expect(buildBriefMessages(req, "custom brief from settings").system).toBe("custom brief from settings");
+    expect(buildBriefMessages(req, "custom brief from settings").user).toContain("a vault");
   });
   test("the answer parses to a title, three bullets and a subject; junk does not", () => {
     const b = parseBrief('here you go {"title":"Insider at the desk","bullets":["a man in a suit","reading at a desk","sign says OUR COMPANY"],"prompt":"a man in a suit at a desk reading a report, with the words \\"OUR COMPANY\\" on the wall sign"}');

@@ -35,7 +35,18 @@ export const RECURRING_STUDENT = "the Survive student: short dark hair, a gold h
 // BANNED SUBJECTS (2026-09-06, the v5 proposal, answer 4): "these are what a model reaches for
 // by default and they are the exact opposite of remarkable." An explicit reject list; when
 // Lee's words lean on one, the brief finds the specific real-world thing behind the idea.
-export const BANNED_SUBJECTS: readonly string[] = ["money piles", "handshakes", "lightbulbs", "gears", "target with arrow", "ladder of success", "jigsaw pieces"];
+//
+// THE LEGAL FLAG (2026-09-06, the v6 direction — psychedelic '68): "Generic psychedelic poster
+// style is fine — nobody owns an aesthetic. Grateful Dead iconography is not. Dancing bears,
+// Steal Your Face, skull-and-roses, and the 13-point bolt are actively protected marks. Add them
+// to the reject list in BRIEF_SYSTEM explicitly, because a model given 'Grateful Dead' in any
+// form will reach straight for them." And: "keep the Survive bolt visually distinct from the
+// Steal Your Face bolt and you're fine." Tie-dye spirals are on the list for the same reason —
+// the shorthand the model reaches for when it hears "psychedelic".
+export const BANNED_SUBJECTS: readonly string[] = [
+  "money piles", "handshakes", "lightbulbs", "gears", "target with arrow", "ladder of success", "jigsaw pieces",
+  "dancing bears", "skull and roses", "Steal Your Face", "13-point lightning bolts", "tie-dye spirals",
+];
 
 export interface BriefRequest {
   /** Lee's words, as spoken. */
@@ -69,9 +80,18 @@ export const BRIEF_SYSTEM = [
   // External pair drifted to different cast, scale and palette with only the seed shared.
   "A PAIR ACROSS TWO SLIDES is a different case from the one above: when Lee's idea is really two pictures for two different slides (an 'internal' one and an 'external' one, say), each slide gets its own full single-subject picture — there is no divider, and it is not one image. When a REFERENCE PICTURE is given below, the pair must actually match: RESTATE the reference's cast, its scale (a figure at human scale stays at human scale; a building exterior stays a building exterior) and its dominant accent colour explicitly, in words, in THIS prompt — never rely on the shared seed to carry them — and the three bullets must name what stayed the same. The SUBJECT itself still names only what's in THIS picture.",
   "PEOPLE, NEVER A DETAILED FRONT-FACING FACE: stage the person so a face is never needed — from behind, from the side, head turned away or cropped from the frame, mid-stride, climbing, at a desk seen from behind. A real, specific, recognizable place or prop beats a generic one — use the actual landmark or object if Lee names one.",
-  "HOW OLD (2026-09-05): unless the idea specifically needs someone senior or experienced (a board, an executive, a veteran of the room), a person defaults to reading YOUNG — entry-level, early-career, the age of who's about to graduate — since that's who Survive is teaching, not a generic older professional. Say so structurally (build, posture, a junior-looking role) rather than naming an age.",
+  // 2026-09-06 (v6, docs/ILLUSTRATION-STYLE-V6-DIRECTION.md): the cast direction REPLACES the
+  // 2026-09-05 "HOW OLD … reads YOUNG" rule — the doc's paragraph, verbatim. "'Important people'
+  // comes from silhouette, not faces … Confidence reads from the shoulders and the walk."
+  "CAST DIRECTION: People are sharp young professionals in a major city — New York, Chicago, London. Tailored, confident, mid-stride or mid-work. Convey standing through posture, silhouette, tailoring, and scale against architecture, never through facial expression. They are creative or startup professionals, not corporate drones and not students at a desk.",
+  // 2026-09-06 (v6): the setting line, verbatim.
+  "SETTING: Favor a real urban setting with recognizable architecture, elevated viewpoints, glass, steel, and street level — a specific place beats a generic office.",
   // 2026-09-06 (v5): one character, never Lee. The description is RECURRING_STUDENT above.
-  `THE RECURRING STUDENT: every people-bearing subject uses the same one character — ${RECURRING_STUDENT}. Describe them with exactly those words every time so the figure stays the same picture to picture; they are never Lee (Lee is already on camera in every video). The HOW OLD exception above still applies: a board member, an executive or a veteran of the room is not the student and is described as themselves.`,
+  // Made coherent with the v6 cast direction the same night: the student is who the exam
+  // pictures FOLLOW; the professionals are the world they move through (the v5 proposal's own
+  // words: "the illustration should be the world the student moves through"). The senior
+  // exception survives as the way to say who is NOT the student.
+  `THE RECURRING STUDENT: the exam pictures follow one character — ${RECURRING_STUDENT} — and the professionals in the cast direction are the world they move through. When a picture has a figure the audience is meant to BE, it is the student, described with exactly those words every time so the figure stays the same picture to picture, and shown inside that world: crossing the lobby, on the trading floor, at the glass on a high floor — never parked at a desk. Everyone else in the frame is a professional per the cast direction; a board member, an executive or a veteran of the room is not the student and is described as themselves. The student is never Lee (Lee is already on camera in every video).`,
   // 2026-09-06 (v5): "The stated goal (dreamy, surreal) is nowhere in the system" — the suffix is
   // tuned for literal clarity, so surreality has to come from the subject. The paragraph is the
   // proposal's, verbatim; the usage note is its "maybe one illustration in three".
@@ -85,7 +105,10 @@ export const BRIEF_SYSTEM = [
   "A REVISION: when a previous draft and Lee's change note are given, apply the note and keep everything else.",
 ].join("\n");
 
-export function buildBriefMessages(req: BriefRequest): { system: string; user: string } {
+/** The two messages for the micro lane. `system` defaults to the code BRIEF_SYSTEM; since
+ *  2026-09-06 (v6, Part 2: "Also editable from here — BRIEF_SYSTEM … as a textarea") the panel
+ *  passes the registry's edited one when Lee has saved it (registry.briefSystem ?? BRIEF_SYSTEM). */
+export function buildBriefMessages(req: BriefRequest, system: string = BRIEF_SYSTEM): { system: string; user: string } {
   const user = [
     `LEE SAID:\n${req.brainstorm.trim()}`,
     req.teachingIntent ? `THE TEACHING POINT: ${req.teachingIntent.trim()}` : "",
@@ -94,7 +117,7 @@ export function buildBriefMessages(req: BriefRequest): { system: string; user: s
     req.previous ? `PREVIOUS DRAFT:\nTitle: ${req.previous.title}\nSubject: ${req.previous.prompt}` : "",
     req.revision ? `LEE WANTS CHANGED: ${req.revision.trim()}` : "",
   ].filter(Boolean).join("\n\n");
-  return { system: BRIEF_SYSTEM, user };
+  return { system, user };
 }
 
 /** The model's JSON, defended: a title, exactly three bullets (padded or trimmed), a prompt. */

@@ -10,9 +10,13 @@
 // matter every time the style registry gets revised again" — and it just was: the house style
 // moved from watercolor v4 to riso (commit 02de8431), so tonight EVERY existing exam-set picture
 // is off-style. The bank is where Lee regenerates them in one pass from the same subjects.
+//
+// Since 2026-09-06 (v6) the registry is data (lib/illustration-registry.ts): every predicate here
+// takes the registry it should judge by, defaulting to the code seeds so a test needs nothing.
+// Server callers pass `await getRegistry(db)`; the page passes useIllustrationRegistry()'s.
 import {
-  ILLUSTRATION_STYLES, defaultStyleIdFor, illustrationStyle, isOffStyleIllustration, isStaleIllustration,
-  type FrameIllustration, type IllustrationTopicKind,
+  CODE_REGISTRY, defaultStyleIdFor, illustrationStyle, isOffStyleIllustration, isStaleIllustration,
+  type FrameIllustration, type IllustrationRegistry, type IllustrationTopicKind,
 } from "@/components/blastoff/illustration";
 
 /** off-style = pinned to a preset that isn't the default for its kind (wins over stale, since
@@ -52,9 +56,9 @@ export interface BankStyleDefault { id: string; version: number; label: string }
 export const bankKey = (setId: string, frameId: string): string => `${setId}/${frameId}`;
 
 /** The registry's own verdict, one word. Off-style wins over stale for the label. */
-export function classifyIllustration(i: FrameIllustration | null | undefined, kind: IllustrationTopicKind): BankStatus {
-  if (isOffStyleIllustration(i, kind)) return "off-style";
-  if (isStaleIllustration(i)) return "stale";
+export function classifyIllustration(i: FrameIllustration | null | undefined, kind: IllustrationTopicKind, registry: IllustrationRegistry = CODE_REGISTRY): BankStatus {
+  if (isOffStyleIllustration(i, kind, registry)) return "off-style";
+  if (isStaleIllustration(i, registry)) return "stale";
   return "current";
 }
 
@@ -73,9 +77,9 @@ export function tallyStatuses(rows: readonly { status: BankStatus }[]): BankTota
 }
 
 /** The current default per kind, as the registry has it right now. */
-export function bankStyleDefaults(): { exam: BankStyleDefault; strategy: BankStyleDefault } {
+export function bankStyleDefaults(registry: IllustrationRegistry = CODE_REGISTRY): { exam: BankStyleDefault; strategy: BankStyleDefault } {
   const pick = (kind: IllustrationTopicKind): BankStyleDefault => {
-    const s = illustrationStyle(defaultStyleIdFor(kind));
+    const s = illustrationStyle(defaultStyleIdFor(kind, registry), registry);
     return { id: s.id, version: s.version, label: s.label };
   };
   return { exam: pick(undefined), strategy: pick("strategy") };
@@ -84,12 +88,19 @@ export function bankStyleDefaults(): { exam: BankStyleDefault; strategy: BankSty
 /** Which preset a regeneration lands in: an explicit override when it names a real preset,
  *  else the default for the set's kind. An unknown override is refused rather than silently
  *  mapped to the house default — Lee asked for a style by name and should get that or an error. */
-export function targetStyleIdFor(kind: IllustrationTopicKind, override?: string | null): string {
+export function targetStyleIdFor(kind: IllustrationTopicKind, override?: string | null, registry: IllustrationRegistry = CODE_REGISTRY): string {
   if (override) {
-    if (!ILLUSTRATION_STYLES[override]) throw new Error(`Unknown style preset "${override}"`);
+    if (!registry.styles[override]) throw new Error(`Unknown style preset "${override}"`);
     return override;
   }
-  return defaultStyleIdFor(kind);
+  return defaultStyleIdFor(kind, registry);
+}
+
+/** The rows a "Regenerate all stale" run takes: every stale AND off-style picture — the two
+ *  reasons the bank exists, and the same fix for both (2026-09-06, v6 Part 2: "a 'Regenerate all
+ *  stale' action with a count and a confirm"). */
+export function rowsNeedingWork<T extends { status: BankStatus }>(rows: readonly T[]): T[] {
+  return rows.filter((r) => r.status !== "current");
 }
 
 /** The page's opening filter: the biggest problem first. */

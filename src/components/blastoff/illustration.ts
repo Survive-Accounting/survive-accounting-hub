@@ -102,6 +102,29 @@ export interface IllustrationStyle {
   /** The env var that may hold a Recraft custom style id for this preset. */
   styleIdEnv: string;
   defaultAnimation: AnimationPreset;
+  /** Retired (2026-09-06, the editor): kept so old pictures resolve, never offered for new ones. */
+  retired?: boolean;
+  /** What changed in this version — Lee's words, the design record per row. */
+  note?: string | null;
+}
+
+/** THE REGISTRY AS DATA (2026-09-06, Lee's v6 workshop — docs/ILLUSTRATION-STYLE-V6-DIRECTION.md,
+ *  Part 2: "move ILLUSTRATION_STYLES from hardcoded to DB-backed, seeded with the current entries
+ *  so nothing breaks"). Everything that reads a style reads it through one of these: `styles` is
+ *  the latest version per id, `history` every version ever saved (the test panel compares against
+ *  them; a picture stamped older than `styles[id].version` is stale). `source` says where it came
+ *  from — "db" once migration 20260907_0200 has run, "code" (the seeds below, CODE_REGISTRY) until
+ *  then or when the table can't be read. `briefSystem` null = the code default in
+ *  illustration-brief.ts (this file can't import it — the brief imports from here). */
+export interface IllustrationRegistry {
+  styles: Record<string, IllustrationStyle>;
+  history: IllustrationStyle[];
+  defaultStyleId: string;
+  strategyStyleId: string;
+  briefSystem: string | null;
+  source: "db" | "code";
+  /** Code seeds whose (id, version) isn't a DB row yet — the editor offers to seed them. */
+  unseeded?: { id: string; version: number }[];
 }
 
 // SURVIVE WATERCOLOR v4 — the house default. v1 (Lee, 2026-09-05, on the monoline-on-black
@@ -137,8 +160,16 @@ export interface IllustrationStyle {
 // it; watercolor stays at v4 as the style for the STRATEGY shorts (reps / chairs / founder
 // content — "a different audience and can be looser and more surreal than exam content"), so
 // the existing library isn't wasted. See defaultStyleIdFor.
-export const ILLUSTRATION_STYLES: Record<string, IllustrationStyle> = {
-  // SURVIVE RISO v1 — the house default for exam content (2026-09-06, from the v5 proposal).
+//
+// SINCE 2026-09-06 (v6, Part 2) THIS IS THE SEED, NOT THE REGISTRY. The registry lives in
+// public.illustration_styles (migration 20260907_0200) and is edited at /admin/illustrations/styles;
+// these entries are the code fallback when that table is missing AND what seedIllustrationStyles
+// writes into it (only the (id, version) pairs not there yet — idempotent). Server callers read
+// `await getRegistry(db)` (lib/illustration-registry.functions.ts), never this object directly;
+// the client reads useIllustrationRegistry(). A version saved from the editor that is newer than
+// the seed wins; a seed newer than the table's latest wins until it is seeded.
+export const STYLE_SEEDS: Record<string, IllustrationStyle> = {
+  // SURVIVE RISO — the house default for exam content (2026-09-06, from the v5 proposal).
   // The diagnosis, in the proposal's words:
   //   "Watercolor cut out and placed on black is fighting itself." Watercolor is a paper medium
   //   — white paper showing through a translucent wash is what makes it read as watercolor; the
@@ -170,19 +201,41 @@ export const ILLUSTRATION_STYLES: Record<string, IllustrationStyle> = {
   // magazine" → "modern editorial illustration, poster composition"; overprint added as the
   // source of depth. Palette: gold 0.45 + blue 0.35 + cream paper 0.20 = 1.00 exactly — "no free
   // third for the model to fill with whatever it likes" (and never above 1: Recraft rejects it).
-  // The cream "is what gives the picture an implied paper even on black."
+  // The cream "is what gives the picture an implied paper even on black." That was riso v1.
+  //
+  // RISO v2 — "psychedelic '68" (2026-09-06, the same night, Lee's second workshop —
+  // docs/ILLUSTRATION-STYLE-V6-DIRECTION.md, Part 1). The doc calls this "v6" because it counts
+  // the whole line (watercolor v1–v4, riso = v5); in the registry it is survive-riso VERSION 2,
+  // since versions are per id — and that is what makes every riso v1 picture read STALE in the
+  // bank tonight (isStaleIllustration: stamped 1 < registry 2), exactly as the doc asks: "Old
+  // pictures show stale and regenerate from the same subject."
+  // The synthesis: psychedelic and Mad Men "pull opposite ways" — but "they meet at a real
+  // historical moment: 1968–1973, when advertising absorbed psychedelia." The operating rule:
+  // "Psychedelic in color, texture, and light. Modernist in composition, figure, and silhouette."
+  // "Warp the color, never the structure." Why it fits: "The black stage becomes an asset.
+  // Watercolor fought the black ground. Psychedelic poster art is built for dark"; "Riso and
+  // psychedelic are the same production process" — keep the process, change the palette
+  // temperature and the light; "'Important people' comes from silhouette, not faces."
+  // PALETTE — "The current gold and blue survive but the temperature shifts. Add heat": gold
+  // 0.35 + hot magenta 0.25 + blue 0.25 + deep violet 0.15 = 1.00 exactly. "Magenta over gold
+  // overprints to a burnt orange-red; magenta over blue gives violet; violet against gold is the
+  // classic psychedelic vibration. Nothing is left to the model's discretion." Cream is no longer
+  // a control — it stays available in words for the figure's paper-white highlights.
+  // SUFFIX — the doc's "Proposed prompt suffix (v6)", verbatim. "Every empirical rule from v1–v4
+  // is preserved verbatim. Only the medium, palette, and light changed."
   "survive-riso": {
     id: "survive-riso",
-    version: 1,
-    label: "Survive Riso",
+    version: 2,
+    label: "Survive Riso — psychedelic '68",
     provider: "recraft",
     model: "recraftv4_1",
     size: "1024x1024",
     promptPrefix: "A single illustration of ",
-    promptSuffix: ", on a plain white background, filling most of the frame with only a small even margin around it. Risograph print illustration: two or three flat spot inks, printed with visible grain and a slight off-register shift between layers, where overlapping inks create a third deeper color. Bold simplified shapes with a confident hand-drawn contour in warm dark brown — never black or near-black. Flat opaque fills, no gradients, no glossy shading, no photorealism. Every fill sits clearly between the two extremes: never true black or near-black (a suit, a shadow), and never white or near-white either (skin, a pale shirt) — a fill that pale is indistinguishable from the white background and gets cut away with it, leaving a hole. Skin and faces are always a warm tan, light brown, or warm peach, visibly darker than the white page. High contrast, a strong readable silhouette, one clear subject with minimal secondary objects and no unnecessary detail, at most two or three shapes total — designed to be immediately recognizable at small mobile-screen size, on screen for as little as two seconds. Modern editorial illustration, poster composition. If it includes a person, show them from behind, from the side, with their head turned away, or cropped out of frame — never a detailed front-facing face. No text, no logos, no signature, no clip-art look.",
-    controls: { background_color: { rgb: [255, 255, 255] }, colors: [{ rgb: [252, 163, 17], weight: 0.45 }, { rgb: [0, 107, 166], weight: 0.35 }, { rgb: [245, 239, 230], weight: 0.2 }] },
+    promptSuffix: ", on a plain white background, filling most of the frame with only a small even margin around it. Late-1960s psychedelic screenprint poster illustration in a modernist composition: three or four flat saturated spot inks, printed with visible grain and a slight off-register shift, where overlapping inks create a third deeper color. A glowing halo or concentric aura radiating behind the subject. Confident hand-drawn contour in warm dark brown — never black or near-black. Flat opaque fills, no gradients, no glossy shading, no photorealism. Every fill sits clearly between the two extremes: never true black or near-black (a suit, a shadow), and never white or near-white either (skin, a pale shirt) — a fill that pale is indistinguishable from the white background and gets cut away with it, leaving a hole. Skin and faces are always a warm tan, light brown, or warm peach, visibly darker than the white page. Composition is structured and geometric with a strong readable silhouette — the psychedelia is in the color and the light, never in warped or hard-to-read shapes. One clear subject with minimal secondary objects and no unnecessary detail, at most two or three shapes total — designed to be immediately recognizable at small mobile-screen size, on screen for as little as two seconds. If it includes a person, show them from behind, from the side, with their head turned away, or cropped out of frame — never a detailed front-facing face. No text, no logos, no signature, no clip-art look.",
+    controls: { background_color: { rgb: [255, 255, 255] }, colors: [{ rgb: [252, 163, 17], weight: 0.35 }, { rgb: [230, 57, 132], weight: 0.25 }, { rgb: [0, 107, 166], weight: 0.25 }, { rgb: [76, 44, 130], weight: 0.15 }] },
     styleIdEnv: "RECRAFT_STYLE_ID_RISO",
     defaultAnimation: "drift",
+    note: "v6 direction (2026-09-06): late-1960s psychedelic screenprint in a modernist composition — psychedelic in color, texture and light; modernist in composition, figure and silhouette. Palette adds heat: gold 0.35, hot magenta 0.25, blue 0.25, deep violet 0.15. Riso v1 pictures are stale.",
   },
   // SURVIVE WATERCOLOR v4 — since 2026-09-06 the style for the STRATEGY shorts only (see the
   // v5 note above); the v1–v4 history is the long comment above this registry.
@@ -215,14 +268,29 @@ export const ILLUSTRATION_STYLES: Record<string, IllustrationStyle> = {
     controls: { background_color: { rgb: [0, 0, 0] }, colors: [{ rgb: [255, 255, 255], weight: 0.5 }, { rgb: [252, 163, 17], weight: 0.3 }, { rgb: [0, 107, 166], weight: 0.15 }] },
     styleIdEnv: "RECRAFT_STYLE_ID_DREAMSTATE",
     defaultAnimation: "boil",
+    retired: true,
   },
 };
-/** The house default — exam content. Was "survive-watercolor" until 2026-09-06 (v5 proposal). */
+/** The house default — exam content. Was "survive-watercolor" until 2026-09-06 (v5 proposal).
+ *  Since the same night's v6 work this is the CODE default only: the live one is
+ *  site_settings.illustration.defaultStyleId ("Keep DEFAULT_STYLE_ID configurable from this
+ *  page"), read through the registry's `defaultStyleId`. */
 export const DEFAULT_STYLE_ID = "survive-riso";
 /** The strategy shorts' style (2026-09-06, the v5 proposal: "Strategy shorts get their own
  *  style... Keep watercolor as the id for it... it's a good contrast to riso, and it means the
- *  existing library isn't wasted"). */
+ *  existing library isn't wasted"). The code default; the live one is the registry's. */
 export const STRATEGY_STYLE_ID = "survive-watercolor";
+
+/** The registry as the code has it — the fallback every function below defaults to, so a call
+ *  site or test that doesn't pass one behaves exactly as before the table existed. */
+export const CODE_REGISTRY: IllustrationRegistry = {
+  styles: STYLE_SEEDS,
+  history: Object.values(STYLE_SEEDS),
+  defaultStyleId: DEFAULT_STYLE_ID,
+  strategyStyleId: STRATEGY_STYLE_ID,
+  briefSystem: null,
+  source: "code",
+};
 
 /** The topic kind a set belongs to, as the bank reports it (BoothTopic.kind): "strategy" for
  *  the reps / chairs / founder shorts, undefined for course (exam) content. */
@@ -230,14 +298,23 @@ export type IllustrationTopicKind = "strategy" | undefined;
 
 /** Which preset a NEW picture starts in, per kind: riso for exam content, watercolor for the
  *  strategy shorts. Everything that first chooses a frame's style asks this, never
- *  DEFAULT_STYLE_ID directly, so the split lives in one place. */
-export function defaultStyleIdFor(kind: IllustrationTopicKind): string {
-  return kind === "strategy" ? STRATEGY_STYLE_ID : DEFAULT_STYLE_ID;
+ *  DEFAULT_STYLE_ID directly, so the split lives in one place — and since v6 the ids come
+ *  from the registry's settings, so Lee can move either from the editor. */
+export function defaultStyleIdFor(kind: IllustrationTopicKind, registry: IllustrationRegistry = CODE_REGISTRY): string {
+  return kind === "strategy" ? registry.strategyStyleId : registry.defaultStyleId;
 }
 
-/** The preset by id; null or unknown → the house default. */
-export function illustrationStyle(id: string | null | undefined): IllustrationStyle {
-  return (id && ILLUSTRATION_STYLES[id]) || ILLUSTRATION_STYLES[DEFAULT_STYLE_ID];
+/** The preset by id (its latest version); null or unknown → the house default. A registry whose
+ *  default names a style it doesn't hold (a setting pointing at a deleted id) still resolves —
+ *  to the code default — rather than handing back undefined into a render. */
+export function illustrationStyle(id: string | null | undefined, registry: IllustrationRegistry = CODE_REGISTRY): IllustrationStyle {
+  return (id && registry.styles[id]) || registry.styles[registry.defaultStyleId] || STYLE_SEEDS[DEFAULT_STYLE_ID];
+}
+
+/** One exact version of a preset, from the history — what a picture was actually made with.
+ *  Null when that version was never saved (a stamp from before the table existed). */
+export function illustrationStyleAt(id: string, version: number, registry: IllustrationRegistry = CODE_REGISTRY): IllustrationStyle | null {
+  return registry.history.find((s) => s.id === id && s.version === version) ?? null;
 }
 
 /** The full prompt the provider sees. Lee types the subject; the preset supplies everything
@@ -258,9 +335,9 @@ export function promptHasLabel(prompt: string): boolean {
 }
 
 /** Made with an older registry version than the preset has now. */
-export function isStaleIllustration(i: FrameIllustration | null | undefined): boolean {
+export function isStaleIllustration(i: FrameIllustration | null | undefined, registry: IllustrationRegistry = CODE_REGISTRY): boolean {
   if (!i || !i.assetUrl) return false;
-  const style = illustrationStyle(i.stylePreset);
+  const style = illustrationStyle(i.stylePreset, registry);
   return i.styleVersion !== null && i.styleVersion < style.version;
 }
 
@@ -269,16 +346,16 @@ export function isStaleIllustration(i: FrameIllustration | null | undefined): bo
  *  version-based and stays that way; this is the OTHER reason the panel offers "switch to
  *  <default>" (v5, 2026-09-06: riso for exam content, watercolor stays for strategy shorts).
  *  A frame with no preset yet is never off-style — it gets the right one when first chosen. */
-export function isOffStyleIllustration(i: FrameIllustration | null | undefined, kind: IllustrationTopicKind): boolean {
-  return !!i && !!i.stylePreset && i.stylePreset !== defaultStyleIdFor(kind);
+export function isOffStyleIllustration(i: FrameIllustration | null | undefined, kind: IllustrationTopicKind, registry: IllustrationRegistry = CODE_REGISTRY): boolean {
+  return !!i && !!i.stylePreset && i.stylePreset !== defaultStyleIdFor(kind, registry);
 }
 
 /** A fresh, empty request — what the editor and the talkthrough bank both start from. `kind`
  *  picks the preset (defaultStyleIdFor); callers that don't know the topic get the house
  *  default, and the panel offers the switch if that turns out to be wrong for the set. */
-export function emptyIllustration(seed: Partial<FrameIllustration> = {}, kind?: IllustrationTopicKind): FrameIllustration {
+export function emptyIllustration(seed: Partial<FrameIllustration> = {}, kind?: IllustrationTopicKind, registry: IllustrationRegistry = CODE_REGISTRY): FrameIllustration {
   return {
-    requested: true, prompt: null, teachingIntent: null, provider: null, stylePreset: defaultStyleIdFor(kind), styleVersion: null,
+    requested: true, prompt: null, teachingIntent: null, provider: null, stylePreset: defaultStyleIdFor(kind, registry), styleVersion: null,
     assetUrl: null, localAssetId: null, animationPreset: null, generatedAt: null, seed: null, placement: null,
     brief: null, summary: null, referenceFrameId: null, referencePhoto: null, pairedAssetUrl: null, pairedTitle: null, ...seed,
   };
