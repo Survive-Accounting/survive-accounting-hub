@@ -5,18 +5,33 @@
 // per-item regeneration. APPROVE on a CEQ edit applies to the live bank
 // (Lee's click is the authorization); OVERRIDE edits inline through the same
 // door. The script card doubles as the printable/side-screen read view.
-import { useEffect, useMemo, useState } from "react";
+//
+// 2026-09-07, "USE YOUR WORDS". Lee: "'Use your words' is the fundamental value we are building
+// into survive accounting and survive studios… Wherever we can click, talk, get suggestions."
+// Two typed fields here corrected an AI card (USE-YOUR-WORDS-AUDIT.md #5, #10): the note under
+// every result card, and the CEQ override. Now a 🎙 on the note — while he talks, the one-line
+// style note it would pin previews beside the box (the same distillation pinStyleNote runs),
+// then "Pin that" / "Regen with that" call the existing functions with his words — and 🎙 Say
+// the fix on the CEQ card: the spoken correction + the current stem/choices → the full card
+// with the one correct marked, as a diff; "Apply → bank" is the existing Save-override path,
+// still a click. Same throttle as the rehearsal review (LIVE_BRIEF_EVERY_MS), one call in
+// flight, a stale answer dropped, every call priced.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Printer, RefreshCw, X } from "lucide-react";
 
-import { applyCeqEdit } from "@/lib/talkthrough.functions";
+import { applyCeqEdit, runMicro } from "@/lib/talkthrough.functions";
+import { logCostEvent } from "@/lib/cost-ledger.functions";
 import { organizeIdea, saveIdea } from "@/lib/ideas.functions";
+import { useDictation } from "@/lib/use-dictation";
+import { buildCeqEditMessages, parseCeqEdit, type CeqEditResult } from "@/lib/ceq-edit-brief";
 import { getAdminWho } from "@/components/AdminGate";
+import { LIVE_BRIEF_EVERY_MS } from "@/components/blastoff/RehearsalReview";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "./theme";
 import {
-  STAMP_LABELS, canonicalStamp, isDismissed, sessionTags, stampLabel, touchRow,
+  STAMP_LABELS, canonicalStamp, isDismissed, sessionTags, stampLabel, styleKindFor, styleNotesFor, touchRow,
   type BoardItem, type TTDoc, type TalkSession, type TalkTag,
 } from "./talkthrough";
-import { putBoardItem } from "./talkthrough-sync";
+import { putBoardItem, ttState } from "./talkthrough-sync";
 import { filmPickOf, toggleFilmPick } from "./FilmPicks";
 import {
   clearSessionPhrases, markOf, markPhrase, phraseBankDoc, phraseBankError, sayPhrases, scriptLineId,
@@ -27,8 +42,82 @@ import type { MicroEditProposal, PassCeq } from "./talkthrough-pass";
 
 const CREAM = "#F4EFE6";
 const GOLD = "#FCA311";
+const MINT = "#3BF5A0";
 const PANEL = "rgba(16,24,44,0.9)";
 const EDGE = "rgba(244,239,230,0.16)";
+
+// ------------------------------------------------------------ "use your words": the shared bits
+// (2026-09-07). The same three pieces ReviewDeck's mics use — the spoken take on the rehearsal
+// review's throttle, one call in flight with the newest take winning, and a micro call that
+// retries once on an unparseable answer and prices itself — in this file's own colours.
+
+function useSpokenTake(onBrief: (take: string) => void) {
+  const [take, setTake] = useState("");
+  const [interim, setInterim] = useState("");
+  const dictation = useDictation((final, live) => {
+    setInterim(live);
+    if (final.trim()) setTake((t) => `${t} ${final}`.trim());
+  });
+  const lastBriefAt = useRef(0);
+  const briefed = useRef("");
+  const onBriefRef = useRef(onBrief);
+  onBriefRef.current = onBrief;
+  // A throttle, not a debounce: the first new speech briefs at once, then at most once per
+  // LIVE_BRIEF_EVERY_MS, and the tail always lands.
+  useEffect(() => {
+    if (!take || take === briefed.current) return;
+    const wait = Math.max(0, lastBriefAt.current + LIVE_BRIEF_EVERY_MS - Date.now());
+    const id = window.setTimeout(() => { lastBriefAt.current = Date.now(); briefed.current = take; onBriefRef.current(take); }, wait);
+    return () => window.clearTimeout(id);
+  }, [take]);
+  const start = () => { if (!dictation.supported || dictation.on) return; setTake(""); setInterim(""); briefed.current = ""; dictation.start(); };
+  const stop = () => { dictation.stop(); setInterim(""); };
+  return { take, interim, on: dictation.on, supported: dictation.supported, toggle: () => (dictation.on ? stop() : start()), stop };
+}
+
+function useLatestRun<T>(run: (arg: T, stale: () => boolean) => Promise<void>) {
+  const inFlight = useRef(false);
+  const pending = useRef<{ arg: T } | null>(null);
+  const runRef = useRef(run);
+  runRef.current = run;
+  const go = useCallback(async (arg: T): Promise<void> => {
+    if (inFlight.current) { pending.current = { arg }; return; }
+    inFlight.current = true;
+    try { await runRef.current(arg, () => pending.current !== null); }
+    finally {
+      inFlight.current = false;
+      const p = pending.current;
+      pending.current = null;
+      if (p) void go(p.arg);
+    }
+  }, []);
+  return go;
+}
+
+const setIdOfSession = (sessionId: string): string | null => ttState().doc.sessions.find((s) => s.id === sessionId)?.setId ?? null;
+
+async function microTwice<T>(setId: string | null, label: string, m: { system: string; user: string }, maxOutput: number, parse: (text: string) => T | null, what: string): Promise<T> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput } });
+    void logCostEvent({ data: { setId, kind: "ai", usd: r.usage.costUsd, model: r.model, label, who: getAdminWho() } }).catch(() => { /* bookkeeping only */ });
+    const out = parse(r.text);
+    if (out) return out;
+  }
+  throw new Error(`${what} didn't come back clean, twice — try again.`);
+}
+
+/** THE STYLE NOTE PREVIEW's brief — the distillation pinStyleNote (talkthrough-review.ts) runs
+ *  when he pins, word for word, so what previews beside the box is what a pin would write. */
+const styleNoteMessages = (kind: string, comment: string) => ({
+  system: `Distill the teacher's feedback into ONE imperative style rule for future ${kind} generation. Under 120 characters. Return the rule text only — no quotes, no preamble.`,
+  user: comment,
+});
+const parseStyleNote = (text: string): string | null => text.trim().replace(/^["']|["']$/g, "").slice(0, 160) || null;
+
+const micBtn = (on: boolean): React.CSSProperties => ({
+  border: `1px solid ${on ? "#F87171" : EDGE}`, background: on ? "rgba(248,113,113,0.14)" : "transparent", color: on ? "#F87171" : NEON.muted,
+  borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+});
 
 // ─────────────────────────────────────────────────────────── pre-flight
 
@@ -107,6 +196,28 @@ function ItemShell({ item, children, onRegen, printable, film, onAddSlide }: {
   const [pinned, setPinned] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const saveComment = () => { if (comment !== item.comment) putBoardItem(touchRow(item, { comment } as Partial<BoardItem>)); };
+  // 🎙 THE NOTE BY VOICE (2026-09-07, USE-YOUR-WORDS-AUDIT.md #5). His words land in the box as
+  // he says them (typing after is the fallback, as before); while he talks, the one-line style
+  // note a 📌 would pin previews beside it, re-distilled on the throttle. "Pin that" / "Regen
+  // with that" run the two existing functions with the spoken text.
+  const [preview, setPreview] = useState<{ status: "idle" | "loading" | "ready" | "error"; line?: string; error?: string }>({ status: "idle" });
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  const previewRun = useLatestRun<string>(async (spoken, stale) => {
+    setPreview((p) => ({ status: "loading", line: p.line }));
+    try {
+      const line = await microTwice(setIdOfSession(item.sessionId), "style note preview", styleNoteMessages(styleKindFor(item), spoken), 120, parseStyleNote, "The style note");
+      if (!alive.current || stale()) return;
+      setPreview({ status: "ready", line });
+    } catch (e) {
+      if (alive.current && !stale()) setPreview((p) => ({ status: "error", line: p.line, error: e instanceof Error ? e.message : String(e) }));
+    }
+  });
+  const talk = useSpokenTake((take) => void previewRun(take));
+  const spokenNote = talk.take.trim();
+  useEffect(() => { if (talk.on && spokenNote) setComment(spokenNote); }, [talk.on, spokenNote]);
+  const pinSpoken = () => { if (!spokenNote) return; setBusy(true); setErr(null); pinStyleNote(item, spokenNote).then(() => { setPinned(true); setPreview({ status: "idle" }); talk.stop(); }).catch((e) => setErr(e instanceof Error ? e.message : String(e))).finally(() => setBusy(false)); };
+  const regenSpoken = () => { if (!spokenNote) return; setComment(spokenNote); putBoardItem(touchRow(item, { comment: spokenNote } as Partial<BoardItem>)); setBusy(true); setErr(null); talk.stop(); onRegen?.(spokenNote).catch((e) => setErr(e instanceof Error ? e.message : String(e))).finally(() => setBusy(false)); };
   const setStatus = (s: "approved" | "archived" | "in_production") =>
     putBoardItem(touchRow(item, { status: item.status === s ? "suggested" : s } as Partial<BoardItem>));
   const archived = item.status === "archived";
@@ -206,8 +317,11 @@ function ItemShell({ item, children, onRegen, printable, film, onAddSlide }: {
       {item.quote && <div className="mt-2 tt-chrome" style={{ fontSize: 12, fontStyle: "italic", color: NEON.muted, borderLeft: `2px solid ${GOLD}66`, paddingLeft: 8 }}>“{item.quote}”</div>}
       {onRegen && (
         <div className="mt-3 flex items-center gap-2 tt-chrome">
-          <input value={comment} placeholder="your note on this item…" onChange={(e) => setComment(e.target.value)} onBlur={saveComment}
-            style={{ flex: 1, background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 8, color: CREAM, fontSize: 12, padding: "6px 10px" }} />
+          <button style={micBtn(talk.on)} disabled={!talk.supported} title={talk.supported ? "Say your note — it lands in the box, and the style note a pin would write previews beside it while you talk" : "Dictation needs Chrome or Edge"} onClick={talk.toggle}>
+            {talk.on ? "■" : "🎙"}
+          </button>
+          <input value={comment} placeholder={talk.on ? "listening…" : "your note on this item…"} onChange={(e) => setComment(e.target.value)} onBlur={saveComment}
+            style={{ flex: 1, background: "rgba(9,13,26,0.7)", border: `1px solid ${talk.on ? "#F87171" : EDGE}`, borderRadius: 8, color: CREAM, fontSize: 12, padding: "6px 10px" }} />
           <button
             title='PIN "remember this" — distill into a standing style note for this output kind'
             className="rounded-lg px-2 py-1.5 text-xs"
@@ -221,6 +335,20 @@ function ItemShell({ item, children, onRegen, printable, film, onAddSlide }: {
             onClick={() => { saveComment(); setBusy(true); setErr(null); onRegen(comment).catch((e) => setErr(e instanceof Error ? e.message : String(e))).finally(() => setBusy(false)); }}>
             <RefreshCw className="h-3 w-3" /> {busy ? "regenerating…" : "Regenerate with my notes"}
           </button>
+        </div>
+      )}
+      {onRegen && (talk.on || talk.interim || (spokenNote && preview.status !== "idle")) && (
+        <div className="mt-2 tt-chrome" style={{ border: `1px solid ${GOLD}44`, background: "rgba(252,163,17,0.05)", borderRadius: 8, padding: "6px 10px" }}>
+          {talk.interim && <div style={{ fontSize: 11.5, color: NEON.muted, fontStyle: "italic" }}>{spokenNote} <span style={{ opacity: 0.6 }}>{talk.interim}</span></div>}
+          <div className="flex items-center gap-2" style={{ flexWrap: "wrap" }}>
+            <span style={{ fontSize: 9.5, letterSpacing: "0.18em", color: GOLD, textTransform: "uppercase", fontWeight: 900 }}>📌 would pin</span>
+            <span style={{ fontSize: 12, color: preview.status === "error" ? "#F87171" : CREAM, flex: 1, minWidth: 160 }}>
+              {preview.status === "error" ? `⚠ ${preview.error}` : preview.line ?? (preview.status === "loading" ? "distilling…" : talk.on ? "say your note…" : "")}
+              {preview.status === "loading" && preview.line && <span style={{ color: NEON.muted }}> · updating…</span>}
+            </span>
+            <button className="rounded-lg px-2 py-1 text-xs" style={{ border: `1px solid ${GOLD}88`, color: GOLD, opacity: busy || !preview.line ? 0.5 : 1 }} disabled={busy || !preview.line} title="Pin this as a standing style note for this output kind" onClick={pinSpoken}>Pin that</button>
+            <button className="rounded-lg px-2 py-1 text-xs" style={{ border: `1px solid ${GOLD}88`, color: GOLD, opacity: busy || !spokenNote ? 0.5 : 1 }} disabled={busy || !spokenNote} title="Regenerate this item with what you just said" onClick={regenSpoken}>Regen with that</button>
+          </div>
         </div>
       )}
       {err && <div className="mt-1 flex items-center gap-1 tt-chrome" style={{ color: "#F87171", fontSize: 11 }}><X className="h-3 w-3" />{err}</div>}
@@ -407,9 +535,89 @@ function CeqEditCard({ item, ceq, onRegen }: { item: BoardItem; ceq: PassCeq | n
           )}
         </div>
       )}
-      {applied && <div className="mt-2" style={{ color: "#3BF5A0", fontSize: 12 }}>✓ applied to the bank</div>}
+      {!applied && item.ceqIds[0] && (
+        <SayTheFixCard sessionId={item.sessionId} label={ceq?.label ?? item.title}
+          current={{ stem: editing ? stem : (p.proposed?.proposedStem ?? p.current?.stem ?? ceq?.stem ?? ""), choices: editing ? choices : (p.proposed?.proposedChoices ?? p.current?.choices ?? ceq?.choices ?? []).map((c) => ({ text: c.text, correct: c.correct, feedback: (c as { feedback?: string | null }).feedback ?? null })) }}
+          applying={applying}
+          onApply={(r) => void apply(r.stem, r.choices.map((c) => ({ text: c.text, correct: c.correct, feedback: c.feedback ?? null })))}
+          onEditFirst={(r) => { setStem(r.stem); setChoices(r.choices.map((c) => ({ text: c.text, correct: c.correct, feedback: c.feedback ?? null }))); setEditing(true); }} />
+      )}
+      {applied && <div className="mt-2" style={{ color: MINT, fontSize: 12 }}>✓ applied to the bank</div>}
       {err && <div className="mt-1" style={{ color: "#F87171", fontSize: 11 }}>{err}</div>}
     </ItemShell>
+  );
+}
+
+/** 🎙 SAY THE FIX on a review-board CEQ card (2026-09-07, USE-YOUR-WORDS-AUDIT.md #10). The
+ *  card IS the AI's proposal; his spoken correction + the words as they stand (the override
+ *  fields when he's editing, else the proposal) → the Booth's edit brief (lib/ceq-edit-brief.ts)
+ *  → the full card with the one correct marked, as CURRENT | PROPOSED; "Apply → bank" is the
+ *  existing Save-override path, "Edit first" loads it into the override fields. The click stays. */
+function SayTheFixCard({ sessionId, label, current, applying, onApply, onEditFirst }: {
+  sessionId: string; label: string;
+  current: { stem: string; choices: { text: string; correct: boolean; feedback?: string | null }[] };
+  applying: boolean;
+  onApply: (r: CeqEditResult) => void;
+  onEditFirst: (r: CeqEditResult) => void;
+}) {
+  const [state, setState] = useState<{ status: "idle" | "loading" | "ready" | "error"; result?: CeqEditResult; error?: string }>({ status: "idle" });
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  const currentRef = useRef(current);
+  currentRef.current = current;
+  const run = useLatestRun<string>(async (spoken, stale) => {
+    const cur = currentRef.current;
+    setState((s) => ({ status: "loading", result: s.result }));
+    try {
+      const m = buildCeqEditMessages({ stem: cur.stem, choices: cur.choices, spoken, label, styleNotes: styleNotesFor(ttState().doc, "memo") });
+      const r = await microTwice(setIdOfSession(sessionId), "say the fix", m, 700, (t) => parseCeqEdit(t, cur), "The fix");
+      if (!alive.current || stale()) return;
+      setState({ status: "ready", result: r });
+    } catch (e) {
+      if (alive.current && !stale()) setState((s) => ({ status: "error", result: s.result, error: e instanceof Error ? e.message : String(e) }));
+    }
+  });
+  const talk = useSpokenTake((take) => void run(take));
+  const r = state.result;
+  const row = (c: { text: string; correct: boolean }, i: number, changed: boolean) => (
+    <div key={i} style={{ fontSize: 11.5, color: c.correct ? MINT : changed ? GOLD : CREAM, fontWeight: c.correct ? 700 : 400 }}>{String.fromCharCode(65 + i)}. {c.text}{c.correct ? " ✓" : ""}</div>
+  );
+  return (
+    <div className="mt-3 tt-chrome" style={{ borderTop: `1px solid ${EDGE}`, paddingTop: 8 }}>
+      <div className="flex items-center gap-2" style={{ flexWrap: "wrap" }}>
+        <button style={micBtn(talk.on)} disabled={!talk.supported} title={talk.supported ? "Say what should change on this card — the fix drafts itself while you talk; the bank still waits for your click" : "Dictation needs Chrome or Edge"} onClick={talk.toggle}>
+          {talk.on ? "■ stop" : "🎙 Say the fix"}
+        </button>
+        {state.status === "loading" && <span style={{ fontSize: 11, color: NEON.muted }}>drafting…</span>}
+        {talk.on && !talk.take && !talk.interim && <span style={{ fontSize: 11, color: NEON.muted }}>listening — "choice B should say lender…"</span>}
+      </div>
+      {(talk.take || talk.interim) && <div style={{ fontSize: 11.5, color: NEON.muted, fontStyle: "italic", marginTop: 4 }}>“{talk.take}{talk.interim ? <span style={{ opacity: 0.6 }}> {talk.interim}</span> : null}”</div>}
+      {r && (
+        <div className="mt-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div style={{ fontSize: 9.5, letterSpacing: "0.18em", color: NEON.muted, textTransform: "uppercase", fontWeight: 900 }}>Current</div>
+              <div style={{ fontSize: 12.5, marginTop: 3 }}>{current.stem}</div>
+              {current.choices.map((c, i) => row(c, i, false))}
+            </div>
+            <div>
+              <div style={{ fontSize: 9.5, letterSpacing: "0.18em", color: GOLD, textTransform: "uppercase", fontWeight: 900 }}>The fix</div>
+              <div style={{ fontSize: 12.5, marginTop: 3, color: r.stemChanged ? GOLD : CREAM }}>{r.stem}</div>
+              {r.choices.map((c, i) => row(c, i, r.choicesChanged && (current.choices[i]?.text !== c.text || current.choices[i]?.correct !== c.correct)))}
+              {r.note && <div style={{ fontSize: 10.5, color: NEON.muted, marginTop: 3 }}>{r.note}</div>}
+            </div>
+          </div>
+          <div className="mt-2 flex items-center gap-2" style={{ flexWrap: "wrap" }}>
+            <button className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: GOLD, color: "#0B1322", opacity: applying ? 0.6 : 1 }} disabled={applying} title="Write this card to the bank — the same door as Save override" onClick={() => { onApply(r); setState({ status: "idle" }); talk.stop(); }}>
+              {applying ? "saving…" : "Apply → bank"}
+            </button>
+            <button className="text-xs" style={{ color: NEON.muted, textDecoration: "underline" }} onClick={() => { onEditFirst(r); setState({ status: "idle" }); talk.stop(); }}>edit first</button>
+            <button className="text-xs" style={{ color: NEON.muted, textDecoration: "underline" }} onClick={() => { setState({ status: "idle" }); talk.stop(); }}>dismiss</button>
+          </div>
+        </div>
+      )}
+      {state.status === "error" && <div className="mt-1" style={{ color: "#F87171", fontSize: 11 }}>⚠ {state.error}</div>}
+    </div>
   );
 }
 

@@ -47,12 +47,38 @@
 // the phone button. So put Shorten to left of safe zones" — the phone stage is always on now);
 // its BEFORE | AFTER panel opens at the top of the Editor face. Every settled save is logged
 // (edit-log.functions.ts) and the newest pairs ride into the next Shorten as examples.
+//
+// 2026-09-07, "USE YOUR WORDS". Lee: "'Use your words' is the fundamental value we are building
+// into survive accounting and survive studios… Wherever we can click, talk, get suggestions."
+// Every word that CORRECTS or FINISHES a slide here was typed (USE-YOUR-WORDS-AUDIT.md #2, #3,
+// #4, #9, #16). Now: 🎙 SAY IT on every callout, the blank, the exhibit caption, the intro and
+// outro lines (SayItPanel — talk about the slide, the words come back in the cram register with
+// their nesting, as CURRENT | PROPOSED, "Use this" patches; ✂ on the proposed lines); 🎙 SAY THE
+// FIX on the card (SayTheFix — the spoken correction + the current stem/choices → the full card
+// with the one correct marked, Apply writes through the same autosave); and THE LAST WORD —
+// "we've illustrated for it… we've rehearsed it… and now we're at the final editing point.
+// Maybe one last thing comes around to enhance our video… I want it all." — 🪄 Tighten to the
+// lines on a slide that has kept prompter lines, and "Tighten all to the lines" at the top of
+// the spine (one call per slide, in order, a progress line; every proposal waits on its slide
+// for his click — never applied on its own). The mic re-briefs on the rehearsal review's
+// throttle while he talks (LIVE_BRIEF_EVERY_MS, one call in flight, a stale answer dropped).
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { applyCeqEdit, revertCeqEdit, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import { logCeqEdit, recentEditExamples, type EditSource } from "@/lib/edit-log.functions";
 import { logCostEvent } from "@/lib/cost-ledger.functions";
 import { buildShortenMessages, parseShorten, type EditExample, type ShortenFields, type ShortenRequest, type ShortenResult } from "@/lib/shorten-brief";
+import { useDictation } from "@/lib/use-dictation";
+import { buildCeqEditMessages, parseCeqEdit, type CeqEditResult } from "@/lib/ceq-edit-brief";
+import {
+  buildSlideTextMessages, buildTightenToLinesMessages, isSlideTextKind, parseSlideText, sameSlideText, slideTextFieldsOf, slideTextPatchOf,
+  type SlideCard, type SlideTextFields, type SlideTextKind, type SlideTextResult,
+} from "@/lib/slide-text-brief";
+import { startTT, ttState } from "@/components/canvas/talkthrough-sync";
+import { styleNotesFor } from "@/components/canvas/talkthrough";
+import { rehearsalCardFor, rehearsalContextFor } from "./rehearsal-context";
+import { buildShortenLineMessages, parseShortenedLine, pictureLineFor } from "./rehearsal-brief";
+import { LIVE_BRIEF_EVERY_MS } from "./RehearsalReview";
 import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
 import { renderInline } from "@/components/canvas/inline-md";
 import { getAdminWho } from "@/components/AdminGate";
@@ -133,6 +159,94 @@ const SHORTEN_EDIT_WINDOW_MS = 60_000;
 type ShortenApplied = { target: string; at: number } | null;
 const sourceFor = (applied: ShortenApplied, target: string): EditSource =>
   applied && applied.target === target && Date.now() - applied.at < SHORTEN_EDIT_WINDOW_MS ? "shorten-edited" : "manual";
+
+// ------------------------------------------------------------ "use your words": the shared bits
+// (2026-09-07). Three small pieces every mic on this page shares — the spoken take on the
+// rehearsal review's throttle, one call in flight with the newest take winning, and a micro
+// call that retries once on an unparseable answer and prices itself into the ledger.
+
+/** THE SPOKEN TAKE. `take` is every FINAL chunk so far; `interim` is what SpeechRecognition is
+ *  still working out (shown live, replaced on every event). While he talks, `onBrief(take)`
+ *  fires on a THROTTLE, not a debounce — continuous speech would keep pushing a debounce out
+ *  and nothing would ever update: the first new speech briefs at once, then at most once per
+ *  LIVE_BRIEF_EVERY_MS, and the tail (the last chunk before a pause) always lands. Same shape
+ *  as RehearsalReview's SlideScreen. Unsupported browsers get `supported: false` and the
+ *  button explains itself; typing keeps working either way. */
+function useSpokenTake(onBrief: (take: string) => void) {
+  const [take, setTake] = useState("");
+  const [interim, setInterim] = useState("");
+  const dictation = useDictation((final, live) => {
+    setInterim(live);
+    if (final.trim()) setTake((t) => `${t} ${final}`.trim());
+  });
+  const lastBriefAt = useRef(0);
+  const briefed = useRef("");
+  const onBriefRef = useRef(onBrief);
+  onBriefRef.current = onBrief;
+  useEffect(() => {
+    if (!take || take === briefed.current) return;
+    const wait = Math.max(0, lastBriefAt.current + LIVE_BRIEF_EVERY_MS - Date.now());
+    const id = window.setTimeout(() => { lastBriefAt.current = Date.now(); briefed.current = take; onBriefRef.current(take); }, wait);
+    return () => window.clearTimeout(id);
+  }, [take]);
+  const start = () => { if (!dictation.supported || dictation.on) return; setTake(""); setInterim(""); briefed.current = ""; dictation.start(); };
+  const stop = () => { dictation.stop(); setInterim(""); };
+  return { take, interim, on: dictation.on, supported: dictation.supported, toggle: () => (dictation.on ? stop() : start()), stop };
+}
+
+/** ONE CALL IN FLIGHT: a newer argument that arrives mid-call waits as `pending` and runs the
+ *  moment the call lands; the running call asks `stale()` before it writes, so what's shown is
+ *  only ever the answer to the newest take. */
+function useLatestRun<T>(run: (arg: T, stale: () => boolean) => Promise<void>) {
+  const inFlight = useRef(false);
+  const pending = useRef<{ arg: T } | null>(null);
+  const runRef = useRef(run);
+  runRef.current = run;
+  const go = useCallback(async (arg: T): Promise<void> => {
+    if (inFlight.current) { pending.current = { arg }; return; }
+    inFlight.current = true;
+    try { await runRef.current(arg, () => pending.current !== null); }
+    finally {
+      inFlight.current = false;
+      const p = pending.current;
+      pending.current = null;
+      if (p) void go(p.arg);
+    }
+  }, []);
+  return go;
+}
+
+/** The micro lane, defended: one quiet retry on an answer that doesn't parse (the model's
+ *  problem, not Lee's), then a plain error that names what it was for. Every attempt is priced
+ *  into the cost ledger, fire-and-forget. */
+async function microTwice<T>(setId: string, label: string, m: { system: string; user: string }, maxOutput: number, parse: (text: string) => T | null, what: string): Promise<T> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput } });
+    void logCostEvent({ data: { setId, kind: "ai", usd: r.usage.costUsd, model: r.model, label, who: getAdminWho() } });
+    const out = parse(r.text);
+    if (out) return out;
+  }
+  throw new Error(`${what} didn't come back clean, twice — try again.`);
+}
+
+/** What a Say it / Tighten brief sees besides the slide's own words: the set card the slide
+ *  sits after (the nearest card slide above it in the running order — a callout is usually the
+ *  cheat code for the question just asked), what Lee said about that card in Step 1, and the
+ *  slide's picture. Read at call time, so the talkthrough store is as fresh as it gets. */
+interface SlideBriefContext { card?: SlideCard; talkthrough?: string; picture?: string; setName: string }
+function slideBriefContextFor(frames: readonly BlastFrame[], f: BlastFrame, ceqById: Map<string, BoothCeq>, setId: string, setName: string): SlideBriefContext {
+  const i = frames.findIndex((x) => x.id === f.id);
+  let card: SlideCard | undefined;
+  let talkthrough: string | undefined;
+  for (let k = i - 1; k >= 0; k--) {
+    const c = frames[k];
+    if (c.kind !== "ceq" || !c.ceqId || ceqById.get(c.ceqId)?.noteOnly) continue;
+    card = rehearsalCardFor(c, ceqById);
+    talkthrough = rehearsalContextFor(ttState().doc, setId, c.ceqId) || undefined;
+    break;
+  }
+  return { card, talkthrough, picture: pictureLineFor(f.illustration), setName };
+}
 
 const chip = (on: boolean, color = GOLD): React.CSSProperties => ({
   border: `1px solid ${on ? color : EDGE}`, background: on ? `${color}22` : "transparent", color: on ? color : CREAM,
@@ -422,6 +536,50 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
     setShortenId(null);
   }, [sel, selCeq, shortenReq, set.id, patch]);
 
+  // THE TALKTHROUGH STORE (local-first, idempotent to start — the same call v3.index.tsx and
+  // the rehearsal review make): the Say it brief reads what Lee said about the card in Step 1.
+  useEffect(() => { startTT(); }, []);
+  const briefContextFor = useCallback((f: BlastFrame): SlideBriefContext => slideBriefContextFor(frames, f, ceqById, set.id, set.name), [frames, ceqById, set.id, set.name]);
+
+  // THE LAST WORD, every slide at once (2026-09-07). Lee: "now we're at the final editing point.
+  // Maybe one last thing comes around to enhance our video… I want it all." One call per slide
+  // that has kept prompter lines, in running order, sequential; each proposal waits on ITS
+  // slide (a 🪄 on the spine row, the diff in the Editor) for his "Use this" — never applied on
+  // its own. Cancel stops after the call in flight; proposals already in stay.
+  const [tightenProposals, setTightenProposals] = useState<Record<string, SlideTextResult>>({});
+  const [tightenRun, setTightenRun] = useState<{ at: number; total: number; label: string; done: boolean; found: number; error?: string } | null>(null);
+  const tightenCancel = useRef(false);
+  const tightenCandidates = useMemo(() => frames.filter((f) => !f.skipped && isSlideTextKind(f.kind) && (f.prompter?.length ?? 0) > 0), [frames]);
+  const tightenAll = useCallback(async () => {
+    const list = tightenCandidates;
+    if (!list.length) return;
+    tightenCancel.current = false;
+    let found = 0;
+    setTightenRun({ at: 0, total: list.length, label: "", done: false, found });
+    for (let i = 0; i < list.length; i++) {
+      const f = list[i];
+      if (tightenCancel.current) break;
+      setTightenRun({ at: i + 1, total: list.length, label: `${i + 1} of ${list.length} · ${FRAME_LABEL[f.kind]}`, done: false, found });
+      const current = slideTextFieldsOf(f);
+      if (!current || !isSlideTextKind(f.kind)) continue;
+      try {
+        const ctx = briefContextFor(f);
+        const m = buildTightenToLinesMessages({ kind: f.kind, current, prompter: f.prompter ?? [], prompterKeys: f.prompterKeys, transition: f.prompterTransition, card: ctx.card, picture: ctx.picture });
+        const kind = f.kind;
+        const r = await microTwice(set.id, "tighten to the lines", m, 500, (t) => parseSlideText(t, kind), `The tightening for "${FRAME_LABEL[f.kind]}"`);
+        if (sameSlideText(current, r)) continue; // already tight — nothing to show him
+        found += 1;
+        setTightenProposals((p) => ({ ...p, [f.id]: r }));
+      } catch (e) {
+        setTightenRun({ at: i + 1, total: list.length, label: `${i + 1} of ${list.length} · ${FRAME_LABEL[f.kind]}`, done: true, found, error: e instanceof Error ? e.message : String(e) });
+        return;
+      }
+    }
+    setTightenRun((s) => (s ? { ...s, done: true, found, label: tightenCancel.current ? "stopped" : "" } : s));
+  }, [tightenCandidates, briefContextFor, set.id]);
+  const settleTighten = useCallback((id: string) => setTightenProposals((p) => { if (!(id in p)) return p; const { [id]: _drop, ...rest } = p; return rest; }), []);
+  const tightenWaiting = Object.keys(tightenProposals).filter((id) => frames.some((f) => f.id === id)).length;
+
   // Which row's ⋯ menu is open (one at a time). A row that leaves the plan
   // while its menu is up takes the menu with it.
   const [menuId, setMenuId] = useState<string | null>(null);
@@ -585,6 +743,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
         <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{snippet(f)}</span>
         {/* Lines are made on Rehearse & Film (2026-09-07); the count still shows here so the spine says which slides have them. */}
         {(f.prompter?.length ?? 0) > 0 && <span title={`${f.prompter!.length} teleprompter line${f.prompter!.length > 1 ? "s" : ""} — made on Rehearse & Film`} style={{ fontSize: 10, color: MINT, fontWeight: 800 }}>🗒{f.prompter!.length}</span>}
+        {tightenProposals[f.id] && <span title="Tighten all: a proposal is waiting on this slide — open it to use or dismiss it" style={{ fontSize: 11 }}>🪄</span>}
         <span className="sa-spine-tools" style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: 2 }}>
           <button style={tiny} title="A copy right after this one" onClick={(e) => { e.stopPropagation(); duplicateAt(f.id, i); }}>⧉</button>
           {f.skipped ? (
@@ -622,6 +781,21 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
         </div>
         <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 10 }}>inserts land after the selected slide · space / shift+space walk the slides · drag to reorder</div>
         {picker && <BankPicker kind={picker} setId={set.id} setName={set.name} onPick={(p) => add(picker, p)} onClose={() => setPicker(null)} />}
+
+        {/* THE LAST WORD for every slide at once (2026-09-07) — only once some slide has kept
+            prompter lines (they're made on Rehearse & Film); each proposal waits on its slide. */}
+        {(tightenCandidates.length > 0 || tightenRun) && (
+          <div style={{ marginBottom: 10 }}>
+            <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap" }}>
+              <button style={{ ...chip(!!tightenRun && !tightenRun.done), opacity: tightenCandidates.length ? 1 : 0.5 }} disabled={!tightenCandidates.length || (!!tightenRun && !tightenRun.done)}
+                title={`Propose shorter words on every slide that has kept prompter lines (${tightenCandidates.length}) so the slide matches what you'll say — one call per slide, each proposal waits for your click`}
+                onClick={() => void tightenAll()}>🪄 Tighten all to the lines{tightenRun && !tightenRun.done ? "…" : ` · ${tightenCandidates.length}`}</button>
+              {tightenRun && !tightenRun.done && <button style={chip(false)} title="Stop after the slide in flight" onClick={() => { tightenCancel.current = true; }}>stop</button>}
+              {tightenRun && <span style={{ fontSize: 11, color: tightenRun.error ? RED : MUTED }}>{tightenRun.error ? `⚠ ${tightenRun.error}` : tightenRun.done ? `${tightenRun.label ? `${tightenRun.label} · ` : ""}${tightenRun.found} proposal${tightenRun.found === 1 ? "" : "s"} waiting` : tightenRun.label}</span>}
+            </div>
+            {tightenWaiting > 0 && <div style={{ fontSize: 10.5, color: MUTED, marginTop: 3 }}>🪄 marks a slide with a proposal — open it, then "Use this" or dismiss. Nothing is applied on its own.</div>}
+          </div>
+        )}
 
         <div style={{ ...subhead, marginBottom: 5 }}>Running order</div>
         <div className="flex flex-col" style={{ gap: 5 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
@@ -670,6 +844,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
           above={shortenId === sel.id && shortenReq
             ? <ShortenPanel key={sel.id} req={shortenReq} setId={set.id} topicName={selCeq?.noteOnly ? NOTE_EYEBROW : topic.name} onApply={applyShorten} onClose={() => setShortenId(null)} />
             : null}
+          sayIt={{ context: briefContextFor, seed: tightenProposals[sel.id], onSeedSettled: () => settleTighten(sel.id) }}
           onPatch={(p) => patch(sel.id, p)}
           onPatchKind={(p) => patchKind(sel.kind, p)}
           onSaved={(d, edits) => { if (sel.ceqId) setOverrides((o) => ({ ...o, [sel.ceqId!]: { ...d, edits } })); }} />
@@ -764,7 +939,7 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
  *  switches. Same shell as the Illustrator — the two are faces of one column
  *  (the prompter was the other face until 2026-09-07). */
 
-function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplied, above, onPatch, onPatchKind, onSaved }: {
+function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplied, above, sayIt, onPatch, onPatchKind, onSaved }: {
   /** The set's slide template — the camera chips read their default from it. */
   layout: "pass1" | "pass2";
   sel: BlastFrame; label: string; ceq?: BoothCeq; set: BoothSetInfo; topic: BoothTopic;
@@ -779,6 +954,9 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
   shortenApplied: React.MutableRefObject<ShortenApplied>;
   /** The Shorten panel, when it is up for this slide — sits above the fields (2026-09-07). */
   above?: ReactNode;
+  /** 🎙 SAY IT (2026-09-07): what the brief sees besides the slide's words, and a "Tighten all"
+   *  proposal waiting on this slide, if one is. */
+  sayIt?: { context: (f: BlastFrame) => SlideBriefContext; seed?: SlideTextResult; onSeedSettled: () => void };
   onPatch: (p: Partial<BlastFrame>) => void;
   /** Same fields, but written onto every OTHER slide of this same kind too (2026-09-05). */
   onPatchKind: (p: Partial<BlastFrame>) => void;
@@ -840,6 +1018,11 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         {sel.kind === "outro" && (
           <label style={{ fontSize: 11, color: MUTED }}>Tagline on the outro (blank = the standard one)
             <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder="Cram what's on your exam." onChange={(e) => onPatch({ text: e.target.value })} /></label>
+        )}
+        {/* 🎙 SAY IT + 🪄 TIGHTEN TO THE LINES (2026-09-07) — under the words, for every kind whose
+            words are typed above: the callouts, the blank, the exhibit caption, the intro and outro. */}
+        {sayIt && isSlideTextKind(sel.kind) && (
+          <SayItPanel key={sel.id} sel={sel} kind={sel.kind} setId={set.id} context={sayIt.context} seed={sayIt.seed} onSeedSettled={sayIt.onSeedSettled} onPatch={onPatch} />
         )}
         {sel.kind === "bio" && (
           <div className="flex flex-col" style={{ gap: 8 }}>
@@ -1071,6 +1254,207 @@ function CeqEditor({ ceq, setId, shortenApplied, onSaved }: { ceq: BoothCeq; set
           <button style={{ ...chip(false), alignSelf: "flex-start" }} onClick={() => setD((v) => ({ ...v, choices: [...v.choices, { text: "", correct: false, feedback: "" }] }))}>＋ choice</button>
         </div>
       )}
+      {/* 🎙 SAY THE FIX (2026-09-07) — Apply puts the proposal into the fields above, and the
+          autosave writes it through applyCeqEdit like any edit of his. Never on its own. */}
+      <SayTheFix setId={setId} label={ceq.label} current={d} onApply={(r) => setD({ stem: r.stem, choices: r.choices.map((c) => ({ text: c.text, correct: c.correct, feedback: c.feedback ?? "" })) })} />
+    </div>
+  );
+}
+
+// ------------------------------------------------------------ 🎙 say the fix
+
+/** THE SPOKEN CORRECTION on a card (2026-09-07, USE-YOUR-WORDS-AUDIT.md #4). Lee talks ("choice
+ *  B should say lender, and the stem's too long"); the Booth's edit brief (lib/ceq-edit-brief.ts)
+ *  runs on the CURRENT fields + his words, re-briefing on the throttle while he talks; the
+ *  answer is the full card, shown as CURRENT | PROPOSED with the correct choice in mint and what
+ *  changed in gold. "Apply" hands the card to the caller — the Editor's fields (then the
+ *  autosave) here, the Save-override path on the review board. The bank is the
+ *  highest-consequence field on the line: the click stays. */
+function SayTheFix({ setId, label, current, onApply }: {
+  setId: string; label: string;
+  current: { stem: string; choices: { text: string; correct: boolean; feedback?: string | null }[] };
+  onApply: (r: CeqEditResult) => void;
+}) {
+  const [state, setState] = useState<{ status: "idle" | "loading" | "ready" | "error"; result?: CeqEditResult; error?: string }>({ status: "idle" });
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  const currentRef = useRef(current);
+  currentRef.current = current;
+  const run = useLatestRun<string>(async (spoken, stale) => {
+    const cur = currentRef.current;
+    setState((s) => ({ status: "loading", result: s.result }));
+    try {
+      const m = buildCeqEditMessages({ stem: cur.stem, choices: cur.choices, spoken, label, styleNotes: styleNotesFor(ttState().doc, "memo") });
+      const r = await microTwice(setId, "say the fix", m, 700, (t) => parseCeqEdit(t, cur), "The fix");
+      if (!alive.current || stale()) return;
+      setState({ status: "ready", result: r });
+    } catch (e) {
+      if (alive.current && !stale()) setState((s) => ({ status: "error", result: s.result, error: e instanceof Error ? e.message : String(e) }));
+    }
+  });
+  const talk = useSpokenTake((take) => void run(take));
+  const r = state.result;
+  const row = (c: { text: string; correct: boolean }, i: number, changed: boolean) => (
+    <div key={i} style={{ fontSize: 11.5, color: c.correct ? MINT : changed ? GOLD : CREAM, fontWeight: c.correct ? 700 : 400 }}>{String.fromCharCode(65 + i)}. {c.text}{c.correct ? " ✓" : ""}</div>
+  );
+  return (
+    <div style={{ marginTop: 10, borderTop: `1px solid ${EDGE}`, paddingTop: 8 }}>
+      <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap" }}>
+        <button style={chip(talk.on, RED)} disabled={!talk.supported} title={talk.supported ? "Say what should change on this card — the fix drafts itself while you talk; Apply is still your click" : "Dictation needs Chrome or Edge"} onClick={talk.toggle}>
+          {talk.on ? "■ stop" : "🎙 Say the fix"}
+        </button>
+        {state.status === "loading" && <span style={{ fontSize: 11, color: MUTED }}>drafting…</span>}
+        {talk.on && !talk.take && !talk.interim && <span style={{ fontSize: 11, color: MUTED }}>listening — "choice B should say lender…"</span>}
+      </div>
+      {(talk.take || talk.interim) && <div style={{ fontSize: 11.5, color: MUTED, fontStyle: "italic", marginTop: 4 }}>“{talk.take}{talk.interim ? <span style={{ opacity: 0.6 }}> {talk.interim}</span> : null}”</div>}
+      {r && (
+        <div style={{ marginTop: 6 }}>
+          <div className="flex" style={{ gap: 8, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+              <div style={{ ...subhead, marginBottom: 3 }}>Current</div>
+              <div style={{ fontSize: 12, color: CREAM, marginBottom: 3 }}>{current.stem}</div>
+              {current.choices.map((c, i) => row(c, i, false))}
+            </div>
+            <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+              <div style={{ ...subhead, color: GOLD, marginBottom: 3 }}>Proposed</div>
+              <div style={{ fontSize: 12, color: r.stemChanged ? GOLD : CREAM, marginBottom: 3 }}>{r.stem}</div>
+              {r.choices.map((c, i) => row(c, i, r.choicesChanged && (current.choices[i]?.text !== c.text || current.choices[i]?.correct !== c.correct)))}
+            </div>
+          </div>
+          {r.note && <div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>{r.note}</div>}
+          <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+            <button style={chip(true, MINT)} title="Put this in the fields — it saves the same way your own edits do" onClick={() => { onApply(r); setState({ status: "idle" }); talk.stop(); }}>✓ Apply</button>
+            <button style={chip(false)} onClick={() => { setState({ status: "idle" }); talk.stop(); }}>✕ Dismiss</button>
+          </div>
+        </div>
+      )}
+      {state.status === "error" && <div style={{ fontSize: 11.5, color: RED, marginTop: 4 }}>⚠ {state.error}</div>}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------ 🎙 say it · 🪄 tighten
+
+/** A slide's words, drawn the way the card reads them — title bold, first line, the lines with
+ *  their nesting — for the CURRENT | PROPOSED columns. */
+function SlideWords({ f, gold }: { f: SlideTextFields; gold?: boolean }) {
+  const empty = !(f.title || f.text || f.lines?.length);
+  return (
+    <div style={{ padding: "8px 10px", fontSize: 12, lineHeight: 1.4, color: CREAM, border: `1px solid ${gold ? GOLD : EDGE}`, borderRadius: 8, minHeight: 40 }}>
+      {empty && <span style={{ color: MUTED }}>(empty)</span>}
+      {f.title && <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 3 }}>{renderInline(f.title)}</div>}
+      {f.text && <div style={{ color: f.title ? MUTED : CREAM, marginBottom: 3 }}>{renderInline(f.text)}</div>}
+      {(f.lines ?? []).map((l, i) => {
+        const depth = /^\t*/.exec(l)?.[0].length ?? 0;
+        return <div key={i} style={{ display: "flex", gap: 6, marginLeft: depth * 14 }}><span style={{ color: GOLD }}>{depth ? "◦" : "•"}</span><span>{renderInline(l.replace(/^\t+/, ""))}</span></div>;
+      })}
+    </div>
+  );
+}
+
+/** 🎙 SAY IT (2026-09-07, USE-YOUR-WORDS-AUDIT.md #2, #3, #9, #16). He talks about the slide —
+ *  a correction, a sharper phrase, a whole take — and the slide-text brief (lib/slide-text-brief.ts)
+ *  returns the words in the cram register with their nesting, re-briefing on the throttle while
+ *  he talks; CURRENT | PROPOSED under the fields, "Use this" patches through onPatch like a
+ *  keystroke would. ✂ shortens the proposed lines one by one with the rehearsal review's line
+ *  brief (pass 1, concise). 🪄 TIGHTEN TO THE LINES — the last word — proposes the slide's words
+ *  from the kept prompter lines + keys + the card; a "Tighten all" proposal arrives as `seed`
+ *  and waits here the same way. Nothing is applied without his click. */
+function SayItPanel({ sel, kind, setId, context, seed, onSeedSettled, onPatch }: {
+  sel: BlastFrame; kind: SlideTextKind; setId: string;
+  context: (f: BlastFrame) => SlideBriefContext;
+  seed?: SlideTextResult; onSeedSettled: () => void;
+  onPatch: (p: Partial<BlastFrame>) => void;
+}) {
+  const current = slideTextFieldsOf(sel) ?? {};
+  const [state, setState] = useState<{ status: "idle" | "loading" | "ready" | "error"; result?: SlideTextResult; from?: "say" | "tighten" | "all"; error?: string; shortening?: boolean }>(
+    () => (seed ? { status: "ready", result: seed, from: "all" } : { status: "idle" }),
+  );
+  // A "Tighten all" proposal that lands while this slide is open shows up the same way.
+  useEffect(() => { if (seed) setState({ status: "ready", result: seed, from: "all" }); }, [seed]);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  const selRef = useRef(sel);
+  selRef.current = sel;
+  const hasLines = (sel.prompter?.length ?? 0) > 0;
+
+  const run = useLatestRun<{ spoken: string } | { tighten: true }>(async (arg, stale) => {
+    const f = selRef.current;
+    const cur = slideTextFieldsOf(f) ?? {};
+    const isTighten = "tighten" in arg;
+    setState((s) => ({ status: "loading", result: s.result, from: s.from }));
+    try {
+      const ctx = context(f);
+      const m = isTighten
+        ? buildTightenToLinesMessages({ kind, current: cur, prompter: f.prompter ?? [], prompterKeys: f.prompterKeys, transition: f.prompterTransition, card: ctx.card, picture: ctx.picture })
+        : buildSlideTextMessages({ kind, current: cur, spoken: arg.spoken, card: ctx.card, talkthrough: ctx.talkthrough, picture: ctx.picture, setName: ctx.setName });
+      const r = await microTwice(setId, isTighten ? "tighten to the lines" : "say it", m, 500, (t) => parseSlideText(t, kind), isTighten ? "The tightening" : "The slide's words");
+      if (!alive.current || stale()) return;
+      // An already-tight slide comes back as itself; the panel says "same words as now" and
+      // leaves "Use this" off, rather than hiding that the pass ran.
+      setState({ status: "ready", result: r, from: isTighten ? "tighten" : "say" });
+    } catch (e) {
+      if (alive.current && !stale()) setState((s) => ({ status: "error", result: s.result, from: s.from, error: e instanceof Error ? e.message : String(e) }));
+    }
+  });
+  const talk = useSpokenTake((take) => void run({ spoken: take }));
+
+  /** ✂ on the proposed lines: the rehearsal review's line brief, pass 1 (concise), one call per
+   *  line in order; nesting is kept by stripping the tabs before and putting them back after. */
+  const shortenLines = async () => {
+    const r = state.result;
+    if (!r?.lines?.length || state.shortening) return;
+    setState((s) => ({ ...s, shortening: true, error: undefined }));
+    try {
+      const ctx = context(selRef.current);
+      const lines: string[] = [];
+      for (const l of r.lines) {
+        const tabs = /^\t*/.exec(l)?.[0] ?? "";
+        const m = buildShortenLineMessages({ line: l.slice(tabs.length), pass: 1, card: ctx.card, register: "cheat-code", picture: ctx.picture });
+        const out = await microTwice(setId, "shorten line", m, 200, parseShortenedLine, "The shorter line");
+        lines.push(tabs + out.line);
+      }
+      if (!alive.current) return;
+      setState((s) => (s.result === r ? { ...s, shortening: false, result: { ...r, lines, note: [r.note, "✂ lines shortened"].filter(Boolean).join(" · ") } } : { ...s, shortening: false }));
+    } catch (e) {
+      if (alive.current) setState((s) => ({ ...s, shortening: false, status: "error", error: e instanceof Error ? e.message : String(e) }));
+    }
+  };
+
+  const settle = () => { setState({ status: "idle" }); talk.stop(); if (state.from === "all") onSeedSettled(); };
+  const use = () => { const r = state.result; if (!r) return; onPatch(slideTextPatchOf(kind, r)); settle(); };
+  const r = state.result;
+  const unchanged = !!r && sameSlideText(current, r);
+  const busy = state.status === "loading" || !!state.shortening;
+  return (
+    <div style={{ marginTop: 10, borderTop: `1px solid ${EDGE}`, paddingTop: 8 }}>
+      <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap" }}>
+        <button style={chip(talk.on, RED)} disabled={!talk.supported} title={talk.supported ? "Talk about this slide — a correction, a sharper phrase, the whole thing — and the words draft themselves while you talk" : "Dictation needs Chrome or Edge"} onClick={talk.toggle}>
+          {talk.on ? "■ stop" : "🎙 Say it"}
+        </button>
+        {hasLines && (
+          <button style={chip(state.from === "tighten" && !!r)} disabled={busy} title={`Propose the slide's words from the ${sel.prompter!.length} kept prompter line${sel.prompter!.length > 1 ? "s" : ""} — shorter, matching what you'll say`} onClick={() => void run({ tighten: true })}>🪄 Tighten to the lines</button>
+        )}
+        {state.status === "loading" && <span style={{ fontSize: 11, color: MUTED }}>drafting…</span>}
+        {talk.on && !talk.take && !talk.interim && <span style={{ fontSize: 11, color: MUTED }}>listening…</span>}
+      </div>
+      {(talk.take || talk.interim) && <div style={{ fontSize: 11.5, color: MUTED, fontStyle: "italic", marginTop: 4 }}>“{talk.take}{talk.interim ? <span style={{ opacity: 0.6 }}> {talk.interim}</span> : null}”</div>}
+      {r && (
+        <div style={{ marginTop: 6 }}>
+          {state.from === "all" && <div style={{ fontSize: 11, color: GOLD, marginBottom: 4 }}>🪄 from Tighten all — waiting for your click</div>}
+          <div className="flex" style={{ gap: 8, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 180px", minWidth: 0 }}><div style={{ ...subhead, marginBottom: 3 }}>Current</div><SlideWords f={current} /></div>
+            <div style={{ flex: "1 1 180px", minWidth: 0 }}><div style={{ ...subhead, color: GOLD, marginBottom: 3 }}>Proposed</div><SlideWords f={r} gold /></div>
+          </div>
+          {(r.note || unchanged) && <div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>{unchanged ? "Same words as now — nothing to change." : r.note}</div>}
+          <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+            <button style={{ ...chip(true, MINT), opacity: unchanged || busy ? 0.5 : 1 }} disabled={unchanged || busy} title="Write these words onto the slide — it saves like any edit" onClick={use}>✓ Use this</button>
+            {!!r.lines?.length && <button style={chip(false)} disabled={busy} title="Shorten the proposed lines, one by one (concise pass)" onClick={() => void shortenLines()}>{state.shortening ? "shortening…" : "✂ shorten the lines"}</button>}
+            <button style={chip(false)} disabled={busy} onClick={settle}>✕ Dismiss</button>
+          </div>
+        </div>
+      )}
+      {state.status === "error" && <div style={{ fontSize: 11.5, color: RED, marginTop: 4 }}>⚠ {state.error}</div>}
     </div>
   );
 }

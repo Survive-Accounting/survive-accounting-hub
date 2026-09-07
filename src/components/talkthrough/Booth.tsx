@@ -37,7 +37,10 @@ import {
 import { liveGenerationProgress, subscribeReview } from "@/components/canvas/talkthrough-review";
 import { dismissSetResults, putBoardItem, putSegment, putTag, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { TalkthroughRecorder, drainWhisperQueue, isWhisperHallucination, speechRecognitionAvailable, type BoothStatus } from "@/components/canvas/talkthrough-audio";
-import { buildMicroEditMessages, parseMicroEdit, type PassCeq } from "@/components/canvas/talkthrough-pass";
+import type { PassCeq } from "@/components/canvas/talkthrough-pass";
+// The edit-stamp brief lives in lib/ceq-edit-brief.ts since 2026-09-07 (the Editor's and the
+// board's 🎙 Say the fix build on it) — the same two functions, imported from their one home.
+import { buildMicroEditMessages, parseMicroEdit } from "@/lib/ceq-edit-brief";
 import { editTasksFor, generationPlan, isResumable, progressLabel, type GenTask, type GenerationPlan } from "@/components/canvas/talkthrough-resume";
 import { buildImportRows, parseTranscriptImport, setNameMatches, type ImportBlock } from "@/components/canvas/talkthrough-import";
 import { SetCard } from "@/components/blastoff/SetCard";
