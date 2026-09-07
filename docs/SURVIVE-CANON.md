@@ -14,6 +14,11 @@ franchise recipe + state of the world; they are authoritative over ad-hoc chat c
 4. **[talkthrough-booth-prompt.md](talkthrough-booth-prompt.md)** — build spec for the
    Talkthrough Booth (Session 2 / Studio). Not yet built; paste into Session 2 when it has a lane.
 
+Companion strategy: **[SURVIVE_STRATEGY_CULTURE_2026-09.md](SURVIVE_STRATEGY_CULTURE_2026-09.md)** —
+Sept 2026 brainstorm capture: operating principles (Use Your Words / Feed the Machine / Human First),
+conversion model (Easy Points free, Exam 1 email gate, Exams 2–4 $50), three content verticals,
+rep program (Slater first), scholarship-chair pitch, course roadmap to ~6 courses.
+
 Companion specs: **[SURVIVE_FLAVOR_PACKS_v1.md](SURVIVE_FLAVOR_PACKS_v1.md)** — local-color
 token system (config, not code; build trigger = campus #2; codified in Master Context §2).
 
