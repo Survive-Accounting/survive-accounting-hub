@@ -20,6 +20,11 @@
 // three-icon row made every step look equally next; the chip and the resume
 // button say which one is.
 //
+// RENAMED (Lee, 2026-09-07): Brainstorm · Editor · Rehearse & Film · Cross-post — the icon
+// titles below and the resume button (stepLabel reads StepBar.tsx STEPS) say the new names;
+// the ids and URLs are unchanged. Step 5, Improve Process, has no icon here on purpose: the
+// row stays four icons wide, and the resume button is how a set reaches any later step.
+//
 // Nothing here loads the canvas or ReactFlow. The Talkthrough store is read
 // local-first (startTT), so the chips are live without a server round trip
 // per set. The three server-side signals the chip also reads (saved blast
@@ -52,17 +57,17 @@ export const Route = createFileRoute("/v3/")({
 });
 
 const STEP_BUTTONS: { step: BlastOffStep; icon: LucideIcon; title: string }[] = [
-  { step: "talkthrough", icon: Mic, title: "Step 1 · Talkthrough" },
-  { step: "results", icon: Wand2, title: "Step 2 · Review" },
+  { step: "talkthrough", icon: Mic, title: "Step 1 · Brainstorm" },
+  { step: "results", icon: Wand2, title: "Step 2 · Editor" },
   // "film", not "arrange" (audit 2026-09-06): /arrange has redirected into Review since the
   // 2026-09-05 renumbering, so this icon and the Review icon beside it landed on the same
   // screen — and the queue, "where production starts and returns to", had no one-click way
   // to the step Lee visits every single set.
-  { step: "film", icon: Clapperboard, title: "Step 3 · Film" },
+  { step: "film", icon: Clapperboard, title: "Step 3 · Rehearse & Film" },
   // The fourth step (2026-09-06 audit): Post is a cross-set queue, so this lands on /v3/post
   // (blastOffPath special-cases it) rather than under the set — the icon is here so the row
   // shows all four steps honestly, not so Post is per-set.
-  { step: "post", icon: Send, title: "Step 4 · Post" },
+  { step: "post", icon: Send, title: "Step 4 · Cross-post" },
 ];
 
 // The "where does this set stand" switch that lived here as setStatus moved to

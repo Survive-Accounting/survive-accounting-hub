@@ -6,6 +6,12 @@
 // this was written (Lee's own Step 4 plan; it got one on 2026-09-06, /v3/post), but the step
 // vocabulary was fixed up front so the schema and the report never needed a second migration
 // when it arrived.
+//
+// STILL FOUR (2026-09-07): the steps were renamed — Brainstorm · Editor · Rehearse & Film ·
+// Cross-post (StepBar.tsx) — and a fifth, Improve Process, was added. The ids here are the
+// SCHEMA (production_time_log.step), so they keep their old spellings; only STEP_LABEL changed.
+// The fifth step is not timed: it's where the timed minutes get read, not spent — adding it
+// here would put a row in the report for looking at the report.
 
 export const PRODUCTION_STEPS = ["talkthrough", "review", "film", "post"] as const;
 export type ProductionStep = (typeof PRODUCTION_STEPS)[number];
@@ -13,8 +19,9 @@ export function isProductionStep(v: unknown): v is ProductionStep {
   return typeof v === "string" && (PRODUCTION_STEPS as readonly string[]).includes(v);
 }
 
+// 2026-09-07: the labels follow the rename; the keys are the schema and stay put.
 export const STEP_LABEL: Record<ProductionStep, string> = {
-  talkthrough: "Talkthrough", review: "Review", film: "Film", post: "Post",
+  talkthrough: "Brainstorm", review: "Editor", film: "Rehearse & Film", post: "Cross-post",
 };
 
 /** Which step a Blast Off URL is on, and the topic/set slugs — auto-detected so starting the
@@ -23,7 +30,8 @@ export const STEP_LABEL: Record<ProductionStep, string> = {
  *  not four" was the 2026-09-02 count; since 2026-09-05 ("fold Arrange into Review, renumber the
  *  steps") there are four, Talkthrough · Review · Film · Post (StepBar.tsx), and /arrange is a
  *  redirect into Review — still review-time rearranging, not a step of its own. Absent (a page
- *  this can't place, or off /v3 entirely) → null: the widget simply has nothing to auto-start. */
+ *  this can't place, or off /v3 entirely) → null: the widget simply has nothing to auto-start.
+ *  2026-09-07: /improve (Step 5) is deliberately not matched — see the header. */
 export function blastOffStepFromPath(pathname: string): { topicSlug: string; setSlug: string; step: ProductionStep } | null {
   // "post" isn't in this match on purpose: Lee's Post step is a cross-set queue (every topic/set
   // in one list, per his own description), not a page under one set's own URL. That page exists

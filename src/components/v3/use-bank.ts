@@ -98,7 +98,11 @@ export function nextSetAfter(topics: BoothTopic[], setId: string): { topic: Boot
 // four numbered steps (StepBar.tsx STEPS, 2026-09-05: "fold Arrange into Review, renumber the
 // steps"). "post" has had its own page since 2026-09-06 (/v3/post, the cross-set queue —
 // blastOffPath below special-cases it).
-export type BlastOffStep = "talkthrough" | "results" | "arrange" | "film" | "post";
+// 2026-09-07: "improve" is Step 5 (Lee: "I'd love a Step 5: Improve Process"), nested under the
+// set like the first three. The ids are NOT the labels any more — StepBar.tsx STEPS spells
+// Brainstorm · Editor · Rehearse & Film · Cross-post · Improve Process over these same ids, so
+// no URL, bookmark or timer path had to change.
+export type BlastOffStep = "talkthrough" | "results" | "arrange" | "film" | "post" | "improve";
 
 /** /v3/$topic/$set/blast-off[/step] — the one place the nested URL is spelled. Post is the one
  *  exception (2026-09-06): it's a cross-set queue, not a per-set page — StepBar's own blurb says

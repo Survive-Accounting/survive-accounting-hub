@@ -389,9 +389,11 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
             </>
           )}
           {phase === "off" && segmentCount > 0 && (
-            <button onClick={() => setShowReview(true)} title={`Review round ${rounds.round}'s lines again`}
+            // "lines N →", not "review N →" (2026-09-07): "Review" is the Editor step's old name,
+            // and this chip opens the rehearsal review of the round's LINES — say what it opens.
+            <button onClick={() => setShowReview(true)} title={`Go over round ${rounds.round}'s lines again`}
               style={{ color: "#14213D", background: GOLD, border: `1px solid ${GOLD}`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>
-              review {segmentCount} →
+              lines {segmentCount} →
             </button>
           )}
           {popout.open && !popout.isPopout && (

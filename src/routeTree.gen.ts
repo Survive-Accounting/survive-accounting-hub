@@ -190,6 +190,7 @@ import { Route as V3TopicSetBlastOffIndexRouteImport } from './routes/v3.$topic.
 import { Route as V3TopicSetBlastOffTalkthroughRouteImport } from './routes/v3.$topic.$set.blast-off.talkthrough'
 import { Route as V3TopicSetBlastOffResultsRouteImport } from './routes/v3.$topic.$set.blast-off.results'
 import { Route as V3TopicSetBlastOffFilmRouteImport } from './routes/v3.$topic.$set.blast-off.film'
+import { Route as V3TopicSetBlastOffImproveRouteImport } from './routes/v3.$topic.$set.blast-off.improve'
 import { Route as V3TopicSetBlastOffArrangeRouteImport } from './routes/v3.$topic.$set.blast-off.arrange'
 
 const WelcomeRoute = WelcomeRouteImport.update({
@@ -1121,6 +1122,12 @@ const V3TopicSetBlastOffFilmRoute = V3TopicSetBlastOffFilmRouteImport.update({
   path: '/v3/$topic/$set/blast-off/film',
   getParentRoute: () => rootRouteImport,
 } as any)
+const V3TopicSetBlastOffImproveRoute =
+  V3TopicSetBlastOffImproveRouteImport.update({
+    id: '/v3/$topic/$set/blast-off/improve',
+    path: '/v3/$topic/$set/blast-off/improve',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const V3TopicSetBlastOffArrangeRoute =
   V3TopicSetBlastOffArrangeRouteImport.update({
     id: '/v3/$topic/$set/blast-off/arrange',
@@ -1308,6 +1315,7 @@ export interface FileRoutesByFullPath {
   '/v3/$topic/$set/': typeof V3TopicSetIndexRoute
   '/v3/$topic/$set/blast-off/arrange': typeof V3TopicSetBlastOffArrangeRoute
   '/v3/$topic/$set/blast-off/film': typeof V3TopicSetBlastOffFilmRoute
+  '/v3/$topic/$set/blast-off/improve': typeof V3TopicSetBlastOffImproveRoute
   '/v3/$topic/$set/blast-off/results': typeof V3TopicSetBlastOffResultsRoute
   '/v3/$topic/$set/blast-off/talkthrough': typeof V3TopicSetBlastOffTalkthroughRoute
   '/v3/$topic/$set/blast-off/': typeof V3TopicSetBlastOffIndexRoute
@@ -1488,6 +1496,7 @@ export interface FileRoutesByTo {
   '/v3/$topic/$set': typeof V3TopicSetIndexRoute
   '/v3/$topic/$set/blast-off/arrange': typeof V3TopicSetBlastOffArrangeRoute
   '/v3/$topic/$set/blast-off/film': typeof V3TopicSetBlastOffFilmRoute
+  '/v3/$topic/$set/blast-off/improve': typeof V3TopicSetBlastOffImproveRoute
   '/v3/$topic/$set/blast-off/results': typeof V3TopicSetBlastOffResultsRoute
   '/v3/$topic/$set/blast-off/talkthrough': typeof V3TopicSetBlastOffTalkthroughRoute
   '/v3/$topic/$set/blast-off': typeof V3TopicSetBlastOffIndexRoute
@@ -1673,6 +1682,7 @@ export interface FileRoutesById {
   '/v3/$topic/$set/': typeof V3TopicSetIndexRoute
   '/v3/$topic/$set/blast-off/arrange': typeof V3TopicSetBlastOffArrangeRoute
   '/v3/$topic/$set/blast-off/film': typeof V3TopicSetBlastOffFilmRoute
+  '/v3/$topic/$set/blast-off/improve': typeof V3TopicSetBlastOffImproveRoute
   '/v3/$topic/$set/blast-off/results': typeof V3TopicSetBlastOffResultsRoute
   '/v3/$topic/$set/blast-off/talkthrough': typeof V3TopicSetBlastOffTalkthroughRoute
   '/v3/$topic/$set/blast-off/': typeof V3TopicSetBlastOffIndexRoute
@@ -1859,6 +1869,7 @@ export interface FileRouteTypes {
     | '/v3/$topic/$set/'
     | '/v3/$topic/$set/blast-off/arrange'
     | '/v3/$topic/$set/blast-off/film'
+    | '/v3/$topic/$set/blast-off/improve'
     | '/v3/$topic/$set/blast-off/results'
     | '/v3/$topic/$set/blast-off/talkthrough'
     | '/v3/$topic/$set/blast-off/'
@@ -2039,6 +2050,7 @@ export interface FileRouteTypes {
     | '/v3/$topic/$set'
     | '/v3/$topic/$set/blast-off/arrange'
     | '/v3/$topic/$set/blast-off/film'
+    | '/v3/$topic/$set/blast-off/improve'
     | '/v3/$topic/$set/blast-off/results'
     | '/v3/$topic/$set/blast-off/talkthrough'
     | '/v3/$topic/$set/blast-off'
@@ -2223,6 +2235,7 @@ export interface FileRouteTypes {
     | '/v3/$topic/$set/'
     | '/v3/$topic/$set/blast-off/arrange'
     | '/v3/$topic/$set/blast-off/film'
+    | '/v3/$topic/$set/blast-off/improve'
     | '/v3/$topic/$set/blast-off/results'
     | '/v3/$topic/$set/blast-off/talkthrough'
     | '/v3/$topic/$set/blast-off/'
@@ -2339,6 +2352,7 @@ export interface RootRouteChildren {
   V3TopicSetIndexRoute: typeof V3TopicSetIndexRoute
   V3TopicSetBlastOffArrangeRoute: typeof V3TopicSetBlastOffArrangeRoute
   V3TopicSetBlastOffFilmRoute: typeof V3TopicSetBlastOffFilmRoute
+  V3TopicSetBlastOffImproveRoute: typeof V3TopicSetBlastOffImproveRoute
   V3TopicSetBlastOffResultsRoute: typeof V3TopicSetBlastOffResultsRoute
   V3TopicSetBlastOffTalkthroughRoute: typeof V3TopicSetBlastOffTalkthroughRoute
   V3TopicSetBlastOffIndexRoute: typeof V3TopicSetBlastOffIndexRoute
@@ -3613,6 +3627,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof V3TopicSetBlastOffFilmRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/v3/$topic/$set/blast-off/improve': {
+      id: '/v3/$topic/$set/blast-off/improve'
+      path: '/v3/$topic/$set/blast-off/improve'
+      fullPath: '/v3/$topic/$set/blast-off/improve'
+      preLoaderRoute: typeof V3TopicSetBlastOffImproveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/v3/$topic/$set/blast-off/arrange': {
       id: '/v3/$topic/$set/blast-off/arrange'
       path: '/v3/$topic/$set/blast-off/arrange'
@@ -3957,6 +3978,7 @@ const rootRouteChildren: RootRouteChildren = {
   V3TopicSetIndexRoute: V3TopicSetIndexRoute,
   V3TopicSetBlastOffArrangeRoute: V3TopicSetBlastOffArrangeRoute,
   V3TopicSetBlastOffFilmRoute: V3TopicSetBlastOffFilmRoute,
+  V3TopicSetBlastOffImproveRoute: V3TopicSetBlastOffImproveRoute,
   V3TopicSetBlastOffResultsRoute: V3TopicSetBlastOffResultsRoute,
   V3TopicSetBlastOffTalkthroughRoute: V3TopicSetBlastOffTalkthroughRoute,
   V3TopicSetBlastOffIndexRoute: V3TopicSetBlastOffIndexRoute,

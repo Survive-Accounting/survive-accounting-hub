@@ -26,7 +26,9 @@ import { V3Shell, V3Note } from "@/components/v3/Shell";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/talkthrough")({
   component: () => <AdminGate><V3Talkthrough /></AdminGate>,
-  head: () => ({ meta: [{ title: "🎙 Talkthrough — Blast Off" }, { name: "robots", content: "noindex" }] }),
+  // 2026-09-07: "Brainstorm" is the step's name now (Lee: "Talkthrough should be brainstorm");
+  // the URL and the booth underneath are unchanged.
+  head: () => ({ meta: [{ title: "🎙 Brainstorm — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
 
 function V3Talkthrough() {
@@ -65,7 +67,7 @@ function V3Talkthrough() {
     { label: topic?.name ?? topicKey, to: `/v3/${topicKey}` },
     { label: set?.name ?? setKey, to: `/v3/${topicKey}/${setKey}` },
     { label: "Blast Off", to: `/v3/${topicKey}/${setKey}/blast-off` },
-    { label: "Talkthrough" },
+    { label: "Brainstorm" },
   ];
 
   if (error) return <V3Shell crumbs={crumbs} wide><V3Note tone="bad">Could not load the bank: {error}</V3Note></V3Shell>;

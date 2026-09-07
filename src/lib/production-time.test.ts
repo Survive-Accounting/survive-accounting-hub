@@ -3,7 +3,8 @@ import { describe, expect, test } from "bun:test";
 import { blastOffStepFromPath, fmtDuration, fmtElapsed, isProductionStep, PRODUCTION_STEPS, STEP_LABEL } from "./production-time";
 
 describe("the production timer's pure helpers", () => {
-  test("Talkthrough, Results (Review) and Film auto-detect from the URL; Arrange folds into Review", () => {
+  test("Brainstorm (talkthrough), Editor (results) and Rehearse & Film auto-detect from the URL; Arrange folds into review; Improve is not timed", () => {
+    expect(blastOffStepFromPath("/v3/easy-points/internal-vs-external-users/blast-off/improve")).toBeNull();
     expect(blastOffStepFromPath("/v3/easy-points/internal-vs-external-users/blast-off/talkthrough")).toEqual({ topicSlug: "easy-points", setSlug: "internal-vs-external-users", step: "talkthrough" });
     expect(blastOffStepFromPath("/v3/easy-points/internal-vs-external-users/blast-off/results")).toEqual({ topicSlug: "easy-points", setSlug: "internal-vs-external-users", step: "review" });
     expect(blastOffStepFromPath("/v3/easy-points/internal-vs-external-users/blast-off/arrange")).toEqual({ topicSlug: "easy-points", setSlug: "internal-vs-external-users", step: "review" });

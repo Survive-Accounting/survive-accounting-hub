@@ -1,7 +1,8 @@
 // /v3/teleprompter — THE PROMPTER WINDOW. Two modes:
 //
 // ?set=<deckId> (2026-09-03, the v3 film surface): the lines Lee kept on the
-// Review step (frame.prompter on the Blast Off plan) for whichever frame is
+// Review step (frame.prompter on the Blast Off plan — since 2026-09-07 those lines are made on
+// Rehearse & Film, rounds + the rehearsal review, not on the Editor) for whichever frame is
 // UP — the Studio publishes the active frame to localStorage "sa-film-active"
 // and this window follows it. Nothing to click; it just keeps up. Since
 // 2026-09-04 /film publishes the same record (capture/prompter-sync.ts), and
@@ -110,7 +111,7 @@ function FramePrompter({ setId }: { setId: string }) {
       {frame && lines.length === 0 && (
         <div style={{ fontSize: "1.75rem", fontWeight: 600, color: "#6B7280" }}>
           Nothing kept for this slide
-          <div style={{ fontSize: "1rem", fontWeight: 400, marginTop: 10, color: "#9CA3AF" }}>Keep lines on the Review step's teleprompter column and they show up here.</div>
+          <div style={{ fontSize: "1rem", fontWeight: 400, marginTop: 10, color: "#9CA3AF" }}>Keep lines in a rehearsal round on Rehearse &amp; Film and they show up here.</div>
         </div>
       )}
       {frame && lines.length > 0 && (

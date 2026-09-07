@@ -27,10 +27,18 @@
 // before and after and saves through the one existing door (applyCeqEdit).
 // Nothing here is a new store: the plan is deck.blastOff; prompter lines and
 // bullets live on the frame.
+//
+// 2026-09-07: no teleprompter on the Editor — lines are made on Rehearse & Film
+// (rounds + the rehearsal review). Lee: "I want to remove teleprompter lines from
+// #2 Review. No teleprompter at all. I think just editor and illustrator all
+// needed. And put these in two side by side buttons." So the right column's
+// dropdown became two equal buttons, Editor | Illustrator, and the prompter face
+// (stamps → phrases → slides, the "Proofread" micro call) left this file. The
+// frame.prompter data is untouched — /film, the rehearsal review and the pop-out
+// window still read and write it; this step just stops showing it.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { applyCeqEdit, revertCeqEdit, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
-import type { TTDoc } from "@/components/canvas/talkthrough";
+import { applyCeqEdit, revertCeqEdit, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
 import { refreshBank } from "@/components/v3/use-bank";
 import { BankPicker } from "./BankPicker";
@@ -38,7 +46,7 @@ import { indentBulletLine } from "./bullet-indent";
 import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, FrameView, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
-import { AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, frameBullets, insertFrame, insertStem, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
+import { AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 import { ADS, AD_LABEL } from "./AdSlide";
 import { PhoneFrame } from "./PhoneFrame";
@@ -47,10 +55,6 @@ import { CAM_LABEL, CAM_SPOTS, camSpotOf, isCamSpot } from "./capture/webcam-spo
 import { camDefault, layoutOf } from "./layout";
 import { canIllustrate } from "./illustration";
 import { IllustrationPanel } from "./IllustrationPanel";
-import {
-  PHRASE_SLIDE_KINDS, buildTidyMessages, frameKindForStamp, parseTidy, prompterCandidates, prompterGroups, readTidy, setStampCandidates, tidyCacheKey, writeTidy,
-  type PrompterCandidate, type TidyPhrase, type TidyResult,
-} from "./prompter";
 
 /** What the AI board hands the deck: "＋ slide" on an idea card. */
 export interface DeckApi { addSlide: (kind: BlastFrameKind, patch: Partial<BlastFrame>) => void }
@@ -114,14 +118,21 @@ const kindTag = (color: string): React.CSSProperties => ({
 // Three faces since 2026-09-05 (Lee: "Editor, Illustrator, Teleprompter in like a dropdown
 // on right side"): the Illustrator is its own face, offered only on the kinds that take a
 // picture (illustration.ts ILLUSTRATION_KINDS).
-type RightTab = "teleprompter" | "editor" | "illustrator";
+// TWO FACES AGAIN since 2026-09-07 — Editor | Illustrator, as two side-by-side buttons rather
+// than a dropdown (Lee: "No teleprompter at all... put these in two side by side buttons").
+// The teleprompter face is gone; its lines are made on Rehearse & Film now.
+type RightTab = "editor" | "illustrator";
 const RIGHT_TABS: { id: RightTab; label: string; title: string }[] = [
   { id: "editor", label: "Editor", title: "Edit the selected slide here, beside it" },
   { id: "illustrator", label: "Illustrator", title: "A picture for this slide — Memorize This, Cheat Code, Deep Question and blank slides" },
-  { id: "teleprompter", label: "Teleprompter", title: "Your own words for this slide — stamps, phrases, lines" },
 ];
+/** What the Illustrator button says when the selected slide's kind can't take a picture. */
+const ILLUSTRATOR_OFF_TITLE = "Pictures go on Memorize This, Cheat Code, Deep Question and blank slides — not this kind";
 const RIGHT_TAB_KEY = "sa-review-right-tab";
-const readRightTab = (): RightTab => { try { const v = localStorage.getItem(RIGHT_TAB_KEY); return v === "editor" || v === "illustrator" ? v : "teleprompter"; } catch { return "teleprompter"; } };
+// A browser that last left the panel on the retired "teleprompter" face (the value this key
+// held before 2026-09-07) lands on the Editor — the only face that exists for every slide —
+// rather than on a face that no longer exists. Any other unknown value does the same.
+const readRightTab = (): RightTab => { try { return localStorage.getItem(RIGHT_TAB_KEY) === "illustrator" ? "illustrator" : "editor"; } catch { return "editor"; } };
 const writeRightTab = (t: RightTab): void => { try { localStorage.setItem(RIGHT_TAB_KEY, t); } catch { /* storage refused — the tab simply won't stick */ } };
 /** The right column's shell, shared by both faces: sticky, so it rides along
  *  while the spine scrolls, and never taller than the viewport. */
@@ -231,16 +242,11 @@ const isTyping = (t: EventTarget | null): boolean => {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
 };
 
-/** A proofread phrase → the slide it becomes: the title is the bold heading,
- *  the phrase is the first line under it, and it opens the prompter. */
-export function slidePatchFor(kind: BlastFrameKind, p: { title: string; text: string }): Partial<BlastFrame> {
-  const title = p.title.trim();
-  if (kind === "cheat") return { title: title || p.text, body: title ? p.text : "", prompter: [p.text] };
-  return { text: title || p.text, bullets: title ? [p.text] : [], prompter: [p.text] };
-}
+// slidePatchFor (a proofread phrase → the slide it becomes) left with the prompter face on
+// 2026-09-07 — it had no caller outside it.
 
-export function ReviewDeck({ set, topic, doc, register, initialSelectedId = null }: {
-  set: BoothSetInfo; topic: BoothTopic; doc: TTDoc;
+export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
+  set: BoothSetInfo; topic: BoothTopic;
   /** Hands the deck's verbs to whoever mounts it (the AI board's "＋ slide"). */
   register?: (api: DeckApi | null) => void;
   /** Open with this slide selected and scrolled into view — the route's ?frame= (2026-09-06,
@@ -416,7 +422,9 @@ export function ReviewDeck({ set, topic, doc, register, initialSelectedId = null
 
   const filmed = filmFrames(frames).length;
   const skipped = frames.length - filmed;
-  const tabs = <span style={{ marginLeft: "auto", order: 2 }}><RightTabs tab={rightTab} onTab={setRightTab} /></span>;
+  // The two buttons at the top of the right column (2026-09-07). The Illustrator one goes
+  // disabled on a kind that can't take a picture; the face itself still explains which can.
+  const tabs = <RightTabs tab={rightTab} onTab={setRightTab} canIllustrate={!!sel && canIllustrate(sel.kind)} />;
 
   // THE SKIPPED FOLDER (Lee, 2026-09-06: "once a slide is skipped, move it to
   // bottom in a skipped folder"). JUDGMENT CALL: this splits how the spine DRAWS
@@ -465,7 +473,8 @@ export function ReviewDeck({ set, topic, doc, register, initialSelectedId = null
         </span>
         <span style={kindTag(colorOf(f))}>{labelOf(f)}</span>
         <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{snippet(f)}</span>
-        {(f.prompter?.length ?? 0) > 0 && <span title={`${f.prompter!.length} teleprompter line${f.prompter!.length > 1 ? "s" : ""}`} style={{ fontSize: 10, color: MINT, fontWeight: 800 }}>🗒{f.prompter!.length}</span>}
+        {/* Lines are made on Rehearse & Film (2026-09-07); the count still shows here so the spine says which slides have them. */}
+        {(f.prompter?.length ?? 0) > 0 && <span title={`${f.prompter!.length} teleprompter line${f.prompter!.length > 1 ? "s" : ""} — made on Rehearse & Film`} style={{ fontSize: 10, color: MINT, fontWeight: 800 }}>🗒{f.prompter!.length}</span>}
         <span className="sa-spine-tools" style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: 2 }}>
           <button style={tiny} title="A copy right after this one" onClick={(e) => { e.stopPropagation(); duplicateAt(f.id, i); }}>⧉</button>
           {f.skipped ? (
@@ -529,65 +538,58 @@ export function ReviewDeck({ set, topic, doc, register, initialSelectedId = null
         )}
       </section>
 
-      {/* --------------------------------- RIGHT: editor | illustrator | teleprompter */}
-      {rightTab === "illustrator" && sel ? (
+      {/* --------------------------------- RIGHT: editor | illustrator (no teleprompter since 2026-09-07) */}
+      {!sel ? (
+        <section style={panelShell}>{tabs}</section>
+      ) : rightTab === "illustrator" ? (
         <section style={panelShell}>
+          {tabs}
           <div className="flex items-center" style={{ gap: 6, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
-            {tabs}
             <span style={{ fontSize: 11.5, color: MUTED }}>{labelOf(sel)}{sel.skipped ? " · skipped" : ""}</span>
           </div>
           {canIllustrate(sel.kind)
             ? <IllustrationPanel key={sel.id} sel={sel} setId={set.id} setName={set.name} frames={frames} onPatch={(p) => patch(sel.id, p)} />
             : <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5 }}>Pictures go on Memorize This, Cheat Code, Deep Question and blank slides. Pick one of those in the spine, or insert a <b style={{ color: CREAM }}>＋ Blank</b> — on a blank slide the picture is the slide: the watermark, the picture and the camera if you want it.</div>}
         </section>
-      ) : rightTab === "editor" && sel ? (
+      ) : (
         <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs} layout={layoutOf(plan)}
           ceq={sel.kind === "ceq" && sel.ceqId ? ceqById.get(sel.ceqId) : undefined}
           saving={saving}
           onPatch={(p) => patch(sel.id, p)}
           onPatchKind={(p) => patchKind(sel.kind, p)}
           onSaved={(d) => { if (sel.ceqId) setOverrides((o) => ({ ...o, [sel.ceqId!]: d })); }} />
-      ) : (
-        <Prompter tabs={tabs} frame={sel} frames={frames} set={set} doc={doc} labelOf={labelOf} snippetOf={snippet}
-          slideText={sel ? slideText(sel, ceqById) : ""}
-          onLines={(id, lines) => patch(id, { prompter: lines })}
-          onSelect={(id) => setSelId(id)}
-          onSlideAfter={(id, kind, p) => insertAfter(id, kind, p, false)} />
       )}
     </div>
   );
 }
 
-/** The right panel's toggle — drawn as the panel's heading, so the face he is
- *  on reads like the column's name (as "Film draft" and "Slide n of m" do). */
-function RightTabs({ tab, onTab }: { tab: RightTab; onTab: (t: RightTab) => void }) {
-  const [open, setOpen] = useState(false);
-  const cur = RIGHT_TABS.find((t) => t.id === tab) ?? RIGHT_TABS[0];
+/** THE TWO BUTTONS at the top of the right column (2026-09-07, Lee: "put these in two side by
+ *  side buttons") — Editor | Illustrator, the same size and weight, the one you're on gold.
+ *  Replaced the dropdown that named the face as the column's heading; each face still labels
+ *  the slide under the buttons. The Illustrator button is disabled (with a reason) on a slide
+ *  kind that can't take a picture; the face itself, if it's already up, says which kinds can. */
+function RightTabs({ tab, onTab, canIllustrate: can }: { tab: RightTab; onTab: (t: RightTab) => void; canIllustrate: boolean }) {
   return (
-    <span style={{ position: "relative", display: "inline-flex" }}>
-      <button type="button" title={cur.title} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((v) => !v)}
-        style={{ ...eyebrow, color: GOLD, background: "none", border: `1px solid ${EDGE}`, borderRadius: 7, padding: "3px 8px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
-        {cur.label} <span style={{ fontSize: 9, color: MUTED }}>▾</span>
-      </button>
-      {open && (
-        <span role="listbox" style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 20, minWidth: 150, background: "#101A2E", border: `1px solid ${EDGE}`, borderRadius: 9, padding: 4, boxShadow: "0 10px 30px rgba(0,0,0,0.45)", display: "flex", flexDirection: "column" }}
-          onMouseLeave={() => setOpen(false)}>
-          {RIGHT_TABS.map((t) => (
-            <button key={t.id} type="button" role="option" aria-selected={tab === t.id} title={t.title} onClick={() => { onTab(t.id); setOpen(false); }}
-              style={{ textAlign: "left", background: tab === t.id ? "rgba(252,163,17,0.14)" : "none", border: "none", color: tab === t.id ? GOLD : CREAM, borderRadius: 6, padding: "6px 9px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              {t.label}
-            </button>
-          ))}
-        </span>
-      )}
-    </span>
+    <div role="tablist" aria-label="Editor or Illustrator" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 10 }}>
+      {RIGHT_TABS.map((t) => {
+        const on = tab === t.id;
+        const off = t.id === "illustrator" && !can;
+        return (
+          <button key={t.id} type="button" role="tab" aria-selected={on} disabled={off}
+            title={off ? ILLUSTRATOR_OFF_TITLE : t.title}
+            onClick={() => onTab(t.id)}
+            style={{
+              ...eyebrow, textAlign: "center", padding: "7px 8px", borderRadius: 8, cursor: off ? "not-allowed" : "pointer",
+              border: `1.5px solid ${on ? GOLD : EDGE}`, background: on ? "rgba(252,163,17,0.14)" : "transparent",
+              color: on ? GOLD : off ? MUTED : CREAM, opacity: off ? 0.5 : 1,
+            }}>
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
-
-const slideText = (f: BlastFrame, byId: Map<string, BoothCeq>): string => {
-  if (f.kind === "ceq" && f.ceqId) { const c = byId.get(f.ceqId); return c ? [c.stem, ...c.choices.map((x) => `${x.correct ? "✓" : "·"} ${x.text}`)].join("\n") : ""; }
-  return [insertStem(f), ...frameBullets(f).map((b) => `• ${b}`)].join("\n");
-};
 
 // ------------------------------------------------------ the middle column
 
@@ -643,13 +645,14 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
  *  (Lee, 2026-09-04: "Instead of having edits of a slide underneath, it'd be
  *  faster/better to have them left/right"). A set card edits the card itself;
  *  an insert edits its words; the brand slides and ads edit their few
- *  switches. Same shell as the prompter — the two are faces of one column. */
+ *  switches. Same shell as the Illustrator — the two are faces of one column
+ *  (the prompter was the other face until 2026-09-07). */
 
 function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, saving, onPatch, onPatchKind, onSaved }: {
   /** The set's slide template — the camera chips read their default from it. */
   layout: "pass1" | "pass2";
   sel: BlastFrame; label: string; ceq?: BoothCeq; set: BoothSetInfo; topic: BoothTopic;
-  /** The Teleprompter | Editor toggle, drawn by the deck. */
+  /** The Editor | Illustrator buttons, drawn by the deck (the Teleprompter | Editor toggle until 2026-09-07). */
   tabs: ReactNode;
   /** usePlan's own save state — every field below writes through onPatch, which
    *  debounces into the same commit. Shown here too (not just on the spine)
@@ -666,8 +669,8 @@ function SlideEditor({ sel, label, ceq, set, topic, tabs, layout, saving, onPatc
   const adOwn = sel.text !== undefined || sel.title !== undefined || sel.bullets !== undefined || sel.url !== undefined;
   return (
     <section style={panelShell}>
+      {tabs}
       <div className="flex items-center" style={{ gap: 6, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
-        {tabs}
         <span style={{ fontSize: 11.5, color: MUTED }}>{label}{sel.skipped ? " · skipped" : ""}</span>
         {/* Lee, 2026-09-06: "if I edit any text when editing slides, instant
             save it." It already did (onPatch → commit, debounced 500ms) — the
@@ -930,213 +933,3 @@ function CeqEditor({ ceq, topicName, onSaved }: { ceq: BoothCeq; topicName: stri
   );
 }
 
-// ------------------------------------------------------------ the prompter
-
-type TidyState = { res?: TidyResult; busy?: boolean; err?: string };
-
-function Prompter({ tabs, frame, frames, set, doc, labelOf, snippetOf, slideText: text, onLines, onSelect, onSlideAfter }: {
-  /** The Teleprompter | Editor toggle, drawn by the deck — sits where the heading was. */
-  tabs: ReactNode;
-  frame: BlastFrame | null; frames: BlastFrame[]; set: BoothSetInfo; doc: TTDoc;
-  labelOf: (f: BlastFrame) => string; snippetOf: (f: BlastFrame) => string; slideText: string;
-  onLines: (frameId: string, lines: string[]) => void;
-  onSelect: (frameId: string) => void;
-  /** A phrase becomes a slide of this kind, right after the given slide. */
-  onSlideAfter: (frameId: string, kind: BlastFrameKind, patch: Partial<BlastFrame>) => void;
-}) {
-  // "This slide" or "All stamps" (Lee: "I want to just see all the stamps that
-  // came through and assign from there").
-  const [view, setView] = useState<"slide" | "all">("slide");
-  const slideCands = useMemo(() => (frame ? prompterCandidates(frame, doc, set.id) : []), [frame, doc, set.id]);
-  const allCands = useMemo(() => setStampCandidates(doc, set.id), [doc, set.id]);
-  const cands = view === "all" ? allCands : slideCands;
-  const groups = useMemo(() => prompterGroups(cands), [cands]);
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
-  const [kindPick, setKindPick] = useState<Record<string, BlastFrameKind>>({});
-  const [made, setMade] = useState<Set<string>>(new Set());
-  const [typed, setTyped] = useState("");
-  const kept = useMemo(() => frame?.prompter ?? [], [frame]);
-
-  // PROOFREAD BY DEFAULT (Lee: "Is there really any major cost? It will make
-  // it easier for me to sort through them"). One micro call per slide / per
-  // set, remembered by the words it was made from.
-  const scope = frame ? (view === "all" ? `all:${set.id}` : `slide:${frame.kind}:${frame.ceqId ?? frame.id}`) : "";
-  const key = frame ? tidyCacheKey(scope, cands) : "";
-  const [tidy, setTidy] = useState<Record<string, TidyState>>({});
-  const inflight = useRef(new Set<string>());
-  const t = tidy[key];
-  const proofread = useCallback(async (force = false) => {
-    if (!frame || !cands.length || inflight.current.has(key)) return;
-    if (!force) { const cached = readTidy(key); if (cached) { setTidy((v) => ({ ...v, [key]: { res: cached } })); return; } }
-    inflight.current.add(key);
-    setTidy((v) => ({ ...v, [key]: { ...v[key], busy: true, err: undefined } }));
-    try {
-      const { system, user } = buildTidyMessages({
-        scope: view === "all" ? `Every stamp on the set "${set.name}"` : `Slide: ${labelOf(frame)} — ${snippetOf(frame)}`,
-        slideText: view === "all" ? undefined : text, candidates: cands, kept: view === "all" ? [] : kept,
-      });
-      const r = await runMicro({ data: { system, user, maxOutput: 2000 } });
-      const res = parseTidy(r.text, cands);
-      writeTidy(key, res);
-      setTidy((v) => ({ ...v, [key]: { res, busy: false } }));
-    } catch (e) {
-      setTidy((v) => ({ ...v, [key]: { ...v[key], busy: false, err: e instanceof Error ? e.message : String(e) } }));
-    } finally { inflight.current.delete(key); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frame, cands, key, view, set.name, text]);
-  useEffect(() => { if (key && cands.length && !tidy[key]) void proofread(false); }, [key, cands.length, tidy, proofread]);
-
-  const has = (lines: readonly string[], s: string) => lines.some((k) => k.trim().toLowerCase() === s.trim().toLowerCase());
-  /** The slide a phrase belongs to: the card he was looking at, else this one. */
-  const homeOf = (p: { ceqId: string | null }): BlastFrame | null =>
-    (p.ceqId && frames.find((f) => f.kind === "ceq" && f.ceqId === p.ceqId)) || frame;
-  const keepOn = (home: BlastFrame | null, s: string) => { if (!home) return; const v = s.trim(); const lines = home.prompter ?? []; if (v && !has(lines, v)) onLines(home.id, [...lines, v]); };
-  const setLine = (i: number, v: string) => frame && onLines(frame.id, kept.map((k, j) => (j === i ? v : k)));
-  const dropLine = (i: number) => frame && onLines(frame.id, kept.filter((_, j) => j !== i));
-  const moveLine = (i: number, d: -1 | 1) => { if (!frame) return; const j = i + d; if (j < 0 || j >= kept.length) return; const n = [...kept]; [n[i], n[j]] = [n[j], n[i]]; onLines(frame.id, n); };
-
-  if (!frame) return <section style={panelShell}>{tabs}</section>;
-
-  const wordLine = (c: PrompterCandidate) => {
-    const home = homeOf(c);
-    const on = has(home?.prompter ?? [], c.text);
-    return (
-      <button key={c.id} onClick={() => keepOn(home, c.text)} title={on ? "Already on the prompter" : "Keep this line as you said it"}
-        style={{ textAlign: "left", background: on ? "rgba(59,245,160,0.10)" : "rgba(9,13,26,0.6)", border: `1px solid ${on ? MINT : EDGE}`, borderRadius: 9, padding: "6px 9px", color: CREAM, fontSize: 12, lineHeight: 1.4, cursor: on ? "default" : "pointer", opacity: on ? 0.7 : 1 }}>
-        {on ? "✓ " : ""}{c.text}{view === "all" && c.ceqLabel ? <span style={{ color: MUTED, fontSize: 10.5 }}> · {c.ceqLabel}</span> : null}
-      </button>
-    );
-  };
-
-  const phraseRow = (p: TidyPhrase) => {
-    const home = homeOf(p);
-    const on = has(home?.prompter ?? [], p.text);
-    const kind = kindPick[p.id] ?? frameKindForStamp(p.stamp);
-    const done = made.has(`${key}:${p.id}`);
-    return (
-      <div key={p.id} style={{ background: "rgba(9,13,26,0.6)", border: `1px solid ${on || done ? MINT : EDGE}`, borderRadius: 9, padding: "6px 9px" }}>
-        {p.title && <div style={{ color: CREAM, fontSize: 12.5, fontWeight: 800 }}>{p.title}</div>}
-        <div style={{ color: CREAM, fontSize: 12.5, lineHeight: 1.4, opacity: p.title ? 0.85 : 1 }}>{p.text}</div>
-        <div className="flex items-center" style={{ gap: 5, marginTop: 5, flexWrap: "wrap" }}>
-          {view === "all" && home && home !== frame && (
-            <button style={{ ...chip(false, MUTED), padding: "1px 7px", fontSize: 10 }} title={`Go to the slide it was said on: ${snippetOf(home)}`} onClick={() => onSelect(home.id)}>↗ {p.ceqLabel ?? labelOf(home)}</button>
-          )}
-          {view === "all" && home === frame && <span style={{ fontSize: 10, color: MUTED }}>this slide</span>}
-          <span style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
-            <button style={{ ...chip(on, MINT), padding: "2px 8px", fontSize: 10.5 }} disabled={on} title="Keep on that slide's prompter" onClick={() => keepOn(home, p.text)}>{on ? "✓ kept" : "keep"}</button>
-            <select value={kind} onChange={(e) => setKindPick((v) => ({ ...v, [p.id]: e.target.value as BlastFrameKind }))} title="What kind of slide this becomes — override the AI's guess"
-              style={{ background: "rgba(9,13,26,0.8)", color: KIND_COLOR[kind] ?? CREAM, border: `1px solid ${EDGE}`, borderRadius: 7, fontSize: 10.5, padding: "2px 4px" }}>
-              {PHRASE_SLIDE_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
-            </select>
-            <button style={{ ...chip(done, KIND_COLOR[kind]), padding: "2px 8px", fontSize: 10.5 }} title={`Add a slide right after ${home === frame ? "this slide" : "the slide it was said on"}`}
-              onClick={() => { if (home) { onSlideAfter(home.id, kind, slidePatchFor(kind, p)); setMade((s) => new Set(s).add(`${key}:${p.id}`)); } }}>
-              {done ? "✓ slide added" : "→ slide"}
-            </button>
-          </span>
-        </div>
-      </div>
-    );
-  };
-
-  const open = groups.find((g) => g.key === openGroup) ?? null;
-  const phrases = t?.res?.phrases ?? [];
-  const byStamp = new Map<string, TidyPhrase[]>();
-  for (const p of phrases) { const k = p.stamp ?? "card"; byStamp.set(k, [...(byStamp.get(k) ?? []), p]); }
-
-  return (
-    <section style={panelShell}>
-      <div className="flex items-center" style={{ gap: 6, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
-        {tabs}
-        <span style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-          <button style={{ ...chip(view === "slide"), padding: "2px 8px", fontSize: 10.5 }} onClick={() => setView("slide")}>This slide</button>
-          <button style={{ ...chip(view === "all"), padding: "2px 8px", fontSize: 10.5 }} title="Every stamp that came through on this set — assign from here" onClick={() => setView("all")}>All stamps · {allCands.length}</button>
-        </span>
-      </div>
-
-      {view === "slide" && (
-        <>
-          <div style={{ ...subhead, marginBottom: 5 }}>{kept.length} line{kept.length === 1 ? "" : "s"} on this slide</div>
-          {kept.length > 0 && (
-            <div className="flex flex-col" style={{ gap: 5, marginBottom: 12 }}>
-              {kept.map((k, i) => (
-                <div key={i} className="flex items-center" style={{ gap: 4 }}>
-                  <input style={{ ...field, padding: "5px 8px", fontSize: 12.5 }} value={k} onChange={(e) => setLine(i, e.target.value)} />
-                  <button style={tiny} title="Up" onClick={() => moveLine(i, -1)}>↑</button>
-                  <button style={tiny} title="Down" onClick={() => moveLine(i, 1)}>↓</button>
-                  <button style={{ ...tiny, color: RED }} title="Drop this line" onClick={() => dropLine(i)}>✕</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div style={{ ...subhead, marginBottom: 5 }}>Stamps near this slide</div>
-          {groups.length === 0 ? (
-            <div style={{ fontSize: 12, color: MUTED, marginBottom: 8 }}>
-              {frame.kind === "ceq" ? "Nothing was captured while this card was up. Talk about it in Step 1, or type a line below." : "No stamp of this kind in the talkthrough. Type a line below."}
-            </div>
-          ) : (
-            <div className="flex" style={{ gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
-              {groups.map((g) => (
-                <button key={g.key} style={chip(openGroup === g.key, g.stamp ? KIND_COLOR[frameKindForStamp(g.stamp)] ?? GOLD : MUTED)} onClick={() => setOpenGroup(openGroup === g.key ? null : g.key)}>
-                  {g.label} ×{g.candidates.length}
-                </button>
-              ))}
-            </div>
-          )}
-          {open && <div className="flex flex-col" style={{ gap: 4, marginBottom: 10 }}>{open.candidates.map(wordLine)}</div>}
-        </>
-      )}
-
-      {/* PROOFREAD — automatic; the button re-runs it. */}
-      <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-        <span style={subhead}>{view === "all" ? "Every stamp, proofread" : "Proofread"}</span>
-        {t?.busy && <span style={{ fontSize: 11, color: SKY }}>proofreading…</span>}
-        {t?.err && <span style={{ fontSize: 11, color: RED }}>⚠ {t.err}</span>}
-        {cands.length > 0 && !t?.busy && (
-          <button style={{ ...chip(false, SKY), padding: "2px 8px", fontSize: 10.5, marginLeft: "auto" }} title="Run the proofread again" onClick={() => void proofread(true)}>✨ again</button>
-        )}
-      </div>
-      {cands.length === 0 && view === "all" && <div style={{ fontSize: 12, color: MUTED, marginBottom: 8 }}>No stamps on this set yet — stamp moments in Step 1 and they land here.</div>}
-      {t?.res && phrases.length === 0 && <div style={{ fontSize: 12, color: MUTED, marginBottom: 8 }}>Nothing usable came back — the raw words are below.</div>}
-      {view === "all" ? (
-        [...byStamp.entries()].map(([k, list]) => (
-          <div key={k} style={{ marginBottom: 10 }}>
-            <div style={{ ...subhead, color: KIND_COLOR[frameKindForStamp(k === "card" ? null : k)] ?? MUTED, marginBottom: 4 }}>{groups.find((g) => g.key === k)?.label ?? k} · {list.length}</div>
-            <div className="flex flex-col" style={{ gap: 6 }}>{list.map(phraseRow)}</div>
-          </div>
-        ))
-      ) : (
-        phrases.length > 0 && <div className="flex flex-col" style={{ gap: 6, marginBottom: 10 }}>{phrases.map(phraseRow)}</div>
-      )}
-      {t?.res?.suggestion && !has(kept, t.res.suggestion) && view === "slide" && (
-        <button onClick={() => keepOn(frame, t.res!.suggestion!)} title="The one line the AI thinks is missing — take it or leave it"
-          style={{ textAlign: "left", width: "100%", background: "rgba(125,211,252,0.08)", border: `1px dashed ${SKY}`, borderRadius: 9, padding: "6px 9px", color: CREAM, fontSize: 12.5, lineHeight: 1.4, cursor: "pointer", marginBottom: 10 }}>
-          <span style={{ fontSize: 10, color: SKY, fontWeight: 800, letterSpacing: "0.12em", display: "block", marginBottom: 2 }}>✨ ONE AI SUGGESTION</span>
-          {t.res.suggestion}
-        </button>
-      )}
-
-      {cands.length > 0 && (
-        <details style={{ marginBottom: 8 }}>
-          <summary style={{ ...subhead, cursor: "pointer" }}>{view === "all" ? "Raw words, every stamp" : "Raw words for this slide"} · {cands.length}</summary>
-          <div className="flex flex-col" style={{ gap: 4, marginTop: 6 }}>
-            {view === "all"
-              ? groups.map((g) => (
-                <div key={g.key}>
-                  <div style={{ ...subhead, marginBottom: 3 }}>{g.label}</div>
-                  <div className="flex flex-col" style={{ gap: 4, marginBottom: 6 }}>{g.candidates.map(wordLine)}</div>
-                </div>
-              ))
-              : cands.map(wordLine)}
-          </div>
-        </details>
-      )}
-
-      {view === "slide" && (
-        <form className="flex" style={{ gap: 4 }} onSubmit={(e) => { e.preventDefault(); keepOn(frame, typed); setTyped(""); }}>
-          <input style={{ ...field, padding: "5px 8px", fontSize: 12.5 }} value={typed} placeholder="type a line…" onChange={(e) => setTyped(e.target.value)} />
-          <button type="submit" style={chip(false)} disabled={!typed.trim()}>add</button>
-        </form>
-      )}
-    </section>
-  );
-}

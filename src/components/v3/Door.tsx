@@ -7,7 +7,8 @@
 //
 // Shared by "What are you making?" (Blast Off · Practice · Review) and "Which
 // step are you on?" (Talkthrough · Review · Film · Post — four since 2026-09-05, when
-// Arrange folded into Review; see StepBar.tsx).
+// Arrange folded into Review; see StepBar.tsx). 2026-09-07: those four read Brainstorm ·
+// Editor · Rehearse & Film · Cross-post now, and a fifth door, Improve Process, joined them.
 import { Link } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties } from "react";

@@ -31,8 +31,9 @@ export function StageChip({ info, align = "right", minWidth = 96 }: { info: Stag
   );
 }
 
-/** "Film", "Review", … — the step's own label from StepBar, so the resume button and the step
- *  bar never disagree on what a step is called. */
+/** "Rehearse & Film", "Editor", … — the step's own label from StepBar, so the resume button and
+ *  the step bar never disagree on what a step is called (2026-09-07: which is how the rename
+ *  reached the resume button without a change here). */
 export function stepLabel(step: StageInfo["next"]): string {
   return STEPS.find((s) => s.step === step)?.label ?? step;
 }

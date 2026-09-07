@@ -19,6 +19,12 @@
 //
 // Pure: no React, no network. The Talkthrough reader (talkStageOf) is the only non-trivial
 // dependency and it reads the local-first store, same as the queue did.
+//
+// 2026-09-07: the steps were renamed (Brainstorm · Editor · Rehearse & Film · Cross-post, plus
+// Step 5 Improve Process) — labels only; `next` still speaks the step ids, and the resume
+// button reads its word from StepBar.tsx STEPS (StageChip.tsx stepLabel), so "→ Review" became
+// "→ Editor" without a change here. No stage resumes at "improve" yet: nothing is measured
+// there until the page is more than a stub.
 import { listSessions, type TalkSession } from "@/components/canvas/talkthrough";
 import { reviewStateOf } from "@/components/canvas/talkthrough-review";
 import type { TTState } from "@/components/canvas/talkthrough-sync";
@@ -35,7 +41,7 @@ export interface StageInfo {
   stage: SetStage;
   label: string;
   color: string;
-  /** The step to resume at — the primary button on a queue row. */
+  /** The step to resume at — the primary button on a queue row. (Never "improve" today — see the header.) */
   next: NumberedStep;
 }
 

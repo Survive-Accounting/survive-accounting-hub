@@ -7,6 +7,9 @@
 // step menu. This is Step 3 of four in its own right since 2026-09-05 (StepBar.tsx);
 // the canvas's own film surface (bolt cursor, spotlight, pin) is reached only from the
 // old, non-V3 /blast-off route now — nothing in V3 points there.
+// 2026-09-07: named REHEARSE & FILM (Lee: "Rehearse & Film, because I want teleprompter to live
+// here, during review the lines") — the rounds, the rehearsal review and the prompter pop-out
+// all live in BlastOffCapture; the Editor step shows no lines any more. URL still /film.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { AdminGate } from "@/components/AdminGate";
@@ -23,7 +26,7 @@ export const Route = createFileRoute("/v3/$topic/$set/blast-off/film")({
     ...(s.popout === 1 || s.popout === "1" || s.popout === true ? { popout: 1 as const } : {}),
   }),
   component: () => <AdminGate><V3Film /></AdminGate>,
-  head: () => ({ meta: [{ title: "🎬 Film — Blast Off" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "🎬 Rehearse & Film — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
 
 function V3Film() {
@@ -41,7 +44,7 @@ function V3Film() {
     { label: topic?.name ?? topicKey, to: `/v3/${topicKey}` },
     { label: set?.name ?? setKey, to: `/v3/${topicKey}/${setKey}` },
     { label: "Blast Off", to: `/v3/${topicKey}/${setKey}/blast-off` },
-    { label: "Film" },
+    { label: "Rehearse & Film" },
   ];
   return (
     <V3Shell crumbs={crumbs}>

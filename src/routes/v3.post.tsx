@@ -17,6 +17,9 @@
 // posted/filmed flags), the list filters and sorts so what is READY TO POST — filmed, not fully
 // posted — is what you see first, and "Open set →" became "→ {next step}": the row sends you
 // where the set actually stands, not to its front door.
+//
+// 2026-09-07: named CROSS-POST (Lee: "#4 Cross-post") — the title, crumb and h1 below; the URL
+// stays /v3/post and the step id stays "post".
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 
@@ -37,7 +40,7 @@ import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
 
 export const Route = createFileRoute("/v3/post")({
   component: () => <AdminGate><PostQueue /></AdminGate>,
-  head: () => ({ meta: [{ title: "📮 Post — Blast Off" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "📮 Cross-post — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
 
 const DEST_LABEL: Record<PublishDestination, string> = {
@@ -168,8 +171,8 @@ function PostQueue() {
   };
 
   return (
-    <V3Shell crumbs={[{ label: "V3", to: "/v3" }, { label: "Post" }]} wide>
-      <h1 style={{ fontFamily: V3_DISPLAY, fontSize: 30, fontWeight: 900, letterSpacing: "-0.01em", margin: "0 0 6px" }}>📮 Post</h1>
+    <V3Shell crumbs={[{ label: "V3", to: "/v3" }, { label: "Cross-post" }]} wide>
+      <h1 style={{ fontFamily: V3_DISPLAY, fontSize: 30, fontWeight: 900, letterSpacing: "-0.01em", margin: "0 0 6px" }}>📮 Cross-post</h1>
       <div style={{ color: V3_MUTED, fontSize: 13, marginBottom: 20, maxWidth: 640, lineHeight: 1.5 }}>
         Every set, one queue — what's filmed and waiting comes first. Click a destination once it's actually posted — nothing here uploads for you, YouTube, Instagram and TikTok all stay a human act for now — this just tracks what's left.
       </div>

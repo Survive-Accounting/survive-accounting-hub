@@ -1,4 +1,5 @@
-// /v3/$topic/$set/blast-off/results — STEP 2. Review.
+// /v3/$topic/$set/blast-off/results — STEP 2. Review — named EDITOR since 2026-09-07 (Lee: "I
+// think Review should be named Editor"); the URL segment stays "results".
 //
 // Lee (2026-09-03): "Talkthrough is just talking. Review is seeing the filming
 // draft as it stands and adding new slides, editing current ones, removing,
@@ -9,6 +10,8 @@
 // column of his own words. The AI board — transcript, script, CEQ edits,
 // ideas — is still here, folded underneath; an idea's "＋ slide" drops it
 // onto the draft after the selected slide.
+// 2026-09-07: no teleprompter on the Editor — lines are made on Rehearse & Film (rounds + the
+// rehearsal review). The right column is two side-by-side buttons, Editor | Illustrator.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -29,7 +32,7 @@ export const Route = createFileRoute("/v3/$topic/$set/blast-off/results")({
   // slide in Review →" — Lee: "link straight to slide in review"). Absent → the first slide.
   validateSearch: (s: Record<string, unknown>): { frame?: string } => (typeof s.frame === "string" && s.frame ? { frame: s.frame } : {}),
   component: () => <AdminGate><V3Results /></AdminGate>,
-  head: () => ({ meta: [{ title: "✨ Review — Blast Off" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "✨ Editor — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
 
 function V3Results() {
@@ -76,7 +79,7 @@ function V3Results() {
     { label: topic?.name ?? topicKey, to: `/v3/${topicKey}` },
     { label: set?.name ?? setKey, to: `/v3/${topicKey}/${setKey}` },
     { label: "Blast Off", to: `/v3/${topicKey}/${setKey}/blast-off` },
-    { label: "Review" },
+    { label: "Editor" },
   ];
 
   return (
@@ -89,7 +92,7 @@ function V3Results() {
         <>
           <StepBar topic={topic} set={set} active="results" />
 
-          <ReviewDeck set={set} topic={topic} doc={tt.doc} register={register} initialSelectedId={frameParam ?? null} />
+          <ReviewDeck set={set} topic={topic} register={register} initialSelectedId={frameParam ?? null} />
 
           <details style={{ marginTop: 22, border: `1px solid ${V3_EDGE}`, borderRadius: 12, padding: "8px 14px" }}>
             <summary style={{ cursor: "pointer", fontSize: 11, letterSpacing: "0.2em", color: V3_GOLD, textTransform: "uppercase", fontWeight: 800 }}>

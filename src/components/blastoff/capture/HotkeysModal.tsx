@@ -17,7 +17,8 @@ export const HOTKEY_GROUPS: readonly Group[] = [
   { title: "Walking", keys: [
     ["space", "next slide (while rehearsing: also starts an armed round, and finishes it on the last slide)"],
     ["shift + space", "back a slide"],
-    ["esc", "exit Film (closes the review or this card first when one is up)"],
+    // "Rehearse & Film" — the step's name since 2026-09-07 (StepBar.tsx); the page is the same.
+    ["esc", "exit Rehearse & Film (closes the rehearsal review or this card first when one is up)"],
   ] },
   { title: "Camera", keys: [
     ["B", "cycle the camera: home → corner → hero → top → off (until the next slide)"],

@@ -17,6 +17,16 @@
 // just never its own door — see the old "arrange"'s "Capture in-page →"
 // link, now redundant since Film is a step click away). Post got its page
 // 2026-09-06 (/v3/post — a cross-set queue, not nested under a topic/set).
+//
+// RENAMED, AND A FIFTH (Lee, 2026-09-07): "I think Review should be named Editor.
+// Talkthrough should be brainstorm. Rehearse & Film, because I want teleprompter to
+// live here, during review the lines. #4 Cross-post" — and "I'd love a Step 5:
+// Improve Process." Labels only: the step ids and the URL segments (talkthrough ·
+// results · film · post) are unchanged, so bookmarks, the timer's path detection
+// (lib/production-time.ts) and the deployed routes all still resolve. The fifth step
+// nests under the set like the others (/blast-off/improve) and isn't timed.
+// 2026-09-07: no teleprompter on the Editor — lines are made on Rehearse & Film
+// (rounds + the rehearsal review).
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
@@ -24,19 +34,26 @@ import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
 import { blastOffPath, type BlastOffStep } from "./use-bank";
 import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "./Shell";
 
-/** The four numbered steps — the BlastOffStep vocabulary minus "arrange", which keeps its URL
- *  (a redirect into Review) but has had no door since 2026-09-05. */
+/** The numbered steps — the BlastOffStep vocabulary minus "arrange", which keeps its URL
+ *  (a redirect into the Editor) but has had no door since 2026-09-05. Five since 2026-09-07. */
 export type NumberedStep = Exclude<BlastOffStep, "arrange">;
 
 export const STEPS: readonly { step: NumberedStep; n: number; label: string; blurb: string; soon?: boolean }[] = [
-  { step: "talkthrough", n: 1, label: "Talkthrough", blurb: "Talk through the set — or an exhibit — and stamp out ideas." },
+  // 2026-09-07: "Talkthrough" → "Brainstorm" (id and URL still talkthrough).
+  { step: "talkthrough", n: 1, label: "Brainstorm", blurb: "Talk the set through out loud — or an exhibit — and stamp what's worth keeping." },
   // Lee (2026-09-03): "Review is seeing the filming draft as it stands …
   // getting it SOLID before I do the film run." The AI board folds under it.
-  { step: "results", n: 2, label: "Review", blurb: "The film draft: see the slides, edit, add, skip, rearrange, drop in what you've banked — your own words beside each one. The AI board folds underneath." },
-  { step: "film", n: 3, label: "Film", blurb: "Capture — one frame at a time, spacebar forward, nothing else in the shot." },
+  // 2026-09-07: "Review" → "Editor" (id and URL still results); the teleprompter left this step.
+  { step: "results", n: 2, label: "Editor", blurb: "The film draft: order and skip slides, fix the cards, drop in callouts, pictures, camera. The AI board folds underneath." },
+  // 2026-09-07: "Film" → "Rehearse & Film" — "I want teleprompter to live here, during review the lines."
+  { step: "film", n: 3, label: "Rehearse & Film", blurb: "Rounds with the teleprompter, then the take — one frame at a time, nothing else in the shot." },
   // Post got its own page 2026-09-06 — a cross-set queue at /v3/post (blastOffPath special-cases
   // this step to point there instead of nesting under the current topic/set).
-  { step: "post", n: 4, label: "Post", blurb: "Queue up what's filmed across every topic and set, process it, publish it." },
+  // 2026-09-07: "Post" → "Cross-post" (id and URL still post).
+  { step: "post", n: 4, label: "Cross-post", blurb: "Captions, exports, every destination — queued across every topic and set." },
+  // STEP 5 (Lee, 2026-09-07: "I'd love a Step 5: Improve Process."). A real door to a real page
+  // (/blast-off/improve — components/v3/improve/ImprovePage.tsx); not timed (production-time.ts).
+  { step: "improve", n: 5, label: "Improve Process", blurb: "Time to beat, where the minutes went, what to change next set." },
 ];
 
 export function StepBar({ topic, set, active, right }: {

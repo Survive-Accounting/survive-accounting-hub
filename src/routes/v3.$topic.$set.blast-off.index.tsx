@@ -15,10 +15,15 @@
 //                 this door there); until then it rendered as Door's own
 //                 "soon" state, not a broken link.
 //
+// RENAMED, PLUS A FIFTH DOOR (Lee, 2026-09-07): Brainstorm · Editor · Rehearse & Film ·
+// Cross-post · Improve Process — StepBar.tsx STEPS is the one list; the ids and URLs above
+// are unchanged. IMPROVE (/blast-off/improve, nested under the set) is "Step 5: Improve
+// Process" — time to beat, where the minutes went, what to change next set.
+//
 // Every step is its own URL so browser back works and a step can be linked to.
 // Nothing here loads the canvas; it is a menu.
 import { createFileRoute } from "@tanstack/react-router";
-import { Clapperboard, Mic, Send, Wand2 } from "lucide-react";
+import { Clapperboard, Mic, Send, TrendingUp, Wand2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -36,9 +41,10 @@ export const Route = createFileRoute("/v3/$topic/$set/blast-off/")({
   head: () => ({ meta: [{ title: "⚡ Survive — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
 
-// Icons for the four numbered steps only — "arrange" (still in the BlastOffStep vocabulary as a
-// redirect into Review) has had no door since 2026-09-05, so it gets no icon.
-const STEP_ICON: Record<NumberedStep, LucideIcon> = { talkthrough: Mic, results: Wand2, film: Clapperboard, post: Send };
+// Icons for the numbered steps only — "arrange" (still in the BlastOffStep vocabulary as a
+// redirect into Review) has had no door since 2026-09-05, so it gets no icon. Five since
+// 2026-09-07 (improve).
+const STEP_ICON: Record<NumberedStep, LucideIcon> = { talkthrough: Mic, results: Wand2, film: Clapperboard, post: Send, improve: TrendingUp };
 
 function V3BlastOff() {
   const { topic: topicKey, set: setKey } = Route.useParams();
@@ -70,8 +76,8 @@ function V3BlastOff() {
             Which step are you on?
           </h2>
 
-          {/* The same steps the StepBar shows on every step screen (four since 2026-09-05) —
-              one list, so the doors and the bar can never disagree. */}
+          {/* The same steps the StepBar shows on every step screen (four since 2026-09-05, five
+              since 2026-09-07) — one list, so the doors and the bar can never disagree. */}
           <div className="flex flex-wrap gap-3">
             {STEPS.map((s) => (
               <Door
@@ -119,7 +125,7 @@ function FilmPreflight({ set, topic }: { set: BoothSetInfo; topic: BoothTopic })
     <div style={{ marginTop: 26, padding: "14px 18px", border: `1px solid ${V3_EDGE}`, borderRadius: 12 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
         <span style={{ fontFamily: V3_DISPLAY, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: V3_GOLD }}>Before you film</span>
-        <span style={{ fontSize: 12, color: V3_MUTED, marginLeft: "auto" }}>🎙 Rehearse lives on Film itself now — press R once you're there.</span>
+        <span style={{ fontSize: 12, color: V3_MUTED, marginLeft: "auto" }}>🎙 Rehearsal lives on Rehearse &amp; Film — press R once you're there.</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(76px, 1fr))", gap: 10 }}>
         {stat("Slides", counts.total)}
