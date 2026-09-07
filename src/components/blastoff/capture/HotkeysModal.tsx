@@ -20,7 +20,7 @@ export const HOTKEY_GROUPS: readonly Group[] = [
     ["esc", "exit Film (closes the review or this card first when one is up)"],
   ] },
   { title: "Camera", keys: [
-    ["B", "cycle the camera: home → corner → hero → off (until the next slide)"],
+    ["B", "cycle the camera: home → corner → hero → top → off (until the next slide)"],
     ["wheel", "zoom the slide"],
     ["O", "pull back"],
     ["0", "reset the zoom"],
