@@ -23,7 +23,7 @@ import { APPLY_COPY, PENDING_COPY, type StudentStatus, type TookCourse } from "@
 import { LEVEL_1_ROWS, LEVEL_1_TITLE, CHAPTER_BONUS_GATE, DURATION_RULE } from "@/lib/rep-copy";
 import { formatUsPhoneInput } from "@/lib/rep-shared";
 import { nbspCode } from "@/lib/course-code";
-import { parseTestParams, readTestSession } from "@/lib/test-mode";
+import { parseTestParams, readTestSession, testerRepPhone } from "@/lib/test-mode";
 
 export const FIELD: React.CSSProperties = {
   width: "100%", minHeight: 50, borderRadius: 12, padding: "0 14px",
@@ -59,12 +59,16 @@ type Stage = "form" | "verify" | "pending" | "existing" | "closed";
 
 export function RepApply({ campusKey }: { campusKey: string | null }) {
   const nav = useNavigate();
+  // Test rep if a test session is active OR the tester URL (?testmode=1) is present — read
+  // synchronously so the very first submit is already test-marked.
+  const isTest = useMemo(() => typeof window !== "undefined" && (!!readTestSession() || !!parseTestParams(window.location.search)), []);
   const [campusPick, setCampusPick] = useState<string | null>(campusKey);
   const [campus, setCampus] = useState<JoinCampus | null>(null);
   const [campusErr, setCampusErr] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  // A tester's phone is minted for them (a 555 number, kept for the run) — one less thing to invent.
+  const [phone, setPhone] = useState(() => (isTest ? formatUsPhoneInput(testerRepPhone()) : ""));
   const [studentStatus, setStudentStatus] = useState<StudentStatus | null>(null);
   const [major, setMajor] = useState("");
   const [tookCourse, setTookCourse] = useState<TookCourse | null>(null);
@@ -78,8 +82,6 @@ export function RepApply({ campusKey }: { campusKey: string | null }) {
   const [code, setCode] = useState("");
   const [testHint, setTestHint] = useState(false);
   const [resent, setResent] = useState(false);
-
-  const isTest = useMemo(() => typeof window !== "undefined" && (!!readTestSession() || !!parseTestParams(window.location.search)), []);
 
   // The campus loads the moment we know it — from the URL or the picker — and everything
   // campus-specific (course code, Greek list, name in the copy) fills in.
@@ -224,7 +226,11 @@ export function RepApply({ campusKey }: { campusKey: string | null }) {
           </section>
 
           <div className="mt-6 rounded-2xl p-5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
-            {isTest && <p className="mb-3 rounded-lg px-3 py-2 text-[12.5px] font-bold" style={{ background: "rgba(122,46,18,0.18)", border: "1px solid #C2571F", color: "#FFC9A3" }}>Test Mode — this creates a test rep, excluded from real totals.</p>}
+            {isTest && (
+              <p className="mb-3 rounded-lg px-3 py-2 text-[12.5px] font-bold" style={{ background: "rgba(122,46,18,0.18)", border: "1px solid #C2571F", color: "#FFC9A3" }}>
+                Test Mode — this creates a test rep, excluded from real totals. Your tester phone is already filled in; the code on the next screen is <b>000000</b>. Nothing here texts anyone.
+              </p>
+            )}
             <div className="grid gap-4">
               <div>
                 <label style={LABEL}>Your campus</label>

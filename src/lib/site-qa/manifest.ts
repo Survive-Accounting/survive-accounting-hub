@@ -630,6 +630,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "admin.reps_.onboarding-videos.tsx": "internal (noindex) — upload / paste the four rep onboarding shorts, beta-mode switch",
   "admin.illustrations.tsx": "internal (noindex) — the illustration bank: every generated picture across every set, off-style / stale / current, bulk regenerate one at a time (costs money)",
   "admin.illustrations_.styles.tsx": "internal (noindex) — the illustration style editor: the DB-backed style registry (versions, palette, suffix, BRIEF_SYSTEM) and the test panel that previews a draft on the phone stage (costs money)",
+  "rep_.test.tsx": "redirect — the one-link tester entry for the rep flow (arms Test Mode, lands on the test campus apply page)",
   "api.og.$school.$chapter.tsx": "generated image endpoint",
   "api.stripe.webhook.tsx": "webhook endpoint",
 };

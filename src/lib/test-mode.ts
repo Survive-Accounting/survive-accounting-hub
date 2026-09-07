@@ -29,7 +29,20 @@ export type TestSession = {
   startedAt: string;
   /** Step index the tester has reached, so a reload does not lose their place. */
   step: number;
+  /** THE TESTER'S REP PHONE (2026-09-07): a 555 number minted once per run, pre-filled on the
+   *  rep apply form and named in the run sheet, so nobody has to invent one. */
+  repPhone?: string;
 };
+
+/** The rep flow's tester phone for this session — minted on first ask, kept for the run. A 555
+ *  number is unroutable, so a test rep can never collide with a real person's phone. */
+export function testerRepPhone(): string {
+  const s = readTestSession();
+  if (s?.repPhone) return s.repPhone;
+  const phone = `555000${String(Math.floor(1000 + Math.random() * 9000))}`;
+  if (s) writeTestSession({ ...s, repPhone: phone });
+  return phone;
+}
 
 /** Parse the tester URL: ?feedback=1&t=Lee&email=lee@…&testmode=1
  *  Every flag is required; a partial URL is not test mode. */
@@ -108,7 +121,7 @@ export const TEST_CHAPTER_URL = `/go/${TEST_CAMPUS_SLUG}/${TEST_CHAPTER_SLUG}`;
 export type TestStep = {
   id: string;
   /** What the tester is playing at this point — the same words the product uses. */
-  role: "Student" | "Member" | "Exec" | "Admin";
+  role: "Student" | "Member" | "Exec" | "Admin" | "Applicant" | "Lee";
   title: string;
   /** What to do, in one instruction. */
   todo: string;
@@ -117,6 +130,73 @@ export type TestStep = {
   /** Where to do it. Filled with the fixture URLs. */
   href?: string;
 };
+
+export const TEST_REP_JOIN_URL = `/rep/join/${TEST_CAMPUS_SLUG}`;
+
+/** REP LIFECYCLE (2026-09-07) — the run sheet the Test Mode bar shows on every /rep page: apply,
+ *  onboard, then play Lee with the links. Every value a tester has to type is named here, so the
+ *  instructions on screen are the instructions. The tester phone is pre-filled on the form. */
+export const REP_LIFECYCLE: TestStep[] = [
+  {
+    id: "rep-apply",
+    role: "Applicant",
+    title: "Apply as a rep",
+    todo: "Open the apply page. Your tester phone is already filled in — put anything real-looking in the rest and tap Apply.",
+    expect: "The page says Represent Survive at Test U, and after Apply you land on Verify your number.",
+    href: TEST_REP_JOIN_URL,
+  },
+  {
+    id: "rep-code",
+    role: "Applicant",
+    title: "Enter the code 000000",
+    todo: "Type 000000 as the code (no text is sent to a test phone).",
+    expect: "\"Your application is pending\" with a Start the onboarding button.",
+  },
+  {
+    id: "rep-onboarding",
+    role: "Applicant",
+    title: "Do the six onboarding steps",
+    todo: "Go through all six. Somewhere in the middle, close the tab and reopen /rep/onboarding.",
+    expect: "It resumes at the step you left. Step 4 shows both pay tables; step 5 has More info; step 6 lists the Test chapter.",
+    href: "/rep/onboarding",
+  },
+  {
+    id: "rep-submit",
+    role: "Applicant",
+    title: "Send it to Lee",
+    todo: "Skip the résumé (or attach any file) and tap Send to Lee.",
+    expect: "The screen shows the text Lee would get — your answers, then an Invite to a call link and a Deny link.",
+  },
+  {
+    id: "rep-invite",
+    role: "Lee",
+    title: "Invite to a call",
+    todo: "Tap Invite to a call, then Send the call text.",
+    expect: "The applicant's \"read your application and I like it\" text appears, with Approve and Deny links under it. Test reps never text a real phone.",
+  },
+  {
+    id: "rep-approve",
+    role: "Lee",
+    title: "Approve",
+    todo: "Tap Approve, then Approve — text them.",
+    expect: "Rep #900-something, the Test chapter assigned, and the approval text shown on screen.",
+  },
+  {
+    id: "rep-dashboard",
+    role: "Applicant",
+    title: "Open the dashboard",
+    todo: "Open /rep/dashboard. Then tap the old Deny link from step 4.",
+    expect: "The workspace shows the Test chapter with Copy DM and a Screenshot button; the old Deny link says already decided.",
+    href: "/rep/dashboard",
+  },
+  {
+    id: "rep-beta",
+    role: "Applicant",
+    title: "Send a beta note",
+    todo: "On any screen, tap \"what was confusing here?\", write one line, Send.",
+    expect: "It says Sent. (Suppressed for test reps; a real applicant's note texts Lee.)",
+  },
+];
 
 /** GREEK LIFECYCLE — the first run Lee asked for: claim a chapter page, get into the dashboard,
  *  pull the share materials. Ordered exactly as a real chapter would live it. */

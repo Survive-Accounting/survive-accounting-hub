@@ -13,10 +13,11 @@
 // TWO LOCKS. This renders only when the URL/session says test mode AND the server confirms
 // TEST_MODE_ENABLED. Without the server's yes it renders nothing at all.
 import { useEffect, useState } from "react";
+import { useRouterState } from "@tanstack/react-router";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import {
-  GREEK_LIFECYCLE, TEST_CAMPUS_URL, TEST_CHAPTER_URL, parseTestParams, readTestSession,
+  GREEK_LIFECYCLE, REP_LIFECYCLE, TEST_CAMPUS_URL, TEST_CHAPTER_URL, parseTestParams, readTestSession,
   restartTestRun, startTestSession, writeTestSession, type TestSession,
 } from "@/lib/test-mode";
 import {
@@ -26,6 +27,10 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 
 export function TestModeBar() {
+  // WHICH RUN SHEET (2026-09-07): the rep flow gets its own script on every /rep page; everything
+  // else keeps the Greek chapter lifecycle. Same bar, same step counter.
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const lifecycle = pathname.startsWith("/rep") ? REP_LIFECYCLE : GREEK_LIFECYCLE;
   const [session, setSession] = useState<TestSession | null>(null);
   const [serverOn, setServerOn] = useState<boolean | null>(null);
   const [open, setOpen] = useState(false);
@@ -107,8 +112,8 @@ export function TestModeBar() {
 
   if (!session || serverOn !== true) return null;
 
-  const step = Math.min(session.step, GREEK_LIFECYCLE.length - 1);
-  const cur = GREEK_LIFECYCLE[step];
+  const step = Math.min(session.step, lifecycle.length - 1);
+  const cur = lifecycle[step];
 
   // ── STEPS THAT KNOW WHETHER THEY HAPPENED ────────────────────────────────────────────────
   //
@@ -136,7 +141,7 @@ export function TestModeBar() {
     return { icon: i < step ? "✓" : String(i + 1), title: i < step ? "Marked done by hand" : "Not started" };
   };
   const setStep = (n: number) => {
-    const next = { ...session, step: Math.max(0, Math.min(n, GREEK_LIFECYCLE.length - 1)) };
+    const next = { ...session, step: Math.max(0, Math.min(n, lifecycle.length - 1)) };
     writeTestSession(next); setSession(next);
   };
 
@@ -159,7 +164,7 @@ export function TestModeBar() {
             .
           </span>
           <span className="ml-auto flex items-center gap-2">
-            <span className="text-[12px]" style={{ opacity: 0.8 }}>Run {session.run} · step {step + 1}/{GREEK_LIFECYCLE.length}</span>
+            <span className="text-[12px]" style={{ opacity: 0.8 }}>Run {session.run} · step {step + 1}/{lifecycle.length}</span>
             <button
               type="button" onClick={() => setOpen((v) => !v)}
               className="rounded-lg px-2.5 text-[12.5px] font-black"
@@ -180,7 +185,7 @@ export function TestModeBar() {
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[16px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream, #F7F0E6)" }}>Greek chapter lifecycle</p>
+              <p className="text-[16px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream, #F7F0E6)" }}>{lifecycle === REP_LIFECYCLE ? "Rep flow — apply, onboard, play Lee" : "Greek chapter lifecycle"}</p>
               <p className="mt-0.5 text-[12.5px]" style={{ color: "var(--text-secondary, #AAB4C8)" }}>{session.name} · run {session.run}</p>
             </div>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-secondary, #AAB4C8)" }}>
@@ -207,7 +212,7 @@ export function TestModeBar() {
               <button type="button" onClick={() => setStep(step - 1)} disabled={step === 0} className="rounded-lg px-3 text-[13px] font-black disabled:opacity-40" style={{ minHeight: 40, background: "var(--bg-surface, #162443)", border: "1px solid var(--border-default, #34486D)", color: "var(--brand-cream, #F7F0E6)" }}>
                 Back
               </button>
-              <button type="button" onClick={() => setStep(step + 1)} disabled={step >= GREEK_LIFECYCLE.length - 1} className="rounded-lg px-3 text-[13px] font-black disabled:opacity-40" style={{ minHeight: 40, background: "var(--bg-surface, #162443)", border: "1px solid var(--border-default, #34486D)", color: "var(--brand-cream, #F7F0E6)" }}>
+              <button type="button" onClick={() => setStep(step + 1)} disabled={step >= lifecycle.length - 1} className="rounded-lg px-3 text-[13px] font-black disabled:opacity-40" style={{ minHeight: 40, background: "var(--bg-surface, #162443)", border: "1px solid var(--border-default, #34486D)", color: "var(--brand-cream, #F7F0E6)" }}>
                 Done · next
               </button>
             </div>
@@ -215,7 +220,7 @@ export function TestModeBar() {
 
           {/* The whole run, so a tester can see where they are and jump. */}
           <ol className="mt-3 grid gap-1">
-            {GREEK_LIFECYCLE.map((s, i) => (
+            {lifecycle.map((s, i) => (
               <li key={s.id}>
                 <button
                   type="button" onClick={() => setStep(i)}

@@ -60,6 +60,7 @@ import { Route as StudyFoundationsRouteImport } from './routes/study_.foundation
 import { Route as StudyDashboardRouteImport } from './routes/study_.dashboard'
 import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
 import { Route as ShippedSlugRouteImport } from './routes/shipped.$slug'
+import { Route as RepTestRouteImport } from './routes/rep_.test'
 import { Route as RepOnboardingRouteImport } from './routes/rep_.onboarding'
 import { Route as RepJoinRouteImport } from './routes/rep_.join'
 import { Route as RepDashboardRouteImport } from './routes/rep_.dashboard'
@@ -147,11 +148,11 @@ import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.com
 import { Route as ApiCronChapterReportsRouteImport } from './routes/api.cron.chapter-reports'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
 import { Route as AdminRepsOnboardingVideosRouteImport } from './routes/admin.reps_.onboarding-videos'
-import { Route as AdminIllustrationsStylesRouteImport } from './routes/admin.illustrations_.styles'
 import { Route as AdminRepsRosterRouteImport } from './routes/admin.reps.roster'
 import { Route as AdminRepsPartnersRouteImport } from './routes/admin.reps.partners'
 import { Route as AdminRepsLinksRouteImport } from './routes/admin.reps.links'
 import { Route as AdminRepsConversionsRouteImport } from './routes/admin.reps.conversions'
+import { Route as AdminIllustrationsStylesRouteImport } from './routes/admin.illustrations_.styles'
 import { Route as AdminIdeasStrategyRouteImport } from './routes/admin.ideas_.strategy'
 import { Route as AdminGrowthV3RouteImport } from './routes/admin.growth.v3'
 import { Route as AdminGrowthV2RouteImport } from './routes/admin.growth.v2'
@@ -445,6 +446,11 @@ const ShippedSlugRoute = ShippedSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => ShippedRoute,
+} as any)
+const RepTestRoute = RepTestRouteImport.update({
+  id: '/rep_/test',
+  path: '/rep/test',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const RepOnboardingRoute = RepOnboardingRouteImport.update({
   id: '/rep_/onboarding',
@@ -890,12 +896,6 @@ const AdminRepsOnboardingVideosRoute =
     path: '/admin/reps/onboarding-videos',
     getParentRoute: () => rootRouteImport,
   } as any)
-const AdminIllustrationsStylesRoute =
-  AdminIllustrationsStylesRouteImport.update({
-    id: '/admin/illustrations_/styles',
-    path: '/admin/illustrations/styles',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const AdminRepsRosterRoute = AdminRepsRosterRouteImport.update({
   id: '/roster',
   path: '/roster',
@@ -916,6 +916,12 @@ const AdminRepsConversionsRoute = AdminRepsConversionsRouteImport.update({
   path: '/conversions',
   getParentRoute: () => AdminRepsRoute,
 } as any)
+const AdminIllustrationsStylesRoute =
+  AdminIllustrationsStylesRouteImport.update({
+    id: '/admin/illustrations_/styles',
+    path: '/admin/illustrations/styles',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminIdeasStrategyRoute = AdminIdeasStrategyRouteImport.update({
   id: '/admin/ideas_/strategy',
   path: '/admin/ideas/strategy',
@@ -1215,6 +1221,7 @@ export interface FileRoutesByFullPath {
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
   '/rep/onboarding': typeof RepOnboardingRoute
+  '/rep/test': typeof RepTestRoute
   '/shipped/$slug': typeof ShippedSlugRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/dashboard': typeof StudyDashboardRoute
@@ -1244,12 +1251,12 @@ export interface FileRoutesByFullPath {
   '/admin/growth/v2': typeof AdminGrowthV2Route
   '/admin/growth/v3': typeof AdminGrowthV3Route
   '/admin/ideas/strategy': typeof AdminIdeasStrategyRoute
+  '/admin/illustrations/styles': typeof AdminIllustrationsStylesRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/admin/reps/onboarding-videos': typeof AdminRepsOnboardingVideosRoute
-  '/admin/illustrations/styles': typeof AdminIllustrationsStylesRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
@@ -1395,6 +1402,7 @@ export interface FileRoutesByTo {
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
   '/rep/onboarding': typeof RepOnboardingRoute
+  '/rep/test': typeof RepTestRoute
   '/shipped/$slug': typeof ShippedSlugRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/dashboard': typeof StudyDashboardRoute
@@ -1423,12 +1431,12 @@ export interface FileRoutesByTo {
   '/admin/growth/v2': typeof AdminGrowthV2Route
   '/admin/growth/v3': typeof AdminGrowthV3Route
   '/admin/ideas/strategy': typeof AdminIdeasStrategyRoute
+  '/admin/illustrations/styles': typeof AdminIllustrationsStylesRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/admin/reps/onboarding-videos': typeof AdminRepsOnboardingVideosRoute
-  '/admin/illustrations/styles': typeof AdminIllustrationsStylesRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
@@ -1578,6 +1586,7 @@ export interface FileRoutesById {
   '/rep_/dashboard': typeof RepDashboardRoute
   '/rep_/join': typeof RepJoinRoute
   '/rep_/onboarding': typeof RepOnboardingRoute
+  '/rep_/test': typeof RepTestRoute
   '/shipped/$slug': typeof ShippedSlugRoute
   '/study_/canvas': typeof StudyCanvasRoute
   '/study_/dashboard': typeof StudyDashboardRoute
@@ -1607,12 +1616,12 @@ export interface FileRoutesById {
   '/admin/growth/v2': typeof AdminGrowthV2Route
   '/admin/growth/v3': typeof AdminGrowthV3Route
   '/admin/ideas_/strategy': typeof AdminIdeasStrategyRoute
+  '/admin/illustrations_/styles': typeof AdminIllustrationsStylesRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/admin/reps_/onboarding-videos': typeof AdminRepsOnboardingVideosRoute
-  '/admin/illustrations_/styles': typeof AdminIllustrationsStylesRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
@@ -1763,6 +1772,7 @@ export interface FileRouteTypes {
     | '/rep/dashboard'
     | '/rep/join'
     | '/rep/onboarding'
+    | '/rep/test'
     | '/shipped/$slug'
     | '/study/canvas'
     | '/study/dashboard'
@@ -1792,12 +1802,12 @@ export interface FileRouteTypes {
     | '/admin/growth/v2'
     | '/admin/growth/v3'
     | '/admin/ideas/strategy'
+    | '/admin/illustrations/styles'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
     | '/admin/reps/roster'
     | '/admin/reps/onboarding-videos'
-    | '/admin/illustrations/styles'
     | '/api/cron/backup'
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
@@ -1943,6 +1953,7 @@ export interface FileRouteTypes {
     | '/rep/dashboard'
     | '/rep/join'
     | '/rep/onboarding'
+    | '/rep/test'
     | '/shipped/$slug'
     | '/study/canvas'
     | '/study/dashboard'
@@ -1971,12 +1982,12 @@ export interface FileRouteTypes {
     | '/admin/growth/v2'
     | '/admin/growth/v3'
     | '/admin/ideas/strategy'
+    | '/admin/illustrations/styles'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
     | '/admin/reps/roster'
     | '/admin/reps/onboarding-videos'
-    | '/admin/illustrations/styles'
     | '/api/cron/backup'
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
@@ -2125,6 +2136,7 @@ export interface FileRouteTypes {
     | '/rep_/dashboard'
     | '/rep_/join'
     | '/rep_/onboarding'
+    | '/rep_/test'
     | '/shipped/$slug'
     | '/study_/canvas'
     | '/study_/dashboard'
@@ -2154,12 +2166,12 @@ export interface FileRouteTypes {
     | '/admin/growth/v2'
     | '/admin/growth/v3'
     | '/admin/ideas_/strategy'
+    | '/admin/illustrations_/styles'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
     | '/admin/reps/roster'
     | '/admin/reps_/onboarding-videos'
-    | '/admin/illustrations_/styles'
     | '/api/cron/backup'
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
@@ -2280,6 +2292,7 @@ export interface RootRouteChildren {
   RepDashboardRoute: typeof RepDashboardRoute
   RepJoinRoute: typeof RepJoinRoute
   RepOnboardingRoute: typeof RepOnboardingRoute
+  RepTestRoute: typeof RepTestRoute
   StudyCanvasRoute: typeof StudyCanvasRoute
   StudyDashboardRoute: typeof StudyDashboardRoute
   StudyFoundationsRoute: typeof StudyFoundationsRoute
@@ -2292,8 +2305,8 @@ export interface RootRouteChildren {
   UIndexRoute: typeof UIndexRoute
   V3IndexRoute: typeof V3IndexRoute
   AdminIdeasStrategyRoute: typeof AdminIdeasStrategyRoute
-  AdminRepsOnboardingVideosRoute: typeof AdminRepsOnboardingVideosRoute
   AdminIllustrationsStylesRoute: typeof AdminIllustrationsStylesRoute
+  AdminRepsOnboardingVideosRoute: typeof AdminRepsOnboardingVideosRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
   ApiCronChapterReportsRoute: typeof ApiCronChapterReportsRoute
   ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
@@ -2689,6 +2702,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/shipped/$slug'
       preLoaderRoute: typeof ShippedSlugRouteImport
       parentRoute: typeof ShippedRoute
+    }
+    '/rep_/test': {
+      id: '/rep_/test'
+      path: '/rep/test'
+      fullPath: '/rep/test'
+      preLoaderRoute: typeof RepTestRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/rep_/onboarding': {
       id: '/rep_/onboarding'
@@ -3299,13 +3319,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRepsOnboardingVideosRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/illustrations_/styles': {
-      id: '/admin/illustrations_/styles'
-      path: '/admin/illustrations/styles'
-      fullPath: '/admin/illustrations/styles'
-      preLoaderRoute: typeof AdminIllustrationsStylesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/admin/reps/roster': {
       id: '/admin/reps/roster'
       path: '/roster'
@@ -3333,6 +3346,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/reps/conversions'
       preLoaderRoute: typeof AdminRepsConversionsRouteImport
       parentRoute: typeof AdminRepsRoute
+    }
+    '/admin/illustrations_/styles': {
+      id: '/admin/illustrations_/styles'
+      path: '/admin/illustrations/styles'
+      fullPath: '/admin/illustrations/styles'
+      preLoaderRoute: typeof AdminIllustrationsStylesRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/ideas_/strategy': {
       id: '/admin/ideas_/strategy'
@@ -3890,6 +3910,7 @@ const rootRouteChildren: RootRouteChildren = {
   RepDashboardRoute: RepDashboardRoute,
   RepJoinRoute: RepJoinRoute,
   RepOnboardingRoute: RepOnboardingRoute,
+  RepTestRoute: RepTestRoute,
   StudyCanvasRoute: StudyCanvasRoute,
   StudyDashboardRoute: StudyDashboardRoute,
   StudyFoundationsRoute: StudyFoundationsRoute,
@@ -3902,8 +3923,8 @@ const rootRouteChildren: RootRouteChildren = {
   UIndexRoute: UIndexRoute,
   V3IndexRoute: V3IndexRoute,
   AdminIdeasStrategyRoute: AdminIdeasStrategyRoute,
-  AdminRepsOnboardingVideosRoute: AdminRepsOnboardingVideosRoute,
   AdminIllustrationsStylesRoute: AdminIllustrationsStylesRoute,
+  AdminRepsOnboardingVideosRoute: AdminRepsOnboardingVideosRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
   ApiCronChapterReportsRoute: ApiCronChapterReportsRoute,
   ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,
