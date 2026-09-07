@@ -61,6 +61,9 @@ export function cardPlacement(layout: SlideLayout, kind: BlastFrame["kind"]): Ca
 /** The camera's default spot and size in a layout (absent frame.cam). */
 export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spot: CamSpot; size?: number } {
   if (kind === "open" || kind === "outro" || kind === "bolt" || kind === "ad") return { spot: "off" };
+  // THE MAP (2026-09-07): the small corner circle in both templates — a field wants the camera
+  // out of the way (webcam-spots.defaultCamFor says the same).
+  if (kind === "cluster") return { spot: "corner" };
   // MEMORIZE THIS / DEEPER IDEA (Deep Question since 2026-09-06; kind "tip") / BIO (Lee, fast
   // track 2026-09-05: "enlarge the camera frame
   // … large enough to be viewable on a phone without blocking any text"). Bigger than every

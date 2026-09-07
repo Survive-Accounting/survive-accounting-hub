@@ -20,6 +20,7 @@ import { BoltZoom } from "@/components/brand-cards/BoltZoom";
 import { isZoomVariant } from "@/components/brand-cards/bolt-zoom";
 
 import { AdSlide } from "./AdSlide";
+import { ClusterFilmContext, ClusterStage, EmptyMap } from "./cluster/ClusterStage";
 import { LeePortrait } from "./LeePortrait";
 import { SetCard, type CardOverride } from "./SetCard";
 import { BIO_CARD, bioCallout } from "./bio-card";
@@ -79,6 +80,16 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   // the way a detour line gets its LineSpot — the outro can't read this context itself
   // (it sits under BlastOffNodes, which CeqPreviewer reaches: a runtime cycle).
   const spot = useContext(PreviewSpotContext);
+  // THE MAP's film state (2026-09-07): the shot being walked, the roam, the arrow overrides —
+  // provided by BlastOffCapture; absent everywhere else (the overview, everything revealed).
+  const film = useContext(ClusterFilmContext);
+
+  // THE MAP (2026-09-07, cluster/cluster-spec.ts): the whole 9:16 frame is the field; the film
+  // walks its shots with space. A frame with no spec yet is a bare black frame that says so.
+  if (frame.kind === "cluster") {
+    if (!frame.cluster) return <EmptyMap w={fw} />;
+    return <ClusterStage spec={frame.cluster} set={set} w={fw} live={live} shot={film?.shot ?? 0} overview={!film || !!film.overview} roam={film?.roam} arrowOverrides={film?.arrowOverrides} onArrowCycle={live ? film?.onArrowCycle : undefined} />;
+  }
 
   // THE STANDARD SPINE renders as the vertical 9:16 frame it actually is —
   // these are brand cards, not CEQ cards, and showing them in the silver card

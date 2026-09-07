@@ -26,6 +26,11 @@
 //
 // NOTHING PERSISTS. On /film a position is per take; the set has no field for
 // it (the canvas writes instance geometry — that is its surface, not this).
+//
+// THE MAP (2026-09-07): on a cluster frame the same gestures belong to the FIELD
+// (capture/field-roam.ts) — `target: "field"` makes this camera stand down there:
+// no wheel, no O / 0, no transform on the slide. The Alt latch stays (the field's
+// alt-drag reads the same class). Every other frame is `target: "card"`, as before.
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject, type WheelEvent as ReactWheelEvent } from "react";
 
 import type { CardOverride } from "../SetCard";
@@ -128,8 +133,9 @@ export function readCardBase(host: HTMLElement | null): number | null {
 }
 
 // ---- the hook --------------------------------------------------------------
-export function useCaptureCamera({ hostRef, frameId }: { hostRef: RefObject<HTMLDivElement | null>; frameId: string }): CaptureCamera {
+export function useCaptureCamera({ hostRef, frameId, target = "card" }: { hostRef: RefObject<HTMLDivElement | null>; frameId: string; target?: "card" | "field" }): CaptureCamera {
   const [zoom, setZoom] = useState(1);
+  const targetRef = useRef(target); targetRef.current = target;
   /** The zoom O will return to; null when not pulled back. */
   const [pulled, setPulled] = useState<number | null>(null);
   const [alt, setAlt] = useState(false);
@@ -152,6 +158,7 @@ export function useCaptureCamera({ hostRef, frameId }: { hostRef: RefObject<HTML
     // black surround are the camera.
     const t = e.target as Element | null;
     if (t !== host && !t?.closest?.("[data-sa-phone]")) return;
+    if (targetRef.current === "field") return; // the field roam has this wheel
     e.preventDefault();
     setPulled(null); // a wheel is a manual shot — O pulls back from here next
     setZoom((z) => wheelZoom(z, e.deltaY, e.deltaMode, e.ctrlKey || e.metaKey));
@@ -185,6 +192,7 @@ export function useCaptureCamera({ hostRef, frameId }: { hostRef: RefObject<HTML
       }
       if (e.altKey) { setAlt(true); return; }
       if (e.ctrlKey || e.metaKey) return;
+      if (targetRef.current === "field") return; // O and 0 are the field's on a map frame
       if (e.key === "o" || e.key === "O") {
         e.preventDefault();
         const next = togglePullBack(zoomRef.current, pulledRef.current);
@@ -265,11 +273,11 @@ export function useCaptureCamera({ hostRef, frameId }: { hostRef: RefObject<HTML
 
   // ---- what the caller applies ----
   const cur = slide.id === frameId ? slide : EMPTY_SLIDE;
-  const stageStyle = useMemo<CSSProperties>(() => ({
+  const stageStyle = useMemo<CSSProperties | undefined>(() => (target === "field" ? undefined : {
     transform: stageTransform(cur.tx, cur.ty, zoom),
     transformOrigin: "50% 50%",
     transition: dragging ? "none" : "transform 120ms ease-out",
-  }), [cur.tx, cur.ty, zoom, dragging]);
+  }), [cur.tx, cur.ty, zoom, dragging, target]);
   const cardOverride = useMemo<CardOverride | undefined>(
     () => (cur.cardW == null && cur.scaleMul == null ? undefined : { ...(cur.cardW == null ? {} : { cardW: cur.cardW }), ...(cur.scaleMul == null ? {} : { scaleMul: cur.scaleMul }) }),
     [cur.cardW, cur.scaleMul],

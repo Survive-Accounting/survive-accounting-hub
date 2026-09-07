@@ -41,6 +41,14 @@
 // capture/prompter-sync.ts; the countdown itself is capture/popout.ts. "A big part of my
 // teaching style that hits so hard is my TIMING for moving a slide at the perfect emphasis
 // moment" — seeing the next slide is what this buys him.
+//
+// THE MAP (2026-09-07, cluster/cluster-spec.ts). Lee: "see the entire cluster from birds eye
+// view in the frame, but we can go swim around for it in the capture window." On a cluster
+// frame the SHOTS are the spacebar: space walks the shot until the last, then the frame;
+// shift+space walks shots back, then the previous frame; the shot resets on a frame change.
+// The camera gestures act on the FIELD there (capture/field-roam.ts — wheel, alt-drag, 0, O),
+// the card camera stands down (`target: "field"`), the record carries the shot for the prompter,
+// and a click on A / L / E cycles its arrow for the take only (never written to the map).
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
@@ -58,6 +66,7 @@ import { BG, CREAM, EDGE, GOLD, MUTED, usePlan } from "./BlastOffEditor";
 import { cannedLinesFor, pickCannedLine, type CannedLine, type CannedSlot } from "./canned-lines";
 import { CaptureArrows } from "./capture/arrows";
 import { useCaptureCamera } from "./capture/camera";
+import { useFieldRoam } from "./capture/field-roam";
 import { HotkeysModal } from "./capture/HotkeysModal";
 import { countdownTone, useCapturePopout, useCountdown } from "./capture/popout";
 import { previewIndex, useCapturePrompterSyncFrame, usePopoutTake } from "./capture/prompter-sync";
@@ -65,6 +74,10 @@ import { fmtClock, historyLabel, initialRounds, opensReview, prompterEditable, r
 import { useTeleprompterPopout } from "./capture/teleprompter-popout";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf, type RailStatus } from "./layout";
+import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
+import { resolveCluster, type ArrowOverrides, type EqTerm } from "./cluster/cluster-models";
+import { cameraAt, shotsOf } from "./cluster/cluster-spec";
+import { nextEqDir } from "./cluster/nodes/EquationNode";
 import { questionProgress } from "./frame-view";
 import { PhoneFrame } from "./PhoneFrame";
 import { markStyle, paintLine } from "@/lib/prompter-marks";
@@ -118,6 +131,29 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
   const frame = frames[idx];
   const frameId = frame?.id ?? null;
   const ceq = frame?.kind === "ceq" && frame.ceqId ? ceqById.get(frame.ceqId) : undefined;
+
+  // ---- THE MAP (header): the shot being walked, per frame — a new frame is shot 0 with no
+  // flash of the old one (the same {id, value} pattern the card camera's slide state uses).
+  const cluster = frame?.kind === "cluster" ? frame.cluster ?? null : null;
+  const shots = useMemo(() => (cluster ? shotsOf(cluster) : []), [cluster]);
+  const [shotState, setShotState] = useState<{ id: string; shot: number }>({ id: "", shot: 0 });
+  const shot = cluster && shotState.id === frameId ? Math.min(shotState.shot, Math.max(0, shots.length - 1)) : 0;
+  const setShot = useCallback((f: (s: number) => number) => { const id = frameId ?? ""; setShotState((p) => ({ id, shot: Math.max(0, f(p.id === id ? p.shot : 0)) })); }, [frameId]);
+  // THE ARROWS (Lee: "click around each A = L + E and move the arrows how I want"): the take's
+  // overrides over the map's own arrows, per frame, never written back to the plan.
+  const [arrowState, setArrowState] = useState<{ id: string; over: ArrowOverrides }>({ id: "", over: {} });
+  const arrowOverrides = arrowState.id === frameId ? arrowState.over : undefined;
+  const resolvedMap = useMemo(() => (cluster ? resolveCluster(cluster) : null), [cluster]);
+  const onArrowCycle = useCallback((nodeId: string, term: EqTerm) => {
+    const base = resolvedMap?.get(nodeId)?.view;
+    if (!base || base.kind !== "equation") return;
+    const id = frameId ?? "";
+    setArrowState((p) => {
+      const over = p.id === id ? p.over : {};
+      const cur = over[nodeId]?.[term] ?? base.arrows[term];
+      return { id, over: { ...over, [nodeId]: { ...over[nodeId], [term]: nextEqDir(cur) } } };
+    });
+  }, [resolvedMap, frameId]);
 
   // POPOUT-ONLY EDITING (2026-09-06, Lee: "let the illustrations be picked up and movable
   // resizable from capture popout window"). slide-edit.ts's own rule is that capture never
@@ -303,10 +339,13 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
   // THE CAPTION RAIL CHECK: the phone reports whether the card or the camera sits on the
   // fixed rail; the chrome bar says so before the take, not after the burn.
   const [railStatus, setRailStatus] = useState<RailStatus>("clear");
-  const resetTake = useCallback(() => { setEmph(null); setResolved(new Set()); setSpots(NO_SPOTS); clearAllTextHls(); setHero(false); }, [clearAllTextHls]);
+  // ` also puts the map's arrows back the way the map has them (the take's overrides go).
+  const resetTake = useCallback(() => { setEmph(null); setResolved(new Set()); setSpots(NO_SPOTS); clearAllTextHls(); setHero(false); setArrowState({ id: "", over: {} }); }, [clearAllTextHls]);
 
   // ---- the plug-ins: camera, arrows, teleprompter sync, the 9:16 pop-out ----
-  const camera = useCaptureCamera({ hostRef, frameId: frameId ?? "" });
+  // On a map frame the card camera stands down and the field roam takes the same gestures.
+  const camera = useCaptureCamera({ hostRef, frameId: frameId ?? "", target: cluster ? "field" : "card" });
+  const fieldRoam = useFieldRoam({ hostRef, active: !!cluster && !preview, shot: cluster ? cameraAt(cluster, shot) : null, field: cluster?.field ?? null, key: `${frameId ?? ""}:${shot}` });
   const openTeleprompter = useTeleprompterPopout(set.id);
   // THE COUNTDOWN (pop-out only; capture/popout.ts). Starting it jumps to slide 0, so slide 1 is
   // what is there when the black lifts. Cancelling (space) leaves slide 1 up as well.
@@ -316,7 +355,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
   // What this window tells the teleprompter (and, from the pop-out, the main window): its slide —
   // or, during the countdown, no slide ("slide 0") with the countdown flag. The main window
   // writes NOTHING while the pop-out's take is live: the pop-out is the one that films.
-  useCapturePrompterSyncFrame(set.id, counting ? null : frame ?? null, { paused: take !== null, popout: popout.isPopout, countdown: counting });
+  useCapturePrompterSyncFrame(set.id, counting ? null : frame ?? null, { paused: take !== null, popout: popout.isPopout, countdown: counting, ...(cluster ? { shot } : {}) });
   // Inside the popped-out window the chrome starts hidden — the window IS the shot.
   const [chrome, setChrome] = useState(!popout.isPopout);
   // THE CAMERA for this take: the slide's own spot, or B's override (home →
@@ -356,6 +395,10 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
         // space to start"); space on the LAST slide while running walks off the end and FINISHES
         // it — no wrap, the slide stays. Otherwise it's the same walk as a real take.
         if (rounds.phase === "armed" && !e.shiftKey) { startRound(); return; }
+        // THE MAP: the shots first — space walks the shot until the last, shift+space back to
+        // the first; only off either end does the walk leave the frame.
+        if (cluster && !e.shiftKey && shot < shots.length - 1) { setShot((s) => s + 1); return; }
+        if (cluster && e.shiftKey && shot > 0) { setShot((s) => s - 1); return; }
         if (rounds.phase === "running" && !e.shiftKey && idx >= n - 1) { finishRound(); return; }
         if (e.shiftKey) setI((v) => Math.max(0, v - 1));
         else setI((v) => Math.min(n - 1, v + 1));
@@ -383,7 +426,11 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout]);
+  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, cluster, shot, shots.length, setShot]);
+
+  // What FrameView's map draws from (cluster/ClusterStage.tsx): in the main window's NEXT
+  // preview the map is its bird's-eye with everything revealed — honest about what comes next.
+  const clusterFilm = useMemo<ClusterFilm | null>(() => (cluster ? { shot, roam: fieldRoam.roam, overview: preview, arrowOverrides, onArrowCycle } : null), [cluster, shot, fieldRoam.roam, preview, arrowOverrides, onArrowCycle]);
 
   // FIT THE PHONE to the window: as tall as the window allows, 9:16. Size the
   // browser window to 9:16 (or pop it out) and the phone IS the window.
@@ -423,8 +470,10 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
       ) : (
         <div style={{ position: "relative", opacity: preview && !take?.countdown ? 0.55 : 1, transition: "opacity 200ms ease-out" }}>
           <SlideEditContext.Provider value={popout.isPopout && chrome ? patchCurrentFrame : null}>
+          <ClusterFilmContext.Provider value={clusterFilm}>
             <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture popout={popout.isPopout} stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} onRailStatus={setRailStatus}
               progress={questionProgress(frames, ceqById).get(frame.id)} />
+          </ClusterFilmContext.Provider>
           </SlideEditContext.Provider>
           {preview && (
             <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", zIndex: 35, pointerEvents: "none", background: "rgba(7,11,20,0.88)", border: `1px solid ${GOLD}66`, borderRadius: 999, padding: "3px 12px", fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 11, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, whiteSpace: "nowrap" }}>
@@ -484,7 +533,13 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
             <span style={{ color: GOLD, fontWeight: 800 }}>{idx + 1} / {n}</span>
           )}
           <span>{atEnd ? "— end —" : FRAME_LABEL[frame.kind]}</span>
-          {qaLayout && <span title="localStorage sa-layout-qa is set on this browser — the take films THIS pass, not the set's" style={{ color: "#FF7A59", fontWeight: 800 }}>layout override: {qaLayout}</span>}
+          {/* THE MAP: where the walk is inside the slide, and the shot's label. */}
+          {cluster && !preview && shots.length > 0 && (
+            <span title="space / shift+space walk the map's shots; off the last one, the next slide" style={{ color: CREAM, fontWeight: 700 }}>
+              shot {shot + 1} / {shots.length}{shots[shot]?.label ? ` · ${shots[shot].label}` : ""}
+            </span>
+          )}
+          {qaLayout &&<span title="localStorage sa-layout-qa is set on this browser — the take films THIS pass, not the set's" style={{ color: "#FF7A59", fontWeight: 800 }}>layout override: {qaLayout}</span>}
           <span title="The fixed caption rail (layout.ts CAPTION_RAIL): where the burned captions will land on this slide"
             style={{ color: railStatus === "clear" ? MUTED : GOLD, fontWeight: railStatus === "clear" ? 500 : 800 }}>
             {railStatus === "clear" ? "captions clear" : railStatus === "card" ? "captions: ON THE CARD" : railStatus === "illustration" ? "captions: ON THE PICTURE" : "captions: under the camera"}

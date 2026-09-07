@@ -41,10 +41,13 @@ export interface FilmActive {
   popout?: true;
   /** Written by the pop-out during its 10 s countdown ("slide 0" — qId is null then). */
   countdown?: true;
+  /** THE MAP (2026-09-07): on a cluster frame, the SHOT being walked (0-based) — the prompter
+   *  shows that shot's `note` as the line. Absent on every other frame kind. */
+  shot?: number;
 }
 
-/** The pop-out's flags, as the publish helpers take them. */
-export interface FilmActiveFlags { popout?: boolean; countdown?: boolean }
+/** The pop-out's flags, as the publish helpers take them — and the map's shot. */
+export interface FilmActiveFlags { popout?: boolean; countdown?: boolean; shot?: number }
 
 /** A pop-out record older than this is a closed (or frozen) pop-out — the main window goes back
  *  to its own slide. Two heartbeats and change. */
@@ -66,8 +69,9 @@ export function filmNodeId(frame: FilmFrameRef | null | undefined): string | nul
 export const filmNodeIdForFrameId = (frameId: string | null): string | null => (frameId ? `blast-${frameId}` : null);
 
 export function filmActiveRecord(setId: string, qId: string | null, at: number = Date.now(), flags: FilmActiveFlags = {}): FilmActive {
-  // The flags are ADDED only when true — the Studio's three-field shape stays the shape.
-  return { setId, qId, at, ...(flags.popout ? { popout: true as const } : {}), ...(flags.countdown ? { countdown: true as const } : {}) };
+  // The flags are ADDED only when true (the shot only when it is a number) — the Studio's
+  // three-field shape stays the shape.
+  return { setId, qId, at, ...(flags.popout ? { popout: true as const } : {}), ...(flags.countdown ? { countdown: true as const } : {}), ...(typeof flags.shot === "number" ? { shot: flags.shot } : {}) };
 }
 
 /** Write the record. False when storage is unavailable (private mode, a
@@ -106,17 +110,17 @@ export interface PublishOptions extends FilmActiveFlags {
  *  stale timeout. */
 export function useCapturePrompterSyncFrame(setId: string, frame: FilmFrameRef | null | undefined, opts: PublishOptions = {}): void {
   const qId = filmNodeId(frame);
-  const { paused = false, popout = false, countdown = false } = opts;
+  const { paused = false, popout = false, countdown = false, shot } = opts;
   useEffect(() => {
     if (paused) return;
-    const write = () => publishFilmActive(setId, qId, { popout, countdown });
+    const write = () => publishFilmActive(setId, qId, { popout, countdown, shot });
     write();
     if (!popout) return;
     const t = window.setInterval(write, POPOUT_HEARTBEAT_MS);
-    const onHide = () => publishFilmActive(setId, qId);
+    const onHide = () => publishFilmActive(setId, qId, { shot });
     window.addEventListener("pagehide", onHide);
     return () => { window.clearInterval(t); window.removeEventListener("pagehide", onHide); };
-  }, [setId, qId, paused, popout, countdown]);
+  }, [setId, qId, paused, popout, countdown, shot]);
 }
 
 // ---------------------------------------------------------------- the main window's side

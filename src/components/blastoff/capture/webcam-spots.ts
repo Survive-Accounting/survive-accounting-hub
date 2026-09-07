@@ -34,7 +34,9 @@ export function isCamSpot(v: unknown): v is CamSpot { return typeof v === "strin
  *  has him in the home spot (Lee: "it needs a home spot 70%+ of the time"). */
 export function defaultCamFor(kind: BlastFrame["kind"]): CamSpot {
   if (kind === "open" || kind === "outro" || kind === "bolt" || kind === "ad") return "off";
-  if (kind === "intro") return "corner";
+  // THE MAP (2026-09-07): a big field wants the camera out of the way — the small top-right
+  // circle, never the home circle over the bottom of the field.
+  if (kind === "intro" || kind === "cluster") return "corner";
   return "home";
 }
 

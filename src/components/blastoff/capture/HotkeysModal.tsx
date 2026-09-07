@@ -29,6 +29,18 @@ export const HOTKEY_GROUPS: readonly Group[] = [
     ["alt + hover", "the grips — resize"],
     ["ctrl + click the camera", "the hero: camera top, wordmark centre (again, ` or the next slide ends it)"],
   ] },
+  // THE MAP (2026-09-07). Lee: "we can go swim around for it in the capture window." On a map
+  // slide the walk and the camera act on the field: space walks the SHOTS, the wheel and alt-drag
+  // roam the field, 0 and O snap to the shot and the bird's-eye. The card keys above still apply
+  // to a set card sitting on the map.
+  { title: "Map", keys: [
+    ["space / shift + space", "next / previous SHOT — off the last shot, the next slide (and back off the first)"],
+    ["wheel", "zoom the field about the pointer"],
+    ["alt + drag", "pan the field"],
+    ["0", "snap back to the shot's camera"],
+    ["O", "the bird's-eye — the whole map (O again returns)"],
+    ["click A / L / E", "cycle its arrow: ↑ → ↓ → ↑↓ → — (the take only; the map is not changed)"],
+  ] },
   { title: "Marks", keys: [
     ["click a choice", "emphasise it — click it again to resolve"],
     ["ctrl + click", "the spotlight — a gold pill (re-click a lit one clears all)"],

@@ -120,8 +120,9 @@ async function askPlan(setId: string, m: { system: string; user: string }): Prom
 }
 
 /** The spec (build or revise): a failed validation is retried ONCE with the error appended
- *  ("your last answer failed: …"). The micro lane's ceiling is 6000 tokens since 2026-09-07 (talkthrough.functions.ts); 5000 here leaves a map of
- *  more than eight or so nodes won't fit and comes back cut off; that reads as "not valid JSON". */
+ *  ("your last answer failed: …"). Asked at 5,000 output tokens — the micro lane's ceiling is
+ *  6,000 since 2026-09-07 (talkthrough.functions.ts); at the old 2,000 a map past eight or so
+ *  nodes came back cut off, which read as "not valid JSON". */
 async function askSpec(setId: string, label: string, build: (failure?: string) => { system: string; user: string }, id: string): Promise<ClusterSpec> {
   let failure: string | undefined;
   for (let attempt = 0; attempt < 2; attempt++) {

@@ -8,6 +8,7 @@ describe("the camera's spots", () => {
   test("card slides get the home spot by default; the brand slides, the bolt and the ads film clean", () => {
     for (const k of ["ceq", "phrase", "cheat", "tip", "exhibit", "blank", "bio"] as const) expect(defaultCamFor(k)).toBe("home");
     expect(defaultCamFor("intro")).toBe("corner");                    // the ticker crosses the home spot there
+    expect(defaultCamFor("cluster")).toBe("corner");                  // a map wants the camera out of the way (2026-09-07)
     for (const k of ["open", "outro", "bolt", "ad"] as const) expect(defaultCamFor(k)).toBe("off");
     expect(camSpotOf({ kind: "ceq", cam: "hero" })).toBe("hero");
     expect(camSpotOf({ kind: "open" })).toBe("off");

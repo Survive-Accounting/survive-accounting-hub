@@ -29,6 +29,12 @@
 // mode the hand-off row stays gold and the cue word is orange wherever it appears — in that
 // row or in a fragment.
 //
+// THE MAP (2026-09-07). A cluster frame is walked SHOT by shot inside one slide (cluster/
+// cluster-spec.ts); the film publishes the shot on the same record (`shot`), and in lines mode
+// this window shows that shot's `note` — what Lee meant to say at that camera position — as
+// the line, when the shot has one; otherwise the frame's prompter as on any slide. Keywords
+// mode is unchanged (a map slide with keywords scans them the same way).
+//
 // No ?set: the older phrase-bank mirror — the results board's banked script
 // lines, one at a time, Enter / Shift+Enter / ` to walk them.
 import { createFileRoute } from "@tanstack/react-router";
@@ -43,6 +49,7 @@ import { isTypingTarget } from "@/components/canvas/film-lock";
 import { loadBlastPlan, type BlastFrameRow } from "@/lib/blastoff.functions";
 import { markStyle, paintLine } from "@/lib/prompter-marks";
 import { FRAME_LABEL, type PrompterMarks } from "@/components/blastoff/plan";
+import { shotsOf } from "@/components/blastoff/cluster/cluster-spec";
 
 /** A prompter row with its marks painted — every renderer here goes through this. */
 function Marked({ text, marks }: { text: string; marks: PrompterMarks | undefined }) {
@@ -75,7 +82,7 @@ function fontRem(text: string): number {
 
 // ---------------------------------------------------- the v3 frame prompter
 
-interface FilmActive { setId: string; qId: string | null; at: number }
+interface FilmActive { setId: string; qId: string | null; at: number; shot?: number }
 const readActive = (): FilmActive | null => {
   try { const v = JSON.parse(localStorage.getItem("sa-film-active") ?? "null") as FilmActive | null; return v && typeof v.setId === "string" ? v : null; } catch { return null; }
 };
@@ -97,6 +104,16 @@ function prompterModeFor(stored: PrompterMode | null, keys: readonly string[] | 
 export function frameForNode(frames: readonly BlastFrameRow[], qId: string | null): BlastFrameRow | null {
   if (!qId) return null;
   return frames.find((f) => (f.kind === "ceq" && f.ceqId === qId) || `blast-${f.id}` === qId) ?? null;
+}
+
+/** THE MAP's line: the note of the shot being walked, and where the walk is — null on every
+ *  other frame kind, on a map with no spec, or when the shot has no note. */
+export function shotNoteFor(frame: BlastFrameRow | null, shot: number | undefined): { note: string | null; at: number; of: number } | null {
+  if (!frame || frame.kind !== "cluster" || !frame.cluster || typeof shot !== "number") return null;
+  const shots = shotsOf(frame.cluster);
+  if (!shots.length) return null;
+  const k = Math.max(0, Math.min(shot, shots.length - 1));
+  return { note: shots[k].note?.trim() || null, at: k + 1, of: shots.length };
 }
 
 function FramePrompter({ setId }: { setId: string }) {
@@ -124,14 +141,16 @@ function FramePrompter({ setId }: { setId: string }) {
   // Follow the Studio: the storage event fires across windows; the poll
   // covers the same-window case and a missed event.
   useEffect(() => {
-    const tick = () => setActive((prev) => { const n = readActive(); return n && (!prev || n.at !== prev.at || n.qId !== prev.qId) ? n : prev; });
+    const tick = () => setActive((prev) => { const n = readActive(); return n && (!prev || n.at !== prev.at || n.qId !== prev.qId || n.shot !== prev.shot) ? n : prev; });
     const id = window.setInterval(tick, 500);
     window.addEventListener("storage", tick);
     return () => { window.clearInterval(id); window.removeEventListener("storage", tick); };
   }, []);
 
   const frame = frames && active && active.setId === setId ? frameForNode(frames, active.qId) : null;
-  const lines = frame?.prompter ?? [];
+  // THE MAP: the shot's note is the line when the shot has one; else the frame's prompter.
+  const shotLine = shotNoteFor(frame, active?.shot);
+  const lines = shotLine?.note ? [shotLine.note] : frame?.prompter ?? [];
   const keys = frame?.prompterKeys ?? [];
   const idx = frame && frames ? frames.indexOf(frame) : -1;
   const longest = lines.reduce((m, l) => Math.max(m, l.length), 0);
@@ -144,7 +163,8 @@ function FramePrompter({ setId }: { setId: string }) {
   const setMode = (m: PrompterMode) => { setStored(m); try { localStorage.setItem(MODE_KEY, m); } catch { /* ignore */ } };
   const showKeys = mode === "keywords" && keys.length > 0;
   const transition = frame?.prompterTransition ?? "";
-  const marks = frame?.prompterMarks;
+  // A shot's note carries no timing marks (they belong to the frame's own kept line).
+  const marks = shotLine?.note ? undefined : frame?.prompterMarks;
   // Keywords mode paints ONLY the cue word (the phrase belongs to the verbatim line; the gold
   // hand-off row already is the phrase's job there).
   const cueOnly: PrompterMarks | undefined = marks?.word ? { word: marks.word } : undefined;
@@ -197,6 +217,7 @@ function FramePrompter({ setId }: { setId: string }) {
       <div style={{ position: "absolute", bottom: 14, left: 0, right: 0, color: "#9CA3AF", fontSize: 13, display: "flex", justifyContent: "center", gap: 18 }}>
         <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{frame && frames ? `slide ${idx + 1} / ${frames.length}` : "—"}</span>
         <span>{frame ? FRAME_LABEL[frame.kind] : "follows the Studio"}</span>
+        {shotLine && <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>shot {shotLine.at} / {shotLine.of}</span>}
         {frame && mode === "keywords" && keys.length === 0 && lines.length > 0 && <span>no keywords on this slide — showing its lines</span>}
       </div>
     </div>

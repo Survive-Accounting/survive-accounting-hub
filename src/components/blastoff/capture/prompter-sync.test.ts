@@ -24,6 +24,13 @@ describe("the record", () => {
     expect(filmActiveRecord("s", null, 1, { popout: true, countdown: true })).toEqual({ setId: "s", qId: null, at: 1, popout: true, countdown: true });
     expect(Object.keys(filmActiveRecord("s", "q", 1, { popout: false, countdown: false }))).toEqual(["setId", "qId", "at"]);
   });
+  // THE MAP (2026-09-07): a cluster frame publishes the shot being walked; the prompter shows
+  // that shot's note. Shot 0 is a shot — only a missing shot is left off.
+  test("the map's shot rides on the record only when there is one", () => {
+    expect(filmActiveRecord("s", "blast-f1", 1, { shot: 0 })).toEqual({ setId: "s", qId: "blast-f1", at: 1, shot: 0 });
+    expect(filmActiveRecord("s", "blast-f1", 1, { popout: true, shot: 3 })).toEqual({ setId: "s", qId: "blast-f1", at: 1, popout: true, shot: 3 });
+    expect(Object.keys(filmActiveRecord("s", "q", 1, { shot: undefined }))).toEqual(["setId", "qId", "at"]);
+  });
   test("a set card publishes its CEQ node, an insert its blast-<frame id> node", () => {
     expect(filmNodeId({ id: "f1", kind: "ceq", ceqId: "ceq-9" })).toBe("ceq-9");
     expect(filmNodeId({ id: "f2", kind: "phrase" })).toBe("blast-f2");
@@ -80,6 +87,10 @@ describe("the two ends (source pins)", () => {
     // The frame-id path useCapturePrompterSync relies on: the blast- clause is
     // not gated on kind, so a set card resolves by its frame id as well.
     expect(teleprompter).toContain('(f.kind === "ceq" && f.ceqId === qId) || `blast-${f.id}` === qId');
+  });
+  test("the prompter follows the map's shot: a new shot is a new record, and the shot's note is the line", () => {
+    expect(teleprompter).toContain("n.shot !== prev.shot");
+    expect(teleprompter).toContain("shotNoteFor(");
   });
   test("a plain write is the whole publish: the prompter polls the key and hears the cross-window storage event", () => {
     expect(teleprompter).toContain("window.setInterval(tick, 500)");
