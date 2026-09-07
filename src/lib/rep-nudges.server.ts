@@ -1,4 +1,5 @@
-// REP NUDGES — server only, run by /api/cron/rep-nudges every hour.
+// REP NUDGES — server only, run by /api/cron/rep-nudges (twice daily since 2026-09-06 — Vercel
+// rejected the hourly schedule; see the route file).
 //
 //   REMINDERS  A verified applicant who hasn't finished the onboarding gets an email at 24h and
 //              at 72h. Two total, then stop (spec §2). Stamped on rep_profile.reminders so a
@@ -56,7 +57,7 @@ export async function runRepReminders(now = new Date(), db?: DB): Promise<NudgeR
     }
     const mail = reminderEmail({ firstName: firstName(r.name), campus, url: ONBOARDING_URL, which });
     const res = await sendResendEmail({ to: r.email, subject: mail.subject, text: mail.text });
-    // Stamp on success only — a failed provider call gets another try next hour.
+    // Stamp on success only — a failed provider call gets another try on the next run.
     if (res.ok) {
       const next: RepProfile = { ...profile, reminders: { ...(profile.reminders ?? {}), [`${which}At`]: now.toISOString() } };
       await d.from("referral_partners").update({ rep_profile: next }).eq("id", r.id);

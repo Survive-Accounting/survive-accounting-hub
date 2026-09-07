@@ -8,7 +8,11 @@
     },
     {
       "path": "/api/cron/rep-nudges",
-      "schedule": "0 * * * *"
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/rep-nudges",
+      "schedule": "0 14 * * *"
     },
     {
       "path": "/api/cron/weekly-digest",

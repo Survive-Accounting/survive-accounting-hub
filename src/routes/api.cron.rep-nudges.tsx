@@ -1,8 +1,14 @@
-// REP NUDGES — cron entry, hourly. Same auth as the other crons (CRON_SECRET bearer, fails
-// closed when unset). Every run sends the 24h / 72h onboarding reminders that are due; the
-// daily one-line summary to Lee goes only in the 8am-Chicago hour (Vercel Cron is UTC and
-// DST-blind, so the hour is checked here, not in vercel.json). POST bypasses the hour gate for
-// manual testing.
+// REP NUDGES — cron entry. Same auth as the other crons (CRON_SECRET bearer, fails closed when
+// unset). Every run sends the 24h / 72h onboarding reminders that are due; the daily one-line
+// summary to Lee goes only in the 8am-Chicago hour (Vercel Cron is UTC and DST-blind, so the
+// hour is checked here, not in vercel.json). POST bypasses the hour gate for manual testing.
+//
+// SCHEDULE (2026-09-06): this shipped as hourly ("0 * * * *") and Vercel refused every deploy
+// from that commit on — the plan only allows a cron to run once a day (the failure links to
+// docs/cron-jobs/usage-and-pricing). Now 13:00 and 14:00 UTC like the other 8am-CT crons: one
+// of the two lands in the 8am hour whichever side of DST it is, and the other only runs the
+// reminders (idempotent — stamped on send). A reminder is "at least 24h / 72h", not "exactly",
+// so a daily run still sends every one, at most a day late.
 import { createFileRoute } from "@tanstack/react-router";
 
 function json(body: unknown, status = 200): Response {
