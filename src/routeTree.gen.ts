@@ -60,6 +60,7 @@ import { Route as StudyFoundationsRouteImport } from './routes/study_.foundation
 import { Route as StudyDashboardRouteImport } from './routes/study_.dashboard'
 import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
 import { Route as ShippedSlugRouteImport } from './routes/shipped.$slug'
+import { Route as RepOnboardingRouteImport } from './routes/rep_.onboarding'
 import { Route as RepJoinRouteImport } from './routes/rep_.join'
 import { Route as RepDashboardRouteImport } from './routes/rep_.dashboard'
 import { Route as RCodeRouteImport } from './routes/r.$code'
@@ -121,6 +122,7 @@ import { Route as AdminGrowthIndexRouteImport } from './routes/admin.growth.inde
 import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
 import { Route as SCampusCouncilRouteImport } from './routes/s.$campus.council'
 import { Route as SCampusChapterRouteImport } from './routes/s.$campus.$chapter'
+import { Route as RepJoinCampusRouteImport } from './routes/rep_.join_.$campus'
 import { Route as PartnersNationalOrgRouteImport } from './routes/partners.national.$org'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
 import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreach.leadfinder.$campusId'
@@ -136,6 +138,7 @@ import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhoo
 import { Route as ApiIdeasSmsRouteImport } from './routes/api.ideas.sms'
 import { Route as ApiIdeasEmailRouteImport } from './routes/api.ideas.email'
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
+import { Route as ApiCronRepNudgesRouteImport } from './routes/api.cron.rep-nudges'
 import { Route as ApiCronKingDigestRouteImport } from './routes/api.cron.king-digest'
 import { Route as ApiCronIgDigestRouteImport } from './routes/api.cron.ig-digest'
 import { Route as ApiCronGrowthCampaignsRouteImport } from './routes/api.cron.growth-campaigns'
@@ -164,6 +167,7 @@ import { Route as AdminGrowthCampaignsRouteImport } from './routes/admin.growth.
 import { Route as AdminGrowthActivityRouteImport } from './routes/admin.growth.activity'
 import { Route as V3TopicSetIndexRouteImport } from './routes/v3.$topic.$set.index'
 import { Route as AdminGrowthColdoutreachIndexRouteImport } from './routes/admin.growth.coldoutreach.index'
+import { Route as RepReviewPartnerIdDecisionRouteImport } from './routes/rep_.review.$partnerId.$decision'
 import { Route as PartnersCouncilSchoolCouncilRouteImport } from './routes/partners.council.$school.$council'
 import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.council.$council'
 import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_.kit.$school.$chapter'
@@ -438,6 +442,11 @@ const ShippedSlugRoute = ShippedSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => ShippedRoute,
+} as any)
+const RepOnboardingRoute = RepOnboardingRouteImport.update({
+  id: '/rep_/onboarding',
+  path: '/rep/onboarding',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const RepJoinRoute = RepJoinRouteImport.update({
   id: '/rep_/join',
@@ -748,6 +757,11 @@ const SCampusChapterRoute = SCampusChapterRouteImport.update({
   path: '/s/$campus/$chapter',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RepJoinCampusRoute = RepJoinCampusRouteImport.update({
+  id: '/rep_/join_/$campus',
+  path: '/rep/join/$campus',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PartnersNationalOrgRoute = PartnersNationalOrgRouteImport.update({
   id: '/partners/national/$org',
   path: '/partners/national/$org',
@@ -825,6 +839,11 @@ const ApiIdeasEmailRoute = ApiIdeasEmailRouteImport.update({
 const ApiCronWeeklyDigestRoute = ApiCronWeeklyDigestRouteImport.update({
   id: '/api/cron/weekly-digest',
   path: '/api/cron/weekly-digest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCronRepNudgesRoute = ApiCronRepNudgesRouteImport.update({
+  id: '/api/cron/rep-nudges',
+  path: '/api/cron/rep-nudges',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCronKingDigestRoute = ApiCronKingDigestRouteImport.update({
@@ -967,6 +986,12 @@ const AdminGrowthColdoutreachIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AdminGrowthColdoutreachRoute,
+  } as any)
+const RepReviewPartnerIdDecisionRoute =
+  RepReviewPartnerIdDecisionRouteImport.update({
+    id: '/rep_/review/$partnerId/$decision',
+    path: '/rep/review/$partnerId/$decision',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const PartnersCouncilSchoolCouncilRoute =
   PartnersCouncilSchoolCouncilRouteImport.update({
@@ -1168,6 +1193,7 @@ export interface FileRoutesByFullPath {
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
+  '/rep/onboarding': typeof RepOnboardingRoute
   '/shipped/$slug': typeof ShippedSlugRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/dashboard': typeof StudyDashboardRoute
@@ -1207,6 +1233,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/ig-digest': typeof ApiCronIgDigestRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
+  '/api/cron/rep-nudges': typeof ApiCronRepNudgesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/api/ideas/email': typeof ApiIdeasEmailRoute
   '/api/ideas/sms': typeof ApiIdeasSmsRoute
@@ -1222,6 +1249,7 @@ export interface FileRoutesByFullPath {
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/partners/national/$org': typeof PartnersNationalOrgRoute
+  '/rep/join/$campus': typeof RepJoinCampusRoute
   '/s/$campus/$chapter': typeof SCampusChapterRoute
   '/s/$campus/council': typeof SCampusCouncilRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
@@ -1245,6 +1273,7 @@ export interface FileRoutesByFullPath {
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
+  '/rep/review/$partnerId/$decision': typeof RepReviewPartnerIdDecisionRoute
   '/admin/growth/coldoutreach/': typeof AdminGrowthColdoutreachIndexRoute
   '/v3/$topic/$set/': typeof V3TopicSetIndexRoute
   '/v3/$topic/$set/blast-off/arrange': typeof V3TopicSetBlastOffArrangeRoute
@@ -1341,6 +1370,7 @@ export interface FileRoutesByTo {
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
+  '/rep/onboarding': typeof RepOnboardingRoute
   '/shipped/$slug': typeof ShippedSlugRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/dashboard': typeof StudyDashboardRoute
@@ -1379,6 +1409,7 @@ export interface FileRoutesByTo {
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/ig-digest': typeof ApiCronIgDigestRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
+  '/api/cron/rep-nudges': typeof ApiCronRepNudgesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/api/ideas/email': typeof ApiIdeasEmailRoute
   '/api/ideas/sms': typeof ApiIdeasSmsRoute
@@ -1394,6 +1425,7 @@ export interface FileRoutesByTo {
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/partners/national/$org': typeof PartnersNationalOrgRoute
+  '/rep/join/$campus': typeof RepJoinCampusRoute
   '/s/$campus/$chapter': typeof SCampusChapterRoute
   '/s/$campus/council': typeof SCampusCouncilRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
@@ -1417,6 +1449,7 @@ export interface FileRoutesByTo {
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
+  '/rep/review/$partnerId/$decision': typeof RepReviewPartnerIdDecisionRoute
   '/admin/growth/coldoutreach': typeof AdminGrowthColdoutreachIndexRoute
   '/v3/$topic/$set': typeof V3TopicSetIndexRoute
   '/v3/$topic/$set/blast-off/arrange': typeof V3TopicSetBlastOffArrangeRoute
@@ -1517,6 +1550,7 @@ export interface FileRoutesById {
   '/r/$code': typeof RCodeRoute
   '/rep_/dashboard': typeof RepDashboardRoute
   '/rep_/join': typeof RepJoinRoute
+  '/rep_/onboarding': typeof RepOnboardingRoute
   '/shipped/$slug': typeof ShippedSlugRoute
   '/study_/canvas': typeof StudyCanvasRoute
   '/study_/dashboard': typeof StudyDashboardRoute
@@ -1556,6 +1590,7 @@ export interface FileRoutesById {
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/ig-digest': typeof ApiCronIgDigestRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
+  '/api/cron/rep-nudges': typeof ApiCronRepNudgesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/api/ideas/email': typeof ApiIdeasEmailRoute
   '/api/ideas/sms': typeof ApiIdeasSmsRoute
@@ -1571,6 +1606,7 @@ export interface FileRoutesById {
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
   '/partners/national/$org': typeof PartnersNationalOrgRoute
+  '/rep_/join_/$campus': typeof RepJoinCampusRoute
   '/s/$campus/$chapter': typeof SCampusChapterRoute
   '/s/$campus/council': typeof SCampusCouncilRoute
   '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
@@ -1594,6 +1630,7 @@ export interface FileRoutesById {
   '/chapters_/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
+  '/rep_/review/$partnerId/$decision': typeof RepReviewPartnerIdDecisionRoute
   '/admin/growth/coldoutreach/': typeof AdminGrowthColdoutreachIndexRoute
   '/v3/$topic/$set/': typeof V3TopicSetIndexRoute
   '/v3/$topic/$set/blast-off/arrange': typeof V3TopicSetBlastOffArrangeRoute
@@ -1695,6 +1732,7 @@ export interface FileRouteTypes {
     | '/r/$code'
     | '/rep/dashboard'
     | '/rep/join'
+    | '/rep/onboarding'
     | '/shipped/$slug'
     | '/study/canvas'
     | '/study/dashboard'
@@ -1734,6 +1772,7 @@ export interface FileRouteTypes {
     | '/api/cron/growth-campaigns'
     | '/api/cron/ig-digest'
     | '/api/cron/king-digest'
+    | '/api/cron/rep-nudges'
     | '/api/cron/weekly-digest'
     | '/api/ideas/email'
     | '/api/ideas/sms'
@@ -1749,6 +1788,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
     | '/partners/national/$org'
+    | '/rep/join/$campus'
     | '/s/$campus/$chapter'
     | '/s/$campus/council'
     | '/study/scenarios/$slug'
@@ -1772,6 +1812,7 @@ export interface FileRouteTypes {
     | '/chapters/kit/$school/$chapter'
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
+    | '/rep/review/$partnerId/$decision'
     | '/admin/growth/coldoutreach/'
     | '/v3/$topic/$set/'
     | '/v3/$topic/$set/blast-off/arrange'
@@ -1868,6 +1909,7 @@ export interface FileRouteTypes {
     | '/r/$code'
     | '/rep/dashboard'
     | '/rep/join'
+    | '/rep/onboarding'
     | '/shipped/$slug'
     | '/study/canvas'
     | '/study/dashboard'
@@ -1906,6 +1948,7 @@ export interface FileRouteTypes {
     | '/api/cron/growth-campaigns'
     | '/api/cron/ig-digest'
     | '/api/cron/king-digest'
+    | '/api/cron/rep-nudges'
     | '/api/cron/weekly-digest'
     | '/api/ideas/email'
     | '/api/ideas/sms'
@@ -1921,6 +1964,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
     | '/partners/national/$org'
+    | '/rep/join/$campus'
     | '/s/$campus/$chapter'
     | '/s/$campus/council'
     | '/study/scenarios/$slug'
@@ -1944,6 +1988,7 @@ export interface FileRouteTypes {
     | '/chapters/kit/$school/$chapter'
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
+    | '/rep/review/$partnerId/$decision'
     | '/admin/growth/coldoutreach'
     | '/v3/$topic/$set'
     | '/v3/$topic/$set/blast-off/arrange'
@@ -2043,6 +2088,7 @@ export interface FileRouteTypes {
     | '/r/$code'
     | '/rep_/dashboard'
     | '/rep_/join'
+    | '/rep_/onboarding'
     | '/shipped/$slug'
     | '/study_/canvas'
     | '/study_/dashboard'
@@ -2082,6 +2128,7 @@ export interface FileRouteTypes {
     | '/api/cron/growth-campaigns'
     | '/api/cron/ig-digest'
     | '/api/cron/king-digest'
+    | '/api/cron/rep-nudges'
     | '/api/cron/weekly-digest'
     | '/api/ideas/email'
     | '/api/ideas/sms'
@@ -2097,6 +2144,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder/$campusId'
     | '/outreach_/school/$slug'
     | '/partners/national/$org'
+    | '/rep_/join_/$campus'
     | '/s/$campus/$chapter'
     | '/s/$campus/council'
     | '/study_/scenarios/$slug'
@@ -2120,6 +2168,7 @@ export interface FileRouteTypes {
     | '/chapters_/kit/$school/$chapter'
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
+    | '/rep_/review/$partnerId/$decision'
     | '/admin/growth/coldoutreach/'
     | '/v3/$topic/$set/'
     | '/v3/$topic/$set/blast-off/arrange'
@@ -2191,6 +2240,7 @@ export interface RootRouteChildren {
   RCodeRoute: typeof RCodeRoute
   RepDashboardRoute: typeof RepDashboardRoute
   RepJoinRoute: typeof RepJoinRoute
+  RepOnboardingRoute: typeof RepOnboardingRoute
   StudyCanvasRoute: typeof StudyCanvasRoute
   StudyDashboardRoute: typeof StudyDashboardRoute
   StudyFoundationsRoute: typeof StudyFoundationsRoute
@@ -2209,6 +2259,7 @@ export interface RootRouteChildren {
   ApiCronGrowthCampaignsRoute: typeof ApiCronGrowthCampaignsRoute
   ApiCronIgDigestRoute: typeof ApiCronIgDigestRoute
   ApiCronKingDigestRoute: typeof ApiCronKingDigestRoute
+  ApiCronRepNudgesRoute: typeof ApiCronRepNudgesRoute
   ApiCronWeeklyDigestRoute: typeof ApiCronWeeklyDigestRoute
   ApiIdeasEmailRoute: typeof ApiIdeasEmailRoute
   ApiIdeasSmsRoute: typeof ApiIdeasSmsRoute
@@ -2216,6 +2267,7 @@ export interface RootRouteChildren {
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
   PartnersNationalOrgRoute: typeof PartnersNationalOrgRoute
+  RepJoinCampusRoute: typeof RepJoinCampusRoute
   SCampusChapterRoute: typeof SCampusChapterRoute
   SCampusCouncilRoute: typeof SCampusCouncilRoute
   StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
@@ -2229,6 +2281,7 @@ export interface RootRouteChildren {
   ChaptersKitSchoolChapterRoute: typeof ChaptersKitSchoolChapterRoute
   GoSchoolCouncilCouncilRoute: typeof GoSchoolCouncilCouncilRoute
   PartnersCouncilSchoolCouncilRoute: typeof PartnersCouncilSchoolCouncilRoute
+  RepReviewPartnerIdDecisionRoute: typeof RepReviewPartnerIdDecisionRoute
   V3TopicSetIndexRoute: typeof V3TopicSetIndexRoute
   V3TopicSetBlastOffArrangeRoute: typeof V3TopicSetBlastOffArrangeRoute
   V3TopicSetBlastOffFilmRoute: typeof V3TopicSetBlastOffFilmRoute
@@ -2595,6 +2648,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/shipped/$slug'
       preLoaderRoute: typeof ShippedSlugRouteImport
       parentRoute: typeof ShippedRoute
+    }
+    '/rep_/onboarding': {
+      id: '/rep_/onboarding'
+      path: '/rep/onboarding'
+      fullPath: '/rep/onboarding'
+      preLoaderRoute: typeof RepOnboardingRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/rep_/join': {
       id: '/rep_/join'
@@ -3023,6 +3083,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SCampusChapterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rep_/join_/$campus': {
+      id: '/rep_/join_/$campus'
+      path: '/rep/join/$campus'
+      fullPath: '/rep/join/$campus'
+      preLoaderRoute: typeof RepJoinCampusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/partners/national/$org': {
       id: '/partners/national/$org'
       path: '/partners/national/$org'
@@ -3126,6 +3193,13 @@ declare module '@tanstack/react-router' {
       path: '/api/cron/weekly-digest'
       fullPath: '/api/cron/weekly-digest'
       preLoaderRoute: typeof ApiCronWeeklyDigestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/rep-nudges': {
+      id: '/api/cron/rep-nudges'
+      path: '/api/cron/rep-nudges'
+      fullPath: '/api/cron/rep-nudges'
+      preLoaderRoute: typeof ApiCronRepNudgesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cron/king-digest': {
@@ -3323,6 +3397,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/growth/coldoutreach/'
       preLoaderRoute: typeof AdminGrowthColdoutreachIndexRouteImport
       parentRoute: typeof AdminGrowthColdoutreachRoute
+    }
+    '/rep_/review/$partnerId/$decision': {
+      id: '/rep_/review/$partnerId/$decision'
+      path: '/rep/review/$partnerId/$decision'
+      fullPath: '/rep/review/$partnerId/$decision'
+      preLoaderRoute: typeof RepReviewPartnerIdDecisionRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/partners/council/$school/$council': {
       id: '/partners/council/$school/$council'
@@ -3745,6 +3826,7 @@ const rootRouteChildren: RootRouteChildren = {
   RCodeRoute: RCodeRoute,
   RepDashboardRoute: RepDashboardRoute,
   RepJoinRoute: RepJoinRoute,
+  RepOnboardingRoute: RepOnboardingRoute,
   StudyCanvasRoute: StudyCanvasRoute,
   StudyDashboardRoute: StudyDashboardRoute,
   StudyFoundationsRoute: StudyFoundationsRoute,
@@ -3763,6 +3845,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronGrowthCampaignsRoute: ApiCronGrowthCampaignsRoute,
   ApiCronIgDigestRoute: ApiCronIgDigestRoute,
   ApiCronKingDigestRoute: ApiCronKingDigestRoute,
+  ApiCronRepNudgesRoute: ApiCronRepNudgesRoute,
   ApiCronWeeklyDigestRoute: ApiCronWeeklyDigestRoute,
   ApiIdeasEmailRoute: ApiIdeasEmailRoute,
   ApiIdeasSmsRoute: ApiIdeasSmsRoute,
@@ -3770,6 +3853,7 @@ const rootRouteChildren: RootRouteChildren = {
   GoSchoolChapterRoute: GoSchoolChapterRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
   PartnersNationalOrgRoute: PartnersNationalOrgRoute,
+  RepJoinCampusRoute: RepJoinCampusRoute,
   SCampusChapterRoute: SCampusChapterRoute,
   SCampusCouncilRoute: SCampusCouncilRoute,
   StudyScenariosSlugRoute: StudyScenariosSlugRoute,
@@ -3783,6 +3867,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChaptersKitSchoolChapterRoute: ChaptersKitSchoolChapterRoute,
   GoSchoolCouncilCouncilRoute: GoSchoolCouncilCouncilRoute,
   PartnersCouncilSchoolCouncilRoute: PartnersCouncilSchoolCouncilRoute,
+  RepReviewPartnerIdDecisionRoute: RepReviewPartnerIdDecisionRoute,
   V3TopicSetIndexRoute: V3TopicSetIndexRoute,
   V3TopicSetBlastOffArrangeRoute: V3TopicSetBlastOffArrangeRoute,
   V3TopicSetBlastOffFilmRoute: V3TopicSetBlastOffFilmRoute,

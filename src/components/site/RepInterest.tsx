@@ -8,7 +8,7 @@
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { useCampus } from "@/lib/campus-context";
 
-export function RepInterest({ schoolName }: { schoolSlug?: string; schoolName: string }) {
+export function RepInterest({ schoolSlug, schoolName }: { schoolSlug?: string; schoolName: string }) {
   const { code } = useCampus();
 
   return (
@@ -40,7 +40,9 @@ export function RepInterest({ schoolName }: { schoolSlug?: string; schoolName: s
       </p>
 
       <a
-        href="/rep/join"
+        // The campus-specific application (2026-09-06): campus preselected, its Greek list and
+        // course code preloaded. Bare /rep/join is the fallback when the slug is unknown.
+        href={schoolSlug ? `/rep/join/${schoolSlug}` : "/rep/join"}
         className="mt-8 flex w-full items-center justify-center rounded-xl text-[16px] font-black"
         style={{ minHeight: 54, background: "var(--accent)", color: "#0B1220" }}
       >

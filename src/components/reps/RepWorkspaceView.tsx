@@ -340,6 +340,19 @@ function AssignedSection({ d, readOnly, legacyToken, reload, copied, copy, openD
     copy(`dm-${c.chapterId}`, messageFor(c));
     void markDmCopied({ data: { legacyToken, chapterId: c.chapterId } }).then(reload);
   };
+  const [shotBusy, setShotBusy] = useState<string | null>(null);
+  const attachShot = async (c: AssignedChapter, f: File | undefined) => {
+    if (readOnly || !f) return;
+    setShotBusy(c.chapterId);
+    try {
+      const { uploadDmScreenshot } = await import("@/components/ideas/upload");
+      const { attachDmScreenshot } = await import("@/lib/rep-pre-onboarding.functions");
+      const a = await uploadDmScreenshot(f);
+      await attachDmScreenshot({ data: { legacyToken, chapterId: c.chapterId, screenshot: { url: a.url, name: a.name, path: a.path } } });
+      reload();
+    } catch (e) { console.warn("screenshot attach failed:", (e as Error).message); }
+    finally { setShotBusy(null); }
+  };
   const saveReply = (c: AssignedChapter) => {
     if (readOnly || replyText.trim().length < 2 || busy) return;
     setBusy(true);
@@ -384,6 +397,15 @@ function AssignedSection({ d, readOnly, legacyToken, reload, copied, copy, openD
               <div className="flex shrink-0 flex-wrap gap-1.5">
                 {c.igUrl && <a href={readOnly ? undefined : c.igUrl} target="_blank" rel="noreferrer" aria-disabled={readOnly} className="inline-flex items-center rounded-lg px-2.5 text-[12px] font-black" style={{ minHeight: 38, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", opacity: readOnly ? 0.4 : 1 }}>Open IG</a>}
                 <button type="button" disabled={readOnly} onClick={() => copyDm(c)} className="rounded-lg px-2.5 text-[12px] font-black disabled:opacity-40" style={{ minHeight: 38, background: "rgba(252,163,17,0.14)", color: "var(--accent)" }}>{copied === `dm-${c.chapterId}` ? "Copied ⚡" : "Copy DM"}</button>
+                {/* ATTRIBUTION (comp spec §6, 2026-09-06): credit for a link sent needs the DM
+                    screenshot alongside it — one action: pick the screenshot, it uploads and logs
+                    the send with the proof attached. */}
+                {!c.claimed && (
+                  <label className="inline-flex cursor-pointer items-center rounded-lg px-2.5 text-[12px] font-black" style={{ minHeight: 38, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", opacity: readOnly ? 0.4 : 1 }} title="Attach the DM screenshot — that's what gets you credit for the link">
+                    {shotBusy === c.chapterId ? "Uploading…" : "📎 Screenshot"}
+                    <input type="file" accept="image/*" className="hidden" disabled={readOnly || shotBusy === c.chapterId} onChange={(e) => void attachShot(c, e.target.files?.[0])} />
+                  </label>
+                )}
                 {c.dmStatus === "dm_sent" && !c.claimed && (
                   <button type="button" disabled={readOnly} onClick={() => { setReplyFor(replyFor === c.chapterId ? null : c.chapterId); setReplyText(""); }} className="rounded-lg px-2.5 text-[12px] font-black disabled:opacity-40" style={{ minHeight: 38, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>Mark replied</button>
                 )}

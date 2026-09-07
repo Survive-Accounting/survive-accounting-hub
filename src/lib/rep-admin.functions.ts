@@ -524,8 +524,19 @@ export const adminReviewApplication = createServerFn({ method: "POST" })
     if (!rep?.id) return { ok: false, error: "Rep not found." };
     const nowIso = new Date().toISOString();
 
-    if (data.decision !== "approve") {
-      const status = data.decision === "waitlist" ? "waitlisted" : "declined";
+    // APPROVE and DECLINE go through the one decision path the review links also use
+    // (rep-review.server.ts): status, rep number, the coverage map → assignments, Lee's text to
+    // the rep. The roster's call notes still land here. Waitlist stays the roster's own state.
+    if (data.decision === "approve" || data.decision === "decline") {
+      if (data.callNotes != null) await db.from("referral_partners").update({ call_notes: data.callNotes.trim() || null }).eq("id", rep.id);
+      const { decideRepApplication } = await import("@/lib/rep-review.server");
+      const r = await decideRepApplication(db, { partnerId: rep.id, decision: data.decision === "approve" ? "approve" : "deny", by: `admin:${by}`, coverage: data.coverage ?? null });
+      if (!r.ok) return { ok: false, error: r.error };
+      return { ok: true, assignedCount: r.assignedCount, skipped: r.skipped };
+    }
+
+    if (data.decision === "waitlist") {
+      const status = "waitlisted" as const;
       const { error } = await db.from("referral_partners").update({
         application_status: status, reviewed_at: nowIso, reviewed_by: by,
         ...(data.callNotes != null ? { call_notes: data.callNotes.trim() || null } : {}),
@@ -536,26 +547,9 @@ export const adminReviewApplication = createServerFn({ method: "POST" })
         meta: { by }, is_test: !!rep.is_test,
       }).then(() => undefined, () => undefined);
 
-      // THE DECLINE NOTE. Only on a decline — a waitlisted rep has not been turned down and
-      // must not be told they have. Best-effort: the decision is already recorded, and a mail
-      // failure must not make Lee think the decline did not take.
-      if (status === "declined" && rep.email) {
-        try {
-          let school: string | null = null;
-          if (rep.campus_id) {
-            const { data: c } = await db.from("campuses").select("slug,name,short_name").eq("id", rep.campus_id).maybeSingle();
-            if (c?.slug) school = canonicalSchoolName(c.slug as string, (c.short_name as string) || (c.name as string));
-          }
-          const { sendTemplateEmail } = await import("@/lib/comms/send.server");
-          await sendTemplateEmail({
-            key: "rep_declined",
-            ctx: { name: rep.name as string, email: rep.email as string, school },
-            to: rep.email as string,
-            dedupeKey: `rep_declined:${rep.id}`,
-            isTest: !!rep.is_test,
-          });
-        } catch (e) { console.warn("decline note not sent:", (e as Error).message); }
-      }
+      // A waitlisted rep has not been turned down and must not be told they have — no note.
+      // (The decline text, in Lee's words, is sent by decideRepApplication above; the old
+      // `rep_declined` email template is no longer fired from here.)
       return { ok: true };
     }
 

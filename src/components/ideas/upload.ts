@@ -39,6 +39,16 @@ export async function uploadResume(file: File): Promise<Attachment> {
   return uploadAttachment(file, "job-applications");
 }
 
+/** A rep applicant's résumé (pre-onboarding, 2026-09-06) — its own folder. */
+export async function uploadRepResume(file: File): Promise<Attachment> {
+  return uploadAttachment(file, "rep-resumes");
+}
+
+/** The DM screenshot a rep attaches to a link send — attribution proof, its own folder. */
+export async function uploadDmScreenshot(file: File): Promise<Attachment> {
+  return uploadAttachment(file, "rep-dm-screenshots");
+}
+
 async function uploadAttachment(file: File, folder: string): Promise<Attachment> {
   const staged = await createPipelineTestStagingUpload({
     data: { ext: extOf(file.name, file.type), folder },

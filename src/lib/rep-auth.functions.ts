@@ -54,10 +54,41 @@ export const applyAsRep = createServerFn({ method: "POST" })
     campusSlug: z.string().trim().min(1).max(120),
     venmo: z.string().trim().max(120).optional().nullable(),   // legacy input — no longer collected at signup
     isTest: z.boolean().optional(),
+    // THE APPLICATION (spec §2, 2026-09-06). Optional so the old two-field caller still parses;
+    // the new apply page always sends them.
+    studentStatus: z.enum(["student", "alumni"]).optional(),
+    major: z.string().trim().max(120).optional(),
+    tookCourse: z.enum(["taken", "taking_now", "not_yet"]).optional(),
+    greekChapterId: z.string().uuid().optional().nullable(),
+    greek: z.string().trim().max(200).optional(),
+    why: z.string().trim().max(2000).optional(),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; state?: "verify" | "existing_active" | "campus_closed"; error?: string }> => {
     const db = await admin();
     const isTest = !!data.isTest && (await testEnabled());
+
+    // The application answers: the columns V2 already has, plus rep_profile for the rest.
+    // Written on a fresh signup AND on a resume (same person finishing later).
+    const answers = {
+      ...(data.tookCourse ? { course_status: data.tookCourse } : {}),
+      ...(data.greekChapterId !== undefined ? { own_chapter_id: data.greekChapterId } : {}),
+      ...(data.why ? { pitch: data.why } : {}),
+      rep_profile: {
+        ...(data.studentStatus ? { studentStatus: data.studentStatus } : {}),
+        ...(data.major ? { major: data.major } : {}),
+        ...(data.tookCourse ? { tookCourse: data.tookCourse } : {}),
+        ...(data.greek ? { greek: data.greek } : {}),
+        ...(data.greekChapterId ? { greekChapterId: data.greekChapterId } : {}),
+        ...(data.why ? { why: data.why } : {}),
+        applyCampusSlug: data.campusSlug,
+      },
+    };
+    const gate = async (err: { message: string } | null): Promise<string | null> => {
+      if (!err) return null;
+      const { isMissingRepColumns, MISSING_MIGRATION_ERROR, reportMissingRepMigration } = await import("@/lib/rep-review.server");
+      if (isMissingRepColumns(err)) { reportMissingRepMigration(); return MISSING_MIGRATION_ERROR; }
+      return err.message;
+    };
 
     const { normalizePhoneE164 } = await import("@/lib/greek-chapters.functions");
     const phone = normalizePhoneE164(data.phone);
@@ -86,10 +117,12 @@ export const applyAsRep = createServerFn({ method: "POST" })
 
     if (res === "resume") {
       // Same person finishing signup: refresh their details on the SAME row, then verify.
-      await db.from("referral_partners").update({
+      const { error: rErr } = await db.from("referral_partners").update({
         name: data.name, email: data.email.toLowerCase(), phone, campus_id: campusId,
-        rep_status: "approved",
+        rep_status: "approved", ...answers,
       }).eq("id", existing!.id);
+      const g = await gate(rErr);
+      if (g) return { ok: false, error: g };
       return { ok: true, state: "verify" };
     }
 
@@ -114,9 +147,11 @@ export const applyAsRep = createServerFn({ method: "POST" })
       default_commission_type: "percent", default_commission_rate: 10,
       campus_id: campusId, venmo: data.venmo ? normalizeVenmo(data.venmo) : null,
       dashboard_token: newToken(), is_test: isTest,
-      notes: `self-signup${isTest ? " · TEST" : ""}`,
+      notes: `applied${isTest ? " · TEST" : ""}`,
+      ...answers,
     });
-    if (error) return { ok: false, error: error.message };
+    const g = await gate(error);
+    if (g) return { ok: false, error: g };
 
     // Founder heads-up (informational — nothing waits on Lee). Best-effort.
     try {

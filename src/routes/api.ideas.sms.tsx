@@ -28,10 +28,26 @@ async function handleSms({ request }: { request: Request }): Promise<Response> {
 
   const from = String(form.get("From") ?? "");
   const who = identifyPhone(from);
-  // Silence is the correct response to a stranger.
-  if (!who) return xml(twiml());
-
   const body = String(form.get("Body") ?? "").trim();
+
+  // A CAMPUS REP TEXTING BACK (2026-09-06: "replies come to my phone"). The approval, denial
+  // and call texts go out from this number, so a rep's reply lands here. It is forwarded to
+  // Lee as one text — name, campus, what they said — and gets no auto-reply, so the thread
+  // reads like Lee's own. Anyone else who is not on the ideas allowlist still gets silence.
+  if (!who) {
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const db = supabaseAdmin as unknown as { from: (t: string) => any };
+      const { data: rep } = await db.from("referral_partners").select("id,name,campus_id,is_test")
+        .eq("type", "campus_rep").eq("phone", from).maybeSingle();
+      if (rep?.id && body) {
+        const review = await import("@/lib/rep-review.server");
+        const campus = await review.campusNameFor(db, rep.campus_id as string | null);
+        await review.textLee(`Rep reply · ${rep.name} (${campus.name}): ${body}`, { isTest: !!rep.is_test });
+      }
+    } catch (err) { console.error("[ideas/sms] rep reply forward failed:", err); }
+    return xml(twiml());
+  }
 
   const media: { url: string; mime: string }[] = [];
   const count = Number(form.get("NumMedia") ?? 0);

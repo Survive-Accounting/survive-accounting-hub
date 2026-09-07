@@ -160,11 +160,11 @@ export const TEMPLATES: TemplateDef[] = [
     label: "Rep Portal",
     category: "public",
     description: "Campus-rep self-serve: sign up for a tracked link, and the token dashboard with earnings + payouts.",
-    routePattern: "/rep/join · /rep/dashboard",
-    routes: ["rep_.join.tsx", "rep_.dashboard.tsx"],
-    extraFiles: ["src/lib/rep-portal.ts", "src/lib/rep-portal.functions.ts"],
+    routePattern: "/rep/join · /rep/join/:campus · /rep/onboarding · /rep/review/:id/:decision · /rep/dashboard",
+    routes: ["rep_.join.tsx", "rep_.join_.$campus.tsx", "rep_.onboarding.tsx", "rep_.review.$partnerId.$decision.tsx", "rep_.dashboard.tsx"],
+    extraFiles: ["src/lib/rep-portal.ts", "src/lib/rep-portal.functions.ts", "src/lib/rep-pre-onboarding.ts", "src/lib/rep-pre-onboarding.functions.ts"],
     countKey: "static",
-    trafficPaths: ["/rep/join", "/rep/dashboard"],
+    trafficPaths: ["/rep/join", "/rep/onboarding", "/rep/dashboard"],
   },
   {
     id: "prof-campus-landing",
@@ -626,6 +626,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "api.partner-kit.$school.$council.tsx": "generated ZIP endpoint (council partner kit)",
   "api.chapter-kit.$school.$chapter.tsx": "generated ZIP endpoint (scholarship chair kit, one chapter)",
   "api.cron.chapter-reports.tsx": "cron endpoint (chapter signup reports)",
+  "api.cron.rep-nudges.tsx": "cron endpoint (rep onboarding reminders + Lee's daily rep summary)",
   "api.og.$school.$chapter.tsx": "generated image endpoint",
   "api.stripe.webhook.tsx": "webhook endpoint",
 };

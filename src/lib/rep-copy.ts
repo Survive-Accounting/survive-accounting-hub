@@ -46,6 +46,44 @@ export const BONUS_GATE_LINE =
 /** The résumé line a rep earns. Deliberately carries no number — it stands on its own. */
 export const RESUME_LINE = "Launched a new campus for a national tutoring platform.";
 
+// ── COMMISSION & BONUSES — TWO LEVELS (Lee's spec, 2026-09-06) ───────────────────────────────
+// Level 1 is what a rep signs up for. Level 2 is NOT offered at signup — reps graduate into it;
+// onboarding shows it as something to work toward. Chapter bonuses unlock ONLY when the chapter
+// pays. One place, so the apply page, onboarding step 4 and the dashboard never drift.
+export type PayRow = { what: string; amount: string; note?: string };
+
+export const LEVEL_1_TITLE = "Level 1 — your campus";
+export const LEVEL_1_ROWS: readonly PayRow[] = [
+  { what: "Individual sale through your link", amount: `${REP_COMMISSION_PCT}%` },
+  { what: "A free Exam 1 user converts to paid", amount: "$1" },
+  { what: "A chapter closes", amount: "$25", note: "paid when the chapter pays" },
+  { what: "A chapter flyer / QR activates (5+ sign-ups from it)", amount: "$25", note: "paid when the chapter pays" },
+];
+
+export const LEVEL_2_TITLE = "Level 2 — unlocked after performance";
+export const LEVEL_2_ROWS: readonly PayRow[] = [
+  { what: "Assisted DM outreach at other campuses", amount: "5%" },
+  { what: "A rep you referred onboards a chapter", amount: "$150", note: "flat, one-time" },
+];
+
+/** The bonus gate, in one sentence. */
+export const CHAPTER_BONUS_GATE = "Chapter bonuses unlock only when the chapter pays.";
+
+/** The duration rule — said in the video and in writing, verbatim. */
+export const DURATION_RULE =
+  `Your ${REP_COMMISSION_PCT}% runs for the first semester on any chapter you bring on, and keeps running as long as you're actively managing it. If you go inactive, it ends after that first semester.`;
+
+/** "Actively managing" as a MEASURABLE threshold, never a judgment call. The dashboard shows
+ *  the rep where they stand against it. DECISION FOR LEE: the window and the count are mine;
+ *  change them here and every surface follows. */
+export const ACTIVE_WINDOW_DAYS = 30;
+export const ACTIVE_MIN_ACTIONS = 1;
+export const ACTIVE_THRESHOLD_LINE =
+  `Active means at least ${ACTIVE_MIN_ACTIONS} logged chapter action in your dashboard — a DM sent, a reply marked, a flyer check, a meeting — every ${ACTIVE_WINDOW_DAYS} days. Your dashboard shows the count and the clock.`;
+
+/** Attribution: credit for a link sent needs the DM screenshot alongside it. */
+export const ATTRIBUTION_LINE = "To get credit for a link you sent, attach a screenshot of the DM when you log it — one action, screenshot and all.";
+
 // ── THE DASHBOARD EMPTY STATE ────────────────────────────────────────────────────────────────
 // What a newly approved rep sees before doing anything — the highest-leverage copy in the set.
 // Three steps, then the ceiling, then the gate. No dismiss button: it disappears when they start.
