@@ -208,11 +208,11 @@ function Flow({ d, stepKey, legacyToken, onStep, onSaved }: { d: PreOnboardingSt
             <MuxVideo playbackId={videoId} poster={muxThumb(videoId, 720)} style={{ width: "100%", maxWidth: 360, aspectRatio: "9 / 16", borderRadius: 16, marginTop: 14, background: "#000" }} />
           ) : (
             <div className="mt-4 rounded-2xl p-4" style={{ background: "#0B1220", border: "1px solid var(--border-default)", maxWidth: 360 }} data-video-placeholder={def.key}>
-              <p className="text-[11px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.12em" }}>Lee, in two minutes</p>
+              <p className="text-[11px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.12em" }}>▶ Video placeholder — Lee, in two minutes</p>
               <ul className="mt-2 grid gap-2 text-[14.5px] leading-snug" style={{ color: "var(--brand-cream)" }}>
                 {def.gist.map((g, i) => <li key={i} className="flex gap-2"><span aria-hidden style={{ color: "var(--accent)" }}>•</span><span>{g}</span></li>)}
               </ul>
-              <p className="mt-3 text-[11.5px]" style={{ color: "var(--text-muted)" }}>The short for this step is being filmed — the gist is above.</p>
+              <p className="mt-3 text-[11.5px]" style={{ color: "var(--text-muted)" }}>Placeholder: Lee's short for this step isn't filmed yet. Until it is, the gist above is the video — read it and answer below.</p>
             </div>
           )}
 
