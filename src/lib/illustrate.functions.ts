@@ -13,6 +13,7 @@ import { composeIllustrationPrompt, illustrationStyle, type FrameIllustration, t
 import { frameSchema, type FrameRow } from "@/lib/blastoff-frame-schema";
 import { bankKey, bankStyleDefaults, classifyIllustration, illustrationTitle, medianOf, tallyStatuses, targetStyleIdFor, type BankRow, type BankStyleDefault, type BankTotals } from "@/lib/illustration-bank";
 import { isMissingSchema } from "@/lib/pg-errors";
+import { slugOf } from "@/components/v3/use-bank";
 
 const MISSING_BUCKET_HINT = "The canvas-media storage bucket is missing — see migration 0085.";
 export const MISSING_LIBRARY_HINT = "run migration/supabase-migrations/20260905_2200_illustration_library.sql";
@@ -179,6 +180,8 @@ function bankRowFor(frame: FrameRow, i: FrameIllustration & { assetUrl: string }
   return {
     key: bankKey(deck.id, frame.id), setId: deck.id, setName: setDisplayName(deck.name),
     topicId: topic.id, topicName: topic.name, topicKind: topic.kind,
+    // The same slugs blastOffPath builds (raw names, not the display name), plus the frame.
+    reviewPath: `/v3/${slugOf(topic.name)}/${slugOf(deck.name ?? "")}/blast-off/results?frame=${encodeURIComponent(frame.id)}`,
     frameId: frame.id, frameKind: frame.kind, title: illustrationTitle(i), prompt: i.prompt ?? "",
     teachingIntent: i.teachingIntent, stylePreset: i.stylePreset, styleVersion: i.styleVersion, seed: i.seed,
     assetUrl: i.assetUrl, generatedAt: i.generatedAt, status: classifyIllustration(i, topic.kind),

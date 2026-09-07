@@ -25,12 +25,16 @@ import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
 import { V3Shell, V3Note, V3_CREAM, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/results")({
+  // ?frame=<id> opens with that slide selected (2026-09-06, the illustration bank's "open
+  // slide in Review →" — Lee: "link straight to slide in review"). Absent → the first slide.
+  validateSearch: (s: Record<string, unknown>): { frame?: string } => (typeof s.frame === "string" && s.frame ? { frame: s.frame } : {}),
   component: () => <AdminGate><V3Results /></AdminGate>,
   head: () => ({ meta: [{ title: "✨ Review — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
 
 function V3Results() {
   const { topic: topicKey, set: setKey } = Route.useParams();
+  const { frame: frameParam } = Route.useSearch();
   const navigate = useNavigate();
   const { topics, error, topic, set } = useV3Set(topicKey, setKey);
   const [tt, setTT] = useState<TTState>(() => ttState());
@@ -85,7 +89,7 @@ function V3Results() {
         <>
           <StepBar topic={topic} set={set} active="results" />
 
-          <ReviewDeck set={set} topic={topic} doc={tt.doc} register={register} />
+          <ReviewDeck set={set} topic={topic} doc={tt.doc} register={register} initialSelectedId={frameParam ?? null} />
 
           <details style={{ marginTop: 22, border: `1px solid ${V3_EDGE}`, borderRadius: 12, padding: "8px 14px" }}>
             <summary style={{ cursor: "pointer", fontSize: 11, letterSpacing: "0.2em", color: V3_GOLD, textTransform: "uppercase", fontWeight: 800 }}>

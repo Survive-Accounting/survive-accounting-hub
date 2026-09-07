@@ -66,11 +66,58 @@ type Outcome =
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const dateShort = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "—");
 
-function Thumb({ url, size = 56, title }: { url: string; size?: number; title?: string }) {
-  // The transparent PNG on the dark panel — what the phone shows, at a glance.
+function Thumb({ url, size = 56, title, onClick }: { url: string; size?: number; title?: string; onClick?: () => void }) {
+  // The transparent PNG on the dark panel — what the phone shows, at a glance. Click = the
+  // pop-out below (2026-09-06, Lee: "click an illustration in the bank and have it pop out").
   return (
-    <div title={title} style={{ width: size, height: size, borderRadius: 8, background: "#000", border: `1px solid ${EDGE}`, display: "grid", placeItems: "center", overflow: "hidden", flexShrink: 0 }}>
+    <div title={onClick ? "Click to view" : title} onClick={onClick} role={onClick ? "button" : undefined}
+      style={{ width: size, height: size, borderRadius: 8, background: "#000", border: `1px solid ${EDGE}`, display: "grid", placeItems: "center", overflow: "hidden", flexShrink: 0, cursor: onClick ? "zoom-in" : undefined }}>
       <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} loading="lazy" />
+    </div>
+  );
+}
+
+/** THE POP-OUT: the picture on the black 9:16 stage at phone proportions — what a student
+ *  sees, not a square on white — with its subject beside it and the way to its slide. Escape
+ *  or a click outside closes. */
+function Lightbox({ row, onClose }: { row: BankRow | null; onClose: () => void }) {
+  useEffect(() => {
+    if (!row) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [row, onClose]);
+  if (!row) return null;
+  const style = illustrationStyle(row.stylePreset);
+  const stageH = Math.min(760, typeof window !== "undefined" ? window.innerHeight * 0.84 : 760);
+  const stageW = Math.round(stageH * 9 / 16);
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(3,5,10,0.88)", display: "grid", placeItems: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 22, alignItems: "stretch", maxWidth: "min(1100px, 96vw)" }}>
+        {/* the stage: black, 9:16, the picture placed where a blank slide would put it */}
+        <div style={{ width: stageW, height: stageH, background: "#000", borderRadius: 18, border: `1px solid ${EDGE}`, position: "relative", overflow: "hidden", flexShrink: 0 }}>
+          <img src={row.assetUrl} alt={row.title} style={{ position: "absolute", left: "50%", top: "44%", transform: "translate(-50%, -50%)", width: "72%", objectFit: "contain" }} />
+        </div>
+        <div style={{ width: 320, background: PANEL, border: `1px solid ${EDGE}`, borderRadius: 14, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10, color: CREAM, fontSize: 13 }}>
+          <div style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 800, lineHeight: 1.15 }}>{row.title || "(untitled)"}</div>
+          <div style={{ color: MUTED, fontSize: 12 }}>{row.topicName} · {row.setName} · {frameKindLabel(row.frameKind)}</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <span style={chip(MUTED)}>{style.label.replace(/\s*\(.*\)$/, "")} v{row.styleVersion ?? "?"}</span>
+            <span style={chip(STATUS_COLOR[row.status])}>{STATUS_LABEL[row.status]}</span>
+            {row.seed !== null && <span style={chip(MUTED)}>seed {row.seed}</span>}
+          </div>
+          <div style={{ fontSize: 10.5, color: GOLD, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4 }}>subject</div>
+          <div style={{ lineHeight: 1.45 }}>{row.prompt}</div>
+          {row.teachingIntent && (<>
+            <div style={{ fontSize: 10.5, color: GOLD, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4 }}>teaching point</div>
+            <div style={{ lineHeight: 1.45, color: MUTED }}>{row.teachingIntent}</div>
+          </>)}
+          <div style={{ flex: 1 }} />
+          <a href={row.reviewPath} style={{ ...btn("gold"), textAlign: "center", textDecoration: "none" }}>Open this slide in Review →</a>
+          <a href={row.assetUrl} target="_blank" rel="noopener noreferrer" style={{ ...btn("ghost"), textAlign: "center", textDecoration: "none" }}>Open the PNG ↗</a>
+          <button onClick={onClose} style={btn("quiet")}>close · esc</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -85,6 +132,8 @@ function Bank() {
   const [confirming, setConfirming] = useState(false);
   const [outcomes, setOutcomes] = useState<Record<string, Outcome>>({});
   const [open, setOpen] = useState<string | null>(null);
+  const [view, setView] = useState<BankRow | null>(null);
+  const closeView = useCallback(() => setView(null), []);
   // The run: what's in flight, where it is, what it has cost. stopRef is read between pictures —
   // Stop never aborts a Recraft call mid-draw (that would still be billed).
   const [run, setRun] = useState<{ total: number; done: number; current: BankRow | null; spent: number; stopped: boolean } | null>(null);
@@ -194,6 +243,7 @@ function Bank() {
       {err && <div style={{ color: RED, fontSize: 13, marginBottom: 12 }}>{err}</div>}
       {!bank && !err && <div style={{ color: MUTED, fontSize: 13 }}>Reading every plan…</div>}
       {bank?.libraryMissing && <div style={{ color: ORANGE, fontSize: 12.5, marginBottom: 12 }}>The illustration library table is missing — {MISSING_LIBRARY_HINT}. Costs below are the stated guess.</div>}
+      <Lightbox row={view} onClose={closeView} />
 
       {bank && (
         <>
@@ -269,7 +319,7 @@ function Bank() {
                           const isOpen = open === r.key && oc?.state === "ok";
                           return (
                             <Row key={r.key} r={r} oc={oc} checked={selected.has(r.key)} disabled={running} isOpen={isOpen}
-                              onToggle={() => toggle(r.key)} onOpen={() => setOpen(isOpen ? null : r.key)} onRetry={() => void retry(r)} />
+                              onToggle={() => toggle(r.key)} onOpen={() => setOpen(isOpen ? null : r.key)} onRetry={() => void retry(r)} onView={() => setView(r)} />
                           );
                         })}
                       </tbody>
@@ -285,9 +335,9 @@ function Bank() {
   );
 }
 
-function Row({ r, oc, checked, disabled, isOpen, onToggle, onOpen, onRetry }: {
+function Row({ r, oc, checked, disabled, isOpen, onToggle, onOpen, onRetry, onView }: {
   r: BankRow; oc: Outcome | undefined; checked: boolean; disabled: boolean; isOpen: boolean;
-  onToggle: () => void; onOpen: () => void; onRetry: () => void;
+  onToggle: () => void; onOpen: () => void; onRetry: () => void; onView: () => void;
 }) {
   const style = illustrationStyle(r.stylePreset);
   const styleName = r.stylePreset && r.stylePreset === style.id ? style.label.replace(/\s*\(.*\)$/, "") : (r.stylePreset ?? "no preset");
@@ -296,10 +346,13 @@ function Row({ r, oc, checked, disabled, isOpen, onToggle, onOpen, onRetry }: {
     <>
       <tr style={{ opacity: oc?.state === "running" ? 0.7 : 1 }}>
         <td style={{ ...cellStyle, width: 28 }}><input type="checkbox" checked={checked} onChange={onToggle} disabled={disabled} /></td>
-        <td style={{ ...cellStyle, width: 64 }}><Thumb url={r.assetUrl} title={r.prompt} /></td>
+        <td style={{ ...cellStyle, width: 64 }}><Thumb url={r.assetUrl} title={r.prompt} onClick={onView} /></td>
         <td style={cellStyle}>
           <div style={{ fontWeight: 700 }}>{r.title || <span style={{ color: MUTED }}>(untitled)</span>}</div>
-          <div style={{ color: MUTED, fontSize: 11.5 }}>{frameKindLabel(r.frameKind)}{r.teachingIntent ? ` · ${r.teachingIntent}` : ""}</div>
+          <div style={{ color: MUTED, fontSize: 11.5 }}>
+            {frameKindLabel(r.frameKind)}{r.teachingIntent ? ` · ${r.teachingIntent}` : ""}
+            {" · "}<a href={r.reviewPath} style={{ color: GOLD, textDecoration: "none" }} title="Open this slide on the Review deck">slide in Review →</a>
+          </div>
         </td>
         <td style={{ ...cellStyle, whiteSpace: "nowrap" }}><span style={chip(MUTED)}>{styleName} v{r.styleVersion ?? "?"}</span></td>
         <td style={{ ...cellStyle, whiteSpace: "nowrap" }}><span style={chip(STATUS_COLOR[r.status])}>{STATUS_LABEL[r.status]}</span></td>

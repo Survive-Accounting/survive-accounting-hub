@@ -239,10 +239,13 @@ export function slidePatchFor(kind: BlastFrameKind, p: { title: string; text: st
   return { text: title || p.text, bullets: title ? [p.text] : [], prompter: [p.text] };
 }
 
-export function ReviewDeck({ set, topic, doc, register }: {
+export function ReviewDeck({ set, topic, doc, register, initialSelectedId = null }: {
   set: BoothSetInfo; topic: BoothTopic; doc: TTDoc;
   /** Hands the deck's verbs to whoever mounts it (the AI board's "＋ slide"). */
   register?: (api: DeckApi | null) => void;
+  /** Open with this slide selected and scrolled into view — the route's ?frame= (2026-09-06,
+   *  the illustration bank's deep link). Unknown id → the first slide, as always. */
+  initialSelectedId?: string | null;
 }) {
   // CEQ edits saved this visit: the bank reloads on the next page load; until
   // then the preview and the list read the edited card from here.
@@ -269,9 +272,16 @@ export function ReviewDeck({ set, topic, doc, register }: {
     return m;
   }, [viewSet.ceqs]);
 
-  const [selId, setSelId] = useState<string | null>(null);
+  const [selId, setSelId] = useState<string | null>(initialSelectedId);
   const sel = frames.find((f) => f.id === selId) ?? frames[0] ?? null;
   const selIdx = sel ? frames.indexOf(sel) : -1;
+  // The deep link's slide scrolls into view once the plan is in — once, not on every select.
+  const scrolledTo = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialSelectedId || scrolledTo.current === initialSelectedId || !frames.some((f) => f.id === initialSelectedId)) return;
+    scrolledTo.current = initialSelectedId;
+    document.querySelector(`[data-frame-id="${CSS.escape(initialSelectedId)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [initialSelectedId, frames]);
 
   // Which face the right panel shows. Read lazily: the panel only renders once
   // the plan has loaded on the client, so there is nothing to mismatch.
@@ -436,7 +446,7 @@ export function ReviewDeck({ set, topic, doc, register }: {
     const canDrop = !opts.foldered;
     const draggableRow = !menu && canDrop;
     return (
-      <div key={f.id} draggable={draggableRow} className={`sa-spine-row${on ? " is-on" : ""}${menu ? " is-menu" : ""}`}
+      <div key={f.id} data-frame-id={f.id} draggable={draggableRow} className={`sa-spine-row${on ? " is-on" : ""}${menu ? " is-menu" : ""}`}
         onDragStart={() => setDragId(f.id)}
         onDragOver={canDrop ? (e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setOver({ i, below: e.clientY > r.top + r.height / 2 }); } : undefined}
         onDrop={canDrop ? (e) => { e.preventDefault(); drop(); } : undefined}

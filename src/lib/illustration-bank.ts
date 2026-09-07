@@ -31,6 +31,9 @@ export interface BankRow {
   topicKind: IllustrationTopicKind;
   frameId: string;
   frameKind: string;
+  /** Straight to this slide on Review (2026-09-06, Lee: "link straight to slide in review") —
+   *  /v3/<topic>/<set>/blast-off/results?frame=<id>, slugs from the raw deck and chapter names. */
+  reviewPath: string;
   title: string;
   prompt: string;
   teachingIntent: string | null;
