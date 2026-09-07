@@ -75,6 +75,9 @@ export function reduceRounds(s: RehearsalRounds, a: RoundsAction): RehearsalRoun
     case "finish": {
       if (s.phase !== "running") return s;
       const seconds = Math.max(0, Math.round((a.now - (s.startedAt ?? a.now)) / 1000));
+      // 2026-09-07: the production run's checklist ticks "Rehearse round 1/2" off itself — one
+      // announcement, nothing listening is required (components/v3/ProductionTimer.tsx).
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("sa:production", { detail: { event: "rehearsal-round-finished", round: { round: s.round, seconds } } }));
       return { ...s, phase: "off", startedAt: null, slideStartedAt: null, history: [...s.history, { round: s.round, seconds }] };
     }
     case "cancel": {

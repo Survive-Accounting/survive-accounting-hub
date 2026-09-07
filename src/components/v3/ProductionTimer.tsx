@@ -1,130 +1,509 @@
-// THE PRODUCTION TIMER — Lee, 2026-09-05: "I want to time how long it takes for each step for
-// blast offs, talkthrough, review, film... a popup that says start timer, it moves to the top
-// right and runs, then I can stop it when I'm done. Pause it, etc. It can keep a log of
-// everything done." Mounted once, globally (next to ShippedDock, IdeasDock — __root.tsx),
-// admin-gated the same way: nothing runs, not even the bank fetch, until unlocked.
+// THE PRODUCTION RUN WIDGET — the checklist pill. Mounted once, globally (next to ShippedDock,
+// IdeasDock — __root.tsx), admin-gated the same way: nothing runs, not even the bank fetch,
+// until unlocked. The export name is the 2026-09-05 timer's, so __root.tsx didn't change; the
+// body is new.
 //
-// The step and the set are AUTO-DETECTED from the URL (production-time.ts) the moment Lee is on
-// a per-set Blast Off page — no picker, no setup, matching "starting with the next CEQ set"
-// being a single click. (Not on /v3/post: the cross-set Post page, 2026-09-06, names no set to
-// log against, so the widget stays hidden there — production-time.ts.) Once started, the
-// session is frozen (captured at the click) so navigating away mid-timer never loses or
-// silently reassigns it.
-import { useRouterState } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+// Lee, 2026-09-07: "'start timer - review' etc should be much more simple. In background...
+// like if I come to /talkthrough, when I first hit start recording, that starts the timer.
+// When I stop recording, background timer stops. For others, like step2, it can open a popup
+// modal that's like ready to start?, and same with step 3 film, step 4 post. I'd like to skip
+// sometimes, although I plan to do it often. … it's all in the background, right? … I think
+// we need to make this have a checkbox step by step approach. … let me pause this timer, but
+// make that require confirmation. I'm only going to pause if I literally have to stop."
+//
+// HOW EACH STEP STARTS AND STOPS (the whole story, so nothing here is a surprise):
+//   · Brainstorm — AUTOMATIC, no modal. On the set's Brainstorm page the widget watches the
+//     Talkthrough store (subscribeTT). The first transcript segment landing for the open
+//     session = recording started: a run starts for this set (startedAt = the session's own
+//     start) and "Talk it through" starts running. The session gaining endedAt (End Session →
+//     Review) = stopped: "Talk it through" is checked. "Skim" and "Stamp" are Lee's to tick.
+//     (Booth.tsx keeps the mic state to itself, so the recorder's own click isn't observable
+//     without touching it — the first sentence is the honest proxy, a few seconds late.)
+//   · Editor, Rehearse & Film — a centred "Ready to start …?" modal on landing, when this
+//     set's run has the step pending: Start (the first task starts running) / Skip this step /
+//     Not now. No run on this set at all → the modal offers "Start a run here".
+//   · Cross-post — /v3/post is cross-set, so the modal there asks WHICH set: every run whose
+//     Cross-post is still pending. One active run with Cross-post running → just the pill.
+//   · Every step ends the same way: "✓ Done with this step" in the pill, then an optional
+//     comment ("What sucked, what would've been better?") → finishStep. That also logs the
+//     step's seconds to production_time_log (logProductionTime), so the bottleneck report
+//     and set-stage's "filmed?" keep working. Finishing the last step ends the run and the
+//     pill offers "→ Improve Process".
+//   · Rehearsal rounds check themselves off: BlastOffCapture's rounds reducer announces a
+//     finished round (window "sa:production"), round 1 → "Rehearse round 1", round 2 → "round 2".
+//
+// STATE. The active run lives in localStorage (sa-production-run) and is upserted to
+// production_runs on every change, best-effort — a failed save shows in the pill, never blocks.
+// Elapsed time is derived from timestamps on a 1 s tick (production-run.ts), never a counter,
+// so a reload or a sleeping laptop loses nothing.
+//
+// NEVER IN THE TAKE. The 9:16 pop-out window (?popout=1, components/blastoff/capture/popout.ts)
+// is what OBS captures; the widget draws nothing there. The main window keeps the pill (the
+// film step has tasks to tick — setup, rounds, the take).
+import { Link, useRouterState } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
-import { isAdminUnlocked, getAdminWho } from "@/components/AdminGate";
-import { findSet, findTopic, useBank } from "@/components/v3/use-bank";
+import { getAdminWho, isAdminUnlocked } from "@/components/AdminGate";
+import { startTT, subscribeTT, ttState } from "@/components/canvas/talkthrough-sync";
+import { findSet, findTopic, slugOf, useBank } from "@/components/v3/use-bank";
 import { logProductionTime } from "@/lib/production-time.functions";
-import { blastOffStepFromPath, fmtElapsed, STEP_LABEL, type ProductionStep } from "@/lib/production-time";
+import {
+  currentStep, DEFAULT_TASK_LISTS, fmtElapsed, isPaused, LOG_STEP, newRun, nextPendingStep, normalizeRun, pillLabel, recordingSignal,
+  reduceRun, RUN_STEP_LABEL, RUN_STEPS, runningTask, runStepFromPath, runTotalSeconds, stepSeconds, taskSeconds,
+  type ProductionRun, type RunAction, type RunStepId, type TaskLists,
+} from "@/lib/production-run";
+import { getActiveRun, getProductionTaskLists, listProductionRuns, upsertProductionRun } from "@/lib/production-run.functions";
+import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
 
-const GOLD = "#FCA311", CREAM = "#F4EFE6", MUTED = "#9AA3B8", EDGE = "rgba(244,239,230,0.16)", INK = "#0B0F1E", MINT = "#3BF5A0", ORANGE = "#FF9F43";
+const GOLD = "#FCA311", CREAM = "#F4EFE6", MUTED = "#9AA3B8", EDGE = "rgba(244,239,230,0.16)", INK = "#0B0F1E", MINT = "#3BF5A0", ORANGE = "#FF9F43", ROSE = "#FF8B7E";
+const FONT = "'Rubik', system-ui, sans-serif";
+const Z = 2147482900;
+export const RUN_KEY = "sa-production-run";
 
 export function ProductionTimer() {
   const [unlocked, setUnlocked] = useState(false);
   useEffect(() => { setUnlocked(isAdminUnlocked()); }, []);
   if (!unlocked) return null;
-  return <ProductionTimerInner />;
+  return <ProductionRunInner />;
 }
 
-interface Session { step: ProductionStep; topicSlug: string; setSlug: string; startedAt: string }
+const loadLocal = (): ProductionRun | null => {
+  try { const raw = localStorage.getItem(RUN_KEY); return raw ? normalizeRun(JSON.parse(raw)) : null; } catch { return null; }
+};
+const saveLocal = (run: ProductionRun | null): void => {
+  try { if (run) localStorage.setItem(RUN_KEY, JSON.stringify(run)); else localStorage.removeItem(RUN_KEY); } catch { /* a browser that refuses storage just forgets */ }
+};
 
-function ProductionTimerInner() {
+type Here = { topic: BoothTopic; set: BoothSetInfo };
+type Modal = { kind: "ready"; step: RunStepId } | { kind: "start-here"; step: RunStepId } | { kind: "pick-post" };
+
+function ProductionRunInner() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const detected = blastOffStepFromPath(pathname);
+  const search = useRouterState({ select: (s) => s.location.search as Record<string, unknown> });
+  const path = useMemo(() => runStepFromPath(pathname), [pathname]);
   const { topics } = useBank();
 
-  const [phase, setPhase] = useState<"idle" | "running" | "paused">("idle");
-  const [seconds, setSeconds] = useState(0);
-  const [session, setSession] = useState<Session | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // DISMISS (2026-09-06, Lee: "it's blocking stuff on bottom menu... make sure it's dismissable")
-  // — keyed to the detected step+set, not a blanket "never show again": dismissing the prompt on
-  // this page hides THIS one, but a different set or step is a fresh prompt.
-  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
-  const detectedKey = detected ? `${detected.topicSlug}/${detected.setSlug}/${detected.step}` : null;
+  const [run, setRun] = useState<ProductionRun | null>(null);
+  const runRef = useRef<ProductionRun | null>(null);
+  const [restored, setRestored] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+  const [lists, setLists] = useState<TaskLists>(DEFAULT_TASK_LISTS);
+  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState<string | null>(null);
 
-  useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current); }, []);
-  const startTicking = () => { tickRef.current = setInterval(() => setSeconds((s) => s + 1), 1000); };
-  const stopTicking = () => { if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; } };
+  // The set this page is on, once the bank has loaded (slug → canonical id).
+  const here = useMemo<Here | null>(() => {
+    if (path?.kind !== "set" || !topics) return null;
+    const topic = findTopic(topics, path.topicSlug);
+    const set = topic ? findSet(topic, path.setSlug) : undefined;
+    return topic && set ? { topic, set } : null;
+  }, [path, topics]);
+  const hereRef = useRef<Here | null>(null);
+  hereRef.current = here;
 
-  const start = () => {
-    if (!detected) return;
-    setSession({ ...detected, startedAt: new Date().toISOString() });
-    setSeconds(0); setErr(null); setPhase("running");
-    startTicking();
-  };
-  const pause = () => { stopTicking(); setPhase("paused"); };
-  const resume = () => { startTicking(); setPhase("running"); };
-  const stop = async () => {
-    stopTicking();
-    const s = session;
-    const finalSeconds = seconds;
-    setPhase("idle"); setSession(null); setSeconds(0);
-    if (!s) return;
-    // Resolved names + the CANONICAL set id (same identifier illustration_library uses —
-    // findSet's own id, not necessarily the URL slug) — falls back to the raw slugs if the
-    // bank hasn't loaded, so stopping never waits on a network call.
-    const topic = topics ? findTopic(topics, s.topicSlug) : undefined;
-    const set = topic ? findSet(topic, s.setSlug) : undefined;
-    try {
-      const r = await logProductionTime({ data: {
-        setId: set?.id ?? s.setSlug, setName: set?.name ?? null, topicSlug: s.topicSlug, topicName: topic?.name ?? null,
-        step: s.step, seconds: finalSeconds, startedAt: s.startedAt, endedAt: new Date().toISOString(), who: getAdminWho(),
-      } });
-      if (!r.ok) setErr(r.error ?? "Couldn't save the time log.");
-    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
-  };
+  /** Every change: state, localStorage, the server — in that order, none waiting on the next. */
+  const commit = useCallback((next: ProductionRun | null) => {
+    runRef.current = next;
+    setRun(next);
+    saveLocal(next);
+    if (!next) return;
+    upsertProductionRun({ data: next })
+      .then((r) => setSaveErr(r.ok ? null : (r.error ?? "Couldn't save the run.")))
+      .catch((e) => setSaveErr(e instanceof Error ? e.message : String(e)));
+  }, []);
+  const dispatch = useCallback((action: RunAction): ProductionRun | null => {
+    const cur = runRef.current;
+    if (!cur) return null;
+    const next = reduceRun(cur, action, new Date());
+    if (next !== cur) commit(next);
+    return next;
+  }, [commit]);
 
-  // NEVER ON FILM (2026-09-06, Lee: "start time has to be out of the capture window for sure").
-  // BlastOffCapture's OWN chrome can be hidden with H before a take, but this widget is mounted
-  // globally and has no way to know that toggle — the only guarantee that actually holds "for
-  // sure" is never rendering here at all, in EITHER phase, whether or not the session was
-  // started elsewhere. The timer keeps running in the background regardless (this component
-  // never unmounts on navigation) — it just draws nothing while Lee is on the page OBS is
-  // capturing, and reappears the moment he's back on any other Blast Off screen.
-  if (detected?.step === "film") return null;
+  // RESTORE: localStorage first (instant), else the newest running run on the server. A done
+  // run kept locally (for its "→ Improve Process" link) is dropped after a day.
+  useEffect(() => {
+    const local = loadLocal();
+    const stale = local && local.status !== "running" && Date.now() - new Date(local.endedAt ?? local.startedAt).getTime() > 86_400_000;
+    if (local && !stale) { runRef.current = local; setRun(local); setRestored(true); }
+    else {
+      if (stale) saveLocal(null);
+      getActiveRun().then((r) => { if (r.run && !runRef.current) { runRef.current = r.run; setRun(r.run); saveLocal(r.run); } })
+        .catch(() => { /* no server copy — the next Brainstorm or modal starts one */ })
+        .finally(() => setRestored(true));
+    }
+    getProductionTaskLists().then((r) => setLists(r.lists)).catch(() => { /* code defaults */ });
+  }, []);
 
-  // IDLE, on a Blast Off page: a small, easy-to-ignore prompt. Top-left (2026-09-06, Lee: "it's
-  // blocking stuff on bottom menu") — capture's own chrome, the Rehearsal chip and the prompter
-  // panel all live at the bottom or the right; top-left is clear on every Blast Off screen.
-  if (phase === "idle") {
-    if (!detected || dismissedKey === detectedKey) return null;
-    return (
-      <div style={{ position: "fixed", left: 16, top: 16, zIndex: 2147482900, display: "flex", alignItems: "center", gap: 4 }}>
-        <button type="button" onClick={start} title={`Time the ${STEP_LABEL[detected.step]} step on this set`}
-          style={{ font: "inherit", fontSize: 12.5, fontWeight: 700, padding: "8px 14px", borderRadius: 999, border: `1px solid ${EDGE}`, background: INK, color: CREAM, cursor: "pointer", boxShadow: "0 8px 20px rgba(0,0,0,0.35)" }}>
-          ⏱ Start timer — {STEP_LABEL[detected.step]}
-        </button>
-        <button type="button" onClick={() => setDismissedKey(detectedKey)} title="Dismiss — reappears on a different set or step"
-          style={{ width: 22, height: 22, borderRadius: "50%", border: `1px solid ${EDGE}`, background: INK, color: MUTED, cursor: "pointer", fontSize: 12, lineHeight: 1, boxShadow: "0 8px 20px rgba(0,0,0,0.35)" }}>
-          ×
-        </button>
-      </div>
-    );
-  }
+  // THE TICK — 1 s, only while something is running; time itself comes from timestamps.
+  const ticking = !!run && run.status === "running";
+  useEffect(() => {
+    if (!ticking) return;
+    setNow(new Date());
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, [ticking]);
 
-  // RUNNING / PAUSED — moved to the top right, stays there regardless of what page Lee is on.
-  const step = session?.step ?? detected?.step ?? "review";
+  const who = () => getAdminWho();
+  const startRunHere = useCallback((h: Here, startedAt?: string): ProductionRun => {
+    const fresh = newRun({
+      setId: h.set.id, setName: h.set.name, topicSlug: slugOf(h.topic.name), topicName: h.topic.name, setSlug: slugOf(h.set.name),
+      createdBy: who(), lists, now: new Date(), startedAt,
+    });
+    commit(fresh);
+    return fresh;
+  }, [commit, lists]);
+
+  // AUTO ON BRAINSTORM — the recorder's signal, read off the Talkthrough store.
+  const onTalkPage = path?.kind === "set" && path.step === "talkthrough";
+  const hereSetId = here?.set.id ?? null;
+  useEffect(() => {
+    if (!onTalkPage || !hereSetId) return;
+    startTT();
+    let prev = recordingSignal(ttState().doc, hereSetId);
+    return subscribeTT((s) => {
+      const sig = recordingSignal(s.doc, hereSetId);
+      const before = prev;
+      prev = sig;
+      if (!sig) return;
+      const h = hereRef.current;
+      if (!h || h.set.id !== hereSetId) return;
+      const cur = runRef.current;
+      const mine = cur && cur.status === "running" && cur.setId === hereSetId ? cur : null;
+      // Recording STARTED: the first segment of this session (or a new session's first).
+      if (sig.recording && !sig.ended && (!before || before.sessionId !== sig.sessionId || !before.recording)) {
+        if (mine) {
+          if (mine.steps.talkthrough.tasks.some((t) => t.key === "talk" && t.status === "pending")) dispatch({ type: "startTask", step: "talkthrough", key: "talk" });
+        } else {
+          startRunHere(h, sig.startedAt);
+          dispatch({ type: "startTask", step: "talkthrough", key: "talk" });
+        }
+      }
+      // Recording STOPPED: the session ended (End Session → Review).
+      if (sig.ended && before && before.sessionId === sig.sessionId && !before.ended && mine) {
+        if (mine.steps.talkthrough.tasks.some((t) => t.key === "talk" && t.status === "running")) dispatch({ type: "completeTask", step: "talkthrough", key: "talk" });
+      }
+    });
+  }, [onTalkPage, hereSetId, dispatch, startRunHere]);
+
+  // REHEARSAL ROUNDS — BlastOffCapture's reducer announces a finished round.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ event?: string; round?: { round: number; seconds: number } }>).detail;
+      if (d?.event !== "rehearsal-round-finished" || !d.round) return;
+      const cur = runRef.current, h = hereRef.current;
+      if (!cur || cur.status !== "running" || !h || cur.setId !== h.set.id) return;
+      const key = d.round.round === 1 ? "r1" : d.round.round === 2 ? "r2" : null;
+      if (!key) return;
+      const task = cur.steps.film.tasks.find((t) => t.key === key);
+      if (task && (task.status === "pending" || task.status === "running")) dispatch({ type: "completeTask", step: "film", key, seconds: d.round.seconds });
+    };
+    window.addEventListener("sa:production", on);
+    return () => window.removeEventListener("sa:production", on);
+  }, [dispatch]);
+
+  /** finishStep + the production_time_log row (the old report's shape) — best-effort. */
+  const finishStep = useCallback((step: RunStepId, note: string) => {
+    const cur = runRef.current;
+    if (!cur) return;
+    const next = dispatch({ type: "finishStep", step, note: note || null });
+    if (!next) return;
+    const s = next.steps[step];
+    if (!s.startedAt || !s.endedAt) return;
+    logProductionTime({ data: {
+      setId: next.setId, setName: next.setName || null, topicSlug: next.topicSlug || null, topicName: next.topicName || null,
+      step: LOG_STEP[step], seconds: stepSeconds(s, new Date(s.endedAt)), startedAt: s.startedAt, endedAt: s.endedAt, who: who(),
+      note: s.note ? s.note.slice(0, 500) : null,
+    } }).then((r) => { if (!r.ok) setSaveErr(r.error ?? "Couldn't write the time log."); }).catch(() => { /* the run itself is saved; the log row is the legacy report's */ });
+  }, [dispatch]);
+
+  // Escape closes the popover.
+  useEffect(() => {
+    if (!open) return;
+    const on = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); } };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [open]);
+
+  // NEVER IN THE POP-OUT (the take).
+  const popout = search?.popout === 1 || search?.popout === "1" || (typeof window !== "undefined" && /[?&]popout=1(?:&|$)/.test(window.location.search));
+  if (popout) return null;
+
+  // THE READY MODALS.
+  const modalStep: RunStepId | null = path?.kind === "set" && (path.step === "results" || path.step === "film") ? path.step : path?.kind === "post" ? "post" : null;
+  const mine = run && run.status === "running" && here && run.setId === here.set.id ? run : null;
+  const modal = ((): Modal | null => {
+    if (!restored || !modalStep) return null;
+    if (modalStep === "post") {
+      // Keyed to the run, so "Not now" on one set's Cross-post doesn't hide the next set's.
+      if (dismissed === `post/${run?.id ?? "none"}`) return null;
+      if (run && run.status === "running" && run.steps.post.status === "pending") return { kind: "ready", step: "post" };
+      if (!run || run.status !== "running" || run.steps.post.status !== "running") return { kind: "pick-post" };
+      return null;
+    }
+    if (!here || dismissed === `${here.set.id}/${modalStep}`) return null;
+    if (mine) return mine.steps[modalStep].status === "pending" ? { kind: "ready", step: modalStep } : null;
+    return { kind: "start-here", step: modalStep };
+  })();
+  const dismissModal = () => setDismissed(modalStep === "post" ? `post/${runRef.current?.id ?? "none"}` : here ? `${here.set.id}/${modalStep}` : null);
+
   return (
-    <div style={{ position: "fixed", top: 16, right: 16, zIndex: 2147482900, background: INK, border: `1px solid ${phase === "running" ? MINT : ORANGE}66`, borderRadius: 12, padding: "8px 12px", boxShadow: "0 12px 28px rgba(0,0,0,0.45)", fontFamily: "'Rubik', system-ui, sans-serif", minWidth: 168 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span aria-hidden style={{ width: 8, height: 8, borderRadius: 4, background: phase === "running" ? MINT : ORANGE, flexShrink: 0 }} />
-        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", color: MUTED }}>{STEP_LABEL[step]}</span>
-        <span style={{ marginLeft: "auto", fontSize: 15, fontWeight: 800, color: CREAM, fontVariantNumeric: "tabular-nums" }}>{fmtElapsed(seconds)}</span>
-      </div>
-      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-        {phase === "running"
-          ? <button type="button" onClick={pause} style={btn()}>⏸ Pause</button>
-          : <button type="button" onClick={resume} style={btn(MINT)}>▶ Resume</button>}
-        <button type="button" onClick={() => void stop()} style={btn(GOLD)}>■ Stop</button>
-      </div>
-      {err && <div style={{ marginTop: 6, fontSize: 10.5, color: ORANGE, lineHeight: 1.4 }}>Not saved: {err}</div>}
+    <>
+      {modal && (
+        <ReadyModal
+          modal={modal} here={here} run={run} otherRun={run && run.status === "running" && here && run.setId !== here.set.id ? run : null}
+          onStart={(step) => {
+            if (modal.kind === "start-here" && here) startRunHere(here);
+            dispatch({ type: "startStep", step });
+            dismissModal();
+          }}
+          onSkip={(step) => {
+            if (modal.kind === "start-here" && here) startRunHere(here);
+            dispatch({ type: "skipStep", step });
+            dismissModal();
+          }}
+          onPick={(picked) => { commit(picked); dispatch({ type: "startStep", step: "post" }); dismissModal(); }}
+          onClose={dismissModal}
+        />
+      )}
+      {run && (
+        <Pill
+          run={run} now={now} open={open} setOpen={setOpen} saveErr={saveErr} dispatch={dispatch} finishStep={finishStep}
+          clear={() => { setOpen(false); commit(null); }}
+        />
+      )}
+    </>
+  );
+}
+
+// ------------------------------------------------------------------ the pill + popover
+
+function Pill({ run, now, open, setOpen, saveErr, dispatch, finishStep, clear }: {
+  run: ProductionRun; now: Date; open: boolean; setOpen: (v: boolean) => void; saveErr: string | null;
+  dispatch: (a: RunAction) => ProductionRun | null; finishStep: (step: RunStepId, note: string) => void; clear: () => void;
+}) {
+  const step = currentStep(run);
+  const stepRun = step ? run.steps[step] : null;
+  const paused = !!stepRun && isPaused(stepRun);
+  const done = run.status !== "running";
+  const dot = done ? GOLD : paused ? ORANGE : MINT;
+  const [confirmPause, setConfirmPause] = useState(false);
+  const [reason, setReason] = useState("");
+  const [finishing, setFinishing] = useState(false);
+  const [note, setNote] = useState("");
+  const [confirmAbandon, setConfirmAbandon] = useState(false);
+  useEffect(() => { if (!open) { setConfirmPause(false); setFinishing(false); setConfirmAbandon(false); } }, [open]);
+
+  const improveTo = `/v3/${run.topicSlug}/${run.setSlug}/blast-off/improve`;
+  const next = nextPendingStep(run);
+
+  return (
+    <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: Z, fontFamily: FONT, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+      {open && (
+        <div role="dialog" aria-label="Production run" style={{ width: 340, maxHeight: "70vh", overflowY: "auto", background: INK, border: `1px solid ${dot}66`, borderRadius: 14, padding: 12, boxShadow: "0 18px 50px -14px rgba(0,0,0,0.9)", color: CREAM }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: MUTED }}>{step ? RUN_STEP_LABEL[step] : done ? "Run done" : "Between steps"}</span>
+            <span style={{ fontSize: 12, color: MUTED, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{run.setName}</span>
+            <span style={{ marginLeft: "auto", fontSize: 14, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{fmtElapsed(runTotalSeconds(run, now))}</span>
+          </div>
+
+          {done && (
+            <div>
+              <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.5, marginBottom: 10 }}>
+                {run.status === "done" ? "That's the set, start to finish. See where the minutes went and what to change next time." : "Run abandoned."}
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <Link to={improveTo} onClick={() => setOpen(false)} style={{ ...btn(GOLD), textDecoration: "none", textAlign: "center" }}>→ Improve Process</Link>
+                <button type="button" onClick={clear} style={btn()}>Clear</button>
+              </div>
+            </div>
+          )}
+
+          {!done && step && stepRun && (
+            <>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                {stepRun.tasks.map((t) => {
+                  const secs = taskSeconds(t, stepRun, now);
+                  const running = t.status === "running";
+                  const decided = t.status === "done" || t.status === "skipped";
+                  return (
+                    <li key={t.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 6px", borderRadius: 8, background: running ? "rgba(59,245,160,0.08)" : "transparent" }}>
+                      <input type="checkbox" checked={t.status === "done"} disabled={decided}
+                        title={running ? "Done — starts the next one" : t.status === "pending" ? "Start this task now" : t.status}
+                        onChange={() => dispatch(running ? { type: "completeTask", step, key: t.key } : { type: "startTask", step, key: t.key })}
+                        style={{ width: 15, height: 15, accentColor: MINT, cursor: decided ? "default" : "pointer", flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: 13, color: decided ? MUTED : CREAM, textDecoration: t.status === "skipped" ? "line-through" : "none", lineHeight: 1.3 }}>{t.label}</span>
+                      {(secs > 0 || running) && <span style={{ fontSize: 11.5, color: running ? MINT : MUTED, fontVariantNumeric: "tabular-nums" }}>{fmtElapsed(secs)}</span>}
+                      {!decided && (
+                        <button type="button" onClick={() => dispatch({ type: "skipTask", step, key: t.key })} title="Skip this task"
+                          style={{ font: "inherit", fontSize: 10.5, color: MUTED, background: "transparent", border: "none", cursor: "pointer", padding: "0 2px" }}>skip</button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {paused && (
+                <div style={{ marginTop: 8, fontSize: 12, color: ORANGE, lineHeight: 1.4 }}>
+                  Paused{stepRun.pauses[stepRun.pauses.length - 1]?.reason ? ` — ${stepRun.pauses[stepRun.pauses.length - 1].reason}` : ""}. The clock is stopped; this pause is on the record.
+                </div>
+              )}
+
+              {confirmPause ? (
+                <div style={{ marginTop: 10, border: `1px solid ${ORANGE}66`, borderRadius: 10, padding: 10 }}>
+                  <div style={{ fontSize: 12.5, lineHeight: 1.45, marginBottom: 6 }}>Pausing counts against you — only if you really have to stop. Why?</div>
+                  <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="one line — what pulled you away"
+                    onKeyDown={(e) => { if (e.key === "Enter") { dispatch({ type: "pause", step, reason }); setConfirmPause(false); setReason(""); } }}
+                    style={field()} />
+                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                    <button type="button" onClick={() => { setConfirmPause(false); setReason(""); }} style={btn()}>Cancel</button>
+                    <button type="button" onClick={() => { dispatch({ type: "pause", step, reason }); setConfirmPause(false); setReason(""); }} style={btn(ORANGE)}>Pause</button>
+                  </div>
+                </div>
+              ) : finishing ? (
+                <div style={{ marginTop: 10, border: `1px solid ${GOLD}66`, borderRadius: 10, padding: 10 }}>
+                  <div style={{ fontSize: 12.5, lineHeight: 1.45, marginBottom: 6 }}>What sucked, what would've been better? (optional)</div>
+                  <textarea autoFocus value={note} onChange={(e) => setNote(e.target.value)} rows={3} style={{ ...field(), resize: "vertical" }} />
+                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                    <button type="button" onClick={() => setFinishing(false)} style={btn()}>Back</button>
+                    <button type="button" onClick={() => { finishStep(step, note.trim()); setFinishing(false); setNote(""); }} style={btn(MINT)}>✓ Finish {RUN_STEP_LABEL[step]}</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                  {paused
+                    ? <button type="button" onClick={() => dispatch({ type: "resume", step })} style={btn(MINT)}>▶ Resume</button>
+                    : <button type="button" onClick={() => setConfirmPause(true)} disabled={!runningTask(stepRun)} title={runningTask(stepRun) ? "Requires a reason" : "Nothing is running"} style={btn()}>⏸ Pause</button>}
+                  <button type="button" onClick={() => dispatch({ type: "skipStep", step })} style={btn(MUTED)}>Skip this step</button>
+                  <button type="button" onClick={() => setFinishing(true)} style={{ ...btn(MINT), flexBasis: "100%" }}>✓ Done with this step</button>
+                </div>
+              )}
+            </>
+          )}
+
+          {!done && !step && (
+            <div>
+              <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.5, marginBottom: 8 }}>
+                {next ? <>Next: <b style={{ color: CREAM }}>{RUN_STEP_LABEL[next]}</b> — it starts when you land on that step and say go, or here.</> : "Every step is decided."}
+              </div>
+              {next && (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button type="button" onClick={() => dispatch({ type: "startStep", step: next })} style={btn(MINT)}>Start {RUN_STEP_LABEL[next]}</button>
+                  <button type="button" onClick={() => dispatch({ type: "skipStep", step: next })} style={btn(MUTED)}>Skip it</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!done && (
+            <div style={{ marginTop: 10, borderTop: `1px solid ${EDGE}`, paddingTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 10.5, color: MUTED }}>{RUN_STEPS_DONE(run)} of 4 steps decided</span>
+              <span style={{ marginLeft: "auto" }} />
+              {confirmAbandon ? (
+                <>
+                  <button type="button" onClick={() => setConfirmAbandon(false)} style={{ ...btn(), flex: "none", padding: "3px 8px", fontSize: 10.5 }}>Keep</button>
+                  <button type="button" onClick={() => { dispatch({ type: "abandon" }); setConfirmAbandon(false); }} style={{ ...btn(ROSE), flex: "none", padding: "3px 8px", fontSize: 10.5 }}>Abandon run</button>
+                </>
+              ) : (
+                <button type="button" onClick={() => setConfirmAbandon(true)} style={{ font: "inherit", fontSize: 10.5, color: MUTED, background: "transparent", border: "none", cursor: "pointer" }}>abandon…</button>
+              )}
+            </div>
+          )}
+          {saveErr && <div style={{ marginTop: 8, fontSize: 10.5, color: ORANGE, lineHeight: 1.4 }}>Not saved: {saveErr}</div>}
+        </div>
+      )}
+
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} title={open ? "Close" : "The checklist for this step"}
+        style={{ display: "flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 999, border: `1px solid ${saveErr ? ORANGE : dot}66`, background: INK, color: CREAM, cursor: "pointer", boxShadow: "0 8px 20px rgba(0,0,0,0.4)", fontFamily: FONT, maxWidth: 360 }}>
+        <span aria-hidden style={{ width: 7, height: 7, borderRadius: 4, background: dot, flexShrink: 0 }} />
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>⏱ {pillLabel(run, now)}</span>
+        {done && run.status === "done" && <span style={{ color: GOLD, fontSize: 11 }}>→ Improve</span>}
+      </button>
     </div>
   );
 }
 
-function btn(color = CREAM): React.CSSProperties {
-  return { flex: 1, font: "inherit", fontSize: 11.5, fontWeight: 700, padding: "5px 8px", borderRadius: 8, border: `1px solid ${EDGE}`, background: "transparent", color, cursor: "pointer" };
+function RUN_STEPS_DONE(run: ProductionRun): number {
+  return RUN_STEPS.filter((s) => run.steps[s].status === "done" || run.steps[s].status === "skipped").length;
+}
+
+// ------------------------------------------------------------------ the ready modals
+
+function ReadyModal({ modal, here, run, otherRun, onStart, onSkip, onPick, onClose }: {
+  modal: Modal;
+  here: Here | null; run: ProductionRun | null; otherRun: ProductionRun | null;
+  onStart: (step: RunStepId) => void; onSkip: (step: RunStepId) => void; onPick: (run: ProductionRun) => void; onClose: () => void;
+}) {
+  const [candidates, setCandidates] = useState<ProductionRun[] | null>(null);
+  const [pickErr, setPickErr] = useState<string | null>(null);
+  const [pickedId, setPickedId] = useState<string>("");
+  useEffect(() => {
+    if (modal.kind !== "pick-post") return;
+    listProductionRuns({ data: {} })
+      .then((r) => {
+        const c = r.runs.filter((x) => x.status === "running" && x.steps.post.status === "pending");
+        setCandidates(c); setPickedId(c[0]?.id ?? ""); if (r.error) setPickErr(r.error);
+      })
+      .catch((e) => { setCandidates([]); setPickErr(e instanceof Error ? e.message : String(e)); });
+  }, [modal.kind]);
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [onClose]);
+
+  const label = modal.kind === "pick-post" ? "Cross-post" : RUN_STEP_LABEL[modal.step];
+  const setName = modal.kind === "ready" && run ? run.setName : here?.set.name ?? "";
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: Z + 1, background: "rgba(3,6,14,0.55)" }} />
+      <div role="dialog" aria-modal aria-label={`Ready to start ${label}?`}
+        style={{ position: "fixed", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: Z + 2, width: 380, maxWidth: "calc(100vw - 32px)", background: INK, border: `1px solid ${GOLD}66`, borderRadius: 16, padding: 20, boxShadow: "0 24px 60px -16px rgba(0,0,0,0.9)", color: CREAM, fontFamily: FONT }}>
+        <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: MUTED, marginBottom: 6 }}>Production run</div>
+        <div style={{ fontFamily: "'League Spartan', 'Rubik', system-ui, sans-serif", fontSize: 22, fontWeight: 900, letterSpacing: "-0.01em", marginBottom: 6 }}>
+          {modal.kind === "pick-post" ? "Ready to start Cross-post?" : `Ready to start ${label}?`}
+        </div>
+
+        {modal.kind === "ready" && <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.5, marginBottom: 14 }}>{setName} — the clock starts on the first task.</div>}
+        {modal.kind === "start-here" && (
+          <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.5, marginBottom: 14 }}>
+            No run is open on <b style={{ color: CREAM }}>{setName}</b>. Start one here — Brainstorm goes down as skipped, so this run won't count toward Time to beat.
+            {otherRun && <> The run on <b style={{ color: CREAM }}>{otherRun.setName}</b> stays open on the server; its Cross-post is pickable from /v3/post.</>}
+          </div>
+        )}
+        {modal.kind === "pick-post" && (
+          <div style={{ fontSize: 13, color: MUTED, lineHeight: 1.5, marginBottom: 14 }}>
+            Cross-post is cross-set — which set is this for?
+            {candidates === null && <div style={{ marginTop: 8 }}>Looking for runs…</div>}
+            {candidates && candidates.length === 0 && <div style={{ marginTop: 8 }}>No run is waiting for Cross-post. Sets get here after Rehearse &amp; Film.</div>}
+            {candidates && candidates.length > 0 && (
+              <select value={pickedId} onChange={(e) => setPickedId(e.target.value)} style={{ ...field(), marginTop: 8 }}>
+                {candidates.map((c) => <option key={c.id} value={c.id}>{c.setName || c.setId}{c.topicName ? ` — ${c.topicName}` : ""} · {c.startedAt.slice(0, 10)}</option>)}
+              </select>
+            )}
+            {pickErr && <div style={{ marginTop: 6, color: ORANGE, fontSize: 11.5 }}>{pickErr}</div>}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {modal.kind === "pick-post" ? (
+            <button type="button" disabled={!pickedId} onClick={() => { const c = candidates?.find((x) => x.id === pickedId); if (c) onPick(c); }} style={btn(MINT)}>Start</button>
+          ) : (
+            <>
+              <button type="button" autoFocus onClick={() => onStart(modal.step)} style={btn(MINT)}>{modal.kind === "start-here" ? "Start a run here" : "Start"}</button>
+              <button type="button" onClick={() => onSkip(modal.step)} style={btn(MUTED)}>Skip this step</button>
+            </>
+          )}
+          <button type="button" onClick={onClose} style={{ ...btn(), flex: "none" }}>Not now</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function btn(color = CREAM): CSSProperties {
+  return { flex: 1, font: "inherit", fontFamily: FONT, fontSize: 12, fontWeight: 700, padding: "7px 10px", borderRadius: 9, border: `1px solid ${EDGE}`, background: "transparent", color, cursor: "pointer" };
+}
+function field(): CSSProperties {
+  return { width: "100%", boxSizing: "border-box", font: "inherit", fontFamily: FONT, fontSize: 12.5, padding: "7px 9px", borderRadius: 8, border: `1px solid ${EDGE}`, background: "rgba(244,239,230,0.05)", color: CREAM, outline: "none" };
 }
