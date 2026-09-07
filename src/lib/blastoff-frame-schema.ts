@@ -48,6 +48,9 @@ export const illustrationSchema = z.object({
   referencePhoto: attachmentSchema.nullable().optional(),
   pairedAssetUrl: z.string().max(800).nullable().optional(),
   pairedTitle: z.string().max(120).nullable().optional(),
+  // The three-revision cap (2026-09-07, "Max of 3 revisions for illustrations"): draws so far
+  // for this subject on this frame. Additive; absent on every older plan = 0.
+  attempts: z.number().int().min(0).optional(),
 });
 
 export const frameSchema = z.object({

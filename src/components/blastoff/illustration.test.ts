@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { ANIMATION_PRESETS, DEFAULT_STYLE_ID, STYLE_SEEDS, STRATEGY_STYLE_ID, composeIllustrationPrompt, defaultStyleIdFor, emptyIllustration, illustrationStyle, isOffStyleIllustration, isStaleIllustration } from "./illustration";
+import { ANIMATION_PRESETS, DEFAULT_STYLE_ID, ILLUSTRATION_REVISION_CAP, REVISION_CAP_MESSAGE, STYLE_SEEDS, STRATEGY_STYLE_ID, composeIllustrationPrompt, defaultStyleIdFor, emptyIllustration, illustrationStyle, isOffStyleIllustration, isStaleIllustration, revisionsLeft } from "./illustration";
 
 describe("the illustration registry", () => {
   // v5 (2026-09-06, docs/ILLUSTRATION-STYLE-V5-PROPOSAL.md): the house default moved from
@@ -131,5 +131,27 @@ describe("the illustration registry", () => {
   test("animation presets include a still option", () => {
     expect(ANIMATION_PRESETS).toContain("none");
     expect(ANIMATION_PRESETS).toContain("boil");
+  });
+});
+
+// THE THREE-REVISION CAP (Lee, 2026-09-07: "Max of 3 revisions for illustrations, to save on cost.")
+describe("revisionsLeft", () => {
+  test("three per subject: a fresh request has all three, each draw takes one, the floor is 0", () => {
+    expect(ILLUSTRATION_REVISION_CAP).toBe(3);
+    expect(revisionsLeft(null)).toBe(3);
+    expect(revisionsLeft(undefined)).toBe(3);
+    expect(revisionsLeft(emptyIllustration())).toBe(3);   // no `attempts` yet = 0 used (every picture made before today)
+    expect(revisionsLeft({ attempts: 1 })).toBe(2);
+    expect(revisionsLeft({ attempts: 3 })).toBe(0);
+    expect(revisionsLeft({ attempts: 7 })).toBe(0);
+  });
+  test("a different cap, and junk counts read as 0 used", () => {
+    expect(revisionsLeft({ attempts: 1 }, 5)).toBe(4);
+    expect(revisionsLeft({ attempts: -2 })).toBe(3);
+    expect(revisionsLeft({ attempts: Number.NaN })).toBe(3);
+    expect(revisionsLeft({ attempts: 2.7 })).toBe(1);
+  });
+  test("the refusal string names the cap, so the panel and the server can never disagree", () => {
+    expect(REVISION_CAP_MESSAGE).toBe("3 of 3 — change the subject to draw again");
   });
 });

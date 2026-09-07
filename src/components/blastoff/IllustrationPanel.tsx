@@ -1,10 +1,19 @@
 // THE ILLUSTRATOR (the right panel's face). Lee brainstorms out loud — the mic or the box —
-// the AI preps the prompt, Lee sees a title and three bullets (the full prompt behind a
-// toggle), confirms, generates; or says what to change and gets a new draft. A picture can
+// and ONE click does the rest (2026-09-07, Lee: "No more 'prep the prompt' just generate the
+// illustration. Another way to speed up."): the AI writes the brief in the background and, the
+// moment it parses, draws; the title and three bullets show AFTER, beside the picture, the full
+// prompt still in a fold (2026-09-05: "I don't really need to read the full prompt, leave it in
+// a toggle"). "Brief only" stays as a small secondary for the rare read-it-first, and "my words
+// exactly" skips the AI rewrite. Says what to change → a new brief → drawn. A picture can
 // reference another slide's (same cast, same props, same seed) so a set's pictures rhyme.
 //
-// Below that, the same controls as before: the animation, Generate / Regenerate, Bank,
-// Remove, and the three server states (not signed in · no key · key present + Test the key).
+// THE THREE-REVISION CAP (Lee, 2026-09-07: "Max of 3 revisions for illustrations, to save on
+// cost."): three draws per subject per frame, counted on the frame (`attempts`) and checked
+// again on the server against the library. After three, Regenerate is off, the library is the
+// offer, and "I know, draw anyway" sits behind a second click — Lee's money, his call.
+//
+// Below that, the same controls as before: the animation, Bank, Remove, and the three server
+// states (not signed in · no key · key present + Test the key).
 // Hoisted function declarations only — this file sits beside the canvas graph.
 import { useEffect, useRef, useState } from "react";
 
@@ -12,11 +21,12 @@ import { getAdminWho } from "@/components/AdminGate";
 import { uploadReferencePhoto } from "@/components/ideas/upload";
 import { topicOfSet, useBank } from "@/components/v3/use-bank";
 import { installPasscodeSession } from "@/lib/admin-session.functions";
+import { logCostEvent } from "@/lib/cost-ledger.functions";
 import { generateIllustration, illustrationStatus, listIllustrationLibrary, testIllustrationKey, type LibraryRow } from "@/lib/illustrate.functions";
 import { runMicro } from "@/lib/talkthrough.functions";
 import { useDictation } from "@/lib/use-dictation";
 
-import { ANIMATION_LABEL, ANIMATION_PRESETS, PROMPTING_TIPS, composeIllustrationPrompt, defaultStyleIdFor, emptyIllustration, illustrationStyle, isOffStyleIllustration, isStaleIllustration, type FrameIllustration } from "./illustration";
+import { ANIMATION_LABEL, ANIMATION_PRESETS, ILLUSTRATION_REVISION_CAP, PROMPTING_TIPS, REVISION_CAP_MESSAGE, composeIllustrationPrompt, defaultStyleIdFor, emptyIllustration, illustrationStyle, isOffStyleIllustration, isStaleIllustration, revisionsLeft, type FrameIllustration } from "./illustration";
 import { BRIEF_SYSTEM, buildBriefMessages, parseBrief, type IllustrationBrief } from "./illustration-brief";
 import { FRAME_LABEL, insertStem, type BlastFrame } from "./plan";
 import { useIllustrationRegistry } from "./use-illustration-registry";
@@ -59,11 +69,18 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   const [interim, setInterim] = useState("");
   const [brief, setBrief] = useState<IllustrationBrief | null>(ill?.summary && ill.prompt ? { title: ill.summary.title, bullets: ill.summary.bullets, prompt: ill.prompt } : null);
   const [revision, setRevision] = useState("");
-  const [drafting, setDrafting] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
   const [refId, setRefId] = useState<string>(ill?.referenceFrameId ?? "");
-  const [busy, setBusy] = useState(false);
+  // THE ONE CLICK'S PROGRESS (2026-09-07): "writing the brief…" then "drawing…" — one line.
+  const [stage, setStage] = useState<"brief" | "draw" | null>(null);
+  const busy = stage !== null;
   const [err, setErr] = useState<string | null>(null);
+  // THE CAP (2026-09-07): `left` from the frame's own count; `capHit` when the SERVER refused
+  // (an old frame with no count but three library rows); `overrideArmed` = the first of the two
+  // clicks behind "I know, draw anyway".
+  const left = revisionsLeft(ill);
+  const [capHit, setCapHit] = useState(false);
+  const [overrideArmed, setOverrideArmed] = useState(false);
   const [tips, setTips] = useState(false);
   // THE COST OF THIS ONE (2026-09-05: "show the cost of the generations I'm doing") — set the
   // moment a generation finishes, so the number is right there without hunting the library.
@@ -74,7 +91,7 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   const [photoUploading, setPhotoUploading] = useState(false);
   const photoFileRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    setWords(ill?.brief ?? ""); setInterim(""); setRevision(""); setErr(null); setLastCost(null);
+    setWords(ill?.brief ?? ""); setInterim(""); setRevision(""); setErr(null); setLastCost(null); setCapHit(false); setOverrideArmed(false);
     setBrief(ill?.summary && ill.prompt ? { title: ill.summary.title, bullets: ill.summary.bullets, prompt: ill.prompt } : null);
     setRefId(ill?.referenceFrameId ?? "");
   }, [sel.id]);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -108,7 +125,9 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
       prompt: row.prompt, brief: ill?.brief ?? row.prompt, summary: row.title ? { title: row.title, bullets: [] } : (ill?.summary ?? null),
       seed: row.seed, generatedAt: row.generatedAt, teachingIntent: ill?.teachingIntent ?? (teaching() || null),
       animationPreset: ill?.animationPreset ?? illustrationStyle(row.stylePreset, reg).defaultAnimation,
+      attempts: 0,   // a picture from the library is free and a different subject — its three start fresh
     });
+    setCapHit(false); setOverrideArmed(false);
   };
   /** BLANK SLIDES ONLY (2026-09-05: "could I add that internal one and show them side by
    *  side... set up a blank slide and add them") — a second, already-made picture from the
@@ -124,10 +143,14 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
 
   const keep = (patch: Partial<FrameIllustration>) => onPatch({ illustration: { ...(ill ?? emptyIllustration({}, kind, reg)), requested: true, ...patch } });
 
-  async function draft(revise: boolean) {
+  /** THE BRIEF: Lee's words → runMicro → a title, three bullets and the subject. Kept on the
+   *  frame with `attempts` reset (a new subject starts its three) and returned to whoever asked
+   *  — the one click draws it straight away, "brief only" stops here. Null on failure with the
+   *  message already shown: the brief's failure still stops before Recraft. */
+  async function writeBrief(revise: boolean): Promise<IllustrationBrief | null> {
     const said = words.trim();
-    if (!said) { setErr("Say it first — what's in the picture, in your own words."); return; }
-    setDrafting(true); setErr(null);
+    if (!said) { setErr("Say it first — what's in the picture, in your own words."); return null; }
+    setErr(null);
     try {
       const m = buildBriefMessages({
         brainstorm: said, teachingIntent: teaching() || null, setName,
@@ -136,46 +159,77 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
         revision: revise ? revision.trim() || null : null,
       }, reg.briefSystem ?? BRIEF_SYSTEM);   // the one Lee edited on /admin/illustrations/styles, else the code's
       const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 500 } });
+      // THE COST LEDGER (2026-09-07): the brief is a paid AI call too — logged, never waited on.
+      void logCostEvent({ data: { setId, kind: "ai", usd: r.usage.costUsd, model: r.model, label: "illustration brief", who: getAdminWho() } }).catch(() => {});
       const b = parseBrief(r.text);
       if (!b) throw new Error("The draft didn't come back clean — try once more, or say it a little differently.");
-      setBrief(b); setRevision(""); setShowPrompt(false);
-      keep({ brief: said, summary: { title: b.title, bullets: b.bullets }, prompt: b.prompt, teachingIntent: teaching() || null, referenceFrameId: refId || null });
-    } catch (e) { setErr((e as Error).message); }
-    finally { setDrafting(false); }
+      setBrief(b); setRevision(""); setShowPrompt(false); setCapHit(false); setOverrideArmed(false);
+      keep({ brief: said, summary: { title: b.title, bullets: b.bullets }, prompt: b.prompt, teachingIntent: teaching() || null, referenceFrameId: refId || null, attempts: 0 });
+      return b;
+    } catch (e) { setErr((e as Error).message); return null; }
   }
-  function useMyWords() {
-    const said = words.trim(); if (!said) return;
+  /** "Use my words exactly" — no AI rewrite; the words ARE the subject. */
+  function myWordsBrief(): IllustrationBrief | null {
+    const said = words.trim(); if (!said) return null;
     const b: IllustrationBrief = { title: said.split(/[,.]/)[0].slice(0, 40), bullets: [said.slice(0, 80), "sent exactly as written — no AI rewrite", "no text unless you quoted it"], prompt: said };
-    setBrief(b); keep({ brief: said, summary: { title: b.title, bullets: b.bullets }, prompt: said, teachingIntent: teaching() || null });
+    setBrief(b); setCapHit(false); setOverrideArmed(false);
+    keep({ brief: said, summary: { title: b.title, bullets: b.bullets }, prompt: said, teachingIntent: teaching() || null, attempts: 0 });
+    return b;
   }
 
-  async function generate(reseed: boolean) {
-    const subject = (brief?.prompt ?? "").trim();
-    if (!subject) { setErr("Prep the prompt first."); return; }
-    setBusy(true); setErr(null);
+  /** THE ONE CLICK (2026-09-07): brief, then draw the moment it parses. `revise` = from the
+   *  "what to change" note against the current brief. */
+  async function sayItAndDraw(revise: boolean) {
+    setStage("brief");
+    try {
+      const b = await writeBrief(revise);
+      if (b) await draw(b);
+    } finally { setStage(null); }
+  }
+  /** The rare read-it-first — the brief lands in the card below, nothing is drawn. */
+  async function briefOnly() { setStage("brief"); try { await writeBrief(false); } finally { setStage(null); } }
+  async function myWordsAndDraw() { const b = myWordsBrief(); if (b) await draw(b); }
+
+  /** THE DRAW — one Recraft call for a brief's subject. Counts against the cap when the subject
+   *  is the one already on the frame (Regenerate); a different subject starts at 0. Refused
+   *  here at three, and again by the server against the library, unless `override`. */
+  async function draw(b: IllustrationBrief, opts: { override?: boolean } = {}) {
+    const subject = b.prompt.trim();
+    if (!subject) { setErr("Say it first — what's in the picture, in your own words."); return; }
+    const same = (ill?.prompt ?? "").trim() === subject;
+    const used = same ? Math.max(0, ill?.attempts ?? 0) : 0;
+    if (!opts.override && used >= ILLUSTRATION_REVISION_CAP) { setCapHit(true); setErr(REVISION_CAP_MESSAGE); return; }
+    setStage("draw"); setErr(null);
     try {
       // A referenced picture's seed makes the composition rhyme; otherwise the slide's own seed
-      // unless Lee asked for a fresh roll.
-      const seed = ref?.seed ?? (reseed || !ill?.seed ? undefined : ill.seed);
+      // (a library row's, say) — a fresh roll once a picture exists, which is what Regenerate is.
+      const seed = ref?.seed ?? (ill?.assetUrl || !ill?.seed ? undefined : ill.seed);
       const r = await generateIllustration({
         data: {
           setId, frameId: sel.id, prompt: subject, teachingIntent: teaching() || null, stylePreset: style.id,
           ...(seed !== undefined ? { seed } : {}), referenceImageUrl: ill?.referencePhoto?.url ?? null,
-          title: brief?.title ?? null, who: getAdminWho(),
+          title: b.title, who: getAdminWho(), attempts: used, override: !!opts.override,
         },
       });
       keep({
-        brief: words.trim() || ill?.brief || null, summary: brief ? { title: brief.title, bullets: brief.bullets } : ill?.summary ?? null, referenceFrameId: refId || null,
+        brief: words.trim() || ill?.brief || null, summary: { title: b.title, bullets: b.bullets }, referenceFrameId: refId || null,
         prompt: subject, teachingIntent: teaching() || null,
         provider: r.provider, stylePreset: r.stylePreset, styleVersion: r.styleVersion, assetUrl: r.url, localAssetId: r.path,
         animationPreset: ill?.animationPreset ?? style.defaultAnimation, generatedAt: r.generatedAt, seed: r.seed,
+        attempts: used + 1,
       });
+      setCapHit(false); setOverrideArmed(false);
       setLastCost(r.credits === null ? null : r.credits / 1000);
       if (credits !== null && r.credits !== null) setCredits(credits - r.credits);   // don't wait on a refresh to reflect the spend
       refreshLibrary();
-    } catch (e) { setErr((e as Error).message || "Couldn't generate. Your words are kept — try again."); }
-    finally { setBusy(false); }
+    } catch (e) {
+      const msg = (e as Error).message || "Couldn't generate. Your words are kept — try again.";
+      if (msg === REVISION_CAP_MESSAGE) setCapHit(true);
+      setErr(msg);
+    } finally { setStage(null); }
   }
+  /** Regenerate: the same brief, a new seed — the button in the card below. */
+  const regenerate = (override = false) => { if (brief) void draw(brief, { override }); };
 
   // THE SERVER: signed in? key? — named states, and a free test.
   const [avail, setAvail] = useState<Avail | null>(null);
@@ -233,11 +287,15 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
       <textarea rows={3} style={{ ...field, marginTop: 4, resize: "vertical" }} value={words + (interim ? (words ? " " : "") + interim : "")}
         onChange={(e) => { setInterim(""); setWords(e.target.value); }} onPaste={onWordsPaste}
         placeholder="e.g. a suited guy at his desk with a magnifying glass over the financials, the report says OUR COMPANY, and outside the window an investor is peering in at the same report — or paste a reference photo (Ctrl+V)" />
+      {/* THE ONE CLICK (2026-09-07: "No more 'prep the prompt' just generate the illustration") */}
       <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <button type="button" disabled={drafting || !words.trim()} onClick={() => void draft(false)} style={{ ...chip(true, GOLD), opacity: drafting || !words.trim() ? 0.5 : 1 }}>
-          {drafting ? "Prepping…" : brief ? "Prep again from my words" : "Prep the prompt"}
+        <button type="button" disabled={busy || !ready || !words.trim()} onClick={() => void sayItAndDraw(false)}
+          style={{ ...chip(true, MINT), opacity: busy || !ready || !words.trim() ? 0.5 : 1, cursor: busy ? "wait" : "pointer" }}
+          title={ready ? "One click: the brief is written for you, then the picture is drawn — the title and bullets show beside it after" : "Sign in / add the key below first"}>
+          {busy ? "Generating…" : words.trim() ? "Generate" : "🎙 Say it → Generate"}
         </button>
-        <button type="button" disabled={!words.trim()} onClick={useMyWords} style={{ ...chip(false, GOLD), opacity: words.trim() ? 1 : 0.5 }} title="Skip the prep — my words are the prompt">Use my words as-is</button>
+        <button type="button" disabled={busy || !words.trim()} onClick={() => void briefOnly()} style={{ ...chip(false, GOLD), opacity: busy || !words.trim() ? 0.5 : 1, fontSize: 10.5 }} title="Just the brief, nothing drawn — read it first, then Generate from the card below">brief only</button>
+        <button type="button" disabled={busy || !ready || !words.trim()} onClick={() => void myWordsAndDraw()} style={{ ...chip(false, GOLD), opacity: busy || !ready || !words.trim() ? 0.5 : 1, fontSize: 10.5 }} title="Skip the AI rewrite — my words are the subject, drawn exactly as written">my words exactly → Generate</button>
         {references.length > 0 && (
           <select value={refId} onChange={(e) => { setRefId(e.target.value); keep({ referenceFrameId: e.target.value || null }); }} title="Rhyme with another slide's picture — same cast, same props, same seed"
             style={{ ...field, width: "auto", padding: "3px 6px", fontSize: 11 }}>
@@ -246,6 +304,11 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
           </select>
         )}
       </div>
+      {busy && (
+        <div style={{ marginTop: 5, fontSize: 11, color: MINT }}>
+          <span style={{ opacity: stage === "brief" ? 1 : 0.6 }}>writing the brief…</span>{stage === "draw" && <span> ✓ drawing…</span>}
+        </div>
+      )}
 
       {/* A REFERENCE PHOTO — Ctrl+V into the box above is the preferred way in; this is the
           fallback and the "what's attached" readout. Loose guidance for Recraft, not a lock —
@@ -266,8 +329,16 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
         )}
       </div>
 
-      {/* 2. THE BRIEF — a title, three bullets, the prompt behind a toggle */}
-      {brief && (
+      {/* 2. THE BRIEF — shown AFTER the draw, beside the picture: a title, three bullets, the
+          prompt behind a toggle. (Or before it, on "brief only".) */}
+      {brief && (() => {
+        // The cap, for THIS subject: the frame's count only applies while the card's subject is
+        // the one the frame was drawn from; a new brief starts at 0.
+        const sameSubject = (ill?.prompt ?? "").trim() === brief.prompt.trim();
+        const used = sameSubject ? Math.max(0, ill?.attempts ?? 0) : 0;
+        const drawnThis = sameSubject && !!ill?.assetUrl;
+        const atCap = sameSubject && (left === 0 || capHit);
+        return (
         <div style={{ marginTop: 10, border: `1px solid ${GOLD}55`, borderRadius: 10, padding: "8px 10px" }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: CREAM }}>{brief.title}</div>
           <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 12, color: CREAM, lineHeight: 1.45, opacity: 0.92 }}>
@@ -277,8 +348,8 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
           <details open={showPrompt} onToggle={(e) => setShowPrompt((e.currentTarget as HTMLDetailsElement).open)} style={{ marginTop: 6 }}>
             <summary style={{ fontSize: 10.5, color: MUTED, cursor: "pointer" }}>the subject (edit if you must)</summary>
             <textarea rows={3} style={{ ...field, marginTop: 4, resize: "vertical", fontSize: 12 }} value={brief.prompt}
-              onChange={(e) => { const b = { ...brief, prompt: e.target.value }; setBrief(b); keep({ prompt: e.target.value }); }} />
-            <div style={{ fontSize: 10.5, color: MUTED, marginTop: 2 }}>Just what the picture shows — the style, the black ground and the palette get added below, at generation.</div>
+              onChange={(e) => { const b = { ...brief, prompt: e.target.value }; setBrief(b); setCapHit(false); setOverrideArmed(false); keep({ prompt: e.target.value, attempts: 0 }); }} />
+            <div style={{ fontSize: 10.5, color: MUTED, marginTop: 2 }}>Just what the picture shows — the style, the black ground and the palette get added below, at generation. An edited subject starts its three draws over.</div>
           </details>
           {/* THE ACTUAL PROMPT — this is what Recraft receives, subject wrapped in the whole
               Survive Dreamstate preset (Lee, 2026-09-05: "I didn't know if it actually did much
@@ -290,16 +361,32 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
               {composeIllustrationPrompt(style, brief.prompt, teaching() || null)}
             </div>
           </details>
+          {/* THE THREE-REVISION CAP (2026-09-07): Regenerate counts down; at three it's off,
+              the library is the offer, and "draw anyway" needs two clicks. */}
           <div className="flex" style={{ gap: 6, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <button type="button" disabled={busy || !ready} onClick={() => void generate(!!ill?.assetUrl)} style={{ ...chip(true, MINT), opacity: busy || !ready ? 0.5 : 1, cursor: busy ? "wait" : "pointer" }} title={ready ? "Spend one generation on this brief" : "Sign in / add the key below first"}>
-              {busy ? "Generating…" : ill?.assetUrl ? "✓ Looks good — regenerate" : "✓ Looks good — generate"}
-            </button>
-            <input value={revision} onChange={(e) => setRevision(e.target.value)} placeholder="or: what to change…" onKeyDown={(e) => { if (e.key === "Enter" && revision.trim()) void draft(true); }}
+            {atCap ? (
+              <>
+                <span style={{ fontSize: 11.5, color: ORANGE, fontWeight: 800 }}>{REVISION_CAP_MESSAGE}</span>
+                <span style={{ fontSize: 10.5, color: MUTED }}>— or pick one from the Library below, free.</span>
+                <button type="button" disabled={busy || !ready} onClick={() => { if (overrideArmed) { setOverrideArmed(false); regenerate(true); } else setOverrideArmed(true); }}
+                  style={{ ...chip(overrideArmed, ORANGE), opacity: busy || !ready ? 0.5 : 1 }}
+                  title={overrideArmed ? "Second click — this one spends a fourth generation on the same subject" : "Your money, your call — it takes a second click"}>
+                  {overrideArmed ? "Sure? click again — draw anyway" : "I know, draw anyway"}
+                </button>
+              </>
+            ) : (
+              <button type="button" disabled={busy || !ready} onClick={() => regenerate()} style={{ ...chip(true, MINT), opacity: busy || !ready ? 0.5 : 1, cursor: busy ? "wait" : "pointer" }}
+                title={ready ? (drawnThis ? `Same brief, a new roll — ${left} of ${ILLUSTRATION_REVISION_CAP} left for this subject` : "Spend one generation on this brief") : "Sign in / add the key below first"}>
+                {busy ? "Generating…" : drawnThis ? `Regenerate · ${used} of ${ILLUSTRATION_REVISION_CAP}` : "✓ Looks good — generate"}
+              </button>
+            )}
+            <input value={revision} onChange={(e) => setRevision(e.target.value)} placeholder="or: what to change…" onKeyDown={(e) => { if (e.key === "Enter" && revision.trim() && !busy) void sayItAndDraw(true); }}
               style={{ ...field, flex: 1, minWidth: 140, padding: "4px 8px", fontSize: 12 }} />
-            <button type="button" disabled={drafting || !revision.trim()} onClick={() => void draft(true)} style={{ ...chip(false, GOLD), opacity: drafting || !revision.trim() ? 0.5 : 1 }}>Revise</button>
+            <button type="button" disabled={busy || !ready || !revision.trim()} onClick={() => void sayItAndDraw(true)} style={{ ...chip(false, GOLD), opacity: busy || !ready || !revision.trim() ? 0.5 : 1 }} title="A new brief with that change, drawn straight away — a new subject, so its three start over">Revise → draw</button>
           </div>
         </div>
-      )}
+        );
+      })()}
       {err && <div style={{ marginTop: 6, fontSize: 11, color: ORANGE }}>{err}</div>}
 
       {/* 3. THE PICTURE'S CONTROLS */}
@@ -336,10 +423,11 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
           // This session's own figure first; otherwise whatever the library has for this exact
           // asset (a picture generated earlier, or on a reload) — never a guess, just "unknown".
           const cost = lastCost ?? library?.find((r) => r.assetUrl === ill.assetUrl)?.costUsd ?? null;
-          return <span style={{ fontSize: 10.5, color: MUTED }}>seed {ill.seed} · {ill.generatedAt ? new Date(ill.generatedAt).toLocaleDateString() : ""}{cost !== null ? ` · $${cost.toFixed(2)}` : ""}</span>;
+          const drawn = Math.max(0, ill.attempts ?? 0);
+          return <span style={{ fontSize: 10.5, color: MUTED }}>seed {ill.seed} · {ill.generatedAt ? new Date(ill.generatedAt).toLocaleDateString() : ""}{cost !== null ? ` · $${cost.toFixed(2)}` : ""}{drawn ? ` · draw ${drawn} of ${ILLUSTRATION_REVISION_CAP}` : ""}</span>;
         })()}
       </div>
-      {ill?.assetUrl && <div style={{ marginTop: 6, fontSize: 10.5, color: MUTED }}>It's on the slide to the left — drag it to move, the corner grip resizes{ill.placement ? "" : " (a blank slide's sits dead centre)"}. Regenerate keeps the brief and rolls a new seed; revise the brief when the subject is wrong.</div>}
+      {ill?.assetUrl && <div style={{ marginTop: 6, fontSize: 10.5, color: MUTED }}>It's on the slide to the left — drag it to move, the corner grip resizes{ill.placement ? "" : " (a blank slide's sits dead centre)"}. Regenerate keeps the brief and rolls a new seed — three per subject; revise or say it again when the subject is wrong.</div>}
       {ill?.placement && <button type="button" onClick={() => onPatch({ illustration: { ...ill, placement: null } })} style={{ ...chip(false, GOLD), marginTop: 6 }} title="Back to the band under the card">Snap back under the card</button>}
 
       {/* SIDE BY SIDE — blank slides only (2026-09-05: "could I add that internal one and show

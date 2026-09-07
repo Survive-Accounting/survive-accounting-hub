@@ -9,7 +9,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { CODE_REGISTRY, composeIllustrationPrompt, illustrationStyle, type FrameIllustration, type IllustrationRegistry, type IllustrationStyle, type IllustrationTopicKind } from "@/components/blastoff/illustration";
+import { CODE_REGISTRY, ILLUSTRATION_REVISION_CAP, REVISION_CAP_MESSAGE, composeIllustrationPrompt, illustrationStyle, type FrameIllustration, type IllustrationRegistry, type IllustrationStyle, type IllustrationTopicKind } from "@/components/blastoff/illustration";
 import { frameSchema, type FrameRow } from "@/lib/blastoff-frame-schema";
 import { bankKey, bankStyleDefaults, classifyIllustration, illustrationTitle, medianOf, tallyStatuses, targetStyleIdFor, type BankRow, type BankStyleDefault, type BankTotals } from "@/lib/illustration-bank";
 import { PREVIEW_SET_ID, previewFrameId, styleDraftSchema } from "@/lib/illustration-registry";
@@ -85,10 +85,22 @@ export const generateIllustration = createServerFn({ method: "POST" })
      *  neither changes what Recraft sees. */
     title: z.string().max(120).nullable().optional(),
     who: z.string().max(40).nullable().optional(),
+    /** THE THREE-REVISION CAP (Lee, 2026-09-07: "Max of 3 revisions for illustrations, to save
+     *  on cost."): the frame's own count for this subject, and Lee's "I know, draw anyway". */
+    attempts: z.number().int().min(0).optional(),
+    override: z.boolean().optional(),
   }).parse(d))
   .handler(async ({ data }): Promise<GenerationResult> => {
     const { assertAdmin } = await import("@/lib/admin-session.functions");
     await assertAdmin();
+    // The cap, enforced HERE and not only in the panel: the library knows every draw of this
+    // subject on this frame (including ones made before the frame carried `attempts`), so the
+    // higher of the two counts is the truth. A 4th draw is refused unless Lee overrode it —
+    // his money, his call — and the refusal is the panel's own message so it can offer that.
+    if (!data.override) {
+      const drawn = Math.max(data.attempts ?? 0, await countDrawsOf(data.setId, data.frameId, data.prompt));
+      if (drawn >= ILLUSTRATION_REVISION_CAP) throw new Error(REVISION_CAP_MESSAGE);
+    }
     return runGeneration({
       setId: data.setId, frameId: data.frameId, prompt: data.prompt, teachingIntent: data.teachingIntent ?? null,
       style: illustrationStyle(data.stylePreset ?? null, await registry()), seed: data.seed, referenceImageUrl: data.referenceImageUrl ?? null,
@@ -99,6 +111,23 @@ export const generateIllustration = createServerFn({ method: "POST" })
 export interface GenerationResult {
   url: string; path: string; prompt: string; provider: string; model: string; seed: number;
   generatedAt: string; stylePreset: string; styleVersion: number; credits: number | null;
+}
+
+/** How many times this subject has already been drawn on this frame, per the library — the
+ *  server's half of the three-revision cap. The library stores the COMPOSED prompt, so "the same
+ *  subject" is the subject sitting inside it the way composeIllustrationPrompt puts it there
+ *  (trimmed, trailing dots stripped) — the style's prefix and suffix around it don't matter, so
+ *  a style bump doesn't hand out three more. A missing library counts 0 (it's said in the log
+ *  when the picture is catalogued); never throws — the cap must not be what breaks Generate. */
+async function countDrawsOf(setId: string, frameId: string, subject: string): Promise<number> {
+  const needle = subject.trim().replace(/[.\s]+$/, "");
+  if (!needle) return 0;
+  try {
+    const db = await libraryDb();
+    const { data: rows, error } = await db.from("illustration_library").select("prompt").eq("set_id", setId).eq("frame_id", frameId).limit(200);
+    if (error) { if (!isMissingLibrary(error)) console.warn("[illustrate] cap count failed (allowing the draw):", error.message); return 0; }
+    return ((rows ?? []) as { prompt: unknown }[]).filter((r) => typeof r.prompt === "string" && r.prompt.includes(needle)).length;
+  } catch (e) { console.warn("[illustrate] cap count threw (allowing the draw):", e instanceof Error ? e.message : String(e)); return 0; }
 }
 
 export interface PreviewResult { url: string; seed: number; credits: number | null; costUsd: number | null; prompt: string; model: string }
@@ -185,6 +214,19 @@ async function runGeneration(input: {
       else console.warn("[illustrate] library insert failed (picture is saved regardless):", libErr.message);
     }
   } catch (e) { console.warn("[illustrate] library insert threw (picture is saved regardless):", e instanceof Error ? e.message : String(e)); }
+
+  // THE COST LEDGER (2026-09-07, Lee: "I want to know the cost per short"): what Recraft said it
+  // charged, in dollars (1000 credits = $1), keyed to the set — the test panel's previews land
+  // under "_preview" so they're counted too, labelled as what they are. Best-effort, like the
+  // library row above: recordCostEvent never throws, and this must never cost Lee his picture.
+  if (typeof result.credits === "number") {
+    const { recordCostEvent } = await import("@/lib/cost-ledger.functions");
+    await recordCostEvent({
+      setId: input.setId, kind: "recraft", usd: result.credits / 1000, model: result.model,
+      label: input.setId === PREVIEW_SET_ID ? "style preview" : input.title ?? "illustration",
+      meta: { frameId: input.frameId, stylePreset: style.id, styleVersion: style.version }, who: input.who,
+    });
+  }
 
   return {
     url: pub.publicUrl, path, prompt, provider: provider.id, model: result.model, seed,
@@ -368,6 +410,8 @@ export async function regenerateIllustrationCore(
       provider: r.provider, stylePreset: r.stylePreset, styleVersion: r.styleVersion, assetUrl: r.url, localAssetId: r.path,
       seed: r.seed, generatedAt: r.generatedAt,
       animationPreset: prev.animationPreset ?? style.defaultAnimation,
+      // The three-revision cap (2026-09-07): a bank regenerate is a draw of the same subject too.
+      attempts: (typeof prev.attempts === "number" ? prev.attempts : 0) + 1,
     };
     target.illustration = next;
     const layout = liveDeck.blastOff?.layout === "pass2" ? "pass2" : liveDeck.blastOff?.layout === "pass1" ? "pass1" : undefined;

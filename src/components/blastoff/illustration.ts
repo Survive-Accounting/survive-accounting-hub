@@ -50,7 +50,25 @@ export interface FrameIllustration {
    *  picture via `pairedAssetUrl: null`. */
   pairedAssetUrl?: string | null;
   pairedTitle?: string | null;
+  /** THE THREE-REVISION CAP (Lee, 2026-09-07: "Max of 3 revisions for illustrations, to save
+   *  on cost."): how many Recraft generations THIS subject has had on this frame — the editor's
+   *  Generate / Regenerate and the bank's regenerate-in-place both count. A new brief or an
+   *  edited subject resets it to 0. Absent = 0 (every picture made before today). */
+  attempts?: number;
 }
+
+/** The cap itself — three draws per subject per frame, then the library or a new subject. */
+export const ILLUSTRATION_REVISION_CAP = 3;
+/** How many draws are left for this subject: cap minus attempts, never below 0. Pure; the
+ *  panel disables Regenerate at 0 and the server refuses the next one unless overridden. */
+export function revisionsLeft(i: Pick<FrameIllustration, "attempts"> | null | undefined, cap: number = ILLUSTRATION_REVISION_CAP): number {
+  const n = i?.attempts;
+  const used = typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  return Math.max(0, cap - used);
+}
+/** The server's refusal and the panel's message — the same string, so the panel can recognise
+ *  the refusal (an old frame with no `attempts` but three library rows) and offer "draw anyway". */
+export const REVISION_CAP_MESSAGE = `${ILLUSTRATION_REVISION_CAP} of ${ILLUSTRATION_REVISION_CAP} — change the subject to draw again`;
 
 export interface IllustrationPlacement { x: number; y: number; w: number }
 

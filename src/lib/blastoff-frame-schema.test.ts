@@ -21,6 +21,8 @@ describe("blastoff frame schema", () => {
         // new 2026-09-05 and exactly the kind of field a schema gap silently drops.
         referencePhoto: { id: "illustration-references/raw-abc.png", name: "bull.png", mime: "image/png", size: 12345, path: "illustration-references/raw-abc.png", url: "https://x/bull.png" },
         pairedAssetUrl: "https://x/paired.png", pairedTitle: "External users",
+        // The revision count (2026-09-07) — a strip here would reset every cap on load.
+        attempts: 2,
       },
     };
     const out = frameSchema.parse(full);
