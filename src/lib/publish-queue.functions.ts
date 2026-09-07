@@ -25,7 +25,11 @@ export const PUBLISH_DESTINATIONS = ["site", "youtube", "instagram", "tiktok"] a
 export type PublishDestination = (typeof PUBLISH_DESTINATIONS)[number];
 
 export interface DestinationStatus { postedAt: string | null; url: string | null }
-export type SetPublishStatus = Record<PublishDestination, DestinationStatus>;
+export type SetPublishStatus = Record<PublishDestination, DestinationStatus> & {
+  /** Lee's manual "this set is shot" flag (2026-09-06 audit). Null = never confirmed; the stage
+   *  chip (components/v3/set-stage.ts) then falls back to the Film timer's evidence. */
+  filmedAt: string | null;
+};
 
 function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
   return {
@@ -33,6 +37,9 @@ function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
     youtube: { postedAt: (r.youtube_posted_at as string | null) ?? null, url: (r.youtube_url as string | null) ?? null },
     instagram: { postedAt: (r.instagram_posted_at as string | null) ?? null, url: (r.instagram_url as string | null) ?? null },
     tiktok: { postedAt: (r.tiktok_posted_at as string | null) ?? null, url: (r.tiktok_url as string | null) ?? null },
+    // A DB that ran 20260906_0200 before filmed_at existed simply has no such key on the row
+    // (select("*") never errors on an absent column) — it reads as "not confirmed", never as broken.
+    filmedAt: (r.filmed_at as string | null) ?? null,
   };
 }
 
@@ -79,6 +86,30 @@ export const togglePublishDestination = createServerFn({ method: "POST" })
         .select("*").single();
       if (error) {
         if (isMissingTable(error)) return { ok: false, error: "Run migration/supabase-migrations/20260906_0200_set_publish_status.sql first." };
+        return { ok: false, error: error.message };
+      }
+      return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };
+    } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+  });
+
+/** FILMED, by hand. The 2026-09-06 audit's finding was that Post "has no idea what's actually
+ *  finished"; the timer says the Film step ran, this says Lee looked and agreed (or flags a set
+ *  he shot without the timer). Same upsert shape as the destination toggles. A DB that has the
+ *  table but not the column (ran 20260906_0200 before filmed_at was added) gets told exactly
+ *  which migration to run — the column is the only new thing. */
+export const setFilmed = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(160), filmed: z.boolean() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; status?: SetPublishStatus }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    try {
+      const db = await publishDb();
+      const { data: row, error } = await db.from("set_publish_status")
+        .upsert({ set_id: data.setId, filmed_at: data.filmed ? new Date().toISOString() : null, updated_at: new Date().toISOString() }, { onConflict: "set_id" })
+        .select("*").single();
+      if (error) {
+        if (isMissingTable(error)) return { ok: false, error: "Run migration/supabase-migrations/20260906_0200_set_publish_status.sql first." };
+        if (isMissingSchema(error, /filmed_at/i)) return { ok: false, error: "Run migration/supabase-migrations/20260906_0500_set_publish_status_filmed.sql first (adds filmed_at)." };
         return { ok: false, error: error.message };
       }
       return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };

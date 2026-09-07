@@ -5,27 +5,44 @@
 //
 //   1. BLAST OFFS — every Exam 1 set, grouped by topic, one row each. The
 //      first items in the queue are always these. Each row shows how far the
-//      set has come (talked · results ready · …) and three icon buttons that
-//      go straight to the step: 🎙 Talkthrough · ✨ Generate results ·
-//      🎬 Send to filming.
+//      set has come as ONE stage chip (not started · talking · results ready ·
+//      reviewed · filmed · posted 2/4 · posted — components/v3/set-stage.ts),
+//      a gold RESUME button that goes to the step the set is actually on
+//      ("→ Film"), and four small icon buttons for jumping to any step:
+//      🎙 Talkthrough · ✨ Review · 🎬 Film · 📮 Post.
 //   2. IDEAS IN PRODUCTION — content ideas pushed here from a review board
 //      (status "in production"). Each points back at the set's results and
 //      can be marked done.
 //
+// FOUR STEPS, ONE BUTTON (2026-09-06 audit: "Redesign the queue's per-set
+// action affordance for 4 steps, not 3" — "a single status-aware 'resume where
+// you left off' primary button, with the four step icons still there"). The
+// three-icon row made every step look equally next; the chip and the resume
+// button say which one is.
+//
 // Nothing here loads the canvas or ReactFlow. The Talkthrough store is read
-// local-first (startTT), so the status chips are live without a server round
-// trip per set.
+// local-first (startTT), so the chips are live without a server round trip
+// per set. The three server-side signals the chip also reads (saved blast
+// plans, film-timer seconds, posted/filmed flags) are fetched ONCE on mount,
+// best-effort: if any of them fails — a table not migrated yet, a session
+// that isn't admin — the chip falls back to the talkthrough-only answer. The
+// queue is the home; it must never break because a newer table is missing.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clapperboard, Mic, Wand2 } from "lucide-react";
+import { Check, Clapperboard, Mic, Send, Wand2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
-import { listSessions, touchRow, type BoardItem, type TalkSession } from "@/components/canvas/talkthrough";
+import { touchRow, type BoardItem } from "@/components/canvas/talkthrough";
 import { putBoardItem, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
-import { reviewStateOf, subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
+import { subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
 import { useBank, slugOf, blastOffPath, type BlastOffStep } from "@/components/v3/use-bank";
-import { V3Shell, V3Note, V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
+import { V3Shell, V3Note, V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED, V3_NAVY } from "@/components/v3/Shell";
+import { StageChip, stepLabel } from "@/components/v3/StageChip";
+import { stageOf, talkStageOf, type StageInfo } from "@/components/v3/set-stage";
+import { listBlastPlanSetIds } from "@/lib/blastoff.functions";
+import { productionBottleneckReport } from "@/lib/production-time.functions";
+import { listPublishStatuses, type SetPublishStatus } from "@/lib/publish-queue.functions";
 import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
 
 export const Route = createFileRoute("/v3/")({
@@ -41,35 +58,39 @@ const STEP_BUTTONS: { step: BlastOffStep; icon: LucideIcon; title: string }[] = 
   // screen — and the queue, "where production starts and returns to", had no one-click way
   // to the step Lee visits every single set.
   { step: "film", icon: Clapperboard, title: "Step 3 · Film" },
+  // The fourth step (2026-09-06 audit): Post is a cross-set queue, so this lands on /v3/post
+  // (blastOffPath special-cases it) rather than under the set — the icon is here so the row
+  // shows all four steps honestly, not so Post is per-set.
+  { step: "post", icon: Send, title: "Step 4 · Post" },
 ];
 
-/** Where a set stands, from its newest session. */
-function setStatus(tt: TTState, set: BoothSetInfo): { label: string; color: string } | null {
-  const latest: TalkSession | undefined = listSessions(tt.doc).find((s) => s.setId === set.id);
-  if (!latest) return null;
-  const rs = reviewStateOf(tt.doc, latest);
-  switch (rs.state) {
-    case "capturing": return { label: "talking", color: "#3BF5A0" };
-    case "stale": return { label: "session open", color: V3_MUTED };
-    case "queued": return { label: "queued", color: V3_MUTED };
-    case "generating": return { label: "generating…", color: "#7DD3FC" };
-    case "ready": return { label: "results ready", color: V3_GOLD };
-    case "error": return { label: "review failed", color: "#FF8B7E" };
-    default: return { label: "talked", color: V3_MUTED };
-  }
-}
+// The "where does this set stand" switch that lived here as setStatus moved to
+// components/v3/set-stage.ts (talkStageOf) on 2026-09-06 so /v3/post reads the same answer.
 
 function V3Queue() {
   const { topics, error } = useBank();
   const [tt, setTT] = useState<TTState>(() => ttState());
   const [, forceReview] = useState(0);
+  // The server-side stage signals — see the header. Empty until (unless) they arrive.
+  const [plans, setPlans] = useState<Set<string>>(() => new Set());
+  const [filmSeconds, setFilmSeconds] = useState<Map<string, number>>(() => new Map());
+  const [publish, setPublish] = useState<Record<string, SetPublishStatus>>({});
   useEffect(() => {
     startTT();
     sweepStrandedReviews();
     const unReview = subscribeReview(() => forceReview((n) => n + 1));
     const unTT = subscribeTT(setTT);
+    listBlastPlanSetIds().then((rows) => setPlans(new Set(rows.map((r) => r.setId)))).catch(() => { /* talkthrough-only chip */ });
+    productionBottleneckReport()
+      .then((r) => setFilmSeconds(new Map(r.sets.map((s) => [s.setId, s.bySteps.film ?? 0]))))
+      .catch(() => { /* talkthrough-only chip */ });
+    listPublishStatuses().then(setPublish).catch(() => { /* talkthrough-only chip */ });
     return () => { unReview(); unTT(); };
   }, []);
+  const stageFor = (set: BoothSetInfo): StageInfo => {
+    const p = publish[set.id] ?? null;
+    return stageOf({ talk: talkStageOf(tt, set), hasPlan: plans.has(set.id), filmSeconds: filmSeconds.get(set.id) ?? 0, filmedAt: p?.filmedAt ?? null, publish: p });
+  };
 
   // IDEAS IN PRODUCTION — pushed from a review board. Resolved to their set
   // through the session they came from.
@@ -109,6 +130,7 @@ function V3Queue() {
               <span className="flex items-center gap-1"><Mic style={{ width: 12, height: 12 }} /> talk</span>
               <span className="flex items-center gap-1"><Wand2 style={{ width: 12, height: 12 }} /> results</span>
               <span className="flex items-center gap-1"><Clapperboard style={{ width: 12, height: 12 }} /> film</span>
+              <span className="flex items-center gap-1"><Send style={{ width: 12, height: 12 }} /> post</span>
             </span>
           </div>
 
@@ -124,7 +146,7 @@ function V3Queue() {
                 </Link>
                 <div className="flex flex-col gap-1.5">
                   {t.sets.map((s) => {
-                    const st = setStatus(tt, s);
+                    const info = stageFor(s);
                     return (
                       <div key={s.id} className="flex items-center gap-3 rounded-xl px-4 py-2.5" style={{ border: `1px solid ${V3_EDGE}` }}>
                         <Link
@@ -134,10 +156,18 @@ function V3Queue() {
                         >
                           {s.name}
                         </Link>
-                        <span style={{ color: V3_MUTED, fontSize: 12, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{t.kind === "strategy" ? "short" : `${s.liveCount} q`}</span>
-                        <span style={{ minWidth: 96, textAlign: "right", fontSize: 10.5, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: st?.color ?? V3_EDGE, whiteSpace: "nowrap" }}>
-                          {st?.label ?? "not started"}
-                        </span>
+                        <span style={{ color: V3_MUTED, fontSize: 12, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{s.liveCount} q</span>
+                        <StageChip info={info} />
+                        {/* RESUME — the one primary action per row: gold, named for the step the
+                            set is on. Posted sets still land on Post (there's nothing after it). */}
+                        <Link
+                          to={blastOffPath(t, s, info.next)}
+                          title={`Resume at step ${stepLabel(info.next)}`}
+                          className="flex items-center justify-center rounded-lg transition-colors hover:brightness-110"
+                          style={{ minWidth: 92, height: 30, padding: "0 10px", background: V3_GOLD, color: V3_NAVY, fontSize: 12, fontWeight: 800, textDecoration: "none", whiteSpace: "nowrap" }}
+                        >
+                          → {stepLabel(info.next)}
+                        </Link>
                         <div className="flex items-center gap-1">
                           {STEP_BUTTONS.map((b) => (
                             <Link

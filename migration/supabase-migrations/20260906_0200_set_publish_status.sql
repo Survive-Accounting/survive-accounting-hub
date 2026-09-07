@@ -21,6 +21,11 @@ create table if not exists public.set_publish_status (
   tiktok_posted_at timestamptz null,
   tiktok_url text null,
   notes text null,
+  -- FILMED (2026-09-06 audit: "Post has no idea what's actually finished"). Lee's own word that
+  -- the set is shot — the Film timer (production_time_log) is evidence, this is the confirmation.
+  -- Added to this file before it was run; 20260906_0500 adds the same column for a DB that
+  -- already has the table.
+  filmed_at timestamptz null,
   updated_at timestamptz not null default now()
 );
 

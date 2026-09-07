@@ -42,6 +42,29 @@ export const loadBlastPlan = createServerFn({ method: "POST" })
     return { frames: parsed.data, updatedAt: String(raw.updatedAt ?? ""), ...(layout ? { layout } : {}) };
   });
 
+/** EVERY SET WITH A SAVED PLAN, in one round trip — the "has this been through Review" signal
+ *  for the stage chip (components/v3/set-stage.ts; 2026-09-06 audit: Post "has no idea what's
+ *  actually finished"). A plan is stored on the deck, so this is one canvas_scenes read, the
+ *  same loadDecksDeduped pass loadBlastPlan does for one set, minus the frame validation: a
+ *  count is enough here, and a malformed plan still means someone reviewed. Admin-gated like
+ *  the other cross-set reads (listPublishStatuses, productionBottleneckReport); the queue
+ *  treats a rejection as "no signal", never as an error. */
+export const listBlastPlanSetIds = createServerFn({ method: "GET" })
+  .handler(async (): Promise<{ setId: string; frames: number; updatedAt: string | null }[]> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const db = await admin();
+    const { loadDecksDeduped } = await import("./student.functions");
+    const owned = await loadDecksDeduped(db as never);
+    const out: { setId: string; frames: number; updatedAt: string | null }[] = [];
+    for (const [setId, o] of owned) {
+      const raw = (o.deck as { blastOff?: { frames?: unknown[]; updatedAt?: string } }).blastOff;
+      const frames = Array.isArray(raw?.frames) ? raw.frames.length : 0;
+      if (frames > 0) out.push({ setId, frames, updatedAt: raw?.updatedAt ? String(raw.updatedAt) : null });
+    }
+    return out;
+  });
+
 /** Write the plan back onto the deck. Whole-plan replace: the client owns the
  *  order, and a partial merge would fight the drag. */
 export const saveBlastPlan = createServerFn({ method: "POST" })
