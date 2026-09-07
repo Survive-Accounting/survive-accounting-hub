@@ -131,11 +131,65 @@ export interface IllustrationStyle {
 // than implied. Bumping the version is what makes this apply to work already done, on request,
 // without retyping anything: any picture stamped older than 4 shows "stale — regenerate," and
 // Regenerate reuses the exact same brief — the subject never changes, only the render.
+//
+// v5 (2026-09-06, Lee's workshop — docs/ILLUSTRATION-STYLE-V5-PROPOSAL.md) did NOT become
+// watercolor v5. It became a second id, `survive-riso` below, and the house default moved to
+// it; watercolor stays at v4 as the style for the STRATEGY shorts (reps / chairs / founder
+// content — "a different audience and can be looser and more surreal than exam content"), so
+// the existing library isn't wasted. See defaultStyleIdFor.
 export const ILLUSTRATION_STYLES: Record<string, IllustrationStyle> = {
+  // SURVIVE RISO v1 — the house default for exam content (2026-09-06, from the v5 proposal).
+  // The diagnosis, in the proposal's words:
+  //   "Watercolor cut out and placed on black is fighting itself." Watercolor is a paper medium
+  //   — white paper showing through a translucent wash is what makes it read as watercolor; the
+  //   paper IS the light source. We generate on white, strip the background and drop the result
+  //   on #000000, so "every edge that made it look like watercolor gets cut off, and the
+  //   translucency now has darkness behind it instead of light."
+  //   "Gold and blue mix to mud — this is color theory, not model failure." #FCA311 and #006BA6
+  //   are near-complementary; flat, they pop side by side, but "in a translucent medium, wherever
+  //   two washes overlap or blend, complementaries neutralize — you get brown-gray." And the old
+  //   weights (0.35 + 0.30 = 0.65) left a free third of the palette to Recraft's discretion —
+  //   "that free third is where unplanned color enters."
+  //   "'Vintage educational magazine illustration' is the textbook reference" — "literally the
+  //   aesthetic Lee says he doesn't want."
+  // The fix is a medium built for dark grounds: risograph. Opaque spot inks hold colour against
+  // black with no mud from overlap; a 2–3 ink palette is native to the medium rather than
+  // something the prompt has to police; grain and misregistration give texture without wash
+  // unevenness; it's "the look of show posters, album art, zines, indie games. Not a textbook,
+  // not corporate, not AI-slick"; and overprint is "a genuine third" colour — the dreamy quality
+  // without translucency's downsides.
+  //
+  // KEPT, verbatim, every empirical v1–v4 rule above: the warm dark brown outline (v2, the
+  // suited figure that vanished dark-on-dark), no black or near-black fill (v2), no white or
+  // near-white fill with skin named as warm tan / light brown / warm peach (v3, the face the
+  // background remover cut away), the two-or-three shapes and one clear subject, the no
+  // front-facing face, and the phone-size / two-seconds line (v4). "Those were earned on real
+  // failures and the medium change doesn't retire any of them."
+  // CHANGED: watercolor wash → flat riso inks; the v4 "no splatters / muddy / bleeding" clauses
+  // are gone ("they were policing a problem the new medium doesn't have"); "vintage educational
+  // magazine" → "modern editorial illustration, poster composition"; overprint added as the
+  // source of depth. Palette: gold 0.45 + blue 0.35 + cream paper 0.20 = 1.00 exactly — "no free
+  // third for the model to fill with whatever it likes" (and never above 1: Recraft rejects it).
+  // The cream "is what gives the picture an implied paper even on black."
+  "survive-riso": {
+    id: "survive-riso",
+    version: 1,
+    label: "Survive Riso",
+    provider: "recraft",
+    model: "recraftv4_1",
+    size: "1024x1024",
+    promptPrefix: "A single illustration of ",
+    promptSuffix: ", on a plain white background, filling most of the frame with only a small even margin around it. Risograph print illustration: two or three flat spot inks, printed with visible grain and a slight off-register shift between layers, where overlapping inks create a third deeper color. Bold simplified shapes with a confident hand-drawn contour in warm dark brown — never black or near-black. Flat opaque fills, no gradients, no glossy shading, no photorealism. Every fill sits clearly between the two extremes: never true black or near-black (a suit, a shadow), and never white or near-white either (skin, a pale shirt) — a fill that pale is indistinguishable from the white background and gets cut away with it, leaving a hole. Skin and faces are always a warm tan, light brown, or warm peach, visibly darker than the white page. High contrast, a strong readable silhouette, one clear subject with minimal secondary objects and no unnecessary detail, at most two or three shapes total — designed to be immediately recognizable at small mobile-screen size, on screen for as little as two seconds. Modern editorial illustration, poster composition. If it includes a person, show them from behind, from the side, with their head turned away, or cropped out of frame — never a detailed front-facing face. No text, no logos, no signature, no clip-art look.",
+    controls: { background_color: { rgb: [255, 255, 255] }, colors: [{ rgb: [252, 163, 17], weight: 0.45 }, { rgb: [0, 107, 166], weight: 0.35 }, { rgb: [245, 239, 230], weight: 0.2 }] },
+    styleIdEnv: "RECRAFT_STYLE_ID_RISO",
+    defaultAnimation: "drift",
+  },
+  // SURVIVE WATERCOLOR v4 — since 2026-09-06 the style for the STRATEGY shorts only (see the
+  // v5 note above); the v1–v4 history is the long comment above this registry.
   "survive-watercolor": {
     id: "survive-watercolor",
     version: 4,
-    label: "Survive Watercolor",
+    label: "Survive Watercolor (strategy shorts)",
     provider: "recraft",
     model: "recraftv4_1",
     size: "1024x1024",
@@ -163,7 +217,23 @@ export const ILLUSTRATION_STYLES: Record<string, IllustrationStyle> = {
     defaultAnimation: "boil",
   },
 };
-export const DEFAULT_STYLE_ID = "survive-watercolor";
+/** The house default — exam content. Was "survive-watercolor" until 2026-09-06 (v5 proposal). */
+export const DEFAULT_STYLE_ID = "survive-riso";
+/** The strategy shorts' style (2026-09-06, the v5 proposal: "Strategy shorts get their own
+ *  style... Keep watercolor as the id for it... it's a good contrast to riso, and it means the
+ *  existing library isn't wasted"). */
+export const STRATEGY_STYLE_ID = "survive-watercolor";
+
+/** The topic kind a set belongs to, as the bank reports it (BoothTopic.kind): "strategy" for
+ *  the reps / chairs / founder shorts, undefined for course (exam) content. */
+export type IllustrationTopicKind = "strategy" | undefined;
+
+/** Which preset a NEW picture starts in, per kind: riso for exam content, watercolor for the
+ *  strategy shorts. Everything that first chooses a frame's style asks this, never
+ *  DEFAULT_STYLE_ID directly, so the split lives in one place. */
+export function defaultStyleIdFor(kind: IllustrationTopicKind): string {
+  return kind === "strategy" ? STRATEGY_STYLE_ID : DEFAULT_STYLE_ID;
+}
 
 /** The preset by id; null or unknown → the house default. */
 export function illustrationStyle(id: string | null | undefined): IllustrationStyle {
@@ -194,10 +264,21 @@ export function isStaleIllustration(i: FrameIllustration | null | undefined): bo
   return i.styleVersion !== null && i.styleVersion < style.version;
 }
 
-/** A fresh, empty request — what the editor and the talkthrough bank both start from. */
-export function emptyIllustration(seed: Partial<FrameIllustration> = {}): FrameIllustration {
+/** Pinned to a preset other than the default for its kind — a watercolor picture on an Easy
+ *  Points set, a riso one on a strategy short, or the retired dreamstate anywhere. Stale is
+ *  version-based and stays that way; this is the OTHER reason the panel offers "switch to
+ *  <default>" (v5, 2026-09-06: riso for exam content, watercolor stays for strategy shorts).
+ *  A frame with no preset yet is never off-style — it gets the right one when first chosen. */
+export function isOffStyleIllustration(i: FrameIllustration | null | undefined, kind: IllustrationTopicKind): boolean {
+  return !!i && !!i.stylePreset && i.stylePreset !== defaultStyleIdFor(kind);
+}
+
+/** A fresh, empty request — what the editor and the talkthrough bank both start from. `kind`
+ *  picks the preset (defaultStyleIdFor); callers that don't know the topic get the house
+ *  default, and the panel offers the switch if that turns out to be wrong for the set. */
+export function emptyIllustration(seed: Partial<FrameIllustration> = {}, kind?: IllustrationTopicKind): FrameIllustration {
   return {
-    requested: true, prompt: null, teachingIntent: null, provider: null, stylePreset: DEFAULT_STYLE_ID, styleVersion: null,
+    requested: true, prompt: null, teachingIntent: null, provider: null, stylePreset: defaultStyleIdFor(kind), styleVersion: null,
     assetUrl: null, localAssetId: null, animationPreset: null, generatedAt: null, seed: null, placement: null,
     brief: null, summary: null, referenceFrameId: null, referencePhoto: null, pairedAssetUrl: null, pairedTitle: null, ...seed,
   };
@@ -210,7 +291,7 @@ export const PROMPTING_TIPS: readonly string[] = [
   "Describe structure, not adjectives: \"a padlock with a key half-turned\" beats \"a beautiful minimal padlock\".",
   "Say what it is DOING — a pose or an action reads instantly; a list of objects does not.",
   "Keep it short. V4.1 does its best work on a sentence, not a paragraph.",
-  "Don't type the style. Watercolor, ink line, background, no text — the preset already says all of it.",
+  "Don't type the style. Riso inks, watercolor, ink line, background, no text — the preset already says all of it.",
   "For a metaphor, name the metaphor plainly: \"a leaky bucket labelled cash\", not the accounting concept.",
   "Skip the face. Describe a person from behind, from the side, or mid-stride instead — \"climbing the steps\", \"a back at a desk\" — the preset already avoids a detailed front-facing face, but naming the angle yourself gets a better composition.",
   "A real, specific place beats a generic one — name the actual landmark or prop if you have one in mind.",

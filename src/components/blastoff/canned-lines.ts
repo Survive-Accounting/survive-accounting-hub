@@ -41,6 +41,10 @@ export const CANNED_LINES: readonly CannedLine[] = [
   { id: "bio-ten-years", slot: "bio", title: "Ten Years", text: "I've tutored this for 10 years." },
   { id: "bio-1000-students", slot: "bio", title: "1000 Students", text: "I've tutored over 1000 students." },
   { id: "bio-love-helping", slot: "bio", title: "Love Helping", text: "I love helping students in this course." },
+  // The fourth bio (2026-09-06, the v5 style workshop, docs/ILLUSTRATION-STYLE-V5-PROPOSAL.md:
+  // "no retirements. The bio wants a fourth: 'I taught this course.' Shorter than the others and
+  // it lands differently.")
+  { id: "bio-taught-this-course", slot: "bio", title: "Taught This Course", text: "I taught this course." },
 ];
 
 export function cannedLinesFor(slot: CannedSlot, lines: readonly CannedLine[] = CANNED_LINES): CannedLine[] {

@@ -1,5 +1,8 @@
 # Survive — the current style guide (exported 2026-09-06)
 
+> **Superseded for illustrations (§1, §2, §6) on 2026-09-06 by `docs/ILLUSTRATION-STYLE-V5-PROPOSAL.md`, applied to the code the same night:** the house default is now `survive-riso` (riso inks, gold / blue / cream at 0.45 / 0.35 / 0.20), `survive-watercolor` v4 is kept as the style for the strategy shorts, and `BRIEF_SYSTEM` gained the surreality allowance, the enforced pair rule, the recurring student and the banned-subjects list.
+> The rest of this guide — slides (§3), voice (§4, plus a fourth bio line, "I taught this course."), motion (§5) — is still current.
+
 This is the house style **as the code actually applies it today**, pulled straight from the
 files that generate pictures, draw slides and suggest lines. Nothing here is aspirational.
 Workshop it, then bring back a new version; the last section says exactly which parts map to

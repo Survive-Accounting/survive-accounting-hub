@@ -1,9 +1,34 @@
 import { describe, expect, test } from "bun:test";
 
-import { BRIEF_SYSTEM, buildBriefMessages, parseBrief, promptHasLabel } from "./illustration-brief";
+import { BANNED_SUBJECTS, BRIEF_SYSTEM, RECURRING_STUDENT, buildBriefMessages, parseBrief, promptHasLabel } from "./illustration-brief";
 import { composeIllustrationPrompt, illustrationStyle } from "./illustration";
 
 describe("the illustration brief", () => {
+  // v5 (2026-09-06, docs/ILLUSTRATION-STYLE-V5-PROPOSAL.md): the four brief changes.
+  test("v5: the surreality allowance, the recurring student, the banned list and the enforced pair rule are all in the system prompt", () => {
+    // the proposal's paragraph, verbatim, plus its "one in three" usage note
+    expect(BRIEF_SYSTEM).toContain("Scale and space may be pushed: an object much larger than life, a figure standing on or inside something that couldn't hold them, an ordinary thing floating or repeating. Use this to make the idea strange enough to remember, never to make it unclear — the one clear subject rule still governs.");
+    expect(BRIEF_SYSTEM).toMatch(/one picture in three/);
+    // one fixed character, never Lee, defined by silhouette and garment, editable in one place
+    expect(BRIEF_SYSTEM).toContain(RECURRING_STUDENT);
+    expect(RECURRING_STUDENT).toMatch(/hoodie/);
+    expect(RECURRING_STUDENT).toMatch(/never face-on/);
+    expect(BRIEF_SYSTEM).toMatch(/never Lee/);
+    // the reject list — each one, by name
+    expect(BANNED_SUBJECTS).toHaveLength(7);
+    for (const s of ["money piles", "handshakes", "lightbulbs", "gears", "target with arrow", "ladder of success", "jigsaw pieces"]) {
+      expect(BANNED_SUBJECTS).toContain(s);
+      expect(BRIEF_SYSTEM).toContain(s);
+    }
+    expect(BRIEF_SYSTEM).toMatch(/specific real-world thing behind the idea/);
+    // the pair rule is enforced in words, not left to the seed
+    expect(BRIEF_SYSTEM).toMatch(/RESTATE the reference's cast, its scale/);
+    expect(BRIEF_SYSTEM).toMatch(/never rely on the shared seed/);
+    expect(BRIEF_SYSTEM).toMatch(/bullets must name what stayed the same/);
+    // the style line is preset-agnostic now that two presets exist
+    expect(BRIEF_SYSTEM).toMatch(/the preset adds the medium/);
+    expect(BRIEF_SYSTEM).not.toMatch(/watercolor-and-ink/);
+  });
   test("the messages carry the brainstorm, the point, the reference and the revision", () => {
     const m = buildBriefMessages({
       brainstorm: "suited guy at a desk with a magnifying glass, the financials say OUR COMPANY",

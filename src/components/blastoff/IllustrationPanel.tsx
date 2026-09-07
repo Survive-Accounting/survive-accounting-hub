@@ -10,12 +10,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { getAdminWho } from "@/components/AdminGate";
 import { uploadReferencePhoto } from "@/components/ideas/upload";
+import { topicOfSet, useBank } from "@/components/v3/use-bank";
 import { installPasscodeSession } from "@/lib/admin-session.functions";
 import { generateIllustration, illustrationStatus, listIllustrationLibrary, testIllustrationKey, type LibraryRow } from "@/lib/illustrate.functions";
 import { runMicro } from "@/lib/talkthrough.functions";
 import { useDictation } from "@/lib/use-dictation";
 
-import { ANIMATION_LABEL, ANIMATION_PRESETS, DEFAULT_STYLE_ID, ILLUSTRATION_STYLES, PROMPTING_TIPS, composeIllustrationPrompt, emptyIllustration, illustrationStyle, isStaleIllustration, type FrameIllustration } from "./illustration";
+import { ANIMATION_LABEL, ANIMATION_PRESETS, ILLUSTRATION_STYLES, PROMPTING_TIPS, composeIllustrationPrompt, defaultStyleIdFor, emptyIllustration, illustrationStyle, isOffStyleIllustration, isStaleIllustration, type FrameIllustration } from "./illustration";
 import { buildBriefMessages, parseBrief, type IllustrationBrief } from "./illustration-brief";
 import { FRAME_LABEL, insertStem, type BlastFrame } from "./plan";
 
@@ -36,8 +37,17 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   sel: BlastFrame; setId: string; setName: string; frames: readonly BlastFrame[]; onPatch: (p: Partial<BlastFrame>) => void;
 }) {
   const ill = sel.illustration ?? null;
-  const style = illustrationStyle(ill?.stylePreset);
+  // WHICH HOUSE STYLE (2026-09-06, v5): riso for exam content, watercolor for the strategy
+  // shorts — decided by the set's topic kind from the bank (BoothTopic.kind === "strategy").
+  // Until the bank loads, kind is undefined and the exam default applies; a frame that already
+  // carries a preset keeps it either way (never rewritten silently — the switch below is the
+  // only way it changes).
+  const { topics } = useBank();
+  const kind = topics ? topicOfSet(topics, setId)?.kind : undefined;
+  const houseId = defaultStyleIdFor(kind);
+  const style = illustrationStyle(ill?.stylePreset ?? houseId);
   const stale = isStaleIllustration(ill);
+  const offStyle = isOffStyleIllustration(ill, kind);
   const teaching = () => (ill?.teachingIntent ?? "").trim() || insertStem(sel) || (sel.bullets ?? []).join("; ") || "";
 
   // THE BRAINSTORM → THE BRIEF
@@ -108,7 +118,7 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   }));
   const ref = references.find((r) => r.id === refId) ?? null;
 
-  const keep = (patch: Partial<FrameIllustration>) => onPatch({ illustration: { ...(ill ?? emptyIllustration()), requested: true, ...patch } });
+  const keep = (patch: Partial<FrameIllustration>) => onPatch({ illustration: { ...(ill ?? emptyIllustration({}, kind)), requested: true, ...patch } });
 
   async function draft(revise: boolean) {
     const said = words.trim();
@@ -294,13 +304,16 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
           on the retired look until told otherwise. This is that "otherwise" (Lee, 2026-09-05,
           on a "second round" picture that was still the old monoline-on-black style despite the
           new default already being live: it never switched because this frame's own stylePreset
-          was already pinned). Free — it only clears the picture, the brief and words are kept. */}
-      {ill?.stylePreset && ill.stylePreset !== DEFAULT_STYLE_ID && (
+          was already pinned). Free — it only clears the picture, the brief and words are kept.
+          Since v5 (2026-09-06) "the default" is per kind — riso for exam content, watercolor
+          stays for the strategy shorts — so a watercolor picture on an Easy Points set is
+          off-style too, not only the retired dreamstate (isOffStyleIllustration). */}
+      {offStyle && (
         <div style={{ marginTop: 8, padding: "6px 10px", border: `1px solid ${ORANGE}88`, borderRadius: 8, fontSize: 11.5, color: CREAM, lineHeight: 1.4 }}>
-          This picture was made with an earlier, retired look ({style.label}).
-          <button type="button" onClick={() => keep({ stylePreset: DEFAULT_STYLE_ID, assetUrl: null, localAssetId: null, styleVersion: null, seed: null, generatedAt: null })}
-            style={{ ...chip(false, ORANGE), marginLeft: 8 }} title="Keeps your words and brief; clears the picture so Generate makes a fresh one in the current style">
-            switch to {ILLUSTRATION_STYLES[DEFAULT_STYLE_ID].label}
+          This picture is in {style.label}, not this set's house style. v5, 2026-09-06: riso for exam content, watercolor stays for strategy shorts.
+          <button type="button" onClick={() => keep({ stylePreset: houseId, assetUrl: null, localAssetId: null, styleVersion: null, seed: null, generatedAt: null })}
+            style={{ ...chip(false, ORANGE), marginLeft: 8 }} title="Keeps your words and brief; clears the picture so Generate makes a fresh one in this set's style">
+            switch to {ILLUSTRATION_STYLES[houseId].label}
           </button>
         </div>
       )}

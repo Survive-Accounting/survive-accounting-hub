@@ -3,10 +3,13 @@ import { describe, expect, test } from "bun:test";
 import { CANNED_LINES, cannedLinesFor, cannedWarnings, pickCannedLine, type CannedLine } from "./canned-lines";
 
 describe("the canned intro/outro registry", () => {
-  test("Lee's ten lines, split cleanly by slot", () => {
+  test("Lee's eleven lines, split cleanly by slot", () => {
     expect(cannedLinesFor("intro")).toHaveLength(4);
     expect(cannedLinesFor("outro")).toHaveLength(3);
-    expect(cannedLinesFor("bio")).toHaveLength(3);
+    // four bios since 2026-09-06 (the v5 workshop: "The bio wants a fourth: 'I taught this
+    // course.' Shorter than the others and it lands differently.") — no retirements.
+    expect(cannedLinesFor("bio")).toHaveLength(4);
+    expect(CANNED_LINES.find((l) => l.id === "bio-taught-this-course")?.text).toBe("I taught this course.");
     for (const l of CANNED_LINES) expect(l.text.trim().length).toBeGreaterThan(0);
   });
   test("the Standard outro is weighted 3; everything else defaults to 1", () => {
