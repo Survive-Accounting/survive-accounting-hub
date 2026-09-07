@@ -204,7 +204,14 @@ export const listIllustrationsAcrossBank = createServerFn({ method: "GET" })
     const { assertAdmin } = await import("@/lib/admin-session.functions");
     await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const db = supabaseAdmin as unknown as { from: (t: string) => any };
+    return listIllustrationBankCore(supabaseAdmin as unknown as { from: (t: string) => any });
+  });
+
+/** The listing without the admin gate — shared by the server fn above and
+ *  scripts/regenerate-off-style.ts (2026-09-06, Lee: "Regenerate all the off-style illustrations
+ *  in riso" — run from the build PC with the production env, one picture at a time, so the
+ *  page and the script can never classify differently). Callers gate themselves. */
+export async function listIllustrationBankCore(db: { from: (t: string) => any }): Promise<IllustrationBank> {
     const { loadDecksDeduped, liveDecks } = await import("@/lib/student.functions");
     const owned = await loadDecksDeduped(db);
     const topicOf = await topicLookup(db);
@@ -243,7 +250,7 @@ export const listIllustrationsAcrossBank = createServerFn({ method: "GET" })
     }
 
     return { rows, totals: tallyStatuses(rows), defaults: bankStyleDefaults(), medianCostUsd, libraryMissing };
-  });
+}
 
 /** REGENERATE IN PLACE: the same subject, the current style, written straight back onto the
  *  frame it came from. The plan is re-read from the scene right before the write, and only
@@ -259,11 +266,21 @@ export const regenerateIllustrationInPlace = createServerFn({ method: "POST" })
     keepSeed: z.boolean().optional(),
     who: z.string().max(40).nullable().optional(),
   }).parse(d))
-  .handler(async ({ data }): Promise<{ row: BankRow; previousAssetUrl: string; credits: number | null; costUsd: number | null }> => {
+  .handler(async ({ data }): Promise<RegenerateResult> => {
     const { assertAdmin } = await import("@/lib/admin-session.functions");
     await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const db = supabaseAdmin as unknown as { from: (t: string) => any };
+    return regenerateIllustrationCore(supabaseAdmin as unknown as { from: (t: string) => any }, data);
+  });
+
+export interface RegenerateResult { row: BankRow; previousAssetUrl: string; credits: number | null; costUsd: number | null }
+
+/** The regenerate without the admin gate — shared with scripts/regenerate-off-style.ts (see
+ *  listIllustrationBankCore). Costs money per call; callers gate themselves. */
+export async function regenerateIllustrationCore(
+  db: { from: (t: string) => any },
+  data: { setId: string; frameId: string; stylePreset?: string | null; keepSeed?: boolean; who?: string | null },
+): Promise<RegenerateResult> {
     const { loadDecksDeduped } = await import("@/lib/student.functions");
     const owned = await loadDecksDeduped(db);
     const o = owned.get(data.setId);
@@ -316,7 +333,7 @@ export const regenerateIllustrationInPlace = createServerFn({ method: "POST" })
       row: bankRowFor({ ...frame, illustration: next }, next as FrameIllustration & { assetUrl: string }, liveDeck, topic),
       previousAssetUrl, credits: r.credits, costUsd: r.credits === null ? null : r.credits / 1000,
     };
-  });
+}
 
 export interface LibraryRow {
   id: string; frameId: string; title: string | null; prompt: string; assetUrl: string;
