@@ -9,6 +9,15 @@
 // since 2026-09-06 this is the window capture/teleprompter-popout.ts opens
 // beside the 9:16 film pop-out, which hides its own in-page prompter panel.
 //
+// KEYWORD MODE (2026-09-07). Lee: "we're putting together a teleprompter, with literal lines,
+// but a quick bullet list, or even just a handful of single words, that capture the main point
+// of what the line is saying (e.g. Internal = inside) or whatever, so I can scan a teleprompter
+// and get what I need. If I am really stuck, then I can just read verbatim, all chill." So a
+// "lines | keywords" toggle in the corner (localStorage sa-prompter-mode): keywords shows
+// frame.prompterKeys one fragment per row, big, with the hand-off (frame.prompterTransition)
+// last in gold; lines is the verbatim view, unchanged. Untouched, the toggle defaults to
+// keywords whenever the slide has them — that's the scan Lee asked for — and lines otherwise.
+//
 // No ?set: the older phrase-bank mirror — the results board's banked script
 // lines, one at a time, Enter / Shift+Enter / ` to walk them.
 import { createFileRoute } from "@tanstack/react-router";
@@ -54,6 +63,18 @@ const readActive = (): FilmActive | null => {
   try { const v = JSON.parse(localStorage.getItem("sa-film-active") ?? "null") as FilmActive | null; return v && typeof v.setId === "string" ? v : null; } catch { return null; }
 };
 
+type PrompterMode = "lines" | "keywords";
+const MODE_KEY = "sa-prompter-mode";
+const readMode = (): PrompterMode | null => {
+  try { const v = localStorage.getItem(MODE_KEY); return v === "lines" || v === "keywords" ? v : null; } catch { return null; }
+};
+
+/** The mode that shows — Lee's saved choice, else keywords when the slide has any. */
+function prompterModeFor(stored: PrompterMode | null, keys: readonly string[] | undefined): PrompterMode {
+  if (stored) return stored;
+  return keys && keys.length > 0 ? "keywords" : "lines";
+}
+
 /** The plan frame behind a canvas node id: a set card by ceqId, an insert by
  *  the node the sync wrote for it ("blast-<frame id>"). */
 export function frameForNode(frames: readonly BlastFrameRow[], qId: string | null): BlastFrameRow | null {
@@ -94,13 +115,33 @@ function FramePrompter({ setId }: { setId: string }) {
 
   const frame = frames && active && active.setId === setId ? frameForNode(frames, active.qId) : null;
   const lines = frame?.prompter ?? [];
+  const keys = frame?.prompterKeys ?? [];
   const idx = frame && frames ? frames.indexOf(frame) : -1;
   const longest = lines.reduce((m, l) => Math.max(m, l.length), 0);
   const rem = Math.max(MIN_REM, Math.min(BASE_REM, fontRem(" ".repeat(longest)) - Math.max(0, lines.length - 2) * 0.6));
 
+  // THE MODE: Lee's saved pick, else keywords when this slide has them. A slide without
+  // keywords in keywords mode falls back to its lines rather than showing nothing.
+  const [stored, setStored] = useState<PrompterMode | null>(() => readMode());
+  const mode = prompterModeFor(stored, keys);
+  const setMode = (m: PrompterMode) => { setStored(m); try { localStorage.setItem(MODE_KEY, m); } catch { /* ignore */ } };
+  const showKeys = mode === "keywords" && keys.length > 0;
+  const transition = frame?.prompterTransition ?? "";
+  // Keywords are short by design (≤ 6 words each) — they hold the big size until the list is
+  // long enough that it would run off the window.
+  const keyRem = Math.max(MIN_REM, BASE_REM - Math.max(0, keys.length + (transition ? 1 : 0) - 3) * 0.7);
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "#FFFFFF", color: "#000000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "4vh 4vw", textAlign: "center", userSelect: "none" }}>
       {err && <div style={{ position: "absolute", top: 10, left: 12, right: 12, color: "#B91C1C", fontSize: 14, fontWeight: 700 }}>⚠ {err}</div>}
+      <div style={{ position: "absolute", top: 10, right: 12, display: "flex", gap: 2, fontSize: 12, fontWeight: 700, color: "#9CA3AF" }} title="lines = read it verbatim · keywords = scan the main points">
+        {(["lines", "keywords"] as const).map((m, k) => (
+          <button key={m} type="button" onClick={() => setMode(m)}
+            style={{ font: "inherit", border: "1px solid #E5E7EB", borderRadius: k === 0 ? "6px 0 0 6px" : "0 6px 6px 0", padding: "2px 8px", cursor: "pointer", background: mode === m ? "#111827" : "#FFFFFF", color: mode === m ? "#FFFFFF" : "#9CA3AF" }}>
+            {m}
+          </button>
+        ))}
+      </div>
       {frames === null && !err && <div style={{ fontSize: "1.5rem", color: "#9CA3AF" }}>loading the film draft…</div>}
       {frames && !frame && (
         <div style={{ fontSize: "1.75rem", fontWeight: 600, color: "#6B7280" }}>
@@ -114,16 +155,28 @@ function FramePrompter({ setId }: { setId: string }) {
           <div style={{ fontSize: "1rem", fontWeight: 400, marginTop: 10, color: "#9CA3AF" }}>Keep lines in a rehearsal round on Rehearse &amp; Film and they show up here.</div>
         </div>
       )}
-      {frame && lines.length > 0 && (
+      {frame && showKeys && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.35em", maxWidth: "100%", alignItems: "center" }}>
+          {keys.map((k, i) => (
+            <div key={i} style={{ fontSize: `${keyRem}rem`, lineHeight: 1.15, fontWeight: 800, letterSpacing: "-0.01em", overflowWrap: "break-word" }}>{k}</div>
+          ))}
+          {transition && (
+            <div style={{ fontSize: `${Math.max(MIN_REM, keyRem - 1)}rem`, lineHeight: 1.15, fontWeight: 800, letterSpacing: "-0.01em", color: "#D97706", marginTop: "0.3em", overflowWrap: "break-word" }}>→ {transition}</div>
+          )}
+        </div>
+      )}
+      {frame && !showKeys && lines.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.6em", maxWidth: "100%" }}>
           {lines.map((l, k) => (
             <div key={k} style={{ fontSize: `${rem}rem`, lineHeight: 1.15, fontWeight: 800, letterSpacing: "-0.01em", overflowWrap: "break-word" }}>{l}</div>
           ))}
+          {transition && <div style={{ fontSize: `${Math.max(MIN_REM, rem - 1.5)}rem`, lineHeight: 1.15, fontWeight: 800, color: "#D97706", overflowWrap: "break-word" }}>→ {transition}</div>}
         </div>
       )}
       <div style={{ position: "absolute", bottom: 14, left: 0, right: 0, color: "#9CA3AF", fontSize: 13, display: "flex", justifyContent: "center", gap: 18 }}>
         <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{frame && frames ? `slide ${idx + 1} / ${frames.length}` : "—"}</span>
         <span>{frame ? FRAME_LABEL[frame.kind] : "follows the Studio"}</span>
+        {frame && mode === "keywords" && keys.length === 0 && lines.length > 0 && <span>no keywords on this slide — showing its lines</span>}
       </div>
     </div>
   );

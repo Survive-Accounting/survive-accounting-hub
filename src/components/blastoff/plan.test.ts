@@ -277,7 +277,8 @@ describe("the review step: skip, duplicate, patch — the set is never touched",
 
   test("duplicate lands right after the original with its own id and its own prompter copy", () => {
     const src = { ...ceqFrame, prompter: ["say this"] };
-    const frames = patchFrame(plan.frames, ceqFrame.id, { prompter: ["say this"] });
+    // 2026-09-07: the keyword prompter and the hand-off ride with the line.
+    const frames = patchFrame(plan.frames, ceqFrame.id, { prompter: ["say this"], prompterKeys: ["say", "this"], prompterTransition: "Next question." });
     const next = duplicateFrame(frames, src.id);
     const i = next.findIndex((f) => f.id === src.id);
     expect(next.length).toBe(frames.length + 1);
@@ -286,6 +287,9 @@ describe("the review step: skip, duplicate, patch — the set is never touched",
     expect(next[i + 1].id).not.toBe(src.id);
     expect(next[i + 1].prompter).toEqual(["say this"]);
     expect(next[i + 1].prompter).not.toBe(next[i].prompter);
+    expect(next[i + 1].prompterKeys).toEqual(["say", "this"]);
+    expect(next[i + 1].prompterKeys).not.toBe(next[i].prompterKeys);
+    expect(next[i + 1].prompterTransition).toBe("Next question.");
   });
 
   test("patchFrame writes one frame and leaves the rest identical", () => {

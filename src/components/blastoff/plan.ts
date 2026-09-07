@@ -88,6 +88,16 @@ export interface BlastFrame {
    *  ME"). The lines Lee kept for this slide — his own transcript words,
    *  proofread — shown beside the slide in film mode. */
   prompter?: string[];
+  /** THE KEYWORD PROMPTER (Lee, 2026-09-07: "a quick bullet list, or even just a handful of
+   *  single words, that capture the main point of what the line is saying (e.g. Internal =
+   *  inside)… so I can scan a teleprompter and get what I need. If I am really stuck, then I
+   *  can just read verbatim"). 2–5 scannable fragments of the kept line, set by the rehearsal
+   *  review beside `prompter`; /v3/teleprompter's keywords mode shows these instead. */
+  prompterKeys?: string[];
+  /** THE HAND-OFF (Lee, 2026-09-07: "the lines could be useful to also build in TRANSITIONS…
+   *  as simple as move on, but also finding connecting points between slides"). A 2–6 word
+   *  spoken bridge into the next slide, when the review offered one and Lee kept a line. */
+  prompterTransition?: string;
   /** THE OPTIONAL ILLUSTRATION (polish pass, 2026-09-05). Absent = never asked; null = Lee
    *  cleared it; a value = an idea banked or a picture made. See illustration.ts. A slide
    *  with none keeps every pixel of the negative space it has today. */
@@ -282,7 +292,7 @@ export function duplicateFrame(frames: readonly BlastFrame[], id: string): Blast
   const i = frames.findIndex((x) => x.id === id);
   if (i < 0) return [...frames];
   const src = frames[i];
-  const copy: BlastFrame = { ...src, id: newFrameId(src.kind), prompter: src.prompter ? [...src.prompter] : undefined, illustration: src.illustration ? { ...src.illustration } : src.illustration };
+  const copy: BlastFrame = { ...src, id: newFrameId(src.kind), prompter: src.prompter ? [...src.prompter] : undefined, prompterKeys: src.prompterKeys ? [...src.prompterKeys] : undefined, illustration: src.illustration ? { ...src.illustration } : src.illustration };
   return insertFrame(frames, copy, i);
 }
 

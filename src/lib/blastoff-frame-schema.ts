@@ -63,6 +63,10 @@ export const frameSchema = z.object({
   // Lee kept for the slide. Additive; old plans have neither.
   skipped: z.boolean().optional(),
   prompter: z.array(z.string().max(600)).max(40).optional(),
+  // THE KEYWORD PROMPTER + THE HAND-OFF (2026-09-07, plan.ts): the kept line's scannable
+  // fragments and the bridge into the next slide. Additive; old plans have neither.
+  prompterKeys: z.array(z.string().max(80)).max(8).optional(),
+  prompterTransition: z.string().max(120).optional(),
   bullets: z.array(z.string().max(300)).max(12).optional(),
   backdrop: z.enum(["zoom", "off"]).optional(),
   variant: z.string().max(20).optional(),

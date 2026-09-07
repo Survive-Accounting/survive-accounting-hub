@@ -9,7 +9,51 @@
 // Pure: a TTDoc in, a string out. Reads only; the Transcript Law (segments are never rewritten)
 // is untouched. Non-card frames (phrases, cheat codes, the spine) have no talkthrough of their
 // own → "".
+//
+// 2026-09-07: THE CARD and THE NEXT SLIDE live here too (rehearsalCardFor, nextSlideFor) — the
+// other two slices of context the brief carries, pure and tested beside the notes. Lee: "it
+// must not be referencing the actual CEQ itself, because neither what I said nor what the
+// suggested said actual teaches anything."
 import { stampLabel, type TTDoc } from "@/components/canvas/talkthrough";
+
+import { FRAME_LABEL, frameBullets, insertStem, type BlastFrame } from "./plan";
+import type { RehearsalCard } from "./rehearsal-brief";
+
+/** What the review needs of a set card — BoothCeq fits; the Map BlastOffCapture passes is one. */
+export type CardLookup = ReadonlyMap<string, { stem: string; choices: readonly { text: string; correct: boolean }[] }>;
+
+/** The one-line grounding for a slide: a set card's stem, a callout's heading, its bullets. */
+export function slideContextFor(f: BlastFrame, ceqById: CardLookup): string {
+  if (f.kind === "ceq" && f.ceqId) return ceqById.get(f.ceqId)?.stem ?? "";
+  return insertStem(f) || (f.bullets ?? []).join("; ") || "";
+}
+
+/** THE CARD the brief must see: a set card's stem + choices with the correct one marked; a
+ *  callout's (memorize this / cheat code / deep question) title + lines. Anything else has no
+ *  card → undefined, and the brief carries none. */
+export function rehearsalCardFor(f: BlastFrame, ceqById: CardLookup): RehearsalCard | undefined {
+  if (f.kind === "ceq" && f.ceqId) {
+    const c = ceqById.get(f.ceqId);
+    if (!c) return undefined;
+    return { stem: c.stem, choices: c.choices.map(({ text, correct }) => ({ text, correct })) };
+  }
+  if (f.kind === "phrase" || f.kind === "cheat" || f.kind === "tip") {
+    const title = insertStem(f);
+    const lines = frameBullets(f).map((l) => l.replace(/^\t+/, ""));
+    if (!title && lines.length === 0) return undefined;
+    return { stem: "", choices: [], calloutTitle: title, calloutLines: lines };
+  }
+  return undefined;
+}
+
+/** The slide after this one in the running order (skipped ones don't film, so they don't
+ *  count) — what the hand-off leads into. Last slide → undefined. */
+export function nextSlideFor(frames: readonly BlastFrame[], f: BlastFrame, ceqById: CardLookup): { label: string; context: string } | undefined {
+  const i = frames.findIndex((x) => x.id === f.id);
+  if (i < 0) return undefined;
+  const n = frames.slice(i + 1).find((x) => !x.skipped);
+  return n ? { label: FRAME_LABEL[n.kind], context: slideContextFor(n, ceqById).slice(0, 200) } : undefined;
+}
 
 /** Roughly a paragraph of speech — enough for a phrase or two to surface, not the whole take. */
 export const TALKTHROUGH_SPEECH_CAP = 700;

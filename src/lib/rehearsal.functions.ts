@@ -7,6 +7,12 @@
 // either or write mine in" — one click per slide), so the actions are now WHICH of the review's
 // three choices he took: "said" (his own words, cleaned), "suggested" (the improvement), "edited"
 // (he typed his own). The rating/comment columns stay — nullable, and nothing writes them now.
+//
+// 2026-09-07 — "WROTE MY OWN" IS THE SIGNAL. Lee: "if I write in my own, it's a big signal that
+// there's a possible improvement here." So an edited row now hands back the suggestion he
+// REJECTED beside what he kept (`rejected`) and the brief renders it as "he was offered X and
+// wrote Y instead" — the strongest style guidance the table holds. suggested_line was always
+// stored; nothing new to migrate.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -59,19 +65,27 @@ export const logTeleprompterFeedback = createServerFn({ method: "POST" })
 const ACTION_RANK: Record<string, number> = { edited: 0, said: 1, suggested: 2 };
 export const EXAMPLE_LIMIT = 5;
 
+/** One past decision as the brief sees it (rehearsal-brief.ts StyleExample). `rejected` only
+ *  on an edited row — the suggestion Lee was offered and wrote over — and only when it was a
+ *  real, different line. */
+export interface RehearsalExample { raw: string; final: string; rejected?: string }
+
 /** Pure: newest first within each action, best action first, capped — exported for the test. */
-export function rankRehearsalExamples(rows: readonly { raw: string; final: string; action: string; createdAt: string }[], limit = EXAMPLE_LIMIT): { raw: string; final: string }[] {
+export function rankRehearsalExamples(rows: readonly { raw: string; final: string; action: string; createdAt: string; suggested?: string }[], limit = EXAMPLE_LIMIT): RehearsalExample[] {
   return [...rows]
     .sort((a, b) => (ACTION_RANK[a.action] ?? 2) - (ACTION_RANK[b.action] ?? 2) || b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit)
-    .map((r) => ({ raw: r.raw, final: r.final }));
+    .map((r) => {
+      const rejected = r.action === "edited" ? (r.suggested ?? "").trim() : "";
+      return rejected && rejected !== r.final.trim() ? { raw: r.raw, final: r.final, rejected } : { raw: r.raw, final: r.final };
+    });
 }
 
 /** The best examples to learn from, capped small since these ride in every rehearsal
  *  suggestion's prompt. No rating filter any more (the rating is gone from the review) — the
  *  ACTION is the signal. Missing table → no examples, not an error: a brand new set of
  *  rehearsals with nothing to learn from yet is the normal starting state. */
-export const topRehearsalExamples = createServerFn({ method: "GET" }).handler(async (): Promise<{ raw: string; final: string }[]> => {
+export const topRehearsalExamples = createServerFn({ method: "GET" }).handler(async (): Promise<RehearsalExample[]> => {
   const { assertAdmin } = await import("@/lib/admin-session.functions");
   await assertAdmin();
   try {
@@ -79,10 +93,11 @@ export const topRehearsalExamples = createServerFn({ method: "GET" }).handler(as
     // The newest few dozen decisions, ranked here — a few dozen rows is nothing, and one query
     // beats three ordered ones per action.
     const { data, error } = await db.from("teleprompter_feedback")
-      .select("raw_transcript,final_line,action,created_at").order("created_at", { ascending: false }).limit(40);
+      .select("raw_transcript,suggested_line,final_line,action,created_at").order("created_at", { ascending: false }).limit(40);
     if (error) return [];
     return rankRehearsalExamples(((data ?? []) as Record<string, unknown>[]).map((r) => ({
       raw: String(r.raw_transcript ?? ""), final: String(r.final_line ?? ""), action: String(r.action ?? ""), createdAt: String(r.created_at ?? ""),
+      suggested: String(r.suggested_line ?? ""),
     })));
   } catch { return []; }
 });

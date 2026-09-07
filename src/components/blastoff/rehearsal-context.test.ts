@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import { emptyDoc, type BoardItem, type TalkSegment, type TalkSession, type TalkTag, type TTDoc } from "@/components/canvas/talkthrough";
 
-import { rehearsalContextFor, TALKTHROUGH_SPEECH_CAP } from "./rehearsal-context";
+import type { BlastFrame } from "./plan";
+import { nextSlideFor, rehearsalCardFor, rehearsalContextFor, slideContextFor, TALKTHROUGH_SPEECH_CAP } from "./rehearsal-context";
 
 const T = "2026-09-01T10:00:00.000Z";
 const row = { createdAt: T, updatedAt: T, syncedAt: T };
@@ -69,5 +70,49 @@ describe("the talkthrough context for a rehearsal suggestion", () => {
     expect(speech.endsWith("…")).toBe(true);
     // Never cut mid-word: everything before the ellipsis is whole tokens.
     expect(speech.slice(0, -1).split(" ").every((w) => /^word\d+$/.test(w))).toBe(true);
+  });
+});
+
+// 2026-09-07 — Lee: "it must not be referencing the actual CEQ itself, because neither what I
+// said nor what the suggested said actual teaches anything."
+describe("the card and the next slide the brief sees", () => {
+  const ceqs = new Map([
+    ["ceq-1", { stem: "Which of these is an external user?", choices: [{ text: "A manager", correct: false, feedback: "no" }, { text: "A lender", correct: true }] }],
+  ]);
+  const frames: BlastFrame[] = [
+    { id: "o", kind: "open" },
+    { id: "c1", kind: "ceq", ceqId: "ceq-1" },
+    { id: "sk", kind: "tip", text: "skipped aside", skipped: true },
+    { id: "ch", kind: "cheat", title: "No paycheck → external", body: "Ask who gets paid by the company.", bullets: ["\tOwners don't", "  ", "Lenders don't"] },
+    { id: "ph", kind: "phrase", text: "Internal = inside" },
+    { id: "bl", kind: "blank" },
+    { id: "c9", kind: "ceq", ceqId: "ceq-gone" },
+    { id: "out", kind: "outro" },
+  ];
+
+  test("a set card: the stem and the choices with the correct one marked — feedback stays home", () => {
+    expect(rehearsalCardFor(frames[1], ceqs)).toEqual({ stem: "Which of these is an external user?", choices: [{ text: "A manager", correct: false }, { text: "A lender", correct: true }] });
+    expect(rehearsalCardFor(frames[6], ceqs)).toBeUndefined();
+  });
+  test("a callout: its heading and lines (a cheat's body first), tabs and blanks gone", () => {
+    expect(rehearsalCardFor(frames[3], ceqs)).toEqual({ stem: "", choices: [], calloutTitle: "No paycheck → external", calloutLines: ["Ask who gets paid by the company.", "Owners don't", "Lenders don't"] });
+    expect(rehearsalCardFor(frames[4], ceqs)).toEqual({ stem: "", choices: [], calloutTitle: "Internal = inside", calloutLines: [] });
+    expect(rehearsalCardFor({ id: "e", kind: "phrase", text: "  " }, ceqs)).toBeUndefined();
+  });
+  test("the spine and a blank have no card", () => {
+    expect(rehearsalCardFor(frames[0], ceqs)).toBeUndefined();
+    expect(rehearsalCardFor(frames[5], ceqs)).toBeUndefined();
+  });
+  test("the next slide skips a skipped one and carries its own context; the last has none", () => {
+    expect(nextSlideFor(frames, frames[1], ceqs)).toEqual({ label: "Cheat code", context: "No paycheck → external" });
+    expect(nextSlideFor(frames, frames[3], ceqs)).toEqual({ label: "Memorize this", context: "Internal = inside" });
+    expect(nextSlideFor(frames, frames[5], ceqs)).toEqual({ label: "Set card", context: "" });
+    expect(nextSlideFor(frames, frames[7], ceqs)).toBeUndefined();
+    expect(nextSlideFor(frames, { id: "nope", kind: "blank" }, ceqs)).toBeUndefined();
+  });
+  test("slideContextFor: a card's stem, a callout's heading, else its bullets", () => {
+    expect(slideContextFor(frames[1], ceqs)).toBe("Which of these is an external user?");
+    expect(slideContextFor(frames[3], ceqs)).toBe("No paycheck → external");
+    expect(slideContextFor({ id: "b", kind: "tip", bullets: ["one", "two"] }, ceqs)).toBe("one; two");
   });
 });
