@@ -16,6 +16,7 @@ import { z } from "zod";
 import { AD_KINDS } from "@/components/blastoff/ad-kinds";
 import { ANIMATION_PRESETS } from "@/components/blastoff/illustration";
 import { BLAST_FRAME_KINDS } from "@/components/blastoff/plan";
+import { clusterSpecSchema } from "@/components/blastoff/cluster/cluster-spec";
 
 // Matches the Attachment shape (components/ideas/model.ts) — its own copy, the way
 // fast-track.functions.ts also keeps its own, rather than a cross-file type import here.
@@ -73,6 +74,9 @@ export const frameSchema = z.object({
   // THE TIMING MARKS (2026-09-07, plan.ts PrompterMarks): the transition phrase and the cue word
   // Lee flips the slide on — substrings of the kept line. Additive; old plans have none.
   prompterMarks: z.object({ phrase: z.string().max(300).optional(), word: z.string().max(80).optional() }).optional(),
+  // THE MAP (2026-09-07) — validated by its own schema so the assistant's JSON and a stored frame
+  // agree on one shape.
+  cluster: clusterSpecSchema.optional(),
   bullets: z.array(z.string().max(300)).max(12).optional(),
   backdrop: z.enum(["zoom", "off"]).optional(),
   variant: z.string().max(20).optional(),

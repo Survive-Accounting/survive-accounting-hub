@@ -27,6 +27,9 @@ export const BLAST_FRAME_KINDS = [
   // 2026-09-04: the bolt detour (black + the bolt animation, nothing else —
   // Lee's OBS camera backdrop and ad bed) and the three ads.
   "bolt", "ad",
+  // 2026-09-07: THE MAP (a "cluster" in code) — an interactive exhibit on the vertical surface,
+  // walked shot by shot with space inside one frame (cluster/cluster-spec.ts).
+  "cluster",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -105,6 +108,10 @@ export interface BlastFrame {
    *  next slide (yellow); `word` = the one word inside it to change the slide ON (orange).
    *  Both are substrings of the line — markRanges finds them; one that isn't paints nothing. */
   prompterMarks?: PrompterMarks;
+  /** THE MAP (2026-09-07): the whole interactive exhibit — nodes, edges, shots — lives on the
+   *  frame (cluster/cluster-spec.ts). Type-only import: plan.ts is on the canvas render path
+   *  and must not pull zod onto it. */
+  cluster?: ClusterSpec;
   /** THE OPTIONAL ILLUSTRATION (polish pass, 2026-09-05). Absent = never asked; null = Lee
    *  cleared it; a value = an idea banked or a picture made. See illustration.ts. A slide
    *  with none keeps every pixel of the negative space it has today. */
@@ -122,18 +129,19 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "exhibit", "blank", "bolt", "ad"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "exhibit", "blank", "bolt", "ad", "cluster"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
  *  syllabi"). The copy lives in AdSlide.tsx; a frame only says which one. */
 export { AD_KINDS, isAdKind, type AdKind } from "./ad-kinds";
+import type { ClusterSpec } from "./cluster/cluster-spec";
 import type { AdKind } from "./ad-kinds";
 import type { FrameIllustration } from "./illustration";
 
 /** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
  *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
-export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad"];
+export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster"];
 export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.includes(k);
 
 export const isInsert = (k: BlastFrameKind): boolean => INSERT_KINDS.includes(k);
@@ -182,6 +190,7 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   blank: "Blank",
   bolt: "Bolt detour",
   ad: "Ad",
+  cluster: "Map",
 };
 
 let seq = 0;
