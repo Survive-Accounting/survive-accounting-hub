@@ -168,13 +168,27 @@ export const STRATEGY_SHORTS: readonly StrategyShortSeed[] = [
   {
     slug: "rep-how-you-get-paid", lane: "reps", priority: 3,
     title: "How you get paid",
-    hook: "Ten percent of everything your chapters buy, for as long as they keep buying.",
+    hook: "Two levels. Level 1 is your campus. Level 2 you graduate into.",
+    // ONBOARDING STEP 4 (rep spec §6, 2026-09-06). The pay tables live in rep-copy.ts; say them, don't read them.
     slides: [
-      { title: "The commission", lines: ["10% of everything sold through your link — always", "As long as they keep buying"] },
-      { title: "The bonus", lines: ["A one-time bonus of up to $300 for getting your campus off the ground", "Paid when your first chapter signs up. No chapter, no bonus"] },
+      { title: "Level 1 — your campus", lines: ["10% of every sale through your link", "$1 every time a free Exam 1 user goes paid", "$25 when a chapter closes", "$25 when a chapter flyer or QR activates — 5+ sign-ups from it"] },
+      { title: "The gate", lines: ["Chapter bonuses unlock only when the chapter pays", "Your 10% runs the first semester on any chapter you bring on, and keeps running as long as you're actively managing it"] },
+      { title: "Level 2 — after performance", lines: ["Not offered at signup — you graduate into it", "5% on assisted outreach at other campuses", "$150 flat when a rep you referred onboards a chapter"] },
       { title: "The ceiling, then the ramp", lines: ["A campus that's up and running produces around $20,000 a year — you earn 10% of it. Ole Miss is already there", "Your campus won't be there in October. First semester is about opening it — a few hundred dollars while you build, a real number once it's running"] },
     ],
-    riff: ["Both numbers, in this order, or neither: the ceiling alone over-promises, the ramp alone undersells", "Say the condition plainly — never fine print"],
+    riff: ["Say the gate plainly — never fine print", "Both numbers, in this order, or neither: the ceiling alone over-promises, the ramp alone undersells", "Renewals: don't state a rate — 'we'll work out the details when you get there'"],
+  },
+  {
+    slug: "rep-the-mission", lane: "reps", priority: 2,
+    title: "The mission",
+    hook: "Accounting now. More courses coming. Two hundred campuses.",
+    // ONBOARDING STEP 2 — the applicant just acknowledges this one.
+    slides: [
+      { title: "Now", lines: ["Intro accounting, deepening quality through spring 2027", "Easy Points free on every exam; the rest behind the wall"] },
+      { title: "Next", lines: ["Summer 2027 workshop mode — Intro 2, Intermediate 1 and 2", "Then one or two new subjects: organic chemistry, finance"] },
+      { title: "The map", lines: ["200+ campuses with Greek systems, large and small", "Intro accounting is the way in, not the ceiling"] },
+    ],
+    riff: ["This is the one where they decide whether it's a job or a thing they want in on", "Keep it under a minute — it's an acknowledge step"],
   },
   {
     slug: "rep-why-the-bar-is-high", lane: "reps", priority: 4,

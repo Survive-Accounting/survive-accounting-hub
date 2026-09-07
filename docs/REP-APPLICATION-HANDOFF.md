@@ -27,13 +27,37 @@ Nothing else in the app changes behaviour until the columns exist.
 `vercel.json` now registers `/api/cron/rep-nudges` hourly. Reminders go every hour they are due;
 the daily one-line summary to Lee goes only in the 8am-Chicago hour (POST bypasses the gate).
 
-## Settings (site_settings.settings, id = 1)
+## The four videos — `/admin/reps/onboarding-videos`
 
-- `repOnboardingVideos: { step1, step2, step3, step4 }` — Mux PUBLIC playback ids for the four
-  onboarding shorts. Absent = the placeholder card with the gist. These four shorts are already on
-  the strategy board (reps lane #1–3 + "the mission"): film them, ship, paste the ids.
-- `repBetaMode: false` to turn the "what was confusing here?" affordance off before wide launch.
-  Default on.
+One card per step: upload the MP4 (Mux direct upload, public playback, same path as the /shipped
+recorder) or paste a public playback id. The step's gist card becomes the video the moment the id
+lands. The beta-mode switch is on the same page. Behind the scenes these are
+`site_settings.settings.repOnboardingVideos.{step1..step4}` and `repBetaMode`.
+
+The scripts (highlights + riff cues, never a script) are the reps lane on `/admin/ideas/strategy`,
+each already minted as a /v3 set with the slides and teleprompter laid out:
+
+| Step | Short on the board | /v3 set |
+| --- | --- | --- |
+| 1 · What Survive is | What Survive is (for a rep) | `/v3/strategy/what-survive-is-for-a-rep/blast-off` |
+| 2 · The mission | The mission | `/v3/strategy/the-mission/blast-off` |
+| 3 · The role | What a rep actually does, week to week | `/v3/strategy/what-a-rep-actually-does-week-to-week/blast-off` |
+| 4 · How you earn | How you get paid (rewritten to the two-level tables) | `/v3/strategy/how-you-get-paid/blast-off` |
+
+## Test loop (verified end to end on 2026-09-06, local + production DB)
+
+1. Open `https://surviveaccounting.com/rep/join/test-university?feedback=1&testmode=1&t=Lee&email=lee@surviveaccounting.com`
+   (all four params; Test Mode stays on for the tab). Use a phone number no test rep has yet
+   (the fixtures hold 555-000-1111 … 4444; 555-000-9999 is Claude's run).
+2. Apply → code `000000` → "Your application is pending" → Start the onboarding.
+3. Six steps. Leave and reload any time — it resumes where you were.
+4. Send to Lee → the ready screen shows the text you WOULD have got, with the two links. Tap
+   **Invite to a call** → confirm page → "Send the call text" → the applicant's text + your
+   Approve / Deny links appear on the page (test reps never actually text anyone).
+5. Tap **Approve** → rep #900N, chapters assigned → `/rep/dashboard` is the workspace. Tap the
+   old Deny link → "already decided".
+6. Reset for another run: `/outreach/test-mode` (TestModeBar) → purge test data, or sign out and
+   apply with a fresh 555 number.
 
 ## Routes
 

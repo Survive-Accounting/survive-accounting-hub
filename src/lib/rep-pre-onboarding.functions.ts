@@ -279,9 +279,17 @@ export const submitPreOnboarding = createServerFn({ method: "POST" })
     const [interviewUrl, denyUrl] = await Promise.all([review.reviewUrl(rep.id, "interview"), review.reviewUrl(rep.id, "deny")]);
     const resume = data.resume ? { url: data.resume.url, name: data.resume.name, at: nowIso } : (profile.resume ?? null);
     const greek = profile.greek ?? null;
+    // The campus course code, so the text reads "took ACCY 201", not "took the intro course".
+    let courseCode: string | null = null;
+    if (rep.campus_id) {
+      const { data: c } = await db.from("campuses").select("course_family_codes_json").eq("id", rep.campus_id).maybeSingle();
+      const raw = c?.course_family_codes_json;
+      const j = typeof raw === "string" ? JSON.parse(raw || "{}") : (raw ?? {});
+      courseCode = ((j?.intro_1 ?? "") as string).trim() || null;
+    }
     const summary = reviewSummarySms({
       name: rep.name, campus: campus.name, studentStatus: profile.studentStatus ?? null, major: profile.major ?? null,
-      tookCourse: profile.tookCourse ?? null, courseCode: null, greek, why: profile.why ?? rep.pitch ?? null,
+      tookCourse: profile.tookCourse ?? null, courseCode, greek, why: profile.why ?? rep.pitch ?? null,
       comfort: profile.comfort ?? [], targets, resumeUrl: resume?.url ?? null, interviewUrl, denyUrl,
     });
     const sms = await review.textLee(summary, { isTest: !!rep.is_test });

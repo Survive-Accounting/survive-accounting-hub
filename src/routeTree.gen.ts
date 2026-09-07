@@ -145,6 +145,7 @@ import { Route as ApiCronGrowthCampaignsRouteImport } from './routes/api.cron.gr
 import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.comms-sequences'
 import { Route as ApiCronChapterReportsRouteImport } from './routes/api.cron.chapter-reports'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
+import { Route as AdminRepsOnboardingVideosRouteImport } from './routes/admin.reps_.onboarding-videos'
 import { Route as AdminRepsRosterRouteImport } from './routes/admin.reps.roster'
 import { Route as AdminRepsPartnersRouteImport } from './routes/admin.reps.partners'
 import { Route as AdminRepsLinksRouteImport } from './routes/admin.reps.links'
@@ -876,6 +877,12 @@ const ApiCronBackupRoute = ApiCronBackupRouteImport.update({
   path: '/api/cron/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRepsOnboardingVideosRoute =
+  AdminRepsOnboardingVideosRouteImport.update({
+    id: '/admin/reps_/onboarding-videos',
+    path: '/admin/reps/onboarding-videos',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminRepsRosterRoute = AdminRepsRosterRouteImport.update({
   id: '/roster',
   path: '/roster',
@@ -1227,6 +1234,7 @@ export interface FileRoutesByFullPath {
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/admin/reps/roster': typeof AdminRepsRosterRoute
+  '/admin/reps/onboarding-videos': typeof AdminRepsOnboardingVideosRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
@@ -1403,6 +1411,7 @@ export interface FileRoutesByTo {
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/admin/reps/roster': typeof AdminRepsRosterRoute
+  '/admin/reps/onboarding-videos': typeof AdminRepsOnboardingVideosRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
@@ -1584,6 +1593,7 @@ export interface FileRoutesById {
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/admin/reps/roster': typeof AdminRepsRosterRoute
+  '/admin/reps_/onboarding-videos': typeof AdminRepsOnboardingVideosRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
@@ -1766,6 +1776,7 @@ export interface FileRouteTypes {
     | '/admin/reps/links'
     | '/admin/reps/partners'
     | '/admin/reps/roster'
+    | '/admin/reps/onboarding-videos'
     | '/api/cron/backup'
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
@@ -1942,6 +1953,7 @@ export interface FileRouteTypes {
     | '/admin/reps/links'
     | '/admin/reps/partners'
     | '/admin/reps/roster'
+    | '/admin/reps/onboarding-videos'
     | '/api/cron/backup'
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
@@ -2122,6 +2134,7 @@ export interface FileRouteTypes {
     | '/admin/reps/links'
     | '/admin/reps/partners'
     | '/admin/reps/roster'
+    | '/admin/reps_/onboarding-videos'
     | '/api/cron/backup'
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
@@ -2253,6 +2266,7 @@ export interface RootRouteChildren {
   UIndexRoute: typeof UIndexRoute
   V3IndexRoute: typeof V3IndexRoute
   AdminIdeasStrategyRoute: typeof AdminIdeasStrategyRoute
+  AdminRepsOnboardingVideosRoute: typeof AdminRepsOnboardingVideosRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
   ApiCronChapterReportsRoute: typeof ApiCronChapterReportsRoute
   ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
@@ -3244,6 +3258,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/reps_/onboarding-videos': {
+      id: '/admin/reps_/onboarding-videos'
+      path: '/admin/reps/onboarding-videos'
+      fullPath: '/admin/reps/onboarding-videos'
+      preLoaderRoute: typeof AdminRepsOnboardingVideosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/reps/roster': {
       id: '/admin/reps/roster'
       path: '/roster'
@@ -3839,6 +3860,7 @@ const rootRouteChildren: RootRouteChildren = {
   UIndexRoute: UIndexRoute,
   V3IndexRoute: V3IndexRoute,
   AdminIdeasStrategyRoute: AdminIdeasStrategyRoute,
+  AdminRepsOnboardingVideosRoute: AdminRepsOnboardingVideosRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
   ApiCronChapterReportsRoute: ApiCronChapterReportsRoute,
   ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,
