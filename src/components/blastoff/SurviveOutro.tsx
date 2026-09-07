@@ -9,22 +9,56 @@
 // bottom of a vertical frame and captions sit above those, so a centred outro
 // is a covered outro. Nothing renders above it — the landscape version used to
 // carry a header here and it does not belong on camera.
+//
+// THE CTA (2026-09-07, Lee): "The outro slide needs a big red CTA button that's composed
+// nicely underneath the surviveaccounting.com. I'm thinking it can say under it too like
+// 'Videos * Practice Exams * Quizzes'. The button can have a hover effect and also a
+// really badass spotlight effect, like where I'm hitting it with chain lightning or
+// something. The bolt blasts chain lightning into the Button and it gets bigger and has
+// like lightning pulsing through it. Make it exciting like oh this is what I want to
+// cram with. This is legit, etc." So under the domain: the red pill (ChainLightning.tsx;
+// the red is CTA_RED, named once in chain-lightning.ts), and under that the three words
+// — middle dots, not Lee's asterisks, small caps, letter-spaced, cream at 70%. The
+// column's numbers are ctaLayout (tested): the pill even grown clears the campus banner.
+//
+// THE SPOTLIGHT: the pill is a spotlight target like a detour line is — the film's
+// PreviewSpotContext hands its state in through `ctaSpot` (FrameView reads the context;
+// this file cannot import CeqPreviewer without closing a runtime import cycle through
+// BlastOffNodes). ctrl+click on /film lights it; ctrl+shift+click is the super — more
+// bolts, gold. Lit, the wordmark's bolt blasts chain lightning into the pill; measured
+// with refs relative to this stage and recomputed on resize, always at rest (the pill
+// is scaled while lit). In the Review preview (`live` false) the lit state is static.
+import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+
 import { SurviveWordmark, BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
 import { CampusBanner } from "@/components/brand-cards/BoltZoom";
+import { ChainLightning, CtaButton } from "@/components/brand-cards/ChainLightning";
+import { ctaLayout, type Rect } from "@/components/brand-cards/chain-lightning";
 import { UPPER_THIRD_Y, V, VStage, boilAt, reveal, riseIn } from "./stage";
 
-const WORD = 190; // cap-height px — the wordmark is the loudest thing on screen
+/** The pill's spotlight key on the film's PreviewSpotContext. */
+export const OUTRO_CTA_KEY = "outro:cta";
+/** The three words under the pill. Lee wrote asterisks; the house uses middle dots. */
+export const CTA_SUB = "Videos · Practice Exams · Quizzes";
+
+/** What the film hands the pill — the same shape a detour line gets (CalloutCard's LineSpot). */
+export interface OutroSpot { state: "spot" | null; flamed: boolean; onDown: (e: ReactPointerEvent) => void }
 
 export function SurviveOutro({
   tagline = "Cram what's on your exam.",
   domain = "surviveaccounting.com",
+  cta = "Start cramming free",
   progress,
   scale = 1,
   transparent = false,
   banner = false,
+  live = true,
+  ctaSpot,
 }: {
   tagline?: string;
   domain?: string;
+  /** The pill's label. */
+  cta?: string;
   /** 0..1 through the card's hold. Omit for the finished still. */
   progress?: number;
   scale?: number;
@@ -34,28 +68,88 @@ export function SurviveOutro({
    *  slide, outro included; this was just never reading it. Same relative Y as the open/intro
    *  cards' own banner, so all three read as one consistent strip. */
   banner?: boolean;
+  /** false = an authoring pane (the Review stage): the spotlight shows its lit state
+   *  statically, nothing strikes on load. */
+  live?: boolean;
+  /** The pill's spotlight state, from the film (FrameView). Absent = never lit. */
+  ctaSpot?: OutroSpot;
 }) {
+  // The column's numbers (tested). Computed here, not at module scope: nothing on the
+  // canvas render path evaluates another module's export at import time.
+  const L = ctaLayout(V);
+  const WORD = L.word; // cap-height px (190) — the wordmark is the loudest thing on screen
   const tag = reveal(progress, 0.10);
   const url = reveal(progress, 0.28);
+  const btn = reveal(progress, 0.42);
+  const sub = reveal(progress, 0.54);
   // THE ARRIVAL FLASH (2026-09-06, Lee: "the final transition to outro should be a white flash
   // type emoji — like this came out of heaven"). A quick white-out that's already fading by the
   // time the wordmark itself would be visible — one held instant, not a strobe. Only on the
   // live transition; the static still (progress undefined, used for a finished preview/export
   // frame) shows no flash, since there's no arrival to mark.
   const flash = progress === undefined ? 0 : Math.max(0, 1 - progress / 0.12);
+  const lit = ctaSpot?.state === "spot";
+  const flamed = !!ctaSpot?.flamed && lit;
+  // No wall-clock motion on a pinned frame (stage.tsx's rule) and none in an authoring pane.
+  const still = !live || progress !== undefined;
+
+  // THE MEASURE: the bolt-as-"i" (the wordmark's one <svg>) and the pill, in stage px relative
+  // to this stage — divided back out of whatever scale the phone/preview applies, so the
+  // overlay's viewBox and the rects agree. Only ever at rest: lit, the pill is scaled 1.12.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const wordRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLDivElement>(null);
+  const litRef = useRef(lit);
+  litRef.current = lit;
+  const [rects, setRects] = useState<{ bolt: Rect; btn: Rect } | null>(null);
+  useLayoutEffect(() => {
+    const root = rootRef.current, word = wordRef.current, pill = btnRef.current;
+    if (!root || !word || !pill) return;
+    const measure = () => {
+      if (litRef.current) return;
+      const r = root.getBoundingClientRect();
+      if (r.width < 1) return;
+      const k = r.width / V.w;
+      const rel = (el: Element): Rect => { const b = el.getBoundingClientRect(); return { x: (b.left - r.left) / k, y: (b.top - r.top) / k, w: b.width / k, h: b.height / k }; };
+      const bolt = word.querySelector("svg") ?? word;
+      const next = { bolt: rel(bolt), btn: rel(pill) };
+      setRects((prev) => (prev && ["x", "y", "w", "h"].every((f) => Math.abs(prev.bolt[f as keyof Rect] - next.bolt[f as keyof Rect]) < 0.5 && Math.abs(prev.btn[f as keyof Rect] - next.btn[f as keyof Rect]) < 0.5) ? prev : next));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(root);
+    ro.observe(pill);
+    return () => ro.disconnect();
+  }, [cta, domain, tagline, scale]);
+
   return (
     <VStage scale={scale} transparent={transparent}>
-      <div style={{
-        position: "absolute", left: 0, right: 0, top: UPPER_THIRD_Y,
-        display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center",
-      }}>
-        <SurviveWordmark size={WORD} boilFrame={boilAt(progress)} />
-        <div style={{ marginTop: 44, fontWeight: 600, fontSize: Math.round(WORD * 0.30), color: BRAND_CREAM, lineHeight: 1.15, ...riseIn(tag) }}>
-          {tagline}
+      <div ref={rootRef} style={{ position: "absolute", inset: 0 }}>
+        <div style={{
+          position: "absolute", left: 0, right: 0, top: UPPER_THIRD_Y,
+          display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center",
+        }}>
+          <div ref={wordRef} style={{ display: "inline-flex" }}>
+            <SurviveWordmark size={WORD} boilFrame={boilAt(progress)} />
+          </div>
+          <div style={{ marginTop: L.tagGap, fontWeight: 600, fontSize: L.tagSize, color: BRAND_CREAM, lineHeight: 1.15, ...riseIn(tag) }}>
+            {tagline}
+          </div>
+          <div style={{ marginTop: L.domainGap, fontWeight: 600, fontSize: L.domainSize, color: BRAND_CREAM, letterSpacing: "0.01em", lineHeight: 1, opacity: url * 0.6, transform: riseIn(url).transform }}>
+            {domain}
+          </div>
+          {/* THE PILL — a wrapper carries the reveal so the pill's own transform (lift, grow) is
+              never fought by riseIn. z above the overlay: the bolts land ON the pill's top edge. */}
+          <div style={{ marginTop: L.buttonGap, position: "relative", zIndex: 5, ...riseIn(btn) }}>
+            <CtaButton ref={btnRef} label={cta} font={L.buttonFont} h={L.buttonH} padX={L.buttonPadX} minW={L.buttonMinW}
+              lit={lit} flamed={flamed} still={still} onDown={ctaSpot?.onDown} />
+          </div>
+          <div style={{ marginTop: L.subGap, fontWeight: 700, fontSize: L.subSize, color: BRAND_CREAM, opacity: sub * 0.7, transform: riseIn(sub).transform, letterSpacing: "0.18em", fontVariant: "all-small-caps", lineHeight: 1, whiteSpace: "nowrap" }}>
+            {CTA_SUB}
+          </div>
         </div>
-        <div style={{ marginTop: 26, fontWeight: 600, fontSize: Math.round(WORD * 0.19), color: BRAND_CREAM, letterSpacing: "0.01em", lineHeight: 1, opacity: url * 0.6, transform: riseIn(url).transform }}>
-          {domain}
-        </div>
+        <ChainLightning active={lit} flamed={flamed} still={still} from={rects?.bolt ?? null} to={rects?.btn ?? null} w={V.w} h={V.h} />
       </div>
       {banner && <CampusBanner w={V.w} h={V.h} live={progress === undefined} />}
       {flash > 0 && <div aria-hidden style={{ position: "absolute", inset: 0, background: "#FFFFFF", opacity: flash, pointerEvents: "none" }} />}

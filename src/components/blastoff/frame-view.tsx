@@ -13,6 +13,7 @@ import { useContext } from "react";
 
 import type { BoothCeq, BoothSetInfo } from "@/lib/talkthrough.functions";
 import { KindChip } from "@/components/canvas/cards/CalloutCard";
+import { PreviewSpotContext } from "@/components/canvas/CeqPreviewer";
 import { CARD_W } from "@/components/canvas/ceq-geom";
 import { renderInline } from "@/components/canvas/inline-md";
 import { BoltZoom } from "@/components/brand-cards/BoltZoom";
@@ -23,7 +24,7 @@ import { LeePortrait } from "./LeePortrait";
 import { SetCard, type CardOverride } from "./SetCard";
 import { BIO_CARD, bioCallout } from "./bio-card";
 import { DISPLAY_FONT, V } from "./stage";
-import { SurviveOutro } from "./SurviveOutro";
+import { OUTRO_CTA_KEY, SurviveOutro } from "./SurviveOutro";
 import { INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isStandard, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
 import { introWordmarkTop, type SlideLayout } from "./layout";
@@ -74,6 +75,10 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   const fw = Math.round(V.w * s), fh = Math.round(V.h * s);
   // THE REVIEW STAGE'S CLICK-TO-EDIT (2026-09-04): present only there.
   const edit = useContext(SlideEditContext);
+  // THE OUTRO CTA's SPOTLIGHT (2026-09-07): the film's spotlight layer, handed to the outro
+  // the way a detour line gets its LineSpot — the outro can't read this context itself
+  // (it sits under BlastOffNodes, which CeqPreviewer reaches: a runtime cycle).
+  const spot = useContext(PreviewSpotContext);
 
   // THE STANDARD SPINE renders as the vertical 9:16 frame it actually is —
   // these are brand cards, not CEQ cards, and showing them in the silver card
@@ -100,7 +105,8 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
         </div>
       );
     }
-    return <SurviveOutro tagline={frame.text?.trim() || undefined} scale={s} />;
+    return <SurviveOutro tagline={frame.text?.trim() || undefined} scale={s} live={live}
+      ctaSpot={{ state: spot.state(OUTRO_CTA_KEY), flamed: spot.flamed(OUTRO_CTA_KEY), onDown: (e) => spot.onClick(OUTRO_CTA_KEY, e) }} />;
   }
 
   // THE BOLT DETOUR (Lee, 2026-09-04): "just black backdrop and the bolt zoom
