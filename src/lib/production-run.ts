@@ -30,6 +30,10 @@
 import type { TTDoc } from "@/components/canvas/talkthrough";
 
 import { fmtDuration, fmtElapsed, type ProductionStep } from "./production-time";
+// Type-only, so the cycle with improve-brief.ts (which imports the run) costs nothing at runtime.
+// `unknown` here broke every server fn that returns a run: TanStack Start refuses to type a
+// non-serializable field (2026-09-07).
+import type { ImproveSuggestions } from "./improve-brief";
 
 // ------------------------------------------------------------------ the steps
 
@@ -178,7 +182,7 @@ export interface ProductionRun {
   /** The consultant's latest answer, kept on the run so a later visit shows the same list the
    *  decisions were made on (the model doesn't repeat itself verbatim). Additive; untyped here
    *  on purpose — improve-brief.ts owns the shape and re-parses it defensively. */
-  suggestions?: { at: string; data: unknown } | null;
+  suggestions?: { at: string; data: ImproveSuggestions | null } | null;
 }
 
 export type Decision = "agree" | "skip";
@@ -254,7 +258,7 @@ function normalizeIterate(r: Record<string, unknown>): Pick<ProductionRun, "deci
     out.decisions = d;
   }
   const s = r.suggestions;
-  if (s && typeof s === "object" && typeof (s as { at?: unknown }).at === "string") out.suggestions = { at: (s as { at: string }).at, data: (s as { data?: unknown }).data ?? null };
+  if (s && typeof s === "object" && typeof (s as { at?: unknown }).at === "string") out.suggestions = { at: (s as { at: string }).at, data: ((s as { data?: unknown }).data ?? null) as ImproveSuggestions | null };
   else if (s === null) out.suggestions = null;
   return out;
 }
