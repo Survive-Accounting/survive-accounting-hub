@@ -96,8 +96,8 @@ export function nextSetAfter(topics: BoothTopic[], setId: string): { topic: Boot
 // "arrange" stays a valid step (its URL still resolves — v3.$topic.$set.blast-off.arrange.tsx —
 // as a redirect into Review, so an old link never 404s) even though it's no longer one of the
 // four numbered steps (StepBar.tsx STEPS, 2026-09-05: "fold Arrange into Review, renumber the
-// steps"). "post" is real in the vocabulary before it has a page — Door.tsx already renders a
-// step with no page as a plain disabled door ("soon"), which is exactly what Post is today.
+// steps"). "post" has had its own page since 2026-09-06 (/v3/post, the cross-set queue —
+// blastOffPath below special-cases it).
 export type BlastOffStep = "talkthrough" | "results" | "arrange" | "film" | "post";
 
 /** /v3/$topic/$set/blast-off[/step] — the one place the nested URL is spelled. Post is the one

@@ -3,8 +3,9 @@
 // The /blast-off capture surface (components/blastoff/BlastOffEditor.tsx),
 // full screen: one frame, spacebar forward, nothing else in the shot — OBS
 // captures this window. No V3 shell here on purpose; Escape goes back to the
-// step menu. The canvas film surface (bolt cursor, spotlight, pin) is still
-// reached with "Send to film →" on the Arrange step.
+// step menu. This is Step 3 of four in its own right since 2026-09-05 (StepBar.tsx);
+// the canvas's own film surface (bolt cursor, spotlight, pin) is reached only from the
+// old, non-V3 /blast-off route now — nothing in V3 points there.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { AdminGate } from "@/components/AdminGate";

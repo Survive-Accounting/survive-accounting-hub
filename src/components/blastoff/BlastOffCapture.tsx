@@ -300,7 +300,7 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
             style={{ color: railStatus === "clear" ? MUTED : GOLD, fontWeight: railStatus === "clear" ? 500 : 800 }}>
             {railStatus === "clear" ? "captions clear" : railStatus === "card" ? "captions: ON THE CARD" : railStatus === "illustration" ? "captions: ON THE PICTURE" : "captions: under the camera"}
           </span>
-          <span>B camera {camNow} · space next · shift+space back · wheel zooms, O pulls back, 0 resets · alt+drag moves, alt-hover grips resize · click a choice, click again to resolve · ctrl+click the camera: hero (again, ` or next slide ends it) · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · F1 move F1 draws an arrow, Delete removes · ` resets · H hide this · P prompter · R rehearse{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
+          <span>B camera {camNow} · space next · shift+space back · wheel zooms, O pulls back, 0 resets · alt+drag moves, alt-hover grips resize · click a choice, click again to resolve · ctrl+click the camera: hero (again, ` or next slide ends it) · ctrl+click spotlight (+shift super, +alt siren) · shift+click a word · F1 twice draws an arrow (move between), Delete removes · ` resets · H hide this · P prompter · R rehearse{popout.isPopout ? " · F fullscreen" : ""} · esc exit</span>
           {/* REHEARSAL (2026-09-06, second pass): the toggle lives right here, in the same chrome
               bar as everything else about this take — Lee: "I'd prefer to see it somewhere on
               film." On: dictation runs, accumulating what's said per slide as you walk normally. */}

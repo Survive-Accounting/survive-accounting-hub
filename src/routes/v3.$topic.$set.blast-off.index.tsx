@@ -23,8 +23,8 @@ import { useEffect, useState } from "react";
 import { usePlan } from "@/components/blastoff/BlastOffEditor";
 import { estimatedLengthSeconds, fmtRange, slideCounts } from "@/components/blastoff/film-summary";
 import { Door } from "@/components/v3/Door";
-import { STEPS } from "@/components/v3/StepBar";
-import { blastOffPath, useV3Set, type BlastOffStep } from "@/components/v3/use-bank";
+import { STEPS, type NumberedStep } from "@/components/v3/StepBar";
+import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
 import { V3Shell, V3Note, V3_DISPLAY, V3_MUTED, V3_GOLD, V3_EDGE, V3_CREAM } from "@/components/v3/Shell";
 import { listIllustrationLibrary } from "@/lib/illustrate.functions";
 import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
@@ -34,7 +34,9 @@ export const Route = createFileRoute("/v3/$topic/$set/blast-off/")({
   head: () => ({ meta: [{ title: "⚡ Survive — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
 
-const STEP_ICON: Record<BlastOffStep, LucideIcon> = { talkthrough: Mic, results: Wand2, arrange: Clapperboard, film: Clapperboard, post: Send };
+// Icons for the four numbered steps only — "arrange" (still in the BlastOffStep vocabulary as a
+// redirect into Review) has had no door since 2026-09-05, so it gets no icon.
+const STEP_ICON: Record<NumberedStep, LucideIcon> = { talkthrough: Mic, results: Wand2, film: Clapperboard, post: Send };
 
 function V3BlastOff() {
   const { topic: topicKey, set: setKey } = Route.useParams();

@@ -24,7 +24,11 @@ import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
 import { blastOffPath, type BlastOffStep } from "./use-bank";
 import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "./Shell";
 
-export const STEPS: readonly { step: BlastOffStep; n: number; label: string; blurb: string; soon?: boolean }[] = [
+/** The four numbered steps — the BlastOffStep vocabulary minus "arrange", which keeps its URL
+ *  (a redirect into Review) but has had no door since 2026-09-05. */
+export type NumberedStep = Exclude<BlastOffStep, "arrange">;
+
+export const STEPS: readonly { step: NumberedStep; n: number; label: string; blurb: string; soon?: boolean }[] = [
   { step: "talkthrough", n: 1, label: "Talkthrough", blurb: "Talk through the set — or an exhibit — and stamp out ideas." },
   // Lee (2026-09-03): "Review is seeing the filming draft as it stands …
   // getting it SOLID before I do the film run." The AI board folds under it.
@@ -50,8 +54,9 @@ export function StepBar({ topic, set, active, right }: {
           </span>
         );
         const label = <span style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: 14 }}>{s.label}</span>;
-        // A step with no page yet (Post) is a plain pill, not a link — Door.tsx's own "soon"
-        // rule, so it never 404s and reads as "coming", not broken.
+        // A step with no page yet is a plain pill, not a link — Door.tsx's own "soon" rule, so
+        // it never 404s and reads as "coming", not broken. (Post was the example until it got
+        // its page on 2026-09-06; nothing sets `soon` today, the rule stays for the next one.)
         if (s.soon) {
           return (
             <span key={s.step} className="flex items-center gap-2 rounded-xl px-3.5 py-2" title={s.blurb} aria-disabled

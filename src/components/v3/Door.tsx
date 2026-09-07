@@ -6,7 +6,8 @@
 // of what is coming is the point.
 //
 // Shared by "What are you making?" (Blast Off · Practice · Review) and "Which
-// step are you on?" (Talkthrough · Arrange · Film).
+// step are you on?" (Talkthrough · Review · Film · Post — four since 2026-09-05, when
+// Arrange folded into Review; see StepBar.tsx).
 import { Link } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import type { CSSProperties } from "react";

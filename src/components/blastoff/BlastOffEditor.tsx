@@ -16,6 +16,7 @@ import { loadBlastPlan, saveBlastPlan } from "@/lib/blastoff.functions";
 import { syncBlastPlanToSet } from "@/lib/blastoff-sync.functions";
 import { openFilmMode } from "./FilmHandoff";
 import { PhoneFrame } from "./PhoneFrame";
+import { questionProgress } from "./frame-view";
 import { layoutOf } from "./layout";
 import {
   FRAME_LABEL, INSERT_KINDS, filmFrames, insertFrame, isInsert, isStandard, moveFrame, newFrameId, reconcilePlan, removeFrame,
@@ -243,6 +244,7 @@ export function BlastOffEditor({ set, topicName, onCapture }: { set: BoothSetInf
 }
 
 // FrameView, questionProgress and the capture surface moved out (2026-09-04) so
-// PhoneFrame can draw the arrange preview here without an import cycle.
+// PhoneFrame can draw the arrange preview here without an import cycle. Re-exported so the
+// older import sites keep working; questionProgress is also imported at the top for our own
+// use, because a bare `export … from` creates no local binding.
 export { FrameView, questionProgress } from "./frame-view";
-import { questionProgress } from "./frame-view";

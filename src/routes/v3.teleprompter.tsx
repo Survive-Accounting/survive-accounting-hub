@@ -70,7 +70,9 @@ function FramePrompter({ setId }: { setId: string }) {
   useEffect(() => {
     let live = true;
     const load = () => loadBlastPlan({ data: { setId } })
-      .then((p) => { if (live) setFrames(p?.frames ?? []); })
+      // A poll that succeeds clears whatever the last failed one raised — otherwise one Wi-Fi
+      // blip left the red banner up for the rest of the filming session (audit 2026-09-06).
+      .then((p) => { if (live) { setFrames(p?.frames ?? []); setErr(null); } })
       .catch((e) => { if (live) setErr(e instanceof Error ? e.message : String(e)); });
     load();
     const id = window.setInterval(load, 4000);
