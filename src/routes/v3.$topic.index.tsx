@@ -46,7 +46,7 @@ function V3Topic() {
               >
                 <span style={{ fontFamily: V3_DISPLAY, fontSize: 18, fontWeight: 800, flex: 1, minWidth: 0 }}>{s.name}</span>
                 <span style={{ color: V3_MUTED, fontSize: 12.5, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                  {s.liveCount} q{s.draftCount ? ` · ${s.draftCount} draft` : ""}
+                  {topic.kind === "strategy" ? "strategy short" : `${s.liveCount} q${s.draftCount ? ` · ${s.draftCount} draft` : ""}`}
                 </span>
                 <span style={{ color: V3_GOLD, fontSize: 18, lineHeight: 1 }} aria-hidden>→</span>
               </Link>

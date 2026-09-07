@@ -266,6 +266,10 @@ function Ideas() {
           style={{ background: "transparent", color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 10, padding: "7px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
           + Category
         </button>
+        <a href="/admin/ideas/strategy" title="The strategy & culture doc by lane, and the strategy shorts to film"
+          style={{ color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 10, padding: "7px 12px", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+          🧭 Strategy →
+        </a>
         <button onClick={() => setUploading(true)} className="ml-auto"
           style={{ background: "transparent", color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 10, padding: "7px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
           ↑ Upload a prompt

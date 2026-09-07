@@ -144,7 +144,7 @@ export function pageLabel(sourcePath: string): string {
   if (v3topic) return `Topic · ${nice(v3topic[1])}`;
   if (p === "/v3" || p === "/v3/") return "The Queue (/v3)";
   const known: [RegExp, string][] = [
-    [/^\/admin\/ideas/, "Idea Bank"], [/^\/admin\/growth\/coldoutreach/, "Cold outreach"], [/^\/admin\/growth/, "Growth dashboard"],
+    [/^\/admin\/ideas\/strategy/, "Strategy board"], [/^\/admin\/ideas/, "Idea Bank"], [/^\/admin\/growth\/coldoutreach/, "Cold outreach"], [/^\/admin\/growth/, "Growth dashboard"],
     [/^\/admin\/reps/, "Reps admin"], [/^\/outreach/, "Outreach"], [/^\/talkthrough/, "Talkthrough studio"], [/^\/blast-off/, "Blast Off (old)"],
     [/^\/exhibit-lab/, "Exhibit Lab"], [/^\/study\/canvas/, "Canvas"], [/^\/learn/, "Learn"], [/^\/chapters/, "Chapters"], [/^\/leeportal/, "Lee's portal"],
   ];

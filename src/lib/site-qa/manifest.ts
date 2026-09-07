@@ -562,6 +562,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   // Internal dev labs (noindex, not user-facing)
   "callout-demo.tsx": "dev lab (noindex)",
   "admin.ideas.tsx": "internal (noindex) — Ideas to Save prompt vault",
+  "admin.ideas_.strategy.tsx": "internal (noindex) — the strategy board: the strategy & culture doc by lane, strategy shorts → /v3",
   "admin.production.tsx": "internal (noindex) — the production timer's bottleneck report",
   "api.ideas.sms.tsx": "webhook — Twilio inbound SMS to the idea vault (allowlisted senders only)",
   "api.ideas.email.tsx": "webhook — inbound email to the idea vault (allowlisted senders only)",

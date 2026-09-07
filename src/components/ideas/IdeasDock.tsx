@@ -28,6 +28,7 @@ import { IdeaRecorder, judgeTranscript, shouldTranscribe } from "./voice";
 import { uploadIdeaFile, transcribeIdeaAudio } from "./upload";
 import { deriveTitle, isDraft, newIdeaId, unsubmittedCount, type Attachment, type Idea } from "./model";
 import { FastTrackSheet } from "./FastTrackSheet";
+import { laneDef, shortLaneDef } from "@/lib/strategy";
 
 const GOLD = "#FCA311";
 const CREAM = "#F4EFE6";
@@ -45,9 +46,14 @@ export const isInternalPath = (p: string): boolean =>
 
 const POS_KEY = "sa-ideas-modal-pos";
 
-type SavedKind = "idea" | "todo" | "draft";
-/** THE FOUR BUTTONS. */
-type Intent = "general" | "page" | "todo" | "other";
+type SavedKind = "idea" | "todo" | "draft" | "strategy";
+/** THE FOUR BUTTONS — and, since 2026-09-06, the strategy board's. */
+type Intent = "general" | "page" | "todo" | "other" | "strategy";
+
+/** OPEN THE MODAL FROM CODE: `window.dispatchEvent(new CustomEvent("sa:ideas", { detail }))`.
+ *  The strategy board uses it to start a capture already aimed at a lane, the way
+ *  /buildqueue opens the fast track with "sa:fasttrack". */
+export interface IdeaPreset { intent?: Intent; lane?: string; short?: boolean }
 
 export function IdeasDock() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -55,6 +61,7 @@ export function IdeasDock() {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; kind: SavedKind } | null>(null);
+  const [preset, setPreset] = useState<IdeaPreset | null>(null);
 
 
   const refresh = useCallback(() => {
@@ -80,8 +87,10 @@ export function IdeasDock() {
         setOpen(true);
       }
     };
+    const onOpen = (e: Event) => { setPreset((e as CustomEvent<IdeaPreset>).detail ?? null); setOpen(true); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("sa:ideas", onOpen);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("sa:ideas", onOpen); };
   }, [listen]);
   useEffect(() => {
     if (!listen || !show) return;
@@ -105,6 +114,7 @@ export function IdeasDock() {
       kind,
       text: kind === "todo" ? "Counted. Terry has it on the list."
         : kind === "draft" ? "Draft saved — Ctrl+I brings it back whenever."
+        : kind === "strategy" ? "On the strategy board."
         : "Nice! Thanks for helping improve Survive.",
     });
   };
@@ -129,7 +139,7 @@ export function IdeasDock() {
         }}>
           <span style={{ color: GOLD }}>{toast.kind === "todo" ? "☑" : "⚡"}</span>
           <span>{toast.text}</span>
-          <a href="/admin/ideas" style={{ color: GOLD, fontSize: 12, textDecoration: "underline", whiteSpace: "nowrap" }}>View in Ideas Bank →</a>
+          <a href={toast.kind === "strategy" ? "/admin/ideas/strategy" : "/admin/ideas"} style={{ color: GOLD, fontSize: 12, textDecoration: "underline", whiteSpace: "nowrap" }}>{toast.kind === "strategy" ? "Open the strategy board →" : "View in Ideas Bank →"}</a>
           <button onClick={() => setToast(null)} style={{ background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 14 }}>×</button>
         </div>
       )}
@@ -140,8 +150,9 @@ export function IdeasDock() {
           ideas={ideas}
           loadErr={loadErr}
           locked={!unlocked && !isInternalPath(pathname)}
+          preset={preset}
           onUnlocked={() => { setUnlocked(true); refresh(); }}
-          onClose={() => setOpen(false)}
+          onClose={() => { setOpen(false); setPreset(null); }}
           onSaved={onSaved}
         />
       )}
@@ -151,21 +162,27 @@ export function IdeasDock() {
 
 // ------------------------------------------------------------------- modal
 
-function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved }: {
+function Drawer({ pathname, ideas, loadErr, locked, preset, onUnlocked, onClose, onSaved }: {
   pathname: string; ideas: Idea[]; loadErr: string | null;
-  locked: boolean; onUnlocked: () => void;
+  locked: boolean; preset?: IdeaPreset | null; onUnlocked: () => void;
   onClose: () => void; onSaved: (kind: SavedKind) => void;
 }) {
-  const [step, setStep] = useState<"lock" | "kind" | "capture">(locked ? "lock" : "kind");
+  // A preset (from "sa:ideas") skips the kind step — the caller already said what this is.
+  const [step, setStep] = useState<"lock" | "kind" | "capture">(locked ? "lock" : preset?.intent ? "capture" : "kind");
   const [code, setCode] = useState("");
   const [who, setWho] = useState<AdminWho>("lee");
   const [lockErr, setLockErr] = useState<string | null>(null);
 
   // WHAT KIND — the four buttons. A to-do also carries work/personal; "other"
   // carries a write-in label the organiser treats as the subcategory.
-  const [intent, setIntent] = useState<Intent | null>(null);
+  const [intent, setIntent] = useState<Intent | null>(preset?.intent ?? null);
   const [todo, setTodo] = useState<"" | "work" | "personal">("");
   const [other, setOther] = useState("");
+  // THE STRATEGY BOARD (2026-09-06): which lane of the doc (a note) or which audience (a
+  // short) this lands in. Set by the board's preset; a loose Ctrl+I strategy note has none
+  // and gets filed from the board.
+  const [lane, setLane] = useState(preset?.lane ?? "");
+  const [short, setShort] = useState(!!preset?.short);
 
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -211,7 +228,7 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
   const recentre = () => { posRef.current = { x: 0, y: 0 }; setPos({ x: 0, y: 0 }); try { localStorage.removeItem(POS_KEY); } catch { /* cosmetic */ } };
 
   const unlock = () => {
-    if (unlockAdmin(code, who)) { setLockErr(null); setCode(""); onUnlocked(); setStep("kind"); }
+    if (unlockAdmin(code, who)) { setLockErr(null); setCode(""); onUnlocked(); setStep(preset?.intent ? "capture" : "kind"); }
     else setLockErr("That's not it.");
   };
 
@@ -224,13 +241,16 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
     setIntent(k ?? (d.context?.todo ? "todo" : "general"));
     if (d.context?.todo === "work" || d.context?.todo === "personal") setTodo(d.context.todo);
     if (d.context?.other) setOther(d.context.other);
+    if (d.context?.strategy === "1") { setIntent("strategy"); setLane(d.context.lane ?? ""); setShort(d.context.short === "1"); }
     setStep("capture");
   };
+  const laneTitle = lane ? (laneDef(lane)?.title ?? shortLaneDef(lane)?.title ?? lane) : "";
 
   const body = text.trim();
   const intentLabel = intent === "page" ? `Improve this page — ${pageTitle || pathname}`
     : intent === "todo" ? `To-do · ${todo || "work"}`
     : intent === "other" ? (other.trim() ? `Other · ${other.trim()}` : "Other")
+    : intent === "strategy" ? `Strategy${short ? " short" : ""}${laneTitle ? ` · ${laneTitle}` : ""}`
     : "General idea";
 
   /** SAVE. The idea is safe before AI touches it; organising runs after, in
@@ -244,13 +264,13 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
       ? (/\bpersonal\b|\bhome\b|\bwife\b|\bfamily\b/i.test(body) ? "personal" : "work")
       : "";
     const todoTag = intent === "todo" ? (todo || "work") : spokenTodo;
-    const kind: SavedKind = asDraft ? "draft" : todoTag ? "todo" : "idea";
+    const kind: SavedKind = asDraft ? "draft" : todoTag ? "todo" : intent === "strategy" ? "strategy" : "idea";
     saveIdea({ data: {
       id,
       title: deriveTitle(body) || (audio ? "Voice note" : ""),
       body,
       categories: [],                    // AI's call, every time
-      subcategory: intent === "other" ? other.trim() : "",
+      subcategory: intent === "other" ? other.trim() : intent === "strategy" ? (short ? "Strategy short" : "Strategy note") : "",
       status: "IDEA",
       sourcePath: pathname,
       context: {
@@ -258,6 +278,7 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
         href: typeof location !== "undefined" ? location.href : "",
         intent: intent ?? "general",
         ...(intent === "other" && other.trim() ? { other: other.trim() } : {}),
+        ...(intent === "strategy" ? { strategy: "1", ...(lane ? { lane } : {}), ...(short ? { short: "1" } : {}) } : {}),
         ...(todoTag ? { todo: todoTag } : {}),
         ...(asDraft ? { draft: "1" } : {}),
       },
@@ -272,13 +293,14 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
       .then(() => {
         onSaved(kind);
         onClose();
-        const wantPrompt = !asDraft && !todoTag;
+        // A strategy note is for the doc, not for Claude Code — no build prompt.
+        const wantPrompt = !asDraft && !todoTag && intent !== "strategy";
         organizeIdea({ data: { id, draftPrompt: false } })
           .then(() => (wantPrompt ? organizeIdea({ data: { id, organize: false, draftPrompt: true } }) : undefined))
           .catch((e) => console.warn("[ideas] organise failed — the idea is saved; the watch sync or /admin/ideas can draft it", e));
       })
       .catch((e) => { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); });
-  }, [body, pathname, pageTitle, busy, audio, files, onSaved, onClose, intent, todo, other, editingId]);
+  }, [body, pathname, pageTitle, busy, audio, files, onSaved, onClose, intent, todo, other, lane, short, editingId]);
 
   /** HOLD to talk, or tap-tap for a longer note. */
   const startRec = async () => {
@@ -438,6 +460,13 @@ function Drawer({ pathname, ideas, loadErr, locked, onUnlocked, onClose, onSaved
                   <button onClick={() => pick("other")} disabled={!other.trim()} style={{ background: other.trim() ? GOLD : "transparent", color: other.trim() ? "#0B1322" : MUTED, border: `1px solid ${other.trim() ? GOLD : EDGE}`, borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 800, cursor: other.trim() ? "pointer" : "default" }}>go</button>
                 </div>
               </div>
+              {/* THE STRATEGY BOARD (Lee, 2026-09-06: "build this into the idea bank as a new
+                  route to brainstorm. CTRL + i can incorporate this too"). A thought for the
+                  strategy doc, or a strategy short to film — filed by lane on the board. */}
+              <button onClick={() => { setShort(false); pick("strategy"); }} style={{ ...big(), gridColumn: "1 / -1" }}>
+                <span style={{ fontWeight: 800, fontSize: 14 }}>🧭 Strategy</span>
+                <span style={{ fontSize: 11.5, color: MUTED }}>For the strategy & culture doc, or a strategy short to film. Use your words.</span>
+              </button>
             </div>
             {drafts.length > 0 && (
               <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap", marginTop: 14 }}>

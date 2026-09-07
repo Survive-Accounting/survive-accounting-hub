@@ -134,7 +134,7 @@ function V3Queue() {
                         >
                           {s.name}
                         </Link>
-                        <span style={{ color: V3_MUTED, fontSize: 12, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{s.liveCount} q</span>
+                        <span style={{ color: V3_MUTED, fontSize: 12, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{t.kind === "strategy" ? "short" : `${s.liveCount} q`}</span>
                         <span style={{ minWidth: 96, textAlign: "right", fontSize: 10.5, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: st?.color ?? V3_EDGE, whiteSpace: "nowrap" }}>
                           {st?.label ?? "not started"}
                         </span>

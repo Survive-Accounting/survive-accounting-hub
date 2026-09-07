@@ -270,6 +270,9 @@ export const organizeIdea = createServerFn({ method: "POST" })
           const cats = j.categories.filter((c): c is string => typeof c === "string" && allowed.has(c)).slice(0, 2);
           if (cats.length) r.categories = cats;
         }
+        // THE STRATEGY BOARD (2026-09-06): a note or short captured for it keeps STRATEGY
+        // whatever else the AI files it under — the board reads by that flag and category.
+        if (ctx.strategy === "1" && !(r.categories ?? []).includes("STRATEGY")) r.categories = ["STRATEGY", ...(r.categories ?? [])].slice(0, 2);
         // AI may FLAG urgency but never un-flag what a person set.
         if (j.urgent === true && !ctx.urgent) ctx.urgentSuggested = "1";
       }
@@ -288,7 +291,8 @@ export const organizeIdea = createServerFn({ method: "POST" })
     // rewritten), this one is parked with a pointer back, and the target's
     // prompt is flagged stale so the watch sync redrafts it. Never for
     // to-dos, drafts, uploads, or an idea that already merged.
-    if (data.organize && !isTodo && ctx.draft !== "1" && !ctx.mergedInto && !ctx.importedFrom && words) {
+    // Strategy notes are never merged away: a thought for the doc is not a duplicate of a build idea.
+    if (data.organize && !isTodo && ctx.draft !== "1" && !ctx.mergedInto && !ctx.importedFrom && ctx.strategy !== "1" && words) {
       const { data: openRows } = await db.from("ideas").select("id,title,context,status")
         .in("status", ["IDEA", "DRAFTED", "SUBMITTED"]).neq("id", r.id).order("updated_at", { ascending: false }).limit(60);
       const cands = ((openRows ?? []) as Pick<Row, "id" | "title" | "context">[])

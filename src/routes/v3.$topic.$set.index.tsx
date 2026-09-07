@@ -53,8 +53,9 @@ function V3Set() {
             {set.name}
           </h1>
           <div style={{ color: V3_MUTED, fontSize: 13, marginBottom: 30 }}>
-            {topic.name} · {set.liveCount} question{set.liveCount === 1 ? "" : "s"}
-            {set.draftCount ? ` · ${set.draftCount} draft` : ""}
+            {topic.kind === "strategy"
+              ? "Strategy short · no questions, just the points — riff it"
+              : <>{topic.name} · {set.liveCount} question{set.liveCount === 1 ? "" : "s"}{set.draftCount ? ` · ${set.draftCount} draft` : ""}</>}
           </div>
 
           {/* THE TEMPLATE (Lee, 2026-09-05): "with /v3/ maybe before we open /results and

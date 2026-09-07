@@ -146,6 +146,7 @@ import { Route as AdminRepsRosterRouteImport } from './routes/admin.reps.roster'
 import { Route as AdminRepsPartnersRouteImport } from './routes/admin.reps.partners'
 import { Route as AdminRepsLinksRouteImport } from './routes/admin.reps.links'
 import { Route as AdminRepsConversionsRouteImport } from './routes/admin.reps.conversions'
+import { Route as AdminIdeasStrategyRouteImport } from './routes/admin.ideas_.strategy'
 import { Route as AdminGrowthV3RouteImport } from './routes/admin.growth.v3'
 import { Route as AdminGrowthV2RouteImport } from './routes/admin.growth.v2'
 import { Route as AdminGrowthResultsRouteImport } from './routes/admin.growth.results'
@@ -876,6 +877,11 @@ const AdminRepsConversionsRoute = AdminRepsConversionsRouteImport.update({
   path: '/conversions',
   getParentRoute: () => AdminRepsRoute,
 } as any)
+const AdminIdeasStrategyRoute = AdminIdeasStrategyRouteImport.update({
+  id: '/admin/ideas_/strategy',
+  path: '/admin/ideas/strategy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminGrowthV3Route = AdminGrowthV3RouteImport.update({
   id: '/v3',
   path: '/v3',
@@ -1190,6 +1196,7 @@ export interface FileRoutesByFullPath {
   '/admin/growth/results': typeof AdminGrowthResultsRoute
   '/admin/growth/v2': typeof AdminGrowthV2Route
   '/admin/growth/v3': typeof AdminGrowthV3Route
+  '/admin/ideas/strategy': typeof AdminIdeasStrategyRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -1361,6 +1368,7 @@ export interface FileRoutesByTo {
   '/admin/growth/results': typeof AdminGrowthResultsRoute
   '/admin/growth/v2': typeof AdminGrowthV2Route
   '/admin/growth/v3': typeof AdminGrowthV3Route
+  '/admin/ideas/strategy': typeof AdminIdeasStrategyRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -1537,6 +1545,7 @@ export interface FileRoutesById {
   '/admin/growth/results': typeof AdminGrowthResultsRoute
   '/admin/growth/v2': typeof AdminGrowthV2Route
   '/admin/growth/v3': typeof AdminGrowthV3Route
+  '/admin/ideas_/strategy': typeof AdminIdeasStrategyRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -1714,6 +1723,7 @@ export interface FileRouteTypes {
     | '/admin/growth/results'
     | '/admin/growth/v2'
     | '/admin/growth/v3'
+    | '/admin/ideas/strategy'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -1885,6 +1895,7 @@ export interface FileRouteTypes {
     | '/admin/growth/results'
     | '/admin/growth/v2'
     | '/admin/growth/v3'
+    | '/admin/ideas/strategy'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -2060,6 +2071,7 @@ export interface FileRouteTypes {
     | '/admin/growth/results'
     | '/admin/growth/v2'
     | '/admin/growth/v3'
+    | '/admin/ideas_/strategy'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -2190,6 +2202,7 @@ export interface RootRouteChildren {
   SchoolIndexRoute: typeof SchoolIndexRoute
   UIndexRoute: typeof UIndexRoute
   V3IndexRoute: typeof V3IndexRoute
+  AdminIdeasStrategyRoute: typeof AdminIdeasStrategyRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
   ApiCronChapterReportsRoute: typeof ApiCronChapterReportsRoute
   ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
@@ -3185,6 +3198,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRepsConversionsRouteImport
       parentRoute: typeof AdminRepsRoute
     }
+    '/admin/ideas_/strategy': {
+      id: '/admin/ideas_/strategy'
+      path: '/admin/ideas/strategy'
+      fullPath: '/admin/ideas/strategy'
+      preLoaderRoute: typeof AdminIdeasStrategyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/growth/v3': {
       id: '/admin/growth/v3'
       path: '/v3'
@@ -3736,6 +3756,7 @@ const rootRouteChildren: RootRouteChildren = {
   SchoolIndexRoute: SchoolIndexRoute,
   UIndexRoute: UIndexRoute,
   V3IndexRoute: V3IndexRoute,
+  AdminIdeasStrategyRoute: AdminIdeasStrategyRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
   ApiCronChapterReportsRoute: ApiCronChapterReportsRoute,
   ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,

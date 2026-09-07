@@ -254,23 +254,26 @@ export interface BoothCeq {
   edits: number;
 }
 export interface BoothSetInfo { id: string; name: string; ceqs: BoothCeq[]; liveCount: number; draftCount: number }
-export interface BoothTopic { id: string; name: string; number: number | null; sets: BoothSetInfo[] }
+/** kind "strategy" (2026-09-06): a topic with no course — the strategy shorts, minted by
+ *  strategy.functions.ts. Its sets have no questions on purpose; /v3 says "short", not "0 q". */
+export interface BoothTopic { id: string; name: string; number: number | null; sets: BoothSetInfo[]; kind?: "strategy" }
 
 export const loadBoothBank = createServerFn({ method: "POST" }).handler(async (): Promise<{ topics: BoothTopic[] }> => {
   const { loadDecksDeduped, liveDecks } = await import("@/lib/student.functions");
   const db = await admin();
   const owned = await loadDecksDeduped(db as never);
   type CardData = { deckId?: string; stageOrder?: number; prompt?: string; shorthand?: string; title?: string; noteOnly?: boolean; draft?: boolean; bankArchived?: string; needsExhibit?: string; masterNotes?: string; choices?: { text?: string; correct?: boolean; feedback?: string }[] };
-  const { data: chapterRows, error } = await db.from("chapters").select("id,chapter_name,chapter_number");
+  const { data: chapterRows, error } = await db.from("chapters").select("id,chapter_name,chapter_number,course_id");
   if (error) rethrow(error);
-  const chById = new Map((chapterRows ?? []).map((c: { id: string; chapter_name: string; chapter_number: number }) => [c.id, c]));
+  type ChapterRow = { id: string; chapter_name: string; chapter_number: number; course_id: string | null };
+  const chById = new Map((chapterRows ?? []).map((c: ChapterRow) => [c.id, c]));
 
   const topics = new Map<string, BoothTopic>();
   for (const o of liveDecks(owned)) {
     const d = o.deck as { id: string; name: string; topicId?: string | null; sortOrder?: number };
-    const ch = d.topicId ? chById.get(d.topicId) as { id: string; chapter_name: string; chapter_number: number } | undefined : undefined;
+    const ch = d.topicId ? chById.get(d.topicId) as ChapterRow | undefined : undefined;
     const tid = ch?.id ?? "__untopiced";
-    if (!topics.has(tid)) topics.set(tid, { id: tid, name: ch?.chapter_name ?? "More", number: ch?.chapter_number ?? 9999, sets: [] });
+    if (!topics.has(tid)) topics.set(tid, { id: tid, name: ch?.chapter_name ?? "More", number: ch?.chapter_number ?? 9999, sets: [], ...(ch && ch.course_id == null ? { kind: "strategy" as const } : {}) });
     const cards = (o.nodes as { id: string; data?: CardData }[])
       .map((n) => ({ id: n.id, d: n.data ?? {} }))
       // FILM FRAMES ARE NOT BANK CARDS (Lee, 2026-09-03: "Are the Board of
