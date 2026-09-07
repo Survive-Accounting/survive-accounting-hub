@@ -250,7 +250,7 @@ describe("inserts", () => {
 });
 
 // ---- THE REVIEW STEP's verbs (2026-09-03) ----------------------------------
-import { dropFrame, duplicateFrame, filmFrames, frameBullets, frameCount, patchFrame, patchFramesOfKind, toggleSkip } from "./plan";
+import { dropFrame, duplicateFrame, filmFrames, findMark, frameBullets, frameCount, markRanges, normalizeMarks, patchFrame, patchFramesOfKind, pruneMarks, toggleSkip, withMarks } from "./plan";
 
 describe("the review step: skip, duplicate, patch — the set is never touched", () => {
   const ceqs: PlanCeq[] = [{ id: "c1", label: "Q1", stem: "one" }, { id: "c2", label: "Q2", stem: "two" }];
@@ -278,7 +278,7 @@ describe("the review step: skip, duplicate, patch — the set is never touched",
   test("duplicate lands right after the original with its own id and its own prompter copy", () => {
     const src = { ...ceqFrame, prompter: ["say this"] };
     // 2026-09-07: the keyword prompter and the hand-off ride with the line.
-    const frames = patchFrame(plan.frames, ceqFrame.id, { prompter: ["say this"], prompterKeys: ["say", "this"], prompterTransition: "Next question." });
+    const frames = patchFrame(plan.frames, ceqFrame.id, { prompter: ["say this"], prompterKeys: ["say", "this"], prompterTransition: "Next question.", prompterMarks: { phrase: "say this", word: "this" } });
     const next = duplicateFrame(frames, src.id);
     const i = next.findIndex((f) => f.id === src.id);
     expect(next.length).toBe(frames.length + 1);
@@ -290,6 +290,9 @@ describe("the review step: skip, duplicate, patch — the set is never touched",
     expect(next[i + 1].prompterKeys).toEqual(["say", "this"]);
     expect(next[i + 1].prompterKeys).not.toBe(next[i].prompterKeys);
     expect(next[i + 1].prompterTransition).toBe("Next question.");
+    // The timing marks (2026-09-07) ride too — their own copy, not a shared object.
+    expect(next[i + 1].prompterMarks).toEqual({ phrase: "say this", word: "this" });
+    expect(next[i + 1].prompterMarks).not.toBe(next[i].prompterMarks);
   });
 
   test("patchFrame writes one frame and leaves the rest identical", () => {
@@ -306,6 +309,78 @@ describe("the review step: skip, duplicate, patch — the set is never touched",
     expect(next.find((f) => f.id === "ins-1")?.camSize).toBe(0.34);        // no prior override — gets the bulk value
     expect(next.find((f) => f.id === "ins-2")?.camSize).toBe(0.5);         // already resized by hand — untouched
     expect(next.filter((f) => f.kind !== "tip")).toEqual(withSecond.filter((f) => f.kind !== "tip"));
+  });
+});
+
+// ---- THE TIMING MARKS (2026-09-07) ----------------------------------------
+// Lee: "I can have the teleprompter have a certain piece highlighted, so already know it's
+// coming and I can really make it land. I could even 'double highlight' the word I want to
+// transition on. So it's like transition phrase is yellow but the word itself is orange."
+describe("markRanges — the phrase yellow, the word orange, the word wins where they overlap", () => {
+  const line = "External means outside the company. No paycheck? External. Next question.";
+  test("phrase and word inside it: the phrase is split around the word", () => {
+    expect(markRanges(line, { phrase: "No paycheck? External.", word: "External" })).toEqual([
+      { start: 36, end: 49, tone: "phrase" },   // "No paycheck? "
+      { start: 49, end: 57, tone: "word" },     // "External"
+      { start: 57, end: 58, tone: "phrase" },   // "."
+    ]);
+    // Every range is exactly the text it says it is.
+    expect(line.slice(49, 57)).toBe("External");
+    expect(line.slice(36, 49)).toBe("No paycheck? ");
+  });
+  test("the word is looked for INSIDE the phrase first — the second 'External', not the first", () => {
+    const [, w] = markRanges(line, { phrase: "No paycheck? External.", word: "External" });
+    expect(w.start).toBe(49);
+    // With no phrase, the first whole-word match in the line.
+    expect(markRanges(line, { word: "External" })).toEqual([{ start: 0, end: 8, tone: "word" }]);
+  });
+  test("a whole word wins over a substring — 'on' is not the 'on' in 'money'", () => {
+    expect(markRanges("money on the table", { word: "on" })).toEqual([{ start: 6, end: 8, tone: "word" }]);
+    // No whole-word match at all → any match, so a mark Lee made by selecting part of a word still paints.
+    expect(markRanges("money talks", { word: "mon" })).toEqual([{ start: 0, end: 3, tone: "word" }]);
+  });
+  test("a mark that isn't in the line paints nothing; blanks and no marks paint nothing", () => {
+    expect(markRanges(line, { phrase: "Let's move on", word: "banana" })).toEqual([]);
+    expect(markRanges(line, { phrase: "  ", word: "" })).toEqual([]);
+    expect(markRanges(line, undefined)).toEqual([]);
+    expect(markRanges("", { phrase: "x" })).toEqual([]);
+  });
+  test("a word that isn't in the phrase but is in the line still paints, and the two stay sorted", () => {
+    const r = markRanges(line, { phrase: "Next question.", word: "paycheck" });
+    expect(r).toEqual([{ start: 39, end: 47, tone: "word" }, { start: 59, end: 73, tone: "phrase" }]);
+  });
+  test("phrase only; word only; case-insensitive fallback keeps the line's own spelling", () => {
+    expect(markRanges(line, { phrase: "Next question." })).toEqual([{ start: 59, end: 73, tone: "phrase" }]);
+    expect(markRanges(line, { phrase: "next question." })).toEqual([{ start: 59, end: 73, tone: "phrase" }]);
+    expect(markRanges(line, { word: "next" })).toEqual([{ start: 59, end: 63, tone: "word" }]);
+  });
+  test("findMark searches a window and never reads a regex-special character as syntax", () => {
+    expect(findMark("a (b) c", "(b)")).toBe(2);
+    expect(findMark(line, "External", 10)).toBe(49);
+    expect(findMark(line, "External", 0, 40)).toBe(0);
+    expect(findMark(line, "External", 10, 40)).toBe(-1);
+    expect(findMark(line, "")).toBe(-1);
+  });
+});
+
+describe("pruneMarks / normalizeMarks / withMarks — a shortened or edited line keeps what still fits", () => {
+  test("marks that survived the cut stay; the rest go; nothing left → undefined", () => {
+    expect(pruneMarks("External. No paycheck. Next.", { phrase: "No paycheck? External.", word: "External" })).toEqual({ word: "External" });
+    expect(pruneMarks("External. No paycheck. Next.", { phrase: "No paycheck. Next.", word: "Next" })).toEqual({ phrase: "No paycheck. Next.", word: "Next" });
+    expect(pruneMarks("Something else entirely", { phrase: "No paycheck", word: "paycheck" })).toBeUndefined();
+    expect(pruneMarks("x", undefined)).toBeUndefined();
+  });
+  test("normalizeMarks trims and drops blanks; all-blank is undefined", () => {
+    expect(normalizeMarks({ phrase: " a ", word: "" })).toEqual({ phrase: "a" });
+    expect(normalizeMarks({})).toBeUndefined();
+    expect(normalizeMarks(null)).toBeUndefined();
+  });
+  test("withMarks sets the field, or removes it when given none — nothing else on the frame moves", () => {
+    const f: BlastFrame = { id: "f", kind: "ceq", ceqId: "c", prompter: ["say this"], prompterMarks: { phrase: "old" } };
+    expect(withMarks(f, { phrase: "say this", word: "this" })).toEqual({ ...f, prompterMarks: { phrase: "say this", word: "this" } });
+    expect(withMarks(f, {})).toEqual({ id: "f", kind: "ceq", ceqId: "c", prompter: ["say this"] });
+    expect("prompterMarks" in withMarks(f, null)).toBe(false);
+    expect(f.prompterMarks).toEqual({ phrase: "old" });   // the original is untouched
   });
 });
 

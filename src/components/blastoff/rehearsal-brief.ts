@@ -40,7 +40,19 @@
 // for it (which could mean I now may reference the illustration!)" → the slide's picture rides
 // along as one line (pictureLineFor) so a line may point at it.
 //
+// THE TIMING MARKS (2026-09-07, sixth pass). Lee: "With the teleprompter, I can even highlight
+// pieces of a line that are like when the transition takes place. A big part of my teaching
+// style that hits so hard is my TIMING for moving a slide at the perfect emphasis moment… I
+// could even 'double highlight' the word I want to transition on. So it's like transition phrase
+// is yellow but the word itself is orange." And: "It's like being a page turner book. The end of
+// each slide is pulling you into the next one, whenever possible." So the answer also names
+// `transitionPhrase` — the words of the suggested line that hand off into the next slide,
+// verbatim — and `cueWord`, the one word inside it to flip the slide on. The parser refuses
+// either that isn't actually in the line (→ null); the review paints what survives and Lee can
+// re-mark by hand.
+//
 // Pure: the messages for the micro lane and the parser for its answer.
+import { findMark } from "./plan";
 
 export interface StyleExample {
   /** What Lee actually said, roughly. */
@@ -105,17 +117,22 @@ export interface RehearsalSuggestions {
   transition: string | null;
   /** 2–5 scannable fragments of the SUGGESTED line ("Internal = inside"). */
   keywords: string[];
+  /** The 2–8 words of `suggested` that pull into the next slide, verbatim — or null. */
+  transitionPhrase: string | null;
+  /** The one word inside that phrase (or the line) to change the slide on — or null. */
+  cueWord: string | null;
 }
 
 export const REHEARSAL_SYSTEM = [
   "You turn Lee's raw, out-loud rehearsal speech for ONE slide of a Survive Accounting Short into teleprompter lines — his own words, tightened, not rewritten into someone else's voice.",
-  "Return ONLY a JSON object: {\"said\": str, \"suggested\": str, \"register\": \"teach\"|\"cheat-code\", \"transition\": str|null, \"keywords\": [str]}.",
+  "Return ONLY a JSON object: {\"said\": str, \"suggested\": str, \"register\": \"teach\"|\"cheat-code\", \"transition\": str|null, \"keywords\": [str], \"transitionPhrase\": str|null, \"cueWord\": str|null}.",
   "\"said\" = exactly what Lee said, CLEANED: cut filler (um, like, you know), repeated false starts and rambling asides; smooth the grammar; ≤ 30 words; ADD NOTHING — no new facts, no new phrasing that wasn't his.",
   "\"suggested\" = the improvement: the same thought, tightened to one or two short spoken sentences (≤ 30 words), still exactly how Lee would say it out loud. If TALKTHROUGH NOTES are given — what he said and stamped about this card when he first talked the set through — and they hold a sharper phrase or a better way of teaching it, bring THAT in; otherwise stay with his rehearsal words.",
   "TEACH — the one rule that matters most: a suggested line must let a student get THIS question right. It names the correct answer, or the cheat code that finds it, in Lee's cram register. Never a paraphrase of the stem. Never a line that teaches nothing. If Lee's speech never reached the answer, the suggested line still must — take it from THE CARD (the choice marked CORRECT, or the callout's lines).",
   "TWO REGISTERS — pick one and name it in \"register\". \"teach\": one beat of WHY, then the answer (e.g. \"External means anybody outside the company. Remember the cheat code: if they don't get a paycheck from the company, they're external.\"). \"cheat-code\": no why — just how you know the answer, then move on (e.g. \"External. Ask yourself who doesn't receive a paycheck. That's your answer. Next question.\"). Sometimes a cram answer still teaches a bit; sometimes it's just cheat code, answer, move on — choose whichever Lee's speech leans toward.",
   "\"transition\" = an optional 2–6 word spoken hand-off into the NEXT SLIDE when one is given — \"Next question.\", \"Same idea, flipped.\", a connecting phrase that carries the thread — or null when nothing natural fits. It is NOT part of \"suggested\"; keep it separate.",
   "\"keywords\" = 2–5 scannable fragments of the SUGGESTED line, in its order, each ≤ 6 words — the kind of thing a glance at a teleprompter gives back (\"Internal = inside\", \"no paycheck → external\", \"next question\"). Fragments of the line, not new content.",
+  "TIMING — the end of each slide pulls into the next one. \"transitionPhrase\" = the 2–8 words of the SUGGESTED line where that pull happens (usually its last clause: the words Lee says as he moves the slide), copied VERBATIM from \"suggested\" — same spelling, same punctuation, no rewording — or null when the line has no hand-off. \"cueWord\" = the single word inside that phrase to change the slide ON — the emphasis word, the one that lands — verbatim from the phrase, or null. Both must appear in \"suggested\" exactly; if you cannot point at exact words, return null.",
   "KEEP IT LEE'S: use his own phrasing and word choices wherever they already work — never swap in fancier or more formal words than he used. If he said it awkwardly but the meaning is clear, smooth the grammar, don't rewrite the voice.",
   "GROUNDED IN THE SLIDE: a line should read naturally right after seeing this slide's own text — it can reference what's on screen, but never repeat the slide's bullets verbatim; it's what Lee SAYS about them, not a recap.",
   "THE SLIDE'S PICTURE, when given, is drawn on the slide beside the words. A line MAY point at it (\"see the paycheck? that's your test\") when that lands the answer faster than words alone — never describe it for its own sake, and never mention a picture that isn't given.",
@@ -162,21 +179,36 @@ const KEYWORD_CAP = 5;
 const cleanKeywords = (v: unknown): string[] =>
   Array.isArray(v) ? v.map((k) => (typeof k === "string" ? k.trim().slice(0, 60) : "")).filter(Boolean).slice(0, KEYWORD_CAP) : [];
 
+/** A proposed mark, kept only when it is really IN the line (findMark — whole-word first, then
+ *  case-insensitive, so a capital the model changed doesn't lose the mark); null otherwise. */
+function markIn(line: string, v: unknown, cap: number): string | null {
+  const s = clean(v).slice(0, cap);
+  if (!s || !line) return null;
+  const i = findMark(line, s);
+  // Hand back the line's own spelling of it, so the mark is a true substring for every painter.
+  return i >= 0 ? line.slice(i, i + s.length) : null;
+}
+
 /** The model's JSON, defended: both lines, or null when there's no usable suggestion at all.
  *  A legacy `{line}` answer (the one-line brief this replaced) is taken as the suggestion; a
  *  legacy two-field answer gets the 2026-09-07 fields at their safe defaults (register "teach",
- *  no transition, no keywords). */
+ *  no transition, no keywords, no marks). The timing marks are validated against the suggested
+ *  line: a phrase that isn't in it is null; a cue word that isn't in the phrase (or, with no
+ *  phrase, in the line) is null. */
 export function parseRehearsalSuggestions(text: string): RehearsalSuggestions | null {
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) return null;
-  let j: { said?: unknown; suggested?: unknown; line?: unknown; register?: unknown; transition?: unknown; keywords?: unknown };
+  let j: { said?: unknown; suggested?: unknown; line?: unknown; register?: unknown; transition?: unknown; keywords?: unknown; transitionPhrase?: unknown; cueWord?: unknown };
   try { j = JSON.parse(m[0]); } catch { return null; }
   const said = clean(j.said);
   const suggested = clean(j.suggested) || clean(j.line);
   if (!suggested && !said) return null;
+  const line = suggested || said;
   const register: RehearsalRegister = j.register === "cheat-code" ? "cheat-code" : "teach";
   const transition = clean(j.transition).slice(0, 80) || null;
-  return { said, suggested: suggested || said, register, transition, keywords: cleanKeywords(j.keywords) };
+  const transitionPhrase = markIn(line, j.transitionPhrase, 300);
+  const cueWord = markIn(transitionPhrase ?? line, j.cueWord, 80);
+  return { said, suggested: line, register, transition, keywords: cleanKeywords(j.keywords), transitionPhrase, cueWord };
 }
 
 // ------------------------------------------------------------------ keywords for a kept line

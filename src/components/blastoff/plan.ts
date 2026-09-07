@@ -98,6 +98,13 @@ export interface BlastFrame {
    *  as simple as move on, but also finding connecting points between slides"). A 2–6 word
    *  spoken bridge into the next slide, when the review offered one and Lee kept a line. */
   prompterTransition?: string;
+  /** THE TIMING MARKS (Lee, 2026-09-07: "I can even highlight pieces of a line that are like
+   *  when the transition takes place. A big part of my teaching style that hits so hard is my
+   *  TIMING for moving a slide at the perfect emphasis moment… transition phrase is yellow but
+   *  the word itself is orange"). `phrase` = the run of the kept line that hands off into the
+   *  next slide (yellow); `word` = the one word inside it to change the slide ON (orange).
+   *  Both are substrings of the line — markRanges finds them; one that isn't paints nothing. */
+  prompterMarks?: PrompterMarks;
   /** THE OPTIONAL ILLUSTRATION (polish pass, 2026-09-05). Absent = never asked; null = Lee
    *  cleared it; a value = an idea banked or a picture made. See illustration.ts. A slide
    *  with none keeps every pixel of the negative space it has today. */
@@ -292,8 +299,93 @@ export function duplicateFrame(frames: readonly BlastFrame[], id: string): Blast
   const i = frames.findIndex((x) => x.id === id);
   if (i < 0) return [...frames];
   const src = frames[i];
-  const copy: BlastFrame = { ...src, id: newFrameId(src.kind), prompter: src.prompter ? [...src.prompter] : undefined, prompterKeys: src.prompterKeys ? [...src.prompterKeys] : undefined, illustration: src.illustration ? { ...src.illustration } : src.illustration };
+  const copy: BlastFrame = { ...src, id: newFrameId(src.kind), prompter: src.prompter ? [...src.prompter] : undefined, prompterKeys: src.prompterKeys ? [...src.prompterKeys] : undefined, prompterMarks: src.prompterMarks ? { ...src.prompterMarks } : undefined, illustration: src.illustration ? { ...src.illustration } : src.illustration };
   return insertFrame(frames, copy, i);
+}
+
+// ---- THE TIMING MARKS (2026-09-07) -----------------------------------------
+// Lee: "It's like being a page turner book. The end of each slide is pulling you into the next
+// one, whenever possible." The marks say WHERE in the line that pull is (the phrase, yellow) and
+// the exact word he flips the slide on (orange). Pure text → ranges; the painters (prompter-
+// marks.ts) and the prompter windows only ever read what these return.
+
+export interface PrompterMarks {
+  /** The transition phrase — a substring of the line. */
+  phrase?: string;
+  /** The cue word — a substring of the phrase (or, failing that, of the line). */
+  word?: string;
+}
+
+export interface MarkRange { start: number; end: number; tone: "phrase" | "word" }
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Where `needle` sits in `hay[from, to)`: a whole-word match first (so a cue word "on" never
+ *  lands inside "money"), then any match; exact case first, then case-insensitive (the model
+ *  and Lee do not always agree on a capital). -1 when it isn't there at all. */
+export function findMark(hay: string, needle: string, from = 0, to = hay.length): number {
+  const n = needle.trim();
+  if (!n) return -1;
+  const window = hay.slice(0, to);
+  for (const flags of ["u", "iu"]) {
+    const re = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(n)}(?![\\p{L}\\p{N}])`, `g${flags}`);
+    re.lastIndex = from;
+    const m = re.exec(window);
+    if (m) return m.index;
+  }
+  const exact = window.indexOf(n, from);
+  if (exact >= 0) return exact;
+  return window.toLowerCase().indexOf(n.toLowerCase(), from);
+}
+
+/** The character ranges to paint on `line`: the phrase (yellow) and the cue word (orange) —
+ *  the word wins where they overlap, so the phrase is split around it. Sorted, non-overlapping.
+ *  The word is looked for INSIDE the phrase first (that is where it belongs), then anywhere in
+ *  the line. A mark that isn't a substring of the line paints nothing. */
+export function markRanges(line: string, marks: PrompterMarks | null | undefined): MarkRange[] {
+  const phrase = marks?.phrase?.trim() ?? "";
+  const word = marks?.word?.trim() ?? "";
+  let p: MarkRange | null = null;
+  if (phrase) { const i = findMark(line, phrase); if (i >= 0) p = { start: i, end: i + phrase.length, tone: "phrase" }; }
+  let w: MarkRange | null = null;
+  if (word) {
+    let i = p ? findMark(line, word, p.start, p.end) : -1;
+    if (i < 0) i = findMark(line, word);
+    if (i >= 0) w = { start: i, end: i + word.length, tone: "word" };
+  }
+  if (!p) return w ? [w] : [];
+  if (!w) return [p];
+  if (w.end <= p.start || w.start >= p.end) return [p, w].sort((a, b) => a.start - b.start);
+  const out: MarkRange[] = [];
+  if (p.start < w.start) out.push({ start: p.start, end: w.start, tone: "phrase" });
+  out.push(w);
+  if (w.end < p.end) out.push({ start: w.end, end: p.end, tone: "phrase" });
+  return out;
+}
+
+/** The marks that still fit `line` — a shortened or edited line keeps whichever of its marks
+ *  survived the cut and drops the rest. undefined when nothing is left. */
+export function pruneMarks(line: string, marks: PrompterMarks | null | undefined): PrompterMarks | undefined {
+  const ranges = markRanges(line, marks);
+  const out: PrompterMarks = {};
+  if (ranges.some((r) => r.tone === "phrase")) out.phrase = marks?.phrase?.trim();
+  if (ranges.some((r) => r.tone === "word")) out.word = marks?.word?.trim();
+  return normalizeMarks(out);
+}
+
+/** `{}` and blanks → undefined, so a cleared mark leaves no field on the frame. */
+export const normalizeMarks = (marks: PrompterMarks | null | undefined): PrompterMarks | undefined => {
+  const phrase = marks?.phrase?.trim();
+  const word = marks?.word?.trim();
+  if (!phrase && !word) return undefined;
+  return { ...(phrase ? { phrase } : {}), ...(word ? { word } : {}) };
+};
+
+/** The frame with its marks set (or, given none, cleared). Nothing else changes. */
+export function withMarks(frame: BlastFrame, marks: PrompterMarks | null | undefined): BlastFrame {
+  const m = normalizeMarks(marks);
+  const { prompterMarks: _drop, ...rest } = frame;
+  return m ? { ...rest, prompterMarks: m } : rest;
 }
 
 /** What actually films: every frame that is not skipped. Capture, the

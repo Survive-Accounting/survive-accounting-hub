@@ -70,6 +70,9 @@ export const frameSchema = z.object({
   // fragments and the bridge into the next slide. Additive; old plans have neither.
   prompterKeys: z.array(z.string().max(80)).max(8).optional(),
   prompterTransition: z.string().max(120).optional(),
+  // THE TIMING MARKS (2026-09-07, plan.ts PrompterMarks): the transition phrase and the cue word
+  // Lee flips the slide on — substrings of the kept line. Additive; old plans have none.
+  prompterMarks: z.object({ phrase: z.string().max(300).optional(), word: z.string().max(80).optional() }).optional(),
   bullets: z.array(z.string().max(300)).max(12).optional(),
   backdrop: z.enum(["zoom", "off"]).optional(),
   variant: z.string().max(20).optional(),

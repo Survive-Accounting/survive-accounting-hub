@@ -50,6 +50,19 @@
 // the ones after it (a new pass from there). "now we've illustrated for it (which could mean I
 // now may reference the illustration!)" → the slide's picture rides in the brief as one line.
 // And every runMicro here writes its price to the cost ledger (cost-ledger.functions.ts).
+//
+// 2026-09-07, sixth pass — THE TIMING MARKS, AND THE CARD ON FILM. Lee: "With the teleprompter,
+// I can even highlight pieces of a line that are like when the transition takes place. A big
+// part of my teaching style that hits so hard is my TIMING for moving a slide at the perfect
+// emphasis moment… I could even 'double highlight' the word I want to transition on. So it's
+// like transition phrase is yellow but the word itself is orange." → the brief proposes the
+// phrase and the cue word (rehearsal-brief.ts); the Suggested card paints them (lib/prompter-
+// marks.ts, the same painter the teleprompter window uses); select any words in the line and a
+// tiny toolbar marks them as the phrase or the cue word, or clears; they land on
+// frame.prompterMarks with the pick. And the prompter panel on /film (after round 2) mounts the
+// SAME card — exported below as SuggestedCard, self-contained — so the line on film gets "Say
+// it", the shorten passes, ↶ and the mark toolbar without a second copy of any of it
+// (docs/USE-YOUR-WORDS-AUDIT.md #13).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getAdminWho } from "@/components/AdminGate";
@@ -60,18 +73,19 @@ import { runMicro } from "@/lib/talkthrough.functions";
 import { logCostEvent } from "@/lib/cost-ledger.functions";
 import { logTeleprompterFeedback, topRehearsalExamples, type RehearsalAction } from "@/lib/rehearsal.functions";
 import { logCannedLineUse, recentCannedLineUses } from "@/lib/canned-lines.functions";
+import { markStyle, paintLine } from "@/lib/prompter-marks";
 import { useDictation } from "@/lib/use-dictation";
 
 import { cannedLinesFor, cannedWarnings, pickCannedLine, type CannedLine, type CannedSlot } from "./canned-lines";
 import { isCannedFrameKind, REVIEW_ROUNDS } from "./capture/rehearsal-rounds";
 import type { SlideLayout } from "./layout";
 import { PhoneFrame } from "./PhoneFrame";
-import { FRAME_LABEL, type BlastFrame } from "./plan";
+import { findMark, FRAME_LABEL, normalizeMarks, pruneMarks, type BlastFrame, type PrompterMarks } from "./plan";
 import {
   buildKeywordMessages, buildRehearsalMessages, buildShortenLineMessages, parseKeywords, parseRehearsalSuggestions, parseShortenedLine, pictureLineFor,
-  SHORTEN_PASS_LABEL, SHORTEN_PASSES, type RehearsalRegister, type ShortenPass, type StyleExample,
+  SHORTEN_PASS_LABEL, SHORTEN_PASSES, type RehearsalRegister, type RehearsalSuggestions, type ShortenedLine, type ShortenLineRequest, type ShortenPass, type StyleExample,
 } from "./rehearsal-brief";
-import { nextSlideFor, rehearsalCardFor, rehearsalContextFor, slideContextFor } from "./rehearsal-context";
+import { nextSlideFor, rehearsalCardFor, rehearsalContextFor, slideContextFor, type CardLookup } from "./rehearsal-context";
 
 const GOLD = "#FCA311", CREAM = "#F4EFE6", MUTED = "#9AA3B8", EDGE = "rgba(244,239,230,0.16)", INK = "#05070D", MINT = "#3BF5A0", ORANGE = "#FF9F43";
 
@@ -80,8 +94,9 @@ const SLIDE_W = 300;
 /** How often the brief re-runs while Lee is talking (ms of new final speech). */
 export const LIVE_BRIEF_EVERY_MS = 2500;
 
-/** One look at the suggested line — v1 is the brief's own; each shorten pass adds one. */
-interface LineVersion { line: string; keywords: string[]; /** 0 = the brief's line; 1–3 = the pass that made it. */ pass: number }
+/** One look at the suggested line — v1 is the brief's own; each shorten pass adds one. The
+ *  timing marks ride per version: a shortened line keeps whichever of them survived the cut. */
+interface LineVersion { line: string; keywords: string[]; marks?: PrompterMarks; /** 0 = the brief's line; 1–3 = the pass that made it. */ pass: number }
 
 interface SlideSuggestion {
   status: "loading" | "ready" | "error";
@@ -89,6 +104,8 @@ interface SlideSuggestion {
   /** The version SHOWING — mirrors versions[showing], so every reader of the line stays simple. */
   suggested: string;
   register: RehearsalRegister; transition: string | null; keywords: string[];
+  /** The timing marks of the version showing (mirrors versions[showing].marks). */
+  marks?: PrompterMarks;
   /** The transcript these lines were made from — the round's, or the spoken take. */
   raw: string;
   error?: string;
@@ -106,6 +123,83 @@ function logCost(setId: string, label: "rehearsal line" | "shorten line" | "keyw
   void logCostEvent({ data: { setId, kind: "ai", usd: r.usage.costUsd, model: r.model, label, who: getAdminWho() } });
 }
 
+/** The marks the brief proposed, as the frame stores them. */
+const marksOf = (s: RehearsalSuggestions): PrompterMarks | undefined => normalizeMarks({ phrase: s.transitionPhrase ?? undefined, word: s.cueWord ?? undefined });
+
+// ---- THE CALLS, SHARED (sixth pass) ------------------------------------------
+// The review briefs every slide up front and shortens on demand; the card on /film does the
+// same for one line. Same request, same retry, same ledger row — written once, here.
+
+/** What a line is ABOUT: enough to build the brief and a shorten request for ONE frame. The
+ *  film page hands this to SuggestedCard; the review builds it per slide. */
+export interface CardContext { setId: string; frame: BlastFrame; frames: readonly BlastFrame[]; ceqById: CardLookup }
+
+function rehearsalRequestFor(ctx: CardContext, raw: string, examples: readonly StyleExample[]): { system: string; user: string } {
+  const { frame: f, frames, ceqById, setId } = ctx;
+  return buildRehearsalMessages({
+    slideLabel: FRAME_LABEL[f.kind], slideContext: slideContextFor(f, ceqById),
+    card: rehearsalCardFor(f, ceqById), nextSlide: nextSlideFor(frames, f, ceqById),
+    rawTranscript: raw, talkthrough: rehearsalContextFor(ttState().doc, setId, f.kind === "ceq" ? f.ceqId : null),
+    styleExamples: examples, picture: pictureLineFor(f.illustration),
+  });
+}
+
+/** One brief, RETRIED ONCE QUIETLY (2026-09-07). Lee, on the error showing up on a "memorize
+ *  this": "Not sure why?" — a one-off unparseable answer is the model's problem, not his; only a
+ *  second miss surfaces, and then it says WHICH slide. */
+async function runRehearsalBrief(ctx: CardContext, raw: string, examples: readonly StyleExample[]): Promise<RehearsalSuggestions> {
+  const m = rehearsalRequestFor(ctx, raw, examples);
+  let lines: RehearsalSuggestions | null = null;
+  for (let attempt = 0; attempt < 2 && !lines; attempt++) {
+    const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 500 } });
+    logCost(ctx.setId, "rehearsal line", r);
+    lines = parseRehearsalSuggestions(r.text);
+  }
+  if (!lines) throw new Error(`The lines for this "${FRAME_LABEL[ctx.frame.kind]}" slide didn't come back clean, twice — try again.`);
+  return lines;
+}
+
+/** One shorten pass on one line. */
+async function runShortenPass(ctx: CardContext, line: string, pass: ShortenPass, register: RehearsalRegister): Promise<ShortenedLine> {
+  const req: ShortenLineRequest = { line, pass, card: rehearsalCardFor(ctx.frame, ctx.ceqById), register, picture: pictureLineFor(ctx.frame.illustration) };
+  const m = buildShortenLineMessages(req);
+  const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 200 } });
+  logCost(ctx.setId, "shorten line", r);
+  const out = parseShortenedLine(r.text);
+  if (!out) throw new Error(`The ${SHORTEN_PASS_LABEL[pass]} pass didn't come back clean — try again.`);
+  return out;
+}
+
+/** The scan keywords for a line the model didn't write; [] when the call fails. */
+async function keywordsFor(setId: string, line: string): Promise<string[]> {
+  const km = buildKeywordMessages(line);
+  const r = await runMicro({ data: { system: km.system, user: km.user, maxOutput: 120 } });
+  logCost(setId, "keywords", r);
+  return parseKeywords(r.text);
+}
+
+/** A shorten pass applied to a suggestion state: the new version on top of `base`, showing. */
+function pushVersion(cur: SlideSuggestion, base: LineVersion[], out: ShortenedLine, pass: ShortenPass): SlideSuggestion {
+  const src = base[base.length - 1];
+  const marks = pruneMarks(out.line, src?.marks);
+  const versions = [...base, { line: out.line, keywords: out.keywords, marks, pass }];
+  return { ...cur, shortening: false, versions, showing: versions.length - 1, suggested: out.line, keywords: out.keywords, marks };
+}
+
+/** Show version i without dropping any. */
+function showingVersion(cur: SlideSuggestion, i: number): SlideSuggestion {
+  const v = cur.versions[i];
+  if (!v) return cur;
+  return { ...cur, showing: i, suggested: v.line, keywords: v.keywords, marks: v.marks, shortenError: undefined };
+}
+
+/** New marks on the version showing — Lee's own selection wins over the brief's. */
+function markedVersion(cur: SlideSuggestion, marks: PrompterMarks | undefined): SlideSuggestion {
+  const m = normalizeMarks(marks);
+  const versions = cur.versions.map((v, i) => (i === cur.showing ? { ...v, marks: m } : v));
+  return { ...cur, marks: m, versions };
+}
+
 /** `onClose(done)` — "← back to rehearsal" (false) just closes; the Done button (true) closes
  *  too, having committed everything Lee picked; the round itself already ended when this
  *  opened, so both are the same close — the flag only says which button it was. */
@@ -121,10 +215,10 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
   initialPicks?: Partial<Record<CannedSlot, CannedLine>>;
   /** The set's slide template (layout.ts) — so the slide drawn here is the one that films. */
   layout?: SlideLayout;
-  /** The kept line — and, since 2026-09-07, its keywords (frame.prompterKeys) and the hand-off
-   *  (frame.prompterTransition). Both optional so a two-arg caller keeps working; it just
-   *  won't write them. */
-  onCommitLine: (frameId: string, line: string, keys?: string[], transition?: string) => void;
+  /** The kept line — and, since 2026-09-07, its keywords (frame.prompterKeys), the hand-off
+   *  (frame.prompterTransition) and the timing marks (frame.prompterMarks; an empty object
+   *  clears them). All optional so a two-arg caller keeps working; it just won't write them. */
+  onCommitLine: (frameId: string, line: string, keys?: string[], transition?: string, marks?: PrompterMarks) => void;
   onClose: (done: boolean) => void;
 }) {
   // Intro/outro NEVER go through the AI suggester — Lee: "teleprompter really only needs to
@@ -135,8 +229,8 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
   // model calls go out — firing without them would make the whole feedback loop decorative.
   const [examples, setExamples] = useState<StyleExample[] | null>(null);
   const [suggestions, setSuggestions] = useState<Record<string, SlideSuggestion>>({});
-  /** What Lee kept this session, per frame — "✓ kept: …" and re-pickable. */
-  const [kept, setKept] = useState<Record<string, string>>({});
+  /** What Lee kept this session, per frame — "✓ kept: …" (painted with its marks) and re-pickable. */
+  const [kept, setKept] = useState<Record<string, { line: string; marks?: PrompterMarks }>>({});
   const keptRef = useRef<Record<string, string>>({});
   const [at, setAt] = useState(0);
   const fired = useRef(new Set<string>());
@@ -161,26 +255,12 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
     inFlight.current[f.id] = true;
     setSuggestions((s) => ({ ...s, [f.id]: { ...(s[f.id] ?? EMPTY), status: "loading", error: undefined } }));
     try {
-      const m = buildRehearsalMessages({
-        slideLabel: FRAME_LABEL[f.kind], slideContext: slideContextFor(f, ceqById),
-        card: rehearsalCardFor(f, ceqById), nextSlide: nextSlideFor(frames, f, ceqById),
-        rawTranscript: raw, talkthrough: rehearsalContextFor(ttState().doc, set.id, f.kind === "ceq" ? f.ceqId : null),
-        styleExamples: examples ?? [], picture: pictureLineFor(f.illustration),
-      });
-      // RETRY ONCE, QUIETLY (2026-09-07). Lee, on the error showing up on a "memorize this":
-      // "Not sure why?" — a one-off unparseable answer is the model's problem, not his; only a
-      // second miss surfaces, and then it says WHICH slide.
-      let lines = null;
-      for (let attempt = 0; attempt < 2 && !lines; attempt++) {
-        const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 500 } });
-        logCost(set.id, "rehearsal line", r);
-        lines = parseRehearsalSuggestions(r.text);
-      }
-      if (!lines) throw new Error(`The lines for this "${FRAME_LABEL[f.kind]}" slide didn't come back clean, twice — try again.`);
+      const lines = await runRehearsalBrief({ setId: set.id, frame: f, frames, ceqById }, raw, examples ?? []);
       if (!alive.current) return;
       // A newer take is already waiting → this answer is stale; the finally block runs the new one.
-      // A fresh brief starts the shorten stack over: v1 is this line.
-      if (!pending.current[f.id]) setSuggestions((s) => ({ ...s, [f.id]: { status: "ready", ...lines, raw, versions: [{ line: lines.suggested, keywords: lines.keywords, pass: 0 }], showing: 0 } }));
+      // A fresh brief starts the shorten stack over: v1 is this line, with the marks it proposed.
+      const marks = marksOf(lines);
+      if (!pending.current[f.id]) setSuggestions((s) => ({ ...s, [f.id]: { status: "ready", ...lines, marks, raw, versions: [{ line: lines.suggested, keywords: lines.keywords, marks, pass: 0 }], showing: 0 } }));
     } catch (e) {
       if (alive.current) setSuggestions((s) => ({ ...s, [f.id]: { ...(s[f.id] ?? EMPTY), status: "error", error: e instanceof Error ? e.message : String(e) } }));
     } finally {
@@ -203,41 +283,35 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
   // SHORTEN — one pass on whichever version is showing. `fromKept` restarts the stack at the
   // kept line ("✂ shorten" beside "✓ kept: …"), so a line Lee already kept can be cut down the
   // same way and kept again. Shortening from an older version drops the ones after it.
-  const shorten = useCallback(async (f: BlastFrame, fromKept?: string) => {
+  const shorten = useCallback(async (f: BlastFrame, fromKept?: { line: string; marks?: PrompterMarks }) => {
     const s = suggestions[f.id];
     if (!s || s.shortening) return;
-    const base: LineVersion[] = fromKept ? [{ line: fromKept, keywords: [], pass: 0 }] : s.versions.slice(0, s.showing + 1);
+    const base: LineVersion[] = fromKept ? [{ line: fromKept.line, keywords: [], marks: pruneMarks(fromKept.line, fromKept.marks), pass: 0 }] : s.versions.slice(0, s.showing + 1);
     if (base.length === 0 || base.length > SHORTEN_PASSES) return;
     const pass = base.length as ShortenPass;
     const src = base[base.length - 1];
-    setSuggestions((all) => ({ ...all, [f.id]: { ...(all[f.id] ?? s), shortening: true, shortenError: undefined, versions: base, showing: base.length - 1, suggested: src.line, keywords: src.keywords } }));
+    setSuggestions((all) => ({ ...all, [f.id]: { ...(all[f.id] ?? s), shortening: true, shortenError: undefined, versions: base, showing: base.length - 1, suggested: src.line, keywords: src.keywords, marks: src.marks } }));
     try {
-      const m = buildShortenLineMessages({ line: src.line, pass, card: rehearsalCardFor(f, ceqById), register: s.register, picture: pictureLineFor(f.illustration) });
-      const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 200 } });
-      logCost(set.id, "shorten line", r);
-      const out = parseShortenedLine(r.text);
-      if (!out) throw new Error(`The ${SHORTEN_PASS_LABEL[pass]} pass didn't come back clean — try again.`);
+      const out = await runShortenPass({ setId: set.id, frame: f, frames, ceqById }, src.line, pass, s.register);
       if (!alive.current) return;
       setSuggestions((all) => {
         const cur = all[f.id];
         // A fresh take landed meanwhile and restarted the stack → this pass belongs to a line that's gone.
         if (!cur || cur.versions[0]?.line !== base[0].line) return all;
-        const versions = [...base, { line: out.line, keywords: out.keywords, pass }];
-        return { ...all, [f.id]: { ...cur, shortening: false, versions, showing: versions.length - 1, suggested: out.line, keywords: out.keywords } };
+        return { ...all, [f.id]: pushVersion(cur, base, out, pass) };
       });
     } catch (e) {
       if (alive.current) setSuggestions((all) => (all[f.id] ? { ...all, [f.id]: { ...all[f.id], shortening: false, shortenError: e instanceof Error ? e.message : String(e) } } : all));
     }
-  }, [suggestions, ceqById, set.id]);
+  }, [suggestions, ceqById, set.id, frames]);
 
   /** The v1 · v2 · v3 chips and ↶: show a version without dropping any. */
   const showVersion = useCallback((f: BlastFrame, i: number) => {
-    setSuggestions((all) => {
-      const cur = all[f.id];
-      const v = cur?.versions[i];
-      if (!cur || !v) return all;
-      return { ...all, [f.id]: { ...cur, showing: i, suggested: v.line, keywords: v.keywords, shortenError: undefined } };
-    });
+    setSuggestions((all) => (all[f.id] ? { ...all, [f.id]: showingVersion(all[f.id], i) } : all));
+  }, []);
+  /** The mark toolbar: Lee's selection becomes the phrase or the cue word on the version showing. */
+  const setMarks = useCallback((f: BlastFrame, marks: PrompterMarks | undefined) => {
+    setSuggestions((all) => (all[f.id] ? { ...all, [f.id]: markedVersion(all[f.id], marks) } : all));
   }, []);
 
   const m = candidates.length;
@@ -258,17 +332,20 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
     return () => window.removeEventListener("keydown", onKey);
   }, [next, prev]);
 
-  const commit = useCallback(async (f: BlastFrame, line: string, action: RehearsalAction) => {
+  const commit = useCallback(async (f: BlastFrame, line: string, action: RehearsalAction, picked?: PrompterMarks) => {
     const finalLine = line.trim();
     if (!finalLine) return;
     const sug = suggestions[f.id];
     const transition = sug?.transition ?? undefined;
+    // The marks go with the pick, pruned to the line actually kept — and ALWAYS as an object, so
+    // picking "what you said" (no marks) clears the ones a suggestion left on the frame before.
+    const marks = pruneMarks(finalLine, picked) ?? {};
     // The model's keywords belong to the line it wrote; a line Lee said or edited gets its own
     // below, after the pick has already landed — the pick never waits on a second call.
     const knownKeys = action === "suggested" && sug?.keywords.length ? sug.keywords : undefined;
-    onCommitLine(f.id, finalLine, knownKeys, transition);
+    onCommitLine(f.id, finalLine, knownKeys, transition, marks);
     keptRef.current[f.id] = finalLine;
-    setKept((k) => ({ ...k, [f.id]: finalLine }));
+    setKept((k) => ({ ...k, [f.id]: { line: finalLine, marks: normalizeMarks(marks) } }));
     void logTeleprompterFeedback({ data: {
       setId: set.id, frameId: f.id, rawTranscript: sug?.raw || segments[f.id] || "", suggestedLine: sug?.suggested ?? "",
       finalLine, action, who: getAdminWho(),
@@ -276,12 +353,9 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
     next();
     if (knownKeys) return;
     try {
-      const km = buildKeywordMessages(finalLine);
-      const r = await runMicro({ data: { system: km.system, user: km.user, maxOutput: 120 } });
-      logCost(set.id, "keywords", r);
-      const keys = parseKeywords(r.text);
+      const keys = await keywordsFor(set.id, finalLine);
       // Only if this is still the line he kept — a re-pick in the meantime wins.
-      if (keys.length && alive.current && keptRef.current[f.id] === finalLine) onCommitLine(f.id, finalLine, keys, transition);
+      if (keys.length && alive.current && keptRef.current[f.id] === finalLine) onCommitLine(f.id, finalLine, keys, transition, marks);
     } catch { /* the line is kept either way; the prompter just shows lines for it */ }
   }, [onCommitLine, set.id, segments, suggestions, next]);
 
@@ -307,8 +381,8 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
             <div style={{ flex: 1, minWidth: 320 }}>
               <SlideScreen key={frame.id} frame={frame} context={slideContextFor(frame, ceqById)} raw={segments[frame.id] ?? ""} suggestion={suggestions[frame.id]}
                 kept={kept[frame.id] ?? null} first={at === 0} last={at === m - 1}
-                onPick={(line, action) => void commit(frame, line, action)} onRetry={() => void suggest(frame)} onLiveBrief={(take) => void suggest(frame, take)}
-                onShorten={() => void shorten(frame)} onShortenKept={(line) => void shorten(frame, line)} onShow={(i) => showVersion(frame, i)}
+                onPick={(line, action, marks) => void commit(frame, line, action, marks)} onRetry={() => void suggest(frame)} onLiveBrief={(take) => void suggest(frame, take)}
+                onShorten={() => void shorten(frame)} onShortenKept={(k) => void shorten(frame, k)} onShow={(i) => showVersion(frame, i)} onMarks={(marks) => setMarks(frame, marks)}
                 onSkip={next} onPrev={prev} onNext={next} />
             </div>
           </div>
@@ -324,7 +398,7 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
                       style={{ ...btn(kept[f.id] ? CREAM : MUTED), textAlign: "left", display: "flex", gap: 8, alignItems: "baseline", fontWeight: 500 }}>
                       <span style={{ color: kept[f.id] ? MINT : MUTED, fontWeight: 800, fontSize: 11 }}>{kept[f.id] ? "✓" : "–"}</span>
                       <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: GOLD, whiteSpace: "nowrap" }}>{FRAME_LABEL[f.kind]}</span>
-                      <span style={{ fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{kept[f.id] ?? "skipped"}</span>
+                      <span style={{ fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{kept[f.id] ? <Painted line={kept[f.id].line} marks={kept[f.id].marks} /> : "skipped"}</span>
                     </button>
                   ))}
                 </div>
@@ -346,20 +420,78 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
 /** ONE slide's lines: what was said (collapsed), the two cards, the talk button and the spoken
  *  take. Keyed by frame id from the parent so the take, the draft and the dictation never carry
  *  over to the next slide (unmount stops the microphone). */
-function SlideScreen({ frame, context, raw, suggestion, kept, first, last, onPick, onRetry, onLiveBrief, onShorten, onShortenKept, onShow, onSkip, onPrev, onNext }: {
-  frame: BlastFrame; context: string; raw: string; suggestion: SlideSuggestion | undefined; kept: string | null; first: boolean; last: boolean;
-  onPick: (line: string, action: RehearsalAction) => void; onRetry: () => void;
+function SlideScreen({ frame, context, raw, suggestion, kept, first, last, onPick, onRetry, onLiveBrief, onShorten, onShortenKept, onShow, onMarks, onSkip, onPrev, onNext }: {
+  frame: BlastFrame; context: string; raw: string; suggestion: SlideSuggestion | undefined; kept: { line: string; marks?: PrompterMarks } | null; first: boolean; last: boolean;
+  onPick: (line: string, action: RehearsalAction, marks: PrompterMarks | undefined) => void; onRetry: () => void;
   /** The spoken take so far — the parent re-runs the brief with it as the raw transcript. */
   onLiveBrief: (take: string) => void;
   /** One shorten pass on the showing version; on the kept line (restarts the stack there); show version i. */
-  onShorten: () => void; onShortenKept: (line: string) => void; onShow: (i: number) => void;
+  onShorten: () => void; onShortenKept: (kept: { line: string; marks?: PrompterMarks }) => void; onShow: (i: number) => void;
+  /** The mark toolbar's pick for the version showing. */
+  onMarks: (marks: PrompterMarks | undefined) => void;
   onSkip: () => void; onPrev: () => void; onNext: () => void;
 }) {
   const hasLines = !!suggestion?.suggested;
   const loading = suggestion?.status === "loading";
+  // T toggles talking here (the review is Lee's own overlay; on /film T stays free).
+  const talk = useSpokenTake(onLiveBrief, true);
+  const useLabel = talk.take ? "✓ use that" : "✓ Use this";
 
-  // THE SPOKEN TAKE. `take` is every FINAL chunk so far; `interim` is what SpeechRecognition is
-  // still working out — shown live, replaced on every event, same as the film captions.
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: GOLD }}>{FRAME_LABEL[frame.kind]}</span>
+        {context && <span style={{ fontSize: 12, color: MUTED }}>{context.length > 160 ? `${context.slice(0, 160)}…` : context}</span>}
+      </div>
+      {kept && (
+        <div style={{ marginTop: 8, fontSize: 12.5, color: MINT, display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+          <span>✓ kept: <span style={{ color: CREAM }}><Painted line={kept.line} marks={kept.marks} /></span> <span style={{ color: MUTED }}>— pick again to change it</span></span>
+          {/* Shorten the line he already kept: the stack restarts at it, the pass lands in Suggested, Use this keeps it again. */}
+          {hasLines && <button type="button" onClick={() => onShortenKept(kept)} disabled={!!suggestion?.shortening} title="A concise pass on the kept line — lands in Suggested" style={{ ...btn(), fontSize: 11, padding: "2px 8px" }}>✂ shorten this</button>}
+        </div>
+      )}
+      <details style={{ marginTop: 8 }}>
+        <summary style={{ fontSize: 10.5, color: MUTED, cursor: "pointer" }}>what you said in the round</summary>
+        <div style={{ marginTop: 4, fontSize: 12, color: MUTED, lineHeight: 1.4 }}>{raw}</div>
+      </details>
+
+      {loading && !hasLines && <div style={{ marginTop: 14, fontSize: 13, color: MUTED }}>Prepping the lines…</div>}
+      {suggestion?.status === "error" && (
+        <div style={{ marginTop: 14, fontSize: 12.5, color: ORANGE, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {suggestion.error} <button type="button" onClick={onRetry} style={btn()}>Try again</button>
+        </div>
+      )}
+      {hasLines && suggestion && (
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10, opacity: loading ? 0.75 : 1, transition: "opacity 120ms" }}>
+          {suggestion.said && <LineCard title={talk.take ? "Your take, cleaned" : "What you said, cleaned"} line={suggestion.said} useLabel={useLabel} onUse={() => onPick(suggestion.said, "said", undefined)} />}
+          <LineCardView suggestion={suggestion} loading={loading} useLabel={useLabel} onPick={onPick} onShorten={onShorten} onShow={onShow} onMarks={onMarks} />
+        </div>
+      )}
+
+      <TalkRow talk={talk} hotkey />
+
+      <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center" }}>
+        <button type="button" onClick={onPrev} disabled={first} style={{ ...btn(), opacity: first ? 0.4 : 1 }}>←</button>
+        <button type="button" onClick={onNext} style={btn()}>→</button>
+        <span style={{ fontSize: 11, color: MUTED }}>arrow keys too</span>
+        <span style={{ flex: 1 }} />
+        <button type="button" onClick={onSkip} style={btn()}>{last ? "Skip → canned lines" : "Skip"}</button>
+      </div>
+    </div>
+  );
+}
+
+// ---- THE SPOKEN TAKE, shared by the review and the card on /film ---------------------------
+
+interface SpokenTake { take: string; interim: string; talking: boolean; supported: boolean; toggle: () => void }
+
+/** "I want to by default speak things out… click it and start talking, it dictates it out… can
+ *  the AI be following along in the background". `take` is every FINAL chunk so far; `interim`
+ *  is what SpeechRecognition is still working out — shown live, replaced on every event, same
+ *  as the film captions. Escape while talking STOPS it — caught in the capture phase so it
+ *  never reaches BlastOffCapture's Escape (which would close the review, or leave Film, under
+ *  Lee mid-sentence). `hotkey` adds T to toggle it. */
+function useSpokenTake(onLiveBrief: (take: string) => void, hotkey: boolean): SpokenTake {
   const [take, setTake] = useState("");
   const [interim, setInterim] = useState("");
   const dictation = useDictation((final, live) => {
@@ -382,87 +514,56 @@ function SlideScreen({ frame, context, raw, suggestion, kept, first, last, onPic
 
   const startTalk = () => { if (!dictation.supported || dictation.on) return; setTake(""); setInterim(""); briefed.current = ""; dictation.start(); };
   const stopTalk = () => { dictation.stop(); setInterim(""); };
-  const toggleTalk = () => (dictation.on ? stopTalk() : startTalk());
-  const toggleRef = useRef(toggleTalk); toggleRef.current = toggleTalk;
+  const toggle = () => (dictation.on ? stopTalk() : startTalk());
+  const toggleRef = useRef(toggle); toggleRef.current = toggle;
   const onRef = useRef(dictation.on); onRef.current = dictation.on;
 
-  // T toggles talking; Escape while talking STOPS it — caught in the capture phase so it never
-  // reaches BlastOffCapture's Escape (which would close the whole review under Lee mid-sentence).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTypingTarget()) return;
       if (e.key === "Escape" && onRef.current) { e.preventDefault(); e.stopImmediatePropagation(); toggleRef.current(); return; }
-      if ((e.key === "t" || e.key === "T") && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); toggleRef.current(); }
+      if (hotkey && (e.key === "t" || e.key === "T") && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); toggleRef.current(); }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, []);
+  }, [hotkey]);
 
-  const talking = dictation.on;
-  const useLabel = take ? "✓ use that" : "✓ Use this";
+  return { take, interim, talking: dictation.on, supported: dictation.supported, toggle };
+}
 
+/** The talk box: the button, the one-line hint, the take as it lands. */
+function TalkRow({ talk, hotkey, compact }: { talk: SpokenTake; hotkey?: boolean; compact?: boolean }) {
+  const { talking, supported, take, interim } = talk;
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: GOLD }}>{FRAME_LABEL[frame.kind]}</span>
-        {context && <span style={{ fontSize: 12, color: MUTED }}>{context.length > 160 ? `${context.slice(0, 160)}…` : context}</span>}
-      </div>
-      {kept && (
-        <div style={{ marginTop: 8, fontSize: 12.5, color: MINT, display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
-          <span>✓ kept: <span style={{ color: CREAM }}>{kept}</span> <span style={{ color: MUTED }}>— pick again to change it</span></span>
-          {/* Shorten the line he already kept: the stack restarts at it, the pass lands in Suggested, Use this keeps it again. */}
-          {hasLines && <button type="button" onClick={() => onShortenKept(kept)} disabled={!!suggestion?.shortening} title="A concise pass on the kept line — lands in Suggested" style={{ ...btn(), fontSize: 11, padding: "2px 8px" }}>✂ shorten this</button>}
-        </div>
-      )}
-      <details style={{ marginTop: 8 }}>
-        <summary style={{ fontSize: 10.5, color: MUTED, cursor: "pointer" }}>what you said in the round</summary>
-        <div style={{ marginTop: 4, fontSize: 12, color: MUTED, lineHeight: 1.4 }}>{raw}</div>
-      </details>
-
-      {loading && !hasLines && <div style={{ marginTop: 14, fontSize: 13, color: MUTED }}>Prepping the lines…</div>}
-      {suggestion?.status === "error" && (
-        <div style={{ marginTop: 14, fontSize: 12.5, color: ORANGE, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {suggestion.error} <button type="button" onClick={onRetry} style={btn()}>Try again</button>
-        </div>
-      )}
-      {hasLines && suggestion && (
-        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10, opacity: loading ? 0.75 : 1, transition: "opacity 120ms" }}>
-          {suggestion.said && <LineCard title={take ? "Your take, cleaned" : "What you said, cleaned"} line={suggestion.said} useLabel={useLabel} onUse={() => onPick(suggestion.said, "said")} />}
-          <SuggestedCard suggestion={suggestion} loading={loading} useLabel={useLabel} onPick={onPick} onShorten={onShorten} onShow={onShow} />
-        </div>
-      )}
-
-      {/* TALK. Lee: "I want to by default speak things out… click it and start talking". */}
-      <div style={{ marginTop: 12, border: `1px solid ${talking ? MINT + "88" : EDGE}`, borderRadius: 12, padding: "10px 14px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {dictation.supported ? (
-            <button type="button" onClick={toggleTalk} style={{ ...btn(talking ? ORANGE : MINT), borderColor: talking ? ORANGE + "88" : MINT + "66" }}>
-              {talking ? "■ Stop (Esc)" : "🎙 Say it (T)"}
-            </button>
-          ) : (
-            <span style={{ fontSize: 12, color: MUTED }}>Dictation needs Chrome or Edge — click the suggested line to edit it instead.</span>
-          )}
+    <div style={{ marginTop: compact ? 8 : 12, border: `1px solid ${talking ? MINT + "88" : EDGE}`, borderRadius: 12, padding: compact ? "8px 10px" : "10px 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        {supported ? (
+          <button type="button" onClick={talk.toggle} style={{ ...btn(talking ? ORANGE : MINT), borderColor: talking ? ORANGE + "88" : MINT + "66" }}>
+            {talking ? "■ Stop (Esc)" : hotkey ? "🎙 Say it (T)" : "🎙 Say it"}
+          </button>
+        ) : (
+          <span style={{ fontSize: 12, color: MUTED }}>Dictation needs Chrome or Edge — click the suggested line to edit it instead.</span>
+        )}
+        {!compact && (
           <span style={{ fontSize: 11, color: MUTED }}>
-            {talking ? "talking — Suggested follows along; ✓ use that when it's got it" : dictation.supported ? "say the line your way; the suggestion updates while you talk" : ""}
+            {talking ? "talking — Suggested follows along; ✓ use that when it's got it" : supported ? "say the line your way; the suggestion updates while you talk" : ""}
           </span>
-        </div>
-        {(take || interim) && (
-          <div style={{ marginTop: 8, fontSize: 13.5, lineHeight: 1.45 }}>
-            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: MUTED, marginRight: 8 }}>your take</span>
-            {take}{interim && <span style={{ color: MUTED }}> {interim}</span>}
-          </div>
         )}
       </div>
-
-      <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center" }}>
-        <button type="button" onClick={onPrev} disabled={first} style={{ ...btn(), opacity: first ? 0.4 : 1 }}>←</button>
-        <button type="button" onClick={onNext} style={btn()}>→</button>
-        <span style={{ fontSize: 11, color: MUTED }}>arrow keys too</span>
-        <span style={{ flex: 1 }} />
-        <button type="button" onClick={onSkip} style={btn()}>{last ? "Skip → canned lines" : "Skip"}</button>
-      </div>
+      {(take || interim) && (
+        <div style={{ marginTop: 8, fontSize: 13.5, lineHeight: 1.45 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: MUTED, marginRight: 8 }}>your take</span>
+          {take}{interim && <span style={{ color: MUTED }}> {interim}</span>}
+        </div>
+      )}
     </div>
   );
+}
+
+/** A line with its timing marks painted — the shared painter, so this is the same yellow and
+ *  orange the teleprompter window shows. */
+function Painted({ line, marks }: { line: string; marks: PrompterMarks | undefined }) {
+  return <>{paintLine(line, marks).map((s, i) => <span key={i} style={markStyle(s.tone)}>{s.text}</span>)}</>;
 }
 
 function LineCard({ title, line, useLabel, onUse }: { title: string; line: string; useLabel: string; onUse: () => void }) {
@@ -475,14 +576,20 @@ function LineCard({ title, line, useLabel, onUse }: { title: string; line: strin
   );
 }
 
-/** THE SUGGESTED CARD: the register chip, the version chips (v1 · v2 · v3 — one per shorten
- *  pass, click to look at each), the line (click → edit in place: Enter keeps the edit as
- *  "edited" — or as "suggested" if he changed nothing — Escape cancels), the keywords the
+/** THE SUGGESTED CARD's face: the register chip, the version chips (v1 · v2 · v3 — one per
+ *  shorten pass, click to look at each), the line (click → edit in place: Enter keeps the edit
+ *  as "edited" — or as "suggested" if he changed nothing — Escape cancels), the keywords the
  *  prompter's scan mode will show, the hand-off small beneath, and "✂ shorten" with its pass
- *  counter + ↶. Lee: "if I want to write one in, I can just edit the suggested one." */
-function SuggestedCard({ suggestion, loading, useLabel, onPick, onShorten, onShow }: {
-  suggestion: SlideSuggestion; loading: boolean; useLabel: string; onPick: (line: string, action: RehearsalAction) => void;
-  onShorten: () => void; onShow: (i: number) => void;
+ *  counter + ↶. Lee: "if I want to write one in, I can just edit the suggested one."
+ *
+ *  THE MARKS (sixth pass): the line is painted — the transition phrase yellow, the cue word
+ *  orange — and selecting any words in it floats a tiny toolbar: "transition phrase" / "cue
+ *  word" / "clear". A plain click (no selection) still opens the editor; a drag-select never
+ *  does. Keyboard-free on purpose — the marks are a mouse gesture on the words themselves. */
+function LineCardView({ suggestion, loading, useLabel, onPick, onShorten, onShow, onMarks }: {
+  suggestion: SlideSuggestion; loading: boolean; useLabel: string;
+  onPick: (line: string, action: RehearsalAction, marks: PrompterMarks | undefined) => void;
+  onShorten: () => void; onShow: (i: number) => void; onMarks: (marks: PrompterMarks | undefined) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -492,9 +599,36 @@ function SuggestedCard({ suggestion, loading, useLabel, onPick, onShorten, onSho
   const keep = () => {
     const d = draft.trim();
     if (!d) return;
-    onPick(d, d === suggestion.suggested.trim() ? "suggested" : "edited");
+    // An edited line keeps whichever marks still fit it.
+    onPick(d, d === suggestion.suggested.trim() ? "suggested" : "edited", pruneMarks(d, suggestion.marks));
     setEditing(false);
   };
+  const startEdit = () => { setDraft(suggestion.suggested); setEditing(true); };
+
+  // THE SELECTION → THE TOOLBAR. Read on mouseup inside the line; the selected words must be in
+  // the line (findMark — so a selection that ran off the edge of the line is just ignored), and
+  // the mark stored is the line's own slice of them.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const lineRef = useRef<HTMLDivElement>(null);
+  const [sel, setSel] = useState<{ text: string; x: number; y: number } | null>(null);
+  const readSelection = () => {
+    const s = window.getSelection();
+    const raw = s?.toString().replace(/\s+/g, " ").trim() ?? "";
+    const el = lineRef.current, host = wrapRef.current;
+    if (!s || !raw || s.rangeCount === 0 || !el || !host || !el.contains(s.anchorNode) || !el.contains(s.focusNode)) { setSel(null); return; }
+    const i = findMark(suggestion.suggested, raw);
+    if (i < 0) { setSel(null); return; }
+    const r = s.getRangeAt(0).getBoundingClientRect();
+    const h = host.getBoundingClientRect();
+    setSel({ text: suggestion.suggested.slice(i, i + raw.length), x: r.left - h.left + r.width / 2, y: r.top - h.top });
+  };
+  useEffect(() => {
+    if (!sel) return;
+    const off = (e: MouseEvent) => { if (!(e.target as HTMLElement | null)?.closest?.("[data-mark-toolbar]")) setSel(null); };
+    document.addEventListener("mousedown", off);
+    return () => document.removeEventListener("mousedown", off);
+  }, [sel]);
+  const mark = (next: PrompterMarks | undefined) => { onMarks(next); window.getSelection()?.removeAllRanges(); setSel(null); };
 
   // The pass the NEXT press would run: from the showing version, so shortening v1 again after
   // looking back at it is pass 1 again (and drops the later versions). Three is the ceiling.
@@ -502,9 +636,18 @@ function SuggestedCard({ suggestion, loading, useLabel, onPick, onShorten, onSho
   const canShorten = suggestion.showing < SHORTEN_PASSES && !suggestion.shortening && !loading;
   const showingVersion = suggestion.versions[suggestion.showing];
   const words = suggestion.suggested.trim() ? suggestion.suggested.trim().split(/\s+/).length : 0;
+  const marks = suggestion.marks;
 
   return (
-    <div style={{ border: `1px solid ${GOLD}55`, borderRadius: 12, padding: "10px 14px" }}>
+    <div ref={wrapRef} style={{ position: "relative", border: `1px solid ${GOLD}55`, borderRadius: 12, padding: "10px 14px" }}>
+      {sel && !editing && (
+        <div data-mark-toolbar role="toolbar" aria-label="Mark the selection"
+          style={{ position: "absolute", left: sel.x, top: sel.y - 36, transform: "translateX(-50%)", zIndex: 5, display: "flex", gap: 4, background: INK, border: `1px solid ${GOLD}88`, borderRadius: 8, padding: 3, boxShadow: "0 8px 24px rgba(0,0,0,0.5)", whiteSpace: "nowrap" }}>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => mark({ ...marks, phrase: sel.text })} title="The words that pull into the next slide (yellow)" style={{ ...toolBtn(), background: "rgba(252,163,17,0.35)", color: CREAM }}>transition phrase</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => mark({ ...marks, word: sel.text })} title="The word you change the slide on (orange)" style={{ ...toolBtn(), background: ORANGE, color: "#14213D" }}>cue word</button>
+          {marks && <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => mark(undefined)} title="Clear both marks" style={toolBtn()}>clear</button>}
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
         <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: MUTED }}>Suggested</span>
         <span title={suggestion.register === "cheat-code" ? "how you know the answer — move on" : "a beat of why, then the answer"}
@@ -535,9 +678,19 @@ function SuggestedCard({ suggestion, loading, useLabel, onPick, onShorten, onSho
           }}
           style={{ marginTop: 6, width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.05)", border: `1px solid ${GOLD}88`, borderRadius: 8, padding: "6px 8px", color: CREAM, font: "inherit", fontSize: 15, lineHeight: 1.4, resize: "vertical" }} />
       ) : (
-        <div onClick={() => { setDraft(suggestion.suggested); setEditing(true); }} title="Click to edit — Enter keeps, Escape cancels"
-          style={{ marginTop: 6, fontSize: 15, lineHeight: 1.4, cursor: "text", borderRadius: 6, margin: "6px -6px 0", padding: "0 6px" }}>
-          {suggestion.suggested}
+        <div ref={lineRef} onMouseUp={readSelection}
+          // A drag-select ends in a click too — only a plain click (nothing selected) opens the editor.
+          onClick={() => { if (window.getSelection()?.toString().trim()) return; startEdit(); }}
+          title="Click to edit — Enter keeps, Escape cancels · select words to mark the transition phrase or the cue word"
+          style={{ marginTop: 6, fontSize: 15, lineHeight: 1.5, cursor: "text", borderRadius: 6, margin: "6px -6px 0", padding: "0 6px" }}>
+          <Painted line={suggestion.suggested} marks={marks} />
+        </div>
+      )}
+      {!editing && (
+        <div style={{ marginTop: 5, fontSize: 10.5, color: MUTED, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
+          {marks?.phrase && <span><span style={{ ...markStyle("phrase"), padding: "0 4px" }}>transition</span> {marks.phrase}</span>}
+          {marks?.word && <span><span style={{ ...markStyle("word"), padding: "0 4px", fontSize: 10 }}>flip on</span> {marks.word}</span>}
+          {!marks && <span>select words in the line to mark the hand-off — the phrase yellow, the word you flip the slide on orange</span>}
         </div>
       )}
       {suggestion.keywords.length > 0 && !editing && (
@@ -556,8 +709,8 @@ function SuggestedCard({ suggestion, loading, useLabel, onPick, onShorten, onSho
           </>
         ) : (
           <>
-            <button type="button" onClick={() => onPick(suggestion.suggested, "suggested")} style={btn(MINT)}>{useLabel}</button>
-            <button type="button" onClick={() => { setDraft(suggestion.suggested); setEditing(true); }} style={btn()}>edit</button>
+            <button type="button" onClick={() => onPick(suggestion.suggested, "suggested", marks)} style={btn(MINT)}>{useLabel}</button>
+            <button type="button" onClick={startEdit} style={btn()}>edit</button>
             <span style={{ flex: 1 }} />
             {/* ↶ walks back one version; the chips above jump to any. Nothing is dropped until a
                 new pass runs from an older version. */}
@@ -574,6 +727,133 @@ function SuggestedCard({ suggestion, loading, useLabel, onPick, onShorten, onSho
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** A mark-toolbar button. */
+const toolBtn = (): React.CSSProperties => ({ font: "inherit", fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, border: `1px solid ${EDGE}`, background: "transparent", color: CREAM, cursor: "pointer" });
+
+// ---- THE CARD ON FILM (sixth pass; docs/USE-YOUR-WORDS-AUDIT.md #13) ------------------------
+
+/** THE SUGGESTED CARD, SELF-CONTAINED — the prompter panel on /film mounts this for the kept
+ *  line after round 2, where a plain textarea used to be. Same face as the review's card
+ *  (LineCardView), and it owns for ONE line what the review owns for every slide: the shorten
+ *  stack (v1 is the kept line), "🎙 Say it" with the live brief, the keywords follow-up, the
+ *  feedback row. `onCommit` mirrors BlastOffCapture's commitPrompterLine — keys/transition
+ *  undefined = leave them; marks alone save the moment Lee marks them (no extra click when the
+ *  line itself didn't change). */
+export function SuggestedCard({ ctx, line, keys, marks, transition, onCommit }: {
+  ctx: CardContext;
+  line: string; keys?: readonly string[]; marks?: PrompterMarks; transition?: string;
+  onCommit: (line: string, keys: string[] | undefined, transition: string | undefined, marks: PrompterMarks | undefined) => void;
+}) {
+  const seed = (l: string, k: readonly string[] | undefined, m: PrompterMarks | undefined, t: string | undefined): SlideSuggestion =>
+    ({ status: "ready", said: "", suggested: l, register: "teach", transition: t ?? null, keywords: [...(k ?? [])], marks: normalizeMarks(m), raw: "", versions: [{ line: l, keywords: [...(k ?? [])], marks: normalizeMarks(m), pass: 0 }], showing: 0 });
+  const [sug, setSug] = useState<SlideSuggestion>(() => seed(line, keys, marks, transition));
+  const [examples, setExamples] = useState<StyleExample[]>([]);
+  useEffect(() => { startTT(); topRehearsalExamples().then(setExamples).catch(() => setExamples([])); }, []);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
+  /** The line the FRAME has — marks on exactly this line save on their own. */
+  const committedRef = useRef(line); committedRef.current = line;
+  // A line changed UNDER the card — the review overlay re-opened ("lines N →") and Lee kept a
+  // different one there — reseeds it; the card's own commits don't (they already reset it).
+  const lastCommit = useRef(line);
+  useEffect(() => {
+    if (line === lastCommit.current) return;
+    lastCommit.current = line;
+    setSug(seed(line, keys, marks, transition));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [line]);
+
+  // One call in flight while Lee talks; the newest take waits and runs when it lands.
+  const inFlight = useRef(false);
+  const pending = useRef<string | undefined>(undefined);
+  const suggestRef = useRef<(raw: string) => Promise<void>>(async () => {});
+  const suggest = useCallback(async (raw: string) => {
+    if (!raw.trim()) return;
+    if (inFlight.current) { pending.current = raw; return; }
+    inFlight.current = true;
+    setSug((s) => ({ ...s, status: "loading", error: undefined }));
+    try {
+      const lines = await runRehearsalBrief(ctx, raw, examples);
+      if (!alive.current) return;
+      const m = marksOf(lines);
+      if (!pending.current) setSug({ status: "ready", ...lines, marks: m, raw, versions: [{ line: lines.suggested, keywords: lines.keywords, marks: m, pass: 0 }], showing: 0 });
+    } catch (e) {
+      if (alive.current) setSug((s) => ({ ...s, status: "error", error: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      inFlight.current = false;
+      const p = pending.current;
+      pending.current = undefined;
+      if (p && alive.current) void suggestRef.current(p);
+    }
+  }, [ctx, examples]);
+  suggestRef.current = suggest;
+
+  const shorten = useCallback(async () => {
+    if (sug.shortening) return;
+    const base = sug.versions.slice(0, sug.showing + 1);
+    if (base.length === 0 || base.length > SHORTEN_PASSES) return;
+    const pass = base.length as ShortenPass;
+    const src = base[base.length - 1];
+    setSug((s) => ({ ...s, shortening: true, shortenError: undefined, versions: base, showing: base.length - 1, suggested: src.line, keywords: src.keywords, marks: src.marks }));
+    try {
+      const out = await runShortenPass(ctx, src.line, pass, sug.register);
+      if (!alive.current) return;
+      setSug((cur) => (cur.versions[0]?.line !== base[0].line ? cur : pushVersion(cur, base, out, pass)));
+    } catch (e) {
+      if (alive.current) setSug((s) => ({ ...s, shortening: false, shortenError: e instanceof Error ? e.message : String(e) }));
+    }
+  }, [sug, ctx]);
+
+  const setMarks = useCallback((m: PrompterMarks | undefined) => {
+    setSug((cur) => markedVersion(cur, m));
+    // Marks on the line the frame already has save at once — that IS the edit.
+    if (sug.suggested.trim() === committedRef.current.trim()) onCommit(committedRef.current, undefined, undefined, normalizeMarks(m) ?? {});
+  }, [sug.suggested, onCommit]);
+
+  const commit = useCallback(async (picked: string, action: RehearsalAction, m: PrompterMarks | undefined) => {
+    const finalLine = picked.trim();
+    if (!finalLine) return;
+    const pruned = pruneMarks(finalLine, m) ?? {};
+    const knownKeys = action === "suggested" && sug.keywords.length ? sug.keywords : undefined;
+    // Only a real decision is a style example — re-keeping the frame's own line unchanged isn't.
+    const changed = finalLine !== committedRef.current.trim() || !!sug.raw;
+    lastCommit.current = finalLine;
+    onCommit(finalLine, knownKeys, sug.transition ?? undefined, pruned);
+    if (changed) void logTeleprompterFeedback({ data: { setId: ctx.setId, frameId: ctx.frame.id, rawTranscript: sug.raw, suggestedLine: sug.suggested, finalLine, action, who: getAdminWho() } });
+    // The kept line is v1 again.
+    setSug(seed(finalLine, knownKeys, pruned, sug.transition ?? undefined));
+    if (knownKeys) return;
+    try {
+      const k = await keywordsFor(ctx.setId, finalLine);
+      if (k.length && alive.current && committedRef.current.trim() === finalLine) { onCommit(finalLine, k, sug.transition ?? undefined, pruned); setSug((s) => (s.suggested === finalLine ? { ...s, keywords: k, versions: s.versions.map((v, i) => (i === 0 ? { ...v, keywords: k } : v)) } : s)); }
+    } catch { /* kept either way */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sug, onCommit, ctx.setId, ctx.frame.id]);
+
+  const talk = useSpokenTake((take) => void suggest(take), false);
+  const loading = sug.status === "loading";
+  const useLabel = talk.take ? "✓ use that" : "✓ Use this";
+
+  return (
+    <div>
+      {sug.status === "error" && sug.error && (
+        <div style={{ marginBottom: 8, fontSize: 12, color: ORANGE, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {sug.error} <button type="button" onClick={() => void suggest(sug.raw || talk.take)} style={btn()}>Try again</button>
+        </div>
+      )}
+      {sug.said && talk.take && (
+        <div style={{ marginBottom: 8 }}>
+          <LineCard title="Your take, cleaned" line={sug.said} useLabel={useLabel} onUse={() => void commit(sug.said, "said", undefined)} />
+        </div>
+      )}
+      <div style={{ opacity: loading ? 0.75 : 1, transition: "opacity 120ms" }}>
+        <LineCardView suggestion={sug} loading={loading} useLabel={useLabel} onPick={(l, a, m) => void commit(l, a, m)} onShorten={() => void shorten()} onShow={(i) => setSug((cur) => showingVersion(cur, i))} onMarks={setMarks} />
+      </div>
+      <TalkRow talk={talk} compact />
     </div>
   );
 }

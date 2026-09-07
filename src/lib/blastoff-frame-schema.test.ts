@@ -12,7 +12,7 @@ describe("blastoff frame schema", () => {
   test("a fully-populated frame round-trips byte-for-byte", () => {
     const full: Required<Omit<BlastFrame, "kind" | "ad" | "cam" | "backdrop" | "banner" | "portrait">> & Pick<BlastFrame, "kind" | "ad" | "cam" | "backdrop" | "banner" | "portrait"> = {
       id: "f1", kind: "ad", ceqId: "c1", text: "t", title: "T", body: "B", exhibitRef: "je", bankItemId: "b1",
-      skipped: true, prompter: ["one", "two"], prompterKeys: ["one = 1", "→ two"], prompterTransition: "Next question.", bullets: ["a", "b"], backdrop: "off", variant: "zoom", psych: 0.1,
+      skipped: true, prompter: ["one", "two"], prompterKeys: ["one = 1", "→ two"], prompterTransition: "Next question.", prompterMarks: { phrase: "Next question.", word: "Next" }, bullets: ["a", "b"], backdrop: "off", variant: "zoom", psych: 0.1,
       banner: "on", ad: "building", url: "surviveaccounting.com", portrait: "on", cam: "hero", camPos: { x: 0.2, y: 0.8 }, camSize: 0.4,
       illustration: {
         requested: true, prompt: "a vault with two doors", teachingIntent: "Internal vs external users", provider: "recraft", stylePreset: "survive-watercolor", styleVersion: 1, assetUrl: "https://x/y.png", localAssetId: "illustrations/s/f-1.png", animationPreset: "boil", generatedAt: "2026-09-05T00:00:00.000Z", seed: 42,
@@ -42,6 +42,15 @@ describe("blastoff frame schema", () => {
   test("a cleared illustration (null) and an absent one both pass", () => {
     expect(frameSchema.safeParse({ id: "x", kind: "ceq", illustration: null }).success).toBe(true);
     expect(frameSchema.safeParse({ id: "x", kind: "ceq" }).success).toBe(true);
+  });
+
+  // 2026-09-07: the timing marks — a strip here would blank every highlight on the prompter.
+  test("the timing marks survive, whole or half, and an absent one passes", () => {
+    const r = frameSchema.safeParse({ id: "x", kind: "ceq", prompterMarks: { word: "External" } });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.prompterMarks).toEqual({ word: "External" });
+    expect(frameSchema.safeParse({ id: "x", kind: "ceq", prompterMarks: {} }).success).toBe(true);
+    expect(frameSchema.safeParse({ id: "x", kind: "ceq", prompterMarks: { phrase: 3 } }).success).toBe(false);
   });
 
   test("an unknown ad kind is refused loudly, not stripped", () => {

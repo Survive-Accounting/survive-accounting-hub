@@ -20,7 +20,7 @@ describe("the rehearsal brief", () => {
     expect(m.system).toMatch(/KEEP IT LEE'S/);
     expect(m.system).toMatch(/SHORT-FORM PACING/);
     // Every field is asked for, by name, and the cleaned one is told to add nothing.
-    expect(m.system).toContain('{"said": str, "suggested": str, "register": "teach"|"cheat-code", "transition": str|null, "keywords": [str]}');
+    expect(m.system).toContain('{"said": str, "suggested": str, "register": "teach"|"cheat-code", "transition": str|null, "keywords": [str], "transitionPhrase": str|null, "cueWord": str|null}');
     expect(m.system).toMatch(/ADD NOTHING/);
   });
   test("no style examples or talkthrough omits those sections cleanly", () => {
@@ -79,20 +79,55 @@ describe("the rehearsal brief", () => {
 
   test("parses every field; junk and two empty lines both fail", () => {
     expect(parseRehearsalSuggestions('{"said":"Internal users are the managers.","suggested":"Internal users are the managers making the calls.","register":"cheat-code","transition":"Next question.","keywords":["Internal = managers","next question"]}'))
-      .toEqual({ said: "Internal users are the managers.", suggested: "Internal users are the managers making the calls.", register: "cheat-code", transition: "Next question.", keywords: ["Internal = managers", "next question"] });
+      .toEqual({ said: "Internal users are the managers.", suggested: "Internal users are the managers making the calls.", register: "cheat-code", transition: "Next question.", keywords: ["Internal = managers", "next question"], transitionPhrase: null, cueWord: null });
     expect(parseRehearsalSuggestions("no json here")).toBeNull();
     expect(parseRehearsalSuggestions('{"said":"","suggested":""}')).toBeNull();
     expect(parseRehearsalSuggestions('Sure! {"said":"  padded  ","suggested":" also padded "}'))
-      .toEqual({ said: "padded", suggested: "also padded", register: "teach", transition: null, keywords: [] });
+      .toEqual({ said: "padded", suggested: "also padded", register: "teach", transition: null, keywords: [], transitionPhrase: null, cueWord: null });
   });
   test("odd new fields fall back safely: unknown register → teach, blank transition → null, junk keywords dropped and capped", () => {
     const r = parseRehearsalSuggestions('{"said":"a","suggested":"b","register":"shout","transition":"   ","keywords":["one", 2, "", "three", "four", "five", "six", "seven"]}');
-    expect(r).toEqual({ said: "a", suggested: "b", register: "teach", transition: null, keywords: ["one", "three", "four", "five", "six"] });
+    expect(r).toEqual({ said: "a", suggested: "b", register: "teach", transition: null, keywords: ["one", "three", "four", "five", "six"], transitionPhrase: null, cueWord: null });
     expect(parseRehearsalSuggestions('{"said":"a","suggested":"b","keywords":"not a list"}')?.keywords).toEqual([]);
   });
   test("a legacy one-line answer is taken as the suggestion; a lone cleaned line stands in for both", () => {
-    expect(parseRehearsalSuggestions('{"line":"Internal users are the managers."}')).toEqual({ said: "", suggested: "Internal users are the managers.", register: "teach", transition: null, keywords: [] });
-    expect(parseRehearsalSuggestions('{"said":"Just the cleaned one."}')).toEqual({ said: "Just the cleaned one.", suggested: "Just the cleaned one.", register: "teach", transition: null, keywords: [] });
+    expect(parseRehearsalSuggestions('{"line":"Internal users are the managers."}')).toEqual({ said: "", suggested: "Internal users are the managers.", register: "teach", transition: null, keywords: [], transitionPhrase: null, cueWord: null });
+    expect(parseRehearsalSuggestions('{"said":"Just the cleaned one."}')).toEqual({ said: "Just the cleaned one.", suggested: "Just the cleaned one.", register: "teach", transition: null, keywords: [], transitionPhrase: null, cueWord: null });
+  });
+
+  // 2026-09-07 — Lee: "transition phrase is yellow but the word itself is orange."
+  describe("the timing marks", () => {
+    const line = "External means outside the company. No paycheck? External. Next question.";
+    test("the brief asks for both, verbatim from the suggested line", () => {
+      expect(REHEARSAL_SYSTEM).toMatch(/TIMING — the end of each slide pulls into the next one/);
+      expect(REHEARSAL_SYSTEM).toMatch(/"transitionPhrase" = the 2–8 words of the SUGGESTED line/);
+      expect(REHEARSAL_SYSTEM).toMatch(/"cueWord" = the single word inside that phrase/);
+    });
+    test("a phrase and a word that are in the line come through, in the line's own spelling", () => {
+      const r = parseRehearsalSuggestions(JSON.stringify({ said: "", suggested: line, transitionPhrase: "No paycheck? External.", cueWord: "External" }));
+      expect(r?.transitionPhrase).toBe("No paycheck? External.");
+      expect(r?.cueWord).toBe("External");
+      // A capital the model changed is forgiven — the mark is the line's spelling, so painters find it.
+      const r2 = parseRehearsalSuggestions(JSON.stringify({ said: "", suggested: line, transitionPhrase: "no paycheck? external.", cueWord: "external" }));
+      expect(r2?.transitionPhrase).toBe("No paycheck? External.");
+      expect(r2?.cueWord).toBe("External");
+    });
+    test("a phrase that isn't in the line is null; a cue word outside the phrase (or the line) is null", () => {
+      const r = parseRehearsalSuggestions(JSON.stringify({ said: "", suggested: line, transitionPhrase: "Let's move on now", cueWord: "paycheck" }));
+      expect(r?.transitionPhrase).toBeNull();
+      // No phrase → the word is checked against the whole line, and "paycheck" IS there.
+      expect(r?.cueWord).toBe("paycheck");
+      const r2 = parseRehearsalSuggestions(JSON.stringify({ said: "", suggested: line, transitionPhrase: "Next question.", cueWord: "paycheck" }));
+      expect(r2?.transitionPhrase).toBe("Next question.");
+      expect(r2?.cueWord).toBeNull();            // in the line, not in the phrase
+      const r3 = parseRehearsalSuggestions(JSON.stringify({ said: "", suggested: line, transitionPhrase: null, cueWord: "banana" }));
+      expect(r3?.cueWord).toBeNull();
+    });
+    test("junk shapes are null, never a crash", () => {
+      const r = parseRehearsalSuggestions(JSON.stringify({ said: "", suggested: line, transitionPhrase: 12, cueWord: ["x"] }));
+      expect(r?.transitionPhrase).toBeNull();
+      expect(r?.cueWord).toBeNull();
+    });
   });
 });
 

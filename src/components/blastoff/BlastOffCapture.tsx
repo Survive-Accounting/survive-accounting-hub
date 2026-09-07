@@ -67,8 +67,10 @@ import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf, type RailStatus } from "./layout";
 import { questionProgress } from "./frame-view";
 import { PhoneFrame } from "./PhoneFrame";
-import { FRAME_LABEL, filmFrames, patchFrame, type BlastFrame } from "./plan";
-import { RehearsalReview } from "./RehearsalReview";
+import { markStyle, paintLine } from "@/lib/prompter-marks";
+
+import { FRAME_LABEL, filmFrames, normalizeMarks, patchFrame, type BlastFrame, type PrompterMarks } from "./plan";
+import { RehearsalReview, SuggestedCard } from "./RehearsalReview";
 import { SlideEditContext } from "./slide-edit";
 
 /** open/intro share the "intro" slot (one spoken line, two frames); bio and outro are their own. */
@@ -213,8 +215,23 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
 
   // Keys + the hand-off (2026-09-07): the rehearsal review passes the scan keywords and the
   // transition of the line Lee kept; the teleprompter's keyword mode reads them off the frame.
-  const commitPrompterLine = useCallback((fid: string, line: string, keys?: string[], transition?: string) => { if (plan) commit(patchFrame(plan.frames, fid, { prompter: [line], ...(keys ? { prompterKeys: keys } : {}), ...(transition !== undefined ? { prompterTransition: transition } : {}) })); }, [plan, commit]);
-  const commitPrompterLines = useCallback((fid: string, lines: string[]) => { if (plan) commit(patchFrame(plan.frames, fid, { prompter: lines })); }, [plan, commit]);
+  // And the TIMING MARKS (2026-09-07, later — Lee: "transition phrase is yellow but the word
+  // itself is orange"): an object sets them (an empty one clears — a fresh pick with no marks
+  // must not keep an old slide's), undefined leaves them.
+  const commitPrompterLine = useCallback((fid: string, line: string, keys?: string[], transition?: string, marks?: PrompterMarks) => {
+    if (plan) commit(patchFrame(plan.frames, fid, { prompter: [line], ...(keys ? { prompterKeys: keys } : {}), ...(transition !== undefined ? { prompterTransition: transition } : {}), ...(marks !== undefined ? { prompterMarks: normalizeMarks(marks) } : {}) }));
+  }, [plan, commit]);
+  /** The panel's card, line k of the frame's prompter (the review writes one line; older plans
+   *  may hold several): that line is replaced in place; keys / transition / marks belong to the
+   *  frame, so only the first line's card writes them. */
+  const commitPrompterAt = useCallback((fid: string, k: number, line: string, keys?: string[], transition?: string, marks?: PrompterMarks) => {
+    if (!plan) return;
+    const f = plan.frames.find((x) => x.id === fid);
+    const committed = f?.prompter ?? [];
+    const prompter = committed.length ? committed.map((l, j) => (j === k ? line : l)) : [line];
+    if (k > 0) { commit(patchFrame(plan.frames, fid, { prompter })); return; }
+    commit(patchFrame(plan.frames, fid, { prompter, ...(keys ? { prompterKeys: keys } : {}), ...(transition !== undefined ? { prompterTransition: transition } : {}), ...(marks !== undefined ? { prompterMarks: normalizeMarks(marks) } : {}) }));
+  }, [plan, commit]);
   // The round already ended when the review opened, so closing it — by "← back to rehearsal" or
   // by Done — is just closing it; the next R arms the next round.
   const closeReview = useCallback((_done: boolean) => { setShowReview(false); }, []);
@@ -586,21 +603,30 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
         if (lines.length === 0) return null;
         const suggested = committed.length === 0;
         // "Only editable manually after round 2, to try to avoid over doing the review process."
-        // Click a line → textarea; Enter saves, Escape cancels. Main window only (this panel never
-        // renders in the film pop-out at all).
+        // Since 2026-09-07 (docs/USE-YOUR-WORDS-AUDIT.md #13) "editable" means the rehearsal
+        // review's own Suggested card, mounted here per line: click it to edit in place, "🎙 Say
+        // it" for a spoken take with the live brief, ✂ shorten passes with v1·v2·v3 + ↶, and the
+        // mark toolbar (select words → transition phrase / cue word). Main window only (this
+        // panel never renders in the film pop-out at all). Before that it is read-only, with the
+        // marks painted the way the teleprompter window paints them.
         const editable = prompterEditable(rounds);
         return (
           <div style={{
-            position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", width: 300, maxHeight: "80vh", overflowY: "auto", zIndex: 30,
+            position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", width: editable ? 360 : 300, maxHeight: "80vh", overflowY: "auto", zIndex: 30,
             background: "rgba(7,11,20,0.88)", border: `1px ${suggested ? "dashed" : "solid"} ${EDGE}`, borderRadius: 12, padding: "10px 14px",
             fontFamily: "'Rubik', system-ui, sans-serif", color: CREAM,
           }}>
             <div style={{ fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 6 }}>
-              Prompter{suggested ? " · suggested" : ""}{editable ? <span style={{ color: MUTED, letterSpacing: "0.06em", textTransform: "none", fontWeight: 600 }}> · click a line to edit</span> : null}
+              Prompter{suggested ? " · suggested" : ""}{editable ? <span style={{ color: MUTED, letterSpacing: "0.06em", textTransform: "none", fontWeight: 600 }}> · click the line to edit · select words to mark the hand-off</span> : null}
             </div>
-            {lines.map((line, k) => (
-              <PrompterLine key={`${frame.id}:${k}:${line}`} line={line} editable={editable} first={k === 0}
-                onSave={(text) => commitPrompterLines(frame.id, committed.length ? committed.map((l, j) => (j === k ? text : l)) : [text])} />
+            {lines.map((line, k) => editable ? (
+              <div key={`${frame.id}:${k}`} style={{ marginTop: k === 0 ? 0 : 8 }}>
+                <SuggestedCard ctx={{ setId: set.id, frame, frames, ceqById }} line={line}
+                  keys={k === 0 ? frame.prompterKeys : undefined} marks={k === 0 ? frame.prompterMarks : undefined} transition={k === 0 ? frame.prompterTransition : undefined}
+                  onCommit={(text, keys, transition, marks) => commitPrompterAt(frame.id, k, text, keys, transition, marks)} />
+              </div>
+            ) : (
+              <PrompterLine key={`${frame.id}:${k}:${line}`} line={line} marks={k === 0 ? frame.prompterMarks : undefined} first={k === 0} />
             ))}
           </div>
         );
@@ -619,25 +645,12 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
 /** A small chrome-bar button, gold outline. */
 const chip = (): React.CSSProperties => ({ color: GOLD, background: "none", border: `1px solid ${GOLD}66`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 });
 
-/** One prompter line — plain text, or (after round 2) click-to-edit. Enter saves, Escape cancels,
- *  clicking away cancels too. The global keydown handler ignores textareas, so Escape here never
- *  exits Film. */
-function PrompterLine({ line, editable, first, onSave }: { line: string; editable: boolean; first: boolean; onSave: (text: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(line);
-  const base: React.CSSProperties = { fontSize: 17, lineHeight: 1.35, fontWeight: 600, padding: "5px 0", borderTop: first ? "none" : `1px solid ${EDGE}` };
-  if (!editing) {
-    return (
-      <div onClick={editable ? () => { setDraft(line); setEditing(true); } : undefined} title={editable ? "Click to edit — Enter saves, Escape cancels" : undefined}
-        style={{ ...base, cursor: editable ? "text" : undefined }}>{line}</div>
-    );
-  }
+/** One prompter line, read-only, its timing marks painted (the plain textarea that used to
+ *  open here after round 2 is the review's SuggestedCard now — see the panel above). */
+function PrompterLine({ line, marks, first }: { line: string; marks: PrompterMarks | undefined; first: boolean }) {
   return (
-    <textarea autoFocus rows={3} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => setEditing(false)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); const t = draft.trim(); if (t && t !== line) onSave(t); setEditing(false); }
-        else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setEditing(false); }
-      }}
-      style={{ ...base, display: "block", width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.05)", border: `1px solid ${GOLD}66`, borderRadius: 8, color: CREAM, font: "inherit", fontSize: 15, padding: "6px 8px", resize: "vertical" }} />
+    <div style={{ fontSize: 17, lineHeight: 1.4, fontWeight: 600, padding: "5px 0", borderTop: first ? "none" : `1px solid ${EDGE}` }}>
+      {paintLine(line, marks).map((s, i) => <span key={i} style={markStyle(s.tone)}>{s.text}</span>)}
+    </div>
   );
 }

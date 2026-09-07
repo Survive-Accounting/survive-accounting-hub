@@ -18,6 +18,17 @@
 // last in gold; lines is the verbatim view, unchanged. Untouched, the toggle defaults to
 // keywords whenever the slide has them — that's the scan Lee asked for — and lines otherwise.
 //
+// THE TIMING MARKS (2026-09-07). Lee: "With the teleprompter, I can even highlight pieces of a
+// line that are like when the transition takes place. A big part of my teaching style that hits
+// so hard is my TIMING for moving a slide at the perfect emphasis moment… I can have the
+// teleprompter have a certain piece highlighted, so already know it's coming and I can really
+// make it land. I could even 'double highlight' the word I want to transition on. So it's like
+// transition phrase is yellow but the word itself is orange." frame.prompterMarks, painted by
+// lib/prompter-marks.ts (the same painter the review and the /film panel use): in lines mode
+// the phrase is gold behind the words and the cue word solid orange, navy, bold; in keywords
+// mode the hand-off row stays gold and the cue word is orange wherever it appears — in that
+// row or in a fragment.
+//
 // No ?set: the older phrase-bank mirror — the results board's banked script
 // lines, one at a time, Enter / Shift+Enter / ` to walk them.
 import { createFileRoute } from "@tanstack/react-router";
@@ -30,7 +41,13 @@ import {
 } from "@/components/canvas/phrase-bank";
 import { isTypingTarget } from "@/components/canvas/film-lock";
 import { loadBlastPlan, type BlastFrameRow } from "@/lib/blastoff.functions";
-import { FRAME_LABEL } from "@/components/blastoff/plan";
+import { markStyle, paintLine } from "@/lib/prompter-marks";
+import { FRAME_LABEL, type PrompterMarks } from "@/components/blastoff/plan";
+
+/** A prompter row with its marks painted — every renderer here goes through this. */
+function Marked({ text, marks }: { text: string; marks: PrompterMarks | undefined }) {
+  return <>{paintLine(text, marks).map((s, i) => <span key={i} style={markStyle(s.tone)}>{s.text}</span>)}</>;
+}
 
 export const Route = createFileRoute("/v3/teleprompter")({
   validateSearch: (s: Record<string, unknown>): { set?: string } => (typeof s.set === "string" && s.set ? { set: s.set } : {}),
@@ -127,6 +144,10 @@ function FramePrompter({ setId }: { setId: string }) {
   const setMode = (m: PrompterMode) => { setStored(m); try { localStorage.setItem(MODE_KEY, m); } catch { /* ignore */ } };
   const showKeys = mode === "keywords" && keys.length > 0;
   const transition = frame?.prompterTransition ?? "";
+  const marks = frame?.prompterMarks;
+  // Keywords mode paints ONLY the cue word (the phrase belongs to the verbatim line; the gold
+  // hand-off row already is the phrase's job there).
+  const cueOnly: PrompterMarks | undefined = marks?.word ? { word: marks.word } : undefined;
   // Keywords are short by design (≤ 6 words each) — they hold the big size until the list is
   // long enough that it would run off the window.
   const keyRem = Math.max(MIN_REM, BASE_REM - Math.max(0, keys.length + (transition ? 1 : 0) - 3) * 0.7);
@@ -158,19 +179,19 @@ function FramePrompter({ setId }: { setId: string }) {
       {frame && showKeys && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.35em", maxWidth: "100%", alignItems: "center" }}>
           {keys.map((k, i) => (
-            <div key={i} style={{ fontSize: `${keyRem}rem`, lineHeight: 1.15, fontWeight: 800, letterSpacing: "-0.01em", overflowWrap: "break-word" }}>{k}</div>
+            <div key={i} style={{ fontSize: `${keyRem}rem`, lineHeight: 1.15, fontWeight: 800, letterSpacing: "-0.01em", overflowWrap: "break-word" }}><Marked text={k} marks={cueOnly} /></div>
           ))}
           {transition && (
-            <div style={{ fontSize: `${Math.max(MIN_REM, keyRem - 1)}rem`, lineHeight: 1.15, fontWeight: 800, letterSpacing: "-0.01em", color: "#D97706", marginTop: "0.3em", overflowWrap: "break-word" }}>→ {transition}</div>
+            <div style={{ fontSize: `${Math.max(MIN_REM, keyRem - 1)}rem`, lineHeight: 1.15, fontWeight: 800, letterSpacing: "-0.01em", color: "#D97706", marginTop: "0.3em", overflowWrap: "break-word" }}>→ <Marked text={transition} marks={cueOnly} /></div>
           )}
         </div>
       )}
       {frame && !showKeys && lines.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.6em", maxWidth: "100%" }}>
           {lines.map((l, k) => (
-            <div key={k} style={{ fontSize: `${rem}rem`, lineHeight: 1.15, fontWeight: 800, letterSpacing: "-0.01em", overflowWrap: "break-word" }}>{l}</div>
+            <div key={k} style={{ fontSize: `${rem}rem`, lineHeight: 1.2, fontWeight: 800, letterSpacing: "-0.01em", overflowWrap: "break-word" }}><Marked text={l} marks={marks} /></div>
           ))}
-          {transition && <div style={{ fontSize: `${Math.max(MIN_REM, rem - 1.5)}rem`, lineHeight: 1.15, fontWeight: 800, color: "#D97706", overflowWrap: "break-word" }}>→ {transition}</div>}
+          {transition && <div style={{ fontSize: `${Math.max(MIN_REM, rem - 1.5)}rem`, lineHeight: 1.15, fontWeight: 800, color: "#D97706", overflowWrap: "break-word" }}>→ <Marked text={transition} marks={cueOnly} /></div>}
         </div>
       )}
       <div style={{ position: "absolute", bottom: 14, left: 0, right: 0, color: "#9CA3AF", fontSize: 13, display: "flex", justifyContent: "center", gap: 18 }}>
