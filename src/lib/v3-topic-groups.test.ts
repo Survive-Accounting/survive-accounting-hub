@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
-import { TOPIC_GROUPS, groupSets, orderedSets } from "./v3-topic-groups";
+import { STRATEGY_SHORTS } from "@/lib/strategy";
+import { STEPS } from "@/lib/rep-pre-onboarding";
+import { REP_ONBOARDING_ORDER, groupSets, orderedSets, strategyGroupSpecs } from "./v3-topic-groups";
 
 const set = (id: string, name: string): BoothSetInfo => ({ id, name, ceqs: [], liveCount: 0, draftCount: 0 });
 
@@ -18,35 +20,46 @@ const STRATEGY = [
   set("9", "What Survive is (for a rep)"),
 ];
 
-describe("groupSets", () => {
-  test("strategy: rep onboarding first, in the order a rep watches, numbered", () => {
+describe("groupSets — strategy", () => {
+  test("rep onboarding first: the /rep/onboarding steps in order, then the rest of the lane, numbered", () => {
     const g = groupSets("strategy", STRATEGY);
-    expect(g[0].label).toBe("Rep onboarding");
+    expect(g[0].label).toBe("Campus reps");
     expect(g[0].ordered).toBe(true);
     expect(g[0].sets.map((s) => s.name)).toEqual([
-      "What Survive is (for a rep)", "What a rep actually does, week to week", "How you get paid",
-      "An education with a commission attached", "Why the bar is high", "The mission",
+      "What Survive is (for a rep)", "The mission", "What a rep actually does, week to week", "How you get paid",
+      "Why the bar is high", "An education with a commission attached",
     ]);
   });
-  test("strategy: chairs and councils, then students — every set exactly once", () => {
+  test("the pinned rep order names real seeds, one per onboarding video step", () => {
+    for (const slug of REP_ONBOARDING_ORDER) expect(STRATEGY_SHORTS.some((s) => s.slug === slug && s.lane === "reps")).toBe(true);
+    expect(REP_ONBOARDING_ORDER.length).toBe(STEPS.filter((s) => s.videoKey).length);
+  });
+  test("chairs and councils, then students — every set exactly once, empty lanes dropped", () => {
     const g = groupSets("strategy", STRATEGY);
-    expect(g.map((x) => x.label)).toEqual(["Rep onboarding", "Chapter partners", "Students"]);
+    expect(g.map((x) => x.label)).toEqual(["Campus reps", "Chairs & councils", "New students"]);
+    expect(g[1].sets.map((s) => s.name)).toEqual([
+      "For the scholarship chair: I want you to be incredible at your job",
+      "For IFC and councils: this is for your whole Greek system",
+    ]);
     expect(g.flatMap((x) => x.sets).map((s) => s.id).sort()).toEqual(STRATEGY.map((s) => s.id).sort());
+  });
+  test("every lane on the board is a group spec, in the board's order", () => {
+    expect(strategyGroupSpecs().map((s) => s.label)).toEqual(["Campus reps", "Chairs & councils", "New students", "Building Survive", "Founder notes", "Later"]);
   });
   test("a set that matches no group lands in a trailing Other, never vanishes", () => {
     const g = groupSets("strategy", [...STRATEGY, set("10", "Something new")]);
     expect(g.at(-1)?.label).toBe("Other");
     expect(g.at(-1)?.sets.map((s) => s.name)).toEqual(["Something new"]);
   });
-  test("a topic with no spec is one unlabelled group in bank order", () => {
-    const acct = [set("a", "Normal balances"), set("b", "Journal entry format")];
-    expect(groupSets("easy-points", acct)).toEqual([{ label: null, ordered: false, sets: acct }]);
-  });
   test("orderedSets flattens in the same order", () => {
     expect(orderedSets("strategy", STRATEGY)[0].name).toBe("What Survive is (for a rep)");
     expect(orderedSets("strategy", STRATEGY).length).toBe(9);
   });
-  test("every configured slug is a real slug shape", () => {
-    for (const specs of Object.values(TOPIC_GROUPS)) for (const g of specs) for (const s of g.slugs) expect(s).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+});
+
+describe("groupSets — a topic with no groups", () => {
+  test("is one unlabelled group in bank order", () => {
+    const acct = [set("a", "Normal balances"), set("b", "Journal entry format")];
+    expect(groupSets("easy-points", acct)).toEqual([{ label: null, ordered: false, sets: acct }]);
   });
 });

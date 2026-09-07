@@ -44,6 +44,7 @@ import { listBlastPlanSetIds } from "@/lib/blastoff.functions";
 import { productionBottleneckReport } from "@/lib/production-time.functions";
 import { listPublishStatuses, type SetPublishStatus } from "@/lib/publish-queue.functions";
 import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
+import { orderedSets } from "@/lib/v3-topic-groups";
 
 export const Route = createFileRoute("/v3/")({
   component: V3Queue,
@@ -145,7 +146,7 @@ function V3Queue() {
                   {t.name} <span style={{ color: V3_MUTED, fontWeight: 600, fontSize: 12 }}>· {t.sets.length} set{t.sets.length === 1 ? "" : "s"}</span>
                 </Link>
                 <div className="flex flex-col gap-1.5">
-                  {t.sets.map((s) => {
+                  {orderedSets(slugOf(t.name), t.sets).map((s) => {
                     const info = stageFor(s);
                     return (
                       <div key={s.id} className="flex items-center gap-3 rounded-xl px-4 py-2.5" style={{ border: `1px solid ${V3_EDGE}` }}>
@@ -156,7 +157,7 @@ function V3Queue() {
                         >
                           {s.name}
                         </Link>
-                        <span style={{ color: V3_MUTED, fontSize: 12, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{s.liveCount} q</span>
+                        <span style={{ color: V3_MUTED, fontSize: 12, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{t.kind === "strategy" ? "short" : `${s.liveCount} q`}</span>
                         <StageChip info={info} />
                         {/* RESUME — the one primary action per row: gold, named for the step the
                             set is on. Posted sets still land on Post (there's nothing after it). */}
