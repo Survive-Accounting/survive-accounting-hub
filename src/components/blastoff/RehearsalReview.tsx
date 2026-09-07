@@ -38,6 +38,18 @@
 //   · The brief now sees THE CARD (stem + choices, correct one marked) so a suggestion has to
 //     teach — see rehearsal-brief.ts — and returns keywords (→ frame.prompterKeys, the
 //     teleprompter's scan mode) and a transition (→ frame.prompterTransition).
+//
+// 2026-09-07, fifth pass — SHORTEN PASSES, THE PICTURE, THE LEDGER. Lee: "Suggested prompters
+// in prompter, a button to 'shorten' and revert icon if so. Shorten can almost be like, making
+// more concise of what's written first, but then like another one is actually eliminating
+// stuff. Shorts are, well, SHORT… Maybe let me do two passes (three?) to see how each looks.
+// revert would go to the previous version." → "✂ shorten" on the Suggested card (and on a kept
+// line): pass 1 concise, pass 2 cut, pass 3 tighter still — each its own small call on whichever
+// version is showing; the versions stay as "v1 · v2 · v3" chips so he can look at each, ↶ steps
+// back one, and "Use this" keeps whichever is showing. Shortening from an older version drops
+// the ones after it (a new pass from there). "now we've illustrated for it (which could mean I
+// now may reference the illustration!)" → the slide's picture rides in the brief as one line.
+// And every runMicro here writes its price to the cost ledger (cost-ledger.functions.ts).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getAdminWho } from "@/components/AdminGate";
@@ -45,6 +57,7 @@ import { isTypingTarget } from "@/components/canvas/film-lock";
 import { startTT, ttState } from "@/components/canvas/talkthrough-sync";
 import type { BoothCeq, BoothSetInfo } from "@/lib/talkthrough.functions";
 import { runMicro } from "@/lib/talkthrough.functions";
+import { logCostEvent } from "@/lib/cost-ledger.functions";
 import { logTeleprompterFeedback, topRehearsalExamples, type RehearsalAction } from "@/lib/rehearsal.functions";
 import { logCannedLineUse, recentCannedLineUses } from "@/lib/canned-lines.functions";
 import { useDictation } from "@/lib/use-dictation";
@@ -55,8 +68,8 @@ import type { SlideLayout } from "./layout";
 import { PhoneFrame } from "./PhoneFrame";
 import { FRAME_LABEL, type BlastFrame } from "./plan";
 import {
-  buildKeywordMessages, buildRehearsalMessages, parseKeywords, parseRehearsalSuggestions,
-  type RehearsalRegister, type StyleExample,
+  buildKeywordMessages, buildRehearsalMessages, buildShortenLineMessages, parseKeywords, parseRehearsalSuggestions, parseShortenedLine, pictureLineFor,
+  SHORTEN_PASS_LABEL, SHORTEN_PASSES, type RehearsalRegister, type ShortenPass, type StyleExample,
 } from "./rehearsal-brief";
 import { nextSlideFor, rehearsalCardFor, rehearsalContextFor, slideContextFor } from "./rehearsal-context";
 
@@ -67,15 +80,31 @@ const SLIDE_W = 300;
 /** How often the brief re-runs while Lee is talking (ms of new final speech). */
 export const LIVE_BRIEF_EVERY_MS = 2500;
 
+/** One look at the suggested line — v1 is the brief's own; each shorten pass adds one. */
+interface LineVersion { line: string; keywords: string[]; /** 0 = the brief's line; 1–3 = the pass that made it. */ pass: number }
+
 interface SlideSuggestion {
   status: "loading" | "ready" | "error";
-  said: string; suggested: string;
+  said: string;
+  /** The version SHOWING — mirrors versions[showing], so every reader of the line stays simple. */
+  suggested: string;
   register: RehearsalRegister; transition: string | null; keywords: string[];
   /** The transcript these lines were made from — the round's, or the spoken take. */
   raw: string;
   error?: string;
+  /** The shorten stack: v1 · v2 · v3 chips. A new brief (a fresh take) starts it over. */
+  versions: LineVersion[];
+  showing: number;
+  shortening?: boolean;
+  shortenError?: string;
 }
-const EMPTY: SlideSuggestion = { status: "loading", said: "", suggested: "", register: "teach", transition: null, keywords: [], raw: "" };
+const EMPTY: SlideSuggestion = { status: "loading", said: "", suggested: "", register: "teach", transition: null, keywords: [], raw: "", versions: [], showing: 0 };
+
+/** THE LEDGER — fire-and-forget after every runMicro here. Lee: "I want to know the cost per
+ *  short." The UI never waits on it; a lost row is bookkeeping, not a lost line. */
+function logCost(setId: string, label: "rehearsal line" | "shorten line" | "keywords", r: { model: string; usage: { costUsd: number } }) {
+  void logCostEvent({ data: { setId, kind: "ai", usd: r.usage.costUsd, model: r.model, label, who: getAdminWho() } });
+}
 
 /** `onClose(done)` — "← back to rehearsal" (false) just closes; the Done button (true) closes
  *  too, having committed everything Lee picked; the round itself already ended when this
@@ -136,7 +165,7 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
         slideLabel: FRAME_LABEL[f.kind], slideContext: slideContextFor(f, ceqById),
         card: rehearsalCardFor(f, ceqById), nextSlide: nextSlideFor(frames, f, ceqById),
         rawTranscript: raw, talkthrough: rehearsalContextFor(ttState().doc, set.id, f.kind === "ceq" ? f.ceqId : null),
-        styleExamples: examples ?? [],
+        styleExamples: examples ?? [], picture: pictureLineFor(f.illustration),
       });
       // RETRY ONCE, QUIETLY (2026-09-07). Lee, on the error showing up on a "memorize this":
       // "Not sure why?" — a one-off unparseable answer is the model's problem, not his; only a
@@ -144,12 +173,14 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
       let lines = null;
       for (let attempt = 0; attempt < 2 && !lines; attempt++) {
         const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 500 } });
+        logCost(set.id, "rehearsal line", r);
         lines = parseRehearsalSuggestions(r.text);
       }
       if (!lines) throw new Error(`The lines for this "${FRAME_LABEL[f.kind]}" slide didn't come back clean, twice — try again.`);
       if (!alive.current) return;
       // A newer take is already waiting → this answer is stale; the finally block runs the new one.
-      if (!pending.current[f.id]) setSuggestions((s) => ({ ...s, [f.id]: { status: "ready", ...lines, raw } }));
+      // A fresh brief starts the shorten stack over: v1 is this line.
+      if (!pending.current[f.id]) setSuggestions((s) => ({ ...s, [f.id]: { status: "ready", ...lines, raw, versions: [{ line: lines.suggested, keywords: lines.keywords, pass: 0 }], showing: 0 } }));
     } catch (e) {
       if (alive.current) setSuggestions((s) => ({ ...s, [f.id]: { ...(s[f.id] ?? EMPTY), status: "error", error: e instanceof Error ? e.message : String(e) } }));
     } finally {
@@ -168,6 +199,46 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
     for (const f of candidates) if (!fired.current.has(f.id)) { fired.current.add(f.id); void suggest(f); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidates, examples]);
+
+  // SHORTEN — one pass on whichever version is showing. `fromKept` restarts the stack at the
+  // kept line ("✂ shorten" beside "✓ kept: …"), so a line Lee already kept can be cut down the
+  // same way and kept again. Shortening from an older version drops the ones after it.
+  const shorten = useCallback(async (f: BlastFrame, fromKept?: string) => {
+    const s = suggestions[f.id];
+    if (!s || s.shortening) return;
+    const base: LineVersion[] = fromKept ? [{ line: fromKept, keywords: [], pass: 0 }] : s.versions.slice(0, s.showing + 1);
+    if (base.length === 0 || base.length > SHORTEN_PASSES) return;
+    const pass = base.length as ShortenPass;
+    const src = base[base.length - 1];
+    setSuggestions((all) => ({ ...all, [f.id]: { ...(all[f.id] ?? s), shortening: true, shortenError: undefined, versions: base, showing: base.length - 1, suggested: src.line, keywords: src.keywords } }));
+    try {
+      const m = buildShortenLineMessages({ line: src.line, pass, card: rehearsalCardFor(f, ceqById), register: s.register, picture: pictureLineFor(f.illustration) });
+      const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 200 } });
+      logCost(set.id, "shorten line", r);
+      const out = parseShortenedLine(r.text);
+      if (!out) throw new Error(`The ${SHORTEN_PASS_LABEL[pass]} pass didn't come back clean — try again.`);
+      if (!alive.current) return;
+      setSuggestions((all) => {
+        const cur = all[f.id];
+        // A fresh take landed meanwhile and restarted the stack → this pass belongs to a line that's gone.
+        if (!cur || cur.versions[0]?.line !== base[0].line) return all;
+        const versions = [...base, { line: out.line, keywords: out.keywords, pass }];
+        return { ...all, [f.id]: { ...cur, shortening: false, versions, showing: versions.length - 1, suggested: out.line, keywords: out.keywords } };
+      });
+    } catch (e) {
+      if (alive.current) setSuggestions((all) => (all[f.id] ? { ...all, [f.id]: { ...all[f.id], shortening: false, shortenError: e instanceof Error ? e.message : String(e) } } : all));
+    }
+  }, [suggestions, ceqById, set.id]);
+
+  /** The v1 · v2 · v3 chips and ↶: show a version without dropping any. */
+  const showVersion = useCallback((f: BlastFrame, i: number) => {
+    setSuggestions((all) => {
+      const cur = all[f.id];
+      const v = cur?.versions[i];
+      if (!cur || !v) return all;
+      return { ...all, [f.id]: { ...cur, showing: i, suggested: v.line, keywords: v.keywords, shortenError: undefined } };
+    });
+  }, []);
 
   const m = candidates.length;
   const onLast = at >= m;
@@ -207,6 +278,7 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
     try {
       const km = buildKeywordMessages(finalLine);
       const r = await runMicro({ data: { system: km.system, user: km.user, maxOutput: 120 } });
+      logCost(set.id, "keywords", r);
       const keys = parseKeywords(r.text);
       // Only if this is still the line he kept — a re-pick in the meantime wins.
       if (keys.length && alive.current && keptRef.current[f.id] === finalLine) onCommitLine(f.id, finalLine, keys, transition);
@@ -236,6 +308,7 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
               <SlideScreen key={frame.id} frame={frame} context={slideContextFor(frame, ceqById)} raw={segments[frame.id] ?? ""} suggestion={suggestions[frame.id]}
                 kept={kept[frame.id] ?? null} first={at === 0} last={at === m - 1}
                 onPick={(line, action) => void commit(frame, line, action)} onRetry={() => void suggest(frame)} onLiveBrief={(take) => void suggest(frame, take)}
+                onShorten={() => void shorten(frame)} onShortenKept={(line) => void shorten(frame, line)} onShow={(i) => showVersion(frame, i)}
                 onSkip={next} onPrev={prev} onNext={next} />
             </div>
           </div>
@@ -273,11 +346,13 @@ export function RehearsalReview({ set, frames, ceqById, segments, round, initial
 /** ONE slide's lines: what was said (collapsed), the two cards, the talk button and the spoken
  *  take. Keyed by frame id from the parent so the take, the draft and the dictation never carry
  *  over to the next slide (unmount stops the microphone). */
-function SlideScreen({ frame, context, raw, suggestion, kept, first, last, onPick, onRetry, onLiveBrief, onSkip, onPrev, onNext }: {
+function SlideScreen({ frame, context, raw, suggestion, kept, first, last, onPick, onRetry, onLiveBrief, onShorten, onShortenKept, onShow, onSkip, onPrev, onNext }: {
   frame: BlastFrame; context: string; raw: string; suggestion: SlideSuggestion | undefined; kept: string | null; first: boolean; last: boolean;
   onPick: (line: string, action: RehearsalAction) => void; onRetry: () => void;
   /** The spoken take so far — the parent re-runs the brief with it as the raw transcript. */
   onLiveBrief: (take: string) => void;
+  /** One shorten pass on the showing version; on the kept line (restarts the stack there); show version i. */
+  onShorten: () => void; onShortenKept: (line: string) => void; onShow: (i: number) => void;
   onSkip: () => void; onPrev: () => void; onNext: () => void;
 }) {
   const hasLines = !!suggestion?.suggested;
@@ -332,7 +407,13 @@ function SlideScreen({ frame, context, raw, suggestion, kept, first, last, onPic
         <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: GOLD }}>{FRAME_LABEL[frame.kind]}</span>
         {context && <span style={{ fontSize: 12, color: MUTED }}>{context.length > 160 ? `${context.slice(0, 160)}…` : context}</span>}
       </div>
-      {kept && <div style={{ marginTop: 8, fontSize: 12.5, color: MINT }}>✓ kept: <span style={{ color: CREAM }}>{kept}</span> <span style={{ color: MUTED }}>— pick again to change it</span></div>}
+      {kept && (
+        <div style={{ marginTop: 8, fontSize: 12.5, color: MINT, display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+          <span>✓ kept: <span style={{ color: CREAM }}>{kept}</span> <span style={{ color: MUTED }}>— pick again to change it</span></span>
+          {/* Shorten the line he already kept: the stack restarts at it, the pass lands in Suggested, Use this keeps it again. */}
+          {hasLines && <button type="button" onClick={() => onShortenKept(kept)} disabled={!!suggestion?.shortening} title="A concise pass on the kept line — lands in Suggested" style={{ ...btn(), fontSize: 11, padding: "2px 8px" }}>✂ shorten this</button>}
+        </div>
+      )}
       <details style={{ marginTop: 8 }}>
         <summary style={{ fontSize: 10.5, color: MUTED, cursor: "pointer" }}>what you said in the round</summary>
         <div style={{ marginTop: 4, fontSize: 12, color: MUTED, lineHeight: 1.4 }}>{raw}</div>
@@ -347,7 +428,7 @@ function SlideScreen({ frame, context, raw, suggestion, kept, first, last, onPic
       {hasLines && suggestion && (
         <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10, opacity: loading ? 0.75 : 1, transition: "opacity 120ms" }}>
           {suggestion.said && <LineCard title={take ? "Your take, cleaned" : "What you said, cleaned"} line={suggestion.said} useLabel={useLabel} onUse={() => onPick(suggestion.said, "said")} />}
-          <SuggestedCard suggestion={suggestion} loading={loading} useLabel={useLabel} onPick={onPick} />
+          <SuggestedCard suggestion={suggestion} loading={loading} useLabel={useLabel} onPick={onPick} onShorten={onShorten} onShow={onShow} />
         </div>
       )}
 
@@ -394,11 +475,15 @@ function LineCard({ title, line, useLabel, onUse }: { title: string; line: strin
   );
 }
 
-/** THE SUGGESTED CARD: the register chip, the line (click → edit in place: Enter keeps the
- *  edit as "edited" — or as "suggested" if he changed nothing — Escape cancels), the keywords
- *  the prompter's scan mode will show, and the hand-off small beneath. Lee: "if I want to write
- *  one in, I can just edit the suggested one." */
-function SuggestedCard({ suggestion, loading, useLabel, onPick }: { suggestion: SlideSuggestion; loading: boolean; useLabel: string; onPick: (line: string, action: RehearsalAction) => void }) {
+/** THE SUGGESTED CARD: the register chip, the version chips (v1 · v2 · v3 — one per shorten
+ *  pass, click to look at each), the line (click → edit in place: Enter keeps the edit as
+ *  "edited" — or as "suggested" if he changed nothing — Escape cancels), the keywords the
+ *  prompter's scan mode will show, the hand-off small beneath, and "✂ shorten" with its pass
+ *  counter + ↶. Lee: "if I want to write one in, I can just edit the suggested one." */
+function SuggestedCard({ suggestion, loading, useLabel, onPick, onShorten, onShow }: {
+  suggestion: SlideSuggestion; loading: boolean; useLabel: string; onPick: (line: string, action: RehearsalAction) => void;
+  onShorten: () => void; onShow: (i: number) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -411,6 +496,13 @@ function SuggestedCard({ suggestion, loading, useLabel, onPick }: { suggestion: 
     setEditing(false);
   };
 
+  // The pass the NEXT press would run: from the showing version, so shortening v1 again after
+  // looking back at it is pass 1 again (and drops the later versions). Three is the ceiling.
+  const nextPass = Math.min(SHORTEN_PASSES, suggestion.showing + 1) as ShortenPass;
+  const canShorten = suggestion.showing < SHORTEN_PASSES && !suggestion.shortening && !loading;
+  const showingVersion = suggestion.versions[suggestion.showing];
+  const words = suggestion.suggested.trim() ? suggestion.suggested.trim().split(/\s+/).length : 0;
+
   return (
     <div style={{ border: `1px solid ${GOLD}55`, borderRadius: 12, padding: "10px 14px" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
@@ -419,7 +511,21 @@ function SuggestedCard({ suggestion, loading, useLabel, onPick }: { suggestion: 
           style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: suggestion.register === "cheat-code" ? ORANGE : GOLD, border: `1px solid ${suggestion.register === "cheat-code" ? ORANGE : GOLD}66`, borderRadius: 999, padding: "1px 7px" }}>
           {suggestion.register}
         </span>
+        {/* v1 · v2 · v3 — "let me do two passes (three?) to see how each looks". */}
+        {suggestion.versions.length > 1 && (
+          <span style={{ display: "inline-flex", gap: 4, alignItems: "baseline" }}>
+            {suggestion.versions.map((v, i) => (
+              <button key={i} type="button" onClick={() => onShow(i)} disabled={editing}
+                title={v.pass === 0 ? "the brief's own line" : `pass ${v.pass} · ${SHORTEN_PASS_LABEL[v.pass as ShortenPass]}`}
+                style={{ font: "inherit", fontSize: 10.5, fontWeight: 800, padding: "1px 7px", borderRadius: 999, cursor: "pointer", background: i === suggestion.showing ? `${GOLD}33` : "transparent", border: `1px solid ${i === suggestion.showing ? GOLD : EDGE}`, color: i === suggestion.showing ? CREAM : MUTED }}>
+                v{i + 1}
+              </button>
+            ))}
+          </span>
+        )}
+        {showingVersion && showingVersion.pass > 0 && <span style={{ fontSize: 10.5, color: MUTED }}>{SHORTEN_PASS_LABEL[showingVersion.pass as ShortenPass]} · {words} words</span>}
         {loading && <span style={{ fontSize: 10.5, color: MUTED }}>updating…</span>}
+        {suggestion.shortening && <span style={{ fontSize: 10.5, color: MUTED }}>shortening…</span>}
       </div>
       {editing ? (
         <textarea ref={ref} rows={3} value={draft} onChange={(e) => setDraft(e.target.value)}
@@ -441,7 +547,8 @@ function SuggestedCard({ suggestion, loading, useLabel, onPick }: { suggestion: 
         </div>
       )}
       {suggestion.transition && <div style={{ marginTop: 6, fontSize: 12, color: GOLD }}>→ {suggestion.transition}</div>}
-      <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
+      {suggestion.shortenError && <div style={{ marginTop: 6, fontSize: 12, color: ORANGE }}>{suggestion.shortenError}</div>}
+      <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         {editing ? (
           <>
             <button type="button" onClick={keep} disabled={!draft.trim()} style={{ ...btn(MINT), opacity: draft.trim() ? 1 : 0.5 }}>✓ Keep (Enter)</button>
@@ -451,6 +558,19 @@ function SuggestedCard({ suggestion, loading, useLabel, onPick }: { suggestion: 
           <>
             <button type="button" onClick={() => onPick(suggestion.suggested, "suggested")} style={btn(MINT)}>{useLabel}</button>
             <button type="button" onClick={() => { setDraft(suggestion.suggested); setEditing(true); }} style={btn()}>edit</button>
+            <span style={{ flex: 1 }} />
+            {/* ↶ walks back one version; the chips above jump to any. Nothing is dropped until a
+                new pass runs from an older version. */}
+            {suggestion.showing > 0 && (
+              <button type="button" onClick={() => onShow(suggestion.showing - 1)} title={`back to v${suggestion.showing}`} style={{ ...btn(), padding: "6px 9px" }}>↶</button>
+            )}
+            <button type="button" onClick={onShorten} disabled={!canShorten} title={suggestion.showing >= SHORTEN_PASSES ? "that's three passes — ↶ to go back" : `pass ${nextPass} · ${SHORTEN_PASS_LABEL[nextPass]}`}
+              style={{ ...btn(GOLD), opacity: canShorten ? 1 : 0.5, display: "inline-flex", gap: 6, alignItems: "baseline" }}>
+              ✂ shorten
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: MUTED }}>
+                {suggestion.showing >= SHORTEN_PASSES ? "3 of 3" : `pass ${nextPass} · ${SHORTEN_PASS_LABEL[nextPass]}`}
+              </span>
+            </button>
           </>
         )}
       </div>

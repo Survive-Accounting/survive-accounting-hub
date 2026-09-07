@@ -30,6 +30,16 @@
 // teleprompter and get what I need." The rejected suggestion rides with an edited example —
 // "if I write in my own, it's a big signal that there's a possible improvement here."
 //
+// SHORTEN PASSES + THE PICTURE (2026-09-07, fifth pass). Lee: "Suggested prompters in prompter,
+// a button to 'shorten' and revert icon if so. Shorten can almost be like, making more concise
+// of what's written first, but then like another one is actually eliminating stuff. Shorts are,
+// well, SHORT, so this will be helpful I think. Maybe let me do two passes (three?) to see how
+// each looks." → buildShortenLineMessages / parseShortenedLine below: pass 1 CONCISE (same
+// content, fewer words), pass 2 CUT (only the answer / the cheat code / the hand-off), pass 3
+// TIGHTER STILL. Every pass keeps the TEACH rule and the register. And "now we've illustrated
+// for it (which could mean I now may reference the illustration!)" → the slide's picture rides
+// along as one line (pictureLineFor) so a line may point at it.
+//
 // Pure: the messages for the micro lane and the parser for its answer.
 
 export interface StyleExample {
@@ -67,6 +77,18 @@ export interface RehearsalBriefRequest {
   talkthrough?: string;
   /** Past decisions, the ones most worth copying first. */
   styleExamples?: readonly StyleExample[];
+  /** What's drawn on the slide, in a few words (pictureLineFor) — so a line may point at it. */
+  picture?: string;
+}
+
+/** THE SLIDE'S PICTURE as one line for the brief: its title (the AI's summary of the prompt),
+ *  else Lee's own prompt words, else just the fact that one is there. undefined when the slide
+ *  has no generated picture — an idea that's only banked isn't on the slide yet. Takes the
+ *  shape of FrameIllustration structurally (illustration.ts owns that type). */
+export function pictureLineFor(ill: { assetUrl?: string | null; summary?: { title: string } | null; prompt?: string | null } | null | undefined): string | undefined {
+  if (!ill?.assetUrl) return undefined;
+  const t = (ill.summary?.title ?? "").trim() || (ill.prompt ?? "").trim();
+  return t ? t.slice(0, 160) : "(a picture, untitled)";
 }
 
 export const REHEARSAL_REGISTERS = ["teach", "cheat-code"] as const;
@@ -96,6 +118,7 @@ export const REHEARSAL_SYSTEM = [
   "\"keywords\" = 2–5 scannable fragments of the SUGGESTED line, in its order, each ≤ 6 words — the kind of thing a glance at a teleprompter gives back (\"Internal = inside\", \"no paycheck → external\", \"next question\"). Fragments of the line, not new content.",
   "KEEP IT LEE'S: use his own phrasing and word choices wherever they already work — never swap in fancier or more formal words than he used. If he said it awkwardly but the meaning is clear, smooth the grammar, don't rewrite the voice.",
   "GROUNDED IN THE SLIDE: a line should read naturally right after seeing this slide's own text — it can reference what's on screen, but never repeat the slide's bullets verbatim; it's what Lee SAYS about them, not a recap.",
+  "THE SLIDE'S PICTURE, when given, is drawn on the slide beside the words. A line MAY point at it (\"see the paycheck? that's your test\") when that lands the answer faster than words alone — never describe it for its own sake, and never mention a picture that isn't given.",
   "SHORT-FORM PACING: a line that reads out loud in a few seconds, not a paragraph. If the rehearsal covered several ideas, pick the clearest single thread rather than cramming all of it in.",
   "If STYLE EXAMPLES are given, they are real past pairs of Lee's raw speech and the line he actually kept — match that same register and phrasing habits, not the specific words. An example that says he was OFFERED a line and WROTE his own instead is the strongest signal of all: the offered line missed; what he wrote is the target.",
 ].join("\n");
@@ -125,6 +148,7 @@ export function buildRehearsalMessages(req: RehearsalBriefRequest): { system: st
     `SLIDE: ${req.slideLabel}`,
     `SLIDE CONTEXT: ${req.slideContext || "(none)"}`,
     card ? `THE CARD (what the student must get right; the correct choice is marked):\n${card}` : "",
+    req.picture?.trim() ? `THE SLIDE'S PICTURE: ${req.picture.trim()}` : "",
     next ? `NEXT SLIDE: ${next.label}${next.context ? ` — ${next.context}` : ""}` : "",
     `LEE'S RAW REHEARSAL SPEECH:\n${req.rawTranscript.trim()}`,
     talkthrough ? `TALKTHROUGH NOTES (what Lee said and stamped about this card when he first talked the set through):\n${talkthrough}` : "",
@@ -174,4 +198,68 @@ export function parseKeywords(text: string): string[] {
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) return [];
   try { return cleanKeywords((JSON.parse(m[0]) as { keywords?: unknown }).keywords); } catch { return []; }
+}
+
+// ------------------------------------------------------------------ shorten passes on a line
+// Lee, 2026-09-07: "Shorten can almost be like, making more concise of what's written first,
+// but then like another one is actually eliminating stuff. Shorts are, well, SHORT." Three
+// passes, each its own tiny call on whichever version is showing: 1 CONCISE keeps every idea
+// and drops words; 2 CUT keeps only the answer / the cheat code / the hand-off and drops the
+// why; 3 TIGHTER STILL goes as far as a line can while a student still gets the question right
+// — a fragment is fine. The answer carries its own keywords, so the prompter's scan mode
+// never needs a second call for a shortened line.
+
+export const SHORTEN_PASSES = 3;
+export type ShortenPass = 1 | 2 | 3;
+
+/** The pass names, as the button and the chips say them. */
+export const SHORTEN_PASS_LABEL: Record<ShortenPass, string> = { 1: "concise", 2: "cut", 3: "tighter still" };
+
+export interface ShortenLineRequest {
+  /** The version showing — the one this pass shortens. */
+  line: string;
+  pass: ShortenPass;
+  /** The card behind the slide, so the CUT pass knows which answer it must keep. */
+  card?: RehearsalCard;
+  register: RehearsalRegister;
+  /** The slide's picture, one line (pictureLineFor) — pointing at it is often the shortest line there is. */
+  picture?: string;
+}
+
+export const SHORTEN_SYSTEM = [
+  "You shorten ONE teleprompter line for a Survive Accounting Short — Lee's own line, in his own voice; you only take words away, never add a thought or swap in words he wouldn't say.",
+  "Return ONLY a JSON object: {\"line\": str, \"keywords\": [str]}.",
+  "TEACH — the rule that survives every pass: the shortened line must still let a student get THIS question right. The correct answer (or the cheat code that finds it) NEVER leaves the line. If THE CARD is given, check the line against its CORRECT choice before answering.",
+  "KEEP THE REGISTER: a \"teach\" line keeps one beat of why until the CUT pass removes it; a \"cheat-code\" line never had a why — it only ever gets shorter.",
+  "PASS 1 — CONCISE: the same content, fewer words. Every idea stays; redundancy, hedges, run-ups and repeated words go. Aim for two thirds of the word count or less.",
+  "PASS 2 — CUT: drop everything but the answer, the cheat code that finds it, and the hand-off (\"next question\" or whatever the line ends on). The why goes. One or two short spoken sentences.",
+  "PASS 3 — TIGHTER STILL: as few words as can still land the answer — a fragment is fine (\"External. No paycheck. Next.\"). Nothing decorative survives.",
+  "If THE SLIDE'S PICTURE is given, pointing at it (\"see the paycheck?\") can be the shortest line there is — use that only when the picture carries the answer.",
+  "\"keywords\" = 2–5 scannable fragments of the SHORTENED line, in its order, each ≤ 6 words — fragments of the line, never new content. A line short enough to be its own keyword returns it alone.",
+].join("\n");
+
+export function buildShortenLineMessages(req: ShortenLineRequest): { system: string; user: string } {
+  const card = req.card ? renderCard(req.card) : "";
+  const user = [
+    `PASS ${req.pass} — ${SHORTEN_PASS_LABEL[req.pass].toUpperCase()}`,
+    `REGISTER: ${req.register}`,
+    `THE LINE TO SHORTEN:\n${req.line.trim()}`,
+    card ? `THE CARD (the correct choice is marked):\n${card}` : "",
+    req.picture?.trim() ? `THE SLIDE'S PICTURE: ${req.picture.trim()}` : "",
+  ].filter(Boolean).join("\n\n");
+  return { system: SHORTEN_SYSTEM, user };
+}
+
+export interface ShortenedLine { line: string; keywords: string[] }
+
+/** The shorten answer, defended: the line (trimmed, capped like every line) and its keywords;
+ *  null when no line came back at all. A legacy `{suggested}` shape is taken as the line. */
+export function parseShortenedLine(text: string): ShortenedLine | null {
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  let j: { line?: unknown; suggested?: unknown; keywords?: unknown };
+  try { j = JSON.parse(m[0]); } catch { return null; }
+  const line = clean(j.line) || clean(j.suggested);
+  if (!line) return null;
+  return { line, keywords: cleanKeywords(j.keywords) };
 }

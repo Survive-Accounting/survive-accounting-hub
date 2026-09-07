@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { buildKeywordMessages, buildRehearsalMessages, KEYWORD_SYSTEM, parseKeywords, parseRehearsalSuggestions, REHEARSAL_SYSTEM } from "./rehearsal-brief";
+import {
+  buildKeywordMessages, buildRehearsalMessages, buildShortenLineMessages, KEYWORD_SYSTEM, parseKeywords, parseRehearsalSuggestions,
+  parseShortenedLine, pictureLineFor, REHEARSAL_SYSTEM, SHORTEN_PASS_LABEL, SHORTEN_PASSES, SHORTEN_SYSTEM,
+} from "./rehearsal-brief";
 
 describe("the rehearsal brief", () => {
   test("the messages carry the slide, the raw speech, the talkthrough notes and style examples", () => {
@@ -90,6 +93,70 @@ describe("the rehearsal brief", () => {
   test("a legacy one-line answer is taken as the suggestion; a lone cleaned line stands in for both", () => {
     expect(parseRehearsalSuggestions('{"line":"Internal users are the managers."}')).toEqual({ said: "", suggested: "Internal users are the managers.", register: "teach", transition: null, keywords: [] });
     expect(parseRehearsalSuggestions('{"said":"Just the cleaned one."}')).toEqual({ said: "Just the cleaned one.", suggested: "Just the cleaned one.", register: "teach", transition: null, keywords: [] });
+  });
+});
+
+// 2026-09-07 — "now we've illustrated for it (which could mean I now may reference the illustration!)"
+describe("the slide's picture rides along", () => {
+  test("a generated picture is one line: its title, else Lee's prompt words, else just that one is there", () => {
+    expect(pictureLineFor({ assetUrl: "https://x/a.png", summary: { title: "The Paycheck Test" }, prompt: "a guy holding a paycheck" })).toBe("The Paycheck Test");
+    expect(pictureLineFor({ assetUrl: "https://x/a.png", summary: null, prompt: "  a guy holding a paycheck " })).toBe("a guy holding a paycheck");
+    expect(pictureLineFor({ assetUrl: "https://x/a.png" })).toBe("(a picture, untitled)");
+    expect(pictureLineFor({ assetUrl: "https://x/a.png", summary: { title: "x".repeat(300) } })).toHaveLength(160);
+  });
+  test("a banked idea that isn't generated yet is no picture on the slide", () => {
+    expect(pictureLineFor({ assetUrl: null, prompt: "a banked idea" })).toBeUndefined();
+    expect(pictureLineFor(null)).toBeUndefined();
+    expect(pictureLineFor(undefined)).toBeUndefined();
+  });
+  test("the brief carries it, and the rule says a line MAY point at it", () => {
+    const m = buildRehearsalMessages({ slideLabel: "Cheat code", slideContext: "The paycheck test", rawTranscript: "look at the paycheck", picture: "The Paycheck Test" });
+    expect(m.user).toContain("THE SLIDE'S PICTURE: The Paycheck Test");
+    expect(m.system).toMatch(/THE SLIDE'S PICTURE, when given/);
+    expect(buildRehearsalMessages({ slideLabel: "x", slideContext: "", rawTranscript: "t", picture: "  " }).user).not.toContain("THE SLIDE'S PICTURE");
+  });
+});
+
+// 2026-09-07 — Lee: "a button to 'shorten' and revert icon if so. Shorten can almost be like,
+// making more concise of what's written first, but then like another one is actually
+// eliminating stuff… Maybe let me do two passes (three?) to see how each looks."
+describe("shorten passes on a line", () => {
+  const card = { stem: "Which of these is an external user?", choices: [{ text: "A manager", correct: false }, { text: "A lender", correct: true }] };
+  test("three passes, named: concise, cut, tighter still", () => {
+    expect(SHORTEN_PASSES).toBe(3);
+    expect(SHORTEN_PASS_LABEL).toEqual({ 1: "concise", 2: "cut", 3: "tighter still" });
+    expect(SHORTEN_SYSTEM).toMatch(/PASS 1 — CONCISE: the same content, fewer words/);
+    expect(SHORTEN_SYSTEM).toMatch(/PASS 2 — CUT: drop everything but the answer, the cheat code that finds it, and the hand-off/);
+    expect(SHORTEN_SYSTEM).toMatch(/PASS 3 — TIGHTER STILL/);
+  });
+  test("the messages name the pass, the register, the line, the card and the picture", () => {
+    const m = buildShortenLineMessages({
+      line: "  External means anybody outside the company. Remember the cheat code: if they don't get a paycheck, they're external. ",
+      pass: 2, card, register: "teach", picture: "The Paycheck Test",
+    });
+    expect(m.system).toBe(SHORTEN_SYSTEM);
+    expect(m.user).toContain("PASS 2 — CUT");
+    expect(m.user).toContain("REGISTER: teach");
+    expect(m.user).toContain("THE LINE TO SHORTEN:\nExternal means anybody outside the company. Remember the cheat code: if they don't get a paycheck, they're external.");
+    expect(m.user).toContain("[CORRECT] A lender");
+    expect(m.user).toContain("THE SLIDE'S PICTURE: The Paycheck Test");
+    // The TEACH rule and the register survive every pass; the answer carries its own keywords.
+    expect(m.system).toMatch(/TEACH — the rule that survives every pass/);
+    expect(m.system).toMatch(/KEEP THE REGISTER/);
+    expect(m.system).toContain('{"line": str, "keywords": [str]}');
+  });
+  test("no card, no picture → neither section; pass 1 and 3 read as their names", () => {
+    expect(buildShortenLineMessages({ line: "x", pass: 1, register: "cheat-code" }).user).toBe("PASS 1 — CONCISE\n\nREGISTER: cheat-code\n\nTHE LINE TO SHORTEN:\nx");
+    expect(buildShortenLineMessages({ line: "x", pass: 3, register: "teach", picture: " " }).user).toContain("PASS 3 — TIGHTER STILL");
+  });
+  test("parses the line and its keywords, defended; a legacy {suggested} shape still reads", () => {
+    expect(parseShortenedLine('{"line":"External. No paycheck. Next.","keywords":["External","no paycheck","next"]}'))
+      .toEqual({ line: "External. No paycheck. Next.", keywords: ["External", "no paycheck", "next"] });
+    expect(parseShortenedLine('Sure — {"line":"  padded  "}')).toEqual({ line: "padded", keywords: [] });
+    expect(parseShortenedLine('{"suggested":"legacy shape","keywords":"nope"}')).toEqual({ line: "legacy shape", keywords: [] });
+    expect(parseShortenedLine('{"line":""}')).toBeNull();
+    expect(parseShortenedLine("no json")).toBeNull();
+    expect(parseShortenedLine("{broken")).toBeNull();
   });
 });
 
