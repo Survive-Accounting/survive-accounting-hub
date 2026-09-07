@@ -322,7 +322,9 @@ export const runMicro = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
     system: z.string().max(40_000),
     user: z.string().max(80_000),
-    maxOutput: z.number().int().min(1).max(2_000).optional(),
+    // 6,000 since 2026-09-07: a Map spec (cluster-brief.ts) is a full JSON scene — nodes, edges,
+    // shots — and the old 2,000 cut a map past ~8 nodes mid-answer, surfacing as "not valid JSON".
+    maxOutput: z.number().int().min(1).max(6_000).optional(),
   }).parse(d))
   .handler(async ({ data }) => {
     const { runAiTask } = await import("@/lib/ai.server");
