@@ -37,6 +37,14 @@
 // frame.prompter data is untouched — /film, the rehearsal review and the pop-out
 // window still read and write it; this step just stops showing it.
 //
+// 2026-09-07, THE MAP. Lee: "I want to be able to create these sorts of clusters with just
+// brainstorming. I want to set it up where I tell the teaching assistant what I'm thinking, we
+// go back and forth and refine if needed, to ensure we're on the same page, then it goes and
+// builds the cluster for me." "＋ Map" on the quick row inserts an empty map (▾ offers the three
+// example maps — a list slide is a one-node map); a selected map swaps the right column for the
+// MAP FACE (cluster/MapFace.tsx): the Teaching Assistant's thread inside the step, the
+// bird's-eye of the field, the JSON. The assistant lives in the steps — no separate chat page.
+//
 // 2026-09-07, later: AUTOSAVE and SHORTEN. Lee: "Editing a ceq test should be automatic. No
 // 'save to bank' needed." — so a card's stem and choices save themselves 800 ms after the last
 // keystroke through the same door (applyCeqEdit); the Save button became a saving… / saved
@@ -97,6 +105,12 @@ import { CAM_LABEL, CAM_SPOTS, camSpotOf, isCamSpot } from "./capture/webcam-spo
 import { camDefault, layoutOf } from "./layout";
 import { canIllustrate } from "./illustration";
 import { IllustrationPanel } from "./IllustrationPanel";
+// THE MAP (2026-09-07): a cluster frame's face — the Teaching Assistant thread + the bird's-eye
+// — and the three example maps the quick row inserts in one click (cluster/map-examples.ts).
+import { MapFace } from "./cluster/MapFace";
+import { MAP_EXAMPLES, cloneExample } from "./cluster/map-examples";
+import { emptyCluster } from "./cluster/cluster-spec";
+import type { MapCard } from "@/lib/cluster-brief";
 
 /** What the AI board hands the deck: "＋ slide" on an idea card. */
 export interface DeckApi { addSlide: (kind: BlastFrameKind, patch: Partial<BlastFrame>) => void }
@@ -118,7 +132,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -246,6 +260,21 @@ function slideBriefContextFor(frames: readonly BlastFrame[], f: BlastFrame, ceqB
     break;
   }
   return { card, talkthrough, picture: pictureLineFor(f.illustration), setName };
+}
+
+/** THE CARD A MAP SITS AFTER (2026-09-07) — the nearest question card above it in the running
+ *  order, with its id (the assistant may put it on the map as a ceq node), and what Lee said
+ *  about it in Step 1. Same walk slideBriefContextFor makes; this one keeps the ceqId. */
+function mapCardFor(frames: readonly BlastFrame[], f: BlastFrame, ceqById: Map<string, BoothCeq>, setId: string): { card?: MapCard; talkthrough?: string } {
+  const i = frames.findIndex((x) => x.id === f.id);
+  for (let k = i - 1; k >= 0; k--) {
+    const c = frames[k];
+    if (c.kind !== "ceq" || !c.ceqId) continue;
+    const ceq = ceqById.get(c.ceqId);
+    if (!ceq || ceq.noteOnly) continue;
+    return { card: { ceqId: ceq.id, stem: ceq.stem, choices: ceq.choices.map(({ text, correct }) => ({ text, correct })) }, talkthrough: rehearsalContextFor(ttState().doc, setId, ceq.id) || undefined };
+  }
+  return {};
 }
 
 const chip = (on: boolean, color = GOLD): React.CSSProperties => ({
@@ -458,6 +487,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   const setRightTab = useCallback((t: RightTab) => { setRightTabState(t); writeRightTab(t); }, []);
 
   const [picker, setPicker] = useState<BlastFrameKind | null>(null);
+  /** The ▾ under "＋ Map" — the three example maps as one-click inserts (2026-09-07). */
+  const [mapMenu, setMapMenu] = useState(false);
   /** Insert after a given frame (or the selected one), optionally selecting it. */
   const insertAfter = useCallback((afterId: string | null, kind: BlastFrameKind, patch: Partial<BlastFrame> = {}, select = true) => {
     if (!plan) return;
@@ -681,6 +712,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
     if (f.kind === "ad") return f.title?.trim() || ADS[f.ad ?? "greek"].headline;
     if (f.kind === "bolt") return `Black + the ${f.variant ?? "zoom"} animation`;
     if (f.kind === "exhibit") return f.text?.trim() || (f.exhibitRef ? `Exhibit: ${f.exhibitRef}` : "Exhibit");
+    if (f.kind === "cluster") return f.cluster ? `${f.cluster.title.trim() || "Untitled map"} · ${f.cluster.nodes.length} node${f.cluster.nodes.length === 1 ? "" : "s"}` : "(empty map)";
     return f.text?.trim() || `(empty ${FRAME_LABEL[f.kind].toLowerCase()})`;
   };
   const labelOf = (f: BlastFrame): string => (f.kind === "ceq" && f.ceqId && summaryLabel.get(f.ceqId)) || (f.kind === "ad" && f.ad ? AD_LABEL[f.ad] : FRAME_LABEL[f.kind]);
@@ -778,7 +810,20 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
           ))}
           <button style={chip(picker === "exhibit")} title="Insert an exhibit after the selected slide" onClick={() => setPicker(picker === "exhibit" ? null : "exhibit")}>＋ Exhibit</button>
           <button style={chip(false)} title="Insert a bare frame" onClick={() => add("blank")}>＋ Blank</button>
+          {/* THE MAP (2026-09-07). Lee: "create these sorts of clusters with just brainstorming" — an
+              empty map opens the assistant's thread in the right column; ▾ offers the three examples
+              as one-click inserts (a list slide is a one-node map). */}
+          <button style={chip(false, KIND_COLOR.cluster)} title="Insert an empty map after the selected slide — then tell the assistant what you're thinking" onClick={() => add("cluster", { cluster: emptyCluster("New map") })}>＋ Map</button>
+          <button style={{ ...chip(mapMenu, KIND_COLOR.cluster), padding: "4px 7px" }} title="Insert one of the example maps" aria-haspopup="menu" aria-expanded={mapMenu} onClick={() => setMapMenu((v) => !v)}>▾</button>
         </div>
+        {mapMenu && (
+          <div className="flex" style={{ gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+            {MAP_EXAMPLES.map((e) => (
+              <button key={e.id} style={{ ...chip(false, KIND_COLOR.cluster), fontSize: 10.5 }} title={`Insert "${e.spec.title}" — ${e.spec.nodes.length} node${e.spec.nodes.length === 1 ? "" : "s"}, ${e.spec.shots.length} shots`}
+                onClick={() => { add("cluster", { cluster: cloneExample(e) }); setMapMenu(false); }}>Map · {e.title}</button>
+            ))}
+          </div>
+        )}
         <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 10 }}>inserts land after the selected slide · space / shift+space walk the slides · drag to reorder</div>
         {picker && <BankPicker kind={picker} setId={set.id} setName={set.name} onPick={(p) => add(picker, p)} onClose={() => setPicker(null)} />}
 
@@ -826,6 +871,18 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
       {/* --------------------------------- RIGHT: editor | illustrator (no teleprompter since 2026-09-07) */}
       {!sel ? (
         <section style={panelShell}>{tabs}</section>
+      ) : sel.kind === "cluster" ? (
+        // THE MAP FACE (2026-09-07) — whichever button is lit, a map shows its own face: the
+        // assistant's thread, the bird's-eye, the JSON. The Illustrator button is disabled for it
+        // (canIllustrate says no), so there is nothing else this column could show.
+        <section style={panelShell}>
+          {tabs}
+          <div className="flex items-center" style={{ gap: 6, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
+            <span style={{ fontSize: 11.5, color: MUTED }}>{labelOf(sel)}{sel.skipped ? " · skipped" : ""}</span>
+            {saving && <span style={{ fontSize: 11, color: saving.startsWith("⚠") ? RED : saving === "saved" ? MINT : MUTED }}>{saving}</span>}
+          </div>
+          {(() => { const ctx = mapCardFor(frames, sel, ceqById, set.id); return <MapFace key={sel.id} sel={sel} setId={set.id} set={viewSet} card={ctx.card} talkthrough={ctx.talkthrough} onPatch={(p) => patch(sel.id, p)} />; })()}
+        </section>
       ) : rightTab === "illustrator" ? (
         <section style={panelShell}>
           {tabs}
