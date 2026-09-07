@@ -9,6 +9,14 @@
 // mount (after the previewer's 200 ms grace, so the chrome delta has settled),
 // the status re-read on every resize, and F toggles fullscreen on the document
 // — on a 9:16 portrait monitor that is the other route to an exact 1080×1920.
+//
+// THE COUNTDOWN (2026-09-07) lives here too, because it is the pop-out's alone. Lee: "I would
+// prefer with capture window having a 10 second countdown… like we're on slide 0 at that
+// point." C (or the chrome button) starts it: the pop-out goes black with the count, big, cream,
+// the last three in gold, the wordmark small below; at zero slide 1 is up. Space during the
+// count cancels it. A take-time affordance, NOT rehearsal — it never touches the rounds reducer
+// (capture/rehearsal-rounds.ts). What the main window does with it (slide 1 undimmed during
+// the count, slide 2 dimmed at zero) is prompter-sync.ts's side.
 import { useCallback, useEffect, useState } from "react";
 
 import { captureAcceptable, isCaptureExact, physicalSize, snapCaptureSize } from "@/components/canvas/capture-window";
@@ -97,4 +105,38 @@ export function useCapturePopout(): CapturePopout {
   }, []);
 
   return { isPopout, open: isPopout || typeof window === "undefined" ? null : open, status };
+}
+
+// ------------------------------------------------------------------ the countdown
+
+export const COUNTDOWN_SECONDS = 10;
+/** "the last 3 in gold" — 3, 2, 1. */
+export const COUNTDOWN_GOLD_FROM = 3;
+
+/** Which colour the count reads in: gold for the last three, cream before. */
+export const countdownTone = (seconds: number): "gold" | "cream" => (seconds <= COUNTDOWN_GOLD_FROM ? "gold" : "cream");
+
+/** The next second of the count: 10 → 9 → … → 1 → done (null). */
+export const countdownStep = (seconds: number): number | null => (seconds > 1 ? seconds - 1 : null);
+
+export interface Countdown {
+  /** Seconds left, or null when no count is on. */
+  seconds: number | null;
+  start: () => void;
+  cancel: () => void;
+}
+
+/** The 10 s count, one tick a second. `onStart` runs when it begins (the pop-out jumps to slide
+ *  0, so the moment the count hides, slide 1 is what is there). Nothing fires at zero: the black
+ *  simply lifts. */
+export function useCountdown(onStart: () => void): Countdown {
+  const [seconds, setSeconds] = useState<number | null>(null);
+  useEffect(() => {
+    if (seconds === null) return;
+    const t = window.setTimeout(() => setSeconds(countdownStep(seconds)), 1000);
+    return () => window.clearTimeout(t);
+  }, [seconds]);
+  const start = useCallback(() => { onStart(); setSeconds(COUNTDOWN_SECONDS); }, [onStart]);
+  const cancel = useCallback(() => setSeconds(null), []);
+  return { seconds, start, cancel };
 }

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-import { POPOUT_BLOCKED, POPOUT_FEATURES, POPOUT_NAME, captureStatus, isPopoutSearch, popoutHref } from "./popout";
+import { COUNTDOWN_GOLD_FROM, COUNTDOWN_SECONDS, POPOUT_BLOCKED, POPOUT_FEATURES, POPOUT_NAME, captureStatus, countdownStep, countdownTone, isPopoutSearch, popoutHref } from "./popout";
 
 const route = readFileSync(join(import.meta.dir, "../../../routes/v3.$topic.$set.blast-off.film.tsx"), "utf8").split("\r\n").join("\n");
 
@@ -29,6 +29,24 @@ describe("the URL", () => {
     expect(POPOUT_NAME).toBe("sa-film-popout");
     expect(POPOUT_FEATURES).toBe("popup=yes,width=560,height=1000");
     expect(POPOUT_BLOCKED).toContain("allow pop-ups");
+  });
+});
+
+// Lee, 2026-09-07: "a 10 second countdown… like we're on slide 0 at that point."
+describe("the countdown", () => {
+  test("ten seconds, the last three in gold", () => {
+    expect(COUNTDOWN_SECONDS).toBe(10);
+    expect(COUNTDOWN_GOLD_FROM).toBe(3);
+    expect(countdownTone(10)).toBe("cream");
+    expect(countdownTone(4)).toBe("cream");
+    expect(countdownTone(3)).toBe("gold");
+    expect(countdownTone(1)).toBe("gold");
+  });
+  test("counts 10 → 1, then done", () => {
+    const seen: number[] = [];
+    let s: number | null = COUNTDOWN_SECONDS;
+    while (s !== null) { seen.push(s); s = countdownStep(s); }
+    expect(seen).toEqual([10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
   });
 });
 

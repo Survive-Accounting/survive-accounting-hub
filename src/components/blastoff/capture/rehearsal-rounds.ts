@@ -20,6 +20,13 @@
 // off the end and finishes the round (the clock and dictation stop). R mid-round finishes it
 // early the same way; R while merely armed cancels back to off.
 //
+// START OVER (2026-09-07). Lee: "Start over doesn't quite work with rehearsal. Maybe it's
+// supposed to be paused first? Start over should give you another round 1." It used to work only
+// mid-round (and restarted THAT round). Now it works from any phase — off, armed, running, or
+// after a finished round — and means the whole rehearsal from the top: every round's transcript
+// and the history wiped, landing ARMED on round 1 (blind, "press space to start"). The prompter
+// lines already committed onto frames are data, not rehearsal state, and are never touched.
+//
 // Pure: a reducer over plain data, so the keys and the chrome buttons in BlastOffCapture are one
 // dispatch each and every transition is testable without a browser. Times are epoch ms the
 // caller passes in (`now`), never read here.
@@ -48,7 +55,7 @@ export type RoundsAction =
   | { type: "slide"; now: number }
   | { type: "finish"; now: number }
   | { type: "cancel" }
-  | { type: "startOver"; now: number }
+  | { type: "startOver" }
   | { type: "scratch"; frameId: string }
   | { type: "addFinal"; frameId: string; text: string };
 
@@ -86,10 +93,11 @@ export function reduceRounds(s: RehearsalRounds, a: RoundsAction): RehearsalRoun
       return { ...s, phase: "off", round: s.history.length, startedAt: null, slideStartedAt: null };
     }
     case "startOver": {
-      // "Start over? Scratch previous take?" (Lee) — the whole round from the top: transcript
-      // wiped, clock back to zero, still running (the caller jumps to slide 0).
-      if (s.phase !== "running") return s;
-      return { ...s, startedAt: a.now, slideStartedAt: a.now, segmentsByRound: { ...s.segmentsByRound, [s.round]: {} } };
+      // "Start over should give you another round 1" (Lee, 2026-09-07) — from ANY phase: every
+      // transcript and the history gone, armed on round 1 with the clock at zero. The caller
+      // jumps to slide 0; the dictation stops by itself (the phase is no longer running). Space
+      // then starts round 1 exactly as the very first R + space did.
+      return { ...initialRounds(), phase: "armed", round: 1 };
     }
     case "scratch": {
       // One slide's take, this round only — the existing backtick behaviour.

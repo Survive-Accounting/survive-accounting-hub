@@ -58,22 +58,50 @@ describe("rehearsal rounds", () => {
     expect(reduceRounds(initialRounds(), { type: "addFinal", frameId: "a", text: "x" }).segmentsByRound).toEqual({});
     expect(reduceRounds(reduceRounds(initialRounds(), { type: "arm" }), { type: "addFinal", frameId: "a", text: "x" }).segmentsByRound).toEqual({});
   });
-  test("scratch wipes one slide's take; start over wipes the round and restarts the clock, still running", () => {
+  test("scratch wipes one slide's take, this round only", () => {
     const s = run([{ type: "arm" }, { type: "start", now: 0 }, { type: "addFinal", frameId: "a", text: "one" }, { type: "addFinal", frameId: "b", text: "two" }]);
     const scratched = reduceRounds(s, { type: "scratch", frameId: "a" });
     expect(roundSegments(scratched)).toEqual({ b: "two" });
     expect(reduceRounds(scratched, { type: "scratch", frameId: "zzz" })).toBe(scratched);   // nothing to wipe → same object
-    const over = reduceRounds(s, { type: "startOver", now: 9000 });
-    expect(over.phase).toBe("running");
-    expect(over.round).toBe(1);
-    expect(over.startedAt).toBe(9000);
-    expect(over.slideStartedAt).toBe(9000);
-    expect(roundSegments(over)).toEqual({});
-    expect(over.history).toEqual([]);
+  });
+  // Lee, 2026-09-07: "Start over doesn't quite work with rehearsal. Maybe it's supposed to be
+  // paused first? Start over should give you another round 1." — from every phase it can be
+  // pressed in, the result is the same: armed round 1, nothing remembered.
+  describe("start over → armed round 1, from any phase", () => {
+    const armedRound1: RehearsalRounds = { phase: "armed", round: 1, startedAt: null, slideStartedAt: null, segmentsByRound: {}, history: [] };
+    test("off, before anything", () => {
+      expect(reduceRounds(initialRounds(), { type: "startOver" })).toEqual(armedRound1);
+    });
+    test("armed (even armed on round 3)", () => {
+      const s = run([{ type: "arm" }, { type: "start", now: 0 }, { type: "finish", now: 1000 }, { type: "arm" }, { type: "start", now: 0 }, { type: "finish", now: 1000 }, { type: "arm" }]);
+      expect(s.round).toBe(3);
+      expect(reduceRounds(s, { type: "startOver" })).toEqual(armedRound1);
+    });
+    test("running — the transcript so far is gone, and it is no longer running", () => {
+      const s = run([{ type: "arm" }, { type: "start", now: 0 }, { type: "addFinal", frameId: "a", text: "one" }, { type: "addFinal", frameId: "b", text: "two" }]);
+      const over = reduceRounds(s, { type: "startOver" });
+      expect(over).toEqual(armedRound1);
+      expect(roundSegments(over)).toEqual({});
+    });
+    test("after finished rounds (off, with history) — round 2's transcript and round 1's time both go", () => {
+      const s = run([{ type: "arm" }, { type: "start", now: 0 }, { type: "addFinal", frameId: "a", text: "one" }, { type: "finish", now: 134_000 }, { type: "arm" }, { type: "start", now: 200_000 }, { type: "addFinal", frameId: "a", text: "again" }, { type: "finish", now: 300_000 }]);
+      expect(s.history).toHaveLength(2);
+      const over = reduceRounds(s, { type: "startOver" });
+      expect(over).toEqual(armedRound1);
+      // And the next space really is round 1 again — blind, a fresh clock, and one round done
+      // after it finishes (not three), so the prompter stays locked until a real round 2.
+      const running = reduceRounds(over, { type: "start", now: 400_000 });
+      expect(running.phase).toBe("running");
+      expect(running.round).toBe(1);
+      expect(running.startedAt).toBe(400_000);
+      const done = reduceRounds(running, { type: "finish", now: 401_000 });
+      expect(done.history).toEqual([{ round: 1, seconds: 1 }]);
+      expect(prompterEditable(done)).toBe(false);
+    });
   });
   test("transitions that don't apply are no-ops", () => {
     const off = initialRounds();
-    for (const a of [{ type: "start", now: 1 }, { type: "slide", now: 1 }, { type: "finish", now: 1 }, { type: "cancel" }, { type: "startOver", now: 1 }, { type: "scratch", frameId: "a" }] as RoundsAction[]) {
+    for (const a of [{ type: "start", now: 1 }, { type: "slide", now: 1 }, { type: "finish", now: 1 }, { type: "cancel" }, { type: "scratch", frameId: "a" }] as RoundsAction[]) {
       expect(reduceRounds(off, a)).toBe(off);
     }
     const running = run([{ type: "arm" }, { type: "start", now: 0 }]);

@@ -24,10 +24,30 @@
 // 9:16 pop-out each live in ./capture/* and plug in here — joined on
 // 2026-09-06 by the rehearsal rounds (R), the teleprompter's own pop-out
 // window and the "?" hotkeys card, same folder, same shape.
+//
+// TWO WINDOWS, ONE MONITOR (2026-09-07). Lee: "I am planning to pop out the capture window and
+// be looking at that when I'm recording live… but the /film window is still open and has the
+// slides right there too. I would prefer with capture window having a 10 second countdown… like
+// we're on slide 0 at that point. and once that countdown starts, we have the /film on slide
+// one… BUT, when countdown hits, we advance /film to slide 2. It's maybe a bit more, not
+// blurred, but like opaque, so it's not complete focus yet. BUT, this will help me to see *what
+// slide comes next* so I can have some really smooth transitions in mind." And: "The film screen
+// has the slides in the exact center of the monitor. There's enough space to the left for me to
+// place popout capture window to the left, so I can see them side by side, but within one
+// monitor." So the pop-out (the take, the CURRENT slide) sits left; this main window stays
+// centred and, while the pop-out is live, becomes the NEXT-SLIDE PREVIEW: the slide after the
+// pop-out's, at 0.55 opacity, its own spacebar ignored. The pop-out drives, never the reverse.
+// How the main window knows (the sa-film-active record's popout flag + heartbeat) is
+// capture/prompter-sync.ts; the countdown itself is capture/popout.ts. "A big part of my
+// teaching style that hits so hard is my TIMING for moving a slide at the perfect emphasis
+// moment" — seeing the next slide is what this buys him.
+import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
+import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { BrandCursor } from "@/components/canvas/BrandCursor";
+import { V3_DISPLAY, type Crumb } from "@/components/v3/Shell";
 import { MoveContext, PersistContext, PracticeContext, PreviewSpotContext, ScaleContext, WidthContext, type PreviewSpotApi } from "@/components/canvas/CeqPreviewer";
 import { applyRegularClick, applySuperClick, type SpotSets } from "@/components/canvas/spotlight";
 import { HighlightContext, useTextHighlights } from "@/components/canvas/text-highlights";
@@ -39,8 +59,8 @@ import { cannedLinesFor, pickCannedLine, type CannedLine, type CannedSlot } from
 import { CaptureArrows } from "./capture/arrows";
 import { useCaptureCamera } from "./capture/camera";
 import { HotkeysModal } from "./capture/HotkeysModal";
-import { useCapturePopout } from "./capture/popout";
-import { useCapturePrompterSyncFrame } from "./capture/prompter-sync";
+import { countdownTone, useCapturePopout, useCountdown } from "./capture/popout";
+import { previewIndex, useCapturePrompterSyncFrame, usePopoutTake } from "./capture/prompter-sync";
 import { fmtClock, historyLabel, initialRounds, opensReview, prompterEditable, reduceRounds, roundLabel, roundMode, roundSegments, showsPrompterInRound } from "./capture/rehearsal-rounds";
 import { useTeleprompterPopout } from "./capture/teleprompter-popout";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
@@ -61,7 +81,12 @@ function cannedSlotOf(kind: BlastFrame["kind"]): CannedSlot | null {
 
 const NO_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
-export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo; topicName?: string; onExit: () => void }) {
+export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
+  set: BoothSetInfo; topicName?: string; onExit: () => void;
+  /** The V3 breadcrumb (Lee, 2026-09-07: "Show navigation breadcrumbs on /film") — drawn small,
+   *  top-left, only with the chrome and only in the main window, so it never films. */
+  crumbs?: Crumb[];
+}) {
   const { plan, commit } = usePlan(set);
   const [i, setI] = useState(0);
   const ceqById = useMemo(() => new Map(set.ceqs.map((c) => [c.id, c])), [set.ceqs]);
@@ -77,7 +102,17 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   // Skipped cards never reach a take.
   const frames = useMemo(() => filmFrames(plan?.frames ?? []), [plan]);
   const n = frames.length;
-  const idx = Math.min(i, Math.max(0, n - 1));
+  // THE NEXT-SLIDE PREVIEW (2026-09-07, header). This is the main window when `take` is non-null:
+  // the 9:16 pop-out is live (its record is fresh, capture/prompter-sync.ts) and this window shows
+  // the slide AFTER the pop-out's — `idx` IS that slide for everything below (the phone, the
+  // camera, the prompter panel), so nothing downstream has to know. Slide 1 during the pop-out's
+  // countdown; one past the end on its last slide ("— end —"). The pop-out never listens.
+  const popout = useCapturePopout();
+  const take = usePopoutTake(set.id, !popout.isPopout);
+  const previewIdx = take ? previewIndex(frames, take) : null;
+  const preview = previewIdx !== null;
+  const atEnd = preview && previewIdx >= n;
+  const idx = preview ? Math.min(previewIdx, Math.max(0, n - 1)) : Math.min(i, Math.max(0, n - 1));
   const frame = frames[idx];
   const frameId = frame?.id ?? null;
   const ceq = frame?.kind === "ceq" && frame.ceqId ? ceqById.get(frame.ceqId) : undefined;
@@ -167,8 +202,12 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
   }, [rounds.phase, finishRound]);
   /** Space while armed: from slide 1, clock and dictation on. */
   const startRound = useCallback(() => { setI(0); dispatchRounds({ type: "start", now: Date.now() }); }, []);
-  /** Shift+R / "↺ start over" — Lee: "Start over? Scratch previous take?" The round from the top. */
-  const startOver = useCallback(() => { if (rounds.phase !== "running") return; setI(0); setInterim(""); dispatchRounds({ type: "startOver", now: Date.now() }); }, [rounds.phase]);
+  /** Shift+R / "↺ start over (round 1)" — Lee, 2026-09-07: "Start over should give you another
+   *  round 1." From ANY phase: back to slide 1, armed on round 1, nothing of this session's
+   *  rehearsal kept (the reducer wipes the transcripts and the times; the dictation stops because
+   *  the phase is no longer running). The "done" toast goes too — it was a round that no longer
+   *  counts. */
+  const startOver = useCallback(() => { setI(0); setInterim(""); setLastRound(null); dispatchRounds({ type: "startOver" }); }, []);
   /** ` / "✕ scratch take" — this slide's take, this round. */
   const scratchTake = useCallback(() => { setInterim(""); if (frameId) dispatchRounds({ type: "scratch", frameId }); }, [frameId]);
 
@@ -249,9 +288,16 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
 
   // ---- the plug-ins: camera, arrows, teleprompter sync, the 9:16 pop-out ----
   const camera = useCaptureCamera({ hostRef, frameId: frameId ?? "" });
-  const popout = useCapturePopout();
   const openTeleprompter = useTeleprompterPopout(set.id);
-  useCapturePrompterSyncFrame(set.id, frame ?? null);
+  // THE COUNTDOWN (pop-out only; capture/popout.ts). Starting it jumps to slide 0, so slide 1 is
+  // what is there when the black lifts. Cancelling (space) leaves slide 1 up as well.
+  const countdown = useCountdown(useCallback(() => setI(0), []));
+  const { start: startCountdown, cancel: cancelCountdown } = countdown;
+  const counting = countdown.seconds !== null;
+  // What this window tells the teleprompter (and, from the pop-out, the main window): its slide —
+  // or, during the countdown, no slide ("slide 0") with the countdown flag. The main window
+  // writes NOTHING while the pop-out's take is live: the pop-out is the one that films.
+  useCapturePrompterSyncFrame(set.id, counting ? null : frame ?? null, { paused: take !== null, popout: popout.isPopout, countdown: counting });
   // Inside the popped-out window the chrome starts hidden — the window IS the shot.
   const [chrome, setChrome] = useState(!popout.isPopout);
   // THE CAMERA for this take: the slide's own spot, or B's override (home →
@@ -283,6 +329,10 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
       if (e.key === "?") { e.preventDefault(); setShowHotkeys(true); return; }
       if (e.key === " " || e.code === "Space") {
         e.preventDefault();
+        // THE COUNTDOWN: space while it runs cancels it (slide 1 stays up). And the main window's
+        // own space is ignored while the pop-out's take is live — the pop-out drives.
+        if (counting) { cancelCountdown(); return; }
+        if (preview) return;
         // REHEARSAL: space while armed STARTS the round (Lee: "I enter rehearsal mode, then press
         // space to start"); space on the LAST slide while running walks off the end and FINISHES
         // it — no wrap, the slide stays. Otherwise it's the same walk as a real take.
@@ -306,13 +356,15 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
       else if (e.key === "Escape") { e.preventDefault(); onExit(); }
       else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
       else if (e.key.toLowerCase() === "p") { e.preventDefault(); setPrompter((v) => !v); }
-      // R arms / cancels / finishes a round; Shift+R starts the running round over.
+      // R arms / cancels / finishes a round; Shift+R starts the whole rehearsal over (round 1).
       else if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); if (e.shiftKey) startOver(); else pressR(); }
       else if (e.key.toLowerCase() === "b" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); const nx = nextCamSpot(camNow); setCamOverride(nx); if (nx === "off") setHero(false); }
+      // C: the 10 s countdown — in the 9:16 pop-out only (the main window is the preview then).
+      else if (e.key.toLowerCase() === "c" && !e.ctrlKey && !e.metaKey && !e.altKey && popout.isPopout && !counting) { e.preventDefault(); startCountdown(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake]);
+  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout]);
 
   // FIT THE PHONE to the window: as tall as the window allows, 9:16. Size the
   // browser window to 9:16 (or pop it out) and the phone IS the window.
@@ -342,10 +394,26 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
           onPlace exists at all) never persist into the shot: they're only live while chrome is
           visible (H, or off by default in the popout, or forced off by ` — see the keydown
           handler above), same as everything else that's setup-only, never filmed. */}
-      <SlideEditContext.Provider value={popout.isPopout && chrome ? patchCurrentFrame : null}>
-        <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture popout={popout.isPopout} stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} onRailStatus={setRailStatus}
-          progress={questionProgress(frames, ceqById).get(frame.id)} />
-      </SlideEditContext.Provider>
+      {/* THE NEXT-SLIDE PREVIEW (2026-09-07, header): while the pop-out's take is live this phone
+          is the slide AFTER it — "not blurred, but like opaque, so it's not complete focus yet"
+          — with a NEXT tag; slide 1 undimmed during the pop-out's countdown ("we have the /film
+          on slide one"); "— end —" past the last slide. This window is never in the shot then,
+          so the tag can sit on the phone. */}
+      {atEnd ? (
+        <div style={{ width: w, height: Math.round(w * 16 / 9), background: "#000", display: "grid", placeItems: "center", color: MUTED, fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 22, fontWeight: 700, letterSpacing: "0.08em" }}>— end —</div>
+      ) : (
+        <div style={{ position: "relative", opacity: preview && !take?.countdown ? 0.55 : 1, transition: "opacity 200ms ease-out" }}>
+          <SlideEditContext.Provider value={popout.isPopout && chrome ? patchCurrentFrame : null}>
+            <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture popout={popout.isPopout} stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} onRailStatus={setRailStatus}
+              progress={questionProgress(frames, ceqById).get(frame.id)} />
+          </SlideEditContext.Provider>
+          {preview && (
+            <div style={{ position: "absolute", top: 14, left: "50%", transform: "translateX(-50%)", zIndex: 35, pointerEvents: "none", background: "rgba(7,11,20,0.88)", border: `1px solid ${GOLD}66`, borderRadius: 999, padding: "3px 12px", fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 11, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, whiteSpace: "nowrap" }}>
+              {take?.countdown ? "first · counting down in the pop-out" : "next"}
+            </div>
+          )}
+        </div>
+      )}
       <CaptureArrows hostRef={hostRef} frameId={frame.id} />
       {/* THE BRAND CURSOR — the bolt, as on the canvas popout. The native
           cursor is hidden; turn "Capture Cursor" off on the OBS source. */}
@@ -353,14 +421,50 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
           wordmark itself already has an animated bolt there; a second one following the mouse
           competes with it. */}
       <BrandCursor hostRef={hostRef} enabled={frame.kind !== "open" && frame.kind !== "intro"} />
+      {/* THE COUNTDOWN (pop-out only, capture/popout.ts): black, the count big in the display
+          face — cream, the last three gold — the wordmark small below. Over everything, so the
+          9:16 window IS this until it lifts onto slide 1. */}
+      {counting && countdown.seconds !== null && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: Math.round(w * 0.06), userSelect: "none" }}>
+          <div key={countdown.seconds} style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: Math.round(w * 0.5), lineHeight: 1, color: countdownTone(countdown.seconds) === "gold" ? GOLD : CREAM, fontVariantNumeric: "tabular-nums" }}>
+            {countdown.seconds}
+          </div>
+          <SurviveWordmark size={Math.max(14, Math.round(w * 0.055))} />
+        </div>
+      )}
+      {/* BREADCRUMBS (2026-09-07, Lee: "Show navigation breadcrumbs on /film") — the same crumbs
+          V3Shell would draw, in the chrome's own quiet style; main window only, chrome only, so
+          they never film. Escape still exits the way it always did. */}
+      {chrome && !popout.isPopout && crumbs && crumbs.length > 0 && (
+        <nav aria-label="Breadcrumb" style={{
+          position: "fixed", top: 10, left: 12, zIndex: 30, display: "flex", alignItems: "center", gap: 6,
+          background: "rgba(7,11,20,0.86)", border: `1px solid ${EDGE}`, borderRadius: 10, padding: "5px 10px",
+          fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 11.5, color: MUTED, whiteSpace: "nowrap",
+        }}>
+          {crumbs.map((c, k) => (
+            <span key={`${c.label}-${k}`} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {k > 0 && <span>›</span>}
+              {c.to ? <Link to={c.to} style={{ color: MUTED, fontWeight: 600, textDecoration: "none" }}>{c.label}</Link> : <span style={{ color: CREAM, fontWeight: 700 }}>{c.label}</span>}
+            </span>
+          ))}
+        </nav>
+      )}
       {chrome && (
         <div style={{
           position: "fixed", left: 12, bottom: 12, display: "flex", gap: 12, alignItems: "center", zIndex: 30,
           background: "rgba(7,11,20,0.86)", border: `1px solid ${EDGE}`, borderRadius: 10,
           padding: "7px 12px", fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 11.5, color: MUTED,
         }}>
-          <span style={{ color: GOLD, fontWeight: 800 }}>{idx + 1} / {n}</span>
-          <span>{FRAME_LABEL[frame.kind]}</span>
+          {/* In preview mode the count is the pop-out's, and what THIS window shows is the next one
+              (Lee: "when countdown hits, we advance /film to slide 2"). */}
+          {preview ? (
+            <span style={{ color: GOLD, fontWeight: 800 }}>
+              pop-out {take?.countdown ? "counting down" : `on ${previewIdx} / ${n}`} · showing {atEnd ? "the end" : previewIdx + 1}
+            </span>
+          ) : (
+            <span style={{ color: GOLD, fontWeight: 800 }}>{idx + 1} / {n}</span>
+          )}
+          <span>{atEnd ? "— end —" : FRAME_LABEL[frame.kind]}</span>
           {qaLayout && <span title="localStorage sa-layout-qa is set on this browser — the take films THIS pass, not the set's" style={{ color: "#FF7A59", fontWeight: 800 }}>layout override: {qaLayout}</span>}
           <span title="The fixed caption rail (layout.ts CAPTION_RAIL): where the burned captions will land on this slide"
             style={{ color: railStatus === "clear" ? MUTED : GOLD, fontWeight: railStatus === "clear" ? 500 : 800 }}>
@@ -382,11 +486,16 @@ export function BlastOffCapture({ set, topicName, onExit }: { set: BoothSetInfo;
               {dictation.supported ? (dictation.on ? "listening" : "not listening") : "dictation unsupported — try Chrome"}
             </span>
           )}
-          {running && (
-            <>
-              <button onClick={startOver} title="Start this round over (shift+R): transcript wiped, clock to zero, back to slide 1" style={chip()}>↺ start over</button>
-              <button onClick={scratchTake} title="Scratch this slide's take (`) — this round only" style={chip()}>✕ scratch take</button>
-            </>
+          {/* Visible whenever rehearsal has any state at all — armed, running, or rounds already
+              done — since it now means the whole thing from the top (Lee, 2026-09-07: "Start over
+              should give you another round 1"). */}
+          {(phase !== "off" || rounds.history.length > 0) && (
+            <button onClick={startOver} title="Start the rehearsal over (shift+R): every round's transcript and time wiped, back to slide 1, armed on round 1. Your committed lines stay." style={chip()}>↺ start over (round 1)</button>
+          )}
+          {running && <button onClick={scratchTake} title="Scratch this slide's take (`) — this round only" style={chip()}>✕ scratch take</button>}
+          {/* THE COUNTDOWN button — pop-out only (H shows this bar there; C is the key). */}
+          {popout.isPopout && !counting && (
+            <button onClick={startCountdown} title="10 s countdown (C): black with the count, then slide 1 — space cancels. The main /film window shows slide 1 while it counts, then slide 2 dimmed." style={chip()}>⏱ 10 s countdown</button>
           )}
           {phase === "off" && segmentCount > 0 && (
             // "lines N →", not "review N →" (2026-09-07): "Review" is the Editor step's old name,

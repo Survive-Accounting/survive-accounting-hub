@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-import { FILM_ACTIVE_KEY, filmActiveRecord, filmNodeId, filmNodeIdForFrameId } from "./prompter-sync";
+import { FILM_ACTIVE_KEY, POPOUT_HEARTBEAT_MS, POPOUT_STALE_MS, filmActiveRecord, filmNodeId, filmNodeIdForFrameId, popoutTake, previewIndex, type FilmActive } from "./prompter-sync";
 
 const src = (rel: string) => readFileSync(join(import.meta.dir, rel), "utf8").split("\r\n").join("\n");
 const teleprompter = src("../../../routes/v3.teleprompter.tsx");
@@ -19,6 +19,11 @@ describe("the record", () => {
     expect(Object.keys(filmActiveRecord("s", null))).toEqual(["setId", "qId", "at"]);
     expect(typeof filmActiveRecord("s", null).at).toBe("number");
   });
+  test("the pop-out's flags are added only when true — never written as false", () => {
+    expect(filmActiveRecord("s", "blast-f1", 1, { popout: true })).toEqual({ setId: "s", qId: "blast-f1", at: 1, popout: true });
+    expect(filmActiveRecord("s", null, 1, { popout: true, countdown: true })).toEqual({ setId: "s", qId: null, at: 1, popout: true, countdown: true });
+    expect(Object.keys(filmActiveRecord("s", "q", 1, { popout: false, countdown: false }))).toEqual(["setId", "qId", "at"]);
+  });
   test("a set card publishes its CEQ node, an insert its blast-<frame id> node", () => {
     expect(filmNodeId({ id: "f1", kind: "ceq", ceqId: "ceq-9" })).toBe("ceq-9");
     expect(filmNodeId({ id: "f2", kind: "phrase" })).toBe("blast-f2");
@@ -26,6 +31,42 @@ describe("the record", () => {
     expect(filmNodeId(null)).toBeNull();
     expect(filmNodeIdForFrameId("f2")).toBe("blast-f2");
     expect(filmNodeIdForFrameId(null)).toBeNull();
+  });
+});
+
+// Lee, 2026-09-07: "I would prefer with capture window having a 10 second countdown… like we're
+// on slide 0 at that point. and once that countdown starts, we have the /film on slide one… BUT,
+// when countdown hits, we advance /film to slide 2." The main window's side, pure.
+describe("the main window reading the pop-out's take", () => {
+  const rec = (over: Partial<FilmActive>): FilmActive => ({ setId: "set-1", qId: "blast-f2", at: 10_000, popout: true, ...over });
+  const frames = [{ id: "f1", kind: "open" as const }, { id: "f2", kind: "ceq" as const, ceqId: "ceq-9" }, { id: "f3", kind: "outro" as const }];
+
+  test("a live pop-out record is a take; the plain record (the main window's own, or the Studio's) is not", () => {
+    expect(popoutTake(rec({}), "set-1", 11_000)).toEqual({ qId: "blast-f2", countdown: false });
+    expect(popoutTake({ setId: "set-1", qId: "blast-f2", at: 10_000 }, "set-1", 11_000)).toBeNull();
+    expect(popoutTake(null, "set-1", 11_000)).toBeNull();
+  });
+  test("another set's pop-out is not this window's take", () => {
+    expect(popoutTake(rec({ setId: "set-2" }), "set-1", 11_000)).toBeNull();
+  });
+  test("stale after POPOUT_STALE_MS without a heartbeat — the pop-out closed or froze", () => {
+    expect(POPOUT_HEARTBEAT_MS * 2).toBeLessThan(POPOUT_STALE_MS);              // two missed beats before it's called dead
+    expect(popoutTake(rec({}), "set-1", 10_000 + POPOUT_STALE_MS)).not.toBeNull();
+    expect(popoutTake(rec({}), "set-1", 10_001 + POPOUT_STALE_MS)).toBeNull();
+    expect(popoutTake(rec({}), "set-1", 10_000 - POPOUT_STALE_MS - 1)).toBeNull(); // a clock far ahead of ours is no better
+  });
+  test("the countdown is slide 0: qId null whatever was written", () => {
+    expect(popoutTake(rec({ countdown: true, qId: null }), "set-1", 11_000)).toEqual({ qId: null, countdown: true });
+    expect(popoutTake(rec({ countdown: true }), "set-1", 11_000)).toEqual({ qId: null, countdown: true });
+  });
+  test("the preview is the slide AFTER the pop-out's; during the countdown it is slide 1", () => {
+    expect(previewIndex(frames, { qId: null, countdown: true })).toBe(0);
+    expect(previewIndex(frames, { qId: "blast-f1", countdown: false })).toBe(1);
+    expect(previewIndex(frames, { qId: "ceq-9", countdown: false })).toBe(2);       // a set card by its CEQ node…
+    expect(previewIndex(frames, { qId: "blast-f2", countdown: false })).toBe(2);    // …or by its frame id, as the Studio/prompter contract allows
+    expect(previewIndex(frames, { qId: "blast-f3", countdown: false })).toBe(3);    // the last slide → frames.length: "— end —"
+    expect(previewIndex(frames, { qId: "blast-nope", countdown: false })).toBeNull();
+    expect(previewIndex(frames, { qId: null, countdown: false })).toBeNull();
   });
 });
 

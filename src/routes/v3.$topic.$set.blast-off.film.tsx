@@ -34,11 +34,6 @@ function V3Film() {
   const navigate = useNavigate();
   const { topics, error, topic, set } = useV3Set(topicKey, setKey);
 
-  if (set && topic) {
-    const exit = () => void navigate({ to: blastOffPath(topic, set) });
-    return <BlastOffCapture set={set} topicName={topic.name} onExit={exit} />;
-  }
-
   const crumbs = [
     { label: "V3", to: "/v3" },
     { label: topic?.name ?? topicKey, to: `/v3/${topicKey}` },
@@ -46,6 +41,15 @@ function V3Film() {
     { label: "Blast Off", to: `/v3/${topicKey}/${setKey}/blast-off` },
     { label: "Rehearse & Film" },
   ];
+
+  if (set && topic) {
+    const exit = () => void navigate({ to: blastOffPath(topic, set) });
+    // Still no V3Shell — but the same crumbs it would draw (Lee, 2026-09-07: "Show navigation
+    // breadcrumbs on /film"): BlastOffCapture draws them small, top-left, chrome-only, main
+    // window only, so they can never be in the shot.
+    return <BlastOffCapture set={set} topicName={topic.name} onExit={exit} crumbs={crumbs} />;
+  }
+
   return (
     <V3Shell crumbs={crumbs}>
       {error && <V3Note tone="bad">Could not load the bank: {error}</V3Note>}

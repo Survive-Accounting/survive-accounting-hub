@@ -40,14 +40,19 @@ export const HOTKEY_GROUPS: readonly Group[] = [
   ] },
   { title: "Take", keys: [
     ["`", "reset the take: emphasis, spotlight, highlights, hero, chrome off (while rehearsing: scratch this slide's take too)"],
-    ["H", "hide / show the chrome bar"],
+    ["H", "hide / show the chrome bar (in the main window: the breadcrumbs too)"],
     ["P", "hide / show the prompter panel"],
     ["F", "fullscreen (in the 9:16 pop-out)"],
+    // THE COUNTDOWN + NEXT-SLIDE PREVIEW (2026-09-07). Lee: "a 10 second countdown… like we're on
+    // slide 0 at that point… this will help me to see what slide comes next."
+    ["C", "10 s countdown (in the 9:16 pop-out): black, the count, then slide 1 · space cancels it"],
+    ["—", "while the pop-out is open, the main /film window shows the NEXT slide, dimmed (during the countdown: slide 1) — its own space is ignored; the pop-out drives"],
   ] },
   { title: "Rehearsal", keys: [
     ["R", "arm a round · R again while armed cancels · R mid-round finishes it early"],
     ["space", "start the armed round from slide 1 (the clock and dictation start)"],
-    ["shift + R", "start the round over: transcript wiped, clock to zero"],
+    // Lee, 2026-09-07: "Start over should give you another round 1."
+    ["shift + R", "start over, from any phase: every round's transcript and the times wiped, armed on round 1 (your committed lines stay)"],
     ["`", "scratch this slide's take (this round only)"],
     ["?", "this card"],
   ] },
