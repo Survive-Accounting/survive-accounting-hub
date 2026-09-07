@@ -1,11 +1,29 @@
-// THE ILLUSTRATOR (the right panel's face). Lee brainstorms out loud — the mic or the box —
-// and ONE click does the rest (2026-09-07, Lee: "No more 'prep the prompt' just generate the
-// illustration. Another way to speed up."): the AI writes the brief in the background and, the
-// moment it parses, draws; the title and three bullets show AFTER, beside the picture, the full
-// prompt still in a fold (2026-09-05: "I don't really need to read the full prompt, leave it in
-// a toggle"). "Brief only" stays as a small secondary for the rare read-it-first, and "my words
-// exactly" skips the AI rewrite. Says what to change → a new brief → drawn. A picture can
-// reference another slide's (same cast, same props, same seed) so a set's pictures rhyme.
+// THE ILLUSTRATOR (the right panel's face). ONE box, ONE button (Lee, 2026-09-07: "With
+// illustrator, 'prep again from my words' this isn't necessary. I want to just type out (or
+// speak out) my idea for an illustration, and just trust it to make it correctly the first
+// time. I don't need to see the prompt it generates, that can go to background. Just make this
+// quick and easy. Fewer clicks, less thinking required."). Lee talks or types into the words
+// box and presses Generate; the AI writes the brief in the background and, the moment it
+// parses, draws. The brief's title and three bullets are a CAPTION after the fact — small,
+// folded behind "why this picture", closed by default — never a step, and the prompt itself
+// is nowhere on the panel. Gone with that (2026-09-07): "brief only", "my words exactly", the
+// editable subject field and the full-prompt fold.
+//
+// REVISION BY VOICE (2026-09-07, docs/USE-YOUR-WORDS-AUDIT.md #1: the "what to change" box is
+// the most-typed field on the whole line — it needs the mic and a live re-brief while he
+// talks): a mic beside the box; while Lee talks, the brief re-runs on the review's throttle
+// (LIVE_REBRIEF_EVERY_MS of new final text, one call in flight, a stale answer dropped) so the
+// caption follows along, opening itself while he talks; "Revise → draw" (or Enter) draws the
+// current draft — no second brief call when the draft already matches what he said. Typing
+// still works the same way. One SpeechRecognition serves both mics, routed to whichever box
+// asked for it (Chrome runs one at a time).
+//
+// History: 2026-09-07 earlier, "No more 'prep the prompt' just generate the illustration.
+// Another way to speed up." — the one click, with brief-only and my-words as secondaries;
+// 2026-09-05, "I'd much prefer to just brainstorm an idea … let the AI prep a prompt, and then
+// summarize the prompt for me, then I confirm submit. I don't really need to read the full
+// prompt, leave it in a toggle." — the confirm step this file no longer has. A picture can
+// still reference another slide's (same cast, same props, same seed) so a set's pictures rhyme.
 //
 // THE THREE-REVISION CAP (Lee, 2026-09-07: "Max of 3 revisions for illustrations, to save on
 // cost."): three draws per subject per frame, counted on the frame (`attempts`) and checked
@@ -26,7 +44,7 @@ import { generateIllustration, illustrationStatus, listIllustrationLibrary, test
 import { runMicro } from "@/lib/talkthrough.functions";
 import { useDictation } from "@/lib/use-dictation";
 
-import { ANIMATION_LABEL, ANIMATION_PRESETS, ILLUSTRATION_REVISION_CAP, PROMPTING_TIPS, REVISION_CAP_MESSAGE, composeIllustrationPrompt, defaultStyleIdFor, emptyIllustration, illustrationStyle, isOffStyleIllustration, isStaleIllustration, revisionsLeft, type FrameIllustration } from "./illustration";
+import { ANIMATION_LABEL, ANIMATION_PRESETS, ILLUSTRATION_REVISION_CAP, PROMPTING_TIPS, REVISION_CAP_MESSAGE, defaultStyleIdFor, emptyIllustration, illustrationStyle, isOffStyleIllustration, isStaleIllustration, revisionsLeft, type FrameIllustration } from "./illustration";
 import { BRIEF_SYSTEM, buildBriefMessages, parseBrief, type IllustrationBrief } from "./illustration-brief";
 import { FRAME_LABEL, insertStem, type BlastFrame } from "./plan";
 import { useIllustrationRegistry } from "./use-illustration-registry";
@@ -41,6 +59,10 @@ const field: React.CSSProperties = {
   padding: "7px 9px", fontSize: 13, lineHeight: 1.45, fontFamily: "inherit", boxSizing: "border-box",
 };
 const subhead: React.CSSProperties = { fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: MUTED, fontWeight: 800 };
+/** The revision mic's re-brief throttle — the same 2.5 s as RehearsalReview's LIVE_BRIEF_EVERY_MS
+ *  (a throttle, not a debounce: continuous speech would push a debounce out forever). */
+export const LIVE_REBRIEF_EVERY_MS = 2500;
+type MicTarget = "words" | "revision";
 
 type Avail = { signedIn: boolean; configured: boolean; provider: string; keyLength: number };
 
@@ -69,7 +91,10 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   const [interim, setInterim] = useState("");
   const [brief, setBrief] = useState<IllustrationBrief | null>(ill?.summary && ill.prompt ? { title: ill.summary.title, bullets: ill.summary.bullets, prompt: ill.prompt } : null);
   const [revision, setRevision] = useState("");
-  const [showPrompt, setShowPrompt] = useState(false);
+  const [revInterim, setRevInterim] = useState("");
+  // THE CAPTION'S FOLD ("why this picture") — closed by default; it opens itself while Lee
+  // talks a revision so he can watch the draft follow along, then folds back.
+  const [why, setWhy] = useState(false);
   const [refId, setRefId] = useState<string>(ill?.referenceFrameId ?? "");
   // THE ONE CLICK'S PROGRESS (2026-09-07): "writing the brief…" then "drawing…" — one line.
   const [stage, setStage] = useState<"brief" | "draw" | null>(null);
@@ -90,12 +115,37 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
   // local state, so it survives switching slides and away/back like everything else here.
   const [photoUploading, setPhotoUploading] = useState(false);
   const photoFileRef = useRef<HTMLInputElement>(null);
+  // THE LIVE RE-BRIEF'S BOOKKEEPING (2026-09-07): `draftFor` = the revision text the current
+  // `brief` was drafted from (so Revise → draw skips a second brief call when it matches);
+  // `liveBriefed` = the last text sent; `livePending` = a newer take that arrived mid-call.
+  const draftFor = useRef("");
+  const liveBriefed = useRef("");
+  const livePending = useRef<string | undefined>(undefined);
+  const liveInFlight = useRef(false);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
   useEffect(() => {
-    setWords(ill?.brief ?? ""); setInterim(""); setRevision(""); setErr(null); setLastCost(null); setCapHit(false); setOverrideArmed(false);
+    setWords(ill?.brief ?? ""); setInterim(""); setRevision(""); setRevInterim(""); setWhy(false); setErr(null); setLastCost(null); setCapHit(false); setOverrideArmed(false);
     setBrief(ill?.summary && ill.prompt ? { title: ill.summary.title, bullets: ill.summary.bullets, prompt: ill.prompt } : null);
     setRefId(ill?.referenceFrameId ?? "");
+    draftFor.current = ""; liveBriefed.current = ""; livePending.current = undefined;
+    if (dictation.on) dictation.stop();
   }, [sel.id]);   // eslint-disable-line react-hooks/exhaustive-deps
-  const dictation = useDictation((final, live) => { if (final) setWords((w) => (w ? w.replace(/\s+$/, "") + " " : "") + final.trim()); setInterim(live); });
+  // ONE MIC, TWO BOXES (2026-09-07): Chrome runs one SpeechRecognition at a time, so one hook
+  // serves both the words box and the revision box, routed by whichever asked for it. The ref
+  // is what the recogniser's callback reads (it closes over the render that started it); the
+  // state is what the buttons show.
+  const micTargetRef = useRef<MicTarget>("words");
+  const [micTarget, setMicTarget] = useState<MicTarget>("words");
+  const append = (w: string, final: string) => (w ? w.replace(/\s+$/, "") + " " : "") + final.trim();
+  const dictation = useDictation((final, live) => {
+    if (micTargetRef.current === "revision") { if (final.trim()) setRevision((r) => append(r, final)); setRevInterim(live); }
+    else { if (final.trim()) setWords((w) => append(w, final)); setInterim(live); }
+  });
+  const startMic = (target: MicTarget) => { micTargetRef.current = target; setMicTarget(target); setInterim(""); setRevInterim(""); dictation.start(); };
+  const stopMic = () => { dictation.stop(); setInterim(""); setRevInterim(""); };
+  const toggleMic = (target: MicTarget) => { if (dictation.on && micTarget === target) stopMic(); else { if (dictation.on) dictation.stop(); startMic(target); } };
+  const listeningTo = (target: MicTarget) => dictation.on && micTarget === target;
 
   const addPhoto = async (file: File) => {
     setPhotoUploading(true); setErr(null);
@@ -143,52 +193,116 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
 
   const keep = (patch: Partial<FrameIllustration>) => onPatch({ illustration: { ...(ill ?? emptyIllustration({}, kind, reg)), requested: true, ...patch } });
 
-  /** THE BRIEF: Lee's words → runMicro → a title, three bullets and the subject. Kept on the
-   *  frame with `attempts` reset (a new subject starts its three) and returned to whoever asked
-   *  — the one click draws it straight away, "brief only" stops here. Null on failure with the
-   *  message already shown: the brief's failure still stops before Recraft. */
-  async function writeBrief(revise: boolean): Promise<IllustrationBrief | null> {
-    const said = words.trim();
+  /** What the picture on the frame was drawn from — the base every revision is applied to, so
+   *  a revision spoken in pieces ("make him taller … and a red tie") never compounds on its own
+   *  intermediate drafts. Falls back to the current draft when nothing is drawn yet. */
+  const drawnBrief = (): { title: string; prompt: string } | null =>
+    ill?.prompt ? { title: ill.summary?.title ?? brief?.title ?? "", prompt: ill.prompt } : brief ? { title: brief.title, prompt: brief.prompt } : null;
+
+  /** THE BRIEF CALL, pure of panel state: Lee's words (+ what to change) → runMicro → a title,
+   *  three bullets and the subject. Throws when it doesn't parse — the brief's failure still
+   *  stops before Recraft. Both the one click and the live re-brief go through here. */
+  async function askBrief(brainstorm: string, revisionText: string | null): Promise<IllustrationBrief> {
+    const m = buildBriefMessages({
+      brainstorm, teachingIntent: teaching() || null, setName,
+      reference: ref ? { title: ref.title, prompt: ref.prompt } : null,
+      previous: revisionText ? drawnBrief() : null,
+      revision: revisionText,
+    }, reg.briefSystem ?? BRIEF_SYSTEM);   // the one Lee edited on /admin/illustrations/styles, else the code's
+    const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 500 } });
+    // THE COST LEDGER (2026-09-07): the brief is a paid AI call too — logged, never waited on.
+    void logCostEvent({ data: { setId, kind: "ai", usd: r.usage.costUsd, model: r.model, label: "illustration brief", who: getAdminWho() } }).catch(() => {});
+    const b = parseBrief(r.text);
+    if (!b) throw new Error("The draft didn't come back clean — try once more, or say it a little differently.");
+    return b;
+  }
+  /** The words the brief starts from: the box, else what the frame already carries (a revision
+   *  on a library picture has no words of its own). */
+  const brainstorm = () => words.trim() || (ill?.brief ?? "").trim() || (ill?.prompt ?? "").trim();
+
+  /** THE ONE CLICK'S BRIEF: written in the background, kept on the frame with `attempts` reset
+   *  (a new subject starts its three), returned to the click that draws it. Null on failure
+   *  with the message already shown. */
+  async function writeBrief(revisionText: string | null): Promise<IllustrationBrief | null> {
+    const said = brainstorm();
     if (!said) { setErr("Say it first — what's in the picture, in your own words."); return null; }
     setErr(null);
     try {
-      const m = buildBriefMessages({
-        brainstorm: said, teachingIntent: teaching() || null, setName,
-        reference: ref ? { title: ref.title, prompt: ref.prompt } : null,
-        previous: revise && brief ? { title: brief.title, prompt: brief.prompt } : null,
-        revision: revise ? revision.trim() || null : null,
-      }, reg.briefSystem ?? BRIEF_SYSTEM);   // the one Lee edited on /admin/illustrations/styles, else the code's
-      const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 500 } });
-      // THE COST LEDGER (2026-09-07): the brief is a paid AI call too — logged, never waited on.
-      void logCostEvent({ data: { setId, kind: "ai", usd: r.usage.costUsd, model: r.model, label: "illustration brief", who: getAdminWho() } }).catch(() => {});
-      const b = parseBrief(r.text);
-      if (!b) throw new Error("The draft didn't come back clean — try once more, or say it a little differently.");
-      setBrief(b); setRevision(""); setShowPrompt(false); setCapHit(false); setOverrideArmed(false);
+      const b = await askBrief(said, revisionText);
+      setBrief(b); setRevision(""); setRevInterim(""); setCapHit(false); setOverrideArmed(false);
+      draftFor.current = ""; liveBriefed.current = "";
       keep({ brief: said, summary: { title: b.title, bullets: b.bullets }, prompt: b.prompt, teachingIntent: teaching() || null, referenceFrameId: refId || null, attempts: 0 });
       return b;
     } catch (e) { setErr((e as Error).message); return null; }
   }
-  /** "Use my words exactly" — no AI rewrite; the words ARE the subject. */
-  function myWordsBrief(): IllustrationBrief | null {
-    const said = words.trim(); if (!said) return null;
-    const b: IllustrationBrief = { title: said.split(/[,.]/)[0].slice(0, 40), bullets: [said.slice(0, 80), "sent exactly as written — no AI rewrite", "no text unless you quoted it"], prompt: said };
-    setBrief(b); setCapHit(false); setOverrideArmed(false);
-    keep({ brief: said, summary: { title: b.title, bullets: b.bullets }, prompt: said, teachingIntent: teaching() || null, attempts: 0 });
-    return b;
-  }
 
-  /** THE ONE CLICK (2026-09-07): brief, then draw the moment it parses. `revise` = from the
-   *  "what to change" note against the current brief. */
-  async function sayItAndDraw(revise: boolean) {
+  /** THE ONE CLICK (2026-09-07): brief, then draw the moment it parses. `revisionText` = the
+   *  "what to change" note against the drawn picture. */
+  async function sayItAndDraw(revisionText: string | null) {
+    if (dictation.on) stopMic();
     setStage("brief");
     try {
-      const b = await writeBrief(revise);
+      const b = await writeBrief(revisionText);
       if (b) await draw(b);
     } finally { setStage(null); }
   }
-  /** The rare read-it-first — the brief lands in the card below, nothing is drawn. */
-  async function briefOnly() { setStage("brief"); try { await writeBrief(false); } finally { setStage(null); } }
-  async function myWordsAndDraw() { const b = myWordsBrief(); if (b) await draw(b); }
+
+  // THE LIVE RE-BRIEF (2026-09-07) — the review's pattern (RehearsalReview.tsx `suggest`): one
+  // call in flight; a newer take that arrives mid-call waits as `livePending` and runs the
+  // moment the call lands, and the landed answer is dropped as stale when a newer one is
+  // waiting, so the caption only ever shows the newest speech. Local state only — the frame
+  // is written when the draft is DRAWN, so the picture's own brief (the revision base) and its
+  // draw count stay put while Lee is still talking.
+  const [live, setLive] = useState(false);
+  const liveRef = useRef<(text: string) => Promise<void>>(async () => {});
+  async function liveRebrief(text: string) {
+    if (liveInFlight.current) { livePending.current = text; return; }
+    const said = brainstorm();
+    if (!said) return;
+    liveInFlight.current = true; setLive(true);
+    try {
+      const b = await askBrief(said, text);
+      if (!alive.current) return;
+      if (!livePending.current) { setBrief(b); draftFor.current = text; setCapHit(false); setOverrideArmed(false); setErr(null); }
+    } catch (e) {
+      if (alive.current && !livePending.current) setErr((e as Error).message);
+    } finally {
+      liveInFlight.current = false;
+      const p = livePending.current;
+      livePending.current = undefined;
+      if (p && alive.current) void liveRef.current(p);
+      else if (alive.current) setLive(false);
+    }
+  }
+  liveRef.current = liveRebrief;
+  // A throttle, not a debounce, on the revision box's FINAL text while its mic is on: the first
+  // new speech briefs at once, after that at most once per LIVE_REBRIEF_EVERY_MS, and the tail
+  // (the last chunk before Lee stops) always lands — the timer is set while he's talking and
+  // isn't cancelled by the mic going off. Typed text doesn't brief live; Enter does.
+  const talkingRevision = listeningTo("revision");
+  const lastLiveAt = useRef(0);
+  useEffect(() => {
+    const text = revision.trim();
+    if (!talkingRevision || !text || text === liveBriefed.current) return;
+    const wait = Math.max(0, lastLiveAt.current + LIVE_REBRIEF_EVERY_MS - Date.now());
+    const id = window.setTimeout(() => { lastLiveAt.current = Date.now(); liveBriefed.current = text; void liveRef.current(text); }, wait);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revision]);
+
+  /** REVISE → DRAW (the button, or Enter in the box): the draft already matches what Lee said →
+   *  draw it, no second brief call; otherwise brief with the change, then draw. */
+  async function reviseAndDraw() {
+    const text = revision.trim();
+    if (!text || busy) return;
+    if (dictation.on) stopMic();
+    if (brief && draftFor.current === text && !liveInFlight.current) {
+      setRevision(""); setRevInterim(""); draftFor.current = ""; liveBriefed.current = "";
+      await draw(brief);
+      return;
+    }
+    await sayItAndDraw(text);
+  }
 
   /** THE DRAW — one Recraft call for a brief's subject. Counts against the cap when the subject
    *  is the one already on the frame (Regenerate); a different subject starts at 0. Refused
@@ -279,23 +393,22 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
         <span style={{ fontSize: 11, color: MUTED }}>Say it — what's in the picture, in your words</span>
         <span style={{ flex: 1 }} />
         {dictation.supported && (
-          <button type="button" onClick={() => (dictation.on ? dictation.stop() : dictation.start())} style={chip(dictation.on, ORANGE)} title={dictation.on ? "Stop listening" : "Talk — the words land here as you speak (Chrome)"}>
-            {dictation.on ? "■ listening…" : "🎙 Speak"}
+          <button type="button" onClick={() => toggleMic("words")} style={chip(listeningTo("words"), ORANGE)} title={listeningTo("words") ? "Stop listening" : "Talk — the words land here as you speak (Chrome)"}>
+            {listeningTo("words") ? "■ listening…" : "🎙 Speak"}
           </button>
         )}
       </div>
       <textarea rows={3} style={{ ...field, marginTop: 4, resize: "vertical" }} value={words + (interim ? (words ? " " : "") + interim : "")}
         onChange={(e) => { setInterim(""); setWords(e.target.value); }} onPaste={onWordsPaste}
         placeholder="e.g. a suited guy at his desk with a magnifying glass over the financials, the report says OUR COMPANY, and outside the window an investor is peering in at the same report — or paste a reference photo (Ctrl+V)" />
-      {/* THE ONE CLICK (2026-09-07: "No more 'prep the prompt' just generate the illustration") */}
+      {/* THE ONE BUTTON (2026-09-07: "just trust it to make it correctly the first time … Fewer
+          clicks, less thinking required") — the brief is written in the background, then drawn. */}
       <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
-        <button type="button" disabled={busy || !ready || !words.trim()} onClick={() => void sayItAndDraw(false)}
+        <button type="button" disabled={busy || !ready || !words.trim()} onClick={() => void sayItAndDraw(null)}
           style={{ ...chip(true, MINT), opacity: busy || !ready || !words.trim() ? 0.5 : 1, cursor: busy ? "wait" : "pointer" }}
-          title={ready ? "One click: the brief is written for you, then the picture is drawn — the title and bullets show beside it after" : "Sign in / add the key below first"}>
+          title={ready ? "Talk or type, then this: the brief is written for you in the background and the picture is drawn" : "Sign in / add the key below first"}>
           {busy ? "Generating…" : words.trim() ? "Generate" : "🎙 Say it → Generate"}
         </button>
-        <button type="button" disabled={busy || !words.trim()} onClick={() => void briefOnly()} style={{ ...chip(false, GOLD), opacity: busy || !words.trim() ? 0.5 : 1, fontSize: 10.5 }} title="Just the brief, nothing drawn — read it first, then Generate from the card below">brief only</button>
-        <button type="button" disabled={busy || !ready || !words.trim()} onClick={() => void myWordsAndDraw()} style={{ ...chip(false, GOLD), opacity: busy || !ready || !words.trim() ? 0.5 : 1, fontSize: 10.5 }} title="Skip the AI rewrite — my words are the subject, drawn exactly as written">my words exactly → Generate</button>
         {references.length > 0 && (
           <select value={refId} onChange={(e) => { setRefId(e.target.value); keep({ referenceFrameId: e.target.value || null }); }} title="Rhyme with another slide's picture — same cast, same props, same seed"
             style={{ ...field, width: "auto", padding: "3px 6px", fontSize: 11 }}>
@@ -329,41 +442,36 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
         )}
       </div>
 
-      {/* 2. THE BRIEF — shown AFTER the draw, beside the picture: a title, three bullets, the
-          prompt behind a toggle. (Or before it, on "brief only".) */}
+      {/* 2. AFTER THE PICTURE — the caption (folded), the draw count, and what to change. */}
       {brief && (() => {
-        // The cap, for THIS subject: the frame's count only applies while the card's subject is
-        // the one the frame was drawn from; a new brief starts at 0.
+        // The cap, for THIS subject: the frame's count only applies while the caption's subject
+        // is the one the frame was drawn from; a new draft starts at 0.
         const sameSubject = (ill?.prompt ?? "").trim() === brief.prompt.trim();
         const used = sameSubject ? Math.max(0, ill?.attempts ?? 0) : 0;
         const drawnThis = sameSubject && !!ill?.assetUrl;
         const atCap = sameSubject && (left === 0 || capHit);
+        const revisionShown = revision + (revInterim ? (revision ? " " : "") + revInterim : "");
         return (
-        <div style={{ marginTop: 10, border: `1px solid ${GOLD}55`, borderRadius: 10, padding: "8px 10px" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: CREAM }}>{brief.title}</div>
-          <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 12, color: CREAM, lineHeight: 1.45, opacity: 0.92 }}>
-            {brief.bullets.map((b, i) => <li key={i}>{b}</li>)}
-          </ul>
-          {ref && <div style={{ marginTop: 4, fontSize: 10.5, color: MUTED }}>rhymes with “{ref.label}” — same cast, same seed</div>}
-          <details open={showPrompt} onToggle={(e) => setShowPrompt((e.currentTarget as HTMLDetailsElement).open)} style={{ marginTop: 6 }}>
-            <summary style={{ fontSize: 10.5, color: MUTED, cursor: "pointer" }}>the subject (edit if you must)</summary>
-            <textarea rows={3} style={{ ...field, marginTop: 4, resize: "vertical", fontSize: 12 }} value={brief.prompt}
-              onChange={(e) => { const b = { ...brief, prompt: e.target.value }; setBrief(b); setCapHit(false); setOverrideArmed(false); keep({ prompt: e.target.value, attempts: 0 }); }} />
-            <div style={{ fontSize: 10.5, color: MUTED, marginTop: 2 }}>Just what the picture shows — the style, the black ground and the palette get added below, at generation. An edited subject starts its three draws over.</div>
-          </details>
-          {/* THE ACTUAL PROMPT — this is what Recraft receives, subject wrapped in the whole
-              Survive Dreamstate preset (Lee, 2026-09-05: "I didn't know if it actually did much
-              to change the prompt... what I saw was basically the same as what I wrote in" — that
-              was the subject only; this is everything, always computed live off it, never stale). */}
-          <details style={{ marginTop: 4 }}>
-            <summary style={{ fontSize: 10.5, color: MUTED, cursor: "pointer" }}>the exact instruction sent to Recraft</summary>
-            <div style={{ marginTop: 4, fontSize: 11, color: CREAM, opacity: 0.75, lineHeight: 1.4, whiteSpace: "pre-wrap", border: `1px solid ${EDGE}`, borderRadius: 8, padding: "6px 8px" }}>
-              {composeIllustrationPrompt(style, brief.prompt, teaching() || null)}
+        <div style={{ marginTop: 8 }}>
+          {/* THE CAPTION (2026-09-07: "I don't need to see the prompt it generates, that can go
+              to background") — the title and three bullets, small, behind "why this picture",
+              closed by default. It opens itself while Lee talks a revision so the draft can be
+              watched following along; the prompt itself is nowhere on the panel. */}
+          <details open={why || talkingRevision || live}>
+            <summary onClick={(e) => { e.preventDefault(); setWhy((v) => !v); }} style={{ fontSize: 10.5, color: MUTED, cursor: "pointer" }}>
+              why this picture{live ? <span style={{ color: MINT }}> · redrafting…</span> : draftFor.current && !drawnThis ? <span style={{ color: GOLD }}> · a new draft — Revise → draw</span> : ""}
+            </summary>
+            <div style={{ marginTop: 3, padding: "5px 8px", border: `1px solid ${EDGE}`, borderRadius: 8 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: CREAM }}>{brief.title}</div>
+              <ul style={{ margin: "2px 0 0", paddingLeft: 16, fontSize: 10.5, color: CREAM, lineHeight: 1.4, opacity: 0.85 }}>
+                {brief.bullets.map((b, i) => <li key={i}>{b}</li>)}
+              </ul>
+              {ref && <div style={{ marginTop: 3, fontSize: 10, color: MUTED }}>rhymes with “{ref.label}” — same cast, same seed</div>}
             </div>
           </details>
           {/* THE THREE-REVISION CAP (2026-09-07): Regenerate counts down; at three it's off,
               the library is the offer, and "draw anyway" needs two clicks. */}
-          <div className="flex" style={{ gap: 6, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
             {atCap ? (
               <>
                 <span style={{ fontSize: 11.5, color: ORANGE, fontWeight: 800 }}>{REVISION_CAP_MESSAGE}</span>
@@ -375,14 +483,23 @@ export function IllustrationPanel({ sel, setId, setName, frames, onPatch }: {
                 </button>
               </>
             ) : (
-              <button type="button" disabled={busy || !ready} onClick={() => regenerate()} style={{ ...chip(true, MINT), opacity: busy || !ready ? 0.5 : 1, cursor: busy ? "wait" : "pointer" }}
-                title={ready ? (drawnThis ? `Same brief, a new roll — ${left} of ${ILLUSTRATION_REVISION_CAP} left for this subject` : "Spend one generation on this brief") : "Sign in / add the key below first"}>
-                {busy ? "Generating…" : drawnThis ? `Regenerate · ${used} of ${ILLUSTRATION_REVISION_CAP}` : "✓ Looks good — generate"}
+              <button type="button" disabled={busy || !ready} onClick={() => regenerate()} style={{ ...chip(false, MINT), opacity: busy || !ready ? 0.5 : 1, cursor: busy ? "wait" : "pointer", fontSize: 10.5 }}
+                title={ready ? (drawnThis ? `Same picture again, a new roll — ${left} of ${ILLUSTRATION_REVISION_CAP} left for this subject` : "Draw this draft — one generation") : "Sign in / add the key below first"}>
+                {busy ? "Generating…" : drawnThis ? `Regenerate · ${used} of ${ILLUSTRATION_REVISION_CAP}` : "Draw it"}
               </button>
             )}
-            <input value={revision} onChange={(e) => setRevision(e.target.value)} placeholder="or: what to change…" onKeyDown={(e) => { if (e.key === "Enter" && revision.trim() && !busy) void sayItAndDraw(true); }}
+          </div>
+          {/* WHAT TO CHANGE — talk-first (2026-09-07, the audit's #1): the mic, the box, and
+              Revise → draw; Enter in the box is the same click. */}
+          <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
+            {dictation.supported && (
+              <button type="button" onClick={() => toggleMic("revision")} style={chip(talkingRevision, ORANGE)} title={talkingRevision ? "Stop listening" : "Say what to change — the draft redrafts while you talk; Revise → draw when it's right"}>
+                {talkingRevision ? "■ listening…" : "🎙"}
+              </button>
+            )}
+            <input value={revisionShown} onChange={(e) => { setRevInterim(""); setRevision(e.target.value); }} placeholder="what to change…" onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void reviseAndDraw(); } }}
               style={{ ...field, flex: 1, minWidth: 140, padding: "4px 8px", fontSize: 12 }} />
-            <button type="button" disabled={busy || !ready || !revision.trim()} onClick={() => void sayItAndDraw(true)} style={{ ...chip(false, GOLD), opacity: busy || !ready || !revision.trim() ? 0.5 : 1 }} title="A new brief with that change, drawn straight away — a new subject, so its three start over">Revise → draw</button>
+            <button type="button" disabled={busy || !ready || !revision.trim()} onClick={() => void reviseAndDraw()} style={{ ...chip(false, GOLD), opacity: busy || !ready || !revision.trim() ? 0.5 : 1 }} title="Draw it with that change — a new subject, so its three start over">Revise → draw</button>
           </div>
         </div>
         );
