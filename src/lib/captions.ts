@@ -9,11 +9,23 @@
 // Words in, cards out; cards to ASS (what ffmpeg's libass burns, with \k
 // karaoke) and SRT (a sidecar for uploads). Everything here is deterministic
 // and tested; nothing touches the network or the disk.
+//
+// THE COST (2026-09-07 — Lee: "let's tally up cost"): Whisper is $0.006 a minute of audio,
+// whisperCostUsd below says so in one place. It is NOT logged to the cost ledger from here:
+// this file never knows a set — the Whisper call lives in the CLI (scripts/captions.ts), which
+// takes a take file and no set id, and the ledger keys spend to a set. When the CLI learns
+// which set a take belongs to, it logs `kind: "whisper", label: "captions"` with this figure.
 
 // Relative on purpose: the Bun CLI (scripts/captions.ts) imports this file outside Vite's alias.
 import { CAPTION_RAIL, captionLineChars } from "../components/blastoff/layout";
 
 export interface Word { t: string; s: number; e: number }
+
+/** OpenAI Whisper, $0.006 per minute of audio, billed by the second (rounded up). */
+export const WHISPER_USD_PER_MINUTE = 0.006;
+export const whisperCostUsd = (audioSeconds: number): number => (audioSeconds > 0 ? (Math.ceil(audioSeconds) / 60) * WHISPER_USD_PER_MINUTE : 0);
+/** The audio Whisper was given, read off the words it returned — the last word's end. */
+export const audioSecondsOf = (words: readonly Word[]): number => words.reduce((m, w) => Math.max(m, w.e), 0);
 
 export interface TimeRange { start: number; end: number }
 

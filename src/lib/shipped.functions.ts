@@ -53,6 +53,12 @@ function toEntry(r: Row): ShippedEntry {
   };
 }
 
+/** Mux, per minute of asset duration: encode $0.03 (one-time) + storage $0.003 (a month's
+ *  worth, counted once). An estimate, not a bill — Mux's own invoice is the truth. */
+export const MUX_USD_PER_MINUTE = { encode: 0.03, storage: 0.003 } as const;
+export const muxCostEstimateUsd = (durationSeconds: number): number =>
+  (durationSeconds > 0 ? (durationSeconds / 60) * (MUX_USD_PER_MINUTE.encode + MUX_USD_PER_MINUTE.storage) : 0);
+
 async function requireAdmin(): Promise<void> {
   const { assertAdmin } = await import("@/lib/admin-session.functions");
   await assertAdmin();
@@ -129,6 +135,12 @@ export const resolveShippedUpload = createServerFn({ method: "POST" })
     const status = asset.status === "ready" ? "ready" : asset.status === "errored" ? "errored" : "processing";
     const patch: Record<string, unknown> = { mux_playback_id: playbackId, video_status: status, updated_at: new Date().toISOString() };
     if (typeof asset.duration === "number") patch.duration_seconds = asset.duration;
+    // THE COST (2026-09-07 — Lee: "the mux has a cost"): muxCostEstimateUsd below is the figure
+    // — encode $0.03 + storage $0.003 per minute of duration, an estimate. NOT logged from here:
+    // a shipped entry is a build-log recording (title, topic, semester), not a Blast Off set,
+    // and shipped_entries carries no set id for the ledger to key on. When a Mux upload is made
+    // for a set's short, that caller logs `kind: "mux", label: "encode + storage",
+    // meta: { estimate: true }` with this figure.
     // THE AUTHORITATIVE TRANSCRIPT (brief §3): once Mux has generated one, it replaces the
     // live browser draft — never the other way around, and the live draft is kept regardless.
     if (status === "ready" && !row.transcript_mux && playbackId) {

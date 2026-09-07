@@ -22,7 +22,7 @@
 //
 // RENAMED (Lee, 2026-09-07): Brainstorm · Editor · Rehearse & Film · Cross-post — the icon
 // titles below and the resume button (stepLabel reads StepBar.tsx STEPS) say the new names;
-// the ids and URLs are unchanged. Step 5, Improve Process, has no icon here on purpose: the
+// the ids and URLs are unchanged. Step 5, Iterate (renamed from Improve Process the same day), has no icon here on purpose: the
 // row stays four icons wide, and the resume button is how a set reaches any later step.
 //
 // Nothing here loads the canvas or ReactFlow. The Talkthrough store is read
@@ -210,6 +210,8 @@ function V3Queue() {
               })}
             </div>
           )}
+          {/* The creed (Lee, 2026-09-07: "create a route for where I can review these") — one quiet line at the foot of the queue. */}
+          <div style={{ marginTop: 36, fontSize: 12, color: V3_MUTED }}><Link to="/v3/values" style={{ color: V3_MUTED, textDecoration: "none" }}>The creed — core values, teaching philosophy, production principles →</Link></div>
         </>
       )}
     </V3Shell>

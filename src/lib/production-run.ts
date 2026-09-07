@@ -15,8 +15,8 @@
 // else, then I will have to suffer the consequence of messing up my average, fix it going
 // forward. Which tasks do I get distracted most?"
 //
-// THE SHAPE. A run has the four timed steps (the fifth, Improve Process, reads — it's never
-// timed: lib/production-time.ts). A step has a checklist of tasks, a note ("what sucked, what
+// THE SHAPE. A run has the four timed steps (the fifth, Iterate — "Improve Process" until Lee
+// renamed it on 2026-09-07 — reads; it's never timed: lib/production-time.ts). A step has a checklist of tasks, a note ("what sucked, what
 // would've been better"), and its pauses — each pause remembers which task it hit, because
 // "which tasks do I get distracted most?" is the whole point of making pausing cost something.
 //
@@ -169,7 +169,19 @@ export interface ProductionRun {
   status: RunStatus;
   steps: Record<RunStepId, StepRun>;
   createdBy: string | null;
+  /** ITERATE'S DECISIONS (2026-09-07, additive). Lee: "part of the iterate step is for me to
+   *  NOT make these decisions… I want to have AI help make them for me, suggest what I should
+   *  do, and I either agree or dont." Keyed by the recommendation's id (improve-brief.ts
+   *  recommendationId — a hash of its text, so the same suggestion asked twice keeps its
+   *  answer). Absent on every run written before this field existed. */
+  decisions?: Record<string, Decision>;
+  /** The consultant's latest answer, kept on the run so a later visit shows the same list the
+   *  decisions were made on (the model doesn't repeat itself verbatim). Additive; untyped here
+   *  on purpose — improve-brief.ts owns the shape and re-parses it defensively. */
+  suggestions?: { at: string; data: unknown } | null;
 }
+
+export type Decision = "agree" | "skip";
 
 export const newRunId = (now = new Date()): string =>
   `run_${now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -228,7 +240,29 @@ export function normalizeRun(raw: unknown): ProductionRun | null {
     id: str(r.id), setId: str(r.setId), setName: str(r.setName, str(r.setId)), topicSlug: str(r.topicSlug), topicName: str(r.topicName),
     setSlug: str(r.setSlug, str(r.setId)), startedAt: str(r.startedAt), endedAt: typeof r.endedAt === "string" ? r.endedAt : null,
     status, steps: out, createdBy: typeof r.createdBy === "string" ? r.createdBy : null,
+    ...normalizeIterate(r),
   };
+}
+
+/** The additive Iterate fields — present in the output only when the row had them, so the
+ *  round-trip of an older document stays exact. */
+function normalizeIterate(r: Record<string, unknown>): Pick<ProductionRun, "decisions" | "suggestions"> {
+  const out: Pick<ProductionRun, "decisions" | "suggestions"> = {};
+  if (r.decisions && typeof r.decisions === "object") {
+    const d: Record<string, Decision> = {};
+    for (const [k, v] of Object.entries(r.decisions as Record<string, unknown>)) if ((v === "agree" || v === "skip") && k.length <= 120) d[k] = v;
+    out.decisions = d;
+  }
+  const s = r.suggestions;
+  if (s && typeof s === "object" && typeof (s as { at?: unknown }).at === "string") out.suggestions = { at: (s as { at: string }).at, data: (s as { data?: unknown }).data ?? null };
+  else if (s === null) out.suggestions = null;
+  return out;
+}
+
+/** Agree / Not now on one recommendation — a new document, the rest untouched. Works on a
+ *  finished run too (Iterate is read after the run is over). */
+export function decideRecommendation(run: ProductionRun, id: string, decision: Decision): ProductionRun {
+  return { ...run, decisions: { ...(run.decisions ?? {}), [id]: decision } };
 }
 
 // ------------------------------------------------------------------ time, derived

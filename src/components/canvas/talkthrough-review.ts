@@ -11,6 +11,7 @@
 // localStorage so a killed tab shows ERROR with a retry rather than lying
 // with a forever-GENERATING. A failed or interrupted pass never touches the
 // transcript (Transcript Law).
+import { logCostEvent } from "@/lib/cost-ledger.functions";
 import { runMicro, runTalkthroughReview } from "@/lib/talkthrough.functions";
 
 import {
@@ -28,6 +29,18 @@ import { touchRow, type SessionGeneration } from "./talkthrough";
 
 export type ReviewState = "idle" | "queued" | "generating" | "error";
 const KEY = "sa-tt-genstate";
+
+/** THE COST LEDGER (2026-09-07 — Lee: "let's tally up cost. All of this AI generation has a
+ *  cost, no?"). Every paid call this file makes already stamps `_usage` on its board item; the
+ *  same number goes to cost_events (lib/cost-ledger.functions.ts), keyed to the session's set,
+ *  so Step 5 (Iterate) can say what the short cost. Best-effort by contract: this runs from
+ *  Lee's studio tab with the admin session present, and the ledger never blocks a board write. */
+function logAiCost(setId: string | null, usage: { costUsd?: number } | undefined, model: string | undefined, label: string): void {
+  const usd = usage?.costUsd;
+  if (typeof usd !== "number" || !Number.isFinite(usd)) return;
+  void logCostEvent({ data: { setId, kind: "ai", usd, model: model ?? null, label } }).catch(() => { /* bookkeeping only */ });
+}
+const setIdOfSession = (sessionId: string): string | null => ttState().doc.sessions.find((s) => s.id === sessionId)?.setId ?? null;
 
 /** One session's run state. B8 adds `progress` — the incremental queue's
  *  where-is-it-up-to, kept here (not on the synced TalkSession row) so a
@@ -196,6 +209,7 @@ export function queueReview(req: ReviewRequest): void {
       // Usage rides the script item (or the first item) for the cost line.
       const head = parsed.items.find((i) => i.kind === "script") ?? parsed.items[0];
       head.payload = { ...head.payload, _usage: { ...r.usage, task: "synthesis", model: r.model } };
+      logAiCost(req.session.setId, r.usage, r.model, "talkthrough synthesis");
       putBoardItems(parsed.items);
       for (const p of parsed.proposedTags) {
         const seg = segs.find((s) => s.seq === p.seq);
@@ -241,6 +255,7 @@ export async function pinStyleNote(item: BoardItem, comment: string): Promise<vo
   });
   const line = r.text.trim().replace(/^["']|["']$/g, "").slice(0, 160);
   if (!line) throw new Error("distillation came back empty — try rephrasing the note");
+  logAiCost(setIdOfSession(item.sessionId), r.usage, r.model, "style note");
   const iso = new Date().toISOString();
   putBoardItem({
     id: newTTId("ttb"), sessionId: "global", runId: "style", kind: "style_note",
@@ -275,6 +290,7 @@ export async function regenerateReviewItem(sessionId: string, itemId: string, ce
   const fresh = parsed.items.find((i) => i.kind === kind);
   if (!fresh) throw new Error("regenerate produced nothing for this item — unchanged; retry");
   const cur = ttState().doc.boardItems.find((b) => b.id === itemId) ?? item;
+  logAiCost(setIdOfSession(sessionId), r.usage, r.model, `regenerate ${kind.replace(/_/g, " ")}`);
   putBoardItem(touchRow(cur, {
     runId: fresh.runId, title: fresh.title,
     payload: { ...fresh.payload, _usage: { ...r.usage, task: "synthesis", model: r.model } },
@@ -419,6 +435,7 @@ async function runGenTask(
     const script = parsed.items.find((i) => i.kind === "script");
     if (!script) throw new Error("the script pass produced no script — retry (nothing was written)");
     script.payload = { ...script.payload, _usage: { ...r.usage, task: "synthesis", model: r.model } };
+    logAiCost(req.session.setId, r.usage, r.model, "talkthrough synthesis");
     putBoardItems(parsed.items);
     for (const p of parsed.proposedTags) {
       const seg = segs.find((s) => s.seq === p.seq);
@@ -438,6 +455,7 @@ async function runGenTask(
     const r = await runMicro({ data: { system: msgs.system, user: msgs.user } });
     const proposed = parseMicroEdit(r.text);
     if (!proposed) throw new Error(`the edit draft for “${task.label}” didn't parse — halted (nothing was written)`);
+    logAiCost(req.session.setId, r.usage, r.model, "ceq edit draft");
     putBoardItem(mkItem({
       kind: "ceq_edit",
       title: `${STAMP_LABELS[task.stampKind as never] ?? task.stampKind} · ${ceq.label}`,
@@ -480,6 +498,7 @@ async function runGenTask(
   const r = await runMicro({ data: { system: msgs.system, user: msgs.user } });
   const draft = parseIdeaDraft(r.text, task.stampKind ?? "cheat_code");
   if (!draft) throw new Error(`the card for “${task.label}” didn't parse — halted (nothing was written)`);
+  logAiCost(req.session.setId, r.usage, r.model, "idea card");
   putBoardItem(mkItem({
     kind: "idea",
     title: draft.title,

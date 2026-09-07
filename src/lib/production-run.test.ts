@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import type { TTDoc } from "@/components/canvas/talkthrough";
 
 import {
-  DEFAULT_TASK_LISTS, distractionStats, fmtMin, isCompleteRun, newRun, normalizeRun, normalizeTaskLists, pillLabel,
+  DEFAULT_TASK_LISTS, decideRecommendation, distractionStats, fmtMin, isCompleteRun, newRun, normalizeRun, normalizeTaskLists, pillLabel,
   recordingSignal, reduceRun, runStepFromPath, runTotals, stepAverages, stepSeconds, taskKeyFor, taskSeconds, timeToBeat,
   type ProductionRun, type RunAction,
 } from "./production-run";
@@ -211,6 +211,17 @@ describe("the reads", () => {
   test("fmtMin", () => {
     expect(fmtMin(30)).toBe("<1 min");
     expect(fmtMin(1500)).toBe("~25 min");
+  });
+  test("Iterate's decisions ride the run additively and survive normalizeRun; junk values are dropped", () => {
+    const r = fresh();
+    expect("decisions" in r).toBe(false);
+    const d = decideRecommendation(decideRecommendation(r, "approach:abc", "agree"), "prompt:def", "skip");
+    expect(d.decisions).toEqual({ "approach:abc": "agree", "prompt:def": "skip" });
+    expect(r.decisions).toBeUndefined();
+    const back = normalizeRun(JSON.parse(JSON.stringify({ ...d, suggestions: { at: "2026-09-07T10:00:00.000Z", data: { headline: "x" } }, decisions: { ...d.decisions, bad: "maybe" } })));
+    expect(back?.decisions).toEqual({ "approach:abc": "agree", "prompt:def": "skip" });
+    expect(back?.suggestions).toEqual({ at: "2026-09-07T10:00:00.000Z", data: { headline: "x" } });
+    expect(normalizeRun({ ...r, suggestions: "junk" })?.suggestions).toBeUndefined();
   });
 });
 

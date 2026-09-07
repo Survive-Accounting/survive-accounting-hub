@@ -1,7 +1,9 @@
 // THE PRODUCTION RUN — server side. Whole-document writes of the run (upsertProductionRun,
 // best-effort from the widget), the reads Step 5 and the Cross-post picker need, and the task
 // lists in site_settings. The pure model is production-run.ts; the widget is
-// components/v3/ProductionTimer.tsx; the page is components/v3/improve/ImprovePage.tsx.
+// components/v3/ProductionTimer.tsx; the page is components/v3/improve/ImprovePage.tsx (Step 5,
+// Iterate — Lee, 2026-09-07: "I want to call the improve process 'Iterate' instead"), which
+// writes its Agree / Not now decisions back through the same upsert.
 //
 // production_runs is new (migration/supabase-migrations/20260907_0300) and isn't in the
 // generated Supabase types yet — same DB-cast escape hatch as production-time.functions.ts,
@@ -39,6 +41,10 @@ const runInput = z.object({
   status: z.enum(["running", "done", "abandoned"]),
   steps: z.record(z.enum(RUN_STEPS), z.unknown()),
   createdBy: z.string().max(40).nullable(),
+  // ITERATE (2026-09-07, additive): Agree / Not now per recommendation, and the consultant's
+  // answer they were made on. normalizeRun keeps only what validates.
+  decisions: z.record(z.string().max(120), z.enum(["agree", "skip"])).optional(),
+  suggestions: z.object({ at: z.string().max(40), data: z.unknown() }).nullable().optional(),
 });
 
 /** The whole run, replaced. Never throws: `ok: false` carries the reason (the migration path

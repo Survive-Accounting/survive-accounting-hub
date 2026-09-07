@@ -19,6 +19,8 @@ Sept 2026 brainstorm capture: operating principles (Use Your Words / Feed the Ma
 conversion model (Easy Points free, Exam 1 email gate, Exams 2–4 $50), three content verticals,
 rep program (Slater first), scholarship-chair pitch, course roadmap to ~6 courses.
 
+The creed, on the site: **/v3/values** (`src/routes/v3.values.tsx`) — core values, teaching philosophy and production principles in Lee's words, dated; Step 5 (Iterate) links to it. Added 2026-09-07.
+
 Companion specs: **[SURVIVE_FLAVOR_PACKS_v1.md](SURVIVE_FLAVOR_PACKS_v1.md)** — local-color
 token system (config, not code; build trigger = campus #2; codified in Master Context §2).
 

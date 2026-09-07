@@ -1,12 +1,14 @@
-// IMPROVE PROCESS — Step 5's body. Lee, 2026-09-07: "I'd love a Step 5: Improve Process. This
-// one can show the stats for time spent each section, and on what tasks, (maybe just rank by
-// total time spent on each?, descending order?), recommendations, etc. And it's like in big
-// text at top (Time to beat: ~# minutes) and it's an average of all the previous ones. So, I'm
+// ITERATE — Step 5's body. Lee, 2026-09-07: "I'd love a Step 5: Improve Process. This one can
+// show the stats for time spent each section, and on what tasks, (maybe just rank by total
+// time spent on each?, descending order?), recommendations, etc. And it's like in big text at
+// top (Time to beat: ~# minutes) and it's an average of all the previous ones. So, I'm
 // constantly trying to go faster where I can. Gamifies it a bit. … Which tasks do I get
 // distracted most? I am excited about the potential of this tool to help me objectively work
 // on my ADD with no shame. Using AI as an ADD consultant in a way. Step 5 … can take all the
 // comments I've left at each step for what would've been better, what sucked, etc, and we can
-// just have step 5 suggest claude code prompts, new approaches, guardrails, etc."
+// just have step 5 suggest claude code prompts, new approaches, guardrails, etc." Later the
+// same day: "I want to call the improve process 'Iterate' instead." The route segment stays
+// `improve`; every label Lee sees says Iterate.
 //
 // Reads production_runs (lib/production-run.functions.ts listProductionRuns — every set, so the
 // average and the cross-set table come from one call), plus the widget's own localStorage copy
@@ -18,6 +20,22 @@
 // THE RULE (decided with Lee): Time to beat averages COMPLETE runs only — every step done,
 // none skipped — and never includes the run being looked at. A run that skipped a step is
 // listed, marked, and left out of the bar.
+//
+// COST PER SHORT (Lee, 2026-09-07: "let's tally up cost. All of this AI generation has a cost,
+// no? … the recraft as a cost… the mux has a cost… etc. I want to know the cost per short, so
+// I can see whether it's justified or not to just make these with reckless abandon or not.")
+// The cost ledger (lib/cost-ledger.functions.ts, table cost_events) per set, plus the
+// illustration library's own cost_usd for a set the ledger has no Recraft rows for (the
+// library predates the ledger) — improve-brief.ts setCost / costPerShort hold the no-double-
+// count rule. The mean is over sets with a complete run. A "Tools" fold lists this set's
+// events newest first; a missing table shows the migration hint where the numbers would be.
+//
+// AGREE / NOT NOW (Lee: "part of the iterate step is for me to NOT make these decisions… I
+// want to have AI help make them for me, suggest what I should do, and I either agree or
+// dont.") The consultant's answer and each decision are written onto the run (decisions,
+// suggestions — production-run.ts) through the same upsert the widget uses, and mirrored into
+// the widget's localStorage copy when it's the same run, so a later visit shows the same list
+// with the same answers.
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 
@@ -26,14 +44,19 @@ import { newIdeaId } from "@/components/ideas/model";
 import { V3Note, V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 import { RUN_KEY } from "@/components/v3/ProductionTimer";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
+import { costBySet, listCostEvents, MISSING_LEDGER_HINT, type CostRow, type SetCost } from "@/lib/cost-ledger.functions";
 import { saveIdea } from "@/lib/ideas.functions";
-import { buildImproveMessages, parseImprove, type ImproveSuggestions } from "@/lib/improve-brief";
+import { listIllustrationLibrary } from "@/lib/illustrate.functions";
 import {
-  DEFAULT_TASK_LISTS, distractionStats, fmtDuration, fmtElapsed, fmtMin, isCompleteRun, normalizeRun, normalizeTaskLists,
+  buildImproveMessages, CADENCE_LINE, costPerShort, fmtUsd, groupByWhen, parseImprove, setCost, suggestionsFromStored,
+  type ImproveSuggestions, type Recommendation,
+} from "@/lib/improve-brief";
+import {
+  decideRecommendation, DEFAULT_TASK_LISTS, distractionStats, fmtDuration, fmtElapsed, fmtMin, isCompleteRun, normalizeRun, normalizeTaskLists,
   RUN_STEP_LABEL, RUN_STEPS, runPauses, runTotals, runTotalSeconds, stepAverages, taskKeyFor, timeToBeat,
-  type ProductionRun, type RunStepId, type TaskLists,
+  type Decision, type ProductionRun, type RunStepId, type TaskLists,
 } from "@/lib/production-run";
-import { getProductionTaskLists, listProductionRuns, setProductionTaskLists } from "@/lib/production-run.functions";
+import { getProductionTaskLists, listProductionRuns, setProductionTaskLists, upsertProductionRun } from "@/lib/production-run.functions";
 import { runMicro, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 
 const MINT = "#3BF5A0", ORANGE = "#FF9F43", ROSE = "#FF8B7E", SKY = "#7DD3FC";
@@ -78,9 +101,40 @@ export function ImprovePage({ topic, set }: { topic: BoothTopic; set: BoothSetIn
   const under = beat != null && total < beat;
   const distract = useMemo(() => distractionStats(runs ?? []), [runs]);
 
+  // THE COST — the ledger per set, this set's events, and the library's Recraft spend for the
+  // sets the ledger doesn't cover (see the header). Best-effort like every read here.
+  const [ledger, setLedger] = useState<{ sets: SetCost[]; missing: boolean } | null>(null);
+  const [events, setEvents] = useState<{ rows: CostRow[]; missing: boolean } | null>(null);
+  const [library, setLibrary] = useState<Record<string, number>>({});
+  const [costErr, setCostErr] = useState<string | null>(null);
+  useEffect(() => {
+    Promise.all([costBySet(), listCostEvents({ data: { setId: set.id } })])
+      .then(([l, e]) => { setLedger(l); setEvents(e); })
+      .catch((e) => setCostErr(e instanceof Error ? e.message : String(e)));
+  }, [set.id]);
+  const completeSetIds = useMemo(() => [...new Set((runs ?? []).filter(isCompleteRun).map((r) => r.setId))], [runs]);
+  useEffect(() => {
+    if (!ledger) return;
+    // Only the sets the ledger has no recraft rows for need the library — never both.
+    const want = [...new Set([set.id, ...completeSetIds])].filter((id) => !((ledger.sets.find((s) => s.setId === id)?.byKind.recraft ?? 0) > 0)).slice(0, 24);
+    if (!want.length) return;
+    Promise.all(want.map((id) => listIllustrationLibrary({ data: { setId: id } }).then((r) => [id, r.rows.reduce((s, x) => s + (x.costUsd ?? 0), 0)] as const).catch(() => [id, 0] as const)))
+      .then((pairs) => setLibrary((cur) => ({ ...cur, ...Object.fromEntries(pairs) })));
+  }, [ledger, set.id, completeSetIds]);
+  const thisCost = useMemo(() => (ledger ? setCost(set.id, ledger.sets, library) : null), [ledger, set.id, library]);
+  const perShort = useMemo(() => (ledger && runs ? costPerShort(runs, ledger.sets, library) : null), [ledger, runs, library]);
+
+  /** A run document changed here (a decision, a stored answer): the list, the widget's copy
+   *  when it's the same run, and the server — best-effort, the page never blocks on it. */
+  const persistRun = useCallback((next: ProductionRun) => {
+    setRuns((rs) => (rs ?? []).map((r) => (r.id === next.id ? next : r)));
+    try { const raw = localStorage.getItem(RUN_KEY); const local = raw ? normalizeRun(JSON.parse(raw)) : null; if (local && local.id === next.id) localStorage.setItem(RUN_KEY, JSON.stringify(next)); } catch { /* the server copy still gets it */ }
+    return upsertProductionRun({ data: next }).then((r) => { if (!r.ok) setLoadErr(r.error ?? "Not saved."); }).catch((e) => setLoadErr(e instanceof Error ? e.message : String(e)));
+  }, []);
+
   return (
     <div>
-      <h1 style={{ fontFamily: V3_DISPLAY, fontSize: 30, fontWeight: 900, letterSpacing: "-0.01em", margin: "0 0 6px" }}>Improve Process</h1>
+      <h1 style={{ fontFamily: V3_DISPLAY, fontSize: 30, fontWeight: 900, letterSpacing: "-0.01em", margin: "0 0 6px" }}>Iterate</h1>
       <div style={{ color: V3_MUTED, fontSize: 13, marginBottom: 20, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <span>{topic.name} · {set.name}</span>
         {mine.length > 1 && (
@@ -88,6 +142,8 @@ export function ImprovePage({ topic, set }: { topic: BoothTopic; set: BoothSetIn
             {mine.map((r) => <option key={r.id} value={r.id}>{dateOf(r.startedAt)} · {fmtDuration(runTotalSeconds(r, endOf(r)))}{isCompleteRun(r) ? "" : r.status === "running" ? " · running" : " · incomplete"}</option>)}
           </select>
         )}
+        {/* Lee, 2026-09-07: "Add that to our list of core values, teaching philosophies, etc. And create a route for where I can review these." */}
+        <Link to="/v3/values" style={{ marginLeft: "auto", color: V3_GOLD, fontSize: 12.5, textDecoration: "none" }}>the creed →</Link>
       </div>
 
       {loadErr && <V3Note tone="bad">{loadErr}</V3Note>}
@@ -118,6 +174,58 @@ export function ImprovePage({ topic, set }: { topic: BoothTopic; set: BoothSetIn
           </div>
         )}
         {runs && !run && <div style={{ color: V3_MUTED, fontSize: 13.5, lineHeight: 1.5, maxWidth: 420 }}>No run on this set yet. Start recording on Brainstorm and the clock starts itself; the Editor and Rehearse &amp; Film ask "ready?" when you land.</div>}
+      </section>
+
+      {/* COST PER SHORT — the second headline, under the minutes on purpose. */}
+      <section style={{ ...card, display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 24 }}>
+        <div>
+          <div style={kicker}>Cost per short</div>
+          <div style={{ fontFamily: V3_DISPLAY, fontSize: 40, fontWeight: 900, letterSpacing: "-0.02em", lineHeight: 1, color: V3_CREAM }}>
+            {ledger?.missing ? "—" : perShort?.perShort == null ? "—" : `~${fmtUsd(perShort.perShort)}`}
+          </div>
+          <div style={{ color: V3_MUTED, fontSize: 12.5, marginTop: 8 }}>
+            {costErr ? costErr
+              : ledger?.missing ? MISSING_LEDGER_HINT
+              : !ledger ? "adding it up…"
+              : perShort?.perShort == null ? "finish one full run to set the figure"
+              : `mean over ${perShort.sets} set${perShort.sets === 1 ? "" : "s"} with a complete run · tools only, never your time`}
+          </div>
+        </div>
+        {thisCost && !ledger?.missing && (
+          <div>
+            <div style={kicker}>This set</div>
+            <div style={{ fontFamily: V3_DISPLAY, fontSize: 28, fontWeight: 900, letterSpacing: "-0.02em", lineHeight: 1, color: V3_CREAM }}>{fmtUsd(thisCost.total)}</div>
+            <div style={{ color: V3_MUTED, fontSize: 12.5, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>
+              {(["ai", "recraft", "mux", "whisper", "other"] as const).filter((k) => (thisCost.byKind[k] ?? 0) > 0).map((k) => `${k} ${fmtUsd(thisCost.byKind[k] ?? 0)}`).join(" · ") || "nothing spent yet"}
+              {thisCost.libraryCounted && <span title="Recraft spend from before the ledger existed, read off the illustration library"> · recraft from the library</span>}
+            </div>
+          </div>
+        )}
+        {/* Lee's own framing, kept on the page so the number never gets more weight than it deserves. */}
+        <div style={{ flexBasis: "100%", color: V3_MUTED, fontSize: 12.5, lineHeight: 1.5 }}>Tool spend is small next to your time — minutes are the number to chase.</div>
+        <details style={{ flexBasis: "100%" }}>
+          <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 700, color: V3_MUTED, listStyle: "none" }}>Tools · {events?.missing ? "ledger not migrated" : `${events?.rows.length ?? 0} event${events?.rows.length === 1 ? "" : "s"}`} ▾</summary>
+          {events?.missing
+            ? <div style={{ color: V3_MUTED, fontSize: 12.5, marginTop: 8 }}>{MISSING_LEDGER_HINT}</div>
+            : events && events.rows.length > 0
+              ? (
+                <table style={{ ...table, marginTop: 8 }}>
+                  <thead><tr>{["When", "Label", "Kind", "Model", "$"].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {events.rows.map((e) => (
+                      <tr key={e.id}>
+                        <td style={{ ...td, color: V3_MUTED, whiteSpace: "nowrap" }}>{new Date(e.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
+                        <td style={td}>{e.label ?? <i style={{ color: V3_MUTED }}>—</i>}</td>
+                        <td style={{ ...td, color: V3_MUTED }}>{e.kind}</td>
+                        <td style={{ ...td, color: V3_MUTED, fontFamily: "ui-monospace, monospace", fontSize: 11.5 }}>{e.model ?? "—"}</td>
+                        <td style={{ ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmtUsd(e.usd)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+              : <div style={{ color: V3_MUTED, fontSize: 12.5, marginTop: 8 }}>{events ? "No paid calls logged for this set yet." : "Loading…"}</div>}
+        </details>
       </section>
 
       {run && totals && (
@@ -207,7 +315,8 @@ export function ImprovePage({ topic, set }: { topic: BoothTopic; set: BoothSetIn
               : <div style={{ color: V3_MUTED, fontSize: 13.5 }}>No comments on this run — the box comes up when you finish a step.</div>}
           </section>
 
-          <Consultant run={run} priorRuns={pool} topic={topic} set={set} />
+          <Consultant run={run} priorRuns={pool} topic={topic} set={set} onRunChange={persistRun}
+            cost={thisCost && !ledger?.missing ? { total: thisCost.total, byKind: thisCost.byKind, perShort: perShort?.perShort ?? null } : null} />
         </>
       )}
 
@@ -227,7 +336,7 @@ export function ImprovePage({ topic, set }: { topic: BoothTopic; set: BoothSetIn
                   <td style={{ ...td, textAlign: "right" }}>
                     {r.setId === set.id
                       ? <button type="button" onClick={() => setPickedId(r.id)} style={linkBtn}>show</button>
-                      : <Link to={improvePath(r)} style={{ color: V3_GOLD, fontSize: 12.5, textDecoration: "none" }}>→ its Improve page</Link>}
+                      : <Link to={improvePath(r)} style={{ color: V3_GOLD, fontSize: 12.5, textDecoration: "none" }}>→ its Iterate page</Link>}
                   </td>
                 </tr>
               ))}
@@ -243,53 +352,75 @@ export function ImprovePage({ topic, set }: { topic: BoothTopic; set: BoothSetIn
 
 // ------------------------------------------------------------------ the consultant
 
-function Consultant({ run, priorRuns, topic, set }: { run: ProductionRun; priorRuns: ProductionRun[]; topic: BoothTopic; set: BoothSetInfo }) {
+function Consultant({ run, priorRuns, topic, set, cost, onRunChange }: {
+  run: ProductionRun; priorRuns: ProductionRun[]; topic: BoothTopic; set: BoothSetInfo;
+  cost: { total: number; byKind: Partial<Record<string, number>>; perShort: number | null } | null;
+  /** The run with a decision or a stored answer on it — the page persists it. */
+  onRunChange: (next: ProductionRun) => Promise<void> | void;
+}) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [out, setOut] = useState<ImproveSuggestions | null>(null);
-  const [saved, setSaved] = useState<Record<number, "saving" | "saved" | "copied" | "error">>({});
+  // The stored answer first (a later visit shows the list the decisions were made on), then
+  // whatever "Suggest" brings back.
+  const stored = useMemo(() => suggestionsFromStored(run.suggestions?.data), [run.suggestions]);
+  const [fresh, setFresh] = useState<ImproveSuggestions | null>(null);
+  const out = fresh ?? stored;
+  const [saved, setSaved] = useState<Record<string, "saving" | "saved" | "copied" | "error">>({});
+  const decisions = run.decisions ?? {};
 
   const ask = async () => {
     setBusy(true); setErr(null);
     try {
       const comments = RUN_STEPS.filter((s) => run.steps[s].note).map((s) => ({ step: RUN_STEP_LABEL[s], note: run.steps[s].note! }));
-      const { system, user } = buildImproveMessages(run, priorRuns, comments);
-      const r = await runMicro({ data: { system, user, maxOutput: 1500 } });
+      const { system, user } = buildImproveMessages(run, priorRuns, comments, cost);
+      const r = await runMicro({ data: { system, user, maxOutput: 1800 } });
       const parsed = parseImprove(r.text);
       if (!parsed) throw new Error("The model didn't answer in the expected shape — try again.");
-      setOut(parsed); setSaved({});
+      setFresh(parsed); setSaved({});
+      // The answer rides the run so the decisions have something to attach to next visit.
+      void onRunChange({ ...run, suggestions: { at: new Date().toISOString(), data: parsed } });
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     setBusy(false);
   };
-  const toIdeaBank = async (i: number, p: { title: string; prompt: string }) => {
-    setSaved((s) => ({ ...s, [i]: "saving" }));
+  const decide = (rec: Recommendation, d: Decision) => {
+    // Clicking the same answer again clears it — "not decided" is a real state.
+    const cur = decisions[rec.id];
+    const next: ProductionRun = cur === d ? { ...run, decisions: Object.fromEntries(Object.entries(decisions).filter(([k]) => k !== rec.id)) } : decideRecommendation(run, rec.id, d);
+    void onRunChange(next);
+  };
+  const toIdeaBank = async (rec: Recommendation) => {
+    setSaved((s) => ({ ...s, [rec.id]: "saving" }));
     try {
       await saveIdea({ data: {
-        id: newIdeaId(), title: p.title, body: `From Improve Process on ${set.name} (${topic.name}): ${out?.headline ?? ""}`.trim(),
+        id: newIdeaId(), title: rec.text, body: `From Iterate on ${set.name} (${topic.name}): ${out?.headline ?? ""}${rec.why ? ` — ${rec.why}` : ""}`.trim(),
         categories: ["BUILD_IN_PUBLIC"], subcategory: "Process", status: "DRAFTED",
-        sourcePath: `/v3/${run.topicSlug}/${run.setSlug}/blast-off/improve`, context: { setId: set.id, runId: run.id },
-        promptMd: p.prompt, promptFilename: null, createdBy: getAdminWho() ?? "lee", sourceKind: "web", attachments: [], audioPath: null, transcriptStatus: null,
+        sourcePath: `/v3/${run.topicSlug}/${run.setSlug}/blast-off/improve`, context: { setId: set.id, runId: run.id, when: rec.when },
+        promptMd: rec.prompt ?? rec.text, promptFilename: null, createdBy: getAdminWho() ?? "lee", sourceKind: "web", attachments: [], audioPath: null, transcriptStatus: null,
       } });
-      setSaved((s) => ({ ...s, [i]: "saved" }));
-    } catch { setSaved((s) => ({ ...s, [i]: "error" })); }
+      setSaved((s) => ({ ...s, [rec.id]: "saved" }));
+    } catch { setSaved((s) => ({ ...s, [rec.id]: "error" })); }
   };
-  const copy = async (i: number, text: string) => {
-    const ok = await copyToClipboard(text);
-    setSaved((s) => ({ ...s, [i]: ok ? "copied" : "error" }));
+  const copy = async (rec: Recommendation) => {
+    const ok = await copyToClipboard(rec.prompt ?? rec.text);
+    setSaved((s) => ({ ...s, [rec.id]: ok ? "copied" : "error" }));
   };
+  const agreed = out ? out.recommendations.filter((r) => decisions[r.id] === "agree").length : 0;
 
   return (
     <section style={card}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div>
           <div style={kicker}>The consultant</div>
-          <div style={{ color: V3_MUTED, fontSize: 13, lineHeight: 1.5, maxWidth: 560 }}>Reads this run's minutes, every pause and its reason, your comments, and the runs before it. Direct, concrete, no shame — and prompts you can paste straight into Claude Code.</div>
+          <div style={{ color: V3_MUTED, fontSize: 13, lineHeight: 1.5, maxWidth: 560 }}>Reads this run's minutes, every pause and its reason, your comments, the spend, and the runs before it. Direct, concrete, no shame — and it decides WHEN each change is worth making. You agree, or not.</div>
         </div>
         <button type="button" onClick={() => void ask()} disabled={busy} style={{ ...primary, marginLeft: "auto" }}>{busy ? "Thinking…" : out ? "Suggest again" : "Suggest improvements"}</button>
       </div>
+      {/* THE CADENCE, stated (the answer to "next set, or next topic?"). */}
+      <div style={{ color: V3_MUTED, fontSize: 12, lineHeight: 1.5, marginTop: 10 }}>{CADENCE_LINE}</div>
       {err && <div style={{ color: ROSE, fontSize: 13, marginTop: 10 }}>{err}</div>}
       {out && (
         <div style={{ marginTop: 16 }}>
+          {!fresh && run.suggestions?.at && <div style={{ color: V3_MUTED, fontSize: 11.5, marginBottom: 8 }}>From {new Date(run.suggestions.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}{agreed ? ` · ${agreed} agreed` : ""}</div>}
           {out.headline && <div style={{ fontFamily: V3_DISPLAY, fontSize: 20, fontWeight: 800, lineHeight: 1.3, marginBottom: 14 }}>{out.headline}</div>}
           {out.bottlenecks.length > 0 && (
             <div style={{ marginBottom: 14 }}>
@@ -301,40 +432,40 @@ function Consultant({ run, priorRuns, topic, set }: { run: ProductionRun; priorR
               ))}
             </div>
           )}
-          {out.approaches.length > 0 && <List title="New approaches" items={out.approaches} />}
-          {out.guardrails.length > 0 && <List title="Guardrails" items={out.guardrails} />}
-          {out.prompts.length > 0 && (
-            <div>
-              <div style={sub}>Claude Code prompts</div>
-              {out.prompts.map((p, i) => (
-                <div key={i} style={{ border: `1px solid ${V3_EDGE}`, borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <b style={{ fontSize: 13.5 }}>{p.title}</b>
-                    <span style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
-                      {saved[i] === "saved" && <span style={{ color: MINT, fontSize: 11.5 }}>in the bank</span>}
-                      {saved[i] === "copied" && <span style={{ color: MINT, fontSize: 11.5 }}>copied</span>}
-                      {saved[i] === "error" && <span style={{ color: ROSE, fontSize: 11.5 }}>didn't work</span>}
-                      <button type="button" onClick={() => void toIdeaBank(i, p)} disabled={saved[i] === "saving" || saved[i] === "saved"} style={small}>→ Idea bank</button>
-                      <button type="button" onClick={() => void copy(i, p.prompt)} style={small}>copy</button>
-                    </span>
+          {/* THREE GROUPS, "before the next set" first — each recommendation with its why and its two buttons. */}
+          {groupByWhen(out.recommendations).map((g) => (
+            <div key={g.when} style={{ marginBottom: 16 }}>
+              <div style={{ ...sub, color: g.when === "before-next-set" ? ORANGE : g.when === "next-topic" ? V3_GOLD : V3_MUTED }}>{g.label}</div>
+              {g.items.length === 0 && <div style={{ color: V3_MUTED, fontSize: 12.5 }}>{g.when === "before-next-set" ? "Nothing has to happen before the next set." : "Nothing here."}</div>}
+              {g.items.map((rec) => {
+                const d = decisions[rec.id];
+                return (
+                  <div key={rec.id} style={{ border: `1px solid ${d === "agree" ? `${MINT}66` : V3_EDGE}`, borderRadius: 10, padding: "10px 12px", marginBottom: 8, opacity: d === "skip" ? 0.6 : 1 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+                      <div style={{ flex: 1, minWidth: 240 }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: V3_MUTED, marginRight: 8 }}>{rec.kind === "prompt" ? "Claude Code" : rec.kind}</span>
+                        <b style={{ fontSize: 13.5 }}>{rec.text}</b>
+                        {rec.why && <div style={{ color: V3_MUTED, fontSize: 12.5, lineHeight: 1.5, marginTop: 2 }}>{rec.why}</div>}
+                      </div>
+                      <span style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                        {saved[rec.id] === "saved" && <span style={{ color: MINT, fontSize: 11.5 }}>in the bank</span>}
+                        {saved[rec.id] === "copied" && <span style={{ color: MINT, fontSize: 11.5 }}>copied</span>}
+                        {saved[rec.id] === "error" && <span style={{ color: ROSE, fontSize: 11.5 }}>didn't work</span>}
+                        {rec.kind === "prompt" && <button type="button" onClick={() => void toIdeaBank(rec)} disabled={saved[rec.id] === "saving" || saved[rec.id] === "saved"} style={small}>→ Idea bank</button>}
+                        {rec.kind === "prompt" && <button type="button" onClick={() => void copy(rec)} style={small}>copy</button>}
+                        <button type="button" onClick={() => decide(rec, "agree")} style={{ ...small, borderColor: d === "agree" ? MINT : V3_EDGE, color: d === "agree" ? MINT : V3_CREAM }} aria-pressed={d === "agree"}>{d === "agree" ? "✓ Agreed" : "Agree"}</button>
+                        <button type="button" onClick={() => decide(rec, "skip")} style={{ ...small, borderColor: d === "skip" ? ORANGE : V3_EDGE, color: d === "skip" ? ORANGE : V3_CREAM }} aria-pressed={d === "skip"}>{d === "skip" ? "Not now ·" : "Not now"}</button>
+                      </span>
+                    </div>
+                    {rec.prompt && <div style={{ fontSize: 13, lineHeight: 1.55, color: V3_CREAM, whiteSpace: "pre-wrap", marginTop: 8 }}>{rec.prompt}</div>}
                   </div>
-                  <div style={{ fontSize: 13, lineHeight: 1.55, color: V3_CREAM, whiteSpace: "pre-wrap" }}>{p.prompt}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          )}
+          ))}
         </div>
       )}
     </section>
-  );
-}
-
-function List({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={sub}>{title}</div>
-      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, lineHeight: 1.6 }}>{items.map((s, i) => <li key={i}>{s}</li>)}</ul>
-    </div>
   );
 }
 

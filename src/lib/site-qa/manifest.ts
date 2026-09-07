@@ -586,12 +586,13 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "v3.$topic.index.tsx": "V3 menu (noindex) — the sets in a topic",
   "v3.$topic.$set.index.tsx": "V3 menu (noindex) — what are you making?",
   "v3.$topic.$set.blast-off.index.tsx": "V3 Blast Off (noindex) — which step are you on?",
-  // Steps renamed 2026-09-07 (Brainstorm · Editor · Rehearse & Film · Cross-post · Improve Process); URLs unchanged.
+  // Steps renamed 2026-09-07 (Brainstorm · Editor · Rehearse & Film · Cross-post · Iterate); URLs unchanged.
   "v3.$topic.$set.blast-off.talkthrough.tsx": "V3 Blast Off step 1, Brainstorm (AdminGate, noindex) — the booth on one set",
   "v3.$topic.$set.blast-off.results.tsx": "V3 Blast Off step 2, Editor (AdminGate, noindex) — the film draft and running order (Arrange folded in 2026-09-05; teleprompter left for Rehearse & Film 2026-09-07)",
   "v3.$topic.$set.blast-off.arrange.tsx": "redirect (2026-09-05) → the results (Editor) step — Arrange retired, its own job was already Review's",
   "v3.$topic.$set.blast-off.film.tsx": "V3 Blast Off step 3, Rehearse & Film (AdminGate, noindex) — rounds with the teleprompter, then in-page capture; its own step since 2026-09-05",
-  "v3.$topic.$set.blast-off.improve.tsx": "V3 Blast Off step 5, Improve Process (AdminGate, noindex) — time to beat, where the minutes went; stub page added 2026-09-07",
+  "v3.$topic.$set.blast-off.improve.tsx": "V3 Blast Off step 5, Iterate (AdminGate, noindex) — time to beat, cost per short, where the minutes went, the consultant's before-next-set / next-topic / later calls with Agree / Not now; 'Improve Process' until renamed 2026-09-07",
+  "v3.values.tsx": "The creed (noindex) — core values, teaching philosophy, production principles in Lee's words, dated; added 2026-09-07 ('create a route for where I can review these')",
   "v3.post.tsx": "V3 Blast Off step 4, Cross-post (AdminGate, noindex) — the cross-set publish queue, added 2026-09-06",
   "v3.teleprompter.tsx": "Teleprompter mirror (AdminGate, noindex) — a second window showing the banked SAY IT phrases while Lee films",
   "study_.canvas.tsx": "internal authoring lab (noindex)",

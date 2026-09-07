@@ -53,7 +53,9 @@ export const STEPS: readonly { step: NumberedStep; n: number; label: string; blu
   { step: "post", n: 4, label: "Cross-post", blurb: "Captions, exports, every destination — queued across every topic and set." },
   // STEP 5 (Lee, 2026-09-07: "I'd love a Step 5: Improve Process."). A real door to a real page
   // (/blast-off/improve — components/v3/improve/ImprovePage.tsx); not timed (production-time.ts).
-  { step: "improve", n: 5, label: "Improve Process", blurb: "Time to beat, where the minutes went, what to change next set." },
+  // Renamed the same day — "I want to call the improve process 'Iterate' instead." — label only;
+  // the id and the URL segment stay `improve`.
+  { step: "improve", n: 5, label: "Iterate", blurb: "Time to beat, cost per short, where the minutes went — and what to change, before the next set or at the next topic." },
 ];
 
 export function StepBar({ topic, set, active, right }: {

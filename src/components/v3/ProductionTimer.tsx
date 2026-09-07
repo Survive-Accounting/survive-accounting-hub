@@ -28,7 +28,7 @@
 //     comment ("What sucked, what would've been better?") → finishStep. That also logs the
 //     step's seconds to production_time_log (logProductionTime), so the bottleneck report
 //     and set-stage's "filmed?" keep working. Finishing the last step ends the run and the
-//     pill offers "→ Improve Process".
+//     pill offers "→ Iterate" (Step 5 — "Improve Process" until Lee renamed it, 2026-09-07).
 //   · Rehearsal rounds check themselves off: BlastOffCapture's rounds reducer announces a
 //     finished round (window "sa:production"), round 1 → "Rehearse round 1", round 2 → "round 2".
 //
@@ -313,7 +313,7 @@ function Pill({ run, now, open, setOpen, saveErr, dispatch, finishStep, clear }:
                 {run.status === "done" ? "That's the set, start to finish. See where the minutes went and what to change next time." : "Run abandoned."}
               </div>
               <div style={{ display: "flex", gap: 6 }}>
-                <Link to={improveTo} onClick={() => setOpen(false)} style={{ ...btn(GOLD), textDecoration: "none", textAlign: "center" }}>→ Improve Process</Link>
+                <Link to={improveTo} onClick={() => setOpen(false)} style={{ ...btn(GOLD), textDecoration: "none", textAlign: "center" }}>→ Iterate</Link>
                 <button type="button" onClick={clear} style={btn()}>Clear</button>
               </div>
             </div>
@@ -417,7 +417,7 @@ function Pill({ run, now, open, setOpen, saveErr, dispatch, finishStep, clear }:
         style={{ display: "flex", alignItems: "center", gap: 7, font: "inherit", fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 999, border: `1px solid ${saveErr ? ORANGE : dot}66`, background: INK, color: CREAM, cursor: "pointer", boxShadow: "0 8px 20px rgba(0,0,0,0.4)", fontFamily: FONT, maxWidth: 360 }}>
         <span aria-hidden style={{ width: 7, height: 7, borderRadius: 4, background: dot, flexShrink: 0 }} />
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>⏱ {pillLabel(run, now)}</span>
-        {done && run.status === "done" && <span style={{ color: GOLD, fontSize: 11 }}>→ Improve</span>}
+        {done && run.status === "done" && <span style={{ color: GOLD, fontSize: 11 }}>→ Iterate</span>}
       </button>
     </div>
   );
