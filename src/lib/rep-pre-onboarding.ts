@@ -222,10 +222,17 @@ export function campusShorthand(name: string | null | undefined, formalName?: st
   return short;
 }
 
+// Lee's words, 2026-09-08. The screen used to open on "Your application is pending." — which
+// reads as a verdict on the applicant rather than a thank-you, and buried the fact that there is
+// one more thing to do. It thanks them first, names the step, says what the onboarding is FOR,
+// and only then what happens after.
 export const PENDING_COPY = {
-  title: "Your application is pending.",
-  body: "Pending completion of a 15-minute onboarding — finish it and I'll get back to you within two business days with a casual phone interview, and we'll get you started immediately.",
-  cta: "Start the onboarding",
+  title: "Thanks for applying!",
+  lead: "One more step to complete your application.",
+  body: "Complete a quick 15-minute onboarding to learn how the role works, how you'll promote Survive on your campus, and our vision for helping students nationwide.",
+  review: "Once you finish, I'll review everything and reach out within two business days for a casual phone interview. If it's a fit, we'll get you started right away.",
+  cta: "Complete the onboarding",
+  note: "Six quick steps. Your progress saves automatically.",
 };
 
 export const READY_COPY = {

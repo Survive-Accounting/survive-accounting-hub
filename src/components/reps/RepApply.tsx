@@ -281,9 +281,11 @@ export function RepApply({ campusKey }: { campusKey: string | null }) {
         <section className="mx-auto max-w-sm pt-14" style={{ fontFamily: BRAND_SANS }}>
           <p className="text-center text-[12px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.16em" }}>Application received</p>
           <h1 className="mt-2 text-center text-[26px] font-black leading-[1.1]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{PENDING_COPY.title}</h1>
+          <p className="mt-2 text-center text-[15.5px] font-bold leading-snug" style={{ color: "var(--brand-cream)" }}>{PENDING_COPY.lead}</p>
           <p className="mt-3 text-center text-[14.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>{PENDING_COPY.body}</p>
+          <p className="mt-3 text-center text-[14.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>{PENDING_COPY.review}</p>
           <button type="button" onClick={() => void nav({ to: "/rep/onboarding" })} className="mt-6 w-full rounded-xl text-[15px] font-black" style={CTA}>{PENDING_COPY.cta} →</button>
-          <p className="mt-3 text-center text-[12px]" style={{ color: "var(--text-muted)" }}>Six short steps, each with a response. Progress saves — leave and come back any time from /rep/onboarding.</p>
+          <p className="mt-3 text-center text-[12px]" style={{ color: "var(--text-muted)" }}>{PENDING_COPY.note}</p>
           {beta && <BetaFeedback screen="Pending" who={name} isTest={isTest} />}
         </section>
       )}

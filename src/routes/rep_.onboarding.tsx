@@ -140,8 +140,29 @@ function Flow({ d, stepKey, legacyToken, onStep, onSaved }: { d: PreOnboardingSt
     if (r?.targets) setTargets(Object.fromEntries(r.targets.map((t) => [t.id, t])));
   }, [stepKey, d.profile.steps, def]);
 
+  /** What this step still needs, in words — or null when it's ready to save. */
+  const missing = (): string | null => {
+    if (!def) return null;
+    if (def.response === "sentence" && answer.trim().length < 8) return "Give it a sentence in your own words — there's no wrong answer, and Lee reads these.";
+    if (def.response === "comfort" && comfort.length === 0) return "Pick at least one — honest beats ambitious here.";
+    if (def.response === "chapters" && d.chapters.length > 0 && pickedCount === 0) return "Pick at least one chapter to go after first.";
+    return null;
+  };
+
   const next = async () => {
     if (!def || busy) return;
+    // NEVER A DEAD BUTTON (2026-09-08, Lee mid-onboarding: "it's not letting me go into the next
+    // step. I'm on step 1. It's stuck. Maybe because videos aren't uploaded yet?" — it was not the
+    // videos: Next was disabled at 40% opacity because the sentence was under eight characters,
+    // and nothing on screen said so). Pressing it is how you find out what it wants.
+    const gap = missing();
+    if (gap) {
+      setErr(gap);
+      const el = document.querySelector<HTMLElement>("#rep-step-input textarea, #rep-step-input button, #rep-step-input input");
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => { try { el?.focus({ preventScroll: true }); } catch { /* not focusable */ } }, 220);
+      return;
+    }
     setBusy(true); setErr(null);
     try {
       const payload = def.response === "sentence" ? { answer } : def.response === "ack" ? { ack: true } : def.response === "comfort" ? { comfort } : { targets: Object.values(targets) };
@@ -224,10 +245,10 @@ function Flow({ d, stepKey, legacyToken, onStep, onSaved }: { d: PreOnboardingSt
             </div>
           )}
 
-          <div className="mt-5">
+          <div className="mt-5" id="rep-step-input">
             <label style={LABEL}>{def.prompt}</label>
             {def.response === "sentence" && (
-              <textarea value={answer} onChange={(e) => setAnswer(e.target.value)} rows={3} placeholder="One sentence, your words." className="sa-field" style={AREA} />
+              <textarea value={answer} onChange={(e) => { setAnswer(e.target.value); if (err) setErr(null); }} rows={3} placeholder="One sentence, your words." className="sa-field" style={AREA} />
             )}
             {def.response === "comfort" && (
               <div className="grid gap-2">
@@ -284,8 +305,8 @@ function Flow({ d, stepKey, legacyToken, onStep, onSaved }: { d: PreOnboardingSt
           {err && <p className="mt-3 text-[12.5px]" role="alert" style={{ color: "#F3C6CC" }}>{err}</p>}
           <div className="mt-4 flex items-center gap-3">
             {idx > 0 && <button type="button" onClick={() => onStep(STEP_KEYS[idx - 1])} className="rounded-xl px-4 text-[13.5px] font-black" style={{ minHeight: 52, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>Back</button>}
-            <button type="button" onClick={() => void next()} disabled={busy || (def.response === "sentence" && answer.trim().length < 8) || (def.response === "comfort" && comfort.length === 0) || (def.response === "chapters" && d.chapters.length > 0 && pickedCount === 0)}
-              aria-busy={busy} className="flex-1 rounded-xl text-[15px] font-black transition-opacity disabled:opacity-40" style={CTA}>
+            <button type="button" onClick={() => void next()} disabled={busy}
+              aria-busy={busy} className="flex-1 rounded-xl text-[15px] font-black transition-opacity disabled:opacity-60" style={CTA}>
               {busy ? "Saving…" : def.response === "ack" ? `${def.prompt.split(" — ")[0]} →` : idx === STEP_KEYS.length - 1 ? "Save my chapters →" : "Next →"}
             </button>
           </div>
