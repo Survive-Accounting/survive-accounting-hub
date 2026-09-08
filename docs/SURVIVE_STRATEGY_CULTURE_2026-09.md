@@ -176,6 +176,123 @@ Accounting one.
 
 ---
 
+## The Positioning Line
+
+> **"Like YT shorts for exam prep."**
+
+*2026-09-08. Lee: "That slogan just fucking rocks… I will say it word for word in
+outros." Say it verbatim; do not paraphrase it into "short-form content for
+students" or anything else.*
+
+The longer form, for when there's room to carry the vision:
+
+> Survive is like YT shorts for exam prep — becoming available at universities
+> nationwide, with more courses coming.
+
+**Cadence: roughly every fifth video, or once per topic.** Not every outro — a
+line said constantly stops being heard. Lee's reason for saying it at all: *"I
+want someone who watches from another university to care. I want to go for the
+big vision."*
+
+**Is it too lofty?** No, on one condition: it has to be said next to something
+concrete. "Nationwide, more courses coming" on its own is a claim; the same line
+over a visible list of the courses that are actually coming is a roadmap. Pair it
+with the course list, or with the campuses already live, every time.
+
+**It is also a recruiting line.** Lee: *"I want to make this a mission where
+others can help. This is the type of content I want former students to see and go
+wow, he's doing it, I want in."* At least one video should name the job
+opportunity — the rep program for now.
+
+---
+
+## Pitch Slides
+
+*2026-09-08. Lee's name for it: "any video that's directed at selling the student
+on something." A pitch slide is a production kind, distinct from a cram slide.*
+
+The model underneath: **keep the videos incredibly crammable, and leave seeds of
+curiosity lying around.** The seed, in its shortest form:
+
+> With Survive, the first exam is completely free — just share your email. All
+> other exams are $50 each. We partner with sororities and fraternities, so your
+> whole chapter can get this. Helps boost a lot of GPAs.
+
+Two scripts, written 2026-09-08. Keep the closing lines exactly — *"I'll take it
+from there"* and *"I'll walk you through it personally"* are doing real work.
+
+### Script 1 — Easy Points outro (~60 sec, one take)
+
+> Alright, that's Easy Points. Those are yours now — you'll see some version of
+> them on every exam you take in this course.
+>
+> Here's how I think about this whole thing. These cram videos aren't me teaching
+> you accounting. I'm showing you what's on the test and giving you every trick
+> I've got. Do these, practice on your own, you're solidly in B territory. Do all
+> of them and I think you make an A.
+>
+> But some of this stuff you actually have to understand, not just memorize. So I
+> make longer videos for that too, and I'll point out where you need them.
+>
+> And honestly? Some of it's just fun. Everybody's least favorite chapter is bonds
+> payable. It's my favorite one to teach. I'll show you why when we get there.
+>
+> Drop your email and I'll show you what else is on Exam 1. And if your chapter
+> does academic support — tell your scholarship chair about this. I'll take it
+> from there.
+
+*Cut anything that makes you rush. The bonds line needs room to land.*
+
+### Script 2 — Scholarship chair (~90 sec)
+
+> Hey — you're probably here because someone in your chapter sent you this. Give
+> me ninety seconds.
+>
+> I'm Lee. I've tutored over a thousand students in intro accounting since 2015.
+> Ole Miss accounting degree, and I teach there now. Before this I ran a tutoring
+> company — the pandemic ended that, so I rebuilt it as something that actually
+> scales.
+>
+> Survive Accounting is short cram videos for intro accounting. Three to five
+> minutes each, covering exactly what shows up on your exams. It's the class that
+> wrecks GPAs, and it's the one I've spent a decade teaching.
+>
+> For chapters it's a hundred dollars a member, ten member minimum. Everyone gets
+> the full semester — every exam, every video. Compare that to one tutor for one
+> student for a few sessions.
+>
+> Setup takes about five minutes. You get a chapter page, your members claim
+> access with a link, and I handle everything after that.
+>
+> If your chapter has a scholarship budget and members in accounting, this is one
+> of the cleaner ways to spend it. Hit the button below and I'll walk you through
+> it personally.
+
+---
+
+## The Sample Video — how tutors get hired
+
+*2026-09-08. Lee, on the OBS wiring tool: "that was REALLY freaking cool
+honestly. Great thing to share with tutors later."*
+
+The hiring funnel for the next tutor is not a résumé. It is:
+
+> Download OBS. I'll walk you through setup. Now try making a sample video.
+
+Lee: *"SAMPLE VIDEO is the key for hiring tutors. Give them a nosedive into the
+platform. If they love it, then they're in for an interview. Otherwise, don't
+waste my time."*
+
+Why it works: the thing that makes Survive hard to copy is the production line,
+so the audition should be *using the production line*. Someone who enjoys the
+tool will enjoy the job; someone who doesn't self-selects out before either party
+spends an hour on a call. It also produces an artifact Lee can judge — their
+teaching, in the house format, at the house length.
+
+The same walkthrough doubles as onboarding for whoever passes. Build it once.
+
+---
+
 ## Review Videos on Demand
 
 *2026-09-08. Demand-led, so Lee doesn't build a library nobody asked for.*
@@ -201,15 +318,24 @@ destinations, one slide:
 If the review video doesn't exist yet, the link becomes the request form. The
 publishing step should have a slot for these buttons per destination.
 
-**Testing whether it's worth money.** Not a promise, an experiment. The request
-form asks: cram style, or long form? Long form is expensive, cram is not. Lee's
-own framing: a tutoring session is $180 for 90 minutes; a video that lives on the
-site forever is worth less to him per hour because it serves everyone — so
-roughly **$50 for a cram-style answer, ~$100–150 for long form**, paid only on
-delivery, with a shareable link so several students can pitch in $20 each. *"I
-kinda like that everything could be fifty bucks on this site."* And the promise
-is honest about what gets made: *"I'm gonna teach you what you need to know to go
-get the answer and understand it"* — never a copy of the exact question.
+**THE ASK IS FREE.** Settled 2026-09-08 — this is the rule, not a starting
+position. Requesting a video costs nothing and is never gated behind a price;
+**money is only ever discussed privately, over email, after the request comes
+in.** Lee: *"We take in the requests for free. FOR FREE. We only discuss price
+privately over email. Love it love it love it."* A public price list on the
+request form would suppress the exact signal the form exists to measure.
+
+**What the private reply looks like.** Not a quote out of nowhere — an honest
+estimate: I can make this, it'll take me about two hours, here's a link if you
+want to make it happen. The request form still asks **cram style or long form**,
+because the two cost very different amounts of Lee's time. His own framing: a
+tutoring session is $180 for 90 minutes; a video that lives on the site forever
+serves everyone, so it is worth less per hour to him — roughly **$50 for a
+cram-style answer, ~$100–150 for long form**, paid only on delivery, with a
+shareable link so several students can pitch in $20 each. *"I kinda like that
+everything could be fifty bucks on this site."* And the promise is honest about
+what gets made: *"I'm gonna teach you what you need to know to go get the answer
+and understand it"* — never a copy of the exact question.
 
 **Why it matters beyond the money:** a paid or crowdsourced request is the
 strongest possible intent signal, and it is the natural moment to ask for a
