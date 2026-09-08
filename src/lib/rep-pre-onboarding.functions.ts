@@ -290,6 +290,7 @@ export const submitPreOnboarding = createServerFn({ method: "POST" })
     const summary = reviewSummarySms({
       name: rep.name, campus: campus.name, studentStatus: profile.studentStatus ?? null, major: profile.major ?? null,
       tookCourse: profile.tookCourse ?? null, courseCode, greek, why: profile.why ?? rep.pitch ?? null,
+      involvement: profile.involvement ?? null,
       comfort: profile.comfort ?? [], targets, resumeUrl: resume?.url ?? null, interviewUrl, denyUrl,
     });
     const sms = await review.textLee(summary, { isTest: !!rep.is_test });

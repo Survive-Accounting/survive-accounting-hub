@@ -58,7 +58,11 @@ export interface RepProfile {
   /** Free text when the applicant is not in a listed chapter ("not Greek, my roommate is Kappa"). */
   greek?: string;
   greekChapterId?: string | null;
+  /** Retired from the form 2026-09-08 (the "why do you want to do this?" essay). Still READ —
+   *  every application taken before that date has one, and Lee's review text shows it. */
   why?: string;
+  /** Its replacement: campus-only or up for expansion (INVOLVEMENT_COPY). */
+  involvement?: Involvement;
   steps?: Partial<Record<StepKey, StepRecord>>;
   comfort?: string[];
   targets?: TargetChapter[];
@@ -184,13 +188,39 @@ export const comfortLabel = (key: string): string => COMFORT_OPTIONS.find((o) =>
 
 // ---------------------------------------------------------------- copy (Lee's words)
 
+// STEP 1 IS THE HERO AND THE FORM, NOTHING ELSE (Lee, 2026-09-08): "Hero copy ↓ Application
+// form. Very little friction." The two-reps-per-campus line, the Level 1 pay table and the
+// bonus rules left this page — they are step 4 of the onboarding, where someone who has already
+// applied is ready to read them (rep-copy.ts still owns that copy, unchanged).
 export const APPLY_COPY = {
   eyebrow: "Campus reps",
-  headline: (campus: string) => `Represent Survive at ${campus}.`,
-  sub: "Help Greek chapters at your school get exam prep for their accounting courses, and earn commission on every chapter you bring on.",
-  bar: (campus: string) => `Maximum of two reps per campus. I read every application myself. What I'm looking for: you're connected to the Greek system at ${campus}, and you want in on the ground floor as we scale Survive nationwide.`,
-  alumni: "Alumni are eligible — if you were in a chapter here, you count.",
+  headline: (campus: string) => `Promote Survive at ${campus}`,
+  sub: "Easiest side gig imaginable. Share Survive's free accounting exam prep with Greek chapters at your school. Earn 10% commissions + bonuses when they buy.",
 };
+
+/** The last question on the form (2026-09-08), replacing the "why do you want to do this?"
+ *  essay: one tap, and it tells Lee whether he is looking at a campus rep or a future regional.
+ *  Enum values are the business identity; the labels are free to be rewritten. */
+export type Involvement = "campus_only" | "expansion";
+export const INVOLVEMENT_COPY = {
+  label: "We are scaling Survive to 200+ schools. What level of involvement are you interested in?",
+  campusOnly: (campus: string) => `Just promoting at ${campus}`,
+  expansion: "Interested in helping with expansion",
+};
+export const involvementLabel = (v: Involvement | null | undefined, campus: string): string =>
+  v === "expansion" ? INVOLVEMENT_COPY.expansion : v === "campus_only" ? INVOLVEMENT_COPY.campusOnly(campus) : "—";
+
+/** THE SHORTHAND SCHOOL NAME for the headline — "Ole Miss", "Alabama", "LSU". `name` on a
+ *  campus is already the canonical display name, so it is the answer almost always. The one
+ *  exception is a short_name that is a bare-initial truncation ("Test U", "Test U.") — Lee:
+ *  "Do NOT awkwardly abbreviate it to something like Promote Survive at Test U." — where the
+ *  formal name reads like something a person would say out loud. */
+export function campusShorthand(name: string | null | undefined, formalName?: string | null): string {
+  const short = (name ?? "").trim();
+  if (!short) return (formalName ?? "").trim() || "your campus";
+  if (/\bU\.?$/.test(short) && (formalName ?? "").trim()) return formalName!.trim();
+  return short;
+}
 
 export const PENDING_COPY = {
   title: "Your application is pending.",
@@ -234,7 +264,7 @@ export const firstName = (name: string): string => (name.trim().split(/\s+/)[0] 
 /** The review text to Lee: everything he needs to decide, then the two links. */
 export function reviewSummarySms(i: {
   name: string; campus: string; studentStatus: StudentStatus | null; major: string | null; tookCourse: TookCourse | null; courseCode: string | null;
-  greek: string | null; why: string | null; comfort: string[]; targets: TargetChapter[]; resumeUrl: string | null;
+  greek: string | null; why: string | null; involvement?: Involvement | null; comfort: string[]; targets: TargetChapter[]; resumeUrl: string | null;
   interviewUrl: string; denyUrl: string;
 }): string {
   const took = i.tookCourse === "taken" ? "took" : i.tookCourse === "taking_now" ? "taking now" : i.tookCourse === "not_yet" ? "hasn't taken" : "?";
@@ -245,7 +275,9 @@ export function reviewSummarySms(i: {
     `Onboarding complete · ${i.name} · ${i.campus}`,
     `${i.studentStatus === "alumni" ? "Alumni" : "Student"} · ${i.major || "major ?"} · ${took} ${i.courseCode || "the intro course"}`,
     `Greek: ${i.greek || "—"}`,
-    `Why: ${(i.why || "—").slice(0, 280)}`,
+    // The essay is gone from the form (2026-09-08); an application taken before that still has
+    // one and still shows it. New ones show the involvement tap in its place.
+    i.why ? `Why: ${i.why.slice(0, 280)}` : `Wants: ${involvementLabel(i.involvement, i.campus)}`,
     `Comfortable with: ${i.comfort.length ? i.comfort.map(comfortLabel).map(shortComfort).join(", ") : "—"}`,
     `Chapters: ${picked} picked, ${conn} with a connection${picked ? ` — ${names}` : ""}`,
     i.resumeUrl ? `Resume: ${i.resumeUrl}` : null,

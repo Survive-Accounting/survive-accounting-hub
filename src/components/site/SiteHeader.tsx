@@ -321,13 +321,16 @@ const menuLinks = (base: string, greekHref: string): NavItem[] => [
 // showing. The orange Start-Exam-1 CTA goes with it: the doors are the instruction, and three
 // competing "start" doors was exactly the clutter the redesign removes. Every OTHER page keeps
 // the full bar (the CTA there is the only Exam-1 door still on screen once the hero scrolls).
-const homeLinks = (): NavItem[] => [
-  { label: "Reviews", href: "#reviews" },
-  { label: "Meet your tutor", href: "#lee" },
+// `base` for the same reason the other two lists take one (2026-09-08): these were hard-coded
+// same-page anchors, which is right on the homepage and dead everywhere else. /rep/join wears
+// this exact bar without rendering the landing sections, so there its links must go home first.
+const homeLinks = (base: string): NavItem[] => [
+  { label: "Reviews", href: `${base}#reviews` },
+  { label: "Meet your tutor", href: `${base}#lee` },
 ];
-const homeMenuLinks = (): NavItem[] => [
-  { label: "Reviews", href: "#reviews" },
-  { label: "Meet your tutor", href: "#lee" },
+const homeMenuLinks = (base: string): NavItem[] => [
+  { label: "Reviews", href: `${base}#reviews` },
+  { label: "Meet your tutor", href: `${base}#lee` },
   // Contact expands in place into Text + Email rather than jumping anywhere.
   { label: "Contact", href: "", contact: true },
 ];
@@ -343,8 +346,8 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
   // Access, Reviews, Meet Lee) and an exec-facing CTA. Generic homepage links ("For Greeks",
   // Contact) are deliberately absent there — a visitor on a chapter page is already somewhere
   // specific, and every link that navigates away is a door out of the funnel.
-  const links = chapterNav ? chapterLinks(chapterNav) : homeNav ? homeLinks() : desktopLinks(base, greekHref);
-  const menuItems = chapterNav ? chapterLinks(chapterNav) : homeNav ? homeMenuLinks() : menuLinks(base, greekHref);
+  const links = chapterNav ? chapterLinks(chapterNav) : homeNav ? homeLinks(base) : desktopLinks(base, greekHref);
+  const menuItems = chapterNav ? chapterLinks(chapterNav) : homeNav ? homeMenuLinks(base) : menuLinks(base, greekHref);
   // null = no CTA pill at all (the two-door homepage: the doors are the CTAs).
   const cta: NavItem | null = homeNav ? null : chapterNav
     ? { label: "Set Up Chapter Access →", href: `#${chapterNav.accessAnchor}` }

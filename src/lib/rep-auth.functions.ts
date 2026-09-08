@@ -34,6 +34,13 @@ async function testEnabled(): Promise<boolean> {
   try { const { testModeOn } = await import("@/lib/test-mode.server"); return testModeOn(); } catch { return false; }
 }
 
+/** +1 555-0xxx and friends: the North American range reserved for fiction, which is where the
+ *  tester phones are minted (test-mode.ts testerRepPhone). No SMS provider can deliver to one. */
+export function isFictionalUsNumber(e164: string): boolean {
+  const m = /^\+1(\d{10})$/.exec(e164.trim());
+  return !!m && m[1].slice(3, 6) === "555";
+}
+
 function newToken(): string {
   const A = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const b = new Uint8Array(28);
@@ -61,11 +68,23 @@ export const applyAsRep = createServerFn({ method: "POST" })
     tookCourse: z.enum(["taken", "taking_now", "not_yet"]).optional(),
     greekChapterId: z.string().uuid().optional().nullable(),
     greek: z.string().trim().max(200).optional(),
+    // Retired from the form 2026-09-08 but still accepted: an in-flight tab on the old page
+    // must not 400 mid-application.
     why: z.string().trim().max(2000).optional(),
+    /** Its replacement — the one-tap involvement answer (rep-pre-onboarding.ts). */
+    involvement: z.enum(["campus_only", "expansion"]).optional(),
   }).parse(d))
-  .handler(async ({ data }): Promise<{ ok: boolean; state?: "verify" | "existing_active" | "campus_closed"; error?: string }> => {
+  .handler(async ({ data }): Promise<{ ok: boolean; state?: "verify" | "existing_active" | "campus_closed"; isTest?: boolean; error?: string }> => {
     const db = await admin();
     const isTest = !!data.isTest && (await testEnabled());
+    // THE ASK AND THE ANSWER MUST MATCH (2026-09-08). A browser in Test Mode whose server has
+    // TEST_MODE_ENABLED unset used to create a REAL rep from a 555 number and then hand that
+    // number to Twilio, which is where the flow died with "couldn't send the code". Refusing
+    // here, by name, beats creating a row nobody wanted: the tester sees the cause, and a
+    // fictional number never reaches the SMS provider.
+    if (data.isTest && !isTest) {
+      return { ok: false, error: "Test Mode is off on this server (TEST_MODE_ENABLED). Nothing was created — a test application can't fall through to a real one." };
+    }
 
     // The application answers: the columns V2 already has, plus rep_profile for the rest.
     // Written on a fresh signup AND on a resume (same person finishing later).
@@ -80,6 +99,7 @@ export const applyAsRep = createServerFn({ method: "POST" })
         ...(data.greek ? { greek: data.greek } : {}),
         ...(data.greekChapterId ? { greekChapterId: data.greekChapterId } : {}),
         ...(data.why ? { why: data.why } : {}),
+        ...(data.involvement ? { involvement: data.involvement } : {}),
         applyCampusSlug: data.campusSlug,
       },
     };
@@ -113,7 +133,7 @@ export const applyAsRep = createServerFn({ method: "POST" })
     const res = signupResolution(existing?.id ? { repStatus: (existing.rep_status ?? null) as never, phoneVerifiedAt: existing.phone_verified_at ?? null } : null);
 
     if (res === "blocked") return { ok: false, error: "This rep account is paused. Text Lee if that's a surprise." };
-    if (res === "existing_active") return { ok: true, state: "existing_active" };
+    if (res === "existing_active") return { ok: true, state: "existing_active", isTest };
 
     if (res === "resume") {
       // Same person finishing signup: refresh their details on the SAME row, then verify.
@@ -123,7 +143,7 @@ export const applyAsRep = createServerFn({ method: "POST" })
       }).eq("id", existing!.id);
       const g = await gate(rErr);
       if (g) return { ok: false, error: g };
-      return { ok: true, state: "verify" };
+      return { ok: true, state: "verify", isTest };
     }
 
     // CAMPUS CAPACITY (V2): one rep by default, two max split by council. Counting only
@@ -136,7 +156,7 @@ export const applyAsRep = createServerFn({ method: "POST" })
         .eq("type", "campus_rep").eq("campus_id", campusId)
         .eq("application_status", "approved").eq("is_test", isTest).limit(10);
       const cap = campusCapacity(((approvedRows ?? []) as Array<{ rep_coverage: string | null }>).map((r) => r.rep_coverage as never));
-      if (!cap.open) return { ok: true, state: "campus_closed" };
+      if (!cap.open) return { ok: true, state: "campus_closed", isTest };
     }
 
     // Fresh signup. ENGINE STATUS 'paused' UNTIL VERIFIED: no link may attribute before the
@@ -158,14 +178,18 @@ export const applyAsRep = createServerFn({ method: "POST" })
       const { founderAlert } = await import("@/lib/comms/send.server");
       await founderAlert({ ctx: { kind: "rep", name: data.name, school: data.campusSlug, email: data.email, phone }, isTest });
     } catch { /* alert is never load-bearing */ }
-    return { ok: true, state: "verify" };
+    return { ok: true, state: "verify", isTest };
   });
 
 // ── PHONE OTP: start ─────────────────────────────────────────────────────────────────────────
 // Also the login entry: we look the rep up by phone. Responses are deliberately uniform — an
 // unknown phone gets the same "code sent" shape so this can't be used to probe who is a rep.
 export const startRepVerification = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ phone: z.string().trim().min(7).max(40) }).parse(d))
+  .inputValidator((d: unknown) => z.object({
+    phone: z.string().trim().min(7).max(40),
+    /** The caller's Test Mode state, honoured only when the server's flag is on (2026-09-08). */
+    isTest: z.boolean().optional(),
+  }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; testHint?: boolean; error?: string }> => {
     const db = await admin();
     const { normalizePhoneE164 } = await import("@/lib/greek-chapters.functions");
@@ -176,7 +200,18 @@ export const startRepVerification = createServerFn({ method: "POST" })
       .eq("type", "campus_rep").eq("phone", phone).maybeSingle();
 
     // Test reps in Test Mode skip Twilio entirely — the fixed code passes checkRepVerification.
-    if (rep?.is_test && (await testEnabled())) return { ok: true, testHint: true };
+    // The caller's own flag counts too, behind the same server lock: this used to depend solely
+    // on the row's is_test, so a row written a moment earlier by a server that disagreed about
+    // Test Mode sent the tester down the real-SMS path with a fictional number.
+    const testMode = await testEnabled();
+    if (testMode && (rep?.is_test || data.isTest)) return { ok: true, testHint: true };
+
+    // A RESERVED FICTIONAL NUMBER IS NEVER AN SMS DESTINATION. 555-01xx is reserved for fiction
+    // (and the tester phones are minted in that range), so reaching Twilio with one can only
+    // fail — loudly here, naming the cause, instead of "couldn't send the code, try again".
+    if (isFictionalUsNumber(phone)) {
+      return { ok: false, error: "That's a reserved 555 test number. Turn Test Mode on (TEST_MODE_ENABLED) or use a real phone." };
+    }
 
     const { startVerification, verifyConfigured } = await import("@/lib/twilio-verify.server");
     if (!verifyConfigured()) return { ok: false, error: "Phone verification isn't configured yet — try again soon." };
