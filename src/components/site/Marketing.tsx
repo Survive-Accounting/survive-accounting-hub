@@ -531,15 +531,26 @@ export function LeePortrait({ width = 200, caption = true, variant = "sunrise", 
         transform: "scale(1.5)",
       }
     : {
-        src: "/lee-sunrise.jpg",
+        // PRE-CROPPED, not cropped live (2026-09-08 — the card looked grainy). This used to be the
+        // full 4032x3024 original with object-fit: cover PLUS an extra `transform: scale(1.14)
+        // translateY(-5%)` layered on top to raise the face and hold the framing. That combination
+        // is why it looked grainy: browsers commonly rasterize a transformed <img> on a compositor
+        // layer sized for the PRE-transform box, then GPU-upscale that layer for the extra 14%
+        // zoom — a second, lower-quality resample stacked on an already-aggressive ~28x downscale
+        // from the full photo. lee-sunrise-bio.jpg is the exact same framing (same source rect, math
+        // preserved below), baked in once at build time — one clean resample, no runtime transform,
+        // ~75KB instead of fetching the full 1.1MB original just to show a 112px card.
+        //
+        //   sourceRect = { x: 471, y: 337, w: 2122, h: 2653 } of the 4032x3024 original — solved
+        //   from: object-fit: cover, object-position: 20% 50%, then transform: scale(1.14)
+        //   translateY(-5%) about center, inverted back into source-pixel space.
+        //   Regenerate from /lee-sunrise.jpg if the crop ever needs to change; don't hand-edit the
+        //   jpg without re-deriving this rect, or the "why 471,337" becomes unrecoverable.
+        src: "/lee-sunrise-bio.jpg",
         alt: "Lee Ingram",
-        objectPosition: "20% 50%",
-        transformOrigin: "center",
-        // THE FACE SITS HIGHER than a plain cover crop puts it. The source is 4:3 into a 4:5 frame,
-        // so cover fills the height EXACTLY and object-position has no vertical travel to give. A
-        // 14% scale buys ~7% of headroom each side; shifting up 5% spends part of it, so the frame
-        // stays covered and the hair and arm stay in shot.
-        transform: "scale(1.14) translateY(-5%)",
+        objectPosition: "50% 50%",
+        transformOrigin: undefined,
+        transform: undefined,
       };
   return (
     <figure className="mx-auto sm:mx-0" style={{ width, transform: "rotate(1.5deg)" }}>
