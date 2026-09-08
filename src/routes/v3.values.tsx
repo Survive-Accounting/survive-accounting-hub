@@ -90,6 +90,12 @@ const TEACHING: Line[] = [
 
 const PRODUCTION: Line[] = [
   {
+    name: "The cold open assembles",
+    quote: "Nothing being on the screen maybe except the Bolt in the background, and then everything comes in, slides in… like this assemblance. Like, this is a machine being put together, and we're about to dive into this. There's just kind of the bolt, and there's electricity. And that's really it. You're about to get your system shocked. It's like a defibrillator.",
+    source: "Lee, 2026-09-08",
+    gloss: "The first seconds are the brand: the bolt alone, then the slide builds itself piece by piece — camera from the right, question from the top, watermark top-left, the topic lines from either side. Subtle first, more over time.",
+  },
+  {
     name: "The page-turner",
     quote: "This is another production principle we can add to our shorts. It's like being a page turner book. The end of each slide is pulling you into the next one, whenever possible.",
     source: "Lee, 2026-09-07 — v3 notes",

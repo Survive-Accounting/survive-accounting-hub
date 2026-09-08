@@ -57,6 +57,18 @@ going to convert. The hoops filter for customers. Emails from a single chapter
 
 Accounting is the way in, not the ceiling.
 
+### Easy Points, simplified
+
+*2026-09-08.* The free topic is being cut back to the two things that actually
+earn the points, so the free tier is unmistakably useful and fast to produce:
+
+1. **What type of account is this?**
+2. **A = L + E transactions** — the harder one. It may have to split into two
+   sets, or deliberately cover the basics rather than every case. Deciding which
+   is part of the work.
+
+Internal vs. external users is effectively done — every slide is made.
+
 ---
 
 ## Vertical Integration
@@ -73,6 +85,47 @@ Lee has built the full production chain himself:
 This is the "big ideas guy who learned to build with AI" story. It is the most
 compelling narrative Survive has — for hires, for investors, for the ENT course.
 It is *not* for students.
+
+---
+
+## The Cold Open — the machine assembles
+
+*Added 2026-09-08, from Lee out loud. Starts subtle and grows; this is the brand
+on screen.*
+
+The first seconds of every Short are the brand, and right now they are a
+placeholder: the boiling bolt sits in the camera ring while the Sony A7 III wakes
+up, so the viewer gets something alive instead of a black rectangle. That was a
+patch. The real idea is bigger.
+
+**The picture.** Nothing on screen but the bolt in the background. Then the slide
+*assembles itself*, piece by piece, each part flying in from where it lives:
+
+- the camera slides in from the right
+- the question drops from the top
+- the Survive watermark comes in top-left, moving left to right
+- the topic lines arrive as a pair — top line from the left, bottom line from
+  the right
+
+Lee: *"like this assemblance. Like, this is a machine being put together, and
+we're about to dive into this."* The reference is **How It's Made** — the
+pleasure of watching parts become a thing that works.
+
+**The feeling.** Strip it back and there are only two elements: *"there's just
+kind of the bolt, and there's electricity. And that's really it."* What it should
+feel like to the student: *"you're about to get your system shocked. It's like a
+defibrillator."* Not a logo animation. A jolt before the cram.
+
+**The practical half.** It also solves a real problem Lee named in the same
+breath: *"it's hard to start the video."* A countdown gives him a beat to settle
+into before the take begins, and the assembly gives the viewer something
+deliberate to watch during it — the same seconds doing two jobs.
+
+**Where it stands.** The 10-second countdown exists in the film pop-out today
+(press **C**): black screen, the count in League Spartan, cream turning gold for
+the last three, the wordmark small beneath. The assembly is not built. Build it
+as one subtle pass first — one or two elements flying in — and add pieces over
+time rather than shipping a whole title sequence at once.
 
 ---
 
