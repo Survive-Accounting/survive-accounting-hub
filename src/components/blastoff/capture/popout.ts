@@ -12,11 +12,14 @@
 //
 // THE COUNTDOWN (2026-09-07) lives here too, because it is the pop-out's alone. Lee: "I would
 // prefer with capture window having a 10 second countdown… like we're on slide 0 at that
-// point." C (or the chrome button) starts it: the pop-out goes black with the count, big, cream,
-// the last three in gold, the wordmark small below; at zero slide 1 is up. Space during the
-// count cancels it. A take-time affordance, NOT rehearsal — it never touches the rounds reducer
-// (capture/rehearsal-rounds.ts). What the main window does with it (slide 1 undimmed during
-// the count, slide 2 dimmed at zero) is prompter-sync.ts's side.
+// point." C (or the chrome button) starts it. Space during the count cancels it. A take-time
+// affordance, NOT rehearsal — it never touches the rounds reducer (capture/rehearsal-rounds.ts).
+//
+// WHERE THE DIGITS DRAW (2026-09-08). Lee: "So, will students see the 3 2 1?" They would have:
+// the pop-out's client area IS the OBS window capture, so a number drawn here is a number in
+// the video. The count now draws in the MAIN /film window ONLY — it rides prompter-sync's
+// `count` field, alongside the flag that window already reads. The pop-out shows the cold open
+// assembling and nothing else, so a take is clean from its first frame with no head to trim.
 import { useCallback, useEffect, useState } from "react";
 
 import { captureAcceptable, isCaptureExact, physicalSize, snapCaptureSize } from "@/components/canvas/capture-window";
@@ -115,6 +118,17 @@ export const COUNTDOWN_GOLD_FROM = 3;
 
 /** Which colour the count reads in: gold for the last three, cream before. */
 export const countdownTone = (seconds: number): "gold" | "cream" => (seconds <= COUNTDOWN_GOLD_FROM ? "gold" : "cream");
+
+/** THE CUE beside the number (2026-09-08). Lee: "So, will students see the 3 2 1? When will I
+ *  start talking?" — the count is a readout of the cold open, not a 3-2-1 to start on. The
+ *  camera flies in first (cold-open.ts: 200 ms, landed by 1.3 s), so Lee talks over the whole
+ *  assembly; the wordmark lands ON zero, which is the F1. The count exists for the second half
+ *  of that — his words: "know exactly when to hit F1... so I don't miss the transition." */
+export function countdownCue(seconds: number): string {
+  if (seconds >= COUNTDOWN_SECONDS) return "your camera flies in — start talking";
+  if (seconds <= 1) return "F1 on zero — the wordmark lands";
+  return "assembling — keep talking";
+}
 
 /** The next second of the count: 10 → 9 → … → 1 → done (null). */
 export const countdownStep = (seconds: number): number | null => (seconds > 1 ? seconds - 1 : null);

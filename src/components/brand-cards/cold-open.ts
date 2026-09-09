@@ -33,6 +33,13 @@
 // THE COUNT AND THE ASSEMBLY ARE THE SAME SECONDS, not two phases: the pop-out's
 // 10 s count (capture/popout.ts — "the tool I built") runs while the pieces
 // arrive, and the wordmark lands ON zero.
+//
+// BUT THE DIGITS ARE NOT IN THE FRAME (2026-09-08). Lee: "So, will students see
+// the 3 2 1?" They would have — the pop-out is the OBS window capture. The count
+// draws in the main /film window now; this file's ten seconds are what the shot
+// shows, and they show only the machine assembling. That is why there is no
+// longer a `.sa-co-count` rule here: nothing inside the capture recedes, because
+// nothing inside the capture is a timer.
 
 /** The pieces, in the order they arrive. `camera` first, `wordmark` last. */
 export const ASSEMBLY_KEYS = ["camera", "question", "topicTop", "topicBottom", "wordmark"] as const;
@@ -176,15 +183,13 @@ export function coldOpenCss(plan: AssemblyPlan, dx: number, dy: number): string 
   return `
 @keyframes sa-co-in { from { opacity: 0; transform: translate3d(var(--sa-co-x, 0px), var(--sa-co-y, 0px), 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
 @keyframes sa-co-shock { 0% { opacity: var(--sa-co-bolt, 0.34); filter: none; } 16% { opacity: 0.82; filter: brightness(1.9) saturate(1.3); } 100% { opacity: var(--sa-co-bolt, 0.34); filter: none; } }
-@keyframes sa-co-count { from { transform: scale(1) translateY(0); opacity: 0.95; } to { transform: scale(0.34) translateY(${Math.round(dy * 0.9)}px); opacity: 0.42; } }
 .${COLD_OPEN_CLASS} { animation-name: sa-co-in; animation-fill-mode: both; will-change: transform, opacity; }
 ${plan.pieces.map((p) => rule(pieceClass(p.key), p)).join("\n")}
 ${rule(pieceClass("ticker"), tickerBeat(plan))}
 .sa-co-shock { animation: sa-co-shock ${shockFor}ms ease-out ${shockAt}ms both; }
-.sa-co-count { animation: sa-co-count ${plan.totalMs}ms cubic-bezier(0.4, 0, 0.2, 1) both; }
 @media (prefers-reduced-motion: reduce) {
   .${COLD_OPEN_CLASS} { --sa-co-x: 0px; --sa-co-y: 0px; }
-  .sa-co-shock, .sa-co-count { animation: none; }
+  .sa-co-shock { animation: none; }
 }
 `;
 }

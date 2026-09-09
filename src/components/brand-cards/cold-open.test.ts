@@ -127,7 +127,11 @@ describe("coldOpenCss — one class per piece, keyed off the same plan", () => {
     const wm = pieceAt(plan, "wordmark");
     expect(css).toContain(`animation-delay: ${wm.atMs}ms`);
     expect(css).toContain(".sa-co-shock {");
-    expect(css).toContain(`.sa-co-count { animation: sa-co-count ${plan.totalMs}ms`);
+  });
+  // 2026-09-08, Lee: "will students see the 3 2 1?" — no. The count left the captured frame for
+  // the main /film window, so the assembly's stylesheet has no timer rule of any kind.
+  test("nothing in the shot is a countdown", () => {
+    expect(coldOpenCss(assemblyPlan(), 200, 90)).not.toContain("sa-co-count");
   });
   test("reduced motion zeroes the travel — everything simply appears", () => {
     const css = coldOpenCss(assemblyPlan(), 200, 90);

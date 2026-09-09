@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-import { COUNTDOWN_GOLD_FROM, COUNTDOWN_SECONDS, POPOUT_BLOCKED, POPOUT_FEATURES, POPOUT_NAME, captureStatus, countdownStep, countdownTone, isPopoutSearch, popoutHref } from "./popout";
+import { COUNTDOWN_GOLD_FROM, COUNTDOWN_SECONDS, POPOUT_BLOCKED, POPOUT_FEATURES, POPOUT_NAME, captureStatus, countdownCue, countdownStep, countdownTone, isPopoutSearch, popoutHref } from "./popout";
 
 const route = readFileSync(join(import.meta.dir, "../../../routes/v3.$topic.$set.blast-off.film.tsx"), "utf8").split("\r\n").join("\n");
 
@@ -47,6 +47,13 @@ describe("the countdown", () => {
     let s: number | null = COUNTDOWN_SECONDS;
     while (s !== null) { seen.push(s); s = countdownStep(s); }
     expect(seen).toEqual([10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
+  });
+  // Lee, 2026-09-08: "When will I start talking?" The count is a readout of the cold open, not a
+  // 3-2-1 to start on: the camera flies in at the TOP of it and the wordmark lands on zero.
+  test("the cue says talk at the top and F1 on zero", () => {
+    expect(countdownCue(COUNTDOWN_SECONDS)).toContain("start talking");
+    expect(countdownCue(5)).not.toContain("F1");
+    expect(countdownCue(1)).toContain("F1");
   });
 });
 

@@ -23,6 +23,8 @@ describe("the record", () => {
     expect(filmActiveRecord("s", "blast-f1", 1, { popout: true })).toEqual({ setId: "s", qId: "blast-f1", at: 1, popout: true });
     expect(filmActiveRecord("s", null, 1, { popout: true, countdown: true })).toEqual({ setId: "s", qId: null, at: 1, popout: true, countdown: true });
     expect(Object.keys(filmActiveRecord("s", "q", 1, { popout: false, countdown: false }))).toEqual(["setId", "qId", "at"]);
+    expect(filmActiveRecord("s", null, 1, { popout: true, countdown: true, count: 3 })).toEqual({ setId: "s", qId: null, at: 1, popout: true, countdown: true, count: 3 });
+    expect(Object.keys(filmActiveRecord("s", "q", 1, { count: 3 }))).toEqual(["setId", "qId", "at"]);  // a count with no countdown is not a count
   });
   // THE MAP (2026-09-07): a cluster frame publishes the shot being walked; the prompter shows
   // that shot's note. Shot 0 is a shot — only a missing shot is left off.
@@ -49,7 +51,7 @@ describe("the main window reading the pop-out's take", () => {
   const frames = [{ id: "f1", kind: "open" as const }, { id: "f2", kind: "ceq" as const, ceqId: "ceq-9" }, { id: "f3", kind: "outro" as const }];
 
   test("a live pop-out record is a take; the plain record (the main window's own, or the Studio's) is not", () => {
-    expect(popoutTake(rec({}), "set-1", 11_000)).toEqual({ qId: "blast-f2", countdown: false });
+    expect(popoutTake(rec({}), "set-1", 11_000)).toEqual({ qId: "blast-f2", countdown: false, count: null });
     expect(popoutTake({ setId: "set-1", qId: "blast-f2", at: 10_000 }, "set-1", 11_000)).toBeNull();
     expect(popoutTake(null, "set-1", 11_000)).toBeNull();
   });
@@ -63,17 +65,23 @@ describe("the main window reading the pop-out's take", () => {
     expect(popoutTake(rec({}), "set-1", 10_000 - POPOUT_STALE_MS - 1)).toBeNull(); // a clock far ahead of ours is no better
   });
   test("the countdown is slide 0: qId null whatever was written", () => {
-    expect(popoutTake(rec({ countdown: true, qId: null }), "set-1", 11_000)).toEqual({ qId: null, countdown: true });
-    expect(popoutTake(rec({ countdown: true }), "set-1", 11_000)).toEqual({ qId: null, countdown: true });
+    expect(popoutTake(rec({ countdown: true, qId: null }), "set-1", 11_000)).toEqual({ qId: null, countdown: true, count: null });
+    expect(popoutTake(rec({ countdown: true }), "set-1", 11_000)).toEqual({ qId: null, countdown: true, count: null });
+  });
+  // 2026-09-08. Lee: "So, will students see the 3 2 1?" — not any more. The pop-out IS the OBS
+  // capture, so the digits ride the record to the main window instead of drawing in the shot.
+  test("the number itself crosses to the main window, and only while counting", () => {
+    expect(popoutTake(rec({ countdown: true, count: 7 }), "set-1", 11_000)).toEqual({ qId: null, countdown: true, count: 7 });
+    expect(popoutTake(rec({ count: 7 }), "set-1", 11_000).count).toBeNull();   // no count without the flag
   });
   test("the preview is the slide AFTER the pop-out's; during the countdown it is slide 1", () => {
-    expect(previewIndex(frames, { qId: null, countdown: true })).toBe(0);
-    expect(previewIndex(frames, { qId: "blast-f1", countdown: false })).toBe(1);
-    expect(previewIndex(frames, { qId: "ceq-9", countdown: false })).toBe(2);       // a set card by its CEQ node…
-    expect(previewIndex(frames, { qId: "blast-f2", countdown: false })).toBe(2);    // …or by its frame id, as the Studio/prompter contract allows
-    expect(previewIndex(frames, { qId: "blast-f3", countdown: false })).toBe(3);    // the last slide → frames.length: "— end —"
-    expect(previewIndex(frames, { qId: "blast-nope", countdown: false })).toBeNull();
-    expect(previewIndex(frames, { qId: null, countdown: false })).toBeNull();
+    expect(previewIndex(frames, { qId: null, countdown: true, count: null })).toBe(0);
+    expect(previewIndex(frames, { qId: "blast-f1", countdown: false, count: null })).toBe(1);
+    expect(previewIndex(frames, { qId: "ceq-9", countdown: false, count: null })).toBe(2);       // a set card by its CEQ node…
+    expect(previewIndex(frames, { qId: "blast-f2", countdown: false, count: null })).toBe(2);    // …or by its frame id, as the Studio/prompter contract allows
+    expect(previewIndex(frames, { qId: "blast-f3", countdown: false, count: null })).toBe(3);    // the last slide → frames.length: "— end —"
+    expect(previewIndex(frames, { qId: "blast-nope", countdown: false, count: null })).toBeNull();
+    expect(previewIndex(frames, { qId: null, countdown: false, count: null })).toBeNull();
   });
 });
 

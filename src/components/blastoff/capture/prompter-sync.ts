@@ -41,13 +41,18 @@ export interface FilmActive {
   popout?: true;
   /** Written by the pop-out during its 10 s countdown ("slide 0" — qId is null then). */
   countdown?: true;
+  /** THE NUMBER ITSELF (2026-09-08). Lee: "So, will students see the 3 2 1?" — they would have.
+   *  The count drew INSIDE the pop-out, and the pop-out's client area is exactly what OBS
+   *  window-captures, so every take opened on a 3-2-1. The digits left the shot and ride this
+   *  field instead, to the windows Lee looks at. Seconds left, 10 → 1; absent unless `countdown`. */
+  count?: number;
   /** THE MAP (2026-09-07): on a cluster frame, the SHOT being walked (0-based) — the prompter
    *  shows that shot's `note` as the line. Absent on every other frame kind. */
   shot?: number;
 }
 
 /** The pop-out's flags, as the publish helpers take them — and the map's shot. */
-export interface FilmActiveFlags { popout?: boolean; countdown?: boolean; shot?: number }
+export interface FilmActiveFlags { popout?: boolean; countdown?: boolean; count?: number; shot?: number }
 
 /** A pop-out record older than this is a closed (or frozen) pop-out — the main window goes back
  *  to its own slide. Two heartbeats and change. */
@@ -71,7 +76,8 @@ export const filmNodeIdForFrameId = (frameId: string | null): string | null => (
 export function filmActiveRecord(setId: string, qId: string | null, at: number = Date.now(), flags: FilmActiveFlags = {}): FilmActive {
   // The flags are ADDED only when true (the shot only when it is a number) — the Studio's
   // three-field shape stays the shape.
-  return { setId, qId, at, ...(flags.popout ? { popout: true as const } : {}), ...(flags.countdown ? { countdown: true as const } : {}), ...(typeof flags.shot === "number" ? { shot: flags.shot } : {}) };
+  const counting = !!flags.countdown;
+  return { setId, qId, at, ...(flags.popout ? { popout: true as const } : {}), ...(counting ? { countdown: true as const } : {}), ...(counting && typeof flags.count === "number" ? { count: flags.count } : {}), ...(typeof flags.shot === "number" ? { shot: flags.shot } : {}) };
 }
 
 /** Write the record. False when storage is unavailable (private mode, a
@@ -110,17 +116,17 @@ export interface PublishOptions extends FilmActiveFlags {
  *  stale timeout. */
 export function useCapturePrompterSyncFrame(setId: string, frame: FilmFrameRef | null | undefined, opts: PublishOptions = {}): void {
   const qId = filmNodeId(frame);
-  const { paused = false, popout = false, countdown = false, shot } = opts;
+  const { paused = false, popout = false, countdown = false, count, shot } = opts;
   useEffect(() => {
     if (paused) return;
-    const write = () => publishFilmActive(setId, qId, { popout, countdown, shot });
+    const write = () => publishFilmActive(setId, qId, { popout, countdown, count, shot });
     write();
     if (!popout) return;
     const t = window.setInterval(write, POPOUT_HEARTBEAT_MS);
     const onHide = () => publishFilmActive(setId, qId, { shot });
     window.addEventListener("pagehide", onHide);
     return () => { window.clearInterval(t); window.removeEventListener("pagehide", onHide); };
-  }, [setId, qId, paused, popout, countdown, shot]);
+  }, [setId, qId, paused, popout, countdown, count, shot]);
 }
 
 // ---------------------------------------------------------------- the main window's side
@@ -130,6 +136,9 @@ export interface PopoutTake {
   /** The pop-out's node id (see filmNodeId); null during the countdown. */
   qId: string | null;
   countdown: boolean;
+  /** Seconds left in the pop-out's count, or null when it isn't counting. The MAIN window draws
+   *  this number — the pop-out no longer can, because the pop-out is the shot. */
+  count: number | null;
 }
 
 /** Is this record a LIVE pop-out take for this set? Null unless it carries the popout flag,
@@ -137,7 +146,8 @@ export interface PopoutTake {
 export function popoutTake(rec: FilmActive | null, setId: string, now: number): PopoutTake | null {
   if (!rec || rec.popout !== true || rec.setId !== setId) return null;
   if (now - rec.at > POPOUT_STALE_MS || rec.at - now > POPOUT_STALE_MS) return null;
-  return { qId: rec.countdown ? null : rec.qId, countdown: rec.countdown === true };
+  const countdown = rec.countdown === true;
+  return { qId: countdown ? null : rec.qId, countdown, count: countdown && typeof rec.count === "number" ? rec.count : null };
 }
 
 /** The slide the MAIN window shows while the pop-out's take is live — the one AFTER the
@@ -152,7 +162,7 @@ export function previewIndex(frames: readonly FilmFrameRef[], take: PopoutTake):
   return k < 0 ? null : k + 1;
 }
 
-const sameTake = (a: PopoutTake | null, b: PopoutTake | null): boolean => (a === b) || (!!a && !!b && a.qId === b.qId && a.countdown === b.countdown);
+const sameTake = (a: PopoutTake | null, b: PopoutTake | null): boolean => (a === b) || (!!a && !!b && a.qId === b.qId && a.countdown === b.countdown && a.count === b.count);
 
 /** The main window's listener: the live pop-out take, or null. Hears the cross-window `storage`
  *  event (a write in the pop-out lands here at once) and polls every second (that is how a

@@ -69,7 +69,7 @@ import { CaptureArrows } from "./capture/arrows";
 import { useCaptureCamera } from "./capture/camera";
 import { useFieldRoam } from "./capture/field-roam";
 import { HotkeysModal } from "./capture/HotkeysModal";
-import { COUNTDOWN_SECONDS, countdownTone, useCapturePopout, useCountdown } from "./capture/popout";
+import { COUNTDOWN_SECONDS, countdownCue, countdownTone, useCapturePopout, useCountdown } from "./capture/popout";
 import { previewIndex, useCapturePrompterSyncFrame, usePopoutTake } from "./capture/prompter-sync";
 import { fmtClock, historyLabel, initialRounds, opensReview, prompterEditable, reduceRounds, roundLabel, roundMode, roundSegments, showsPrompterInRound } from "./capture/rehearsal-rounds";
 import { useTeleprompterPopout } from "./capture/teleprompter-popout";
@@ -385,7 +385,9 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
   // What this window tells the teleprompter (and, from the pop-out, the main window): its slide —
   // or, during the countdown, no slide ("slide 0") with the countdown flag. The main window
   // writes NOTHING while the pop-out's take is live: the pop-out is the one that films.
-  useCapturePrompterSyncFrame(set.id, counting ? null : frame ?? null, { paused: take !== null, popout: popout.isPopout, countdown: counting, ...(cluster ? { shot } : {}) });
+  // ...and, since 2026-09-08, the COUNT ITSELF: the digits are Lee's, not the audience's, so
+  // they travel to this window instead of drawing in the shot (capture/popout.ts's header).
+  useCapturePrompterSyncFrame(set.id, counting ? null : frame ?? null, { paused: take !== null, popout: popout.isPopout, countdown: counting, ...(countdown.seconds !== null ? { count: countdown.seconds } : {}), ...(cluster ? { shot } : {}) });
   // Inside the popped-out window the chrome starts hidden — the window IS the shot.
   const [chrome, setChrome] = useState(!popout.isPopout);
   // THE CAMERA for this take: the slide's own spot, or B's override (home →
@@ -519,30 +521,37 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
           wordmark itself already has an animated bolt there; a second one following the mouse
           competes with it. */}
       <BrandCursor hostRef={hostRef} enabled={frame.kind !== "open" && frame.kind !== "intro"} />
-      {/* THE COUNTDOWN (pop-out only, capture/popout.ts). Until 2026-09-08 this was a black card
-          IN FRONT of slide 1 that simply lifted at zero. It is now the same seconds as the cold
-          open's assembly (brand-cards/cold-open.ts): the slide behind is already black with the
-          bolt on it, so there is no card — just the count, big in the display face (cream, the
-          last three gold), RECEDING as the pieces arrive, because the slide itself becomes the
-          timer. Lee: "I can take a deep breath, and know exactly when to hit F1 so I don't miss
-          the transition." The .sa-co-count class is the assembly's own (it runs for exactly the
-          plan's totalMs); the black card is still what a count started on a slide that is NOT the
-          cold open gets, since there is nothing there to assemble. */}
-      {counting && countdown.seconds !== null && (
-        coldOpen ? (
-          <div key={run.id} style={{ position: "fixed", inset: 0, zIndex: 60, display: "grid", placeItems: "center", pointerEvents: "none", userSelect: "none" }}>
-            <div className="sa-co-count" style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: Math.round(w * 0.5), lineHeight: 1, fontVariantNumeric: "tabular-nums", textShadow: "0 6px 30px rgba(0,0,0,0.85)" }}>
-              <div key={countdown.seconds} style={{ color: countdownTone(countdown.seconds) === "gold" ? GOLD : CREAM }}>{countdown.seconds}</div>
+      {/* THE COUNTDOWN — and where its DIGITS draw (2026-09-08). Lee: "So, will students see the
+          3 2 1?" They would have. This is the pop-out, and the pop-out's client area is exactly
+          what OBS window-captures, so the number was in the video. It is gone from here: the
+          count is Lee's cue, not the audience's, and it now draws in the MAIN /film window (the
+          block below, off prompter-sync's `count`). What the shot shows across those ten seconds
+          is the cold open assembling and nothing else — clean from the first frame, no head to
+          trim, which is the point of filming in one pass.
+
+          A count started on a slide that is NOT the cold open still gets the black card, because
+          there is nothing there to assemble and the card is what keeps that slide out of the
+          recording until zero. It carries the wordmark alone — a slate, not a timer. */}
+      {counting && !coldOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "#000", display: "grid", placeItems: "center", userSelect: "none" }}>
+          <SurviveWordmark size={Math.max(14, Math.round(w * 0.055))} />
+        </div>
+      )}
+      {/* THE COUNT, in the window Lee looks at — the main /film window, never the pop-out. Over
+          the slide-1 preview it already shows undimmed during the count, with the beat it is
+          counting to spelled out (countdownCue): the camera flies in at the top, the wordmark
+          lands on zero, and zero is the F1. */}
+      {!popout.isPopout && take?.countdown && take.count !== null && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "grid", placeItems: "center", pointerEvents: "none", userSelect: "none" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+            <div key={take.count} style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: Math.round(w * 0.5), lineHeight: 1, color: countdownTone(take.count) === "gold" ? GOLD : CREAM, fontVariantNumeric: "tabular-nums", textShadow: "0 6px 30px rgba(0,0,0,0.9)" }}>
+              {take.count}
+            </div>
+            <div style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 12, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: CREAM, background: "rgba(7,11,20,0.86)", border: `1px solid ${GOLD}55`, borderRadius: 999, padding: "5px 14px", whiteSpace: "nowrap" }}>
+              {countdownCue(take.count)}
             </div>
           </div>
-        ) : (
-          <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: Math.round(w * 0.06), userSelect: "none" }}>
-            <div key={countdown.seconds} style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: Math.round(w * 0.5), lineHeight: 1, color: countdownTone(countdown.seconds) === "gold" ? GOLD : CREAM, fontVariantNumeric: "tabular-nums" }}>
-              {countdown.seconds}
-            </div>
-            <SurviveWordmark size={Math.max(14, Math.round(w * 0.055))} />
-          </div>
-        )
+        </div>
       )}
       {/* BREADCRUMBS (2026-09-07, Lee: "Show navigation breadcrumbs on /film") — the same crumbs
           V3Shell would draw, in the chrome's own quiet style; main window only, chrome only, so
@@ -616,7 +625,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
           {running && <button onClick={scratchTake} title="Scratch this slide's take (`) — this round only" style={chip()}>✕ scratch take</button>}
           {/* THE COUNTDOWN button — pop-out only (H shows this bar there; C is the key). */}
           {popout.isPopout && !counting && (
-            <button onClick={startCountdown} title="10 s countdown (C): slide 1 assembles itself across the count and the wordmark lands on zero — space cancels. The main /film window shows slide 1 while it counts, then slide 2 dimmed." style={chip()}>⏱ 10 s countdown</button>
+            <button onClick={startCountdown} title="10 s countdown (C): slide 1 assembles itself across the count and the wordmark lands on zero — space cancels. The NUMBER shows in the main /film window only, never in this one, so it is never in the recording: start talking as your camera flies in, hit F1 on zero." style={chip()}>⏱ 10 s countdown</button>
           )}
           {phase === "off" && segmentCount > 0 && (
             // "lines N →", not "review N →" (2026-09-07): "Review" is the Editor step's old name,
