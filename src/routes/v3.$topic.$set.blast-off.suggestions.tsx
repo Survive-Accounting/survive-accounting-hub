@@ -24,7 +24,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AdminGate } from "@/components/AdminGate";
-import { addSlideFromIdea } from "@/components/blastoff/idea-to-slide";
+import { addSlideFromIdea, afterFrameForCeq, buildDraftFromIdeas } from "@/components/blastoff/idea-to-slide";
 import { loadBlastPlan, saveBlastPlan } from "@/lib/blastoff.functions";
 import { reconcilePlan, type BlastFrame } from "@/components/blastoff/plan";
 import { SessionView } from "@/components/talkthrough/SessionView";
@@ -60,20 +60,32 @@ function V3Suggestions() {
 
   const sessions = useMemo(() => (set ? listSessions(tt.doc).filter((x) => x.setId === set.id) : []), [tt.doc, set]);
   const [pickedId, setPickedId] = useState<string | null>(null);
-  const session = sessions.find((s) => s.id === pickedId) ?? sessions[0] ?? null;
+  // LAND ON THE FULLEST SESSION, not the newest. Lee opened this page to find "the 92
+  // suggestions" and the newest session was an empty one he had started afterwards — 14 rows,
+  // not 92. The picker still offers every session; this only chooses where he lands.
+  const fullest = useMemo(() => [...sessions].sort((a, b) => sessionBoard(tt.doc, b.id).filter((x) => !x.archivedAt).length - sessionBoard(tt.doc, a.id).filter((x) => !x.archivedAt).length)[0] ?? null, [sessions, tt.doc]);
+  const session = sessions.find((s) => s.id === pickedId) ?? fullest;
   const open = session ? sessionBoard(tt.doc, session.id).filter((b) => !b.archivedAt).length : 0;
+
+  // The open ideas on this session's board — what "Build the draft" places, and where a single
+  // ＋ slide finds its anchor. An idea's anchor is the card Lee was on when he stamped
+  // (BoardItem.ceqIds); the booth wrote it, he never had to say it.
+  const ideas = useMemo(() => (session ? sessionBoard(tt.doc, session.id).filter((b) => !b.archivedAt && !b.dismissed && b.kind === "idea") : []), [tt.doc, session]);
+  const ideaOf = useCallback((itemId: string) => ideas.find((b) => b.id === itemId) ?? null, [ideas]);
 
   // ＋ slide from here writes STRAIGHT TO THE STORED PLAN — this page has no deck mounted, so
   // there is no DeckApi to hand the idea to (the Editor's route passes one down to ReviewDeck).
   // Same builder either way (blastoff/idea-to-slide.ts), so a slide added here and a slide added
-  // on the Editor are the same slide.
+  // on the Editor are the same slide. IN ITS PLACE (2026-09-09): after the card it was stamped
+  // on, not at the end — Lee: "I mentioned I wanted a cheat code HERE. In between this and this."
   const addSlide = useCallback(async (kind: string, text: string, itemId: string, title?: string) => {
     if (!set || busy) return;
     setBusy(true);
     try {
       const stored = await loadBlastPlan({ data: { setId: set.id } });
       const plan = reconcilePlan(stored, set.ceqs);
-      const next: BlastFrame[] = addSlideFromIdea(plan.frames, null, { kind, text, itemId, title });
+      const anchor = ideaOf(itemId)?.ceqIds[0] ?? null;
+      const next: BlastFrame[] = addSlideFromIdea(plan.frames, afterFrameForCeq(plan.frames, anchor), { kind, text, itemId, title });
       await saveBlastPlan({ data: { setId: set.id, frames: next } });
       setAdded((n) => n + 1);
       setNote(null);
@@ -82,7 +94,33 @@ function V3Suggestions() {
     } finally {
       setBusy(false);
     }
-  }, [set, busy]);
+  }, [set, busy, ideaOf]);
+
+  // BUILD THE DRAFT (2026-09-09). Lee: "This is too 'Hey I generated this for you'… It should
+  // just have suggested slides and put them IN THEIR PLACE already." Every open idea, placed at
+  // its anchor in one pass, then straight to the Editor for finishing touches. Ideas already on
+  // the draft (a frame carries their bankItemId) are not added twice.
+  const buildDraft = useCallback(async () => {
+    if (!set || !topic || busy || !ideas.length) return;
+    setBusy(true);
+    try {
+      const stored = await loadBlastPlan({ data: { setId: set.id } });
+      const plan = reconcilePlan(stored, set.ceqs);
+      const already = new Set(plan.frames.map((f) => f.bankItemId).filter(Boolean));
+      const fresh = ideas.filter((b) => !already.has(b.id)).map((b) => {
+        const p = b.payload as { kind?: string; body?: string };
+        return { kind: p.kind ?? "idea", text: p.body ?? "", itemId: b.id, title: b.title, anchorCeqId: b.ceqIds[0] ?? null };
+      });
+      if (!fresh.length) { setNote("Everything here is already on the draft."); return; }
+      const next = buildDraftFromIdeas(plan.frames, fresh);
+      await saveBlastPlan({ data: { setId: set.id, frames: next } });
+      void navigate({ to: blastOffPath(topic, set, "results") });
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Could not build the draft.");
+    } finally {
+      setBusy(false);
+    }
+  }, [set, topic, busy, ideas, navigate]);
 
   const crumbs = [
     { label: "V3", to: "/v3" },
@@ -115,6 +153,15 @@ function V3Suggestions() {
             <span style={{ color: V3_MUTED, fontSize: 13 }}>
               from what you said out loud. Add the ones worth filming; the rest stay here.
             </span>
+            {/* BUILD THE DRAFT — every idea at its anchor, then the Editor. Lee: "It should just
+                have suggested slides and put them IN THEIR PLACE already." */}
+            {ideas.length > 0 && (
+              <button onClick={() => void buildDraft()} disabled={busy} className="rounded-xl px-3.5 py-2"
+                style={{ border: `1.5px solid ${V3_GOLD}`, background: "rgba(252,163,17,0.14)", color: V3_CREAM, fontWeight: 800, fontSize: 13, cursor: busy ? "wait" : "pointer" }}
+                title={`Place all ${ideas.length} ideas on the draft — each after the card you were on when you stamped it — then open the Editor`}>
+                {busy ? "Building…" : `⚡ Build the draft · ${ideas.length} in place`}
+              </button>
+            )}
             {added > 0 && (
               <span style={{ marginLeft: "auto", color: V3_GOLD, fontSize: 12.5, fontWeight: 700 }}>
                 {added} slide{added === 1 ? "" : "s"} added to the draft

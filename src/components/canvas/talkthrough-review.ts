@@ -21,7 +21,7 @@ import {
 } from "./talkthrough";
 import {
   buildGenerationQueue, buildIdeaMessages, buildMicroEditMessages, editTaskKey, extractJsonObject,
-  parseIdeaDraft, parseMicroEdit, parseReview, queueCounts, scriptTaskKeys,
+  parseIdeaDrafts, parseMicroEdit, parseReview, queueCounts, scriptTaskKeys,
   type GenStamp, type GenTask, type PassCeq,
 } from "./talkthrough-pass";
 import { putBoardItem, putBoardItems, putSession, putTag, ttState } from "./talkthrough-sync";
@@ -524,18 +524,29 @@ async function runGenTask(
     styleNotes: [...styleNotesFor(doc, styleKind), ...recentApprovedExamples(doc, styleKind).map((e) => `EXAMPLE (approved earlier): ${e}`)].slice(0, 12),
   });
   const r = await runMicro({ data: { system: msgs.system, user: msgs.user } });
-  const draft = parseIdeaDraft(r.text, task.stampKind ?? "cheat_code");
-  if (!draft) throw new Error(`the card for “${task.label}” didn't parse — halted (nothing was written)`);
-  logAiCost(req.session.setId, r.usage, r.model, "idea card");
-  putBoardItem(mkItem({
-    kind: "idea",
-    title: draft.title,
-    payload: {
-      kind: draft.kind, body: draft.body, origin: "lee", stamp: task.stampKind,
-      ...(draft.visualKind ? { visualKind: draft.visualKind } : {}),
-      _usage: { ...r.usage, task: "micro", model: r.model },
-    },
-    quote: task.spoken,
-    ceqIds: task.ceqId && knownIds.has(task.ceqId) ? [task.ceqId] : [],
-  }));
+  // ONE CARD PER POINT (2026-09-09) — Lee: "I want an individual cheat code slide for each." A
+  // stamp window in which he listed three cheat codes is three board items now, not one item
+  // with all three in its body. Every one of them carries the SAME anchor — the card he was on
+  // when he stamped (`ceqIds`) — which is what places them on the draft later.
+  const drafts = parseIdeaDrafts(r.text, task.stampKind ?? "cheat_code");
+  if (!drafts.length) throw new Error(`the card for “${task.label}” didn't parse — halted (nothing was written)`);
+  logAiCost(req.session.setId, r.usage, r.model, drafts.length > 1 ? `idea cards ×${drafts.length}` : "idea card");
+  const anchor = task.ceqId && knownIds.has(task.ceqId) ? [task.ceqId] : [];
+  drafts.forEach((draft, i) => {
+    putBoardItem(mkItem({
+      kind: "idea",
+      title: draft.title,
+      payload: {
+        kind: draft.kind, body: draft.body, origin: "lee", stamp: task.stampKind,
+        ...(draft.visualKind ? { visualKind: draft.visualKind } : {}),
+        // The order he said them in, so a three-code window lands as three slides in sequence.
+        ...(drafts.length > 1 ? { seq: i, of: drafts.length } : {}),
+        // The paid call is one; its usage rides on the first card only, so the ledger and the
+        // board never count it twice.
+        ...(i === 0 ? { _usage: { ...r.usage, task: "micro", model: r.model } } : {}),
+      },
+      quote: task.spoken,
+      ceqIds: anchor,
+    }));
+  });
 }

@@ -388,7 +388,9 @@ export function buildReviewMessages(ctx: ReviewContext): { system: string; user:
   return { system, user };
 }
 
-const IDEA_KINDS = ["short", "nerdout", "exhibit", "memo", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memorize_this", "deeper_idea", "visual", "illustration"] as const;
+// "tricky" joined 2026-09-09: the Tricky stamp (canvas/talkthrough.ts) had a slide kind and a
+// board group but was not an idea kind, so the pass could never draft one.
+const IDEA_KINDS = ["short", "nerdout", "exhibit", "memo", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memorize_this", "deeper_idea", "tricky", "visual", "illustration"] as const;
 /** Retired kinds fold into the three standard ones at parse time. */
 const KIND_FOLD: Record<string, string> = { tip_trick: "cheat_code", real_world: "deeper_idea", memo: "memorize_this" };
 
@@ -611,16 +613,17 @@ export interface IdeaDraftContext {
   styleNotes: string[];
 }
 
-const IDEA_SPEC = `Return ONE JSON object, nothing else:
-{"kind": "cheat_code"|"memorize_this"|"deeper_idea"|"visual"|"phrase"|"trigger_word"|"short"|"nerdout"|"exhibit", "title": str, "body": str, "visualKind": str|null}
-- kind: the stamp's kind, unless his words clearly belong to one of the other standard kinds (cheat_code / memorize_this / deeper_idea) — then say which.
+const IDEA_SPEC = `Return a JSON ARRAY of card objects, nothing else — usually exactly one:
+[{"kind": "cheat_code"|"memorize_this"|"deeper_idea"|"tricky"|"visual"|"phrase"|"trigger_word"|"short"|"nerdout"|"exhibit", "title": str, "body": str, "visualKind": str|null}]
+- ONE CARD PER DISTINCT POINT. If he plainly made several separate points in this one window — "here are three cheat codes: …" — return one card each, in the order he said them, at most five. If he made ONE point, return ONE card; never split a single point into pieces, and never pad.
+- kind: the stamp's kind, unless his words clearly belong to one of the other standard kinds (cheat_code / memorize_this / deeper_idea / tricky) — then say which.
 - title: a short heading in HIS words (under 60 characters).
 - body: his point, proofread. Two or three short lines at most.
 - visualKind: only for a visual — "progressive reveal" | "interactive" | "compare / contrast" | "static", or null.`;
 
 const IDEA_RULES = `LEE'S LAW (his words, and it outranks everything else):
 - "I'm the teacher. It's the support assistant." You PROOFREAD; you do not invent. These ARE his words: clean the grammar, keep his phrasing, his examples, his tone. Never reword a point he already made well. Never take his idea and make it your own.
-- ONE card out of one stamp. No extras, no alternatives, no commentary.
+- One card per point he made, and no more. A stamp with one point is one card; a stamp where he listed three cheat codes is three (Lee, 2026-09-08: "I want an individual cheat code slide for each"). No extras, no alternatives, no commentary — and never a card he did not say.
 - No invented numbers, claims, jokes or tone words. If he did not say it and it is not in the question, it is not in the card.
 - THE THREE STANDARD KINDS: cheat_code (a rule to carry into the exam), memorize_this (the thing to remember, said his way), deeper_idea (the seed of a Nerd Out). Plus visual, phrase, trigger_word, and the video kinds (short / nerdout / exhibit). Do not invent a kind outside that list.
 - Intro-accounting level. No salary data, no rankings.
@@ -665,4 +668,33 @@ export function parseIdeaDraft(text: string, stampKind: string): IdeaDraft | nul
   if (!title && !body) return null;
   const visualKind = str(raw.visualKind).trim();
   return { kind, title: title || body.slice(0, 60), body, visualKind: visualKind || null };
+}
+
+/** ONE CARD PER POINT (2026-09-09). Lee, on the batch that landed in one title: "I want an
+ *  individual cheat code slide for each." The spec now asks for an ARRAY — usually one card,
+ *  several when he plainly listed several — and this reads it: an array of objects, or the old
+ *  single object (an older prompt, a model that ignored the brackets), or a bare object with
+ *  a `cards` field. Each element goes through parseIdeaDraft, so every law there still holds;
+ *  garbage elements are dropped and an empty result is the caller's halt, as before. Capped at
+ *  five — more than that from one stamp window is the model padding, not Lee listing. */
+export function parseIdeaDrafts(text: string, stampKind: string): IdeaDraft[] {
+  const s = text.trim();
+  let items: unknown[] = [];
+  const a = s.indexOf("["), z = s.lastIndexOf("]");
+  if (a >= 0 && z > a) {
+    try { const arr = JSON.parse(s.slice(a, z + 1)) as unknown; if (Array.isArray(arr)) items = arr; } catch { /* fall through to the object shapes */ }
+  }
+  if (!items.length) {
+    const one = extractJsonObject(s);
+    if (one && Array.isArray((one as { cards?: unknown }).cards)) items = (one as { cards: unknown[] }).cards;
+    else if (one) items = [one];
+  }
+  const out: IdeaDraft[] = [];
+  for (const it of items) {
+    if (!it || typeof it !== "object") continue;
+    const d = parseIdeaDraft(JSON.stringify(it), stampKind);
+    if (d) out.push(d);
+    if (out.length >= 5) break;
+  }
+  return out;
 }

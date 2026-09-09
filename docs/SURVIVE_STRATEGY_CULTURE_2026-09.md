@@ -180,6 +180,31 @@ shortened stems, a split), emits one card per code (not one card per stamp
 window), and the Suggestions page offers *Build the draft* — every suggestion
 placed at its anchor, ready for finishing touches.
 
+> **Built 2026-09-09.** Three of the four, in the order Lee asked for them:
+>
+> 1. **The reassignment** (`scripts/curriculum/easy-points-reassign.ts`, run).
+>    Easy Points is Account classification · Accounting equation effects · Debit
+>    vs. credit effects · Normal balances · Accounting cycle order. The vocab is
+>    "Principles & Vocab", the seventh and last topic, with the principles set
+>    last of all. Exam 1 is seven topics on all three surfaces;
+>    `exam1-starter/plan.ts` carries the move so the reconcile script cannot
+>    undo it.
+> 2. **The knife** (`✂ Split` on the Editor). A set is already in teaching
+>    order, so the gesture is a cut between two cards: every run becomes a
+>    sibling set, named (a run sharing one answer names itself — Assets,
+>    Liabilities, Equity, Revenue, Expense), with the 12-card ceiling shown per
+>    piece. The inserts travel with their cards, so a draft already built
+>    survives the cut; the spine does not, because each piece grows its own.
+> 3. **The process** — one card per point instead of one per stamp window, a
+>    Tricky the pass can actually draft, and **⚡ Build the draft**: every idea
+>    placed after the card Lee was on when he stamped it. He never says "between
+>    Q3 and Q4"; the booth already recorded it.
+>
+> Still open: the unshuffle beyond the account-type set (it would put the
+> correct answer back at A on ~170 more cards — the thing the 09-06 shuffle was
+> asked to fix), the two nuanced cards (Accumulated Depreciation, Dividends),
+> and the two broken cycle cards in the archived `ch3-full`.
+
 Settled 2026-09-08, after the cold open started leading with the wrong words.
 
 - **"Cram what's on your exam."** — the site tagline. **Outro card only, for

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { addSlideFromIdea, frameForIdea, ideaLines } from "./idea-to-slide";
+import { addSlideFromIdea, afterFrameForCeq, buildDraftFromIdeas, frameForIdea, ideaLines } from "./idea-to-slide";
 import { frameBullets, insertStem, type BlastFrame } from "./plan";
 
 // Lee, 2026-09-08: "When I added slide it also made cheat codes as a batch. I want an individual
@@ -77,18 +77,59 @@ describe("where the slide lands", () => {
     expect(addSlideFromIdea(frames, "f2", idea)[2].kind).toBe("cheat");
   });
 
-  test("at the end when nothing is selected — the Suggestions page has no deck to point at", () => {
+  // "The end" is ahead of the sign-off: a slide after the outro is a slide nobody sees.
+  test("at the end — ahead of the outro — when nothing is selected (the Suggestions page has no deck to point at)", () => {
     const next = addSlideFromIdea(frames, null, idea);
     expect(next).toHaveLength(4);
-    expect(next[3].kind).toBe("cheat");
+    expect(next.map((f) => f.kind)).toEqual(["open", "ceq", "cheat", "outro"]);
   });
 
   test("at the end when the selected slide is gone", () => {
-    expect(addSlideFromIdea(frames, "nope", idea)[3].kind).toBe("cheat");
+    expect(addSlideFromIdea(frames, "nope", idea).map((f) => f.kind)).toEqual(["open", "ceq", "cheat", "outro"]);
   });
 
   test("the original list is never mutated", () => {
     addSlideFromIdea(frames, "f2", idea);
     expect(frames).toHaveLength(3);
+  });
+});
+
+// Lee, 2026-09-09: "when I stamp in for memorize this, I wanna be more clear: this can go in
+// between this question and this question." The booth already knows the card he was on, so the
+// anchor is automatic — a cheat code stamped on Q3 lands after Q3.
+describe("the anchor", () => {
+  const frames: BlastFrame[] = [
+    { id: "open", kind: "open" }, { id: "intro", kind: "intro" },
+    { id: "q1", kind: "ceq", ceqId: "c1" },
+    { id: "q2", kind: "ceq", ceqId: "c2" }, { id: "memo-after-q2", kind: "phrase", text: "x" },
+    { id: "q3", kind: "ceq", ceqId: "c3" },
+    { id: "bio", kind: "bio" }, { id: "outro", kind: "outro" },
+  ];
+  test("a card with nothing after it: the card itself", () => {
+    expect(afterFrameForCeq(frames, "c1")).toBe("q1");
+  });
+  test("a card that already has inserts after it: the LAST of them, so new ones keep the spoken order", () => {
+    expect(afterFrameForCeq(frames, "c2")).toBe("memo-after-q2");
+  });
+  test("the spine is never 'after a card' — a card followed by the bio anchors on the card", () => {
+    expect(afterFrameForCeq(frames, "c3")).toBe("q3");
+  });
+  test("no card, no anchor", () => {
+    expect(afterFrameForCeq(frames, "nope")).toBeNull();
+    expect(afterFrameForCeq(frames, null)).toBeNull();
+  });
+
+  // "It should just have suggested slides and put them IN THEIR PLACE already."
+  test("Build the draft: every idea at its anchor, three from one window in order, the unanchored at the end", () => {
+    const next = buildDraftFromIdeas(frames, [
+      { kind: "cheat_code", text: "a", itemId: "b1", title: "Code one", anchorCeqId: "c1" },
+      { kind: "cheat_code", text: "b", itemId: "b2", title: "Code two", anchorCeqId: "c1" },
+      { kind: "memorize_this", text: "c", itemId: "b3", title: "Remember", anchorCeqId: "c3" },
+      { kind: "tricky", text: "d", itemId: "b4", title: "Loose", anchorCeqId: null },
+    ]);
+    const ids = next.map((f) => f.bankItemId ?? f.id);
+    // The unanchored one lands ahead of the sign-off, never after "Start cramming free".
+    expect(ids).toEqual(["open", "intro", "q1", "b1", "b2", "q2", "memo-after-q2", "q3", "b3", "b4", "bio", "outro"]);
+    expect(frames).toHaveLength(8);   // pure
   });
 });

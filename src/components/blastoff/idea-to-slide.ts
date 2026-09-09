@@ -80,5 +80,35 @@ export function frameForIdea(idea: BoardIdea): BlastFrame {
  *  Pure: hands back a new frame list. */
 export function addSlideFromIdea(frames: readonly BlastFrame[], afterId: string | null, idea: BoardIdea): BlastFrame[] {
   const at = afterId ? frames.findIndex((f) => f.id === afterId) : -1;
-  return insertFrame(frames, frameForIdea(idea), at < 0 ? frames.length - 1 : at);
+  // "The end" is AHEAD of the sign-off — a slide after the outro's "Start cramming free" is a
+  // slide nobody sees (the same rule plan.ts cloneFrameToEnd follows).
+  let end = frames.length - 1;
+  while (end >= 0 && (frames[end].kind === "outro" || frames[end].kind === "bio")) end -= 1;
+  return insertFrame(frames, frameForIdea(idea), at < 0 ? end : at);
+}
+
+/** THE ANCHOR (2026-09-09). Lee: "when I stamp in for memorize this, I wanna be more clear:
+ *  this can go in between this question and this question." He never has to say it: the booth
+ *  records which card he was on when he stamped (BoardItem.ceqIds), so a cheat code stamped on
+ *  Q3 is a cheat code AFTER Q3. This finds the frame to put it after — the LAST frame that
+ *  already follows that card (its earlier inserts included), so three codes from one window land
+ *  in the order he said them rather than each cutting in front of the last. Null when the card
+ *  is not on this draft (skipped, or another set's) — the caller then appends. */
+export function afterFrameForCeq(frames: readonly BlastFrame[], ceqId: string | null | undefined): string | null {
+  if (!ceqId) return null;
+  const i = frames.findIndex((f) => f.kind === "ceq" && f.ceqId === ceqId);
+  if (i < 0) return null;
+  let j = i;
+  while (j + 1 < frames.length && frames[j + 1].kind !== "ceq" && !["open", "intro", "bio", "outro"].includes(frames[j + 1].kind)) j += 1;
+  return frames[j].id;
+}
+
+/** BUILD THE DRAFT (2026-09-09). Lee: "It should just have suggested slides and put them IN
+ *  THEIR PLACE already. I mentioned I wanted a cheat code HERE. In between this and this." Every
+ *  idea, placed at its anchor, in one pass — so the Editor is finishing touches, not
+ *  construction. Ideas with no anchor on this draft go to the end, in order. Pure. */
+export function buildDraftFromIdeas(frames: readonly BlastFrame[], ideas: readonly (BoardIdea & { anchorCeqId?: string | null })[]): BlastFrame[] {
+  let next: BlastFrame[] = [...frames];
+  for (const idea of ideas) next = addSlideFromIdea(next, afterFrameForCeq(next, idea.anchorCeqId), idea);
+  return next;
 }
