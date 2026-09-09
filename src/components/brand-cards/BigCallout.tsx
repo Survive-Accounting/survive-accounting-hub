@@ -23,6 +23,8 @@
 // brand card standing in for the logo).
 import { CAPTION_RAIL, SAFE } from "@/components/blastoff/layout";
 
+import { renderInline } from "@/components/canvas/inline-md";
+
 import { BoltBoil } from "./bolt-boil";
 
 const HEAD_FONT = "'League Spartan', 'Rubik', system-ui, sans-serif";
@@ -135,7 +137,14 @@ export function BigCallout({ w, h, label, accent, text, bullets = [], art = fals
           color: WHITE, textAlign: "center", maxWidth, textWrap: "balance" as never,
           textShadow: `0 ${Math.max(1, Math.round(size * 0.012))}px 0 rgba(0,0,0,0.55), 0 ${Math.round(size * 0.03)}px ${Math.round(size * 0.05)}px rgba(0,0,0,0.5), 0 ${Math.round(size * 0.09)}px ${Math.round(size * 0.2)}px rgba(0,0,0,0.4)`,
         }}>
-          {words}
+          {/* THE MARKERS WORK HERE TOO (2026-09-09). Lee: "When I'm editing text, I have == ==
+              to highlight. Be sure this applies to the big format for a callout too." The big
+              format was rendering the raw string, so a ==highlight== he typed on a card and then
+              switched to Big showed its own equals signs on camera. Same renderer as the card
+              (canvas/inline-md), with the highlight tuned for white-on-black: the card's amber
+              wash on cream paper is unreadable here, so the mark carries the gold and the ink
+              stays white. */}
+          {renderInline(words, { bg: "rgba(252,163,17,0.30)", color: WHITE })}
         </div>
 
         {/* THE LINES UNDER IT — a beat later than the heading, so the eye takes the statement
@@ -147,7 +156,7 @@ export function BigCallout({ w, h, label, accent, text, bullets = [], art = fals
             maxWidth, fontFamily: BODY_FONT, fontSize: bulletSize, fontWeight: 600, lineHeight: 1.25,
             color: "rgba(245,239,230,0.86)", textAlign: "center", textWrap: "balance" as never,
           }}>
-            {lines.map((l, i) => <div key={i}>{l}</div>)}
+            {lines.map((l, i) => <div key={i}>{renderInline(l, { bg: "rgba(252,163,17,0.30)", color: WHITE })}</div>)}
           </div>
         )}
       </div>

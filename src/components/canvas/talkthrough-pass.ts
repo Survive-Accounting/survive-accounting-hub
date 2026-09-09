@@ -390,7 +390,7 @@ export function buildReviewMessages(ctx: ReviewContext): { system: string; user:
 
 // "tricky" joined 2026-09-09: the Tricky stamp (canvas/talkthrough.ts) had a slide kind and a
 // board group but was not an idea kind, so the pass could never draft one.
-const IDEA_KINDS = ["short", "nerdout", "exhibit", "memo", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memorize_this", "deeper_idea", "tricky", "visual", "illustration"] as const;
+const IDEA_KINDS = ["short", "nerdout", "exhibit", "memo", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memorize_this", "deeper_idea", "tricky", "found_on_exam", "visual", "illustration"] as const;
 /** Retired kinds fold into the three standard ones at parse time. */
 const KIND_FOLD: Record<string, string> = { tip_trick: "cheat_code", real_world: "deeper_idea", memo: "memorize_this" };
 

@@ -197,7 +197,7 @@ type StampKind2 =
   | "reword" | "revise_choices" | "edit_other"
   | "blast_off" | "review_vibe"
   | "short" | "nerdout" | "exhibit" | "phrase" | "trigger_word" | "tip_trick" | "cheat_code" | "real_world" | "memo"
-  | "memorize_this" | "deeper_idea" | "visual" | "tricky"
+  | "memorize_this" | "deeper_idea" | "visual" | "tricky" | "found_on_exam"
   | "illustration";
 export const TAG_LABELS: Record<MomentTag | QuickKind, string> = {
   SHORT: "Short", NERDOUT: "Nerd Out", EXHIBIT: "Exhibit idea",
@@ -224,6 +224,10 @@ export const STAMP_KINDS = [
   // Stamped while talking it becomes a Tricky slide; before this it had nowhere to go and
   // frameKindForStamp would have quietly made it a Memorize-this.
   "tricky",
+  // FOUND ON YOUR EXAM (2026-09-09). Lee: "memorize this, cheat code, tricky question, go
+  // deeper, and add a new one: Found on your exam." Stamping it makes that callout rather than
+  // a Memorize-this (blastoff/prompter.ts STAMPS_FOR_KIND).
+  "found_on_exam",
   // ILLUSTRATION IDEA (polish pass, 2026-09-05): a picture BRIEF for the Shorts slide. A tag
   // kind, not a card kind — it is banked verbatim, never expanded by the model, and never
   // generated until Lee presses Generate in Review.
@@ -237,7 +241,7 @@ export type StampKind = (typeof STAMP_KINDS)[number];
 export const STAMP_GROUPS: readonly { id: string; label: string; kinds: readonly StampKind[] }[] = [
   { id: "edit", label: "EDIT THE CEQ", kinds: ["reword", "revise_choices", "edit_other"] },
   // Lee's 09-03 simplification: three standard card kinds, a visual, a phrase.
-  { id: "bank", label: "BANK A NEW:", kinds: ["cheat_code", "memorize_this", "tricky", "deeper_idea", "visual", "illustration", "phrase"] },
+  { id: "bank", label: "BANK A NEW:", kinds: ["cheat_code", "memorize_this", "tricky", "deeper_idea", "found_on_exam", "visual", "illustration", "phrase"] },
   { id: "later", label: "TO MAKE LATER", kinds: ["blast_off", "short", "nerdout", "review_vibe"] },
   { id: "exhibit", label: "", kinds: ["exhibit"] },
 ] as const;
@@ -248,7 +252,7 @@ export const STAMP_LABELS: Record<StampKind, string> = {
   short: "Other Short", nerdout: "Nerd Out", exhibit: "Exhibit", phrase: "Phrase",
   trigger_word: "Trigger Word", tip_trick: "Tip/Trick", cheat_code: "Cheat Code",
   real_world: "Real World Example", memo: "Other Memo",
-  memorize_this: "Memorize This", deeper_idea: "Go deeper", visual: "Visual", tricky: "Tricky question",
+  memorize_this: "Memorize This", deeper_idea: "Go deeper", visual: "Visual", tricky: "Tricky question", found_on_exam: "Found on your exam",
   illustration: "Illustration idea",
 };
 

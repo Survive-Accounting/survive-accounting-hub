@@ -467,6 +467,20 @@ export const duplicateCeqCard = createServerFn({ method: "POST" })
     copy.id = id;
     copy.data ??= {};
     delete copy.data.editHistory;
+    // IT HAS TO READ AS ITS OWN CARD (2026-09-09). Lee: "I need to be able to clone a CEQ and
+    // edit it independently. I tried and it didn't work. See how I have two Q9's in the editor…
+    // I have Prepaid Rent first, then I wanted to make it Prepaid Insurance for a second one."
+    //
+    // Two things came across on the deep copy that should not have. `shorthand` is the card's
+    // LABEL — copying it gave him two cards both called Q9, which is what he saw. And
+    // `stageOrder` is what the bank sorts by (talkthrough.functions loadBoothBank), so the copy
+    // tied with its original and the pair's order was down to sort stability. Drop the label so
+    // it falls back to its real position, and place it half a step after the original — every
+    // other card keeps the number it had.
+    delete copy.data.shorthand;
+    const srcOrder = Number((nodes[i].data ?? {}).stageOrder ?? i);
+    const nextOrder = Number((nodes[i + 1]?.data ?? {}).stageOrder ?? srcOrder + 1);
+    copy.data.stageOrder = Number.isFinite(nextOrder) && nextOrder > srcOrder ? (srcOrder + nextOrder) / 2 : srcOrder + 0.5;
     copy.data.clonedFrom = data.ceqNodeId;
     copy.data.clonedAt = new Date().toISOString();
     nodes.splice(i + 1, 0, copy);

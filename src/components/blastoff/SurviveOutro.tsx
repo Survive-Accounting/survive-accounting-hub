@@ -52,7 +52,9 @@ export function SurviveOutro({
   // same day, so this is the last card that says it by default.
   tagline = TAGLINE,
   domain = "surviveaccounting.com",
-  cta = "Start cramming free",
+  // Lee, 2026-09-09: "make the outro slide button say Start Cramming for Free" — his words and
+  // his capitalisation; it is the one button in every video and he reads it aloud.
+  cta = "Start Cramming for Free",
   progress,
   scale = 1,
   transparent = false,

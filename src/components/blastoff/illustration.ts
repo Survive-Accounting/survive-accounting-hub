@@ -83,7 +83,7 @@ export interface IllustrationPlacement { x: number; y: number; w: number }
 // "tricky" joined 2026-09-08 — Lee, the moment the kind existed: "Let me illustrate on Tricky
 // ones." It is the fourth of the same callout family; it was left off only because it was built
 // hours after this list.
-export const ILLUSTRATION_KINDS = ["phrase", "cheat", "tip", "tricky", "blank", "slogan"] as const;
+export const ILLUSTRATION_KINDS = ["phrase", "cheat", "tip", "tricky", "found", "blank", "slogan"] as const;
 export function canIllustrate(kind: string): boolean { return (ILLUSTRATION_KINDS as readonly string[]).includes(kind); }
 
 /** Dead centre on a blank slide (a touch above the middle so the caption rail stays clear);

@@ -56,6 +56,8 @@ export const STAMPS_FOR_KIND: Partial<Record<BlastFrameKind, readonly string[]>>
   cheat: ["cheat_code", "tip_trick"],
   // 2026-09-08: "Tricky stamp for brainstorm" — its own slide kind, red, beside the other three.
   tricky: ["tricky"],
+  // 2026-09-09: a "found on your exam" stamp becomes the callout of the same name.
+  found: ["found_on_exam"],
   tip: ["deeper_idea", "real_world", "nerdout"],
   exhibit: ["visual", "exhibit"],
   // An illustration idea rides on a blank slide (the results route hands it the banked brief).
@@ -71,11 +73,16 @@ export function frameKindForStamp(kind: string | null | undefined): BlastFrameKi
   return "phrase";
 }
 
-/** The three slide kinds a phrase can become, in the order Lee names them. */
+/** THE CALLOUT FAMILY, in the order Lee names them (2026-09-09): "memorize this, cheat code,
+ *  tricky question, go deeper, and add a new one: Found on your exam." One slide can be any of
+ *  them — the Editor's switcher writes the kind and carries the words across — because which
+ *  one a point IS only becomes obvious once it is on the screen. */
 export const PHRASE_SLIDE_KINDS: readonly { kind: BlastFrameKind; label: string }[] = [
   { kind: "phrase", label: "Memorize this" },
   { kind: "cheat", label: "Cheat code" },
+  { kind: "tricky", label: "Tricky question" },
   { kind: "tip", label: "Go deeper" },
+  { kind: "found", label: "Found on your exam" },
 ];
 
 /** The set's live talk: its sessions' segments and stamp contexts. */

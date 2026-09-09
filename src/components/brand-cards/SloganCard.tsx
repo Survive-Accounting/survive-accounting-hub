@@ -23,6 +23,7 @@
 // first time the rail moves. (This is the only place brand-cards reaches into blastoff/, and
 // layout.ts is pure geometry — no React, no cycle back.)
 import { CAPTION_RAIL, SAFE } from "@/components/blastoff/layout";
+import { renderInline } from "@/components/canvas/inline-md";
 
 import { BoltBoil } from "./bolt-boil";
 import { sloganSize } from "./slogans";
@@ -101,7 +102,7 @@ export function SloganCard({ w, h, text, art = false, live = true, style }: {
           color: WHITE, textAlign: "center", maxWidth, textWrap: "balance" as never,
           textShadow: `0 ${Math.max(1, Math.round(size * 0.012))}px 0 rgba(0,0,0,0.55), 0 ${Math.round(size * 0.03)}px ${Math.round(size * 0.05)}px rgba(0,0,0,0.5), 0 ${Math.round(size * 0.09)}px ${Math.round(size * 0.2)}px rgba(0,0,0,0.4)`,
         }}>
-          {words}
+          {renderInline(words, { bg: "rgba(252,163,17,0.30)", color: WHITE })}
         </div>
       </div>
     </div>

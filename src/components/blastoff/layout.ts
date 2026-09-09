@@ -71,7 +71,7 @@ export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spo
   // shrinks it toward its own bottom-left corner if a tall card reaches into it, so it can
   // never cover the stem or the bullets; CAPTION_RAIL.left below grew to match so the bigger
   // circle never reaches the caption text either.
-  if (kind === "phrase" || kind === "tip" || kind === "tricky" || kind === "bio") return { spot: "home", size: 0.34 };
+  if (kind === "phrase" || kind === "tip" || kind === "tricky" || kind === "found" || kind === "bio") return { spot: "home", size: 0.34 };
   if (layout === "pass1") return { spot: kind === "intro" ? "corner" : "home" };
   // Pass 2 (polish pass, 2026-09-05). THE INTRO IS RECTANGULAR — the talking-head portrait —
   // but at .48w, not the hero spot's .62w default: at .62w its bottom lands at .529h, under

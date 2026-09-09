@@ -19,7 +19,7 @@
 /** The site tagline — the cold open's line, the outro's default, and slogan two. */
 export const TAGLINE = "Cram what's on your exam.";
 
-export type SloganId = "b-to-a" | "cram" | "yt-shorts";
+export type SloganId = "b-to-a" | "cram" | "yt-shorts" | "nothing-like";
 
 export interface Slogan {
   id: SloganId;
@@ -36,6 +36,11 @@ export const SLOGANS: readonly Slogan[] = [
   { id: "b-to-a", text: "I'll take you from a B to an A.", art: true, blurb: "the promise — this one carries an illustration" },
   { id: "cram", text: TAGLINE, art: false, blurb: "the site tagline — text only" },
   { id: "yt-shorts", text: "Like YT shorts for exam prep.", art: false, blurb: "Lee says this one word for word in outros — text only" },
+  // 2026-09-09, Lee: "one thing I do want to add when it comes to the slogan slides is
+  // 'my exam looked nothing like…' — I know I can change these via text but it's nice to have
+  // the canned one so I know which ones I have available to use." The ellipsis is the point:
+  // the slide sets up the objection and he finishes the sentence out loud.
+  { id: "nothing-like", text: "“My exam looked nothing like…”", art: false, blurb: "the objection, set up for you to answer out loud — text only" },
 ];
 
 /** THE TWO THE OUTRO CAN END ON (2026-09-08). Lee: "ensure we have option to say, 'Like YT

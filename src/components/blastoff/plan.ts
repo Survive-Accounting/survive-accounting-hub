@@ -31,6 +31,12 @@ export const BLAST_FRAME_KINDS = [
   // one card, one colour, no sixth near-duplicate kind. (Lee renamed it hours later: "Change
   // Tricky to Tricky Question" — the key stays `tricky`.)
   "tricky",
+  // 2026-09-09: FOUND ON YOUR EXAM, as a callout Lee CHOOSES. He retired it the day before as
+  // an automatic chip on every note-only card ("'Found on your exam' [is] being retired as a
+  // default for now") — the objection was to it appearing unasked, not to the words. Asked for
+  // by name the next morning: "memorize this, cheat code, tricky question, go deeper, and add a
+  // new one: Found on your exam." It draws in the canvas's own FOUND_META (gold).
+  "found",
   // 2026-09-04: the bolt detour (black + the bolt animation, nothing else —
   // Lee's OBS camera backdrop and ad bed) and the three ads.
   "bolt", "ad",
@@ -152,7 +158,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "exhibit", "blank", "bolt", "ad", "cluster", "slogan"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -169,7 +175,7 @@ export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.incl
 
 /** THE FOUR CALLOUTS that can be drawn either way (2026-09-08, `BlastFrame.display`). The
  *  brand slides are always full-frame and a set card never is, so neither takes a choice. */
-export const BIG_CALLOUT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky"];
+export const BIG_CALLOUT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found"];
 export const canGoBig = (k: BlastFrameKind): boolean => BIG_CALLOUT_KINDS.includes(k);
 
 /** Is THIS FRAME drawn big? A `display` on a kind that has no big form is ignored rather than
@@ -212,6 +218,9 @@ export const INSERT_CALLOUT: Partial<Record<BlastFrameKind, string>> = {
   tip: "deeper-idea",
   // 2026-09-08: TRICKY reuses the canvas distractor card (red) — relabelled "TRICKY" there.
   tricky: "distractor",
+  // 2026-09-09: Lee asked for it back by name, as a kind he picks — the canvas card already
+  // has the skin (FOUND_META, gold).
+  found: "found-on-exam",
 };
 
 export const FRAME_LABEL: Record<BlastFrameKind, string> = {
@@ -229,6 +238,7 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   tip: "Go deeper",
   // Lee, 2026-09-08: "I am not seeing a '+Tricky' type slide. Haven't we discussed this?" We had.
   tricky: "Tricky question",
+  found: "Found on your exam",
   exhibit: "Exhibit",
   blank: "Blank",
   bolt: "Bolt detour",

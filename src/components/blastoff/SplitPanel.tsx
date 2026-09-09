@@ -12,10 +12,11 @@
 // with its own Brainstorm → Editor → Film. That is the whole point: "edit five videos at once
 // and then push them to filming and then film five back to back."
 import { useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
 import { splitSet } from "@/lib/split-set.functions";
+import { loadBlastPlan } from "@/lib/blastoff.functions";
 import { refreshBank } from "@/components/v3/use-bank";
 import { V3_CREAM, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 
@@ -26,7 +27,36 @@ const MINT = "#6EE7B7";
 
 export function SplitPanel({ set, topic, onClose }: { set: BoothSetInfo; topic: BoothTopic; onClose: () => void }) {
   const navigate = useNavigate();
-  const cards = useMemo(() => cuttable(set.ceqs.map((c) => ({ id: c.id, stem: c.stem, noteOnly: c.noteOnly, draft: c.draft }))), [set.ceqs]);
+  // The stored draft, read once when the knife opens — its running order is what the list below
+  // shows. Its own fetch rather than a prop: the panel is opened deliberately and rarely, and
+  // threading the deck's plan up through the route only to hand it back down would tie the two
+  // together for one screen.
+  const [frames, setFrames] = useState<readonly { kind: string; ceqId?: string; skipped?: boolean }[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void loadBlastPlan({ data: { setId: set.id } })
+      .then((p) => { if (live) setFrames(p?.frames ?? []); })
+      .catch(() => { if (live) setFrames([]); });
+    return () => { live = false; };
+  }, [set.id]);
+  // THE ORDER HE REARRANGED THINGS TO, not the bank's (2026-09-09). Lee: "the split tool seems
+  // to be showing the order of the cards and the order of the CEQs were set, but I wanted to
+  // show the order that I've rearranged stuff to and I really want that to be maybe like the
+  // truth." The running order IS the truth — it is what films — so the knife reads the plan and
+  // falls back to the bank only for a set with no draft yet. Skipped cards are not on the knife:
+  // they are not being filmed, so they cannot be in a piece.
+  const cards = useMemo(() => {
+    const byId = new Map(set.ceqs.map((c) => [c.id, c]));
+    const fromPlan = (frames ?? [])
+      .filter((f) => f.kind === "ceq" && f.ceqId && !f.skipped && byId.has(f.ceqId))
+      .map((f) => byId.get(f.ceqId!)!);
+    // A card the plan shows twice is one card — it can only live in one piece.
+    const seen = new Set<string>();
+    const ordered = fromPlan.filter((c) => (seen.has(c.id) ? false : (seen.add(c.id), true)));
+    const rest = set.ceqs.filter((c) => !seen.has(c.id));
+    const src = ordered.length ? [...ordered, ...rest] : set.ceqs;
+    return cuttable(src.map((c) => ({ id: c.id, stem: c.stem, noteOnly: c.noteOnly, draft: c.draft })));
+  }, [set.ceqs, frames]);
   const byId = useMemo(() => new Map(set.ceqs.map((c) => [c.id, c])), [set.ceqs]);
   const [cuts, setCuts] = useState<Set<number>>(() => new Set());
   const [names, setNames] = useState<string[]>([]);

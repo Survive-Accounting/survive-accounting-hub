@@ -28,7 +28,7 @@
 // 2026-09-07: no teleprompter on the Editor — lines are made on Rehearse & Film
 // (rounds + the rehearsal review).
 import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
 import { blastOffPath, type BlastOffStep } from "./use-bank";
@@ -60,13 +60,59 @@ export const STEPS: readonly { step: NumberedStep; n: number; label: string; blu
   { step: "improve", n: 5, label: "Iterate", blurb: "Time to beat, cost per short, where the minutes went — and what to change, before the next set or at the next topic." },
 ];
 
+/** Is the step bar folded away? Lee, 2026-09-09: "I also kind of like the idea of steps one
+ *  through five existing up there in the top hidden… and just for fun make the nav bar black to
+ *  kind of separate it. So those steps could be hidden up there, but make sure the split card
+ *  doesn't get hidden." Remembered per browser: the Editor is where he spends the hour, and he
+ *  should not have to fold the same bar every visit. */
+const FOLD_KEY = "sa-stepbar-folded";
+const readFolded = (): boolean => {
+  try { return localStorage.getItem(FOLD_KEY) === "1"; } catch { return false; }
+};
+
 export function StepBar({ topic, set, active, right }: {
   topic: BoothTopic; set: BoothSetInfo; active: BlastOffStep;
-  /** Anything that belongs on the right of the bar (a secondary link). */
+  /** Anything that belongs on the right of the bar (a secondary link). It stays visible when the
+   *  steps are folded — that is where ✂ Split lives, and Lee asked for it not to be hidden. */
   right?: ReactNode;
 }) {
+  const [folded, setFolded] = useState(false);
+  // Read after mount: the server has no localStorage, and an unfolded first paint that folds is
+  // better than a hydration mismatch.
+  useEffect(() => { setFolded(readFolded()); }, []);
+  const fold = (v: boolean) => { setFolded(v); try { localStorage.setItem(FOLD_KEY, v ? "1" : "0"); } catch { /* cosmetic */ } };
+  const current = STEPS.find((s) => s.step === active);
+
   return (
-    <div className="flex items-center gap-2" style={{ marginBottom: 16, flexWrap: "wrap" }}>
+    <div className="flex items-center gap-2" style={{
+      marginBottom: 16, flexWrap: "wrap",
+      // BLACK, to separate it from the work below (his words: "make the nav bar black to kind of
+      // separate it"). The bar is chrome; the draft is the page.
+      background: "#05070D", border: `1px solid ${V3_EDGE}`, borderRadius: 14, padding: folded ? "6px 10px" : "8px 10px",
+    }}>
+      <button onClick={() => fold(!folded)} title={folded ? "Show the steps" : "Hide the steps"} aria-expanded={!folded}
+        style={{ background: "transparent", border: `1px solid ${V3_EDGE}`, borderRadius: 9, color: V3_MUTED, cursor: "pointer", padding: "4px 8px", fontSize: 12, lineHeight: 1 }}>
+        {folded ? "▾" : "▴"}
+      </button>
+      {folded && (
+        <span style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: V3_MUTED }}>
+            {active === "suggestions" ? "" : `Step ${current?.n ?? ""}`}
+          </span>
+          <span style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: 14, color: V3_CREAM }}>
+            {active === "suggestions" ? "💡 Suggestions" : current?.label ?? ""}
+          </span>
+        </span>
+      )}
+      {!folded && <StepBarSteps topic={topic} set={set} active={active} />}
+      {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
+    </div>
+  );
+}
+
+function StepBarSteps({ topic, set, active }: { topic: BoothTopic; set: BoothSetInfo; active: BlastOffStep }) {
+  return (
+    <div className="flex items-center gap-2" style={{ flexWrap: "wrap" }}>
       {/* SUGGESTIONS — a door, not a numbered step (2026-09-08). Lee: "It should take me to a
           separate page honestly. The editor page is for AFTER we've reviewed." It sits where it
           belongs, between talking and building, but deliberately carries NO number: numbering it
@@ -88,7 +134,6 @@ export function StepBar({ topic, set, active, right }: {
         ) : null;
         return <StepPill key={s.step} s={s} topic={topic} set={set} active={active} before={suggestions} />;
       })}
-      {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
     </div>
   );
 }

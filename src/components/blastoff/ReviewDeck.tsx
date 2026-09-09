@@ -101,6 +101,7 @@ import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 // THE SLOGANS (2026-09-08) — the three lines, in the one place they are allowed to live
 // (brand-cards/slogans.ts). The quick row inserts them; the Editor offers them as chips.
 import { OUTRO_SLOGANS, SLOGANS, TAGLINE } from "@/components/brand-cards/slogans";
+import { PHRASE_SLIDE_KINDS } from "./prompter";
 import { ADS, AD_LABEL } from "./AdSlide";
 import { PhoneFrame } from "./PhoneFrame";
 import { SlideEditContext } from "./slide-edit";
@@ -125,6 +126,8 @@ const QUICK: readonly { kind: BlastFrameKind; label: string; patch?: Partial<Bla
   // 2026-09-08, Lee: "Also, I'm not seeing a '+Tricky' type slide. Haven't we discussed this?"
   // The fourth of the family the September strategy doc asked for, and the last one built.
   { kind: "tricky", label: "Tricky question" },
+  // 2026-09-09, Lee: "add a new one: Found on your exam."
+  { kind: "found", label: "Found on your exam" },
   // 2026-09-04: the bolt detour (Lee's OBS camera bed) and the three ads.
   { kind: "bolt", label: "Bolt detour" },
   { kind: "ad", label: "Ad · Greek", patch: { ad: "greek" } },
@@ -138,7 +141,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -163,7 +166,7 @@ const draftValid = (d: CeqDraft, noteOnly: boolean): true | string => {
 // THE CALLOUT'S WORDS as Shorten and the edit log see them (2026-09-07): a cheat code has a
 // bold title, a first line (body) and lines; a phrase or deep question has the heading (text)
 // and lines — no separate first line. Same three kinds the detour editor below calls `detour`.
-const isCallout = (k: BlastFrameKind): boolean => k === "phrase" || k === "tip" || k === "cheat";
+const isCallout = (k: BlastFrameKind): boolean => (PHRASE_SLIDE_KINDS as readonly { kind: BlastFrameKind }[]).some((x) => x.kind === k);
 function calloutFieldsOf(f: BlastFrame): ShortenFields | null {
   if (!isCallout(f.kind)) return null;
   const bullets = (f.bullets ?? []).filter((b) => b.trim());
@@ -497,6 +500,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   const [mapMenu, setMapMenu] = useState(false);
   /** "＋ Slogan" opens the three (2026-09-08) — one click each, the words already in. */
   const [sloganMenu, setSloganMenu] = useState(false);
+  /** The insert row, folded away until asked for (2026-09-09) — see the button. */
+  const [insertOpen, setInsertOpen] = useState(false);
   /** Insert after a given frame (or the selected one), optionally selecting it. */
   const insertAfter = useCallback((afterId: string | null, kind: BlastFrameKind, patch: Partial<BlastFrame> = {}, select = true) => {
     if (!plan) return;
@@ -641,8 +646,17 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
       // Not while a slide's ⋯ menu is open either — space is picking an item there.
       if (e.key !== " " || e.repeat || e.ctrlKey || e.metaKey || e.altKey || menuId || isTyping(e.target) || isTyping(document.activeElement) || !frames.length) return;
       e.preventDefault();
+      // SKIPPED SLIDES ARE NOT IN THE WALK (2026-09-09). Lee: "if a card is skipped, like don't
+      // show it in the preview at all… I want the spacebar to be me rehearsing how I'll actually
+      // move the slides in the video filming itself." Film mode already walks filmFrames; this
+      // is the Editor catching up, so the two rehearse the same running order. A skipped slide
+      // is still reachable — it is in the folder, one click away.
       const i = selIdx < 0 ? 0 : selIdx;
-      const next = e.shiftKey ? Math.max(0, i - 1) : Math.min(frames.length - 1, i + 1);
+      const step = e.shiftKey ? -1 : 1;
+      let n = i + step;
+      while (n > 0 && n < frames.length - 1 && frames[n].skipped) n += step;
+      const next = Math.max(0, Math.min(frames.length - 1, n));
+      if (frames[next].skipped && frames[next].id !== frames[i].id) return;   // nothing unskipped that way
       setSelId(frames[next].id);
     };
     window.addEventListener("keydown", onKey);
@@ -831,11 +845,28 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
         </span>
         <span style={kindTag(colorOf(f))}>{labelOf(f)}</span>
         <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{snippet(f)}</span>
+        {/* SAME CARD, TWICE — say so on the row (2026-09-09). Lee duplicated Prepaid Rent
+            meaning to make the copy a different question, and could not see that the two slides
+            were one card until he edited one and both changed. A duplicate is a real thing he
+            wants (a callback before the outro); it just has to be legible as one. */}
+        {f.kind === "ceq" && f.ceqId && frames.filter((x) => x.ceqId === f.ceqId).length > 1 && (
+          <span title="The same card appears more than once in this running order — editing it changes every copy. Use ⧉+ for a card you can edit on its own." style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", color: SKY, border: `1px solid ${SKY}55`, borderRadius: 5, padding: "1px 4px", whiteSpace: "nowrap" }}>SAME CARD ×{frames.filter((x) => x.ceqId === f.ceqId).length}</span>
+        )}
         {/* Lines are made on Rehearse & Film (2026-09-07); the count still shows here so the spine says which slides have them. */}
         {(f.prompter?.length ?? 0) > 0 && <span title={`${f.prompter!.length} teleprompter line${f.prompter!.length > 1 ? "s" : ""} — made on Rehearse & Film`} style={{ fontSize: 10, color: MINT, fontWeight: 800 }}>🗒{f.prompter!.length}</span>}
         {tightenProposals[f.id] && <span title="Tighten all: a proposal is waiting on this slide — open it to use or dismiss it" style={{ fontSize: 11 }}>🪄</span>}
         <span className="sa-spine-tools" style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: 2 }}>
-          <button style={tiny} title="A copy right after this one" onClick={(e) => { e.stopPropagation(); duplicateAt(f.id, i); }}>⧉</button>
+          {/* TWO KINDS OF COPY, both on the row (2026-09-09). Lee reached for ⧉ expecting the
+              second one: "I need to be able to clone a CEQ and edit it independently. I tried
+              and it didn't work. See how I have two Q9's… I have Prepaid Rent first, then I
+              wanted to make it Prepaid Insurance for a second one." ⧉ is the SAME card shown
+              twice (a callback — edit either and both change, because they are one card); ⧉+
+              makes a real new card he can edit freely. It was only in the ⋯ menu, which is how
+              he missed it. */}
+          <button style={tiny} title={f.kind === "ceq" ? "Duplicate — the SAME card, filmed twice. Editing either one edits the card." : "A copy right after this one"} onClick={(e) => { e.stopPropagation(); duplicateAt(f.id, i); }}>⧉</button>
+          {f.kind === "ceq" && f.ceqId && (
+            <button style={tiny} title="Clone as a NEW card — a real second card in the set, copied from this one, editable without touching the original" onClick={(e) => { e.stopPropagation(); void cloneCard(f.id, i); }}>⧉+</button>
+          )}
           {f.skipped ? (
             <button style={{ ...tiny, color: MINT }} title="Film this slide again" onClick={(e) => { e.stopPropagation(); commit(toggleSkip(frames, f.id)); }}>↺</button>
           ) : isInsert(f.kind) ? (
@@ -861,8 +892,15 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
           <span style={{ fontSize: 11.5, color: MUTED }}>{filmed} slides{skipped ? ` · ${skipped} in the skipped folder` : ""}</span>
           {saving && <span style={{ fontSize: 11, color: saving.startsWith("⚠") ? RED : saving === "saved" ? MINT : MUTED, marginLeft: "auto" }}>{saving}</span>}
         </div>
-        <div style={{ ...subhead, marginTop: 10, marginBottom: 5 }}>Insert a slide</div>
-        <div className="flex" style={{ gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+        {/* INSERT IS A TOGGLE NOW (2026-09-09). Lee: "the insert a slide, it looks like we could
+            put that in like a toggle where I click it and then find the one I want to insert,
+            cuz there's just so much text over there." Fifteen chips were on screen at all times
+            for a thing he does a few times a set; now it is one button until he wants it. */}
+        <button onClick={() => setInsertOpen((v) => !v)} style={{ ...chip(insertOpen, GOLD), marginTop: 10, marginBottom: insertOpen ? 6 : 0 }}
+          title={`Insert a slide after slide ${selIdx + 1}`} aria-expanded={insertOpen}>
+          ＋ Insert a slide {insertOpen ? "▴" : "▾"}
+        </button>
+        <div className="flex" style={{ gap: 6, flexWrap: "wrap", marginBottom: 4, display: insertOpen ? undefined : "none" }}>
           {QUICK.map((q) => (
             <button key={q.label} style={chip(false, KIND_COLOR[q.kind])} title={`Insert a ${q.label} slide after slide ${selIdx + 1}`} onClick={() => add(q.kind, q.patch)}>＋ {q.label}</button>
           ))}
@@ -902,7 +940,9 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
             ))}
           </div>
         )}
-        <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 10 }}>inserts land after the selected slide · space / shift+space walk the slides · drag to reorder</div>
+        {/* The helper line is gone (2026-09-09). Lee: "you don't have to tell me the drag to
+            reorder, inserts land after selected slide… there's just so much text over there."
+            Every one of those facts is on the control it describes, as a title. */}
         {picker && <BankPicker kind={picker} setId={set.id} setName={set.name} onPick={(p) => add(picker, p)} onClose={() => setPicker(null)} />}
 
         {/* THE LAST WORD for every slide at once (2026-09-07) — only once some slide has kept
@@ -1099,7 +1139,9 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
   onSaved: (d: CeqDraft, edits: number) => void;
 }) {
   const bulletsText = (sel.bullets ?? []).join("\n");
-  const detour = sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "tricky" || sel.kind === "cheat";
+  const detour = isCallout(sel.kind);
+  /** The camera row, folded behind its icon until asked for (2026-09-09). */
+  const [camOpen, setCamOpen] = useState(false);
   const ad = sel.kind === "ad" ? ADS[sel.ad ?? "greek"] : null;
   const adOwn = sel.text !== undefined || sel.title !== undefined || sel.bullets !== undefined || sel.url !== undefined;
   return (
@@ -1124,6 +1166,26 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
             slides are so short that they can fill up the whole screen. Other times it will be
             better to have current version then illustration." Same words either way — only the
             treatment changes, so flipping between them never costs him anything he typed. */}
+        {/* WHICH CALLOUT THIS IS (2026-09-09). Lee: "For the callout slides, give me the option
+            to switch between them. Like, memorize this, cheat code, tricky question, go deeper,
+            and add a new one: Found on your exam." Which one a point IS only becomes obvious
+            once it is on the screen, so switching must be one click and must not cost him the
+            words: calloutFieldsOf/calloutPatchOf carry the heading and the lines across the
+            cheat-code split (title+body there, text here), which is the only shape difference. */}
+        {isCallout(sel.kind) && (
+          <div className="flex flex-col" style={{ gap: 6 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: MUTED }}>Callout</span>
+            <div className="flex" style={{ gap: 6, flexWrap: "wrap" }}>
+              {PHRASE_SLIDE_KINDS.map((k) => (
+                <button key={k.kind} style={chip(sel.kind === k.kind, KIND_COLOR[k.kind] ?? GOLD)}
+                  title={sel.kind === k.kind ? `This slide is a ${k.label}` : `Make this a ${k.label} — the words come with it`}
+                  onClick={() => { if (sel.kind === k.kind) return; const w = calloutFieldsOf(sel); onPatch({ kind: k.kind, title: undefined, body: undefined, text: undefined, ...(w ? calloutPatchOf(k.kind, w) : {}) }); }}>
+                  {k.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {canGoBig(sel.kind) && (
           <div className="flex flex-col" style={{ gap: 6 }}>
             <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: MUTED }}>Format</span>
@@ -1144,8 +1206,8 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
               <textarea style={{ ...field, minHeight: 48 }} value={sel.body ?? ""} placeholder="Ask yourself if they get a paycheck from the company. If so, they're internal." onChange={(e) => onPatch({ body: e.target.value })} /></label>
           </div>
         )}
-        {(sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "tricky" || sel.kind === "blank" || sel.kind === "exhibit") && (
-          <label style={{ fontSize: 11, color: MUTED }}>{sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "tricky" ? "Title — the bold heading" : sel.kind === "exhibit" ? `Caption${sel.exhibitRef ? ` · exhibit: ${sel.exhibitRef}` : ""}` : "Text on the bare frame"}
+        {((isCallout(sel.kind) && sel.kind !== "cheat") || sel.kind === "blank" || sel.kind === "exhibit") && (
+          <label style={{ fontSize: 11, color: MUTED }}>{isCallout(sel.kind) ? "Title — the bold heading" : sel.kind === "exhibit" ? `Caption${sel.exhibitRef ? ` · exhibit: ${sel.exhibitRef}` : ""}` : "Text on the bare frame"}
             <textarea style={{ ...field, minHeight: 48, marginTop: 4 }} value={sel.text ?? ""} placeholder={sel.kind === "phrase" ? "e.g. Internal users" : sel.kind === "tricky" ? "e.g. Dividends are contra-EQUITY, not contra-asset" : sel.kind === "tip" ? "e.g. Why the board feels like a gray area" : "say it the way you'd say it on camera"} onChange={(e) => onPatch({ text: e.target.value })} /></label>
         )}
         {detour && (
@@ -1208,7 +1270,6 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         )}
         {sel.kind === "bio" && (
           <div className="flex flex-col" style={{ gap: 8 }}>
-            <div style={{ fontSize: 12, color: MUTED }}>The tutor card — its words live in one place (bio-card.ts) so every rip says the same thing. Skip it if this rip doesn't need it.</div>
             <div>
               <button style={chip(sel.portrait === "on", ORANGE)} title="The hand-drawn portrait over the black — on unless you turn it off" onClick={() => onPatch({ portrait: sel.portrait === "on" ? undefined : "on" })}>🖼 portrait · {sel.portrait === "on" ? "on" : "off (parked)"}</button>
             </div>
@@ -1271,10 +1332,17 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
             <div style={{ fontSize: 11.5, color: MUTED }}>Edits stay on this slide; every other rip keeps the built-in copy.</div>
           </div>
         )}
-        {/* THE CAMERA (Lee, 2026-09-05): three fixed spots, free, or off — home 70 %+ of the time. */}
+        {/* THE CAMERA (Lee, 2026-09-05): three fixed spots, free, or off — home 70 %+ of the time.
+            BEHIND AN ICON since 2026-09-09: "camera on this slide should just be like a camera
+            icon button, and if you click it, it opens those different options." It is on the
+            default 70 % of the time, so the six chips were six chips of noise most of the time;
+            the icon says where the camera is, and opens the row only when he wants to move it. */}
         <div style={{ marginTop: 10 }}>
-          <div style={subhead}>📷 Camera on this slide</div>
-          <div className="flex" style={{ gap: 5, flexWrap: "wrap", marginTop: 4 }}>
+          <button onClick={() => setCamOpen((v) => !v)} style={{ ...chip(camOpen, ORANGE), textTransform: "none", letterSpacing: 0 }}
+            title="Where you sit on this slide — click to change" aria-expanded={camOpen}>
+            📷 {isCamSpot(sel.cam) ? sel.cam : camDefault(layout, sel.kind).spot} {camOpen ? "▴" : "▾"}
+          </button>
+          <div className="flex" style={{ gap: 5, flexWrap: "wrap", marginTop: 4, display: camOpen ? undefined : "none" }}>
             {CAM_SPOTS.map((c) => (
               <button key={c} style={chip((isCamSpot(sel.cam) ? sel.cam : camDefault(layout, sel.kind).spot) === c, ORANGE)} title={CAM_LABEL[c]} onClick={() => onPatch({ cam: c })}>{c}</button>
             ))}

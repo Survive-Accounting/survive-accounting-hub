@@ -37,7 +37,7 @@ export function rehearsalCardFor(f: BlastFrame, ceqById: CardLookup): RehearsalC
     if (!c) return undefined;
     return { stem: c.stem, choices: c.choices.map(({ text, correct }) => ({ text, correct })) };
   }
-  if (f.kind === "phrase" || f.kind === "cheat" || f.kind === "tip" || f.kind === "tricky") {
+  if (f.kind === "phrase" || f.kind === "cheat" || f.kind === "tip" || f.kind === "tricky" || f.kind === "found") {
     const title = insertStem(f);
     const lines = frameBullets(f).map((l) => l.replace(/^\t+/, ""));
     if (!title && lines.length === 0) return undefined;
