@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  buildCaptionMessages, CAPTION_SYSTEM, captionClipboardText, hasCaptions, normalizeCaptions, normalizeHashtags, parseCaptions, stripEmoji,
-} from "./caption-brief";
+  buildCaptionMessages, CAPTION_SYSTEM, captionClipboardText, hasCaptions, normalizeCaptions, normalizeHashtags, parseCaptions, stripEmoji, transcriptText, TRANSCRIPT_CAP } from "./caption-brief";
 
 describe("talk the caption — the brief", () => {
   test("the messages carry the set, what he said, the kept lines, the cards and the notes", () => {
@@ -80,5 +79,36 @@ describe("talk the caption — the brief", () => {
     expect(captionClipboardText({ title: "", caption: "Just the post", hashtags: [] })).toBe("Just the post");
     // An Instagram first line that already opens the caption isn't doubled.
     expect(captionClipboardText({ title: "Open", caption: "Open with this.\nMore.", hashtags: [] })).toBe("Open with this.\nMore.");
+  });
+});
+
+// THE TAKE (2026-09-09). Lee, after the first finished short: "can we get it to read the
+// transcript and make the best video title / description / hashtags". `bun run captions` writes
+// an .srt beside the take; this is the path from that file into the brief.
+describe("the take's transcript", () => {
+  test("an SRT is reduced to its words — cue numbers, timecodes and tags gone", () => {
+    const srt = [
+      "1", "00:00:00,120 --> 00:00:01,340", "LET'S CRAM FOR YOUR EXAM", "",
+      "2", "00:00:01,340 --> 00:00:02,900", "<i>ASSETS</i>", "",
+      "3", "00:00:02,900 --> 00:00:04,100", "ASSETS", "",
+    ].join("\n");
+    expect(transcriptText(srt)).toBe("LET'S CRAM FOR YOUR EXAM ASSETS");
+  });
+  test("a VTT loses its header, and plain prose comes back as itself", () => {
+    expect(transcriptText("WEBVTT\n\n00:00.000 --> 00:01.000 line:80%\nnormal balances")).toBe("normal balances");
+    expect(transcriptText("  is prepaid rent an asset\n")).toBe("is prepaid rent an asset");
+  });
+  test("the take reaches the model, ahead of what he typed, and is capped", () => {
+    const base = { setName: "Assets", topicName: "Account classification", stems: [], keptLines: [], talkthrough: "", spoken: "quick one on assets" };
+    const m = buildCaptionMessages({ ...base, transcript: "cash is an asset because you can spend it" });
+    expect(m.user).toContain("THE TAKE — transcribed from the filmed video");
+    expect(m.user).toContain("cash is an asset because you can spend it");
+    expect(m.user.indexOf("THE TAKE")).toBeLessThan(m.user.indexOf("WHAT LEE SAID"));
+    const long = buildCaptionMessages({ ...base, transcript: "word ".repeat(4000) });
+    expect(long.user.length).toBeLessThan(TRANSCRIPT_CAP + 2000);
+  });
+  test("no transcript leaves the brief exactly as it was", () => {
+    const base = { setName: "Assets", topicName: "T", stems: ["a"], keptLines: ["b"], talkthrough: "", spoken: "c" };
+    expect(buildCaptionMessages({ ...base, transcript: "" }).user).toBe(buildCaptionMessages(base).user);
   });
 });

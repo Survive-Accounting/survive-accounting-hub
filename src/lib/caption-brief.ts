@@ -51,21 +51,49 @@ export interface CaptionRequest {
   talkthrough: string;
   /** What he just said about the set — spoken (or typed). "" = write from the sources alone. */
   spoken: string;
+  /** THE TAKE, transcribed from the filmed video (`bun run captions <take.mp4>` writes the .srt
+   *  beside it). His actual words on camera — the strongest source there is. "" = not filmed
+   *  yet, or the transcript hasn't been run. Raw SRT/VTT goes through transcriptText() first. */
+  transcript?: string;
   /** A previous answer being revised: keep what wasn't talked about. */
   previous?: PublishCaptions | null;
 }
 
 export const CAPTION_SYSTEM = [
   "You write the posting copy for ONE short-form video by Lee, who teaches accounting students at Survive Accounting. The video is a Blast Off set: a handful of exam-style questions taught fast, on camera, in his own words.",
-  "THE VOICE IS LEE'S. A real person talking, not a brand. Plain words. First person is fine (\"I\", \"we\"). NO emoji anywhere. No hype, no clickbait (\"you won't believe\", \"secret\", \"hack\", \"game-changer\"), no exclamation stacks, no all-caps words, no \"Ready to…?\" openers, no calls to smash anything. If a sentence sounds like an ad, cut it. What he SAID about the set (WHAT LEE SAID) outranks everything else — if he named the angle, that's the angle.",
+  "THE VOICE IS LEE'S. A real person talking, not a brand. Plain words. First person is fine (\"I\", \"we\"). NO emoji anywhere. No hype, no clickbait (\"you won't believe\", \"secret\", \"hack\", \"game-changer\"), no exclamation stacks, no all-caps words, no \"Ready to…?\" openers, no calls to smash anything. If a sentence sounds like an ad, cut it. What he SAID about the set (WHAT LEE SAID) outranks everything else — if he named the angle, that's the angle. When THE TAKE is given it is the video's own words: take the topic, the order and the phrasing from it, and prefer a title naming what a student actually hears in the first five seconds.",
   "Return ONLY a JSON object with exactly these four keys: {\"youtube\": {\"title\": str, \"caption\": str, \"hashtags\": [str]}, \"instagram\": {...same}, \"tiktok\": {...same}, \"site\": {...same}}.",
   "youtube: title ≤ 70 characters, the topic in plain words (no colon-tricks, no #Shorts in the title). caption 2–3 short lines (use \\n between lines) saying what the short teaches and who it's for. hashtags 3–5.",
   "instagram: caption-first — the caption is the post (2–4 short lines, \\n between), the title can be empty or a 4–8 word first line. hashtags 5–10 (accounting, the topic, students, the exam).",
   "tiktok: title is ONE short hook line (≤ 100 characters) in his voice — a line he'd say, not a slogan. caption 1–2 lines. hashtags 3–5.",
   "site: title = the set's name (or the topic if the set name is a code), caption = ONE line (≤ 200 characters) describing the short for the site's listing, hashtags = [].",
   "Hashtags: lowercase, letters and digits only, no '#', no spaces, no duplicates within a destination. Prefer specific ones (the topic, the concept) over generic ones; #accounting and #cpa are fine once.",
+  "SEARCH: this is exam-prep video — students find it by typing the thing they are stuck on. Put the plain-language concept in the first 40 characters of the YouTube title (\"contra accounts\", \"normal balances\", \"is prepaid rent an asset\"), and let the caption's first line repeat it as a sentence. Never keyword-stuff, and never write a title he wouldn't say out loud.",
   "A REVISION: when PREVIOUS is given, change only what WHAT LEE SAID asks for and keep the rest as it was.",
 ].join("\n");
+
+/** A three-minute short transcribes to roughly 2,500 characters; 8,000 carries a long one whole
+ *  and still leaves the micro lane room to answer. */
+export const TRANSCRIPT_CAP = 8000;
+
+/** An SRT, a VTT, or plain pasted text — reduced to the words. Cue numbers, timecode lines, the
+ *  WEBVTT header and cue tags all go, and a line repeated back-to-back (what rolling captions do)
+ *  collapses to one. Safe on anything: plain prose comes back as itself. */
+export function transcriptText(raw: string): string {
+  const out: string[] = [];
+  for (const line of raw.replace(/\r\n?/g, "\n").split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    if (/^WEBVTT/i.test(t) || /^(NOTE|STYLE|REGION)\b/i.test(t)) continue;
+    if (/^\d+$/.test(t)) continue; // an SRT cue number
+    if (/^[\d:.,]+\s*-->/.test(t)) continue; // a timecode line
+    const clean = t.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+    if (!clean) continue;
+    if (out[out.length - 1] === clean) continue; // a rolling-caption repeat
+    out.push(clean);
+  }
+  return out.join(" ").replace(/\s+/g, " ").trim();
+}
 
 const cap = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, n - 1).trimEnd()}…`);
 
@@ -74,6 +102,7 @@ export function buildCaptionMessages(req: CaptionRequest): { system: string; use
   const lines = req.keptLines.map((s) => s.trim()).filter(Boolean).slice(0, 40);
   const user = [
     `THE SET: ${req.setName || "(unnamed)"} — topic: ${req.topicName || "(unknown)"}`,
+    (req.transcript ?? "").trim() ? `THE TAKE — transcribed from the filmed video, his actual words on camera:\n${cap((req.transcript ?? "").trim(), TRANSCRIPT_CAP)}` : "",
     req.spoken.trim() ? `WHAT LEE SAID ABOUT IT (spoken, may be rough):\n${cap(req.spoken.trim(), 2000)}` : "WHAT LEE SAID ABOUT IT: nothing yet — write from the sources below.",
     lines.length ? `THE LINES HE KEPT FOR THE TAKE (his words, in order):\n${lines.map((l) => `- ${cap(l, 240)}`).join("\n")}` : "THE LINES HE KEPT FOR THE TAKE: none saved.",
     stems.length ? `THE CARDS THE SHORT COVERS:\n${stems.map((s) => `- ${cap(s, 240)}`).join("\n")}` : "",

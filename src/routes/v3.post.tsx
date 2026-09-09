@@ -43,7 +43,7 @@ import { StageChip, stepLabel } from "@/components/v3/StageChip";
 import { isFilmedUnconfirmed, matchesFilter, stageOf, stageRank, talkStageOf, STAGE_SKY, type StageFilter, type StageInfo } from "@/components/v3/set-stage";
 import { listBlastPlanSetIds, loadBlastPlan } from "@/lib/blastoff.functions";
 import {
-  buildCaptionMessages, CAPTION_DEST_LABEL, CAPTION_DESTINATIONS, CAPTION_LIMITS, captionClipboardText, hasCaptions, normalizeHashtags, parseCaptions,
+  buildCaptionMessages, CAPTION_DEST_LABEL, CAPTION_DESTINATIONS, CAPTION_LIMITS, captionClipboardText, hasCaptions, normalizeHashtags, parseCaptions, transcriptText,
   type CaptionDestination, type DestinationCaption, type PublishCaptions,
 } from "@/lib/caption-brief";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
@@ -392,6 +392,11 @@ function CaptionSheet({ topic, set, status, tt, onSaved, onClose }: {
 }) {
   const [text, setText] = useState("");
   const [interim, setInterim] = useState("");
+  /** THE TAKE. Pasted SRT/VTT/plain text from `bun run captions <take.mp4>` — the filmed
+   *  video's own words. Not stored: it belongs to the file, and re-pasting is one keystroke. */
+  const [take0, setTake0] = useState("");
+  const transcript = useMemo(() => transcriptText(take0), [take0]);
+  const transcriptRef = useRef(transcript); transcriptRef.current = transcript;
   /** Speech only — what the throttle keys on, so a keystroke never costs a call. */
   const [take, setTake] = useState("");
   const [captions, setCaptions] = useState<PublishCaptions>(() => status.captions ?? emptyCaptions());
@@ -425,6 +430,7 @@ function CaptionSheet({ topic, set, status, tt, onSaved, onClose }: {
     try {
       const m = buildCaptionMessages({
         setName: set.name, topicName: topic.name, stems, keptLines: keptLines ?? [], talkthrough, spoken,
+        transcript: transcriptRef.current,
         previous: hasCaptions(captionsRef.current) ? captionsRef.current : null,
       });
       const r = await runMicro({ data: { system: m.system, user: m.user, maxOutput: 900 } });
@@ -508,17 +514,30 @@ function CaptionSheet({ topic, set, status, tt, onSaved, onClose }: {
         <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {!mic.on && (
             <button type="button" disabled={busy} onClick={() => { briefed.current = text; void brief(text); }} style={{ ...small, borderColor: `${V3_GOLD}88`, color: V3_GOLD, opacity: busy ? 0.6 : 1 }}>
-              {busy ? "Writing…" : hasCaptions(captions) ? (text.trim() ? "Rewrite from that" : "Write it again") : text.trim() ? "Write the captions" : "Write from the lines alone"}
+              {busy ? "Writing…" : hasCaptions(captions) ? (text.trim() ? "Rewrite from that" : "Write it again") : text.trim() ? "Write the captions" : transcript ? "Write from the take" : "Write from the lines alone"}
             </button>
           )}
           {busy && mic.on && <span style={{ fontSize: 11.5, color: V3_GOLD }}>writing…</span>}
           {err && <span style={{ fontSize: 12, color: "#FF8B7E" }}>{err}</span>}
         </div>
 
+        {/* THE TAKE — the filmed video's own words, once he has run the transcript. */}
+        <details style={{ marginTop: 10 }} open={!!take0}>
+          <summary style={{ cursor: "pointer", fontSize: 12, color: transcript ? MINT : V3_MUTED }}>
+            {transcript ? `The take's transcript — ${transcript.split(/\s+/).length} words, reading from it` : "Paste the take's transcript (optional)"}
+          </summary>
+          <div style={{ marginTop: 6, fontSize: 11.5, color: V3_MUTED, lineHeight: 1.5 }}>
+            Run <code style={{ color: V3_CREAM }}>bun run captions "take.mp4"</code> and paste the .srt it writes beside the file.
+            Timecodes are stripped. The copy below then comes from what you actually said on camera.
+          </div>
+          <textarea value={take0} onChange={(e) => setTake0(e.target.value)} rows={4} placeholder="paste the .srt, the .vtt, or the plain transcript"
+            style={{ ...field, marginTop: 6, resize: "vertical", fontSize: 12, lineHeight: 1.45 }} />
+        </details>
+
         {/* WHAT IT READ FROM. */}
         <details style={{ marginTop: 10 }}>
           <summary style={{ cursor: "pointer", fontSize: 12, color: V3_MUTED }}>
-            What it reads from: {keptLines === null ? "loading the kept lines…" : `${keptLines.length} kept line${keptLines.length === 1 ? "" : "s"}`} · {stems.length} card{stems.length === 1 ? "" : "s"} · {talkthrough ? "talkthrough notes" : "no talkthrough notes"}
+            What it reads from: {keptLines === null ? "loading the kept lines…" : `${keptLines.length} kept line${keptLines.length === 1 ? "" : "s"}`} · {stems.length} card{stems.length === 1 ? "" : "s"} · {talkthrough ? "talkthrough notes" : "no talkthrough notes"}{transcript ? " · the take's transcript" : ""}
           </summary>
           <div style={{ marginTop: 6, fontSize: 12, color: V3_CREAM, opacity: 0.85, lineHeight: 1.5 }}>
             {keptLines && keptLines.length > 0 ? (
