@@ -115,8 +115,11 @@ export function IllustrationLayer({ ill, w, h, boilFrame, onPlace }: {
 /** PLACED — a phone-level layer at `placement` (or the blank slide's centre). Drag moves,
  *  the corner grip resizes; both commit through `onPlace` on release. Carries the capture
  *  camera's transform (`stageStyle`) so it zooms and blurs with the slide. */
-export function PlacedIllustration({ ill, w, h, boilFrame, kind, onPlace, stageStyle }: {
+export function PlacedIllustration({ ill, w, h, boilFrame, kind, big = false, onPlace, stageStyle }: {
   ill: FrameIllustration; w: number; h: number; boilFrame?: number; kind: string;
+  /** This callout is drawn BIG (plan.ts `display`) — it is laid out like a slogan slide, so the
+   *  picture sits where a slogan's does rather than under a card that is not there. */
+  big?: boolean;
   onPlace?: (p: IllustrationPlacement) => void;
   stageStyle?: React.CSSProperties;
 }) {
@@ -124,7 +127,7 @@ export function PlacedIllustration({ ill, w, h, boilFrame, kind, onPlace, stageS
   const [drag, setDrag] = useState<IllustrationPlacement | null>(null);
   const start = useRef<{ mode: "move" | "size"; px: number; py: number; from: IllustrationPlacement } | null>(null);
   if (!ill.assetUrl) return null;
-  const base = ill.placement ?? defaultPlacement(kind);
+  const base = ill.placement ?? defaultPlacement(kind, big);
   const p = drag ?? base;
   const size = Math.round(p.w * w);
   // SIDE BY SIDE (2026-09-05, blank slides only): a second, already-made picture from the

@@ -96,7 +96,7 @@ import { indentBulletLine } from "./bullet-indent";
 import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
-import { AD_KINDS, FRAME_LABEL, backdropFor, cloneFrameToEnd, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
+import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, cloneFrameToEnd, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 // THE SLOGANS (2026-09-08) — the three lines, in the one place they are allowed to live
 // (brand-cards/slogans.ts). The quick row inserts them; the Editor offers them as chips.
@@ -121,10 +121,10 @@ export interface DeckApi { addSlide: (kind: BlastFrameKind, patch: Partial<Blast
 const QUICK: readonly { kind: BlastFrameKind; label: string; patch?: Partial<BlastFrame> }[] = [
   { kind: "phrase", label: "Memorize this" },
   { kind: "cheat", label: "Cheat code" },
-  { kind: "tip", label: "Deep question" },
+  { kind: "tip", label: "Go deeper" },
   // 2026-09-08, Lee: "Also, I'm not seeing a '+Tricky' type slide. Haven't we discussed this?"
   // The fourth of the family the September strategy doc asked for, and the last one built.
-  { kind: "tricky", label: "Tricky" },
+  { kind: "tricky", label: "Tricky question" },
   // 2026-09-04: the bolt detour (Lee's OBS camera bed) and the three ads.
   { kind: "bolt", label: "Bolt detour" },
   { kind: "ad", label: "Ad · Greek", patch: { ad: "greek" } },
@@ -320,10 +320,10 @@ const kindTag = (color: string): React.CSSProperties => ({
 type RightTab = "editor" | "illustrator";
 const RIGHT_TABS: { id: RightTab; label: string; title: string }[] = [
   { id: "editor", label: "Editor", title: "Edit the selected slide here, beside it" },
-  { id: "illustrator", label: "Illustrator", title: "A picture for this slide — Memorize This, Cheat Code, Deep Question, blank and slogan slides" },
+  { id: "illustrator", label: "Illustrator", title: "A picture for this slide — Memorize This, Cheat Code, Go Deeper, Tricky Question, blank and slogan slides" },
 ];
 /** What the Illustrator button says when the selected slide's kind can't take a picture. */
-const ILLUSTRATOR_OFF_TITLE = "Pictures go on Memorize This, Cheat Code, Deep Question, blank and slogan slides — not this kind";
+const ILLUSTRATOR_OFF_TITLE = "Pictures go on Memorize This, Cheat Code, Go Deeper, Tricky Question, blank and slogan slides — not this kind";
 const RIGHT_TAB_KEY = "sa-review-right-tab";
 // A browser that last left the panel on the retired "teleprompter" face (the value this key
 // held before 2026-09-07) lands on the Editor — the only face that exists for every slide —
@@ -729,6 +729,15 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
           ? { label: "↺ Film it", title: "Film this slide again", color: MINT, run: () => commit(toggleSkip(frames, f.id)) }
           : { label: "⊘ Skip in the film", title: "Skip this card in the film (it stays in the set)", color: RED, run: () => commit(toggleSkip(frames, f.id)) },
     ];
+    // THE TWO FORMATS, from the row too (2026-09-08) — the same switch the editor panel has, so
+    // Lee can flip a slide without selecting it first.
+    if (canGoBig(f.kind)) {
+      items.push({
+        label: `⚡ Format · ${isBigCallout(f) ? "big" : "card"}`,
+        title: isBigCallout(f) ? "Drawn as the whole screen — bolt behind, big letters. Click for the card." : "Drawn as the detour card. Click to fill the whole screen instead.",
+        run: () => patch(f.id, { display: isBigCallout(f) ? undefined : "big" }),
+      });
+    }
     // The cold open carries the banner unless told not to; every other slide only when asked.
     const bannerOn = f.kind === "open" ? f.banner !== "off" : f.banner === "on";
     items.push({
@@ -960,7 +969,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
           </div>
           {canIllustrate(sel.kind)
             ? <IllustrationPanel key={sel.id} sel={sel} setId={set.id} setName={set.name} frames={frames} onPatch={(p) => patch(sel.id, p)} />
-            : <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5 }}>Pictures go on Memorize This, Cheat Code, Deep Question, blank and slogan slides. Pick one of those in the spine, or insert a <b style={{ color: CREAM }}>＋ Blank</b> — on a blank slide the picture is the slide: the watermark, the picture and the camera if you want it.</div>}
+            : <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5 }}>Pictures go on Memorize This, Cheat Code, Go Deeper, Tricky Question, blank and slogan slides. Pick one of those in the spine, or insert a <b style={{ color: CREAM }}>＋ Blank</b> — on a blank slide the picture is the slide: the watermark, the picture and the camera if you want it.</div>}
         </section>
       ) : (
         <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs} layout={layoutOf(plan)}
@@ -1036,7 +1045,7 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
         <span style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
           {/* Lee: "put Shorten to left of safe zones". Disabled, with the reason, where there is nothing to shorten. */}
           <button style={{ ...chip(!!shorten?.on), opacity: shorten ? 1 : 0.45, cursor: shorten ? "pointer" : "not-allowed" }} disabled={!shorten}
-            title={shorten ? "Shorten (standardize) this card's words with AI — cram, not teach; you see before and after first" : "Shorten works on a set card or a callout (Memorize This, Cheat Code, Deep Question)"}
+            title={shorten ? "Shorten (standardize) this card's words with AI — cram, not teach; you see before and after first" : "Shorten works on a set card or a callout (Memorize This, Cheat Code, Go Deeper)"}
             onClick={() => shorten?.open()}>✂ Shorten</button>
           <button style={chip(safe, SKY)} title="Shade the zones TikTok and Shorts paint their own UI over" onClick={() => setSafe((v) => !v)}>safe zones</button>
           <button style={tiny} title="Move up" onClick={() => onMove(-1)}>↑</button>
@@ -1108,6 +1117,25 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
       <div>
         {sel.kind === "ceq" && ceq && <CeqEditor key={ceq.id} ceq={ceq} setId={set.id} shortenApplied={shortenApplied} onSaved={onSaved} />}
         {sel.kind === "ceq" && !ceq && <div style={{ fontSize: 12, color: RED }}>This card is no longer in the set — skip it.</div>}
+        {/* THE TWO FORMATS (2026-09-08). Lee: "I want a way to have a memorize this, cheat code
+            slide, deep ideas, tricky in two formats… either it's in the current format, or it's
+            more emphatic where it's a slide just like the slogan one. Bolt in background. BIG
+            letters… So I add the slide then choose the mode. The reason is that some of my
+            slides are so short that they can fill up the whole screen. Other times it will be
+            better to have current version then illustration." Same words either way — only the
+            treatment changes, so flipping between them never costs him anything he typed. */}
+        {canGoBig(sel.kind) && (
+          <div className="flex flex-col" style={{ gap: 6 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: MUTED }}>Format</span>
+            <div className="flex" style={{ gap: 6, flexWrap: "wrap" }}>
+              <button style={chip(!isBigCallout(sel), SKY)} title="The detour card on the stage — room for a list, and a picture underneath" onClick={() => onPatch({ display: undefined })}>▭ Card</button>
+              <button style={chip(isBigCallout(sel), ORANGE)} title="The whole screen — black, the bolt behind, the heading as big as it will go. Same treatment as a slogan slide." onClick={() => onPatch({ display: "big" })}>⚡ Big</button>
+              <span style={{ fontSize: 11.5, color: MUTED, alignSelf: "center" }}>
+                {isBigCallout(sel) ? "Fills the frame — best when the line is short." : "The card, with the lines under it."}
+              </span>
+            </div>
+          </div>
+        )}
         {sel.kind === "cheat" && (
           <div className="flex flex-col" style={{ gap: 8 }}>
             <label style={{ fontSize: 11, color: MUTED }}>Title — the bold heading

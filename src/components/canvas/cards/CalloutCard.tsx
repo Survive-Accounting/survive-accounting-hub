@@ -25,7 +25,7 @@ export const CALLOUT_KINDS: Record<Exclude<CalloutKind, "tutor" | "found-on-exam
   "memorize-this": { label: "MEMORIZE THIS", accent: "#C77D0A", tint: "rgba(199,125,10,0.10)" },
   // Display only — the key stays "deeper-idea" (Lee, 2026-09-06: "Deep Question seems a bit
   // better" — it tells the student what to DO, stop and reason it out).
-  "deeper-idea": { label: "DEEP QUESTION", accent: "#1D7FA8", tint: "rgba(29,127,168,0.10)" },
+  "deeper-idea": { label: "GO DEEPER", accent: "#1D7FA8", tint: "rgba(29,127,168,0.10)" },
   recap: { label: "RECAP", accent: "#6D5BB8", tint: "rgba(109,91,184,0.10)" },
   // Display only — the key stays "distractor". Lee, 2026-09-08: "I'm not seeing a '+Tricky' type
   // slide. Haven't we discussed this?" We had: the September strategy doc asks for a fourth
@@ -34,7 +34,7 @@ export const CALLOUT_KINDS: Record<Exclude<CalloutKind, "tutor" | "found-on-exam
   // 'tricky' beside it." Relabelled, for the same reason "deeper-idea" became DEEP QUESTION two
   // days earlier: DISTRACTOR is what a test writer calls it, TRICKY is what a student needs to
   // hear. The internal kind stays "distractor" everywhere so no stored card has to change.
-  distractor: { label: "TRICKY", accent: "#C22B45", tint: "rgba(194,43,69,0.10)" },
+  distractor: { label: "TRICKY QUESTION", accent: "#C22B45", tint: "rgba(194,43,69,0.10)" },
 };
 /** THE TUTOR CARD (Lee, 2026-09-03): the bio slide in the detour format. Not
  *  one of the five authoring kinds (the cycler never offers it) — Blast Off's

@@ -27,8 +27,9 @@ export const BLAST_FRAME_KINDS = [
   // 2026-09-08: TRICKY — the fourth callout Lee asked for back in the September strategy
   // brainstorm ("memorize this · cheat code · tricky · deep question") and then noticed was
   // missing: "Also, I'm not seeing a '+Tricky' type slide. Haven't we discussed this?" It maps
-  // to the canvas's existing red `distractor` callout, whose LABEL is now "TRICKY" — one card,
-  // one colour, no sixth near-duplicate kind.
+  // to the canvas's existing red `distractor` callout, whose LABEL is now "TRICKY QUESTION" —
+  // one card, one colour, no sixth near-duplicate kind. (Lee renamed it hours later: "Change
+  // Tricky to Tricky Question" — the key stays `tricky`.)
   "tricky",
   // 2026-09-04: the bolt detour (black + the bolt animation, nothing else —
   // Lee's OBS camera backdrop and ad bed) and the three ads.
@@ -95,6 +96,16 @@ export interface BlastFrame {
    *  far to push the psychedelic end (0..1; Lee: 0.1). */
   variant?: string;
   psych?: number;
+  /** HOW THIS CALLOUT IS DRAWN (2026-09-08). Lee: "I want a way to have a memorize this, cheat
+   *  code slide, deep ideas, tricky in two formats… either it's in the current format, or it's
+   *  more emphatic where it's a slide just like the slogan one. Bolt in background. BIG letters.
+   *  Same style as that. So I add the slide then choose the mode. The reason is that some of my
+   *  slides are so short that they can fill up the whole screen."
+   *
+   *  Absent (or "card") = the detour card on a stage, as it always was. "big" = the whole 9:16,
+   *  black, bolt behind, heading enormous (brand-cards/BigCallout.tsx). Only the four callout
+   *  kinds read it — see canGoBig. */
+  display?: "card" | "big";
   /** THE CAMPUS BANNER on this slide (Lee: "let me add this banner at any time
    *  on future slides … toggle-able on and off"). Absent = only the cold open. */
   banner?: "on" | "off";
@@ -156,6 +167,21 @@ import type { FrameIllustration } from "./illustration";
 export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan"];
 export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.includes(k);
 
+/** THE FOUR CALLOUTS that can be drawn either way (2026-09-08, `BlastFrame.display`). The
+ *  brand slides are always full-frame and a set card never is, so neither takes a choice. */
+export const BIG_CALLOUT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky"];
+export const canGoBig = (k: BlastFrameKind): boolean => BIG_CALLOUT_KINDS.includes(k);
+
+/** Is THIS FRAME drawn big? A `display` on a kind that has no big form is ignored rather than
+ *  honoured — an old plan, or a kind change on an existing slide, must never make a set card
+ *  try to render as a brand slide. */
+export const isBigCallout = (f: BlastFrame): boolean => f.display === "big" && canGoBig(f.kind);
+
+/** Does this FRAME own the whole 9:16 — by its kind, or by being a callout turned big? The
+ *  frame-level question; `isFullFrame` answers the kind-level one and stays the right call
+ *  wherever only a kind is at hand. */
+export const framesFullFrame = (f: BlastFrame): boolean => isFullFrame(f.kind) || isBigCallout(f);
+
 export const isInsert = (k: BlastFrameKind): boolean => INSERT_KINDS.includes(k);
 
 /** THE STANDARD SPINE. Every Blast Off opens the same way and closes the same
@@ -199,9 +225,10 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   cheat: "Cheat code",
   // Lee, 2026-09-06: "Deep Question seems a bit better" — it tells the student what to DO (stop
   // and reason it out), where "Deeper idea" didn't. The internal kind stays "tip" everywhere.
-  tip: "Deep question",
+  // Lee, 2026-09-08: "Deep question should be 'Go deeper'." Third name for this kind, same key.
+  tip: "Go deeper",
   // Lee, 2026-09-08: "I am not seeing a '+Tricky' type slide. Haven't we discussed this?" We had.
-  tricky: "Tricky",
+  tricky: "Tricky question",
   exhibit: "Exhibit",
   blank: "Blank",
   bolt: "Bolt detour",

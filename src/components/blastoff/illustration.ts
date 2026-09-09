@@ -80,7 +80,10 @@ export interface IllustrationPlacement { x: number; y: number; w: number }
  *  are words alone (Lee: "B to an A is the picture, yes. Others just text."), which is exactly
  *  what an optional slot already means: nothing is drawn until he generates one. Being in this
  *  list is the ONLY thing the Illustrator face needs to work on a kind. */
-export const ILLUSTRATION_KINDS = ["phrase", "cheat", "tip", "blank", "slogan"] as const;
+// "tricky" joined 2026-09-08 — Lee, the moment the kind existed: "Let me illustrate on Tricky
+// ones." It is the fourth of the same callout family; it was left off only because it was built
+// hours after this list.
+export const ILLUSTRATION_KINDS = ["phrase", "cheat", "tip", "tricky", "blank", "slogan"] as const;
 export function canIllustrate(kind: string): boolean { return (ILLUSTRATION_KINDS as readonly string[]).includes(kind); }
 
 /** Dead centre on a blank slide (a touch above the middle so the caption rail stays clear);
@@ -88,16 +91,18 @@ export function canIllustrate(kind: string): boolean { return (ILLUSTRATION_KIND
  *  .28 h puts its bottom edge at ≈ .41 h on a 9:16 frame, just above the strip SloganCard.tsx
  *  reserves for the words (`sloganBand`), which in turn stops above the caption rail; under the
  *  card elsewhere — only asked for when a picture is placed by hand. */
-export function defaultPlacement(kind: string): IllustrationPlacement {
+export function defaultPlacement(kind: string, big = false): IllustrationPlacement {
   if (kind === "blank") return { x: 0.5, y: 0.44, w: 0.72 };
-  if (kind === "slogan") return { x: 0.5, y: 0.28, w: 0.46 };
+  // A BIG callout is laid out exactly like a slogan slide — full frame, words in the band
+  // underneath — so its picture takes the slogan's spot, not the card's.
+  if (kind === "slogan" || big) return { x: 0.5, y: 0.28, w: 0.46 };
   return { x: 0.5, y: 0.62, w: 0.5 };
 }
 /** A placed picture, or a blank / slogan slide's — the layer that sits at a spot rather than in
  *  the band. A slogan is a FULL-FRAME kind: it draws the whole 9:16 itself, so there is no card
  *  for a band to hang under; its picture is always the phone-level layer at the spot above. */
-export function isPlaced(kind: string, i: FrameIllustration | null | undefined): boolean {
-  return !!i && (kind === "blank" || kind === "slogan" || !!i.placement);
+export function isPlaced(kind: string, i: FrameIllustration | null | undefined, big = false): boolean {
+  return !!i && (kind === "blank" || kind === "slogan" || big || !!i.placement);
 }
 
 // "drift" (2026-09-06, Lee: "the boiling animations are horrible for the illustrations...

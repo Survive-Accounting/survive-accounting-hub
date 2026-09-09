@@ -27,7 +27,7 @@ import { FrameView } from "./frame-view";
 import { IllustrationLayer, PlacedIllustration } from "./IllustrationLayer";
 import { canIllustrate, isPlaced } from "./illustration";
 import { SAFE, camDefault, captionRailClear, captionRailRect, cardPlacement, type RailStatus, type SlideLayout } from "./layout";
-import { backdropFor, isFullFrame, type BlastFrame } from "./plan";
+import { backdropFor, framesFullFrame, isBigCallout, isFullFrame, type BlastFrame } from "./plan";
 import type { CardOverride } from "./SetCard";
 import { SlideEditContext } from "./slide-edit";
 import { BRAND_FONT } from "./stage";
@@ -62,7 +62,7 @@ const WATERMARK_CHARGE_CSS = `
  *  card is the canvas's 560-wide card at just under half the stage. */
 export function phoneScale(frame: BlastFrame, w: number): number {
   const k = w / PHONE_W;
-  if (isFullFrame(frame.kind)) return w / 1080 / 0.34;
+  if (framesFullFrame(frame)) return w / 1080 / 0.34;
   if (frame.kind === "bio") return 0.45 * k;
   return 0.48 * k;
 }
@@ -122,6 +122,8 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
 }) {
   const h = Math.round(w * 16 / 9);
   const backdrop = backdropFor(frames, index, (id) => !!set.ceqs.find((c) => c.id === id)?.noteOnly);
+  // A callout drawn BIG is laid out like a slogan slide, so its picture is placed like one.
+  const big = isBigCallout(frame);
   const place = cardPlacement(layout, frame.kind);
   // The template's card shape under the grips' per-take override.
   const cardOverride: CardOverride = { ...(place.cardW ? { cardW: place.cardW } : {}), ...(place.scaleMul ? { scaleMul: place.scaleMul } : {}), ...gripOverride };
@@ -225,7 +227,7 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   const tag: React.CSSProperties = { position: "absolute", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(125,211,252,0.7)", fontWeight: 800 };
   // PASS 2 puts a card at the top of the safe column; the full-frame kinds
   // and pass 1 keep the centre.
-  const topAligned = place.align === "top" && !isFullFrame(frame.kind);
+  const topAligned = place.align === "top" && !framesFullFrame(frame);
   // THE FADE FROM INTRO (2026-09-06, Lee: "we probably need a good fade from intro 2 to first
   // slide as well"). Every other cut in the deck is instant — that's the house rule (Lee: "a
   // cool transition" is asked for only at named, special moments, never as a general slide-to-
@@ -274,15 +276,15 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
         <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} layout={layout} coldOpen={assembling ? coldOpen : null} />
         {/* THE OPTIONAL ILLUSTRATION — second row of the stage grid, under the card; nothing when
             absent. A placed one (or a blank slide's) is the phone-level layer below instead. */}
-        {frame.illustration?.assetUrl && canIllustrate(frame.kind) && !isPlaced(frame.kind, frame.illustration) && (
+        {frame.illustration?.assetUrl && canIllustrate(frame.kind) && !isPlaced(frame.kind, frame.illustration, big) && (
           <IllustrationLayer ill={frame.illustration} w={w} h={h}
             onPlace={edit && (!capture || popout) ? (p) => edit({ illustration: { ...frame.illustration!, placement: p } }) : undefined} />
         )}
       </div>
       {/* THE PLACED PICTURE (2026-09-05): at its own spot, dragged and resized on Review; carries
           the camera transform so it zooms and blurs with the slide. Dead centre on a blank slide. */}
-      {frame.illustration?.assetUrl && canIllustrate(frame.kind) && isPlaced(frame.kind, frame.illustration) && (
-        <PlacedIllustration key={capture ? `ill-${frame.id}` : undefined} ill={frame.illustration} w={w} h={h} kind={frame.kind}
+      {frame.illustration?.assetUrl && canIllustrate(frame.kind) && isPlaced(frame.kind, frame.illustration, big) && (
+        <PlacedIllustration key={capture ? `ill-${frame.id}` : undefined} ill={frame.illustration} w={w} h={h} kind={frame.kind} big={big}
           stageStyle={{ ...(moment ? { filter: "blur(2px) brightness(0.35)" } : {}), transition: "filter 480ms ease, transform 480ms ease", ...(stageStyle?.transform ? { transform: stageStyle.transform, transformOrigin: stageStyle.transformOrigin } : {}) }}
           onPlace={edit && (!capture || popout) ? (p) => edit({ illustration: { ...frame.illustration!, placement: p } }) : undefined} />
       )}

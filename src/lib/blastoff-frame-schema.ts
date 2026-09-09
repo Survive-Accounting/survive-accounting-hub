@@ -82,6 +82,8 @@ export const frameSchema = z.object({
   variant: z.string().max(20).optional(),
   psych: z.number().min(0).max(1).optional(),
   banner: z.enum(["on", "off"]).optional(),
+  // 2026-09-08: the four callouts can be drawn as a card or as the whole 9:16 ("big").
+  display: z.enum(["card", "big"]).optional(),
   ad: z.enum(AD_KINDS).optional(),
   url: z.string().max(120).optional(),
   portrait: z.enum(["on", "off"]).optional(),

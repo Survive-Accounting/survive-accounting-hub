@@ -12,12 +12,13 @@
 import { useContext } from "react";
 
 import type { BoothCeq, BoothSetInfo } from "@/lib/talkthrough.functions";
-import { KindChip } from "@/components/canvas/cards/CalloutCard";
+import { KindChip, calloutMeta } from "@/components/canvas/cards/CalloutCard";
 import { PreviewSpotContext } from "@/components/canvas/CeqPreviewer";
 import { CARD_W } from "@/components/canvas/ceq-geom";
 import { renderInline } from "@/components/canvas/inline-md";
 import { BoltZoom } from "@/components/brand-cards/BoltZoom";
 import { isZoomVariant } from "@/components/brand-cards/bolt-zoom";
+import { BigCallout } from "@/components/brand-cards/BigCallout";
 import { SloganCard } from "@/components/brand-cards/SloganCard";
 import { SLOGANS } from "@/components/brand-cards/slogans";
 
@@ -29,7 +30,7 @@ import { SetCard, type CardOverride } from "./SetCard";
 import { BIO_CARD, bioCallout } from "./bio-card";
 import { DISPLAY_FONT, V } from "./stage";
 import { OUTRO_CTA_KEY, SurviveOutro } from "./SurviveOutro";
-import { INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isStandard, type BlastFrame } from "./plan";
+import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
 import { introWordmarkTop, type SlideLayout } from "./layout";
 
@@ -199,6 +200,17 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   // element on a bare frame; here a dark placeholder names it, so the running
   // order reads as a detour rather than a cream card saying "Exhibit: cycle".
   if (frame.kind === "exhibit") return <ExhibitDetour label={insertStem(frame)} scale={scale} />;
+
+  // BIG (2026-09-08, plan.ts `display`). Lee: "either it's in the current format, or it's more
+  // emphatic where it's a slide just like the slogan one. Bolt in background. BIG letters."
+  // Same words, same fields — only the treatment changes, so switching a slide between the two
+  // never loses anything. The chip's label and accent come from the ONE callout registry, so a
+  // big cheat code is the same colour as a card cheat code.
+  if (isBigCallout(frame)) {
+    const tag = INSERT_CALLOUT[frame.kind];
+    const meta = tag ? calloutMeta(tag as Parameters<typeof calloutMeta>[0]) : { label: FRAME_LABEL[frame.kind].toUpperCase(), accent: GOLD };
+    return <BigCallout w={fw} h={fh} label={meta.label} accent={meta.accent} text={insertStem(frame)} bullets={frameBullets(frame)} art={!!frame.illustration?.assetUrl} live={live} />;
+  }
 
   const kindTag = INSERT_CALLOUT[frame.kind];
   return (
