@@ -42,7 +42,7 @@ async function main() {
   const EXP_SETS = plan.sets.length, EXP_CEQ = plan.ceqCount; // the workbook is the contract
   console.log("\n━━━ VALIDATION ━━━\n[workbook plan]");
   check("plan errors == 0", plan.errors.length === 0, plan.errors.slice(0, 3).join("; "));
-  check("topics == 6", plan.topics.length === 6);
+  check(`topics == ${TOPIC_RECONCILIATION.length}`, plan.topics.length === TOPIC_RECONCILIATION.length);
   check(`subtopic sets == ${EXP_SETS}`, plan.sets.length === EXP_SETS, `got ${plan.sets.length}`);
   check(`CEQs == ${EXP_CEQ}`, plan.ceqCount === EXP_CEQ, `got ${plan.ceqCount}`);
 
@@ -54,7 +54,7 @@ async function main() {
   const owned = new Map<string, any>();
   for (const s of ordered) for (const d of (s.nodes_json?.decks ?? [])) { if (d.payloadType !== "cards" || owned.has(d.id)) continue; owned.set(d.id, { deck: d, sceneId: s.id, nodes: (s.nodes_json?.nodes ?? []).filter((n: any) => n.type === "ceq" && n.data?.deckId === d.id) }); }
   const liveOnTargets = [...owned.values()].filter((o) => o.deck.status === "live" && o.deck.parked !== true && anchorIds.includes(o.deck.topicId));
-  check(`exactly ${EXP_SETS} live sets on the 6 topics`, liveOnTargets.length === EXP_SETS, `got ${liveOnTargets.length}`);
+  check(`exactly ${EXP_SETS} live sets on the ${anchorIds.length} topics`, liveOnTargets.length === EXP_SETS, `got ${liveOnTargets.length}`);
   const newDeckIds = new Set(plan.sets.map((s) => s.deckId));
   check(`all ${EXP_SETS} live sets are the canonical decks`, liveOnTargets.every((o) => newDeckIds.has(o.deck.id)));
   // winning-scene uniqueness: each new deck resolves to exactly one scene
@@ -84,7 +84,7 @@ async function main() {
   check("Starter Map has the 6 canonical topics in order", JSON.stringify(starterTopics.map((t: any) => t.chapter_id)) === JSON.stringify(anchorIds), starterTopics.map((t: any) => t.chapter_id.slice(0, 8)).join(","));
   check("Trial Balances NOT in Starter Map", !starterTopics.some((t: any) => t.chapter_id === DROPPED_FROM_EXAM1_CHAPTER_ID));
   const eu = (await db.from("exam_units").select("id").eq("course_id", COURSE_ID).eq("status", "active").ilike("name", "Exam 1")).data?.[0];
-  if (eu) { const euc = (await db.from("exam_unit_chapters").select("chapter_id").eq("exam_unit_id", eu.id)).data ?? []; check("/learn exam_unit has the 6 topics (no Trial Balances)", euc.length === 6 && !euc.some((x: any) => x.chapter_id === DROPPED_FROM_EXAM1_CHAPTER_ID), `${euc.length} members`); }
+  if (eu) { const euc = (await db.from("exam_unit_chapters").select("chapter_id").eq("exam_unit_id", eu.id)).data ?? []; check(`/learn exam_unit has the ${anchorIds.length} topics (no Trial Balances)`, euc.length === anchorIds.length && !euc.some((x: any) => x.chapter_id === DROPPED_FROM_EXAM1_CHAPTER_ID), `${euc.length} members`); }
 
   console.log("[overrides — §13]");
   const activeCampusE1 = (await db.from("campus_exams").select("id,campus_id,name,status").eq("course_id", COURSE_ID).eq("status", "active").not("campus_id", "is", null).ilike("name", "Exam 1")).data ?? [];
@@ -104,7 +104,7 @@ async function main() {
   check("generic / no-campus → Starter (6 canonical)", generic.level === "starter" && JSON.stringify(generic.topicIds) === JSON.stringify(anchorIds), `level=${generic.level}`);
   // explicit: Ole Miss no longer resolves its old 3-topic testing map
   const om = (await db.from("campuses").select("id").ilike("name", "University of Mississippi")).data?.[0];
-  if (om) { const r = await resolveExam1TopicIds(db, om.id, null); check("Ole Miss no longer resolves its old testing map", r.level === "starter" && r.topicIds.length === 6); }
+  if (om) { const r = await resolveExam1TopicIds(db, om.id, null); check("Ole Miss no longer resolves its old testing map", r.level === "starter" && r.topicIds.length === anchorIds.length); }
 
   console.log(`\n━━━ ${fail === 0 ? "ALL PASS" : "FAILURES"} — ${pass} passed, ${fail} failed ━━━`);
   process.exit(fail === 0 ? 0 : 1);

@@ -98,12 +98,16 @@ stuff, and it's really just too boring to put upfront… that survive accounting
 all shorts, vertical shorts that are three minutes or less. The splitting has to
 be ruthless."*
 
-**What the bank actually says today.** Easy Points is *Internal vs. external
-users · Financial vs. managerial · Standards & regulation · Careers* — 39 vocab
-questions. The two sets Lee wants first, *"What type of account is [ ]?"* (33
-cards) and *"How does [ ] affect A = L + E?"* (19), sit under Analyzing
-Transactions. No set has a Blast Off plan. So the re-plan starts with a topic
-reassignment, then a split.
+**What the live bank actually said** (read from the DB on 2026-09-09 — the 08-29
+snapshot had it backwards). Easy Points was five live vocab sets: *Internal vs.
+external users · Financial vs. managerial · Principles & assumptions · Standards
+& regulation · Careers* — 50 questions of exactly what Lee wants last. The
+foundational sets sat elsewhere: *Account classification* (31) and *Accounting
+equation effects* (14) under Analyzing Transactions, *Debit vs. credit effects*
+(19) and *Normal balances* (12) under Recording Journal Entries, *Accounting
+cycle order* (10) in a chapter outside the Exam 1 grouping altogether. So the
+re-plan started with a topic reassignment
+(`scripts/curriculum/easy-points-reassign.ts`, run 2026-09-09), then the split.
 
 **The ceiling.** Lee's gut: *"around ten to fifteen."* The arithmetic agrees. A
 Short is ≤180 s; the cold open is 10 s and the bio + outro ~15 s, leaving ~155 s.
@@ -117,19 +121,23 @@ over. Anything above 15 in a plan gets split, not trimmed.
 | # | Short | Source | Cards | The callouts he named |
 |---|---|---|---|---|
 | 0 | **Intro** — accounting in two sentences: *"there's business transactions in these word problems, and you have to understand how they're impacting the accounting system. The ground floor of that system are five types of accounts."* Then the format: cheat codes, memorize this, tricky questions, go deeper. *"The goal is to get you from a B to an A."* | zero-CEQ deck (strategy-short pattern) | 0 | the B-to-an-A slogan slide |
-| 1 | Types of accounts — **Assets** | ch1-full 0–10 | 11 → trim to 8 | cheat: prepaids are assets, receivables are assets |
-| 2 | — **Liabilities** | ch1-full 11–14 | 4 | cheat: payables are liabilities |
-| 3 | — **Equity** | ch1-full 15–17 | 3 | tricky: Dividends is contra-EQUITY |
-| 4 | — **Revenue** | ch1-full 18–22 | 5 | memorize: "earned" = revenue |
-| 5 | — **Expense** | ch1-full 23–28 | 6 | |
-| 6 | Add-on: **Contra accounts** | ch1-full 5, 17, 32 + new | ~4 | tricky throughout |
-| 7 | Add-on: **Prepaids vs. expenses** — *"prepaid insurance and insurance expense, supplies and supplies expense… a lot of students miss those"* | new cards | ~4 | go deeper: sets up adjusting |
-| 8 | **A = L + E, the main moves** — *"one example of each movement"*: A↔A, A↑E↑, A↓E↓, A↑L↑, A↓L↓ | ch2-full 2, 0, 9, 1, 8 | 5 | cheat: the internal-company perspective (the parked deck's stage 13 — bring it back) |
-| 9 | **A = L + E, the tricky ones** — *"on credit, dividends, accumulated depreciation, unearned revenue"* | ch2-full 4, 6, 7, 13, 12 + the parked depreciation card | 6 | tricky throughout |
-| 10 | **Debits & credits** — *"the plus minus, minus plus… the tricks for memorizing"* | ch4-full 0–14 | 15 → trim to 10 | memorize: the map |
-| 11 | Add-on: **Contra accounts with debits & credits** — *"they just work opposite"* | ch4-full 4, 15 + new | ~4 | tricky |
-| 12 | **Normal balances** — *"choose the side that increases it… these are free points"* | msrrb7su-7 | 16 → trim to 10 | cheat |
-| 13 | **The accounting cycle** — the tease for the rest of the course, and the soft sell: *"all you need to do to keep going for exam one is drop your email"* + the Greek line | ch3-full | 11 (two cards look broken — stages 17 and 20) | go deeper into every later chapter |
+| 1 | Types of accounts — **Assets** | e1s-2-1 stages 0–10 | 11 → trim to 8 | cheat: prepaids are assets, receivables are assets |
+| 2 | — **Liabilities** | e1s-2-1 11–14 | 4 | cheat: payables are liabilities |
+| 3 | — **Equity** | e1s-2-1 15–17 | 3 | tricky: Dividends is contra-EQUITY |
+| 4 | — **Revenue** | e1s-2-1 18–22 | 5 | memorize: "earned" = revenue |
+| 5 | — **Expense** | e1s-2-1 23–28 | 6 | |
+| 6 | Add-on: **Contra accounts** | e1s-2-1 9 (Accum. Dep.), 17 (Dividends) + new | ~4 | tricky throughout |
+| 7 | Add-on: **Prepaids vs. expenses** — *"prepaid insurance and insurance expense, supplies and supplies expense… a lot of students miss those"* | e1s-2-1 29 (the prepaid-rent / rent-expense pair) + new | ~4 | go deeper: sets up adjusting |
+| 8 | **A = L + E, the main moves** — *"one example of each movement"*: A↔A, A↑E↑, A↓E↓, A↑L↑, A↓L↓ | e1s-2-2 (14 live, pick 5) | 5 | cheat: the internal-company perspective — it is stage 13 of this very set |
+| 9 | **A = L + E, the tricky ones** — *"on credit, dividends, accumulated depreciation, unearned revenue"* | e1s-2-2 (on-account, dividend, the $600 advance, the depreciation card at stage 12) | 6 | tricky throughout |
+| 10 | **Debits & credits** — *"the plus minus, minus plus… the tricks for memorizing"* | e1s-3-1 (19; stage 18 is the memory map) | 19 → trim to 10 | memorize: the map |
+| 11 | Add-on: **Contra accounts with debits & credits** — *"they just work opposite"* | e1s-3-1 stage 17 (Allowance, contra-asset) + new | ~4 | tricky |
+| 12 | **Normal balances** — *"choose the side that increases it… these are free points"* | e1s-3-3 | 12 → trim to 10 | cheat |
+| 13 | **The accounting cycle** — the tease for the rest of the course, and the soft sell: *"all you need to do to keep going for exam one is drop your email"* + the Greek line | e1s-1-1 | 10 | go deeper into every later chapter |
+
+(Card numbers are the live editorial sets' `stageOrder`s. The archived `ch*-full` twins
+of these sets have the same seams and two broken cards in the cycle deck; they stay
+archived.)
 
 **Vocab moves to the end.** Users, financial-vs-managerial, standards, careers,
 and principles all come *after* the cycle — *"I like the idea of teaching the

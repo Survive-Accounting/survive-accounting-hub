@@ -13,7 +13,9 @@ test("plan builds with zero validation errors", () => {
   expect(plan.errors).toEqual([]);
 });
 
-test("canonical counts: 6 topics / 25 sets / 274 CEQs", () => {
+// 7 topics since 2026-09-09: Principles & Vocab is the seventh, and TOPIC_OVERRIDES files the
+// moved sets under it and under Easy Points — see plan.ts.
+test("canonical counts: 7 topics / 25 sets / 274 CEQs", () => {
   expect(plan.topics.length).toBe(EXPECTED.topics);
   expect(plan.sets.length).toBe(EXPECTED.subtopics);
   expect(plan.ceqCount).toBe(EXPECTED.ceqs);

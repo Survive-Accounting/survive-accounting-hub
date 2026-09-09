@@ -68,6 +68,12 @@ export const TOPIC_RECONCILIATION: { order: number; canonicalName: string; legac
   { order: 4, canonicalName: "Adjusting Entries & Trial Balance", legacyName: "Adjusting Entries", anchorChapterId: "53738f41-508c-47ee-acf3-a55d4956eaf4" },
   { order: 5, canonicalName: "Financial Statements", legacyName: "Financial Statements", anchorChapterId: "520269db-48ed-4664-8f14-27cbc2a9f518" },
   { order: 6, canonicalName: "Closing Entries", legacyName: "Closing Entries", anchorChapterId: "8c60634f-08d7-4959-b7bb-930979ad351b" },
+  // THE SEVENTH (2026-09-09, scripts/curriculum/easy-points-reassign.ts). Lee: "the vocab one
+  // should come later… I do like the idea of teaching the principles at the ends where I can
+  // just go back to little things I showed them." The chapter the 08-29 reconcile created for
+  // the two principle sets (unnamed until today) takes the four vocab sets that used to BE Easy
+  // Points, and sits last. In the list so a future reconcile keeps it on the student path.
+  { order: 7, canonicalName: "Principles & Vocab", legacyName: "Principles & Vocab", anchorChapterId: "3c4e0022-de7e-4911-a526-13c78e58c147" },
 ];
 /** Chapter dropped from Exam 1 by this reset — its content folds into topic 4. Kept in the DB
  *  (not deleted) but removed from every Exam-1 grouping and its old set parked. */
@@ -77,7 +83,34 @@ export const DROPPED_FROM_EXAM1_CHAPTER_ID = "5b338fc7-b9cc-4fed-9285-24fb335c8a
 // editable, so counts are reported, NOT hard-enforced. Structural checks (choices/correct/dup
 // keys/dup prompts/unknown topic) remain blocking; a count that drifts as Lee adds/removes
 // questions is expected, not an error.
-export const EXPECTED = { topics: 6, subtopics: 25, ceqs: 274 } as const;
+export const EXPECTED = { topics: 7, subtopics: 25, ceqs: 274 } as const;
+
+/** WHERE A SET LIVES NOW, when that differs from the workbook (2026-09-09).
+ *
+ *  The workbook is the editorial source of truth for the CARDS and it still files these sets
+ *  where they were written: the vocab under Easy Points, the foundational sets under Analyzing
+ *  Transactions / Recording Journal Entries. Lee moved them in the live bank the same day
+ *  (scripts/curriculum/easy-points-reassign.ts): "the vocab one should come later… I do like
+ *  the idea of teaching the principles at the ends." Without this table the reconcile script —
+ *  which writes deck.topicId and sortOrder from the plan — would quietly put every one of them
+ *  back the next time it ran. So the plan carries the move too, and the two agree.
+ *
+ *  Keyed "topicOrder.subtopicOrder" AS WRITTEN IN THE WORKBOOK. Deck and scene ids are derived
+ *  from those original coordinates and must never change — a set keeps its id when it moves. */
+export const TOPIC_OVERRIDES: Record<string, { topicOrder: number; sortOrder: number }> = {
+  // Easy Points — the five families, in teaching order.
+  "2.1": { topicOrder: 1, sortOrder: 1 },   // Account classification
+  "2.2": { topicOrder: 1, sortOrder: 2 },   // Accounting equation effects
+  "3.1": { topicOrder: 1, sortOrder: 3 },   // Debit vs. credit effects
+  "3.3": { topicOrder: 1, sortOrder: 4 },   // Normal balances
+  "1.1": { topicOrder: 1, sortOrder: 5 },   // Accounting cycle order
+  // Principles & Vocab — last, the principles set last of all (the point-back finale).
+  "1.2": { topicOrder: 7, sortOrder: 1 },   // Internal vs. external users
+  "1.3": { topicOrder: 7, sortOrder: 2 },   // Financial vs. managerial accounting
+  "1.5": { topicOrder: 7, sortOrder: 3 },   // Standards & regulation
+  "1.6": { topicOrder: 7, sortOrder: 4 },   // Accounting careers
+  "1.4": { topicOrder: 7, sortOrder: 5 },   // Principles & assumptions
+};
 
 export const deckIdFor = (topicOrder: number, subtopicOrder: number) => `deck-e1s-${topicOrder}-${subtopicOrder}`;
 export const sceneKeyFor = (topicOrder: number, subtopicOrder: number) => `exam1-starter/set/${topicOrder}.${subtopicOrder}`;
@@ -115,13 +148,16 @@ export function buildPlan(rows: ImportRow[]): Plan {
   const allSets: SetPlan[] = [];
 
   for (const g of [...groups.values()].sort((a, b) => a.topicOrder - b.topicOrder || a.subtopicOrder - b.subtopicOrder)) {
+    // Ids from the workbook's coordinates, ALWAYS; the topic and the order within it from the
+    // override when there is one (see TOPIC_OVERRIDES — a set keeps its id when it moves).
+    const moved = TOPIC_OVERRIDES[`${g.topicOrder}.${g.subtopicOrder}`];
     const set: SetPlan = {
       deckId: deckIdFor(g.topicOrder, g.subtopicOrder),
       sceneKey: sceneKeyFor(g.topicOrder, g.subtopicOrder),
       name: g.subtopic,
-      topicOrder: g.topicOrder,
+      topicOrder: moved?.topicOrder ?? g.topicOrder,
       subtopicOrder: g.subtopicOrder,
-      sortOrder: g.subtopicOrder,
+      sortOrder: moved?.sortOrder ?? g.subtopicOrder,
       ceqs: [],
     };
     const promptsSeen = new Set<string>();
@@ -139,7 +175,7 @@ export function buildPlan(rows: ImportRow[]): Plan {
       });
       set.ceqs.push({ ceqId, stageOrder: i, prompt: r.questionText.trim(), shorthand: null, choices, reused: !!r.originalCeqId, questionKey: r.questionKey, source: r.source });
     });
-    const topic = topicByOrder.get(g.topicOrder);
+    const topic = topicByOrder.get(set.topicOrder);
     if (topic) topic.sets.push(set);
     allSets.push(set);
   }
