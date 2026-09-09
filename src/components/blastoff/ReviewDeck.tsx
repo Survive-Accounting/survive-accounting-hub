@@ -356,6 +356,29 @@ const SPINE_CSS = `
 const FOLDER_TAB = "rgba(252,163,17,0.16)";
 const FOLDER_BODY = "rgba(252,163,17,0.05)";
 const FOLDER_EDGE = "rgba(252,163,17,0.34)";
+/** THE RUNNING ORDER AS SLIDES (2026-09-09). Lee: "the running order too, I would rather just
+ *  see it kind of like we see in film mode." 88 px is the smallest a 9:16 card still reads as
+ *  itself at a glance; the row keeps its number, its kind tag and its words beside it. */
+const THUMB_W = 88;
+const STRIP_VIEW_KEY = "sa-review-strip-view";
+const readStripView = (): "film" | "list" => { try { return localStorage.getItem(STRIP_VIEW_KEY) === "list" ? "list" : "film"; } catch { return "film"; } };
+
+/** One landing place in the zoomed-out move overlay — a tall thin target between two slides.
+ *  Click, don't drag: on a fifty-slide deck a click is the gesture that gets used. */
+function MoveSlot({ to, onPick, first, last }: { to: number; onPick: (to: number) => void; first?: boolean; last?: boolean }) {
+  const [hot, setHot] = useState(false);
+  return (
+    <button onClick={() => onPick(to)} onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
+      title={first ? "Put it first" : last ? "Put it last" : "Put it here"}
+      style={{
+        width: hot ? 22 : 14, alignSelf: "stretch", minHeight: 128, margin: "0 1px", cursor: "pointer",
+        background: hot ? "rgba(252,163,17,0.22)" : "transparent",
+        border: `1px dashed ${hot ? GOLD : "rgba(255,255,255,0.16)"}`, borderRadius: 5,
+        transition: "width .1s, background .1s", padding: 0,
+      }} />
+  );
+}
+
 const SKIP_FOLDER_KEY = "sa-review-skip-folder";
 const readFolderOpen = (): boolean => { try { return localStorage.getItem(SKIP_FOLDER_KEY) === "open"; } catch { return false; } };
 const writeFolderOpen = (v: boolean): void => { try { localStorage.setItem(SKIP_FOLDER_KEY, v ? "open" : "closed"); } catch { /* storage refused — it just won't stick */ } };
@@ -502,6 +525,13 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   const [sloganMenu, setSloganMenu] = useState(false);
   /** The insert row, folded away until asked for (2026-09-09) — see the button. */
   const [insertOpen, setInsertOpen] = useState(false);
+  /** Slides or text rows in the running order. Read after mount — the server has no
+   *  localStorage, and slides-then-list is a nicer first paint than the reverse. */
+  const [stripView, setStripViewState] = useState<"film" | "list">("film");
+  useEffect(() => { setStripViewState(readStripView()); }, []);
+  const setStripView = (v: "film" | "list") => { setStripViewState(v); try { localStorage.setItem(STRIP_VIEW_KEY, v); } catch { /* cosmetic */ } };
+  /** The slide whose ⇅ was pressed — the zoomed-out placement overlay is up for it. */
+  const [moveId, setMoveId] = useState<string | null>(null);
   /** Insert after a given frame (or the selected one), optionally selecting it. */
   const insertAfter = useCallback((afterId: string | null, kind: BlastFrameKind, patch: Partial<BlastFrame> = {}, select = true) => {
     if (!plan) return;
@@ -809,11 +839,23 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   const activeRows = indexed.filter((r) => !r.f.skipped);
   const skippedRows = indexed.filter((r) => r.f.skipped);
 
+  // THE ZOOMED-OUT MOVE (2026-09-09). `moveFrameRef` is the slide being placed; `moveTo` drops
+  // it before the frame at `to`. moveFrame takes a from/to pair in the SAME list, and removing
+  // the slide first shifts everything after it down one — so a target past the origin loses one.
+  const moveFrameRef = moveId ? frames.find((f) => f.id === moveId) ?? null : null;
+  const moveTo = (to: number) => {
+    const from = moveFrameRef ? frames.indexOf(moveFrameRef) : -1;
+    if (from < 0) { setMoveId(null); return; }
+    const dest = to > from ? to - 1 : to;
+    if (dest !== from) commit(moveFrame(frames, from, dest));
+    setMoveId(null);
+  };
+
   /** One spine row, shared by the running order and the folder — `number` is the
    *  row's place in the actual film order (undefined inside the folder, where a
    *  slide has no such place); `foldered` turns off drag (a skipped card's order
    *  relative to other skipped cards films nothing, so there is nothing to reorder). */
-  const spineRow = (f: BlastFrame, i: number, opts: { number?: number; foldered?: boolean } = {}) => {
+  const spineRow = (f: BlastFrame, i: number, opts: { number?: number; foldered?: boolean; thumb?: boolean } = {}) => {
     const on = f.id === sel?.id;
     const menu = menuId === f.id;
     const lineAbove = !opts.foldered && over?.i === i && !over.below && dragId !== f.id;
@@ -843,6 +885,15 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
         <span style={{ color: MUTED, fontSize: 11, fontWeight: 800, minWidth: 18, borderRight: `1px solid ${EDGE}`, paddingRight: 6, fontVariantNumeric: "tabular-nums" }}>
           {opts.number != null ? opts.number : "⊘"}
         </span>
+        {/* THE SLIDE ITSELF, small — the same renderer the middle pane and the film use, so what
+            he scans here is what films. Not interactive: pointer events off, so the row's own
+            click and drag still own the whole area. */}
+        {opts.thumb && (
+          <span style={{ display: "inline-flex", flex: "0 0 auto", pointerEvents: "none", borderRadius: 4, overflow: "hidden", border: `1px solid ${EDGE}`, opacity: f.skipped ? 0.45 : 1 }}>
+            <PhoneFrame frame={f} frames={frames} index={i} set={viewSet} topicName={topic.name} w={THUMB_W} live={false} rounded={false}
+              progress={progress.get(f.id)} layout={layoutOf(plan)} />
+          </span>
+        )}
         <span style={kindTag(colorOf(f))}>{labelOf(f)}</span>
         <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{snippet(f)}</span>
         {/* SAME CARD, TWICE — say so on the row (2026-09-09). Lee duplicated Prepaid Rent
@@ -863,6 +914,14 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
               twice (a callback — edit either and both change, because they are one card); ⧉+
               makes a real new card he can edit freely. It was only in the ⋯ menu, which is how
               he missed it. */}
+          {/* MOVE IT (2026-09-09). Lee: "if I want to reorder a slide we can put like a reorder
+              icon to the top right of it outside the slide, and if I click that it lets me — it
+              maybe zooms out a little bit and lets me drag it to where I would like it to be."
+              Dragging the row still works; this is the version that does not need a steady hand
+              down a fifty-slide list. */}
+          {!opts.foldered && (
+            <button style={tiny} title="Move this slide — pick a place in the zoomed-out order" onClick={(e) => { e.stopPropagation(); setMoveId(f.id); }}>⇅</button>
+          )}
           <button style={tiny} title={f.kind === "ceq" ? "Duplicate — the SAME card, filmed twice. Editing either one edits the card." : "A copy right after this one"} onClick={(e) => { e.stopPropagation(); duplicateAt(f.id, i); }}>⧉</button>
           {f.kind === "ceq" && f.ceqId && (
             <button style={tiny} title="Clone as a NEW card — a real second card in the set, copied from this one, editable without touching the original" onClick={(e) => { e.stopPropagation(); void cloneCard(f.id, i); }}>⧉+</button>
@@ -960,9 +1019,21 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
           </div>
         )}
 
-        <div style={{ ...subhead, marginBottom: 5 }}>Running order</div>
+        {/* THE RUNNING ORDER, AS SLIDES (2026-09-09). Lee: "the running order too, I would rather
+            just see it kind of like we see in film mode… I want to see just scroll through the
+            different slides, and I could spacebar through them, shift+spacebar to go backwards."
+            So the list is thumbnails of the real slides — the same PhoneFrame the middle pane
+            draws, at 88px — and the text rows stay one click away for a set where the words are
+            what he is scanning for. The choice is remembered per browser. */}
+        <div className="flex items-center" style={{ gap: 8, marginBottom: 5 }}>
+          <span style={subhead}>Running order</span>
+          <button onClick={() => setStripView(stripView === "film" ? "list" : "film")} style={{ ...chip(stripView === "film", GOLD), marginLeft: "auto", padding: "2px 8px", fontSize: 10 }}
+            title={stripView === "film" ? "Show the running order as text rows" : "Show the running order as slides"}>
+            {stripView === "film" ? "▤ list" : "▦ slides"}
+          </button>
+        </div>
         <div className="flex flex-col" style={{ gap: 5 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
-          {activeRows.map(({ f, i }, pos) => spineRow(f, i, { number: pos + 1 }))}
+          {activeRows.map(({ f, i }, pos) => spineRow(f, i, { number: pos + 1, thumb: stripView === "film" }))}
         </div>
 
         {skippedRows.length > 0 && (
@@ -971,6 +1042,37 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
           </SkipFolder>
         )}
       </section>
+
+      {/* MOVE A SLIDE, ZOOMED OUT (2026-09-09) — the whole running order at once, as slides, and
+          a drop slot between every pair. Lee asked for "zooms out a little bit and lets me drag
+          it to where I would like it to be"; a CLICK on the slot is the same gesture without the
+          drag, which on a fifty-slide deck is the one that actually gets used. */}
+      {moveFrameRef && (
+        <div role="dialog" aria-label="Move this slide" onClick={() => setMoveId(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(4,6,12,0.86)", padding: 20, overflowY: "auto" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 1100, margin: "0 auto" }}>
+            <div className="flex items-center" style={{ gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "'League Spartan', Rubik, system-ui, sans-serif", fontSize: 18, fontWeight: 900, color: CREAM }}>Move “{snippet(moveFrameRef).slice(0, 46)}”</span>
+              <span style={{ fontSize: 12.5, color: MUTED }}>Click where it should go.</span>
+              <button onClick={() => setMoveId(null)} style={{ ...chip(false), marginLeft: "auto" }}>cancel</button>
+            </div>
+            <div className="flex" style={{ flexWrap: "wrap", alignItems: "flex-start", gap: 2 }}>
+              {activeRows.map(({ f, i }, pos) => (
+                <span key={f.id} className="flex" style={{ alignItems: "stretch" }}>
+                  <MoveSlot to={i} onPick={moveTo} first={pos === 0} />
+                  <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 3, opacity: f.id === moveFrameRef.id ? 0.35 : 1 }}>
+                    <span style={{ borderRadius: 5, overflow: "hidden", border: `1px solid ${f.id === moveFrameRef.id ? GOLD : EDGE}`, pointerEvents: "none" }}>
+                      <PhoneFrame frame={f} frames={frames} index={i} set={viewSet} topicName={topic.name} w={72} live={false} rounded={false} layout={layoutOf(plan)} />
+                    </span>
+                    <span style={{ fontSize: 9.5, color: MUTED, fontVariantNumeric: "tabular-nums" }}>{pos + 1}</span>
+                  </span>
+                </span>
+              ))}
+              <MoveSlot to={frames.length} onPick={moveTo} last />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --------------------------------------------- MIDDLE: the slide */}
       <section>
