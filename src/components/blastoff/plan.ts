@@ -112,6 +112,12 @@ export interface BlastFrame {
    *  black, bolt behind, heading enormous (brand-cards/BigCallout.tsx). Only the four callout
    *  kinds read it — see canGoBig. */
   display?: "card" | "big";
+  /** A CUT AFTER THIS SLIDE (2026-09-09). Lee: "if I could just mark the split from the spine
+   *  versus a new interface… have a scissor icon for cutting there." The running order is the
+   *  truth, so the split lives ON it: every run between cuts is one Short. Marking is free and
+   *  reversible — nothing moves until the knife is applied — and the spine can collapse a run
+   *  ("would be a huge help if I could collapse a split group"). */
+  cutAfter?: true;
   /** THE CAMPUS BANNER on this slide (Lee: "let me add this banner at any time
    *  on future slides … toggle-able on and off"). Absent = only the cold open. */
   banner?: "on" | "off";
@@ -357,6 +363,41 @@ export function dropFrame(frames: readonly BlastFrame[], id: string): BlastFrame
   // the same ceqId, this one can simply go. The last frame for a card still only skips.
   if (f.kind === "ceq" && f.ceqId && frames.some((x) => x.id !== id && x.ceqId === f.ceqId)) return removeFrame(frames, id);
   return frames.map((x) => (x.id === id ? { ...x, skipped: true } : x));
+}
+
+/** THE STANDARD OPENER (2026-09-09), in Lee's words and in his own draft's order: "Hero camera,
+ *  Survive, [topic name], surviveaccounting.com, campus banner underneath. 'This is a cram
+ *  video—not a lecture.' slogan slide next. Then bio slide, then a blank 'found on your exam'
+ *  callout. This will be the standard structure of every video, so it saves time when I split
+ *  somewhere that I can just have this by default."
+ *
+ *  `name` is what the opener announces — the piece's own name after a split, the set's name
+ *  otherwise. The found card is deliberately BLANK: it is the question the video answers, and
+ *  only Lee knows it. */
+export function standardOpener(name: string, cram: string): BlastFrame[] {
+  return [
+    { id: newFrameId("intro"), kind: "intro", text: name, banner: "on" },
+    { id: newFrameId("slogan"), kind: "slogan", text: cram, banner: "on" },
+    { id: newFrameId("bio"), kind: "bio", banner: "on", cam: "corner" },
+    { id: newFrameId("found"), kind: "found", text: "" },
+  ];
+}
+
+/** CUT HERE — mark the end of one video, and give both sides their bookends (2026-09-09).
+ *  Lee: "If I cut somewhere, it can automatically append the outro slide to the end, and an
+ *  intro slide to the next group." So the cut lands with a sign-off in front of it and the
+ *  standard opener behind it, and the running order reads as two finished videos rather than
+ *  one list with a line through it. Un-cutting only removes the mark; the slides it added are
+ *  his now, and deleting them silently would throw away edits. */
+export function cutAfterFrame(frames: readonly BlastFrame[], id: string, opener: BlastFrame[]): BlastFrame[] {
+  const i = frames.findIndex((f) => f.id === id);
+  if (i < 0) return [...frames];
+  if (frames[i].cutAfter) return frames.map((f) => (f.id === id ? { ...f, cutAfter: undefined } : f));
+  const outro: BlastFrame = { id: newFrameId("outro"), kind: "outro" };
+  // The sign-off closes THIS video, and carries the mark; the opener starts the next one.
+  const before = frames.slice(0, i + 1);
+  const after = frames.slice(i + 1);
+  return [...before, { ...outro, cutAfter: true as const }, ...opener, ...after];
 }
 
 /** Skip ↔ film again. */

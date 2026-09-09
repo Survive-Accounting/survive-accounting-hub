@@ -62,6 +62,11 @@ const STAGE_FADE_CSS = `
 // drop-shadows, not a glow blur — a single soft glow is the first thing H.264 smears, where
 // stacked shadows survive it (the same reasoning GlowWordmark uses). It never moves and never
 // changes size: position, size and opacity are watermarkSpot's, one copy.
+//
+// IT WAITS 1.4 s (2026-09-09). Lee: "I see the wordmark glow. I want it to delay a second or
+// two when I first enter the first CEQ set slide." The card arrives, he starts the question,
+// and THEN the corner comes alive — the glow reads as a response to the video speeding up
+// rather than as part of the slide transition.
 const WATERMARK_CHARGE_CSS = `
 @keyframes sa-wm-charge { from { filter: brightness(1.9) drop-shadow(0 0 10px rgba(252,163,17,0.55)); } to { filter: none; } }
 @keyframes sa-wm-live {
@@ -69,8 +74,8 @@ const WATERMARK_CHARGE_CSS = `
   50%      { filter: drop-shadow(0 0 6px rgba(191,219,254,0.85)) drop-shadow(0 0 18px rgba(59,130,246,0.55)) brightness(1.14); }
 }
 .film-mode .sa-wm-charge { animation: sa-wm-charge 1000ms ease-out both; }
-.film-mode .sa-wm-live { animation: sa-wm-live 2600ms ease-in-out infinite; }
-.film-mode .sa-wm-charge.sa-wm-live { animation: sa-wm-charge 1000ms ease-out both, sa-wm-live 2600ms ease-in-out 1000ms infinite; }
+.film-mode .sa-wm-live { animation: sa-wm-live 2600ms ease-in-out 1400ms infinite; }
+.film-mode .sa-wm-charge.sa-wm-live { animation: sa-wm-charge 1000ms ease-out both, sa-wm-live 2600ms ease-in-out 1400ms infinite; }
 @media (prefers-reduced-motion: reduce) { .film-mode .sa-wm-charge, .film-mode .sa-wm-live, .film-mode .sa-wm-charge.sa-wm-live { animation: none; } }`;
 
 /** FrameView's `scale` for a frame on a stage `w` wide: full-frame kinds fill
@@ -155,7 +160,10 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   // / layout.camDefault) and that stays true everywhere else; only while this slide is actually
   // assembling does it borrow the corner spot — the small top-right circle, i.e. out on the
   // right, exactly where Lee's camera comes in from.
-  const assembling = !!coldOpen && frame.kind === "open";
+  // The opener assembles whatever kind it is (frame-view `opener`): Lee skips the cold open, so
+  // his first filmed slide is the intro and that is the one that has to build itself.
+  const opener = index === 0 && (frame.kind === "open" || frame.kind === "intro");
+  const assembling = !!coldOpen && opener;
   const camAsked: CamSpot = camSpot ?? own;
   const cam: CamSpot = assembling && camAsked === "off" ? "corner" : camAsked;
   // A SAVED SIZE BELONGS TO THE SLIDE'S OWN SPOT. It used to apply to whatever spot was
@@ -298,7 +306,7 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
         ...(topAligned ? { marginTop: Math.round(h * (SAFE.top + 0.02)), maxWidth: Math.round(w * (SAFE.right - SAFE.left)) } : {}),
         ...(moment ? { filter: "blur(2px) brightness(0.35)", transition: "filter 480ms ease" } : { transition: "filter 480ms ease" }),
         ...stageStyle }}>
-        <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} layout={layout} coldOpen={assembling ? coldOpen : null} />
+        <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} layout={layout} coldOpen={assembling ? coldOpen : null} opener={opener} />
         {/* THE OPTIONAL ILLUSTRATION — second row of the stage grid, under the card; nothing when
             absent. A placed one (or a blank slide's) is the phone-level layer below instead. */}
         {frame.illustration?.assetUrl && canIllustrate(frame.kind) && !isPlaced(frame.kind, frame.illustration, big) && (

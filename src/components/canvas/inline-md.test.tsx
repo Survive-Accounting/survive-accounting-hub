@@ -28,8 +28,14 @@ describe("the inline markers", () => {
     expect(html("the ~~wrong~~ way")).toContain(">wrong</s>");
   });
 
-  test("a lone ~ is just a tilde", () => {
-    expect(html("about ~5 minutes")).not.toContain("<s ");
+  // Lee writes it as "a ~ ~" and types one tilde, so both forms strike.
+  test("~single~ strikes too", () => {
+    expect(html("the ~wrong~ way")).toContain("<s ");
+    expect(html("the ~wrong~ way")).toContain(">wrong</s>");
+  });
+  test("prose with stray tildes survives — the run may not begin or end on whitespace", () => {
+    expect(html("about ~5 minutes and ~10 more")).not.toContain("<s ");
+    expect(html("a ~ b ~ c")).not.toContain("<s ");
     expect(html("about ~5 minutes")).toContain("~5 minutes");
   });
 

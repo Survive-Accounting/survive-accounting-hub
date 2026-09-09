@@ -399,7 +399,13 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
   // F4 pressed in the OTHER window: roll, and end any count that was still running.
   useRollSignal(set.id, popout.isPopout, useCallback(() => { cancelCountdown(); roll(); }, [cancelCountdown, roll]));
   const counting = countdown.seconds !== null;
-  const isOpenFrame = frame?.kind === "open";
+  // WHICH SLIDE ASSEMBLES (2026-09-09). Lee: "animation still isn't showing up on entrance."
+  // It could not: his draft SKIPS the cold open, so filmFrames drops it and slide one is the
+  // INTRO — and the assembly only ever attached to kind "open". Whatever he opens on is the
+  // slide that has to build itself, and both brand cards are drawn by the same component
+  // (BoltZoom), so the choreography lands on either. Anchored to the first FILMED slide rather
+  // than to a kind: F4 rolls the video, and the video starts wherever he starts it.
+  const isOpenFrame = !!frame && idx === 0 && (frame.kind === "open" || frame.kind === "intro");
   const lastOpenId = useRef<string | null>(null);
   useEffect(() => {
     if (!isOpenFrame) { lastOpenId.current = null; return; }

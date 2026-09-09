@@ -20,7 +20,11 @@ export function renderInline(text: string, hl?: { bg?: string; color?: string })
   // my teaching"). ~~word~~, the same doubled-marker rule as ==highlight==, so a lone ~ falls
   // through and renders literally. It is the "the wrong thing to do would be this" gesture — he
   // shows the wrong answer, then crosses it out.
-  const re = /(\*\*([^*]+?)\*\*|==((?:[^=]|=(?!=))+?)==|~~((?:[^~]|~(?!~))+?)~~|__([^_\n]+?)__|(_{3,}))/g;
+  // STRIKETHROUGH takes ~~doubled~~ OR ~single~ (2026-09-09). Lee asked for it as "a ~ ~", wrote
+  // it that way twice, and reported it not working — he is typing one tilde. The single form is
+  // guarded so prose survives: the run may not begin or end on whitespace, which is what stops
+  // "about ~5 minutes and ~10 more" from striking everything between the two tildes.
+  const re = /(\*\*([^*]+?)\*\*|==((?:[^=]|=(?!=))+?)==|~~((?:[^~]|~(?!~))+?)~~|~(\S|\S[^~\n]*?\S)~|__([^_\n]+?)__|(_{3,}))/g;
   let last = 0;
   let k = 0;
   let m: RegExpExecArray | null;
@@ -30,9 +34,9 @@ export function renderInline(text: string, hl?: { bg?: string; color?: string })
     else if (m[3] != null) out.push(<mark key={k++} style={{ background: bg, color, padding: "0 3px", borderRadius: 3, boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone" }}>{m[3]}</mark>);
     // The struck run stays readable — it is the wrong answer he wants seen and rejected, not
     // hidden — so it dims rather than disappears, and the line is thick enough to survive H.264.
-    else if (m[4] != null) out.push(<s key={k++} style={{ textDecorationThickness: "0.11em", opacity: 0.72 }}>{m[4]}</s>);
-    else if (m[5] != null) out.push(<span key={k++} style={{ textDecoration: "underline", textDecorationThickness: "0.09em", textUnderlineOffset: "0.14em" }}>{m[5]}</span>);
-    else out.push(<span key={k++} aria-label="blank" style={{ display: "inline-block", width: `${Math.max(2, m[6].length * 0.55)}em`, borderBottom: "0.09em solid currentColor", verticalAlign: "baseline", lineHeight: 1 }}>&#8203;</span>);
+    else if (m[4] != null || m[5] != null) out.push(<s key={k++} style={{ textDecorationThickness: "0.11em", opacity: 0.72 }}>{m[4] ?? m[5]}</s>);
+    else if (m[6] != null) out.push(<span key={k++} style={{ textDecoration: "underline", textDecorationThickness: "0.09em", textUnderlineOffset: "0.14em" }}>{m[6]}</span>);
+    else out.push(<span key={k++} aria-label="blank" style={{ display: "inline-block", width: `${Math.max(2, m[7].length * 0.55)}em`, borderBottom: "0.09em solid currentColor", verticalAlign: "baseline", lineHeight: 1 }}>&#8203;</span>);
     last = m.index + m[0].length;
   }
   if (last < text.length) out.push(text.slice(last));

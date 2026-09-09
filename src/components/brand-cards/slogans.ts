@@ -19,7 +19,7 @@
 /** The site tagline — the cold open's line, the outro's default, and slogan two. */
 export const TAGLINE = "Cram what's on your exam.";
 
-export type SloganId = "b-to-a" | "cram" | "yt-shorts" | "nothing-like";
+export type SloganId = "b-to-a" | "cram" | "yt-shorts" | "nothing-like" | "cram-not-lecture";
 
 export interface Slogan {
   id: SloganId;
@@ -41,7 +41,13 @@ export const SLOGANS: readonly Slogan[] = [
   // the canned one so I know which ones I have available to use." The ellipsis is the point:
   // the slide sets up the objection and he finishes the sentence out loud.
   { id: "nothing-like", text: "“My exam looked nothing like…”", art: false, blurb: "the objection, set up for you to answer out loud — text only" },
+  // 2026-09-09: slide two of the standard opener — it sets the format expectation before the
+  // first question, which is what lets the rest of the video move fast.
+  { id: "cram-not-lecture", text: "This is a cram video—not a lecture.", art: false, blurb: "the promise up front — slide two of every video" },
 ];
+
+/** The line every video's second slide carries (plan.ts standardOpener). */
+export const CRAM_NOT_LECTURE = "This is a cram video—not a lecture.";
 
 /** THE TWO THE OUTRO CAN END ON (2026-09-08). Lee: "ensure we have option to say, 'Like YT
  *  shorts for exam prep.' on the outro slides too. Like two versions I could use." The

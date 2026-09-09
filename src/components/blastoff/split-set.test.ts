@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { PIECE_CARD_CEILING, SPINE_KINDS, carryFrames, cuttable, pieceStatus, piecesFromCuts, splitProblem, suggestPieceName, type SplitCard } from "./split-set";
+import { cutAfterFrame, standardOpener, type BlastFrame } from "./plan";
 
 // Lee, 2026-09-09: "that survive accounting is all shorts, vertical shorts that are three minutes
 // or less. The splitting has to be ruthless." The account-type set is the case: 31 cards →
@@ -107,5 +108,43 @@ describe("a suggested name", () => {
   test("mixed answers fall back to the first stem's tail", () => {
     expect(suggestPieceName(["What type of account is Cash?", "x"], ["Asset", "Liability"])).toBe("Cash");
     expect(suggestPieceName([])).toBe("Part");
+  });
+});
+
+// Lee, 2026-09-09: "have a scissor icon for cutting there. If I cut somewhere, it can
+// automatically append the outro slide to the end, and an intro slide to the next group."
+describe("cutting from the spine", () => {
+  const opener = () => standardOpener("Assets", "This is a cram video—not a lecture.");
+  const frames: BlastFrame[] = [
+    { id: "intro", kind: "intro" },
+    { id: "q1", kind: "ceq", ceqId: "c1" },
+    { id: "q2", kind: "ceq", ceqId: "c2" },
+    { id: "outro", kind: "outro" },
+  ];
+
+  test("the opener is Lee's four slides, in his order", () => {
+    expect(opener().map((f) => f.kind)).toEqual(["intro", "slogan", "bio", "found"]);
+    expect(opener()[0].text).toBe("Assets");
+    expect(opener()[1].text).toBe("This is a cram video—not a lecture.");
+    expect(opener()[3].text).toBe("");            // the found card is his to write
+    expect(opener()[0].banner).toBe("on");        // "campus banner underneath"
+  });
+
+  test("a cut puts a sign-off above it and the standard opener below", () => {
+    const next = cutAfterFrame(frames, "q1", opener());
+    expect(next.map((f) => f.kind)).toEqual(["intro", "ceq", "outro", "intro", "slogan", "bio", "found", "ceq", "outro"]);
+    expect(next.find((f) => f.cutAfter)?.kind).toBe("outro");   // the mark rides the sign-off
+  });
+
+  test("cutting the same place again only removes the mark — the slides it added are his now", () => {
+    const cut = cutAfterFrame(frames, "q1", opener());
+    const markId = cut.find((f) => f.cutAfter)!.id;
+    const back = cutAfterFrame(cut, markId, opener());
+    expect(back.some((f) => f.cutAfter)).toBe(false);
+    expect(back).toHaveLength(cut.length);        // nothing deleted
+  });
+
+  test("an unknown id changes nothing", () => {
+    expect(cutAfterFrame(frames, "nope", opener())).toEqual(frames);
   });
 });

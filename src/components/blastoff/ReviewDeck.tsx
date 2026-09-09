@@ -96,11 +96,11 @@ import { indentBulletLine } from "./bullet-indent";
 import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
-import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, cloneFrameToEnd, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
+import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 // THE SLOGANS (2026-09-08) — the three lines, in the one place they are allowed to live
 // (brand-cards/slogans.ts). The quick row inserts them; the Editor offers them as chips.
-import { OUTRO_SLOGANS, SLOGANS, TAGLINE } from "@/components/brand-cards/slogans";
+import { CRAM_NOT_LECTURE, OUTRO_SLOGANS, SLOGANS, TAGLINE } from "@/components/brand-cards/slogans";
 import { PHRASE_SLIDE_KINDS } from "./prompter";
 import { ADS, AD_LABEL } from "./AdSlide";
 import { PhoneFrame } from "./PhoneFrame";
@@ -379,6 +379,33 @@ function MoveSlot({ to, onPick, first, last }: { to: number; onPick: (to: number
   );
 }
 
+/** THE GAP UNDER A SLIDE (2026-09-09) — invisible until hovered, then three verbs: add a slide
+ *  here, clone this one as its own editable card, or cut the video here. A marked cut stays
+ *  visible, because it is structure rather than a hover affordance. */
+function GapTools({ onInsert, onClone, onCut, cut }: { onInsert: () => void; onClone: () => void; onCut: () => void; cut: boolean }) {
+  const [hot, setHot] = useState(false);
+  const btn = (label: string, title: string, run: () => void, color: string) => (
+    <button title={title} onClick={(e) => { e.stopPropagation(); run(); }}
+      style={{ background: "rgba(9,13,26,0.92)", border: `1px solid ${color}`, color, borderRadius: 7, fontSize: 11, lineHeight: 1, padding: "2px 7px", cursor: "pointer" }}>{label}</button>
+  );
+  return (
+    <div onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
+      style={{ position: "relative", width: "100%", alignSelf: "stretch", height: cut ? 18 : 12, marginTop: -2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+      {cut && <span style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 0, borderTop: `2px dashed ${GOLD}`, pointerEvents: "none" }} />}
+      {cut && !hot && (
+        <span style={{ position: "relative", fontSize: 9.5, fontWeight: 800, letterSpacing: "0.14em", color: GOLD, background: PANEL, padding: "0 6px" }}>✂ END OF VIDEO</span>
+      )}
+      {hot && (
+        <span className="flex" style={{ gap: 6, position: "relative" }}>
+          {btn("＋", "Add a slide here", onInsert, MUTED)}
+          {btn("⧉+", "Clone the slide above as its own card — edit it without touching the original", onClone, MINT)}
+          {btn(cut ? "✂ undo" : "✂", cut ? "Remove this cut (the slides it added stay)" : "Cut the video here — a sign-off goes above, the standard opener below", onCut, GOLD)}
+        </span>
+      )}
+    </div>
+  );
+}
+
 const SKIP_FOLDER_KEY = "sa-review-skip-folder";
 const readFolderOpen = (): boolean => { try { return localStorage.getItem(SKIP_FOLDER_KEY) === "open"; } catch { return false; } };
 const writeFolderOpen = (v: boolean): void => { try { localStorage.setItem(SKIP_FOLDER_KEY, v ? "open" : "closed"); } catch { /* storage refused — it just won't stick */ } };
@@ -532,6 +559,11 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   const setStripView = (v: "film" | "list") => { setStripViewState(v); try { localStorage.setItem(STRIP_VIEW_KEY, v); } catch { /* cosmetic */ } };
   /** The slide whose ⇅ was pressed — the zoomed-out placement overlay is up for it. */
   const [moveId, setMoveId] = useState<string | null>(null);
+  /** Which cut groups are folded shut. Lee: "would be a huge help if I could collapse a split
+   *  group." Numbered from the top, so a new cut renumbers what is below it — which is right:
+   *  the fold belongs to the position in the running order, not to a slide. */
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(() => new Set());
+  const toggleGroup = (n: number) => setCollapsedGroups((s) => { const x = new Set(s); if (x.has(n)) x.delete(n); else x.add(n); return x; });
   /** Insert after a given frame (or the selected one), optionally selecting it. */
   const insertAfter = useCallback((afterId: string | null, kind: BlastFrameKind, patch: Partial<BlastFrame> = {}, select = true) => {
     if (!plan) return;
@@ -714,6 +746,20 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   // neighbour — but only when it was the selected one.
   const duplicateAt = (id: string, i: number) => { const next = duplicateFrame(frames, id); commit(next); setSelId(next[i + 1]?.id ?? id); };
   const cloneToEnd = (id: string) => { const next = cloneFrameToEnd(frames, id); commit(next); setSelId(next[next.length - 1]?.id ?? id); };
+
+  // THE GAP'S THREE VERBS (2026-09-09).
+  //
+  // CLONE, and it always means the independent kind. Lee: "put a clone button (which in every
+  // case, is about cloning so I can edit independently a new one. Not repeat the old one. I just
+  // want to have the old one as a starting point. This is a speed thing to make editing
+  // faster.)" So a set card goes through duplicateCeqCard — a real new card — and an insert is
+  // simply duplicated, which is already independent (its own id, its own words).
+  const cloneAfter = async (f: BlastFrame, i: number) => {
+    if (f.kind === "ceq" && f.ceqId) { await cloneCard(f.id, i); return; }
+    duplicateAt(f.id, i);
+  };
+  // CUT. The mark, the sign-off in front of it and the standard opener behind it, in one press.
+  const cutAfter = (f: BlastFrame) => commit(cutAfterFrame(frames, f.id, standardOpener(set.name, CRAM_NOT_LECTURE)));
   // CLONE A SET CARD INTO ITS OWN CARD (2026-09-08). Lee: "If I duplicate a slide, then change
   // it, it's editing the previous slide. It's more a clone one that I can then edit
   // independently thing." Duplicate keeps pointing at the same question on purpose (that is how
@@ -1032,8 +1078,34 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
             {stripView === "film" ? "▤ list" : "▦ slides"}
           </button>
         </div>
+        {/* THE GAP BETWEEN TWO SLIDES IS A CONTROL (2026-09-09). Lee: "When I hover underneath a
+            slide in the spine, just put a + there that pops up to add a new slide OR put a clone
+            button… AND have a scissor icon for cutting there." Everything he does between slides
+            is now done between slides, instead of in a panel somewhere else. A run of slides
+            between two cuts is one Short, and it collapses. */}
         <div className="flex flex-col" style={{ gap: 5 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
-          {activeRows.map(({ f, i }, pos) => spineRow(f, i, { number: pos + 1, thumb: stripView === "film" }))}
+          {activeRows.map(({ f, i }, pos) => {
+            const groupNo = activeRows.slice(0, pos).filter((r) => r.f.cutAfter).length;
+            const collapsed = collapsedGroups.has(groupNo);
+            const groupHead = pos === 0 || !!activeRows[pos - 1]?.f.cutAfter;
+            const groupRows = activeRows.filter((_, p) => activeRows.slice(0, p).filter((r) => r.f.cutAfter).length === groupNo);
+            return (
+              <div key={f.id} className="flex flex-col" style={{ gap: 5 }}>
+                {groupHead && groupNo > 0 && (
+                  <div className="flex items-center" style={{ gap: 8, margin: "6px 0 2px" }}>
+                    <span style={{ flex: 1, height: 1, background: `${GOLD}55` }} />
+                    <button onClick={() => toggleGroup(groupNo)} style={{ ...chip(false, GOLD), fontSize: 10, padding: "2px 8px" }}
+                      title={collapsed ? "Show this video's slides" : "Collapse this video"}>
+                      {collapsed ? "▸" : "▾"} video {groupNo + 1} · {groupRows.length}
+                    </button>
+                    <span style={{ flex: 1, height: 1, background: `${GOLD}55` }} />
+                  </div>
+                )}
+                {!collapsed && spineRow(f, i, { number: pos + 1, thumb: stripView === "film" })}
+                {!collapsed && <GapTools onInsert={() => { setSelId(f.id); setInsertOpen(true); }} onClone={() => void cloneAfter(f, i)} onCut={() => cutAfter(f)} cut={!!f.cutAfter} />}
+              </div>
+            );
+          })}
         </div>
 
         {skippedRows.length > 0 && (
@@ -1074,8 +1146,12 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
         </div>
       )}
 
-      {/* --------------------------------------------- MIDDLE: the slide */}
-      <section>
+      {/* --------------------------------------------- MIDDLE: the slide
+          IT FOLLOWS HIM DOWN (2026-09-09). Lee: "Let the slide preview follow me as I scroll
+          down from the spine, so I don't have to scroll back and forth." The spine is sixty
+          rows long and the preview was pinned to the top of the page, so picking slide 40 meant
+          scrolling back up to see what he had picked. Sticky, under the step bar's height. */}
+      <section style={{ position: "sticky", top: 12, alignSelf: "start", maxHeight: "calc(100vh - 24px)", overflowY: "auto" }}>
         {sel && (
           <SlidePane key={sel.id} sel={sel} idx={selIdx} count={frames.length} label={labelOf(sel)} viewSet={viewSet} topic={topic}
             progress={progress.get(sel.id)}

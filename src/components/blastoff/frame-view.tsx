@@ -46,17 +46,34 @@ function isQuestion(f: BlastFrame, byId: Map<string, BoothCeq>): boolean {
 /** frame id → "Q 3/8", questions only. Built once per plan. */
 // A duplicated card (same ceqId twice in the run) is ONE question asked twice — it keeps
 // the first number, and the total counts unique cards (audit §2.15).
+// THE COUNTER RESTARTS AT EVERY CUT (2026-09-09). Lee: "if I split somewhere, change the
+// numbering of the sets in top right… so a student doesn't think that video is 1/29 — it's like,
+// the split I'm doing for 'assets' is actually just 1/11. Wherever the split point is, adjust
+// the numbers shown." A cut mark (plan.ts `cutAfter`) says where one Short ends and the next
+// begins, so each run counts its own questions out of its own total — before the knife is ever
+// applied, which is the point: he sees the real numbers while he is deciding where to cut.
 export function questionProgress(frames: readonly BlastFrame[], byId: Map<string, BoothCeq>): Map<string, { x: number; y: number }> {
-  const seen = new Map<string, number>();
-  const y = new Set(frames.filter((f) => isQuestion(f, byId)).map((f) => f.ceqId ?? f.id)).size;
   const out = new Map<string, { x: number; y: number }>();
-  let x = 0;
+  // One run per cut: the frames between two marks are one video.
+  let run: BlastFrame[] = [];
+  const runs: BlastFrame[][] = [];
   for (const f of frames) {
-    if (!isQuestion(f, byId)) continue;
-    const key = f.ceqId ?? f.id;
-    const n = seen.get(key) ?? ++x;
-    seen.set(key, n);
-    out.set(f.id, { x: n, y });
+    run.push(f);
+    if (f.cutAfter) { runs.push(run); run = []; }
+  }
+  if (run.length) runs.push(run);
+
+  for (const group of runs) {
+    const seen = new Map<string, number>();
+    const y = new Set(group.filter((f) => isQuestion(f, byId)).map((f) => f.ceqId ?? f.id)).size;
+    let x = 0;
+    for (const f of group) {
+      if (!isQuestion(f, byId)) continue;
+      const key = f.ceqId ?? f.id;
+      const n = seen.get(key) ?? ++x;
+      seen.set(key, n);
+      out.set(f.id, { x: n, y });
+    }
   }
   return out;
 }
@@ -64,13 +81,16 @@ export function questionProgress(frames: readonly BlastFrame[], byId: Map<string
 /** The full-frame kinds size themselves from a 1080×1920 frame at scale·0.34
  *  (a 1080-wide frame sized to sit beside a list); cards are the canvas's own
  *  560-wide card at `scale`. PhoneFrame turns a stage width into both. */
-export function FrameView({ frame, set, scale, topicName, progress, live = false, cardOverride, layout = "pass1", coldOpen }: {
+export function FrameView({ frame, set, scale, topicName, progress, live = false, cardOverride, layout = "pass1", coldOpen, opener = false }: {
   frame: BlastFrame; set: BoothSetInfo; scale: number; topicName?: string | null;
   progress?: { x: number; y: number } | null;
   /** THE ASSEMBLY COLD OPEN (2026-09-08, brand-cards/cold-open.ts): the open frame
    *  builds itself over `ms`; `key` restarts it (a new countdown, or walking back
    *  onto the slide). Absent everywhere but the capture surface. */
   coldOpen?: { ms: number; key?: string | number; held?: boolean } | null;
+  /** THIS FRAME OPENS THE VIDEO — the first FILMED slide. An intro in that slot assembles the
+   *  way the cold open does; anywhere else it is the plain intro card. */
+  opener?: boolean;
   /** The capture surface: cards are live (SetCard `live`). */
   live?: boolean;
   /** The capture camera's grip override (width, scale multiplier), applied
@@ -124,8 +144,17 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // exam is an outro card only for now." The line is still typeable per set; it is just not
     // put in Lee's mouth. With the slot empty the set name takes the hero size
     // (ColdOpenAssembly's `lead`), which is what "start on the slide with the topics" means.
-    if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} tagline={frame.text?.trim() ?? ""} domain={frame.url?.trim() || undefined} live
-      assembly={{ wordmarkSpot: watermarkSpot(fw), ...(coldOpen ? (coldOpen.held ? { key: "held", atMs: 0 } : { totalMs: coldOpen.ms, key: coldOpen.key }) : { key: "still", finished: true }) }} topicTop={topicName} topicBottom={set.name}
+    //
+    // THE OPENER ASSEMBLES, WHATEVER KIND IT IS (2026-09-09). Lee: "animation still isn't showing
+    // up on entrance." It could not: his draft SKIPS the cold open, so the first filmed slide is
+    // the INTRO and the choreography only ever attached to kind "open". Both are the same
+    // component and the same lockup, and his description of slide one — "hero camera, Survive,
+    // [topic name], surviveaccounting.com, campus banner underneath" — is this assembly. So the
+    // deck's first filmed slide builds itself, and an intro that opens the video takes the
+    // open's own topic lines (the topic above, the set below).
+    if (frame.kind === "open" || (frame.kind === "intro" && opener)) return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} tagline={frame.kind === "intro" ? "" : frame.text?.trim() ?? ""} domain={frame.url?.trim() || undefined} live
+      assembly={{ wordmarkSpot: watermarkSpot(fw), ...(coldOpen ? (coldOpen.held ? { key: "held", atMs: 0 } : { totalMs: coldOpen.ms, key: coldOpen.key }) : { key: "still", finished: true }) }}
+      topicTop={topicName} topicBottom={frame.kind === "intro" ? frame.text?.trim() || set.name : set.name}
       onEdit={edit ? (p) => edit({ ...(p.tagline !== undefined ? { text: p.tagline } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
     if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} tutorLine={frame.title?.trim() || undefined} domain={frame.url?.trim() || undefined} banner={frame.banner !== "off"} wordmarkTop={introWordmarkTop(layout)} live
       onEdit={edit ? (p) => edit({ ...(p.topic !== undefined ? { text: p.topic } : {}), ...(p.tutorLine !== undefined ? { title: p.tutorLine } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;

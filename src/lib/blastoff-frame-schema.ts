@@ -84,6 +84,8 @@ export const frameSchema = z.object({
   banner: z.enum(["on", "off"]).optional(),
   // 2026-09-08: the four callouts can be drawn as a card or as the whole 9:16 ("big").
   display: z.enum(["card", "big"]).optional(),
+  // 2026-09-09: a cut after this slide — the running order carries the split.
+  cutAfter: z.literal(true).optional(),
   ad: z.enum(AD_KINDS).optional(),
   url: z.string().max(120).optional(),
   portrait: z.enum(["on", "off"]).optional(),
