@@ -58,21 +58,29 @@ export interface AssemblyPiece {
   hard?: boolean;
 }
 
-/** The base choreography is written at the countdown's own length, so the take
- *  case needs no scaling at all and reads exactly as the numbers below. */
-export const ASSEMBLY_TOTAL_MS = 10_000;
+/** THREE SECONDS, not ten (2026-09-09). Lee: "Maybe we can speed it up so it's only 3 seconds?
+ *  I'm going very fast at the beginning. My opening line: Let's cram for your exam. [Topic
+ *  name]." That line is about three seconds long, and the assembly is what he says it over — so
+ *  the machine finishes as the sentence does, and the first CEQ is up by second four.
+ *
+ *  It was ten because the count and the assembly were the same seconds. They came apart on
+ *  09-09 (F4 rolls the recording and the animation together), which freed this number to be
+ *  what the OPENING LINE needs rather than what the countdown needed. */
+export const ASSEMBLY_TOTAL_MS = 3_000;
 /** No countdown: landing on the open frame in film mode plays this short one once. */
-export const ASSEMBLY_SHORT_MS = 2_200;
+export const ASSEMBLY_SHORT_MS = 1_400;
 
-/** The beat sheet. The 2.4 s of hold between the last topic line and the
- *  wordmark is deliberate — the corner sits empty, the count is nearly out, and
- *  then it SNAPS. */
+/** The beat sheet, at the three-second length. The hold between the last topic line and the
+ *  wordmark is deliberate and survives the compression — the corner sits visibly empty, and
+ *  then it SNAPS. Everything is up by 3 s: camera almost immediately (he is already talking),
+ *  the line, the two topic lines close behind, and the wordmark landing hard on the end of
+ *  "…for your exam." */
 export const ASSEMBLY_PIECES: readonly AssemblyPiece[] = [
-  { key: "camera", from: "right", atMs: 200, durMs: 1100 },
-  { key: "question", from: "top", atMs: 2000, durMs: 900 },
-  { key: "topicTop", from: "left", atMs: 3900, durMs: 800 },
-  { key: "topicBottom", from: "right", atMs: 5600, durMs: 800 },
-  { key: "wordmark", from: "left", atMs: 8800, durMs: 1200, hard: true },
+  { key: "camera", from: "right", atMs: 60, durMs: 420 },
+  { key: "question", from: "top", atMs: 420, durMs: 380 },
+  { key: "topicTop", from: "left", atMs: 900, durMs: 340 },
+  { key: "topicBottom", from: "right", atMs: 1280, durMs: 340 },
+  { key: "wordmark", from: "left", atMs: 2280, durMs: 720, hard: true },
 ];
 
 export interface AssemblyPlan { totalMs: number; pieces: AssemblyPiece[] }

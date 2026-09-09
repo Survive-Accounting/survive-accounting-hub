@@ -581,22 +581,33 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
           <SurviveWordmark size={Math.max(14, Math.round(w * 0.055))} />
         </div>
       )}
-      {/* THE COUNT, in the window Lee looks at — the main /film window, never the pop-out. Over
-          the slide-1 preview it already shows undimmed during the count, with the beat it is
-          counting to spelled out (countdownCue): the camera flies in at the top, the wordmark
-          lands on zero, and zero is the F1. */}
-      {!popout.isPopout && take?.countdown && take.count !== null && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "grid", placeItems: "center", pointerEvents: "none", userSelect: "none" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-            <div key={take.count} style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: Math.round(w * 0.5), lineHeight: 1, color: countdownTone(take.count) === "gold" ? GOLD : CREAM, fontVariantNumeric: "tabular-nums", textShadow: "0 6px 30px rgba(0,0,0,0.9)" }}>
-              {take.count}
-            </div>
-            <div style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 12, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: CREAM, background: "rgba(7,11,20,0.86)", border: `1px solid ${GOLD}55`, borderRadius: 999, padding: "5px 14px", whiteSpace: "nowrap" }}>
-              {countdownCue(take.count)}
+      {/* THE COUNT — IN BOTH WINDOWS, and the pop-out is the one that matters (2026-09-09).
+          Lee: "I have the popped out window. I hit C. I see the countdown. But it's not in
+          popped out window — the countdown shows in the /film interface."
+
+          It was pop-out-EXCLUDED on purpose the day before, when the count and the assembly were
+          the same ten seconds: the pop-out is the OBS capture, so a number drawn there was a
+          number in the video. That reason is gone. F4 is what starts the recording now, and the
+          count runs entirely BEFORE it — "I hit C, it counts down from 10. On 0, I hit F4. This
+          starts my OBS recording AND it starts the launch animation." Nothing is recording while
+          the digits are up, so they belong where his eyes are: the window he films into. The
+          main window keeps its copy for when he is looking there instead. */}
+      {(() => {
+        const n = popout.isPopout ? countdown.seconds : take?.countdown ? take.count : null;
+        if (n === null || n === undefined) return null;
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "grid", placeItems: "center", pointerEvents: "none", userSelect: "none" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+              <div key={n} style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: Math.round(w * 0.5), lineHeight: 1, color: countdownTone(n) === "gold" ? GOLD : CREAM, fontVariantNumeric: "tabular-nums", textShadow: "0 6px 30px rgba(0,0,0,0.9)" }}>
+                {n}
+              </div>
+              <div style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 12, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: CREAM, background: "rgba(7,11,20,0.86)", border: `1px solid ${GOLD}55`, borderRadius: 999, padding: "5px 14px", whiteSpace: "nowrap" }}>
+                {countdownCue(n)}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
       {/* BREADCRUMBS (2026-09-07, Lee: "Show navigation breadcrumbs on /film") — the same crumbs
           V3Shell would draw, in the chrome's own quiet style; main window only, chrome only, so
           they never film. Escape still exits the way it always did. */}

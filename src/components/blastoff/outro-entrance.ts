@@ -32,22 +32,28 @@ export interface OutroBeat {
   hard?: boolean;
 }
 
-/** Short — this is the last thing before the video ends, not a title sequence. */
-export const OUTRO_ENTRANCE_MS = 2_200;
+/** Short — this is the last thing before the video ends, not a title sequence.
+ *
+ *  HALVED 2026-09-09. Lee: "outro slide animation can be much faster. The CTA button needs to
+ *  arrive quicker." The whole video runs faster now (the cold open is 3 s, not 10), and the
+ *  outro is the ask — a viewer who has decided to tap should not be waiting on a lockup to
+ *  finish assembling before the button exists. */
+export const OUTRO_ENTRANCE_MS = 1_150;
 /** The white-out that marks the arrival, already fading before the wordmark reads. */
-export const OUTRO_FLASH_MS = 360;
+export const OUTRO_FLASH_MS = 220;
 /** How far the lines travel, in stage px (V.h = 1920). Bigger than riseIn's 18 — that is a
  *  settle, this is an entrance. */
 export const OUTRO_RISE_PX = 48;
 
-/** The beat sheet. The 300 ms of hold between the domain and the pill is deliberate: the eye
- *  finishes the lockup, and THEN the ask arrives on its own beat instead of inside the stack. */
+/** The beat sheet. The hold between the domain and the pill survives the compression — the eye
+ *  finishes the lockup and THEN the ask lands on its own beat, which is what makes it read as an
+ *  ask rather than as the last line of a list. It is a breath now rather than a pause. */
 export const OUTRO_BEATS: readonly OutroBeat[] = [
-  { key: "wordmark", atMs: 120, durMs: 700 },
-  { key: "tagline", atMs: 560, durMs: 600 },
-  { key: "domain", atMs: 820, durMs: 480 },
-  { key: "cta", atMs: 1600, durMs: 580, hard: true },
-  { key: "sub", atMs: 1900, durMs: 300 },
+  { key: "wordmark", atMs: 0, durMs: 340 },
+  { key: "tagline", atMs: 200, durMs: 300 },
+  { key: "domain", atMs: 340, durMs: 260 },
+  { key: "cta", atMs: 740, durMs: 340, hard: true },
+  { key: "sub", atMs: 950, durMs: 200 },
 ];
 
 export function outroBeat(key: OutroKey): OutroBeat {

@@ -51,10 +51,27 @@ const STAGE_FADE_CSS = `
 // a second — a brighter boil bleeding off, nothing more — so the mark reads as the one that just
 // landed rather than as a new one fading in. Position, size and opacity never change (they are
 // watermarkSpot's, one copy), so there is no jump and no second fade-in.
+//
+// AND THEN IT STAYS LIT (2026-09-09). Lee: "once I hit first CEQ slide, I do want the Survive
+// wordmark/watermark at top left to glow in a cool way. I'm picturing like blue flame or blue
+// electricity or something. This is when the video goes much faster. This will persist until
+// outro slide."
+//
+// So the charge is the HANDOFF and this is the state it hands off to: a slow blue-white
+// electric breath on the corner mark, running from the first card slide to the sign-off. Two
+// drop-shadows, not a glow blur — a single soft glow is the first thing H.264 smears, where
+// stacked shadows survive it (the same reasoning GlowWordmark uses). It never moves and never
+// changes size: position, size and opacity are watermarkSpot's, one copy.
 const WATERMARK_CHARGE_CSS = `
 @keyframes sa-wm-charge { from { filter: brightness(1.9) drop-shadow(0 0 10px rgba(252,163,17,0.55)); } to { filter: none; } }
+@keyframes sa-wm-live {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(147,197,253,0.55)) drop-shadow(0 0 9px rgba(59,130,246,0.30)); }
+  50%      { filter: drop-shadow(0 0 6px rgba(191,219,254,0.85)) drop-shadow(0 0 18px rgba(59,130,246,0.55)) brightness(1.14); }
+}
 .film-mode .sa-wm-charge { animation: sa-wm-charge 1000ms ease-out both; }
-@media (prefers-reduced-motion: reduce) { .film-mode .sa-wm-charge { animation: none; } }`;
+.film-mode .sa-wm-live { animation: sa-wm-live 2600ms ease-in-out infinite; }
+.film-mode .sa-wm-charge.sa-wm-live { animation: sa-wm-charge 1000ms ease-out both, sa-wm-live 2600ms ease-in-out 1000ms infinite; }
+@media (prefers-reduced-motion: reduce) { .film-mode .sa-wm-charge, .film-mode .sa-wm-live, .film-mode .sa-wm-charge.sa-wm-live { animation: none; } }`;
 
 /** FrameView's `scale` for a frame on a stage `w` wide: full-frame kinds fill
  *  the stage (a 1080 frame drawn at scale·0.34); the tutor card is a bit
@@ -242,14 +259,22 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   // that inherits the cold open's landing — everything before it is a full frame with no
   // watermark at all (the open, the intro), so this is where the corner comes back.
   const chargedWatermark = capture && index > 0 && frames.slice(0, index).every((f) => isFullFrame(f.kind));
+  // LIT FROM THE FIRST CARD TO THE SIGN-OFF (2026-09-09) — "this will persist until outro
+  // slide." Any slide that carries the watermark and is not part of the closing spine: the bio
+  // and the outro end the video, and the mark going quiet is how the ending reads as an ending.
+  const liveWatermark = capture && frame.kind !== "bio" && frame.kind !== "outro";
   return (
     <div ref={phoneRef} className={capture ? "film-mode" : undefined} data-sa-phone="" data-sa-layout={layout} style={{ fontFamily: BRAND_FONT, width: w, height: h, background: "#000", borderRadius: rounded ? Math.round(w * 0.072) : 0, border: rounded ? "1px solid rgba(244,239,230,0.16)" : "none", position: "relative", overflow: "hidden", display: "grid", placeItems: topAligned ? "start center" : "center", opacity: dim ? 0.5 : 1, ...style }}>
-      {frame.kind !== "open" && frame.kind !== "intro" && frame.banner === "on" && <CampusBanner w={w} h={h} live={live} />}
+      {/* THE CAMPUS BANNER, under a CARD slide. A card floats on the phone's own black, so the
+          banner sits behind it and shows through. A FULL-FRAME slide paints its own opaque
+          black over this whole area, so its banner is drawn AFTER the slide instead — see
+          below. (open / intro draw their own inside BoltZoom, and never take either path.) */}
+      {!framesFullFrame(frame) && frame.banner === "on" && <CampusBanner w={w} h={h} live={live} />}
       {/* THE WATERMARK — the wordmark with the live bolt in the "i", top-left,
           sized like the film popout's (5.2% of the width). */}
-      {watermarkOn(frame, backdrop) && chargedWatermark && <style>{WATERMARK_CHARGE_CSS}</style>}
+      {watermarkOn(frame, backdrop) && (chargedWatermark || liveWatermark) && <style>{WATERMARK_CHARGE_CSS}</style>}
       {watermarkOn(frame, backdrop) && (
-        <div ref={markRef} className={chargedWatermark ? "sa-wm-charge" : undefined} style={{ position: "absolute", left: wmLeft, top: wmTop, pointerEvents: "none", opacity: moment ? 1 : wm.opacity,
+        <div ref={markRef} className={[chargedWatermark ? "sa-wm-charge" : "", liveWatermark ? "sa-wm-live" : ""].filter(Boolean).join(" ") || undefined} style={{ position: "absolute", left: wmLeft, top: wmTop, pointerEvents: "none", opacity: moment ? 1 : wm.opacity,
           // THE HERO: same 480 ms overshoot as the camera ring, so the two move as one gesture;
           // above the camera's moment layer (30), below the arrows (40).
           transformOrigin: "50% 50%", transform: wmTransform, transition: "transform 480ms cubic-bezier(0.34, 1.3, 0.64, 1), opacity 480ms ease",
@@ -281,6 +306,15 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
             onPlace={edit && (!capture || popout) ? (p) => edit({ illustration: { ...frame.illustration!, placement: p } }) : undefined} />
         )}
       </div>
+      {/* THE CAMPUS BANNER ON A FULL-FRAME SLIDE (2026-09-09). Lee: "Campus banner isn't working
+          on slogan slides." It was drawn — first, behind everything — and then SloganCard's own
+          opaque black frame painted straight over it. A full-frame slide IS the whole 9:16, so
+          its banner has to sit on top of it, the way the open card's does inside BoltZoom. Same
+          toggle, same component, same place on the lower third; only the order changes.
+          open / intro are excluded: BoltZoom draws theirs itself. */}
+      {framesFullFrame(frame) && frame.kind !== "open" && frame.kind !== "intro" && frame.banner === "on" && (
+        <CampusBanner w={w} h={h} live={live} />
+      )}
       {/* THE PLACED PICTURE (2026-09-05): at its own spot, dragged and resized on Review; carries
           the camera transform so it zooms and blurs with the slide. Dead centre on a blank slide. */}
       {frame.illustration?.assetUrl && canIllustrate(frame.kind) && isPlaced(frame.kind, frame.illustration, big) && (
