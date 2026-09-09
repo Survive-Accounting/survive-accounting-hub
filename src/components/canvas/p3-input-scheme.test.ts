@@ -17,8 +17,13 @@ describe("navigate / select", () => {
     expect(src).toContain('if (e.key === "ArrowDown" || e.key === "ArrowRight") { elemNav(1); return; }');
     expect(src).toContain('elemNav(e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : -1);');
   });
-  test("film clicks select — choices and the stem — and Alt is reserved for boss", () => {
-    expect(src).toContain("prLive.select?.(i);");
+  // ONE CLICK RESOLVES A CHOICE (2026-09-09). Lee: "Let the answer choices be one click, not
+  // many. It's an older feature that required that. I want to click once and it's chosen." The
+  // first click used to light the choice and a second scored it; now the gesture IS the answer.
+  // The STEM still just selects — there is nothing to score there.
+  test("a film click resolves a choice outright and selects the stem, and Alt is reserved for boss", () => {
+    expect(src).toContain("prLive.resolveChoice?.(i); }");
+    expect(src).not.toContain("if (pr.emph === i) prLive.resolveChoice?.(i); else prLive.select?.(i);");
     expect(src).toContain("prLive.select?.(-1);");
     // ctrl/meta belong to the spotlight (polish pass, 2026-09-05): a ctrl+click must not also select.
     expect(src).toMatch(/onClick=\{film \? \(e\) => \{ if \(e\.altKey \|\| e\.ctrlKey \|\| e\.metaKey \|\| inert\) return;/);

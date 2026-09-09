@@ -732,7 +732,15 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
     setBulletEdit(null);
   };
   return (
-    <div data-ceq-card="" onPointerDownCapture={film ? startAltMove : undefined} onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? (detour ? ((d as { cardW?: number }).cardW ?? CARD_W) : 320) * s : undefined, maxWidth: isCallout ? ((d as { cardW?: number }).cardW ?? CARD_W) * s : undefined, borderRadius: 14 * s, background: bareFilm || detour ? "transparent" : PAPER.card, border: bareFilm || detour ? "none" : d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: bareFilm || detour ? "none" : "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
+    <div data-ceq-card="" onPointerDownCapture={film ? startAltMove : undefined} onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} /* NO CLEAR-ON-CLICK ANY MORE (2026-09-09). Lee: "I want highlights to persist on a slide when
+   I'm in film popout. I highlight question stem or answer choice on a slide before I begin,
+   then I go back to beginning and once I arrive to slide, I'll know the highlight is already
+   there." Walking away and back already preserved them (the store is session-level, above the
+   cards) — what did not survive was a stray click on the card's outer chrome, which wiped that
+   card's stem AND choice marks with no undo. The 09-06 boundary stopped the incidental clicks
+   INSIDE the box; this removes the last way to lose pre-highlighting by accident. The wipe is
+   still one keystroke: ` clears highlights, spotlights and emphasis together. */
+onClick={undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? (detour ? ((d as { cardW?: number }).cardW ?? CARD_W) : 320) * s : undefined, maxWidth: isCallout ? ((d as { cardW?: number }).cardW ?? CARD_W) * s : undefined, borderRadius: 14 * s, background: bareFilm || detour ? "transparent" : PAPER.card, border: bareFilm || detour ? "none" : d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: bareFilm || detour ? "none" : "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
       {/* BOSS (P3): the boiling bolt sweeps in with the charge — no text, no sound. */}
       {/* The persistent top-right boss bolt is GONE (Lee, 08-17): it collided with
           the counter, and a bolt standing in frame is a burned-in watermark — the
@@ -857,13 +865,19 @@ export function CeqPreviewNode({ id, data }: NodeProps) {
           return (
             <div
               key={c.id ?? i}
+              /* ONE CLICK RESOLVES (2026-09-09). Lee: "Let the answer choices be one click, not
+                 many. It's an older feature that required that. I want to click once and it's
+                 chosen. Either correct or incorrect strikethrough." It used to take two — the
+                 first lit the choice, the second scored it — which made sense when the card was
+                 a practice widget and mattered less than the tempo does now. resolveChoice sets
+                 the emphasis AND scores in one call, so the gesture is the answer. */
               className={`sa-ceq-choice${st === "right" ? " sa-ceq-correct" : ""}`}
               onAnimationEnd={(ev) => { if (ev.animationName === "sa-ceq-correct") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }}
               data-flame={flamed ? "on" : undefined}
               data-flame-tone={flamed ? spot.tone(key) : undefined}
               data-spot-lit={spState === "spot" ? "on" : undefined}
               onPointerDownCapture={(e) => spot.onClick(key, e)}
-              onClick={film ? (e) => { if (e.altKey || e.ctrlKey || e.metaKey || inert) return; e.stopPropagation(); if (e.shiftKey) { const r = wordRangeAtPoint(e.currentTarget, e.clientX, e.clientY); if (r) hlx.setChoice(id, i, r); return; } const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; if (pr.emph === i) prLive.resolveChoice?.(i); else prLive.select?.(i); } : (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; onViewChoice?.(i); }}
+              onClick={film ? (e) => { if (e.altKey || e.ctrlKey || e.metaKey || inert) return; e.stopPropagation(); if (e.shiftKey) { const r = wordRangeAtPoint(e.currentTarget, e.clientX, e.clientY); if (r) hlx.setChoice(id, i, r); return; } const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; prLive.resolveChoice?.(i); } : (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; onViewChoice?.(i); }}
               onContextMenu={(e) => choiceMenu(c.id, e)}
               // DRAG-TO-CHAIN (Lee) — drop a library memo straight onto a choice here in
               // the previewer (same-window drag) to chain it, exactly like the Pane-2 rows.
