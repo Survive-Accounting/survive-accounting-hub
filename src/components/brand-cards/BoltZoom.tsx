@@ -27,6 +27,7 @@ import { Editable } from "./Editable";
 import { BoltBoil, BRAND_BLUE, BRAND_CREAM, BRAND_RED, SurviveWordmark } from "./bolt-boil";
 import { TAGLINE } from "./slogans";
 import { ColdOpenAssembly, type WordmarkSpot } from "./ColdOpenAssembly";
+import { INTRO_ENTRANCE_MS } from "./cold-open";
 import {
   BANNER_SECONDS, ZOOM, campusMix, campusText, driftDegrees, seededShuffle, zoomKeyframes, zoomLayers,
   type ZoomVariant,
@@ -45,6 +46,18 @@ export { TAGLINE } from "./slogans";
 export const DOMAIN = "surviveaccounting.com";
 export const TUTOR = "Lee Ingram";
 const FONT = "'Rubik', system-ui, sans-serif";
+/** THE OPENER'S ONE MOVE (2026-09-09). Lee: "On F4, the Survive wordmark, topic, and domain
+ *  name slide in. Simple." One block, one keyframe, one duration — it rises and fades in
+ *  together. Nothing staggered, because staggering is what "it starts and stops and all kinds of
+ *  mess" was describing. */
+function INTRO_ENTRANCE_CSS(ms: number): string {
+  return `
+@keyframes sa-intro-in { from { opacity: 0; transform: translateY(${Math.round(28)}px); } to { opacity: 1; transform: translateY(0); } }
+.sa-intro-in { animation: sa-intro-in ${Math.max(120, Math.round(ms))}ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) { .sa-intro-in { animation: none; } }
+`;
+}
+
 const HEAD_FONT = "'League Spartan', 'Rubik', system-ui, sans-serif";
 const WHITE = "#FFFFFF";
 
@@ -203,7 +216,7 @@ export function GlowWordmark({ size, palette = "powder", live = true, second, bo
 /** The lines a brand slide lets the Review stage edit. */
 export interface BrandEdit { tagline?: string; topic?: string; tutorLine?: string; domain?: string }
 
-export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, live = true, progress, banner = true, tagline = TAGLINE, topic, topicTop, topicBottom, tutor = TUTOR, tutorLine, domain = DOMAIN, onEdit, wordmarkTop = WORDMARK_TOP, seed = 7, assembly, style }: {
+export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, live = true, progress, banner = true, tagline = TAGLINE, topic, topicTop, topicBottom, tutor = TUTOR, tutorLine, domain = DOMAIN, onEdit, wordmarkTop = WORDMARK_TOP, seed = 7, assembly, entrance, style }: {
   /** The frame this fills, in px. */
   w: number; h: number;
   mode?: BoltZoomMode;
@@ -248,6 +261,11 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
    *  keeps the bolt alive behind it, and `live` is what governs the bolt. `totalMs` may be
    *  omitted with it, so a caller wanting only the finished slide names no duration. */
   assembly?: { totalMs?: number; key?: string | number; wordmarkSpot: WordmarkSpot; finished?: boolean; atMs?: number } | null;
+  /** THE OPENER'S ENTRANCE (2026-09-09, intro mode): the wordmark block — mark, rule, topic,
+   *  domain — slides in as ONE unit over `ms` when the take rolls. `key` restarts it. Absent
+   *  everywhere but the first filmed slide on the capture surface, so the Editor and every
+   *  thumbnail draw the same card at rest. */
+  entrance?: { key?: string | number } | null;
   style?: React.CSSProperties;
 }) {
   const m: Exclude<BoltZoomMode, "knockout"> = mode === "knockout" ? "summary" : mode;
@@ -345,7 +363,8 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
 
   // ---- slides one and two share this block ---------------------------------
   const wordmarkBlock = (children?: React.ReactNode) => (
-    <div style={{ position: "absolute", left: 0, right: 0, top: Math.round(h * wordmarkTop), display: "flex", flexDirection: "column", alignItems: "center", gap: Math.round(h * 0.016), pointerEvents: "none" }}>
+    <div key={entrance?.key} className={entrance ? "sa-intro-in" : undefined}
+      style={{ position: "absolute", left: 0, right: 0, top: Math.round(h * wordmarkTop), display: "flex", flexDirection: "column", alignItems: "center", gap: Math.round(h * 0.016), pointerEvents: "none" }}>
       {/* Lee (2026-09-04): "just have a subtle powder blue / white glowing
           animation on the Survive. It's very much too much going on" — so the
           powder glow, not the brand sweep, on slides one and two. */}
@@ -392,7 +411,15 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
         </>
       )}
 
-      {/* SLIDE TWO — the intro: the SAME wordmark, in the same place, and the set. */}
+      {/* SLIDE TWO — the intro: the SAME wordmark, in the same place, and the set.
+          AND, since 2026-09-09, THE OPENER'S ENTRANCE. Lee, on the five-piece assembly: "The
+          animation is buggy. Make it more simple. Not one thing at a time sliding in. Just have
+          hero camera and bolt background animation and campus scrolling by default. On F4, the
+          Survive wordmark, topic, and domain name slide in. Simple." So: the camera, the bolt
+          and the ticker are simply THERE, and this one block — wordmark, rule, topic, domain —
+          arrives as a single unit. Nothing else moves, nothing is staggered, and the layout is
+          the same one the Editor draws, which is what "it's not aligning right at all" was. */}
+      {m === "intro" && entrance && <style>{INTRO_ENTRANCE_CSS(INTRO_ENTRANCE_MS)}</style>}
       {m === "intro" && wordmarkBlock(
         <>
           <div style={{ width: Math.round(w * 0.56), height: 1, background: "rgba(245,239,230,0.28)", marginTop: Math.round(h * 0.006) }} />

@@ -32,28 +32,29 @@ export interface OutroBeat {
   hard?: boolean;
 }
 
-/** Short — this is the last thing before the video ends, not a title sequence.
+/** Short — the last thing before the video ends, not a title sequence.
  *
- *  HALVED 2026-09-09. Lee: "outro slide animation can be much faster. The CTA button needs to
- *  arrive quicker." The whole video runs faster now (the cold open is 3 s, not 10), and the
- *  outro is the ask — a viewer who has decided to tap should not be waiting on a lockup to
- *  finish assembling before the button exists. */
-export const OUTRO_ENTRANCE_MS = 1_150;
+ *  Halved twice on 2026-09-09. First: "outro slide animation can be much faster. The CTA button
+ *  needs to arrive quicker." Then, after watching it: "The outro CTA button needs to come in
+ *  even faster. 2x faster." The whole video runs fast now (the opener is 3 s), and the outro IS
+ *  the ask — a viewer who has decided to tap should never wait on a lockup to finish. */
+export const OUTRO_ENTRANCE_MS = 580;
 /** The white-out that marks the arrival, already fading before the wordmark reads. */
-export const OUTRO_FLASH_MS = 220;
+export const OUTRO_FLASH_MS = 140;
 /** How far the lines travel, in stage px (V.h = 1920). Bigger than riseIn's 18 — that is a
  *  settle, this is an entrance. */
 export const OUTRO_RISE_PX = 48;
 
-/** The beat sheet. The hold between the domain and the pill survives the compression — the eye
- *  finishes the lockup and THEN the ask lands on its own beat, which is what makes it read as an
- *  ask rather than as the last line of a list. It is a breath now rather than a pause. */
+/** The beat sheet. Everything overlaps now — the lockup is still settling when the pill lands,
+ *  which is the right trade at this speed: the ask is the slide. */
 export const OUTRO_BEATS: readonly OutroBeat[] = [
-  { key: "wordmark", atMs: 0, durMs: 340 },
-  { key: "tagline", atMs: 200, durMs: 300 },
-  { key: "domain", atMs: 340, durMs: 260 },
-  { key: "cta", atMs: 740, durMs: 340, hard: true },
-  { key: "sub", atMs: 950, durMs: 200 },
+  { key: "wordmark", atMs: 0, durMs: 180 },
+  { key: "tagline", atMs: 90, durMs: 160 },
+  { key: "domain", atMs: 160, durMs: 140 },
+  // The pill at 360 ms — it is on screen before the lockup has finished settling, which is the
+  // point: the ask is the slide.
+  { key: "cta", atMs: 360, durMs: 180, hard: true },
+  { key: "sub", atMs: 470, durMs: 110 },
 ];
 
 export function outroBeat(key: OutroKey): OutroBeat {

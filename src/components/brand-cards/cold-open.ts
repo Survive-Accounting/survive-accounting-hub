@@ -70,6 +70,12 @@ export const ASSEMBLY_TOTAL_MS = 3_000;
 /** No countdown: landing on the open frame in film mode plays this short one once. */
 export const ASSEMBLY_SHORT_MS = 1_400;
 
+/** THE OPENER'S ONE MOVE (2026-09-09) — how long the intro's wordmark block takes to slide in
+ *  on F4. Its own number, NOT the assembly's three seconds: this is a single block arriving, and
+ *  three seconds of one thing moving is the sluggishness Lee was describing. The three seconds
+ *  are how long he TALKS over the opener; this is how long the move takes. */
+export const INTRO_ENTRANCE_MS = 700;
+
 /** The beat sheet, at the three-second length. The hold between the last topic line and the
  *  wordmark is deliberate and survives the compression — the corner sits visibly empty, and
  *  then it SNAPS. Everything is up by 3 s: camera almost immediately (he is already talking),

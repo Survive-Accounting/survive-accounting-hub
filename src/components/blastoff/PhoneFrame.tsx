@@ -163,7 +163,11 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   // The opener assembles whatever kind it is (frame-view `opener`): Lee skips the cold open, so
   // his first filmed slide is the intro and that is the one that has to build itself.
   const opener = index === 0 && (frame.kind === "open" || frame.kind === "intro");
-  const assembling = !!coldOpen && opener;
+  // Only the cold-open CARD still assembles piece by piece. An intro opener uses the simple
+  // one-block entrance (BoltZoom `entrance`) — so the camera is just there, never a piece that
+  // flies in: "just have hero camera and bolt background animation and campus scrolling by
+  // default. On F4, the Survive wordmark, topic, and domain name slide in."
+  const assembling = !!coldOpen && opener && frame.kind === "open";
   const camAsked: CamSpot = camSpot ?? own;
   const cam: CamSpot = assembling && camAsked === "off" ? "corner" : camAsked;
   // A SAVED SIZE BELONGS TO THE SLIDE'S OWN SPOT. It used to apply to whatever spot was
@@ -266,7 +270,17 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   // THE CHARGE (2026-09-08): the FIRST slide of the rip that carries the watermark is the one
   // that inherits the cold open's landing — everything before it is a full frame with no
   // watermark at all (the open, the intro), so this is where the corner comes back.
-  const chargedWatermark = capture && index > 0 && frames.slice(0, index).every((f) => isFullFrame(f.kind));
+  // THE WATERMARK WAITS FOR THE FIRST CARD (2026-09-09). Lee: "Watermark top left needs to just
+  // wait until the first CEQ set. It's better that way. It's going in and out otherwise. It
+  // comes in with its glowing animation."
+  //
+  // It was on every slide that was not a full frame, so across his standard opener — intro,
+  // slogan, bio, found — it blinked off and on with each one. Now it is absent until the first
+  // set card, arrives there with the charge, and stays lit to the sign-off. `firstCard` is that
+  // slide's index; -1 when the deck has none, and then the old rule stands.
+  const firstCard = frames.findIndex((f) => f.kind === "ceq");
+  const beforeFirstCard = capture && firstCard >= 0 && index < firstCard;
+  const chargedWatermark = capture && firstCard >= 0 ? index === firstCard : capture && index > 0 && frames.slice(0, index).every((f) => isFullFrame(f.kind));
   // LIT FROM THE FIRST CARD TO THE SIGN-OFF (2026-09-09) — "this will persist until outro
   // slide." Any slide that carries the watermark and is not part of the closing spine: the bio
   // and the outro end the video, and the mark going quiet is how the ending reads as an ending.
@@ -280,8 +294,8 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
       {!framesFullFrame(frame) && frame.banner === "on" && <CampusBanner w={w} h={h} live={live} />}
       {/* THE WATERMARK — the wordmark with the live bolt in the "i", top-left,
           sized like the film popout's (5.2% of the width). */}
-      {watermarkOn(frame, backdrop) && (chargedWatermark || liveWatermark) && <style>{WATERMARK_CHARGE_CSS}</style>}
-      {watermarkOn(frame, backdrop) && (
+      {watermarkOn(frame, backdrop) && !beforeFirstCard && (chargedWatermark || liveWatermark) && <style>{WATERMARK_CHARGE_CSS}</style>}
+      {watermarkOn(frame, backdrop) && !beforeFirstCard && (
         <div ref={markRef} className={[chargedWatermark ? "sa-wm-charge" : "", liveWatermark ? "sa-wm-live" : ""].filter(Boolean).join(" ") || undefined} style={{ position: "absolute", left: wmLeft, top: wmTop, pointerEvents: "none", opacity: moment ? 1 : wm.opacity,
           // THE HERO: same 480 ms overshoot as the camera ring, so the two move as one gesture;
           // above the camera's moment layer (30), below the arrows (40).
@@ -306,7 +320,7 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
         ...(topAligned ? { marginTop: Math.round(h * (SAFE.top + 0.02)), maxWidth: Math.round(w * (SAFE.right - SAFE.left)) } : {}),
         ...(moment ? { filter: "blur(2px) brightness(0.35)", transition: "filter 480ms ease" } : { transition: "filter 480ms ease" }),
         ...stageStyle }}>
-        <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} layout={layout} coldOpen={assembling ? coldOpen : null} opener={opener} />
+        <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} layout={layout} coldOpen={opener ? coldOpen : null} opener={opener} />
         {/* THE OPTIONAL ILLUSTRATION — second row of the stage grid, under the card; nothing when
             absent. A placed one (or a blank slide's) is the phone-level layer below instead. */}
         {frame.illustration?.assetUrl && canIllustrate(frame.kind) && !isPlaced(frame.kind, frame.illustration, big) && (

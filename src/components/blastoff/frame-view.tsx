@@ -152,11 +152,19 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // [topic name], surviveaccounting.com, campus banner underneath" — is this assembly. So the
     // deck's first filmed slide builds itself, and an intro that opens the video takes the
     // open's own topic lines (the topic above, the set below).
-    if (frame.kind === "open" || (frame.kind === "intro" && opener)) return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} tagline={frame.kind === "intro" ? "" : frame.text?.trim() ?? ""} domain={frame.url?.trim() || undefined} live
+    if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} tagline={frame.text?.trim() ?? ""} domain={frame.url?.trim() || undefined} live
       assembly={{ wordmarkSpot: watermarkSpot(fw), ...(coldOpen ? (coldOpen.held ? { key: "held", atMs: 0 } : { totalMs: coldOpen.ms, key: coldOpen.key }) : { key: "still", finished: true }) }}
-      topicTop={topicName} topicBottom={frame.kind === "intro" ? frame.text?.trim() || set.name : set.name}
+      topicTop={topicName} topicBottom={set.name}
       onEdit={edit ? (p) => edit({ ...(p.tagline !== undefined ? { text: p.tagline } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
+    // THE INTRO, INCLUDING WHEN IT OPENS THE VIDEO (2026-09-09). It is ONE layout now, in the
+    // Editor and on camera: camera, bolt, ticker, and the wordmark block. The opener's only
+    // difference is that the block SLIDES IN when the take rolls, which is exactly what Lee
+    // asked for — "on F4, the Survive wordmark, topic, and domain name slide in. Simple." The
+    // five-piece assembly is gone from this path: it drew a different composition than the
+    // Editor did (his two screenshots side by side), and staggering was the "starts and stops
+    // and all kinds of mess."
     if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} tutorLine={frame.title?.trim() || undefined} domain={frame.url?.trim() || undefined} banner={frame.banner !== "off"} wordmarkTop={introWordmarkTop(layout)} live
+      entrance={opener && coldOpen && !coldOpen.held ? { key: coldOpen.key } : null}
       onEdit={edit ? (p) => edit({ ...(p.topic !== undefined ? { text: p.topic } : {}), ...(p.tutorLine !== undefined ? { title: p.tutorLine } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
     // THE TUTOR CARD (2026-09-03): the bio in the detour format, a bit bigger.
     if (frame.kind === "bio") {
