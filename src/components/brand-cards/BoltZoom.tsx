@@ -25,6 +25,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Editable } from "./Editable";
 
 import { BoltBoil, BRAND_BLUE, BRAND_CREAM, BRAND_RED, SurviveWordmark } from "./bolt-boil";
+import { TAGLINE } from "./slogans";
 import { ColdOpenAssembly, type WordmarkSpot } from "./ColdOpenAssembly";
 import {
   BANNER_SECONDS, ZOOM, campusMix, campusText, driftDegrees, seededShuffle, zoomKeyframes, zoomLayers,
@@ -37,7 +38,10 @@ import {
  *  · gallery = the second-pass look, kept on /branding. "knockout" is the old
  *  name for summary and still resolves. */
 export type BoltZoomMode = "open" | "intro" | "summary" | "knockout" | "backdrop" | "bolt" | "gallery";
-export const TAGLINE = "Cram what's on your exam.";
+// THE TAGLINE moved to slogans.ts on 2026-09-08 — it IS slogan two ("Cram what's on your
+// exam."), and the three slogan slides have to read the same string Lee says out loud.
+// Re-exported from here so every existing importer of BoltZoom's TAGLINE is untouched.
+export { TAGLINE } from "./slogans";
 export const DOMAIN = "surviveaccounting.com";
 export const TUTOR = "Lee Ingram";
 const FONT = "'Rubik', system-ui, sans-serif";

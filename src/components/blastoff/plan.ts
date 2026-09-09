@@ -30,6 +30,12 @@ export const BLAST_FRAME_KINDS = [
   // 2026-09-07: THE MAP (a "cluster" in code) — an interactive exhibit on the vertical surface,
   // walked shot by shot with space inside one frame (cluster/cluster-spec.ts).
   "cluster",
+  // 2026-09-08: THE SLOGAN SLIDE. Lee: "I think main thing I'm wanting is more slides to use
+  // that captured the best stuff I've discussed recently … do the three slogan slides. B to an
+  // A is the picture, yes. Others just text." The whole 9:16 frame: black, the bolt alive
+  // behind, the line set huge (brand-cards/SloganCard.tsx). The words come from
+  // brand-cards/slogans.ts, never retyped — he says them out loud.
+  "slogan",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -129,7 +135,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "exhibit", "blank", "bolt", "ad", "cluster"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "exhibit", "blank", "bolt", "ad", "cluster", "slogan"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -141,7 +147,7 @@ import type { FrameIllustration } from "./illustration";
 
 /** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
  *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
-export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster"];
+export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan"];
 export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.includes(k);
 
 export const isInsert = (k: BlastFrameKind): boolean => INSERT_KINDS.includes(k);
@@ -191,6 +197,7 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   bolt: "Bolt detour",
   ad: "Ad",
   cluster: "Map",
+  slogan: "Slogan",
 };
 
 let seq = 0;

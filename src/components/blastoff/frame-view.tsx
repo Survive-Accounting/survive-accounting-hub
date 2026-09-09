@@ -18,6 +18,8 @@ import { CARD_W } from "@/components/canvas/ceq-geom";
 import { renderInline } from "@/components/canvas/inline-md";
 import { BoltZoom } from "@/components/brand-cards/BoltZoom";
 import { isZoomVariant } from "@/components/brand-cards/bolt-zoom";
+import { SloganCard } from "@/components/brand-cards/SloganCard";
+import { SLOGANS } from "@/components/brand-cards/slogans";
 
 import { AdSlide } from "./AdSlide";
 import { watermarkSpot } from "./capture/webcam-spots";
@@ -129,6 +131,14 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     return <SurviveOutro tagline={frame.text?.trim() || undefined} scale={s} live={live}
       ctaSpot={{ state: spot.state(OUTRO_CTA_KEY), flamed: spot.flamed(OUTRO_CTA_KEY), onDown: (e) => spot.onClick(OUTRO_CTA_KEY, e) }} />;
   }
+
+  // THE SLOGAN SLIDE (Lee, 2026-09-08: "do the three slogan slides. B to an A is the picture,
+  // yes. Others just text."): the whole 9:16 frame — black, the bolt behind, the line huge.
+  // `art` only says whether the words move down to make room; the picture itself is PhoneFrame's
+  // own placed layer, exactly as on a blank slide. An empty frame falls back to the first
+  // slogan rather than rendering a black nothing, so a slide inserted and not yet typed still
+  // reads as what it is.
+  if (frame.kind === "slogan") return <SloganCard w={fw} h={fh} text={frame.text?.trim() || SLOGANS[0].text} art={!!frame.illustration?.assetUrl} live={live} />;
 
   // THE BOLT DETOUR (Lee, 2026-09-04): "just black backdrop and the bolt zoom
   // animation. Nothing else … a blank canvas to put things on."

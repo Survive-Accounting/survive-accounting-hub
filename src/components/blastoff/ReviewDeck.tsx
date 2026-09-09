@@ -98,6 +98,9 @@ import { CREAM, EDGE, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./Bl
 import { SetCard } from "./SetCard";
 import { AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
+// THE SLOGANS (2026-09-08) — the three lines, in the one place they are allowed to live
+// (brand-cards/slogans.ts). The quick row inserts them; the Editor offers them as chips.
+import { SLOGANS } from "@/components/brand-cards/slogans";
 import { ADS, AD_LABEL } from "./AdSlide";
 import { PhoneFrame } from "./PhoneFrame";
 import { SlideEditContext } from "./slide-edit";
@@ -132,7 +135,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -314,10 +317,10 @@ const kindTag = (color: string): React.CSSProperties => ({
 type RightTab = "editor" | "illustrator";
 const RIGHT_TABS: { id: RightTab; label: string; title: string }[] = [
   { id: "editor", label: "Editor", title: "Edit the selected slide here, beside it" },
-  { id: "illustrator", label: "Illustrator", title: "A picture for this slide — Memorize This, Cheat Code, Deep Question and blank slides" },
+  { id: "illustrator", label: "Illustrator", title: "A picture for this slide — Memorize This, Cheat Code, Deep Question, blank and slogan slides" },
 ];
 /** What the Illustrator button says when the selected slide's kind can't take a picture. */
-const ILLUSTRATOR_OFF_TITLE = "Pictures go on Memorize This, Cheat Code, Deep Question and blank slides — not this kind";
+const ILLUSTRATOR_OFF_TITLE = "Pictures go on Memorize This, Cheat Code, Deep Question, blank and slogan slides — not this kind";
 const RIGHT_TAB_KEY = "sa-review-right-tab";
 // A browser that last left the panel on the retired "teleprompter" face (the value this key
 // held before 2026-09-07) lands on the Editor — the only face that exists for every slide —
@@ -489,6 +492,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   const [picker, setPicker] = useState<BlastFrameKind | null>(null);
   /** The ▾ under "＋ Map" — the three example maps as one-click inserts (2026-09-07). */
   const [mapMenu, setMapMenu] = useState(false);
+  /** "＋ Slogan" opens the three (2026-09-08) — one click each, the words already in. */
+  const [sloganMenu, setSloganMenu] = useState(false);
   /** Insert after a given frame (or the selected one), optionally selecting it. */
   const insertAfter = useCallback((afterId: string | null, kind: BlastFrameKind, patch: Partial<BlastFrame> = {}, select = true) => {
     if (!plan) return;
@@ -815,7 +820,27 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
               as one-click inserts (a list slide is a one-node map). */}
           <button style={chip(false, KIND_COLOR.cluster)} title="Insert an empty map after the selected slide — then tell the assistant what you're thinking" onClick={() => add("cluster", { cluster: emptyCluster("New map") })}>＋ Map</button>
           <button style={{ ...chip(mapMenu, KIND_COLOR.cluster), padding: "4px 7px" }} title="Insert one of the example maps" aria-haspopup="menu" aria-expanded={mapMenu} onClick={() => setMapMenu((v) => !v)}>▾</button>
+          {/* THE SLOGAN SLIDES (2026-09-08). Lee: "do the three slogan slides. B to an A is the
+              picture, yes. Others just text." One click each, the words already in — they are
+              never typed, they come from brand-cards/slogans.ts, because he says them out loud
+              ("I will say it word for word in outros") and the slide has to match. */}
+          <button style={chip(sloganMenu, KIND_COLOR.slogan)} title="The three slogans — one click each" aria-haspopup="menu" aria-expanded={sloganMenu} onClick={() => setSloganMenu((v) => !v)}>＋ Slogan ▾</button>
         </div>
+        {sloganMenu && (
+          <div className="flex" style={{ gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+            {SLOGANS.map((s) => (
+              <button key={s.id} style={{ ...chip(false, KIND_COLOR.slogan), fontSize: 10.5, textTransform: "none", letterSpacing: 0 }} title={s.blurb}
+                onClick={() => {
+                  add("slogan", { text: s.text });
+                  // "B to an A is the picture, yes" — that one wants a picture, so the right
+                  // column lands on the Illustrator with the new slide already selected and he
+                  // can generate one there and then. The other two are words alone.
+                  if (s.art) setRightTab("illustrator");
+                  setSloganMenu(false);
+                }}>{s.text}</button>
+            ))}
+          </div>
+        )}
         {mapMenu && (
           <div className="flex" style={{ gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
             {MAP_EXAMPLES.map((e) => (
@@ -891,7 +916,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
           </div>
           {canIllustrate(sel.kind)
             ? <IllustrationPanel key={sel.id} sel={sel} setId={set.id} setName={set.name} frames={frames} onPatch={(p) => patch(sel.id, p)} />
-            : <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5 }}>Pictures go on Memorize This, Cheat Code, Deep Question and blank slides. Pick one of those in the spine, or insert a <b style={{ color: CREAM }}>＋ Blank</b> — on a blank slide the picture is the slide: the watermark, the picture and the camera if you want it.</div>}
+            : <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5 }}>Pictures go on Memorize This, Cheat Code, Deep Question, blank and slogan slides. Pick one of those in the spine, or insert a <b style={{ color: CREAM }}>＋ Blank</b> — on a blank slide the picture is the slide: the watermark, the picture and the camera if you want it.</div>}
         </section>
       ) : (
         <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs} layout={layoutOf(plan)}
@@ -1071,6 +1096,23 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         {sel.kind === "intro" && (
           <label style={{ fontSize: 11, color: MUTED }}>Topic line on the intro (blank = the set's name)
             <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder={set.name} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+        )}
+        {/* THE SLOGAN SLIDE (2026-09-08) — the words and nothing else. The picture, when the
+            slide wants one, is the Illustrator's face; the chips are the three Lee actually
+            says, straight from brand-cards/slogans.ts so the slide and the spoken line can
+            never drift apart. */}
+        {sel.kind === "slogan" && (
+          <div className="flex flex-col" style={{ gap: 8 }}>
+            <label style={{ fontSize: 11, color: MUTED }}>The slogan — the whole slide
+              <textarea style={{ ...field, minHeight: 48, marginTop: 4 }} value={sel.text ?? ""} placeholder={SLOGANS[0].text} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+            <div className="flex" style={{ gap: 5, flexWrap: "wrap" }}>
+              {SLOGANS.map((s) => (
+                <button key={s.id} style={{ ...chip((sel.text ?? "").trim() === s.text, ORANGE), fontSize: 10.5, textTransform: "none", letterSpacing: 0 }} title={s.blurb}
+                  onClick={() => onPatch({ text: s.text })}>{s.text}</button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11.5, color: MUTED }}>Black, the bolt alive behind it, the words as big as the frame takes. A picture is optional — add one on the Illustrator and the words step down under it.</div>
+          </div>
         )}
         {sel.kind === "outro" && (
           <label style={{ fontSize: 11, color: MUTED }}>Tagline on the outro (blank = the standard one)

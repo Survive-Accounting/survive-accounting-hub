@@ -74,18 +74,30 @@ export interface IllustrationPlacement { x: number; y: number; w: number }
 
 /** Which slides take a picture (Lee, 2026-09-05): Memorize This / a phrase, Cheat Code,
  *  Deeper Idea / a tip, and a blank slide — where the picture IS the slide (watermark,
- *  picture, optional camera, nothing else). */
-export const ILLUSTRATION_KINDS = ["phrase", "cheat", "tip", "blank"] as const;
+ *  picture, optional camera, nothing else).
+ *
+ *  And, since 2026-09-08, THE SLOGAN SLIDE — one of the three takes a picture and the other two
+ *  are words alone (Lee: "B to an A is the picture, yes. Others just text."), which is exactly
+ *  what an optional slot already means: nothing is drawn until he generates one. Being in this
+ *  list is the ONLY thing the Illustrator face needs to work on a kind. */
+export const ILLUSTRATION_KINDS = ["phrase", "cheat", "tip", "blank", "slogan"] as const;
 export function canIllustrate(kind: string): boolean { return (ILLUSTRATION_KINDS as readonly string[]).includes(kind); }
 
 /** Dead centre on a blank slide (a touch above the middle so the caption rail stays clear);
- *  under the card elsewhere — only asked for when a picture is placed by hand. */
+ *  the upper third on a slogan slide, where the words sit UNDER the picture — .46 w centred at
+ *  .28 h puts its bottom edge at ≈ .41 h on a 9:16 frame, just above the strip SloganCard.tsx
+ *  reserves for the words (`sloganBand`), which in turn stops above the caption rail; under the
+ *  card elsewhere — only asked for when a picture is placed by hand. */
 export function defaultPlacement(kind: string): IllustrationPlacement {
-  return kind === "blank" ? { x: 0.5, y: 0.44, w: 0.72 } : { x: 0.5, y: 0.62, w: 0.5 };
+  if (kind === "blank") return { x: 0.5, y: 0.44, w: 0.72 };
+  if (kind === "slogan") return { x: 0.5, y: 0.28, w: 0.46 };
+  return { x: 0.5, y: 0.62, w: 0.5 };
 }
-/** A placed picture, or a blank slide's — the layer that sits at a spot rather than in the band. */
+/** A placed picture, or a blank / slogan slide's — the layer that sits at a spot rather than in
+ *  the band. A slogan is a FULL-FRAME kind: it draws the whole 9:16 itself, so there is no card
+ *  for a band to hang under; its picture is always the phone-level layer at the spot above. */
 export function isPlaced(kind: string, i: FrameIllustration | null | undefined): boolean {
-  return !!i && (kind === "blank" || !!i.placement);
+  return !!i && (kind === "blank" || kind === "slogan" || !!i.placement);
 }
 
 // "drift" (2026-09-06, Lee: "the boiling animations are horrible for the illustrations...
