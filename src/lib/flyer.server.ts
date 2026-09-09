@@ -147,6 +147,88 @@ export async function flyerSvg(i: FlyerInput): Promise<string> {
 </svg>`;
 }
 
+// ── THE PRINT FLYER (2026-09-09) ─────────────────────────────────────────────────────────────
+// The dark flyer above works on screen and is bad on paper — a chapter printing it at the house
+// burns a full page of navy ink. This is a dedicated white, ink-friendly design for exactly that
+// job: pin-on-a-corkboard, handed out at rush, 8.5x11 with safe margins. It shares FlyerInput,
+// colorway(), heroCode(), flyerTarget() and qrDataUri() with the dark flyer — a campus's course
+// code or colourway changes both designs from the same edit, nothing here duplicates that data.
+//
+// THE DARK FLYER IS NOT REMOVED. It stays reachable at ?f=digital / ?f=digitalpdf for a future
+// social/digital use (see api.flyer.$school.$chapter.tsx) — this file only changes which design
+// answers the DEFAULT ?f=pdf / ?f=svg the Print/Save button and the on-page preview already use.
+const PRINT_INK = "#14213D";      // near-black navy body text — the brand navy, repurposed as ink
+const PRINT_MUTED = "#5B6478";    // secondary text — readable on white, still legible in grayscale
+const PRINT_RULE = "#D9DEE8";     // hairline dividers — a whisper of ink, never a fill
+const PRINT_ACCENT = "#F5A623";   // the ONE other spot of solid colour besides the bolt, used twice
+
+/** The chapter's own short URL, exactly what the QR encodes, minus the protocol and the `?s=flyer`
+ *  attribution stamp — what a human reads under the code, not what the scanner reads. */
+export function flyerDisplayUrl(i: FlyerInput): string {
+  return flyerTarget(i).replace(/^https?:\/\//, "").replace(/\?.*$/, "");
+}
+
+/** The headline ("{code} EXAM 1") runs longer than the code alone, so it gets its own scale —
+ *  same idea as courseFontSize, tuned for the extra two words. */
+function printHeroFontSize(text: string): number {
+  const n = text.length;
+  if (n <= 12) return 190;
+  if (n <= 16) return 160;
+  return 130;
+}
+
+export async function printFlyerSvg(i: FlyerInput): Promise<string> {
+  const { c1, c2 } = colorway(i.schoolSlug);
+  const code = heroCode(i);
+  const qr = await qrDataUri(i);
+  const eyebrow = i.chapterName
+    ? `FOR ${i.chapterName.toUpperCase()} · ${i.schoolName.toUpperCase()}`
+    : `FOR ${i.schoolName.toUpperCase()} STUDENTS`;
+  const line1 = `${code} EXAM 1`;
+  const size1 = printHeroFontSize(line1);
+  const url = esc(flyerDisplayUrl(i));
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2550 3300" width="100%" font-family="Poppins, system-ui, sans-serif">
+  <rect width="2550" height="3300" fill="#FFFFFF"/>
+
+  <!-- THE BOLT — the one place strong school colour stays prominent. A dark keyline, not white,
+       so it stays crisp on paper (a white stroke would vanish into the page). -->
+  <g transform="translate(1275, 300) scale(1.05) translate(-45.4 0)">
+    <path d="${BOLT_OUTER}" fill="${c1}" stroke="${PRINT_INK}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" paint-order="stroke"/>
+    <path d="${BOLT_RIGHT}" fill="${c2}"/>
+  </g>
+
+  <text x="1275" y="560" fill="${PRINT_MUTED}" font-size="42" font-weight="700" letter-spacing="6" text-anchor="middle">${esc(eyebrow)}</text>
+  <line x1="1075" y1="604" x2="1475" y2="604" stroke="${PRINT_RULE}" stroke-width="3"/>
+
+  <text x="1275" y="830" fill="${PRINT_INK}" font-size="${size1}" font-weight="700" text-anchor="middle" letter-spacing="-4">${esc(line1)}</text>
+  <text x="1275" y="1030" font-size="${size1}" font-weight="700" text-anchor="middle" letter-spacing="-4">
+    <tspan fill="${PRINT_INK}">IS </tspan><tspan fill="${PRINT_ACCENT}">FREE.</tspan>
+  </text>
+
+  <text x="1275" y="1160" fill="${PRINT_INK}" font-size="72" font-weight="600" text-anchor="middle">Like YouTube Shorts for exam prep.</text>
+  <text x="1275" y="1250" fill="${PRINT_MUTED}" font-size="50" text-anchor="middle">2-minute cram videos + exam-style practice.</text>
+  <line x1="700" y1="1320" x2="1850" y2="1320" stroke="${PRINT_RULE}" stroke-width="3"/>
+
+  <!-- THE QR — one of the largest elements on the page, as specified. Black-on-white needs no
+       colour to scan reliably, so it costs almost no ink even on a full-page print. -->
+  <rect x="675" y="1400" width="1200" height="1200" rx="28" fill="#FFFFFF" stroke="${PRINT_RULE}" stroke-width="3"/>
+  <image x="725" y="1450" width="1100" height="1100" href="${qr}"/>
+
+  <text x="1275" y="2700" fill="${PRINT_INK}" font-size="64" font-weight="700" text-anchor="middle">Scan to start cramming →</text>
+  <text x="1275" y="2770" fill="${PRINT_MUTED}" font-size="46" text-anchor="middle">${url}</text>
+  <line x1="700" y1="2840" x2="1850" y2="2840" stroke="${PRINT_RULE}" stroke-width="3"/>
+
+  <text x="1275" y="2930" font-size="46" font-weight="600" text-anchor="middle">
+    <tspan fill="${PRINT_ACCENT}">✓ </tspan><tspan fill="${PRINT_MUTED}">Created by a pro tutor</tspan>
+  </text>
+  <text x="1275" y="2996" font-size="46" font-weight="600" text-anchor="middle">
+    <tspan fill="${PRINT_ACCENT}">✓ </tspan><tspan fill="${PRINT_MUTED}">1,000+ students helped</tspan>
+  </text>
+
+  <text x="1275" y="3080" fill="${PRINT_MUTED}" font-size="38" font-style="italic" text-anchor="middle">Cram what&apos;s on your exam. Skip everything else.</text>
+</svg>`;
+}
+
 
 // ── the slide (16:9) ───────────────────────────────────────────────────────────────────────────
 
@@ -233,6 +315,18 @@ function centre(page: PDFPage, text: string, yTop: number, size: number, font: P
     x: 306 - w / 2, y: Y(yTop), size: s, font, color: hex(color),
     ...(track ? { characterSpacing: track } : {}),
   });
+}
+
+/** Centred text, two colours on one line (e.g. "IS " + "FREE.") — centred as a single unit, then
+ *  drawn as two adjacent runs so only the second part picks up the accent colour. Print flyer
+ *  only; the dark flyer never needed this. */
+function centreTwoTone(page: PDFPage, a: string, colorA: string, b: string, colorB: string, yTop: number, size: number, font: PDFFont) {
+  const s = size * S;
+  const wa = font.widthOfTextAtSize(a, s);
+  const wb = font.widthOfTextAtSize(b, s);
+  const x = 306 - (wa + wb) / 2;
+  page.drawText(a, { x, y: Y(yTop), size: s, font, color: hex(colorA) });
+  page.drawText(b, { x: x + wa, y: Y(yTop), size: s, font, color: hex(colorB) });
 }
 
 /** THE MEETING SLIDE, as a PDF — 16:9 landscape, one page, for the projector in a chapter
@@ -347,6 +441,68 @@ export async function flyerPdf(i: FlyerInput): Promise<Buffer> {
   page.drawRectangle({ x: X(700), y: Y(3010), width: X(1150), height: X(3), color: hex("#2A3555") });
   centre(page, "surviveaccounting.com", 3105, 58, semi, "#F5F1E8");
   centre(page, "Free Exam 1 · No card required", 3175, 38, reg, "#5C6B99");
+
+  return Buffer.from(await doc.save());
+}
+
+/** THE PRINT FLYER, as a PDF — same content and layout as printFlyerSvg, drawn with the exact
+ *  same X()/Y()/centre() coordinate mapping the dark flyerPdf above uses, so a template-unit
+ *  position means the same thing in both designs. White page, near-black ink, the campus bolt in
+ *  its own colours with a dark (not white) keyline so it stays crisp on paper. This is what the
+ *  default ?f=pdf now serves — see api.flyer.$school.$chapter.tsx. */
+export async function printFlyerPdf(i: FlyerInput): Promise<Buffer> {
+  const { c1, c2 } = colorway(i.schoolSlug);
+  const code = heroCode(i);
+  const f = await faces();
+
+  const doc = await PDFDocument.create();
+  doc.registerFontkit(fontkit);
+  doc.setTitle(`${i.chapterName ?? i.schoolName} — Survive Accounting (print)`);
+  const bold = await doc.embedFont(f["Poppins-Bold"]);
+  const semi = await doc.embedFont(f["Poppins-SemiBold"]);
+  const ital = await doc.embedFont(f["Poppins-Italic"]);
+
+  const page = doc.addPage([612, 792]);
+  page.drawRectangle({ x: 0, y: 0, width: 612, height: 792, color: rgb(1, 1, 1) });
+
+  const eyebrow = i.chapterName
+    ? `FOR ${i.chapterName.toUpperCase()} · ${i.schoolName.toUpperCase()}`
+    : `FOR ${i.schoolName.toUpperCase()} STUDENTS`;
+  const line1 = `${code} EXAM 1`;
+  const size1 = printHeroFontSize(line1);
+
+  // THE BOLT — same anchor pattern as the dark flyer's hero bolt (translate → scale → the -45.4
+  // viewBox-half offset), just a smaller scale and a dark keyline instead of white.
+  const bs = 1.05 * S;
+  page.drawSvgPath(BOLT_OUTER, {
+    x: 306 - 45.4 * bs, y: Y(300), scale: bs,
+    color: hex(c1), borderColor: hex(PRINT_INK), borderWidth: 4 * bs,
+  });
+  page.drawSvgPath(BOLT_RIGHT, { x: 306 - 45.4 * bs, y: Y(300), scale: bs, color: hex(c2) });
+
+  centre(page, eyebrow, 560, 42, bold, PRINT_MUTED, 6);
+  page.drawRectangle({ x: X(1075), y: Y(604), width: X(400), height: X(3), color: hex(PRINT_RULE) });
+
+  centre(page, line1, 830, size1, bold, PRINT_INK);
+  centreTwoTone(page, "IS ", PRINT_INK, "FREE.", PRINT_ACCENT, 1030, size1, bold);
+
+  centre(page, "Like YouTube Shorts for exam prep.", 1160, 72, semi, PRINT_INK);
+  centre(page, "2-minute cram videos + exam-style practice.", 1250, 50, semi, PRINT_MUTED);
+  page.drawRectangle({ x: X(700), y: Y(1320), width: X(1150), height: X(3), color: hex(PRINT_RULE) });
+
+  // THE QR — one of the largest elements on the page, same inset ratio as the dark flyer's box.
+  page.drawRectangle({ x: X(675), y: Y(2600), width: X(1200), height: X(1200), color: rgb(1, 1, 1), borderColor: hex(PRINT_RULE), borderWidth: X(3) });
+  const qr = await doc.embedPng(await qrDataUri(i));
+  page.drawImage(qr, { x: X(725), y: Y(2550), width: X(1100), height: X(1100) });
+
+  centre(page, "Scan to start cramming →", 2700, 64, bold, PRINT_INK);
+  centre(page, flyerDisplayUrl(i), 2770, 46, semi, PRINT_MUTED);
+  page.drawRectangle({ x: X(700), y: Y(2840), width: X(1150), height: X(3), color: hex(PRINT_RULE) });
+
+  centreTwoTone(page, "✓ ", PRINT_ACCENT, "Created by a pro tutor", PRINT_MUTED, 2930, 46, semi);
+  centreTwoTone(page, "✓ ", PRINT_ACCENT, "1,000+ students helped", PRINT_MUTED, 2996, 46, semi);
+
+  centre(page, "Cram what's on your exam. Skip everything else.", 3080, 38, ital, PRINT_MUTED);
 
   return Buffer.from(await doc.save());
 }

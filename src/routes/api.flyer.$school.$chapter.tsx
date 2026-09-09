@@ -109,14 +109,21 @@ async function resolve(school: string, chapter: string, ref: string | null): Pro
 async function handle({ request, params }: { request: Request; params: { school: string; chapter: string } }): Promise<Response> {
   try {
     const url = new URL(request.url);
-    // ?f=pdf (default, the printable flyer) · ?f=svg (the same flyer as vector)
+    // ?f=pdf (default — THE PRINT FLYER, white/ink-friendly, what "Print"/"Save the flyer" hands
+    //   out) · ?f=svg (the same print flyer as vector, what the on-page preview shows)
+    // ?f=digital / ?f=digitalpdf (the ORIGINAL dark branded flyer, unchanged — kept for a future
+    //   social/digital use; nothing in the public UI links here today)
     // ?f=slide (16:9 for a chapter meeting projector — same message, same colourway, big QR)
     // ?f=slide&pdf=1 (that same slide as a downloadable PDF — what the chapter share kit hands
     //   out, and the identical artwork the council partner kit puts in its ZIP; one design)
     const raw = url.searchParams.get("f");
     const wantsPdf = url.searchParams.get("pdf") === "1";
-    const format: "svg" | "slide" | "slidepdf" | "pdf" =
-      raw === "svg" ? "svg" : raw === "slide" ? (wantsPdf ? "slidepdf" : "slide") : "pdf";
+    const format: "svg" | "digital" | "digitalpdf" | "slide" | "slidepdf" | "pdf" =
+      raw === "svg" ? "svg"
+      : raw === "digital" ? "digital"
+      : raw === "digitalpdf" ? "digitalpdf"
+      : raw === "slide" ? (wantsPdf ? "slidepdf" : "slide")
+      : "pdf";
     const ref = (url.searchParams.get("ref") ?? "").trim() || null;
     const input = await resolve(params.school, params.chapter, ref);
     if (!input) return new Response("Not found", { status: 404 });
@@ -124,23 +131,26 @@ async function handle({ request, params }: { request: Request; params: { school:
     // Imported HERE, not at module scope: this file lives in the CLIENT route tree, and a static
     // import drags pdf-lib and qrcode into the browser bundle — which is what produced the
     // out-of-memory build. See the header of flyer.server.ts.
-    const { flyerSvg, flyerPdf, slideSvg, slidePdf } = await import("@/lib/flyer.server");
-    const body = format === "svg" ? Buffer.from(await flyerSvg(input), "utf8")
+    const { printFlyerSvg, printFlyerPdf, flyerSvg, flyerPdf, slideSvg, slidePdf } = await import("@/lib/flyer.server");
+    const body = format === "svg" ? Buffer.from(await printFlyerSvg(input), "utf8")
+      : format === "digital" ? Buffer.from(await flyerSvg(input), "utf8")
+      : format === "digitalpdf" ? await flyerPdf(input)
       : format === "slide" ? Buffer.from(await slideSvg(input), "utf8")
       : format === "slidepdf" ? await slidePdf(input)
-      : await flyerPdf(input);
+      : await printFlyerPdf(input);
 
     // The ETag carries everything that changes the artwork, so a course-code or colourway edit
     // invalidates by itself.
     const etag = `"${Buffer.from(`${params.school}|${params.chapter}|${input.courseCode ?? ""}|${input.refCode ?? ""}|${format}|${body.length}`).toString("base64url")}"`;
     if (request.headers.get("if-none-match") === etag) return new Response(null, { status: 304 });
 
-    const kind = format === "slide" || format === "slidepdf" ? "slide" : "flyer";
-    const ext = format === "svg" || format === "slide" ? format : "pdf";
+    const kind = format === "slide" || format === "slidepdf" ? "slide" : format === "digital" || format === "digitalpdf" ? "flyer-digital" : "flyer";
+    const isSvgKind = format === "svg" || format === "slide" || format === "digital";
+    const ext = isSvgKind ? "svg" : "pdf";
     const filename = `survive-${params.school}-${params.chapter}-${kind}.${ext}`;
     return new Response(new Uint8Array(body), {
       headers: {
-        "content-type": (format === "svg" || format === "slide") ? "image/svg+xml; charset=utf-8" : "application/pdf",
+        "content-type": isSvgKind ? "image/svg+xml; charset=utf-8" : "application/pdf",
         // inline: the download button supplies its own filename via the anchor's `download`
         // attribute, and Print needs the PDF to open in the viewer rather than save.
         "content-disposition": `inline; filename="${filename}"`,
