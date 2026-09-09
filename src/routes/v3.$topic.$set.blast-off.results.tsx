@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminGate } from "@/components/AdminGate";
 import { ReviewDeck, type DeckApi } from "@/components/blastoff/ReviewDeck";
 import { frameForIdea } from "@/components/blastoff/idea-to-slide";
+import { SplitPanel } from "@/components/blastoff/SplitPanel";
 import { SessionView } from "@/components/talkthrough/SessionView";
 import { listSessions, sessionMeta } from "@/components/canvas/talkthrough";
 import { startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
@@ -41,6 +42,8 @@ function V3Results() {
   const { topics, error, topic, set } = useV3Set(topicKey, setKey);
   const [tt, setTT] = useState<TTState>(() => ttState());
   const [, forceReview] = useState(0);
+  // THE KNIFE is open (SplitPanel) — off by default; the step bar's ✂ Split toggles it.
+  const [split, setSplit] = useState(false);
 
   useEffect(() => {
     startTT();
@@ -87,7 +90,19 @@ function V3Results() {
 
       {set && topic && (
         <>
-          <StepBar topic={topic} set={set} active="results" />
+          {/* THE KNIFE (2026-09-09, components/blastoff/SplitPanel.tsx). Lee: "the splitting has to
+              be ruthless… a short for assets, one for liabilities, one for equity, one for revenue,
+              one for expense." A Blast Off plan is one per set, so a set over the ceiling is cut
+              into sibling sets from here, then each gets its own Editor and Film. */}
+          <StepBar topic={topic} set={set} active="results" right={
+            <button onClick={() => setSplit((v) => !v)} className="rounded-xl px-3.5 py-2"
+              style={{ border: `1.5px solid ${split ? V3_GOLD : V3_EDGE}`, background: split ? "rgba(252,163,17,0.12)" : "transparent", color: split ? V3_CREAM : V3_MUTED, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+              title={`Cut this set into sibling sets — ${set.liveCount} cards is ${set.liveCount > 12 ? "over" : "under"} the 12-card ceiling for one Short`}>
+              ✂ Split{set.liveCount > 12 ? ` · ${set.liveCount} cards` : ""}
+            </button>
+          } />
+
+          {split && <SplitPanel set={set} topic={topic} onClose={() => setSplit(false)} />}
 
           <ReviewDeck set={set} topic={topic} register={register} initialSelectedId={frameParam ?? null} />
 
