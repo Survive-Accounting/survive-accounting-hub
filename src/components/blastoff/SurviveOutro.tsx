@@ -34,6 +34,8 @@ import { SurviveWordmark, BRAND_CREAM } from "@/components/brand-cards/bolt-boil
 import { CampusBanner } from "@/components/brand-cards/BoltZoom";
 import { ChainLightning, CtaButton } from "@/components/brand-cards/ChainLightning";
 import { ctaLayout, type Rect } from "@/components/brand-cards/chain-lightning";
+import { TAGLINE } from "@/components/brand-cards/slogans";
+import { OUTRO_CLASS, outroClass, outroEntranceCss } from "./outro-entrance";
 import { UPPER_THIRD_Y, V, VStage, boilAt, reveal, riseIn } from "./stage";
 
 /** The pill's spotlight key on the film's PreviewSpotContext. */
@@ -45,7 +47,10 @@ export const CTA_SUB = "Videos · Practice Exams · Quizzes";
 export interface OutroSpot { state: "spot" | null; flamed: boolean; onDown: (e: ReactPointerEvent) => void }
 
 export function SurviveOutro({
-  tagline = "Cram what's on your exam.",
+  // The tagline from the one place it is declared (brand-cards/slogans.ts). Lee, 2026-09-08:
+  // "Cram what's on your exam is an outro card only for now" — retired from the cold open the
+  // same day, so this is the last card that says it by default.
+  tagline = TAGLINE,
   domain = "surviveaccounting.com",
   cta = "Start cramming free",
   progress,
@@ -53,6 +58,7 @@ export function SurviveOutro({
   transparent = false,
   banner = false,
   live = true,
+  entrance = false,
   ctaSpot,
 }: {
   tagline?: string;
@@ -71,6 +77,14 @@ export function SurviveOutro({
   /** false = an authoring pane (the Review stage): the spotlight shows its lit state
    *  statically, nothing strikes on load. */
   live?: boolean;
+  /** THE ENTRANCE (2026-09-08). Lee, on keeping "Cram what's on your exam." here and nowhere
+   *  else: "THAT is the slide that needs entrance animation too." On mount the card assembles
+   *  — white flash, wordmark, the slogan, the domain, then the pill LANDING HARD and the three
+   *  words under it (outro-entrance.ts). The bookend to the cold open's assembly, and the same
+   *  rule: everything eases in, one thing lands hard, and here that one thing is the ask.
+   *  Ignored on a pinned frame (`progress` given) and in an authoring pane (`live` false) —
+   *  those two must stay the finished card, because a still is what they are for. */
+  entrance?: boolean;
   /** The pill's spotlight state, from the film (FrameView). Absent = never lit. */
   ctaSpot?: OutroSpot;
 }) {
@@ -88,6 +102,11 @@ export function SurviveOutro({
   // live transition; the static still (progress undefined, used for a finished preview/export
   // frame) shows no flash, since there's no arrival to mark.
   const flash = progress === undefined ? 0 : Math.max(0, 1 - progress / 0.12);
+  // THE LIVE ENTRANCE. Only when there is an arrival to mark: never on a pinned frame (the
+  // offline renderer draws one moment and asks for it by `progress`), never in an authoring
+  // pane. `cls` is the whole switch — off, every piece renders exactly as it always did.
+  const animating = entrance && progress === undefined && live;
+  const cls = (k: Parameters<typeof outroClass>[0]) => (animating ? `${OUTRO_CLASS} ${outroClass(k)}` : undefined);
   const lit = ctaSpot?.state === "spot";
   const flamed = !!ctaSpot?.flamed && lit;
   // No wall-clock motion on a pinned frame (stage.tsx's rule) and none in an authoring pane.
@@ -125,34 +144,44 @@ export function SurviveOutro({
 
   return (
     <VStage scale={scale} transparent={transparent}>
+      {animating && <style>{outroEntranceCss()}</style>}
       <div ref={rootRef} style={{ position: "absolute", inset: 0 }}>
         <div style={{
           position: "absolute", left: 0, right: 0, top: UPPER_THIRD_Y,
           display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center",
         }}>
+          {/* The measured wrapper (wordRef) must NOT be the animating one: the chain lightning
+              aims at the bolt's rect at rest, and a scaling wrapper would move the target. */}
           <div ref={wordRef} style={{ display: "inline-flex" }}>
-            <SurviveWordmark size={WORD} boilFrame={boilAt(progress)} />
+            <div className={cls("wordmark")} style={{ display: "inline-flex" }}>
+              <SurviveWordmark size={WORD} boilFrame={boilAt(progress)} />
+            </div>
           </div>
-          <div style={{ marginTop: L.tagGap, fontWeight: 600, fontSize: L.tagSize, color: BRAND_CREAM, lineHeight: 1.15, ...riseIn(tag) }}>
+          <div className={cls("tagline")} style={{ marginTop: L.tagGap, fontWeight: 600, fontSize: L.tagSize, color: BRAND_CREAM, lineHeight: 1.15, ...(animating ? null : riseIn(tag)) }}>
             {tagline}
           </div>
-          <div style={{ marginTop: L.domainGap, fontWeight: 600, fontSize: L.domainSize, color: BRAND_CREAM, letterSpacing: "0.01em", lineHeight: 1, opacity: url * 0.6, transform: riseIn(url).transform }}>
+          <div className={cls("domain")} style={{ marginTop: L.domainGap, fontWeight: 600, fontSize: L.domainSize, color: BRAND_CREAM, letterSpacing: "0.01em", lineHeight: 1, ...(animating ? { ["--sa-oe-o" as string]: "0.6" } : { opacity: url * 0.6, transform: riseIn(url).transform }) }}>
             {domain}
           </div>
           {/* THE PILL — a wrapper carries the reveal so the pill's own transform (lift, grow) is
-              never fought by riseIn. z above the overlay: the bolts land ON the pill's top edge. */}
-          <div style={{ marginTop: L.buttonGap, position: "relative", zIndex: 5, ...riseIn(btn) }}>
+              never fought by riseIn. z above the overlay: the bolts land ON the pill's top edge.
+              The entrance rides that same wrapper, which is why the pill can land hard without
+              the lit/grown state fighting it: the two transforms are on different elements. */}
+          <div className={cls("cta")} style={{ marginTop: L.buttonGap, position: "relative", zIndex: 5, ...(animating ? null : riseIn(btn)) }}>
             <CtaButton ref={btnRef} label={cta} font={L.buttonFont} h={L.buttonH} padX={L.buttonPadX} minW={L.buttonMinW}
               lit={lit} flamed={flamed} still={still} onDown={ctaSpot?.onDown} />
           </div>
-          <div style={{ marginTop: L.subGap, fontWeight: 700, fontSize: L.subSize, color: BRAND_CREAM, opacity: sub * 0.7, transform: riseIn(sub).transform, letterSpacing: "0.18em", fontVariant: "all-small-caps", lineHeight: 1, whiteSpace: "nowrap" }}>
+          <div className={cls("sub")} style={{ marginTop: L.subGap, fontWeight: 700, fontSize: L.subSize, color: BRAND_CREAM, ...(animating ? { ["--sa-oe-o" as string]: "0.7" } : { opacity: sub * 0.7, transform: riseIn(sub).transform }), letterSpacing: "0.18em", fontVariant: "all-small-caps", lineHeight: 1, whiteSpace: "nowrap" }}>
             {CTA_SUB}
           </div>
         </div>
         <ChainLightning active={lit} flamed={flamed} still={still} from={rects?.bolt ?? null} to={rects?.btn ?? null} w={V.w} h={V.h} />
       </div>
       {banner && <CampusBanner w={V.w} h={V.h} live={progress === undefined} />}
+      {/* THE ARRIVAL FLASH — Lee, 2026-09-06: "like this came out of heaven". Two drivers, never
+          both: `progress` on a pinned frame, and the live entrance's own keyframe on mount. */}
       {flash > 0 && <div aria-hidden style={{ position: "absolute", inset: 0, background: "#FFFFFF", opacity: flash, pointerEvents: "none" }} />}
+      {animating && <div aria-hidden className="sa-oe-flash" style={{ position: "absolute", inset: 0, background: "#FFFFFF", pointerEvents: "none" }} />}
     </VStage>
   );
 }

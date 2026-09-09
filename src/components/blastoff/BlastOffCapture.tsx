@@ -109,7 +109,9 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
   // The SHARED highlight store (canvas/text-highlights) — same gesture, same
   // offsets, same gold as the canvas. Session-scoped, so marks survive walking
   // between frames within a rip and die only on ` or leaving capture.
-  const { api: hlApi, clearAll: clearAllTextHls } = useTextHighlights();
+  // KEYED BY THE SET (2026-09-08), so the marks cross into the pop-out. Lee: "highlights on text
+  // when in popped out need to persist. I'll pre-highlight things before filming sometimes."
+  const { api: hlApi, clearAll: clearAllTextHls } = useTextHighlights(set.id);
   // THE PROMPTER (2026-09-03): the lines Lee kept on the review deck, beside
   // the slide they belong to. P hides and shows it.
   const [prompter, setPrompter] = useState(true);
@@ -364,7 +366,17 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
   // is what must happen the instant the count reaches zero. Two things start a run: pressing C
   // (ten seconds, the take) and ARRIVING on the open frame (2.2 s, so the cold open always
   // assembles even when Lee doesn't count in — walk away and back and it plays again).
-  const [run, setRun] = useState<{ id: number; ms: number }>({ id: 0, ms: ASSEMBLY_SHORT_MS });
+  //
+  // AND IN THE POP-OUT IT HOLDS (2026-09-08). The pop-out IS the OBS window capture, so
+  // whatever it is showing when Lee hits Record is the head of the file. Playing the short
+  // assembly on arrival left it sitting on a FINISHED slide one; pressing C then snapped it
+  // back to black and rebuilt it — a head every take would need trimming, which is the one
+  // thing filming in a single pass is supposed to avoid. So in the pop-out the open frame holds
+  // at rest — black, the bolt, nothing assembled, exactly Lee's own picture of it ("nothing
+  // being on the screen maybe except the Bolt in the background") — until C rolls it. Record
+  // whenever; the take starts when the machine starts. Every other window keeps the arrival
+  // play, because nothing there is being recorded.
+  const [run, setRun] = useState<{ id: number; ms: number; held?: boolean }>({ id: 0, ms: ASSEMBLY_SHORT_MS });
   const countdown = useCountdown(useCallback(() => { setI(0); setRun((r) => ({ id: r.id + 1, ms: COUNTDOWN_SECONDS * 1000 })); }, []));
   const { start: startCountdown, cancel: cancelCountdown } = countdown;
   const counting = countdown.seconds !== null;
@@ -377,11 +389,12 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
     // short assembly on top of the landing).
     if (lastOpenId.current === frameId || counting) { lastOpenId.current = frameId; return; }
     lastOpenId.current = frameId;
-    setRun((r) => ({ id: r.id + 1, ms: ASSEMBLY_SHORT_MS }));
-  }, [isOpenFrame, frameId, counting]);
+    // In the pop-out, arriving does not play it — it HOLDS (see the note above). C rolls it.
+    setRun((r) => (popout.isPopout ? { id: r.id + 1, ms: ASSEMBLY_SHORT_MS, held: true } : { id: r.id + 1, ms: ASSEMBLY_SHORT_MS }));
+  }, [isOpenFrame, frameId, counting, popout.isPopout]);
   // The main window's NEXT preview never assembles: it is showing Lee what is coming, so it shows
   // slide one finished. Nor does anything outside capture — the Review stage draws it at rest.
-  const coldOpen = isOpenFrame && !preview ? { ms: run.ms, key: run.id } : null;
+  const coldOpen = isOpenFrame && !preview ? { ms: run.ms, key: run.id, held: !!run.held } : null;
   // What this window tells the teleprompter (and, from the pop-out, the main window): its slide —
   // or, during the countdown, no slide ("slide 0") with the countdown flag. The main window
   // writes NOTHING while the pop-out's take is live: the pop-out is the one that films.

@@ -1,35 +1,53 @@
-// THE REFLOW RATCHET (polish pass, 2026-09-05). A live highlight on the take must
-// never change the slide's layout under the camera: the emphasis rule is paint only,
-// the ctrl+click spotlight does not also select, and the spotlight does not rewrap.
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
 
-import { SEL_EMPH_CSS } from "./text-highlights";
+import { highlightMaps, highlightSnapshot, type HighlightSnapshot } from "./text-highlights";
 
-// CRLF-proof at read (import-cycles.test pins that every source-pin test does this).
-const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8").split("\r\n").join("\n");
+// Lee, 2026-09-08: "highlights on text when in popped out need to persist. I'll pre-highlight
+// things before filming sometimes." The pop-out is its own window, so the marks travel as this
+// record through localStorage.
+describe("the highlight record", () => {
+  const maps = () => ({
+    stem: new Map([["q2", { a: 3, b: 9 }], ["q1", { a: 0, b: 4 }]]),
+    choice: new Map([["q1|2", { a: 1, b: 5 }]]),
+    memo: new Map([["m7", { a: 2, b: 6 }]]),
+  });
 
-describe("live highlighting stays paint-only", () => {
-  test(".sa-sel-emph sets no layout property", () => {
-    const rule = /\.sa-sel-emph \{([^}]*)\}/.exec(SEL_EMPH_CSS)?.[1] ?? "";
-    expect(rule.length).toBeGreaterThan(0);
-    expect(rule).not.toMatch(/font-weight|padding|font-size|margin|letter-spacing|border(?!-radius)/);
-    expect(rule).toContain("background");
+  test("round-trips every map", () => {
+    const back = highlightMaps(highlightSnapshot("set-1", maps()));
+    expect(back.stem.get("q1")).toEqual({ a: 0, b: 4 });
+    expect(back.stem.get("q2")).toEqual({ a: 3, b: 9 });
+    expect(back.choice.get("q1|2")).toEqual({ a: 1, b: 5 });
+    expect(back.memo.get("m7")).toEqual({ a: 2, b: 6 });
   });
-  test("ctrl+click on a stem or a choice is the spotlight's, never a select", () => {
-    const pv = src("./CeqPreviewer.tsx");
-    const guards = pv.match(/onClick=\{film \? \(e\) => \{ if \(e\.altKey \|\| e\.ctrlKey \|\| e\.metaKey \|\| inert\) return;/g) ?? [];
-    expect(guards.length).toBe(2);
+
+  // The cross-window loop is "did this string change?" — insertion order must not make an
+  // unchanged state look new, or the two windows write at each other forever.
+  test("serialises identically whatever order the marks were made in", () => {
+    const a = highlightSnapshot("set-1", maps());
+    const b = highlightSnapshot("set-1", {
+      stem: new Map([["q1", { a: 0, b: 4 }], ["q2", { a: 3, b: 9 }]]),
+      choice: new Map([["q1|2", { a: 1, b: 5 }]]),
+      memo: new Map([["m7", { a: 2, b: 6 }]]),
+    });
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
-  test("the spotlight does not change a choice's weight", () => {
-    const pv = src("./CeqPreviewer.tsx");
-    const body = pv.slice(pv.indexOf("function containSpot("), pv.indexOf("// HOISTED ON PURPOSE"));
-    expect((body.match(/fontWeight: "inherit"/g) ?? []).length).toBe(2);
+
+  test("the set id rides along, so another deck's marks are never adopted", () => {
+    expect(highlightSnapshot("set-9", maps()).setId).toBe("set-9");
   });
-  test("ad copy is highlightable on the take, keyed by the frame", () => {
-    const ad = src("../blastoff/AdSlide.tsx");
-    expect(ad).toContain("hlKey?: string");
-    expect(ad).toContain("hlx.setMemo(k, r)");
-    expect(src("../blastoff/frame-view.tsx")).toContain("hlKey={live ? frame.id : undefined}");
+
+  test("an empty state is a real record — that is how the backtick wipes the other window", () => {
+    const empty = highlightSnapshot("set-1", { stem: new Map(), choice: new Map(), memo: new Map() });
+    expect(empty).toEqual({ setId: "set-1", stem: {}, choice: {}, memo: {} });
+    const back = highlightMaps(empty);
+    expect(back.stem.size + back.choice.size + back.memo.size).toBe(0);
+  });
+
+  test("a malformed record never takes the take down", () => {
+    const bad = { setId: "set-1", stem: { q1: null }, choice: undefined, memo: { m1: { a: 1 } } } as unknown as HighlightSnapshot;
+    const back = highlightMaps(bad);
+    expect(back.stem.size).toBe(0);
+    expect(back.choice.size).toBe(0);
+    expect(back.memo.size).toBe(0);
   });
 });

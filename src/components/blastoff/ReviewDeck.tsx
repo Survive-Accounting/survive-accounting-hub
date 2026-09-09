@@ -100,7 +100,7 @@ import { AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFram
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 // THE SLOGANS (2026-09-08) — the three lines, in the one place they are allowed to live
 // (brand-cards/slogans.ts). The quick row inserts them; the Editor offers them as chips.
-import { SLOGANS } from "@/components/brand-cards/slogans";
+import { OUTRO_SLOGANS, SLOGANS, TAGLINE } from "@/components/brand-cards/slogans";
 import { ADS, AD_LABEL } from "./AdSlide";
 import { PhoneFrame } from "./PhoneFrame";
 import { SlideEditContext } from "./slide-edit";
@@ -122,6 +122,9 @@ const QUICK: readonly { kind: BlastFrameKind; label: string; patch?: Partial<Bla
   { kind: "phrase", label: "Memorize this" },
   { kind: "cheat", label: "Cheat code" },
   { kind: "tip", label: "Deep question" },
+  // 2026-09-08, Lee: "Also, I'm not seeing a '+Tricky' type slide. Haven't we discussed this?"
+  // The fourth of the family the September strategy doc asked for, and the last one built.
+  { kind: "tricky", label: "Tricky" },
   // 2026-09-04: the bolt detour (Lee's OBS camera bed) and the three ads.
   { kind: "bolt", label: "Bolt detour" },
   { kind: "ad", label: "Ad · Greek", patch: { ad: "greek" } },
@@ -135,7 +138,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -711,7 +714,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
     if (f.kind === "open") return "Black · the glow wordmark · Power Four ticker";
     if (f.kind === "intro") return f.text?.trim() || set.name;
     if (f.kind === "bio") return "Lee Ingram · BAccy · MAccy — Ole Miss";
-    if (f.kind === "outro") return f.text?.trim() || "Cram what's on your exam.";
+    if (f.kind === "outro") return f.text?.trim() || TAGLINE;
     if (f.kind === "ceq") return ceq ? (ceq.noteOnly ? ceq.stem : `${ceq.label} · ${ceq.stem}`) : "— card missing from the set —";
     if (f.kind === "cheat") return [f.title, f.body].filter(Boolean).join(" — ") || "(empty cheat code)";
     if (f.kind === "ad") return f.title?.trim() || ADS[f.ad ?? "greek"].headline;
@@ -1046,7 +1049,7 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
   onSaved: (d: CeqDraft, edits: number) => void;
 }) {
   const bulletsText = (sel.bullets ?? []).join("\n");
-  const detour = sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "cheat";
+  const detour = sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "tricky" || sel.kind === "cheat";
   const ad = sel.kind === "ad" ? ADS[sel.ad ?? "greek"] : null;
   const adOwn = sel.text !== undefined || sel.title !== undefined || sel.bullets !== undefined || sel.url !== undefined;
   return (
@@ -1072,9 +1075,9 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
               <textarea style={{ ...field, minHeight: 48 }} value={sel.body ?? ""} placeholder="Ask yourself if they get a paycheck from the company. If so, they're internal." onChange={(e) => onPatch({ body: e.target.value })} /></label>
           </div>
         )}
-        {(sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "blank" || sel.kind === "exhibit") && (
-          <label style={{ fontSize: 11, color: MUTED }}>{sel.kind === "phrase" || sel.kind === "tip" ? "Title — the bold heading" : sel.kind === "exhibit" ? `Caption${sel.exhibitRef ? ` · exhibit: ${sel.exhibitRef}` : ""}` : "Text on the bare frame"}
-            <textarea style={{ ...field, minHeight: 48, marginTop: 4 }} value={sel.text ?? ""} placeholder={sel.kind === "phrase" ? "e.g. Internal users" : sel.kind === "tip" ? "e.g. Why the board feels like a gray area" : "say it the way you'd say it on camera"} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+        {(sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "tricky" || sel.kind === "blank" || sel.kind === "exhibit") && (
+          <label style={{ fontSize: 11, color: MUTED }}>{sel.kind === "phrase" || sel.kind === "tip" || sel.kind === "tricky" ? "Title — the bold heading" : sel.kind === "exhibit" ? `Caption${sel.exhibitRef ? ` · exhibit: ${sel.exhibitRef}` : ""}` : "Text on the bare frame"}
+            <textarea style={{ ...field, minHeight: 48, marginTop: 4 }} value={sel.text ?? ""} placeholder={sel.kind === "phrase" ? "e.g. Internal users" : sel.kind === "tricky" ? "e.g. Dividends are contra-EQUITY, not contra-asset" : sel.kind === "tip" ? "e.g. Why the board feels like a gray area" : "say it the way you'd say it on camera"} onChange={(e) => onPatch({ text: e.target.value })} /></label>
         )}
         {detour && (
           <label style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 8 }}>{sel.kind === "cheat" ? "More lines under it" : "Lines under it"} — one per line, Tab to nest
@@ -1114,9 +1117,20 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
             <div style={{ fontSize: 11.5, color: MUTED }}>Black, the bolt alive behind it, the words as big as the frame takes. A picture is optional — add one on the Illustrator and the words step down under it.</div>
           </div>
         )}
+        {/* THE OUTRO'S SLOGAN (2026-09-08). Lee: "ensure we have option to say, 'Like YT shorts
+            for exam prep.' on the outro slides too. Like two versions I could use." Both house
+            lines as one-click chips, blank = the tagline. This is also the ONLY slide either
+            line appears on now — the cold open's default was retired the same day. */}
         {sel.kind === "outro" && (
-          <label style={{ fontSize: 11, color: MUTED }}>Tagline on the outro (blank = the standard one)
-            <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder="Cram what's on your exam." onChange={(e) => onPatch({ text: e.target.value })} /></label>
+          <div className="flex flex-col" style={{ gap: 8 }}>
+            <label style={{ fontSize: 11, color: MUTED }}>Slogan on the outro (blank = the tagline)
+              <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder={TAGLINE} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+            <div className="flex flex-wrap" style={{ gap: 6 }}>
+              {OUTRO_SLOGANS.map((s) => (
+                <button key={s.id} style={chip((sel.text?.trim() || TAGLINE) === s.text, GOLD)} title={s.blurb} onClick={() => onPatch({ text: s.text === TAGLINE ? undefined : s.text })}>{s.text}</button>
+              ))}
+            </div>
+          </div>
         )}
         {/* 🎙 SAY IT + 🪄 TIGHTEN TO THE LINES (2026-09-07) — under the words, for every kind whose
             words are typed above: the callouts, the blank, the exhibit caption, the intro and outro. */}

@@ -12,7 +12,17 @@
 // are NEVER saved — nothing here touches a question. They live as long as the
 // session does, because film cards unmount constantly (a memo on every walk-
 // away) and a highlight that died with its card would be useless mid-take.
-import { createContext, useCallback, useMemo, useState, type ReactNode } from "react";
+//
+// ...AND THEY CROSS THE WINDOW (2026-09-08). Lee: "highlights on text when in popped out need
+// to persist. I'll pre-highlight things before filming sometimes." The 9:16 pop-out is a
+// SEPARATE WINDOW with its own React tree, so a highlight made while setting up in the main
+// window simply did not exist in the window that films — the prep was invisible in the take.
+// Pass a set id to `useTextHighlights` and the store mirrors itself through localStorage the
+// way the teleprompter sync does (blastoff/capture/prompter-sync.ts): one record per set,
+// written on every change, adopted from the cross-window `storage` event. Still not saved to
+// anything — this is session state that happens to outlive one window, not question data, and
+// the backtick wipe clears it in BOTH windows because clearing writes an empty record.
+import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 export interface TextRange { a: number; b: number }
 
@@ -34,9 +44,64 @@ const NOOP: HighlightApi = {
 /** Session-level, so a card unmounting mid-take does not drop its highlight. */
 export const HighlightContext = createContext<HighlightApi>(NOOP);
 
+// ---- the shared record, so the pop-out films what the main window highlighted ----
+
+export const HIGHLIGHTS_KEY = "sa-film-highlights";
+
+/** One set's highlights, flat and JSON-safe. Keyed by set so opening a different deck never
+ *  inherits the last one's marks. */
+export interface HighlightSnapshot {
+  setId: string;
+  stem: Record<string, TextRange>;
+  choice: Record<string, TextRange>;
+  memo: Record<string, TextRange>;
+}
+
+type HlMaps = { stem: Map<string, TextRange>; choice: Map<string, TextRange>; memo: Map<string, TextRange> };
+
+// Function declarations, not arrow consts: this module is on the canvas render path and the
+// TDZ ratchet (canvas/tdz-graph.test.ts) holds everything there to hoisted callables.
+function objOf(m: Map<string, TextRange>): Record<string, TextRange> {
+  return Object.fromEntries([...m].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+}
+
+/** Maps → the record. The keys are SORTED so two identical states serialise identically —
+ *  the whole cross-window loop is "did this string change?", and Map insertion order would
+ *  otherwise make an unchanged state look new and bounce writes back and forth forever. */
+export function highlightSnapshot(setId: string, m: HlMaps): HighlightSnapshot {
+  return { setId, stem: objOf(m.stem), choice: objOf(m.choice), memo: objOf(m.memo) };
+}
+
+function mapOf(o: Record<string, TextRange> | undefined): Map<string, TextRange> {
+  return new Map(Object.entries(o ?? {}).filter(([, r]) => r && typeof r.a === "number" && typeof r.b === "number"));
+}
+
+/** The record → maps, tolerant of anything malformed (an old or hand-edited record must not
+ *  take the filming surface down mid-take). */
+export function highlightMaps(snap: HighlightSnapshot): HlMaps {
+  return { stem: mapOf(snap.stem), choice: mapOf(snap.choice), memo: mapOf(snap.memo) };
+}
+
+export function readHighlights(): HighlightSnapshot | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(HIGHLIGHTS_KEY) ?? "null") as HighlightSnapshot | null;
+    return v && typeof v === "object" && typeof v.setId === "string" ? v : null;
+  } catch { return null; }
+}
+
+/** False when storage is unavailable — the highlight still works in this window, it just does
+ *  not reach the other one. Never throws into a take. */
+export function writeHighlights(snap: HighlightSnapshot): boolean {
+  try { localStorage.setItem(HIGHLIGHTS_KEY, JSON.stringify(snap)); return true; } catch { return false; }
+}
+
 /** The store. One per filming surface — the previewer owns one, /blast-off owns
- *  one. `clearAll` is what the backtick calls. */
-export function useTextHighlights(): { api: HighlightApi; clearAll: () => void } {
+ *  one. `clearAll` is what the backtick calls.
+ *
+ *  `persistFor` is the set id: given one, this store mirrors itself to every other window
+ *  filming the same set. Omitted (the canvas previewer), the behaviour is exactly what it
+ *  always was — in-memory, this window only. */
+export function useTextHighlights(persistFor?: string | null): { api: HighlightApi; clearAll: () => void } {
   const [stemHls, setStemHls] = useState<Map<string, TextRange>>(() => new Map());
   const [choiceHls, setChoiceHls] = useState<Map<string, TextRange>>(() => new Map());
   const [memoHls, setMemoHls] = useState<Map<string, TextRange>>(() => new Map());
@@ -46,6 +111,45 @@ export function useTextHighlights(): { api: HighlightApi; clearAll: () => void }
     setChoiceHls((m) => (m.size ? new Map() : m));
     setMemoHls((m) => (m.size ? new Map() : m));
   }, []);
+
+  // THE MIRROR. `seen` is the last record this window wrote OR adopted; `adopting` holds the
+  // record we have just taken from the other window but whose state has not committed yet.
+  // Both effects run on the same commit, so without `adopting` the publish below would fire
+  // once with the pre-adoption (usually empty) state and clobber what it had just read.
+  const seen = useRef<string>("");
+  const adopting = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!persistFor) return;
+    const adopt = () => {
+      const snap = readHighlights();
+      if (!snap || snap.setId !== persistFor) return;
+      const s = JSON.stringify(snap);
+      if (s === seen.current) return;
+      seen.current = s;
+      adopting.current = s;
+      const m = highlightMaps(snap);
+      setStemHls(m.stem);
+      setChoiceHls(m.choice);
+      setMemoHls(m.memo);
+    };
+    adopt();
+    window.addEventListener("storage", adopt);
+    return () => window.removeEventListener("storage", adopt);
+  }, [persistFor]);
+
+  useEffect(() => {
+    if (!persistFor) return;
+    const s = JSON.stringify(highlightSnapshot(persistFor, { stem: stemHls, choice: choiceHls, memo: memoHls }));
+    if (adopting.current !== null) {
+      // Still catching up to what we read. When the state matches it, we are level again.
+      if (s === adopting.current) { adopting.current = null; seen.current = s; }
+      return;
+    }
+    if (s === seen.current) return;
+    seen.current = s;
+    writeHighlights(JSON.parse(s) as HighlightSnapshot);
+  }, [persistFor, stemHls, choiceHls, memoHls]);
 
   const api = useMemo<HighlightApi>(() => ({
     stem: (qid) => stemHls.get(qid) ?? null,

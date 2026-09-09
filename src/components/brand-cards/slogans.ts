@@ -38,6 +38,12 @@ export const SLOGANS: readonly Slogan[] = [
   { id: "yt-shorts", text: "Like YT shorts for exam prep.", art: false, blurb: "Lee says this one word for word in outros — text only" },
 ];
 
+/** THE TWO THE OUTRO CAN END ON (2026-09-08). Lee: "ensure we have option to say, 'Like YT
+ *  shorts for exam prep.' on the outro slides too. Like two versions I could use." The
+ *  B-to-an-A line is deliberately not here — that one is a slide of its own, mid-video, with a
+ *  picture. The tagline is first because it is the outro's default. */
+export const OUTRO_SLOGANS: readonly Slogan[] = SLOGANS.filter((s) => s.id === "cram" || s.id === "yt-shorts");
+
 /** One slogan by id; undefined for anything else. A function DECLARATION, not an arrow const:
  *  this module is on the canvas render path (SloganCard → frame-view) and the TDZ ratchet
  *  (canvas/tdz-graph.test.ts) holds every module there to hoisted callables. */

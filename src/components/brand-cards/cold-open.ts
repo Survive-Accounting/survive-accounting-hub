@@ -167,8 +167,11 @@ export function pieceStyle(piece: AssemblyPiece, nowMs: number, dist: { dx: numb
 export const COLD_OPEN_CLASS = "sa-co";
 export function pieceClass(key: AssemblyKey | "ticker"): string { return `sa-co-${key}`; }
 
-const SOFT_EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
-const HARD_EASE = "cubic-bezier(0.34, 1.62, 0.64, 1)";
+/** THE HOUSE EASES. Exported because the outro's entrance (blastoff/outro-entrance.ts) is the
+ *  same gesture at the other end of the video — everything eases in, one thing lands hard — and
+ *  two copies of these curves would drift. */
+export const SOFT_EASE = "cubic-bezier(0.22, 0.61, 0.36, 1)";
+export const HARD_EASE = "cubic-bezier(0.34, 1.62, 0.64, 1)";
 
 /** The stylesheet for one plan, with `dx` / `dy` the travel in px. */
 export function coldOpenCss(plan: AssemblyPlan, dx: number, dy: number): string {

@@ -24,6 +24,12 @@ export const BLAST_FRAME_KINDS = [
   "open", "intro", "bio", "outro",                         // the standard spine ("open" = the cold open, 2026-09-03)
   "ceq",                                                   // a card the set owns
   "phrase", "cheat", "tip", "exhibit", "blank",            // what Lee inserts
+  // 2026-09-08: TRICKY — the fourth callout Lee asked for back in the September strategy
+  // brainstorm ("memorize this · cheat code · tricky · deep question") and then noticed was
+  // missing: "Also, I'm not seeing a '+Tricky' type slide. Haven't we discussed this?" It maps
+  // to the canvas's existing red `distractor` callout, whose LABEL is now "TRICKY" — one card,
+  // one colour, no sixth near-duplicate kind.
+  "tricky",
   // 2026-09-04: the bolt detour (black + the bolt animation, nothing else —
   // Lee's OBS camera backdrop and ad bed) and the three ads.
   "bolt", "ad",
@@ -135,7 +141,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "exhibit", "blank", "bolt", "ad", "cluster", "slogan"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "exhibit", "blank", "bolt", "ad", "cluster", "slogan"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -178,6 +184,8 @@ export const INSERT_CALLOUT: Partial<Record<BlastFrameKind, string>> = {
   cheat: "cheat-code",
   phrase: "memorize-this",
   tip: "deeper-idea",
+  // 2026-09-08: TRICKY reuses the canvas distractor card (red) — relabelled "TRICKY" there.
+  tricky: "distractor",
 };
 
 export const FRAME_LABEL: Record<BlastFrameKind, string> = {
@@ -192,6 +200,8 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   // Lee, 2026-09-06: "Deep Question seems a bit better" — it tells the student what to DO (stop
   // and reason it out), where "Deeper idea" didn't. The internal kind stays "tip" everywhere.
   tip: "Deep question",
+  // Lee, 2026-09-08: "I am not seeing a '+Tricky' type slide. Haven't we discussed this?" We had.
+  tricky: "Tricky",
   exhibit: "Exhibit",
   blank: "Blank",
   bolt: "Bolt detour",

@@ -83,6 +83,60 @@ A fourth callout kind is wanted: **memorize this · cheat code · tricky · deep
 question**. `distractor` already exists in `CalloutCard.tsx` (red) and is the
 closest fit; either relabel it or add "tricky" beside it.
 
+> **Built 2026-09-08.** Lee: *"Also, I'm not seeing a '+Tricky' type slide.
+> Haven't we discussed this?"* We had — here — and it had not been built.
+> Relabelled rather than added: the callout key stays `distractor` everywhere,
+> its label reads **TRICKY**, and a `tricky` frame kind now sits in the insert
+> row beside Memorize this / Cheat code / Deep question. Same reasoning as
+> "deeper-idea" → DEEP QUESTION two days earlier: *distractor* is what a test
+> writer calls it, *tricky* is what a student needs to hear.
+
+## The Slogans, and where each one lives
+
+Settled 2026-09-08, after the cold open started leading with the wrong words.
+
+- **"Cram what's on your exam."** — the site tagline. **Outro card only, for
+  now.** Lee: *"Cram what's on your exam is an outro card only for now."* It was
+  the cold open's default line and is retired from there.
+- **"Like YT shorts for exam prep."** — the positioning line, said word for word
+  in outros. Lee: *"That slogan just fucking rocks. I love it. It is perfect.
+  So, I don't want it to lose its spirit."* Available as the outro's other
+  version, so a video can end on either.
+- **"I'll take you from a B to an A."** — the sales line, its own slide, with an
+  illustration.
+- **"Found on your exam"** — retired as a default. (It had already been cut once
+  — `plan.ts`: *"forget found on your exam, it's wrong"* — and had crept back as
+  the chip on note-only set cards.)
+
+**The cold open leads with the TOPICS, not a slogan.** Lee: *"It needs to start
+on the slide with the topics."* The assembly's centre stack is the chapter, the
+site, and the set name; the slogan slot is empty unless Lee types one.
+
+**The outro assembles too.** Lee: *"THAT is the slide that needs entrance
+animation too."* Bookend to the cold open, same rule — everything eases in, one
+thing lands hard — except at this end the hard landing is the CTA pill, because
+that is the thing being asked for (`blastoff/outro-entrance.ts`).
+
+**What Lee actually says over the outro** (2026-09-08, correcting an assumption
+that had been made in the other direction): *"I don't say the outro out loud. I
+say — Hope this helped. Thanks for using Survive."* The slogan on the outro card
+is **read, not spoken**. Nothing in the audio names it.
+
+**Which makes per-destination slogans genuinely possible — as a post step, not a
+film one.** Lee asked whether *"Like YT shorts for exam prep."* could be the
+default while *"Cram what's on your exam."* is what goes to YouTube — *"a quick
+way to change what that slogan says by pasting something over it and
+re-exporting."* Because the words are never spoken, one take can serve both
+destinations: the audio is identical and only the last card's pixels differ. So
+the job is to re-render the outro card with the other slogan and splice it over
+the tail of the uploaded MP4 — one still, one ffmpeg overlay, per destination.
+That is real work and it belongs to the posting tool
+(`docs/PROMPT-POSTING-YOUTUBE.md`), which is already where the per-destination
+title, caption and hashtags are composed (`lib/caption-brief.ts`) — not to the
+film surface, which should stay one take, one pass. Lee: *"It's not super
+mission critical."* Until it is built, the outro's slogan is a per-video choice
+made in the Editor before filming.
+
 Internal vs. external users is effectively done — every slide is made.
 
 ---

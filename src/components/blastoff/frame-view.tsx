@@ -69,7 +69,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   /** THE ASSEMBLY COLD OPEN (2026-09-08, brand-cards/cold-open.ts): the open frame
    *  builds itself over `ms`; `key` restarts it (a new countdown, or walking back
    *  onto the slide). Absent everywhere but the capture surface. */
-  coldOpen?: { ms: number; key?: string | number } | null;
+  coldOpen?: { ms: number; key?: string | number; held?: boolean } | null;
   /** The capture surface: cards are live (SetCard `live`). */
   live?: boolean;
   /** The capture camera's grip override (width, scale multiplier), applied
@@ -106,12 +106,25 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // wordmark sits in the same place on both — Lee: "Make the Survive stay in
     // line between slides 1 and 2 so when I switch it doesn't look like I did."
     // open: tagline = text, domain = url · intro: topic = text, the tutor line = title, domain = url
-    // THE ASSEMBLY COLD OPEN (2026-09-08): only when the capture surface asks for it
-    // (BlastOffCapture → PhoneFrame → here). Its two topic lines are the topic and the
-    // set — "the topics come in, top line, left, bottom line, right" — the copy the
-    // slide already has, nothing invented.
-    if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} tagline={frame.text?.trim() || undefined} domain={frame.url?.trim() || undefined} live
-      assembly={coldOpen ? { totalMs: coldOpen.ms, key: coldOpen.key, wordmarkSpot: watermarkSpot(fw) } : null} topicTop={topicName} topicBottom={set.name}
+    // THE ASSEMBLY COLD OPEN (2026-09-08). Its two topic lines are the topic and the set —
+    // "the topics come in, top line, left, bottom line, right" — the copy the slide already
+    // has, nothing invented.
+    //
+    // IT IS NOW THE ONLY COLD OPEN THERE IS. Until today the assembly was handed in by the
+    // capture surface alone, so /film ran it and the Editor drew the OLD card — a big wordmark
+    // over "Cram what's on your exam." with no topics on it at all. Lee, opening the Editor:
+    // "The /results is starting the slides off with the cram what's on your exam. It needs to
+    // start on the slide with the topics." Two different first slides was the bug. Everywhere
+    // else now renders the SAME assembly, pinned at its finished moment (`atMs`) so the Review
+    // stage stays at rest; only the film plays it.
+    //
+    // AND NO DEFAULT SLOGAN. `tagline` falls back to "" instead of BoltZoom's TAGLINE — Lee:
+    // "'Cram what's on your exam' as intro… retired as defaults for now. Cram what's on your
+    // exam is an outro card only for now." The line is still typeable per set; it is just not
+    // put in Lee's mouth. With the slot empty the set name takes the hero size
+    // (ColdOpenAssembly's `lead`), which is what "start on the slide with the topics" means.
+    if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} tagline={frame.text?.trim() ?? ""} domain={frame.url?.trim() || undefined} live
+      assembly={{ wordmarkSpot: watermarkSpot(fw), ...(coldOpen ? (coldOpen.held ? { key: "held", atMs: 0 } : { totalMs: coldOpen.ms, key: coldOpen.key }) : { key: "still", finished: true }) }} topicTop={topicName} topicBottom={set.name}
       onEdit={edit ? (p) => edit({ ...(p.tagline !== undefined ? { text: p.tagline } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
     if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} tutorLine={frame.title?.trim() || undefined} domain={frame.url?.trim() || undefined} banner={frame.banner !== "off"} wordmarkTop={introWordmarkTop(layout)} live
       onEdit={edit ? (p) => edit({ ...(p.topic !== undefined ? { text: p.topic } : {}), ...(p.tutorLine !== undefined ? { title: p.tutorLine } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
@@ -128,7 +141,15 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
         </div>
       );
     }
-    return <SurviveOutro tagline={frame.text?.trim() || undefined} scale={s} live={live}
+    // THE OUTRO. It keeps "Cram what's on your exam." as its default — Lee, 2026-09-08: "Cram
+    // what's on your exam is an outro card only for now" — and it is the one slide that can say
+    // either house slogan (the Editor's two chips write frame.text).
+    //
+    // AND IT ASSEMBLES. "THAT is the slide that needs entrance animation too." The choreography
+    // was always here; it only ever ran off `progress`, which nothing on the deck passes, so
+    // the card arrived finished. `entrance` is the live path (outro-entrance.ts) and is on
+    // wherever the slide is being watched rather than authored.
+    return <SurviveOutro tagline={frame.text?.trim() || undefined} scale={s} live={live} entrance={live}
       ctaSpot={{ state: spot.state(OUTRO_CTA_KEY), flamed: spot.flamed(OUTRO_CTA_KEY), onDown: (e) => spot.onClick(OUTRO_CTA_KEY, e) }} />;
   }
 
@@ -149,10 +170,17 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   if (frame.kind === "ceq") {
     const ceq: BoothCeq | undefined = frame.ceqId ? set.ceqs.find((c) => c.id === frame.ceqId) : undefined;
     if (!ceq) return <SetCard stem="This card is no longer in the set." scale={scale} live={live} {...ov} />;
-    // The set's own note cards ARE the "found on your exam" card. Since
-    // 2026-09-03 they draw in the detour skin (dark, labelled) like every
-    // other callout slide; the previewer does the same for a noteOnly card.
-    if (ceq.noteOnly) return <SetCard id={ceq.id} stem={ceq.stem} scale={scale} callout={{ kind: "found-on-exam", detour: true, showTopic: false }} live={live} {...ov} />;
+    // The set's own note cards. Since 2026-09-03 they draw in the detour skin (dark, labelled)
+    // like every other callout slide; the previewer does the same for a noteOnly card.
+    //
+    // WITHOUT THE LABEL, since 2026-09-08. Lee: "'Found on your exam' [is] being retired as a
+    // default for now." He had cut that wording once already ("forget found on your exam, it's
+    // wrong" — plan.ts's own header) and it survived here as the gold chip on top of every note
+    // card. The card keeps the detour skin, which is what he asked for in the first place
+    // ("the found on your exam should also look more like the detour cards"); it just no longer
+    // announces itself in words he doesn't stand behind. FOUND_META still exists for the canvas
+    // card that is explicitly that kind.
+    if (ceq.noteOnly) return <SetCard id={ceq.id} stem={ceq.stem} scale={scale} callout={{ detour: true, showTopic: false }} live={live} {...ov} />;
     return (
       <SetCard
         id={ceq.id}

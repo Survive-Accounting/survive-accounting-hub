@@ -118,7 +118,7 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
    *  slide builds itself over `ms` and the wordmark lands last in the watermark corner; `key`
    *  restarts it (a new countdown, or walking back onto the slide). BlastOffCapture is the only
    *  caller — the Review stage and the thumbnails never assemble, they show slide one at rest. */
-  coldOpen?: { ms: number; key?: string | number } | null;
+  coldOpen?: { ms: number; key?: string | number; held?: boolean } | null;
 }) {
   const h = Math.round(w * 16 / 9);
   const backdrop = backdropFor(frames, index, (id) => !!set.ceqs.find((c) => c.id === id)?.noteOnly);
@@ -298,6 +298,12 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
         // the graphics run off ONE plan; the wrapper covers the whole phone so the camera's own
         // absolute placement is untouched and the transform's containing block stays the frame.
         if (!assembling) return webcam;
+        // HELD (the pop-out before C, 2026-09-08): the graphics are all still off-frame, but the
+        // camera is NOT — Lee has to see himself to line the shot up, and a blank frame is
+        // useless to point a camera at. So while held it renders plain, at rest. It is also the
+        // truest reading of this file's own rule: the camera is the living thing that exists
+        // before Lee speaks, and the graphics assemble around it.
+        if (coldOpen?.held) return webcam;
         return (
           <div key={coldOpen?.key} className={`${COLD_OPEN_CLASS} ${pieceClass("camera")}`} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>{webcam}</div>
         );

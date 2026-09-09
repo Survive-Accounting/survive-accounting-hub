@@ -63,8 +63,10 @@ export function ColdOpenAssembly({ w, h, totalMs, wordmarkSpot, still = false, a
   w: number; h: number;
   /** Where the wordmark LANDS — exactly where PhoneFrame draws the watermark next. */
   wordmarkSpot: WordmarkSpot;
-  /** The seconds the assembly runs across — the countdown's own length on a take. */
-  totalMs: number;
+  /** The seconds the assembly runs across — the countdown's own length on a take. Omitted, the
+   *  beat sheet's own length (cold-open.ASSEMBLY_TOTAL_MS), so a caller that only wants the
+   *  finished slide never has to name a duration — or import the constant to do it. */
+  totalMs?: number;
   /** A frozen render (Review preview, a thumbnail): the FINISHED slide, never a half-built one. */
   still?: boolean;
   /** Pin one moment, in ms — an offline frame renderer. `still` implies the end. */
@@ -97,6 +99,20 @@ export function ColdOpenAssembly({ w, h, totalMs, wordmarkSpot, still = false, a
     lineHeight: 1.35, textWrap: "balance" as never,
   };
 
+  // THE SET NAME IS THE HERO (2026-09-08). Lee: "It needs to start on the slide with the
+  // topics." Until today the big line in the middle of this stack was "Cram what's on your
+  // exam." and the two topic lines were chips either side of it — so the first thing on screen
+  // was a slogan and the topics were footnotes. The slogan is retired from this slide (it is
+  // the outro's now), which leaves the middle slot to the domain and frees the hierarchy: the
+  // chapter stays a chip because it is context, and the SET — what this video actually is —
+  // takes the size the slogan had.
+  const lead: React.CSSProperties = {
+    ...chip,
+    fontSize: Math.round(h * 0.038), letterSpacing: "0.06em", lineHeight: 1.15,
+    color: WHITE,
+    filter: `drop-shadow(0 ${Math.max(1, Math.round(h * 0.002))}px 0 rgba(0,0,0,0.55)) drop-shadow(0 ${Math.round(h * 0.012)}px ${Math.round(h * 0.024)}px rgba(0,0,0,0.45))`,
+  };
+
   return (
     <>
       <style>{css}</style>
@@ -114,7 +130,7 @@ export function ColdOpenAssembly({ w, h, totalMs, wordmarkSpot, still = false, a
           <Editable value={domain} onEdit={onEdit ? (v) => onEdit({ domain: v }) : undefined}
             style={{ color: "rgba(245,239,230,0.62)", fontFamily: FONT, fontWeight: 700, fontSize: Math.round(h * 0.019), letterSpacing: "0.02em", textAlign: "center" }} />
         </Piece>
-        <Piece plan={plan} dist={dist} pin={pin} name="topicBottom" style={chip}>{topicBottom || ""}</Piece>
+        <Piece plan={plan} dist={dist} pin={pin} name="topicBottom" style={lead}>{topicBottom || ""}</Piece>
       </div>
 
       {/* THE TICKER, last-but-one, rising from the bottom. Its wrapper covers the

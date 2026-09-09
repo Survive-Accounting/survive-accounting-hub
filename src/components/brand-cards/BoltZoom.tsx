@@ -243,7 +243,11 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
    *  Review stage, /branding and the canvas nodes never pass this. `wordmarkSpot` is
    *  the corner it lands in, read from webcam-spots.watermarkSpot by the caller (see
    *  ColdOpenAssembly's note on why it is handed in rather than imported). */
-  assembly?: { totalMs: number; key?: string | number; wordmarkSpot: WordmarkSpot } | null;
+  /** `finished` PINS the assembly at its last frame instead of playing it (the Review stage: the
+   *  slide at rest). Deliberately separate from `live` — the Editor freezes the assembly but
+   *  keeps the bolt alive behind it, and `live` is what governs the bolt. `totalMs` may be
+   *  omitted with it, so a caller wanting only the finished slide names no duration. */
+  assembly?: { totalMs?: number; key?: string | number; wordmarkSpot: WordmarkSpot; finished?: boolean; atMs?: number } | null;
   style?: React.CSSProperties;
 }) {
   const m: Exclude<BoltZoomMode, "knockout"> = mode === "knockout" ? "summary" : mode;
@@ -369,7 +373,7 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
           the wordmark landing HARD in the watermark corner on the last beat. The
           bolt is handed straight in, so this is the same bolt, just dimmed. */}
       {m === "open" && assembly && (
-        <ColdOpenAssembly key={assembly.key} w={w} h={h} totalMs={assembly.totalMs} wordmarkSpot={assembly.wordmarkSpot} still={still}
+        <ColdOpenAssembly key={assembly.key} w={w} h={h} totalMs={assembly.totalMs} wordmarkSpot={assembly.wordmarkSpot} still={still || !!assembly.finished} atMs={assembly.atMs}
           bolt={animation} ticker={banner ? <CampusBanner w={w} h={h} seed={seed} live={!still} /> : null}
           tagline={tagline} domain={domain} topicTop={topicTop} topicBottom={topicBottom} onEdit={onEdit} />
       )}
