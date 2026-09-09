@@ -54,7 +54,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
-import { ASSEMBLY_SHORT_MS } from "@/components/brand-cards/cold-open";
+import { ASSEMBLY_SHORT_MS, ASSEMBLY_TOTAL_MS } from "@/components/brand-cards/cold-open";
 import { BrandCursor } from "@/components/canvas/BrandCursor";
 import { V3_DISPLAY, type Crumb } from "@/components/v3/Shell";
 import { MoveContext, PersistContext, PracticeContext, PreviewSpotContext, ScaleContext, WidthContext, type PreviewSpotApi } from "@/components/canvas/CeqPreviewer";
@@ -70,7 +70,7 @@ import { useCaptureCamera } from "./capture/camera";
 import { useFieldRoam } from "./capture/field-roam";
 import { HotkeysModal } from "./capture/HotkeysModal";
 import { COUNTDOWN_SECONDS, countdownCue, countdownTone, useCapturePopout, useCountdown } from "./capture/popout";
-import { previewIndex, useCapturePrompterSyncFrame, usePopoutTake } from "./capture/prompter-sync";
+import { previewIndex, signalRoll, useCapturePrompterSyncFrame, usePopoutTake, useRollSignal } from "./capture/prompter-sync";
 import { fmtClock, historyLabel, initialRounds, opensReview, prompterEditable, reduceRounds, roundLabel, roundMode, roundSegments, showsPrompterInRound } from "./capture/rehearsal-rounds";
 import { useTeleprompterPopout } from "./capture/teleprompter-popout";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
@@ -376,9 +376,28 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
   // being on the screen maybe except the Bolt in the background") — until C rolls it. Record
   // whenever; the take starts when the machine starts. Every other window keeps the arrival
   // play, because nothing there is being recorded.
+  //
+  // THE COUNT AND THE ASSEMBLY ARE NOT THE SAME SECONDS (2026-09-09) — corrected, because they
+  // were. Lee: "The assembly animation isn't working like I want. I want it to start assembling
+  // the second the video starts. The second I start talking. So the countdown from 10, at 0 I
+  // hit my recording hotkey F4. Animation begins. We could even program the animation to hit
+  // when I press f4?"
+  //
+  // We can, and that is the whole fix. The count is now a LEAD-IN and nothing else: ten seconds
+  // to breathe while the pop-out holds on black and the bolt, with the number in the main window
+  // only. It starts nothing. F4 — Lee's OBS record hotkey — is what rolls: the recording begins
+  // and the machine begins assembling on the same press, so frame one of the file is frame one
+  // of the assembly and there is no head to trim and no dead air to talk over.
+  //
+  // F4 REACHES THE POP-OUT FROM EITHER WINDOW. Only the focused window sees a keypress, and the
+  // window that must assemble is the pop-out — so whichever window gets the key rolls itself and
+  // writes the roll (capture/prompter-sync.ts), and the pop-out acts on it either way.
   const [run, setRun] = useState<{ id: number; ms: number; held?: boolean }>({ id: 0, ms: ASSEMBLY_SHORT_MS });
-  const countdown = useCountdown(useCallback(() => { setI(0); setRun((r) => ({ id: r.id + 1, ms: COUNTDOWN_SECONDS * 1000 })); }, []));
+  const roll = useCallback(() => { setI(0); setRun((r) => ({ id: r.id + 1, ms: ASSEMBLY_TOTAL_MS })); }, []);
+  const countdown = useCountdown(useCallback(() => { setI(0); setRun((r) => ({ id: r.id + 1, ms: ASSEMBLY_SHORT_MS, held: true })); }, []));
   const { start: startCountdown, cancel: cancelCountdown } = countdown;
+  // F4 pressed in the OTHER window: roll, and end any count that was still running.
+  useRollSignal(set.id, popout.isPopout, useCallback(() => { cancelCountdown(); roll(); }, [cancelCountdown, roll]));
   const counting = countdown.seconds !== null;
   const isOpenFrame = frame?.kind === "open";
   const lastOpenId = useRef<string | null>(null);
@@ -466,12 +485,24 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
       // R arms / cancels / finishes a round; Shift+R starts the whole rehearsal over (round 1).
       else if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); if (e.shiftKey) startOver(); else pressR(); }
       else if (e.key.toLowerCase() === "b" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); const nx = nextCamSpot(camNow); setCamOverride(nx); if (nx === "off") setHero(false); }
-      // C: the 10 s countdown — in the 9:16 pop-out only (the main window is the preview then).
+      // C: the 10 s lead-in — in the 9:16 pop-out only (the main window is the preview then).
       else if (e.key.toLowerCase() === "c" && !e.ctrlKey && !e.metaKey && !e.altKey && popout.isPopout && !counting) { e.preventDefault(); startCountdown(); }
+      // F4 — ROLL. Lee's OBS record hotkey, and now the assembly's too: "I want it to start
+      // assembling the second the video starts… We could even program the animation to hit when
+      // I press f4?" Handled in BOTH windows, because only the focused one sees the key — this
+      // window rolls itself if it is the pop-out, and either way signals the other one. Never
+      // preventDefault'd away from OBS: the hook that gives OBS the key is the operating
+      // system's, not the page's, so nothing here can take it.
+      else if (e.key === "F4" && !e.altKey) {
+        e.preventDefault();
+        cancelCountdown();
+        if (popout.isPopout) roll();
+        signalRoll(set.id);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, cluster, shot, shots.length, setShot]);
+  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, cluster, shot, shots.length, setShot, roll, set.id]);
 
   // What FrameView's map draws from (cluster/ClusterStage.tsx): in the main window's NEXT
   // preview the map is its bird's-eye with everything revealed — honest about what comes next.
@@ -638,7 +669,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
           {running && <button onClick={scratchTake} title="Scratch this slide's take (`) — this round only" style={chip()}>✕ scratch take</button>}
           {/* THE COUNTDOWN button — pop-out only (H shows this bar there; C is the key). */}
           {popout.isPopout && !counting && (
-            <button onClick={startCountdown} title="10 s countdown (C): slide 1 assembles itself across the count and the wordmark lands on zero — space cancels. The NUMBER shows in the main /film window only, never in this one, so it is never in the recording: start talking as your camera flies in, hit F1 on zero." style={chip()}>⏱ 10 s countdown</button>
+            <button onClick={startCountdown} title="10 s lead-in (C): this window holds on black and the bolt while it counts — the NUMBER shows in the main /film window only, never here, so it is never in the recording. On zero press F4: your OBS recording and the cold open start on the same press." style={chip()}>⏱ 10 s lead-in → F4</button>
           )}
           {phase === "off" && segmentCount > 0 && (
             // "lines N →", not "review N →" (2026-09-07): "Review" is the Editor step's old name,

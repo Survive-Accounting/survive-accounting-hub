@@ -25,7 +25,7 @@
 // two writers on one key would fight, and the pop-out is the one that films. Never the other
 // direction: the pop-out never follows the main window. The Studio and the teleprompter ignore
 // the flags (they read setId/qId/at only, and a null qId reads as "no slide up yet").
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { BlastFrame } from "../plan";
 
@@ -127,6 +127,73 @@ export function useCapturePrompterSyncFrame(setId: string, frame: FilmFrameRef |
     window.addEventListener("pagehide", onHide);
     return () => { window.clearInterval(t); window.removeEventListener("pagehide", onHide); };
   }, [setId, qId, paused, popout, countdown, count, shot]);
+}
+
+// ------------------------------------------------------------------------ THE ROLL
+
+/** ROLL — "the machine starts NOW" (2026-09-09).
+ *
+ *  Lee: "I want it to start assembling the second the video starts. The second I start talking.
+ *  So the countdown from 10, at 0 I hit my recording hotkey F4. Animation begins. We could even
+ *  program the animation to hit when I press f4?"
+ *
+ *  Yes — and this is the channel that makes it work whichever window has focus. F4 is Lee's OBS
+ *  record hotkey, and OBS's global hotkeys ride a low-level hook that does NOT swallow the key,
+ *  so the focused browser window sees the same press that starts the recording. But only the
+ *  FOCUSED window sees it, and the window that has to start assembling is the pop-out. So
+ *  whichever window gets the key writes this record, and the pop-out rolls on it — the same
+ *  localStorage + `storage` event the teleprompter sync uses, for the same reason: no server, no
+ *  socket, and it works across two windows of one browser, which is the whole rig. */
+export const FILM_ROLL_KEY = "sa-film-roll";
+
+export interface FilmRoll { setId: string; at: number }
+
+/** A roll older than this was a previous take — never act on it. Short, because the whole point
+ *  is that the assembly starts on the same press that starts the recording. */
+export const ROLL_FRESH_MS = 4000;
+
+export function rollRecord(setId: string, at: number = Date.now()): FilmRoll { return { setId, at }; }
+
+/** Is this record a roll for this set, right now? Pure, so the window that reads it and the
+ *  test agree. A clock far ahead of ours is no better than a stale one. */
+export function isFreshRoll(rec: FilmRoll | null, setId: string, now: number, seenAt = 0): boolean {
+  if (!rec || rec.setId !== setId) return false;
+  if (rec.at <= seenAt) return false;
+  return Math.abs(now - rec.at) <= ROLL_FRESH_MS;
+}
+
+/** Say it. False when storage is unavailable — the window that pressed the key still rolls
+ *  itself; only the other one misses it. */
+export function signalRoll(setId: string): boolean {
+  try { localStorage.setItem(FILM_ROLL_KEY, JSON.stringify(rollRecord(setId))); return true; } catch { return false; }
+}
+
+export function readRoll(): FilmRoll | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(FILM_ROLL_KEY) ?? "null") as FilmRoll | null;
+    return v && typeof v === "object" && typeof v.setId === "string" && typeof v.at === "number" ? v : null;
+  } catch { return null; }
+}
+
+/** Hear it. `onRoll` fires once per roll — the `storage` event does not fire in the window that
+ *  wrote, which is exactly right here: that window has already rolled itself. */
+export function useRollSignal(setId: string, enabled: boolean, onRoll: () => void): void {
+  const seen = useRef(0);
+  const cb = useRef(onRoll);
+  cb.current = onRoll;
+  useEffect(() => {
+    if (!enabled) return;
+    // Anything already in storage when this window opens belongs to an earlier take.
+    seen.current = readRoll()?.at ?? 0;
+    const tick = () => {
+      const rec = readRoll();
+      if (!isFreshRoll(rec, setId, Date.now(), seen.current)) return;
+      seen.current = rec!.at;
+      cb.current();
+    };
+    window.addEventListener("storage", tick);
+    return () => window.removeEventListener("storage", tick);
+  }, [setId, enabled]);
 }
 
 // ---------------------------------------------------------------- the main window's side

@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-import { FILM_ACTIVE_KEY, POPOUT_HEARTBEAT_MS, POPOUT_STALE_MS, filmActiveRecord, filmNodeId, filmNodeIdForFrameId, popoutTake, previewIndex, type FilmActive } from "./prompter-sync";
+import { FILM_ACTIVE_KEY, FILM_ROLL_KEY, POPOUT_HEARTBEAT_MS, POPOUT_STALE_MS, ROLL_FRESH_MS, filmActiveRecord, filmNodeId, filmNodeIdForFrameId, isFreshRoll, popoutTake, previewIndex, rollRecord, type FilmActive } from "./prompter-sync";
 
 const src = (rel: string) => readFileSync(join(import.meta.dir, rel), "utf8").split("\r\n").join("\n");
 const teleprompter = src("../../../routes/v3.teleprompter.tsx");
@@ -103,5 +103,32 @@ describe("the two ends (source pins)", () => {
   test("a plain write is the whole publish: the prompter polls the key and hears the cross-window storage event", () => {
     expect(teleprompter).toContain("window.setInterval(tick, 500)");
     expect(teleprompter).toContain('window.addEventListener("storage", tick)');
+  });
+});
+
+// THE ROLL (2026-09-09). Lee: "I want it to start assembling the second the video starts… So the
+// countdown from 10, at 0 I hit my recording hotkey F4. Animation begins. We could even program
+// the animation to hit when I press f4?" F4 reaches whichever window has focus; this record is
+// how it reaches the pop-out, which is the one that has to assemble.
+describe("the roll signal", () => {
+  test("a fresh roll for this set is a roll", () => {
+    expect(isFreshRoll(rollRecord("set-1", 10_000), "set-1", 10_000)).toBe(true);
+    expect(isFreshRoll(rollRecord("set-1", 10_000), "set-1", 10_000 + ROLL_FRESH_MS)).toBe(true);
+  });
+  test("another set's roll is not this window's", () => {
+    expect(isFreshRoll(rollRecord("set-2", 10_000), "set-1", 10_000)).toBe(false);
+    expect(isFreshRoll(null, "set-1", 10_000)).toBe(false);
+  });
+  test("a stale roll is a previous take, never acted on", () => {
+    expect(isFreshRoll(rollRecord("set-1", 10_000), "set-1", 10_001 + ROLL_FRESH_MS)).toBe(false);
+    // A clock far AHEAD of ours is no better than one behind — same rule as popoutTake.
+    expect(isFreshRoll(rollRecord("set-1", 10_000), "set-1", 10_000 - ROLL_FRESH_MS - 1)).toBe(false);
+  });
+  test("a roll already seen never fires twice — the window opened after it, or acted on it", () => {
+    expect(isFreshRoll(rollRecord("set-1", 10_000), "set-1", 10_000, 10_000)).toBe(false);
+    expect(isFreshRoll(rollRecord("set-1", 10_000), "set-1", 10_000, 9_999)).toBe(true);
+  });
+  test("it is its own key — a roll must never disturb the slide record", () => {
+    expect(FILM_ROLL_KEY).not.toBe(FILM_ACTIVE_KEY);
   });
 });

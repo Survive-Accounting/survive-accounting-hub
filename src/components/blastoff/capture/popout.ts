@@ -124,10 +124,18 @@ export const countdownTone = (seconds: number): "gold" | "cream" => (seconds <= 
  *  camera flies in first (cold-open.ts: 200 ms, landed by 1.3 s), so Lee talks over the whole
  *  assembly; the wordmark lands ON zero, which is the F1. The count exists for the second half
  *  of that — his words: "know exactly when to hit F1... so I don't miss the transition." */
+//
+// REWRITTEN 2026-09-09, because the count changed meaning. It used to run AT THE SAME TIME as
+// the assembly — press C and the machine built itself behind the number — and Lee's verdict was
+// that this is not what he wants: "I want it to start assembling the second the video starts.
+// The second I start talking. So the countdown from 10, at 0 I hit my recording hotkey F4.
+// Animation begins." So the count is now a pure LEAD-IN: nothing on screen but the bolt and his
+// camera while it runs, and zero is the press of F4 — the OBS recording and the assembly on the
+// same keystroke. These three lines say that, because the number alone does not.
 export function countdownCue(seconds: number): string {
-  if (seconds >= COUNTDOWN_SECONDS) return "your camera flies in — start talking";
-  if (seconds <= 1) return "F1 on zero — the wordmark lands";
-  return "assembling — keep talking";
+  if (seconds <= 1) return "F4 NOW — record + the machine starts";
+  if (seconds <= COUNTDOWN_GOLD_FROM) return "hand on F4";
+  return "deep breath — F4 on zero";
 }
 
 /** The next second of the count: 10 → 9 → … → 1 → done (null). */

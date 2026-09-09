@@ -50,10 +50,14 @@ describe("the countdown", () => {
   });
   // Lee, 2026-09-08: "When will I start talking?" The count is a readout of the cold open, not a
   // 3-2-1 to start on: the camera flies in at the TOP of it and the wordmark lands on zero.
-  test("the cue says talk at the top and F1 on zero", () => {
-    expect(countdownCue(COUNTDOWN_SECONDS)).toContain("start talking");
-    expect(countdownCue(5)).not.toContain("F1");
-    expect(countdownCue(1)).toContain("F1");
+  // 2026-09-09: the count is a LEAD-IN now — nothing assembles until F4, which is also the OBS
+  // record hotkey. "The countdown from 10, at 0 I hit my recording hotkey F4. Animation begins."
+  test("the cue counts down to F4, not to talking", () => {
+    expect(countdownCue(COUNTDOWN_SECONDS)).toContain("deep breath");
+    expect(countdownCue(5)).not.toContain("NOW");
+    expect(countdownCue(1)).toContain("F4 NOW");
+    // The key is named at every second — the count exists to land that one press.
+    for (const s of [COUNTDOWN_SECONDS, 5, 3, 1]) expect(countdownCue(s)).toContain("F4");
   });
 });
 

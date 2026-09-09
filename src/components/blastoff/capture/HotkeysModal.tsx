@@ -57,10 +57,13 @@ export const HOTKEY_GROUPS: readonly Group[] = [
     ["F", "fullscreen (in the 9:16 pop-out)"],
     // THE COUNTDOWN + NEXT-SLIDE PREVIEW (2026-09-07). Lee: "a 10 second countdown… like we're on
     // slide 0 at that point… this will help me to see what slide comes next."
-    ["C", "10 s countdown (in the 9:16 pop-out): the count runs while slide 1 assembles · space cancels it"],
+    // 2026-09-09: the count is a LEAD-IN and F4 is the trigger. Lee: "the countdown from 10, at 0
+    // I hit my recording hotkey F4. Animation begins."
+    ["C", "10 s lead-in (in the 9:16 pop-out): the pop-out holds on black + the bolt while it counts, the number shows in the main window · space cancels it"],
+    ["F4", "ROLL — starts your OBS recording AND the cold open, on the same press. Works from either window. Frame one of the file is frame one of the assembly."],
     // THE ASSEMBLY COLD OPEN (2026-09-08). Lee: "this is a machine being put together… you're
     // about to get your system shocked. It's like a defibrillator."
-    ["—", "the cold open BUILDS ITSELF: camera in from the right, the question from the top, the topics left then right, the ticker, and the wordmark landing hard in the watermark corner — on zero. Without C it plays short (2.2 s) whenever you land on slide 1"],
+    ["—", "the cold open BUILDS ITSELF over 10 s: camera in from the right, the line from the top, the topics left then right, the ticker, and the wordmark landing hard in the watermark corner. Talk over it. Outside the pop-out it plays short (2.2 s) whenever you land on slide 1"],
     ["—", "while the pop-out is open, the main /film window shows the NEXT slide, dimmed (during the countdown: slide 1) — its own space is ignored; the pop-out drives"],
   ] },
   { title: "Rehearsal", keys: [
