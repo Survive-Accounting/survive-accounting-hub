@@ -22,10 +22,15 @@ import { V3_CREAM, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 
 const MINT = "#3BF5A0";
 
-export function TakeFrame({ name }: { name: string }) {
+export function TakeFrame({ name, file, onFile }: {
+  name: string;
+  /** THE TAKE, picked once for the whole post-production panel — the transcript and the cover
+   *  come from the same file, so asking for it twice would be the opposite of streamlined. */
+  file: File | null;
+  onFile: (f: File) => void;
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [url, setUrl] = useState<string | null>(null);
-  const [fileName, setFileName] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
@@ -33,17 +38,20 @@ export function TakeFrame({ name }: { name: string }) {
   const [fps, setFps] = useState<FrameRate>(DEFAULT_FPS);
   const [saving, setSaving] = useState(false);
 
-  // The object URL is revoked when the file changes and when the sheet closes — a take is
+  // One object URL per file, revoked when the file changes and when the panel closes — a take is
   // hundreds of megabytes and leaking one per open would be felt.
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
+  useEffect(() => {
+    if (!file) { setUrl(null); return; }
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    setErr(null); setDuration(0); setSize(null); setT(0);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
 
-  const pick = (file: File | null) => {
-    const problem = takeFileProblem(file);
-    if (problem || !file) { setErr(problem); return; }
-    setErr(null);
-    setUrl((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(file); });
-    setFileName(file.name);
-    setDuration(0); setSize(null); setT(0);
+  const pick = (picked: File | null) => {
+    const problem = takeFileProblem(picked);
+    if (problem || !picked) { setErr(problem); return; }
+    onFile(picked);
   };
 
   const seek = useCallback((next: number) => {
@@ -104,11 +112,13 @@ export function TakeFrame({ name }: { name: string }) {
         Nothing is uploaded: the file stays on this machine.
       </div>
 
-      <label style={{ ...small, display: "inline-block", marginTop: 10, borderColor: `${V3_GOLD}88`, color: V3_GOLD }}>
-        {url ? "Pick another take" : "Pick the take file"}
-        <input type="file" accept="video/*,.mp4,.mov,.m4v,.webm" onChange={(e) => pick(e.target.files?.[0] ?? null)} style={{ display: "none" }} />
-      </label>
-      {fileName && <span style={{ marginLeft: 8, fontSize: 11.5, color: V3_MUTED }}>{fileName}{size ? ` · ${size.w}×${size.h}` : ""}</span>}
+      {!file && (
+        <label style={{ ...small, display: "inline-block", marginTop: 10, borderColor: `${V3_GOLD}88`, color: V3_GOLD }}>
+          Pick the take file
+          <input type="file" accept="video/*,.mp4,.mov,.m4v,.webm" onChange={(e) => pick(e.target.files?.[0] ?? null)} style={{ display: "none" }} />
+        </label>
+      )}
+      {file && <div style={{ marginTop: 8, fontSize: 11.5, color: V3_MUTED }}>{file.name}{size ? ` · ${size.w}×${size.h}` : ""}</div>}
       {err && <div style={{ marginTop: 8, fontSize: 12, color: "#FF8B7E" }}>{err}</div>}
 
       {url && (

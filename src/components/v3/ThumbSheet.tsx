@@ -40,6 +40,9 @@ export function ThumbSheet({ setId, setName, topicName, defaultLine = "", onClos
    *  let me choose between the first few seconds… since often I have my eyes closed at the start."
    *  So the cover is either the card we draw, or a still of his own opening. */
   const [source, setSource] = useState<"card" | "take">("card");
+  /** Opened on its own, this sheet owns the take it is shown; inside post-production the file is
+   *  picked once at the top and this is not the door for it. */
+  const [takeFile, setTakeFile] = useState<File | null>(null);
   const [ground, setGround] = useState<ThumbGround>("navy");
   const [ratio, setRatio] = useState<ThumbRatio>("9x16");
   const [loading, setLoading] = useState(true);
@@ -90,7 +93,7 @@ export function ThumbSheet({ setId, setName, topicName, defaultLine = "", onClos
           <button type="button" onClick={() => setSource("take")} style={chip(source === "take")}>A frame of the take</button>
         </div>
 
-        {source === "take" && <div style={{ marginTop: 12 }}><TakeFrame name={setName} /></div>}
+        {source === "take" && <div style={{ marginTop: 12 }}><TakeFrame name={setName} file={takeFile} onFile={setTakeFile} /></div>}
 
         {source === "card" && (
         <div style={{ marginTop: 12, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>

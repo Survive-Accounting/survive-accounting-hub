@@ -41,6 +41,7 @@ import { blastOffPath, useBank } from "@/components/v3/use-bank";
 import { V3Shell, V3Note, V3_CREAM, V3_MUTED, V3_GOLD, V3_EDGE, V3_DISPLAY } from "@/components/v3/Shell";
 import { StageChip, stepLabel } from "@/components/v3/StageChip";
 import { ThumbSheet } from "@/components/v3/ThumbSheet";
+import { PostProduction } from "@/components/v3/PostProduction";
 import { isFilmedUnconfirmed, matchesFilter, stageOf, stageRank, talkStageOf, STAGE_SKY, type StageFilter, type StageInfo } from "@/components/v3/set-stage";
 import { listBlastPlanSetIds, loadBlastPlan, type PlanTakeRow } from "@/lib/blastoff.functions";
 import { runFor } from "@/components/blastoff/plan";
@@ -205,6 +206,13 @@ function PostQueue() {
   // THE CAPTION SHEET — one open at a time, keyed by set id.
   const [captioning, setCaptioning] = useState<string | null>(null);
   const captioningRow = captioning ? flat.find((r) => r.key === captioning) ?? null : null;
+  /** POST-PRODUCTION (2026-09-09). Lee: "I'm a bit confused the order of operations once I have
+   *  a finished video file." One door, six numbered steps, keyed by video. */
+  const [producing, setProducing] = useState<string | null>(null);
+  const producingRow = producing ? flat.find((r) => r.key === producing) ?? null : null;
+  /** The take's own words, per video — held for this visit so the caption sheet can write from
+   *  them. The durable copy is the take_transcripts row; this is just what's in hand. */
+  const [transcripts, setTranscripts] = useState<Record<string, string>>({});
   const [thumbing, setThumbing] = useState<string | null>(null);
   const thumbRow = thumbing ? flat.find((r) => r.key === thumbing) ?? null : null;
 
@@ -276,7 +284,7 @@ function PostQueue() {
                 takeIndex={r.takeIndex} takeCount={r.takeCount} takeCards={r.take.ceqIds.length}
                 status={statusFor(r.key)} info={r.info}
                 onToggle={onToggle} onFilmed={onFilmed} onSaveUrl={onSaveUrl}
-                onCaption={() => setCaptioning(r.key)} onThumb={() => setThumbing(r.key)}
+                onCaption={() => setCaptioning(r.key)} onThumb={() => setThumbing(r.key)} onProduce={() => setProducing(r.key)}
               />
             ))}
           </div>
@@ -288,9 +296,22 @@ function PostQueue() {
           topic={captioningRow.topic} set={captioningRow.set} pubKey={captioningRow.key}
           takeLabel={takeTitle(captioningRow.take.name, captioningRow.takeIndex, captioningRow.takeCount)}
           takeCeqIds={captioningRow.take.ceqIds}
+          takeTranscript={transcripts[captioningRow.key] ?? ""}
           status={statusFor(captioningRow.key)} tt={tt}
           onSaved={(s) => setStatus((prev) => ({ ...(prev ?? {}), [captioningRow.key]: s }))}
           onClose={() => setCaptioning(null)}
+        />
+      )}
+
+      {producingRow && (
+        <PostProduction
+          pubKey={producingRow.key}
+          title={takeTitle(producingRow.take.name, producingRow.takeIndex, producingRow.takeCount) || producingRow.set.name}
+          topicName={producingRow.topic.name}
+          defaultHookLine={firstStemOf(producingRow.set, producingRow.take.ceqIds)}
+          onTranscript={(t) => setTranscripts((prev) => (prev[producingRow.key] === t ? prev : { ...prev, [producingRow.key]: t }))}
+          onOpenCopy={() => setCaptioning(producingRow.key)}
+          onClose={() => setProducing(null)}
         />
       )}
 
@@ -322,7 +343,7 @@ function firstStemOf(set: BoothSetInfo, ceqIds: readonly string[]): string {
   return (mine[0] ?? live[0])?.stem ?? "";
 }
 
-function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards, status, info, onToggle, onFilmed, onSaveUrl, onCaption, onThumb }: {
+function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards, status, info, onToggle, onFilmed, onSaveUrl, onCaption, onThumb, onProduce }: {
   topic: BoothTopic; set: BoothSetInfo; status: SetPublishStatus; info: StageInfo;
   /** The publish key for THIS video: the set's id for the first, "<setId>#N" after that. */
   pubKey: string;
@@ -332,6 +353,7 @@ function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards,
   onSaveUrl: (setId: string, d: PublishDestination, url: string) => void;
   onCaption: () => void;
   onThumb: () => void;
+  onProduce: () => void;
 }) {
   const [editing, setEditing] = useState<PublishDestination | null>(null);
   const [draft, setDraft] = useState("");
@@ -378,7 +400,21 @@ function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards,
           borderRadius: 8, padding: "5px 10px", fontSize: 11.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
         }}
       >
-        🎬 {filmed ? "filmed" : unconfirmed ? "filmed? confirm" : "filmed"}
+        {filmed ? "✔ filmed" : unconfirmed ? "filmed? confirm" : "mark filmed"}
+      </button>
+
+      {/* POST-PRODUCTION — the whole line from a finished take to a posted video, in order. This
+          is the door; the caption and cover sheets are steps inside it (and still have their own
+          buttons, for going straight back to one). */}
+      <button
+        type="button" onClick={onProduce}
+        title="The finished take: transcript, burned captions, the copy, the cover — in order"
+        style={{
+          border: `1.5px solid ${V3_GOLD}`, background: "rgba(252,163,17,0.14)", color: V3_GOLD,
+          borderRadius: 8, padding: "5px 11px", fontSize: 11.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
+        }}
+      >
+        🎬 Post-production
       </button>
 
       {/* TALK THE CAPTION — the copy for every destination, talked, then copied where his hands are. */}
@@ -473,7 +509,7 @@ const emptyCaptions = (): PublishCaptions => ({ youtube: { ...EMPTY_CAPTION }, i
  *  every card updates; edit any field in place; copy a destination; Save. What it read from —
  *  the kept prompter lines, the cards, whether talkthrough notes exist — is shown, so a bad
  *  caption has a visible cause. */
-function CaptionSheet({ topic, set, pubKey, takeLabel, takeCeqIds, status, tt, onSaved, onClose }: {
+function CaptionSheet({ topic, set, pubKey, takeLabel, takeCeqIds, takeTranscript, status, tt, onSaved, onClose }: {
   topic: BoothTopic; set: BoothSetInfo; status: SetPublishStatus; tt: TTState;
   /** The publish key for THIS video — the set's id, or "<setId>#N" for a split. */
   pubKey: string;
@@ -481,13 +517,19 @@ function CaptionSheet({ topic, set, pubKey, takeLabel, takeCeqIds, status, tt, o
   takeLabel: string;
   /** The cards THIS video covers. Empty = the whole set (no cuts, or a run with no cards). */
   takeCeqIds: readonly string[];
+  /** THE TAKE'S OWN WORDS, when post-production has transcribed it. Seeds the box below, so the
+   *  copy is written from what he said on camera without him pasting anything. */
+  takeTranscript?: string;
   onSaved: (s: SetPublishStatus) => void; onClose: () => void;
 }) {
   const [text, setText] = useState("");
   const [interim, setInterim] = useState("");
   /** THE TAKE. Pasted SRT/VTT/plain text from `bun run captions <take.mp4>` — the filmed
    *  video's own words. Not stored: it belongs to the file, and re-pasting is one keystroke. */
-  const [take0, setTake0] = useState("");
+  const [take0, setTake0] = useState(takeTranscript ?? "");
+  // A transcript arriving after the sheet opened (post-production finishing while it is up) fills
+  // the box, but never overwrites something already typed there.
+  useEffect(() => { if (takeTranscript) setTake0((t) => t || takeTranscript); }, [takeTranscript]);
   const transcript = useMemo(() => transcriptText(take0), [take0]);
   const transcriptRef = useRef(transcript); transcriptRef.current = transcript;
   /** Speech only — what the throttle keys on, so a keystroke never costs a call. */
