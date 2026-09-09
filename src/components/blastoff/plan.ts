@@ -118,6 +118,9 @@ export interface BlastFrame {
    *  reversible — nothing moves until the knife is applied — and the spine can collapse a run
    *  ("would be a huge help if I could collapse a split group"). */
   cutAfter?: true;
+  /** The name of the video this slide HEADS — meaningful only on the first slide of a run
+   *  between cuts. Post shows it instead of "Split N". */
+  takeName?: string;
   /** THE CAMPUS BANNER on this slide (Lee: "let me add this banner at any time
    *  on future slides … toggle-able on and off"). Absent = only the cold open. */
   banner?: "on" | "off";
@@ -398,6 +401,70 @@ export function cutAfterFrame(frames: readonly BlastFrame[], id: string, opener:
   const before = frames.slice(0, i + 1);
   const after = frames.slice(i + 1);
   return [...before, { ...outro, cutAfter: true as const }, ...opener, ...after];
+}
+
+// ── TAKES ─────────────────────────────────────────────────────────────────────────────────────
+// A cut splits the running order into separate videos. Lee, 2026-09-09: "I only did account
+// classification > assets. Not the full thing… if we make splits, just in post it could maybe say
+// split 1, split 2… I'll name it what I need to. I'd also like to name it from the edit side."
+//
+// So a TAKE is one run of slides between two cuts, and it owns a name. The name lives on the run's
+// HEAD frame, because that frame is what a run is anchored to: reordering inside a run doesn't
+// move it, and adding a cut makes a new head for the new run. Everywhere else takeName is ignored.
+
+export interface PlanTake {
+  /** 0-based, in running order. */
+  index: number;
+  /** What Lee called it, or "" — takeLabel() is what a surface shows. */
+  name: string;
+  /** The head frame's id: where the name is stored, and what a rename targets. */
+  headId: string;
+  frames: BlastFrame[];
+}
+
+/** Split a running order into its takes. Always at least one take, even for an empty plan — a set
+ *  with no cuts is one video, and every caller wants to treat that the same way. */
+export function planTakes(frames: readonly BlastFrame[]): PlanTake[] {
+  const out: PlanTake[] = [];
+  let run: BlastFrame[] = [];
+  const push = () => {
+    const head = run[0];
+    out.push({ index: out.length, name: (head?.takeName ?? "").trim(), headId: head?.id ?? "", frames: run });
+    run = [];
+  };
+  for (const f of frames) {
+    run.push(f);
+    if (f.cutAfter) push();
+  }
+  if (run.length || !out.length) push();
+  return out;
+}
+
+/** What a surface calls a take: his name, else its number. */
+export const takeLabel = (t: PlanTake): string => t.name || `Split ${t.index + 1}`;
+
+/** THE RUN THAT COVERS THESE CARDS. Post knows which of a set's cards belong to one split, and
+ *  needs the SLIDES for them — the prompter lines it captions from live on brand slides too, so
+ *  filtering by ceqId alone would drop the opener and the callouts that belong to that video.
+ *  Generic over the frame shape: the stored plan's rows are not BlastFrame, but they are cut and
+ *  numbered the same way. Nothing matches → every frame, which is the no-cuts answer anyway. */
+export function runFor<F extends { ceqId?: string; cutAfter?: true }>(frames: readonly F[], ceqIds: readonly string[]): F[] {
+  if (!ceqIds.length) return [...frames];
+  const want = new Set(ceqIds);
+  const runs: F[][] = [];
+  let run: F[] = [];
+  for (const f of frames) {
+    run.push(f);
+    if (f.cutAfter) { runs.push(run); run = []; }
+  }
+  if (run.length) runs.push(run);
+  return runs.find((r) => r.some((f) => f.ceqId && want.has(f.ceqId))) ?? [...frames];
+}
+
+/** Rename a take by its head frame. An empty name clears it back to "Split N". */
+export function nameTake(frames: readonly BlastFrame[], headId: string, name: string): BlastFrame[] {
+  const clean = name.trim().slice(0, 80);
+  return frames.map((f) => (f.id === headId ? { ...f, takeName: clean || undefined } : f));
 }
 
 /** Skip ↔ film again. */

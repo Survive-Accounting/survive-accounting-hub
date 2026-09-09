@@ -42,7 +42,8 @@ import { V3Shell, V3Note, V3_CREAM, V3_MUTED, V3_GOLD, V3_EDGE, V3_DISPLAY } fro
 import { StageChip, stepLabel } from "@/components/v3/StageChip";
 import { ThumbSheet } from "@/components/v3/ThumbSheet";
 import { isFilmedUnconfirmed, matchesFilter, stageOf, stageRank, talkStageOf, STAGE_SKY, type StageFilter, type StageInfo } from "@/components/v3/set-stage";
-import { listBlastPlanSetIds, loadBlastPlan } from "@/lib/blastoff.functions";
+import { listBlastPlanSetIds, loadBlastPlan, type PlanTakeRow } from "@/lib/blastoff.functions";
+import { runFor } from "@/components/blastoff/plan";
 import {
   buildCaptionMessages, CAPTION_DEST_LABEL, CAPTION_DESTINATIONS, CAPTION_LIMITS, captionClipboardText, hasCaptions, normalizeHashtags, parseCaptions, transcriptText,
   type CaptionDestination, type DestinationCaption, type PublishCaptions,
@@ -98,6 +99,10 @@ function PostQueue() {
   // transient error) the row still renders from what the other sources know, and the chip is
   // just less informed. Only the publish statuses themselves are load-bearing here.
   const [plans, setPlans] = useState<Set<string>>(() => new Set());
+  /** THE SPLITS, per set (2026-09-09). Lee: "we need post to be ready for splits… I only did
+   *  account classification > assets. Not the full thing." A set whose running order carries cuts
+   *  is several videos, and each one is posted, captioned and covered on its own. */
+  const [takesBySet, setTakesBySet] = useState<Map<string, PlanTakeRow[]>>(() => new Map());
   const [filmSeconds, setFilmSeconds] = useState<Map<string, number>>(() => new Map());
   const [tt, setTT] = useState<TTState>(() => ttState());
   const [, forceReview] = useState(0);
@@ -105,7 +110,10 @@ function PostQueue() {
     listPublishStatuses()
       .then(setStatus)
       .catch((e) => setLoadErr(e instanceof Error ? e.message : String(e)));
-    listBlastPlanSetIds().then((rows) => setPlans(new Set(rows.map((r) => r.setId)))).catch(() => { /* no plan signal — chip falls back */ });
+    listBlastPlanSetIds().then((rows) => {
+      setPlans(new Set(rows.map((r) => r.setId)));
+      setTakesBySet(new Map(rows.map((r) => [r.setId, r.takes])));
+    }).catch(() => { /* no plan signal — chip falls back, and every set reads as one video */ });
     productionBottleneckReport()
       .then((r) => setFilmSeconds(new Map(r.sets.map((s) => [s.setId, s.bySteps.film ?? 0]))))
       .catch(() => { /* no timer signal — chip falls back */ });
@@ -116,20 +124,32 @@ function PostQueue() {
     return () => { unReview(); unTT(); };
   }, []);
 
-  const flat = useMemo(() => topics?.flatMap((t) => t.sets.map((s) => ({ topic: t, set: s }))) ?? [], [topics]);
+  // ONE ROW PER VIDEO. A set with no cuts is one take and keys on its own id, exactly as before
+  // — so every row already posted keeps its state. The second split onward keys on "<setId>#N",
+  // which set_publish_status accepts unchanged (its primary key is free text).
+  const flat = useMemo(() => topics?.flatMap((t) => t.sets.flatMap((s) => {
+    const takes = takesBySet.get(s.id) ?? [];
+    const list: PlanTakeRow[] = takes.length ? takes : [{ name: "", frames: 0, ceqIds: [] }];
+    return list.map((tk, i) => ({
+      topic: t, set: s, take: tk, takeIndex: i, takeCount: list.length,
+      key: i === 0 ? s.id : `${s.id}#${i + 1}`,
+    }));
+  })) ?? [], [topics, takesBySet]);
   const statusFor = (setId: string): SetPublishStatus => status?.[setId] ?? EMPTY;
-  const stageFor = (set: BoothSetInfo): StageInfo => {
-    const publish = status?.[set.id] ?? null;
+  // A PLAN AND A FILM TIMER BELONG TO THE SET; publish state belongs to the video. So the stage
+  // reads the set for the first two and the row's own key for the third.
+  const stageFor = (set: BoothSetInfo, key: string): StageInfo => {
+    const publish = status?.[key] ?? null;
     return stageOf({ talk: talkStageOf(tt, set), hasPlan: plans.has(set.id), filmSeconds: filmSeconds.get(set.id) ?? 0, filmedAt: publish?.filmedAt ?? null, publish });
   };
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return flat.filter(({ topic, set }) => !needle || set.name.toLowerCase().includes(needle) || topic.name.toLowerCase().includes(needle));
+    return flat.filter(({ topic, set, take }) => !needle || set.name.toLowerCase().includes(needle) || topic.name.toLowerCase().includes(needle) || take.name.toLowerCase().includes(needle));
   }, [flat, q]);
 
   // Stage once per row per render — the three lookups are cheap, the sort below reads it twice.
-  const staged = status ? rows.map((r) => ({ ...r, info: stageFor(r.set) })) : [];
+  const staged = status ? rows.map((r) => ({ ...r, info: stageFor(r.set, r.key) })) : [];
   const filterCounts = FILTERS.reduce((acc, f) => { acc[f.id] = staged.filter((r) => matchesFilter(r.info.stage, f.id)).length; return acc; }, {} as Record<StageFilter, number>);
   const filter: StageFilter = filterChoice ?? (filterCounts.ready > 0 ? "ready" : "all");
   // READY FIRST. Fully posted sinks to the bottom whatever the filter; above it, the furthest
@@ -141,7 +161,9 @@ function PostQueue() {
       const doneA = a.info.stage === "posted" ? 1 : 0, doneB = b.info.stage === "posted" ? 1 : 0;
       if (doneA !== doneB) return doneA - doneB;
       const rank = stageRank(b.info.stage) - stageRank(a.info.stage);
-      return rank !== 0 ? rank : a.set.name.localeCompare(b.set.name);
+      if (rank !== 0) return rank;
+      const byName = a.set.name.localeCompare(b.set.name);
+      return byName !== 0 ? byName : a.takeIndex - b.takeIndex;
     });
 
   // Optimistic, but this dashboard's whole point is accurate state — a save that silently fails
@@ -182,12 +204,12 @@ function PostQueue() {
 
   // THE CAPTION SHEET — one open at a time, keyed by set id.
   const [captioning, setCaptioning] = useState<string | null>(null);
-  const captioningRow = captioning ? flat.find((r) => r.set.id === captioning) ?? null : null;
+  const captioningRow = captioning ? flat.find((r) => r.key === captioning) ?? null : null;
   const [thumbing, setThumbing] = useState<string | null>(null);
-  const thumbRow = thumbing ? flat.find((r) => r.set.id === thumbing) ?? null : null;
+  const thumbRow = thumbing ? flat.find((r) => r.key === thumbing) ?? null : null;
 
   const counts = PUBLISH_DESTINATIONS.reduce((acc, d) => {
-    acc[d] = rows.filter(({ set }) => statusFor(set.id)[d].postedAt).length;
+    acc[d] = rows.filter((r) => statusFor(r.key)[d].postedAt).length;
     return acc;
   }, {} as Record<PublishDestination, number>);
 
@@ -248,8 +270,14 @@ function PostQueue() {
           {rows.length > 0 && visible.length === 0 && <V3Note>{emptyCopy[filter]}</V3Note>}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {visible.map(({ topic, set, info }) => (
-              <SetRow key={set.id} topic={topic} set={set} status={statusFor(set.id)} info={info} onToggle={onToggle} onFilmed={onFilmed} onSaveUrl={onSaveUrl} onCaption={() => setCaptioning(set.id)} onThumb={() => setThumbing(set.id)} />
+            {visible.map((r) => (
+              <SetRow
+                key={r.key} topic={r.topic} set={r.set} pubKey={r.key} takeName={r.take.name}
+                takeIndex={r.takeIndex} takeCount={r.takeCount} takeCards={r.take.ceqIds.length}
+                status={statusFor(r.key)} info={r.info}
+                onToggle={onToggle} onFilmed={onFilmed} onSaveUrl={onSaveUrl}
+                onCaption={() => setCaptioning(r.key)} onThumb={() => setThumbing(r.key)}
+              />
             ))}
           </div>
         </>
@@ -257,15 +285,21 @@ function PostQueue() {
 
       {captioningRow && (
         <CaptionSheet
-          topic={captioningRow.topic} set={captioningRow.set} status={statusFor(captioningRow.set.id)} tt={tt}
-          onSaved={(s) => setStatus((prev) => ({ ...(prev ?? {}), [captioningRow.set.id]: s }))}
+          topic={captioningRow.topic} set={captioningRow.set} pubKey={captioningRow.key}
+          takeLabel={takeTitle(captioningRow.take.name, captioningRow.takeIndex, captioningRow.takeCount)}
+          takeCeqIds={captioningRow.take.ceqIds}
+          status={statusFor(captioningRow.key)} tt={tt}
+          onSaved={(s) => setStatus((prev) => ({ ...(prev ?? {}), [captioningRow.key]: s }))}
           onClose={() => setCaptioning(null)}
         />
       )}
 
       {thumbRow && (
         <ThumbSheet
-          setId={thumbRow.set.id} setName={thumbRow.set.name} topicName={thumbRow.topic.name}
+          setId={thumbRow.set.id}
+          setName={takeTitle(thumbRow.take.name, thumbRow.takeIndex, thumbRow.takeCount) || thumbRow.set.name}
+          topicName={thumbRow.topic.name}
+          defaultLine={firstStemOf(thumbRow.set, thumbRow.take.ceqIds)}
           onClose={() => setThumbing(null)}
         />
       )}
@@ -273,8 +307,26 @@ function PostQueue() {
   );
 }
 
-function SetRow({ topic, set, status, info, onToggle, onFilmed, onSaveUrl, onCaption, onThumb }: {
+/** What a video is called on this page: Lee's name for the split, else "Split N", else nothing
+ *  at all when the set is a single video (then the set's own name is the title). */
+function takeTitle(name: string, index: number, count: number): string {
+  if (count <= 1) return name.trim();
+  return name.trim() || `Split ${index + 1}`;
+}
+
+/** The first question this video covers — the thumbnail's default hook. Falls back to the set's
+ *  first card when a split carries no cards of its own (a pure brand run). */
+function firstStemOf(set: BoothSetInfo, ceqIds: readonly string[]): string {
+  const live = set.ceqs.filter((c) => !c.draft && !c.noteOnly);
+  const mine = ceqIds.length ? live.filter((c) => ceqIds.includes(c.id)) : live;
+  return (mine[0] ?? live[0])?.stem ?? "";
+}
+
+function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards, status, info, onToggle, onFilmed, onSaveUrl, onCaption, onThumb }: {
   topic: BoothTopic; set: BoothSetInfo; status: SetPublishStatus; info: StageInfo;
+  /** The publish key for THIS video: the set's id for the first, "<setId>#N" after that. */
+  pubKey: string;
+  takeName: string; takeIndex: number; takeCount: number; takeCards: number;
   onToggle: (setId: string, d: PublishDestination, posted: boolean) => void;
   onFilmed: (setId: string, filmed: boolean) => void;
   onSaveUrl: (setId: string, d: PublishDestination, url: string) => void;
@@ -285,7 +337,7 @@ function SetRow({ topic, set, status, info, onToggle, onFilmed, onSaveUrl, onCap
   const [draft, setDraft] = useState("");
 
   const commit = () => {
-    if (editing) onSaveUrl(set.id, editing, draft.trim());
+    if (editing) onSaveUrl(pubKey, editing, draft.trim());
     setEditing(null);
   };
 
@@ -295,8 +347,20 @@ function SetRow({ topic, set, status, info, onToggle, onFilmed, onSaveUrl, onCap
   return (
     <div style={{ border: `1px solid ${V3_EDGE}`, borderRadius: 12, padding: "12px 16px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 14 }}>
       <div style={{ minWidth: 170 }}>
-        <div style={{ fontWeight: 800, fontSize: 14 }}>{set.name}</div>
-        <div style={{ fontSize: 11.5, color: V3_MUTED }}>{topic.name} · {set.liveCount} question{set.liveCount === 1 ? "" : "s"}</div>
+        <div style={{ fontWeight: 800, fontSize: 14, display: "flex", alignItems: "baseline", gap: 7, flexWrap: "wrap" }}>
+          {set.name}
+          {/* A SPLIT SET reads as its own video here, named on the edit side. Without a name it is
+              "Split N" — enough to tell them apart while the names are still being written. */}
+          {takeCount > 1 && (
+            <span title={`Video ${takeIndex + 1} of ${takeCount} in this set — rename it in Review`}
+              style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.04em", color: V3_GOLD, border: `1px solid ${V3_GOLD}66`, background: "rgba(252,163,17,0.10)", borderRadius: 999, padding: "1px 8px", whiteSpace: "nowrap" }}>
+              {takeTitle(takeName, takeIndex, takeCount)}
+            </span>
+          )}
+        </div>
+        <div style={{ fontSize: 11.5, color: V3_MUTED }}>
+          {topic.name} · {takeCount > 1 ? `${takeCards} question${takeCards === 1 ? "" : "s"} of ${set.liveCount}` : `${set.liveCount} question${set.liveCount === 1 ? "" : "s"}`}
+        </div>
       </div>
 
       <StageChip info={info} align="left" minWidth={104} />
@@ -305,7 +369,7 @@ function SetRow({ topic, set, status, info, onToggle, onFilmed, onSaveUrl, onCap
           asks for the confirmation instead of pretending it already has it. */}
       <button
         type="button"
-        onClick={() => onFilmed(set.id, !filmed)}
+        onClick={() => onFilmed(pubKey, !filmed)}
         title={filmed ? `Filmed ${new Date(status.filmedAt!).toLocaleDateString()} — click to unmark` : unconfirmed ? "The Film timer ran on this set — confirm it's shot" : "Mark this set filmed"}
         style={{
           border: `1px solid ${filmed ? `${STAGE_SKY}88` : unconfirmed ? `${STAGE_SKY}55` : V3_EDGE}`,
@@ -349,7 +413,7 @@ function SetRow({ topic, set, status, info, onToggle, onFilmed, onSaveUrl, onCap
             <div key={d} style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
               <button
                 type="button"
-                onClick={() => onToggle(set.id, d, !posted)}
+                onClick={() => onToggle(pubKey, d, !posted)}
                 title={posted ? `Posted ${new Date(s.postedAt!).toLocaleDateString()} — click to unmark` : `Mark posted to ${DEST_LABEL[d]}`}
                 style={{
                   border: `1px solid ${posted ? `${MINT}88` : V3_EDGE}`,
@@ -409,8 +473,14 @@ const emptyCaptions = (): PublishCaptions => ({ youtube: { ...EMPTY_CAPTION }, i
  *  every card updates; edit any field in place; copy a destination; Save. What it read from —
  *  the kept prompter lines, the cards, whether talkthrough notes exist — is shown, so a bad
  *  caption has a visible cause. */
-function CaptionSheet({ topic, set, status, tt, onSaved, onClose }: {
+function CaptionSheet({ topic, set, pubKey, takeLabel, takeCeqIds, status, tt, onSaved, onClose }: {
   topic: BoothTopic; set: BoothSetInfo; status: SetPublishStatus; tt: TTState;
+  /** The publish key for THIS video — the set's id, or "<setId>#N" for a split. */
+  pubKey: string;
+  /** "Split 2", or Lee's own name for it. "" when the set is one video. */
+  takeLabel: string;
+  /** The cards THIS video covers. Empty = the whole set (no cuts, or a run with no cards). */
+  takeCeqIds: readonly string[];
   onSaved: (s: SetPublishStatus) => void; onClose: () => void;
 }) {
   const [text, setText] = useState("");
@@ -440,19 +510,29 @@ function CaptionSheet({ topic, set, status, tt, onSaved, onClose }: {
   useEffect(() => {
     let alive = true;
     loadBlastPlan({ data: { setId: set.id } })
-      .then((p) => { if (alive) setKeptLines(p ? p.frames.filter((f) => !f.skipped && f.prompter?.length).flatMap((f) => f.prompter ?? []) : []); })
+      .then((p) => {
+        if (!alive) return;
+        // A SPLIT SET's captions come from ITS OWN slides. The plan is the whole set, so the run
+        // this video covers is cut out of it: the frames between the two cuts that bracket this
+        // video's cards.
+        const frames = p ? p.frames.filter((f) => !f.skipped) : [];
+        const mine = takeCeqIds.length ? runFor(frames, takeCeqIds) : frames;
+        setKeptLines(mine.filter((f) => f.prompter?.length).flatMap((f) => f.prompter ?? []));
+      })
       .catch(() => { if (alive) setKeptLines([]); });
     return () => { alive = false; };
-  }, [set.id]);
-  const stems = useMemo(() => set.ceqs.filter((c) => !c.draft && !c.noteOnly).map((c) => c.stem), [set]);
-  const talkthrough = useMemo(() => set.ceqs.map((c) => rehearsalContextFor(tt.doc, set.id, c.id)).filter(Boolean).join("\n").slice(0, 1800), [tt, set]);
+  }, [set.id, takeCeqIds]);
+  /** The set's cards this video covers — all of them when the set is a single video. */
+  const mineOnly = useMemo(() => set.ceqs.filter((c) => !takeCeqIds.length || takeCeqIds.includes(c.id)), [set, takeCeqIds]);
+  const stems = useMemo(() => mineOnly.filter((c) => !c.draft && !c.noteOnly).map((c) => c.stem), [mineOnly]);
+  const talkthrough = useMemo(() => mineOnly.map((c) => rehearsalContextFor(tt.doc, set.id, c.id)).filter(Boolean).join("\n").slice(0, 1800), [tt, set.id, mineOnly]);
 
   const captionsRef = useRef(captions); captionsRef.current = captions;
   const brief = useCallback(async (spoken: string) => {
     setBusy(true); setErr(null);
     try {
       const m = buildCaptionMessages({
-        setName: set.name, topicName: topic.name, stems, keptLines: keptLines ?? [], talkthrough, spoken,
+        setName: takeLabel ? `${set.name} — ${takeLabel}` : set.name, topicName: topic.name, stems, keptLines: keptLines ?? [], talkthrough, spoken,
         transcript: transcriptRef.current,
         previous: hasCaptions(captionsRef.current) ? captionsRef.current : null,
       });
@@ -499,7 +579,7 @@ function CaptionSheet({ topic, set, status, tt, onSaved, onClose }: {
   const save = async () => {
     setSaving(true); setErr(null);
     try {
-      const r = await setPublishCaptions({ data: { setId: set.id, captions: hasCaptions(captions) ? captions : null } });
+      const r = await setPublishCaptions({ data: { setId: pubKey, captions: hasCaptions(captions) ? captions : null } });
       if (!r.ok || !r.status) { setErr(r.error ?? "Could not save the captions."); return; }
       onSaved(r.status); setDirty(false);
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
@@ -516,7 +596,7 @@ function CaptionSheet({ topic, set, status, tt, onSaved, onClose }: {
       <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 760, maxHeight: "92vh", overflowY: "auto", background: "#0B0F1E", color: V3_CREAM, border: `1px solid ${V3_GOLD}66`, borderRadius: 16, padding: 18, boxShadow: "0 24px 60px rgba(0,0,0,0.6)" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
           <div style={{ fontFamily: V3_DISPLAY, fontSize: 20, fontWeight: 900, letterSpacing: "-0.01em" }}>Talk the caption</div>
-          <div style={{ fontSize: 12.5, color: V3_MUTED }}>{set.name} · {topic.name}</div>
+          <div style={{ fontSize: 12.5, color: V3_MUTED }}>{set.name}{takeLabel ? ` · ${takeLabel}` : ""} · {topic.name}</div>
           <span style={{ flex: 1 }} />
           {cost > 0 && <span style={{ fontSize: 11, color: V3_MUTED }} title="This sheet's model calls, priced into the ledger">~${cost.toFixed(3)}</span>}
           <button type="button" onClick={close} style={{ ...small, color: V3_MUTED }}>close</button>

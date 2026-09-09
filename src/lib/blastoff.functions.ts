@@ -49,18 +49,53 @@ export const loadBlastPlan = createServerFn({ method: "POST" })
  *  count is enough here, and a malformed plan still means someone reviewed. Admin-gated like
  *  the other cross-set reads (listPublishStatuses, productionBottleneckReport); the queue
  *  treats a rejection as "no signal", never as an error. */
+/** One video inside a set's running order: the cuts split it, and each run can carry a name.
+ *  A set with no cuts reports exactly one take, so Post treats every set the same way. */
+export interface PlanTakeRow {
+  name: string;
+  /** Slides in this run (skipped ones excluded — a skipped slide is in no video). */
+  frames: number;
+  /** The set's own cards this run covers, in order. Post uses them to caption and to cover the
+   *  right video rather than the whole set. */
+  ceqIds: string[];
+}
+
 export const listBlastPlanSetIds = createServerFn({ method: "GET" })
-  .handler(async (): Promise<{ setId: string; frames: number; updatedAt: string | null }[]> => {
+  .handler(async (): Promise<{ setId: string; frames: number; updatedAt: string | null; takes: PlanTakeRow[] }[]> => {
     const { assertAdmin } = await import("@/lib/admin-session.functions");
     await assertAdmin();
     const db = await admin();
     const { loadDecksDeduped } = await import("./student.functions");
     const owned = await loadDecksDeduped(db as never);
-    const out: { setId: string; frames: number; updatedAt: string | null }[] = [];
+    const out: { setId: string; frames: number; updatedAt: string | null; takes: PlanTakeRow[] }[] = [];
+    // A raw frame, read defensively: this pass deliberately skips Zod (a malformed plan still
+    // means someone reviewed) so nothing here may assume a shape.
+    type Raw = { cutAfter?: unknown; takeName?: unknown; ceqId?: unknown; skipped?: unknown };
     for (const [setId, o] of owned) {
       const raw = (o.deck as { blastOff?: { frames?: unknown[]; updatedAt?: string } }).blastOff;
-      const frames = Array.isArray(raw?.frames) ? raw.frames.length : 0;
-      if (frames > 0) out.push({ setId, frames, updatedAt: raw?.updatedAt ? String(raw.updatedAt) : null });
+      const list = Array.isArray(raw?.frames) ? (raw.frames as Raw[]) : [];
+      const frames = list.length;
+      if (frames === 0) continue;
+      // THE TAKES, computed the same way plan.ts's planTakes does — over the frames that will
+      // actually be filmed, since a skipped slide is not part of any video.
+      const takes: PlanTakeRow[] = [];
+      let run: Raw[] = [];
+      const push = () => {
+        const head = run[0] as { takeName?: unknown } | undefined;
+        takes.push({
+          name: typeof head?.takeName === "string" ? head.takeName.trim().slice(0, 80) : "",
+          frames: run.length,
+          ceqIds: run.filter((r) => typeof r.ceqId === "string" && r.ceqId).map((r) => String(r.ceqId)),
+        });
+        run = [];
+      };
+      for (const fr of list) {
+        if (fr?.skipped === true) continue;
+        run.push(fr);
+        if (fr?.cutAfter === true) push();
+      }
+      if (run.length || !takes.length) push();
+      out.push({ setId, frames, updatedAt: raw?.updatedAt ? String(raw.updatedAt) : null, takes });
     }
     return out;
   });

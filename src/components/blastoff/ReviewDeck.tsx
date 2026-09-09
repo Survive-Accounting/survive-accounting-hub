@@ -96,6 +96,7 @@ import { indentBulletLine } from "./bullet-indent";
 import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
+import { nameTake, takeLabel, type PlanTake } from "./plan";
 import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 // THE SLOGANS (2026-09-08) — the three lines, in the one place they are allowed to live
@@ -564,6 +565,9 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
    *  the fold belongs to the position in the running order, not to a slide. */
   const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(() => new Set());
   const toggleGroup = (n: number) => setCollapsedGroups((s) => { const x = new Set(s); if (x.has(n)) x.delete(n); else x.add(n); return x; });
+  /** The head frame whose name is being typed. Lee: "I'd also like to name it from the edit side." */
+  const [renamingHead, setRenamingHead] = useState<string | null>(null);
+  const renameTake = (headId: string, name: string) => { if (plan) commit(nameTake(plan.frames, headId, name)); setRenamingHead(null); };
   /** Insert after a given frame (or the selected one), optionally selecting it. */
   const insertAfter = useCallback((afterId: string | null, kind: BlastFrameKind, patch: Partial<BlastFrame> = {}, select = true) => {
     if (!plan) return;
@@ -883,6 +887,9 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   // the folder needs no "restore its old slot" logic because it never left one.
   const indexed = frames.map((f, i) => ({ f, i }));
   const activeRows = indexed.filter((r) => !r.f.skipped);
+  /** How many cuts the running order carries. One or more means every run gets a header — the
+   *  first one included, which is what makes it collapsible and nameable. */
+  const cutCount = activeRows.filter((r) => r.f.cutAfter).length;
   const skippedRows = indexed.filter((r) => r.f.skipped);
 
   // THE ZOOMED-OUT MOVE (2026-09-09). `moveFrameRef` is the slide being placed; `moveTo` drops
@@ -1089,15 +1096,39 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
             const collapsed = collapsedGroups.has(groupNo);
             const groupHead = pos === 0 || !!activeRows[pos - 1]?.f.cutAfter;
             const groupRows = activeRows.filter((_, p) => activeRows.slice(0, p).filter((r) => r.f.cutAfter).length === groupNo);
+            const groupHeadId = groupRows[0]?.f.id ?? f.id;
+            const groupName = (groupRows[0]?.f.takeName ?? "").trim();
+            const groupTitle = takeLabel({ index: groupNo, name: groupName, headId: groupHeadId, frames: [] } as PlanTake);
             return (
               <div key={f.id} className="flex flex-col" style={{ gap: 5 }}>
-                {groupHead && groupNo > 0 && (
+{/* THE SPLIT'S OWN HEADER. Shown for EVERY split once there is more than one — including the
+                    first, which had no header at all and so could not be collapsed (Lee, 2026-09-09:
+                    "I need to be able to collapse the first split too. Right now, it's only letting me
+                    collapse 2nd split onward"). The label is the take's name, typed right here. */}
+                {groupHead && cutCount > 0 && (
                   <div className="flex items-center" style={{ gap: 8, margin: "6px 0 2px" }}>
                     <span style={{ flex: 1, height: 1, background: `${GOLD}55` }} />
                     <button onClick={() => toggleGroup(groupNo)} style={{ ...chip(false, GOLD), fontSize: 10, padding: "2px 8px" }}
                       title={collapsed ? "Show this video's slides" : "Collapse this video"}>
-                      {collapsed ? "▸" : "▾"} video {groupNo + 1} · {groupRows.length}
+                      {collapsed ? "▸" : "▾"} {groupRows.length}
                     </button>
+                    {renamingHead === groupHeadId ? (
+                      <input
+                        autoFocus defaultValue={groupName}
+                        onBlur={(e) => renameTake(groupHeadId, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); renameTake(groupHeadId, (e.target as HTMLInputElement).value); }
+                          if (e.key === "Escape") { e.preventDefault(); setRenamingHead(null); }
+                        }}
+                        placeholder={`Split ${groupNo + 1}`}
+                        style={{ font: "inherit", fontSize: 11, fontWeight: 800, color: CREAM, background: "rgba(255,255,255,0.06)", border: `1px solid ${GOLD}88`, borderRadius: 7, padding: "2px 8px", outline: "none", minWidth: 180 }}
+                      />
+                    ) : (
+                      <button onClick={() => setRenamingHead(groupHeadId)} style={{ ...chip(false, GOLD), fontSize: 10, padding: "2px 8px" }}
+                        title="Name this video — Post shows this name">
+                        {groupTitle} ✎
+                      </button>
+                    )}
                     <span style={{ flex: 1, height: 1, background: `${GOLD}55` }} />
                   </div>
                 )}

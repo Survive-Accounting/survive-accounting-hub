@@ -86,6 +86,9 @@ export const frameSchema = z.object({
   display: z.enum(["card", "big"]).optional(),
   // 2026-09-09: a cut after this slide — the running order carries the split.
   cutAfter: z.literal(true).optional(),
+  // 2026-09-09: the name of the video this slide HEADS. Only the first slide of a run between
+  // two cuts carries one; everywhere else it is ignored. Lee: "I'll name it what I need to."
+  takeName: z.string().max(80).optional(),
   ad: z.enum(AD_KINDS).optional(),
   url: z.string().max(120).optional(),
   portrait: z.enum(["on", "off"]).optional(),

@@ -13,7 +13,7 @@
 // image and the download carry his cookie without anything special here.
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { THUMB_GROUNDS, THUMB_RATIOS, THUMB_SIZE, thumbFilename, type ThumbGround, type ThumbRatio } from "@/lib/thumb-card";
+import { cleanHook, THUMB_GROUNDS, THUMB_RATIOS, THUMB_SIZE, thumbFilename, trimToHook, type ThumbGround, type ThumbRatio } from "@/lib/thumb-card";
 import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 
 const GROUND_LABEL: Record<ThumbGround, string> = { navy: "Navy", gold: "Gold", cream: "Cream" };
@@ -23,11 +23,18 @@ const RATIO_LABEL: Record<ThumbRatio, string> = { "9x16": "9:16 · the cover", "
  *  feels like the picture is keeping up. */
 const REDRAW_AFTER_MS = 550;
 
-export function ThumbSheet({ setId, setName, topicName, onClose }: {
-  setId: string; setName: string; topicName: string; onClose: () => void;
+export function ThumbSheet({ setId, setName, topicName, defaultLine = "", onClose }: {
+  setId: string; setName: string; topicName: string;
+  /** THIS video's first question. A split set's second video is not covered by the set's first
+   *  card, so the caller — which knows the split — supplies the hook rather than the route
+   *  guessing it. Empty falls back to the route's own default. */
+  defaultLine?: string;
+  onClose: () => void;
 }) {
-  const [line, setLine] = useState("");
-  const [settled, setSettled] = useState("");
+  // Prefilled rather than left blank: seeing the hook is what makes it obvious it can be changed.
+  const start = useMemo(() => trimToHook(cleanHook(defaultLine)), [defaultLine]);
+  const [line, setLine] = useState(start);
+  const [settled, setSettled] = useState(start);
   const [ground, setGround] = useState<ThumbGround>("navy");
   const [ratio, setRatio] = useState<ThumbRatio>("9x16");
   const [loading, setLoading] = useState(true);
@@ -98,7 +105,7 @@ export function ThumbSheet({ setId, setName, topicName, onClose }: {
             </div>
             <textarea
               autoFocus value={line} onChange={(e) => setLine(e.target.value)} rows={3}
-              placeholder="leave empty for the first question"
+              placeholder="the hook — leave empty for this video's first question"
               style={{ width: "100%", boxSizing: "border-box", font: "inherit", fontSize: 13.5, lineHeight: 1.45, marginTop: 8, padding: "7px 10px", borderRadius: 8, border: `1px solid ${V3_EDGE}`, background: "rgba(244,239,230,0.05)", color: V3_CREAM, outline: "none", resize: "vertical" }}
             />
 
