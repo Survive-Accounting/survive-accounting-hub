@@ -636,6 +636,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "admin.illustrations_.styles.tsx": "internal (noindex) — the illustration style editor: the DB-backed style registry (versions, palette, suffix, BRIEF_SYSTEM) and the test panel that previews a draft on the phone stage (costs money)",
   "rep_.test.tsx": "redirect — the one-link tester entry for the rep flow (arms Test Mode, lands on the test campus apply page)",
   "api.og.$school.$chapter.tsx": "generated image endpoint",
+  "api.thumb.$setId.tsx": "generated image endpoint — the short's cover, admin-gated",
   "api.stripe.webhook.tsx": "webhook endpoint",
 };
 

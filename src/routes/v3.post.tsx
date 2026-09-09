@@ -40,6 +40,7 @@ import { subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkt
 import { blastOffPath, useBank } from "@/components/v3/use-bank";
 import { V3Shell, V3Note, V3_CREAM, V3_MUTED, V3_GOLD, V3_EDGE, V3_DISPLAY } from "@/components/v3/Shell";
 import { StageChip, stepLabel } from "@/components/v3/StageChip";
+import { ThumbSheet } from "@/components/v3/ThumbSheet";
 import { isFilmedUnconfirmed, matchesFilter, stageOf, stageRank, talkStageOf, STAGE_SKY, type StageFilter, type StageInfo } from "@/components/v3/set-stage";
 import { listBlastPlanSetIds, loadBlastPlan } from "@/lib/blastoff.functions";
 import {
@@ -182,6 +183,8 @@ function PostQueue() {
   // THE CAPTION SHEET — one open at a time, keyed by set id.
   const [captioning, setCaptioning] = useState<string | null>(null);
   const captioningRow = captioning ? flat.find((r) => r.set.id === captioning) ?? null : null;
+  const [thumbing, setThumbing] = useState<string | null>(null);
+  const thumbRow = thumbing ? flat.find((r) => r.set.id === thumbing) ?? null : null;
 
   const counts = PUBLISH_DESTINATIONS.reduce((acc, d) => {
     acc[d] = rows.filter(({ set }) => statusFor(set.id)[d].postedAt).length;
@@ -246,7 +249,7 @@ function PostQueue() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {visible.map(({ topic, set, info }) => (
-              <SetRow key={set.id} topic={topic} set={set} status={statusFor(set.id)} info={info} onToggle={onToggle} onFilmed={onFilmed} onSaveUrl={onSaveUrl} onCaption={() => setCaptioning(set.id)} />
+              <SetRow key={set.id} topic={topic} set={set} status={statusFor(set.id)} info={info} onToggle={onToggle} onFilmed={onFilmed} onSaveUrl={onSaveUrl} onCaption={() => setCaptioning(set.id)} onThumb={() => setThumbing(set.id)} />
             ))}
           </div>
         </>
@@ -259,16 +262,24 @@ function PostQueue() {
           onClose={() => setCaptioning(null)}
         />
       )}
+
+      {thumbRow && (
+        <ThumbSheet
+          setId={thumbRow.set.id} setName={thumbRow.set.name} topicName={thumbRow.topic.name}
+          onClose={() => setThumbing(null)}
+        />
+      )}
     </V3Shell>
   );
 }
 
-function SetRow({ topic, set, status, info, onToggle, onFilmed, onSaveUrl, onCaption }: {
+function SetRow({ topic, set, status, info, onToggle, onFilmed, onSaveUrl, onCaption, onThumb }: {
   topic: BoothTopic; set: BoothSetInfo; status: SetPublishStatus; info: StageInfo;
   onToggle: (setId: string, d: PublishDestination, posted: boolean) => void;
   onFilmed: (setId: string, filmed: boolean) => void;
   onSaveUrl: (setId: string, d: PublishDestination, url: string) => void;
   onCaption: () => void;
+  onThumb: () => void;
 }) {
   const [editing, setEditing] = useState<PublishDestination | null>(null);
   const [draft, setDraft] = useState("");
@@ -316,6 +327,18 @@ function SetRow({ topic, set, status, info, onToggle, onFilmed, onSaveUrl, onCap
         }}
       >
         🎙 {hasCaptions(status.captions) ? "captions ✓" : "Talk the caption"}
+      </button>
+
+      {/* THE COVER — the first thing anyone sees of the short, rendered from the set's own question. */}
+      <button
+        type="button" onClick={onThumb}
+        title="Make the cover image: the hook, the topic and the bolt, as a PNG to save"
+        style={{
+          border: `1px solid ${V3_EDGE}`, background: "transparent", color: V3_MUTED,
+          borderRadius: 8, padding: "5px 10px", fontSize: 11.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
+        }}
+      >
+        🖼 Thumbnail
       </button>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

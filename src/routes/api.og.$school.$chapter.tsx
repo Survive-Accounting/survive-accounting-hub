@@ -23,6 +23,8 @@
 // re-fetches rarely anyway.
 import { createFileRoute } from "@tanstack/react-router";
 
+import { fetchBuf, rasterizePng } from "@/lib/rasterize.server";
+
 const W = 1200, H = 630;
 const NAVY = "#14213D", CREAM = "#F5EFE6", GOLD = "#FCA311", WHITE = "#FFFFFF";
 
@@ -36,12 +38,10 @@ const boltDataUri = (c1: string, c2: string) => {
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 };
 
-// Per-instance caches: fonts and fallback PNGs never change within a deployment.
-const cache = new Map<string, Promise<ArrayBuffer>>();
-const fetchBuf = (url: string): Promise<ArrayBuffer> => {
-  if (!cache.has(url)) cache.set(url, fetch(url).then((r) => { if (!r.ok) { cache.delete(url); throw new Error(`${url}: ${r.status}`); } return r.arrayBuffer(); }));
-  return cache.get(url)!;
-};
+// Fonts, the wasm binary and the fallback PNGs are cached per instance by rasterize.server.ts,
+// which also owns the one-and-only initWasm() call — see its header for why that guard cannot
+// live in a route (2026-09-09: /api/thumb rasterising beside this route threw "Already
+// initialized" until both came through the same door).
 
 async function render(origin: string, school: string, chapter: string): Promise<Response> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -122,7 +122,7 @@ async function render(origin: string, school: string, chapter: string): Promise<
     },
   );
 
-  const png = await rasterize(origin, svg);
+  const png = await rasterizePng(origin, svg, W);
   return new Response(Buffer.from(png), {
     headers: {
       "content-type": "image/png",
@@ -136,18 +136,6 @@ async function render(origin: string, school: string, chapter: string): Promise<
         : "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
     },
   });
-}
-
-// resvg-wasm initialises exactly once per instance; a second initWasm throws, so the promise is
-// the guard. Satori outlines all text to paths, so the rasteriser needs no fonts at all.
-let wasmReady: Promise<void> | null = null;
-async function rasterize(origin: string, svg: string): Promise<Uint8Array> {
-  const resvg = await import("@resvg/resvg-wasm");
-  if (!wasmReady) {
-    wasmReady = fetchBuf(`${origin}/resvg.wasm`).then((buf) => resvg.initWasm(buf)).catch((e) => { wasmReady = null; throw e; });
-  }
-  await wasmReady;
-  return new resvg.Resvg(svg, { fitTo: { mode: "width", value: W }, font: { loadSystemFonts: false } }).render().asPng();
 }
 
 /** Fallback chain: campus static card → default card. Never a 404. */

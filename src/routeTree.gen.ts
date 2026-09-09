@@ -137,6 +137,7 @@ import { Route as GoSchoolChapterRouteImport } from './routes/go.$school.$chapte
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
+import { Route as ApiThumbSetIdRouteImport } from './routes/api.thumb.$setId'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhook'
 import { Route as ApiIdeasSmsRouteImport } from './routes/api.ideas.sms'
 import { Route as ApiIdeasEmailRouteImport } from './routes/api.ideas.email'
@@ -843,6 +844,11 @@ const CeqCourseSlugChapterSlugRoute =
     path: '/$courseSlug/$chapterSlug',
     getParentRoute: () => CeqRoute,
   } as any)
+const ApiThumbSetIdRoute = ApiThumbSetIdRouteImport.update({
+  id: '/api/thumb/$setId',
+  path: '/api/thumb/$setId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   id: '/api/stripe/webhook',
   path: '/api/stripe/webhook',
@@ -1289,6 +1295,7 @@ export interface FileRoutesByFullPath {
   '/api/ideas/email': typeof ApiIdeasEmailRoute
   '/api/ideas/sms': typeof ApiIdeasSmsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/api/thumb/$setId': typeof ApiThumbSetIdRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -1472,6 +1479,7 @@ export interface FileRoutesByTo {
   '/api/ideas/email': typeof ApiIdeasEmailRoute
   '/api/ideas/sms': typeof ApiIdeasSmsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/api/thumb/$setId': typeof ApiThumbSetIdRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -1660,6 +1668,7 @@ export interface FileRoutesById {
   '/api/ideas/email': typeof ApiIdeasEmailRoute
   '/api/ideas/sms': typeof ApiIdeasSmsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/api/thumb/$setId': typeof ApiThumbSetIdRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -1849,6 +1858,7 @@ export interface FileRouteTypes {
     | '/api/ideas/email'
     | '/api/ideas/sms'
     | '/api/stripe/webhook'
+    | '/api/thumb/$setId'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -2032,6 +2042,7 @@ export interface FileRouteTypes {
     | '/api/ideas/email'
     | '/api/ideas/sms'
     | '/api/stripe/webhook'
+    | '/api/thumb/$setId'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -2219,6 +2230,7 @@ export interface FileRouteTypes {
     | '/api/ideas/email'
     | '/api/ideas/sms'
     | '/api/stripe/webhook'
+    | '/api/thumb/$setId'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -2357,6 +2369,7 @@ export interface RootRouteChildren {
   ApiIdeasEmailRoute: typeof ApiIdeasEmailRoute
   ApiIdeasSmsRoute: typeof ApiIdeasSmsRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
+  ApiThumbSetIdRoute: typeof ApiThumbSetIdRoute
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
   PartnersNationalOrgRoute: typeof PartnersNationalOrgRoute
@@ -3283,6 +3296,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CeqCourseSlugChapterSlugRouteImport
       parentRoute: typeof CeqRoute
     }
+    '/api/thumb/$setId': {
+      id: '/api/thumb/$setId'
+      path: '/api/thumb/$setId'
+      fullPath: '/api/thumb/$setId'
+      preLoaderRoute: typeof ApiThumbSetIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/stripe/webhook': {
       id: '/api/stripe/webhook'
       path: '/api/stripe/webhook'
@@ -3999,6 +4019,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiIdeasEmailRoute: ApiIdeasEmailRoute,
   ApiIdeasSmsRoute: ApiIdeasSmsRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
+  ApiThumbSetIdRoute: ApiThumbSetIdRoute,
   GoSchoolChapterRoute: GoSchoolChapterRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
   PartnersNationalOrgRoute: PartnersNationalOrgRoute,
