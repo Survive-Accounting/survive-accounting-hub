@@ -57,20 +57,35 @@ export const OTHER_SCHOOLS: School[] = GENERATED_SCHOOLS.filter((s) => !s.isSec)
 export const CONFERENCE_ORDER = ["SEC", "Big Ten", "Big 12", "ACC", "Other"] as const;
 const CONFERENCE_RANK = new Map(CONFERENCE_ORDER.map((c, i) => [c as string, i]));
 
+/** THE PINNED TOP OF EVERY SCHOOL PICKER (Lee, 2026-09-08): Ole Miss, LSU, Tennessee, in this
+ *  order, ahead of the rest of the SEC group — and therefore the whole picker, since SEC leads
+ *  CONFERENCE_ORDER. ONE list: every picker with its own grouping/sort (the homepage sheet, the
+ *  chapter finder, the campus-councils partner page) reads this instead of re-deciding who's
+ *  pinned, which is how "Ole Miss only" drifted into four separate copies of the same rule. */
+export const PINNED_SCHOOL_IDS = ["ole-miss", "lsu", "tennessee"] as const;
+
+/** Where a school sits among the pinned few — 0, 1, 2 in PINNED_SCHOOL_IDS order, or past the end
+ *  for everyone else. Takes the resolved School (or null/undefined, for a caller that only has a
+ *  slug and hasn't looked it up yet) so id-based and slug-based pickers share one rule. */
+export function pinnedRank(school: Pick<School, "id"> | null | undefined): number {
+  if (!school) return PINNED_SCHOOL_IDS.length;
+  const i = (PINNED_SCHOOL_IDS as readonly string[]).indexOf(school.id);
+  return i < 0 ? PINNED_SCHOOL_IDS.length : i;
+}
+
 /** The picker's canonical order: by conference (CONFERENCE_ORDER), then WITHIN a group by name —
- *  except SEC, where Ole Miss is pinned to the top (Lee's call). The generated table is already
- *  alphabetical, so this only reshuffles across conferences and floats Ole Miss; every other row
- *  keeps its A→Z order. Returns a NEW array; callers map it straight into grouped picker items. */
+ *  except SEC, where PINNED_SCHOOL_IDS float to the top, in that order (Lee's call). The generated
+ *  table is already alphabetical, so this only reshuffles across conferences and floats the pinned
+ *  three; every other row keeps its A→Z order. Returns a NEW array; callers map it straight into
+ *  grouped picker items. */
 export function orderedSchoolsForPicker(pool: School[] = ALL_SCHOOLS): School[] {
   return [...pool].sort((a, b) => {
     const ra = CONFERENCE_RANK.get(a.conference) ?? CONFERENCE_RANK.get("Other")!;
     const rb = CONFERENCE_RANK.get(b.conference) ?? CONFERENCE_RANK.get("Other")!;
     if (ra !== rb) return ra - rb;
-    // Ole Miss first in the SEC group; everything else stays alphabetical.
     if (a.conference === "SEC") {
-      const ao = a.id === "ole-miss" || a.slug === "university-of-mississippi";
-      const bo = b.id === "ole-miss" || b.slug === "university-of-mississippi";
-      if (ao !== bo) return ao ? -1 : 1;
+      const pa = pinnedRank(a), pb = pinnedRank(b);
+      if (pa !== pb) return pa - pb;
     }
     return a.name.localeCompare(b.name);
   });

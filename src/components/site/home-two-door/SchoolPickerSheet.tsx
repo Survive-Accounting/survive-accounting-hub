@@ -4,9 +4,9 @@
 // picking a school proceeds into that door's flow (solo → Exam-1, chapter → waitlist). The hero's
 // "change school" opens the same sheet. Same list a student meets on /chapters, so it is familiar.
 //
-// ORDER (§4), reusing the v1 player's grouping (landing.tsx): University of Mississippi is PINNED
-// first, above the group headers, cold — before any search is typed. Then the SEC group with LSU
-// first and the rest alphabetical, then every other school alphabetical. (Ordering the tail by
+// ORDER (§4), reusing the v1 player's grouping (landing.tsx): SEC → Big Ten → Big 12 → ACC →
+// Other, and within SEC, Ole Miss, LSU and Tennessee lead in that order (PINNED_SCHOOL_IDS in
+// schools.ts — Lee's call, 2026-09-08), everything else alphabetical. (Ordering the tail by
 // estimated student count is deferred — that data isn't in the picker record yet.)
 //
 // Each row wears its school's own two-tone bolt; hovering a row BOILS that row's bolt only (the
@@ -20,21 +20,22 @@ import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { useCampus } from "@/lib/campus-context";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
-import { ALL_SCHOOLS, boltForSlug, searchSchools, type School } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug, pinnedRank, searchSchools, type School } from "@/lib/schools";
 
 // The four power conferences, shown in this order and always expanded. Everything else collapses
 // into a counted "Other schools" toggle — most visitors search, so the tail should not be a long
-// scroll. Ole Miss leads the SEC group (under the header), then the rest alphabetical.
+// scroll. Ole Miss, LSU and Tennessee lead the SEC group in that order (PINNED_SCHOOL_IDS in
+// schools.ts — Lee's call, 2026-09-08), then the rest alphabetical.
 const CONFERENCE_SECTIONS = ["SEC", "Big Ten", "Big 12", "ACC"] as const;
-const PINNED_ID = "ole-miss"; // University of Mississippi — first inside SEC.
 
 /** Split a (possibly search-filtered) pool into the four conference sections plus the "Other"
- *  tail. Ole Miss is first in SEC; every other row is alphabetical within its section. */
+ *  tail. The pinned schools lead SEC, in order; every other row is alphabetical within its
+ *  section. */
 function sectionsFor(pool: School[]): { sections: { label: string; rows: School[] }[]; other: School[] } {
   const sections = CONFERENCE_SECTIONS.map((label) => ({
     label,
     rows: pool.filter((s) => s.conference === label).sort((a, b) => {
-      if (label === "SEC") { const ao = a.id === PINNED_ID, bo = b.id === PINNED_ID; if (ao !== bo) return ao ? -1 : 1; }
+      if (label === "SEC") { const pa = pinnedRank(a), pb = pinnedRank(b); if (pa !== pb) return pa - pb; }
       return a.name.localeCompare(b.name);
     }),
   })).filter((g) => g.rows.length > 0);

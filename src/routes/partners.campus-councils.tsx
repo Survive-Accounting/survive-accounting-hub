@@ -14,7 +14,7 @@ import { FeatureValueStrip } from "@/components/site/Marketing";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { COUNCILS } from "@/lib/greek-councils.functions";
 import { LEE_PHONE_DISPLAY, LEE_SMS_HREF, problemHeadline } from "@/lib/partners";
-import { ALL_SCHOOLS, boltForSlug, schoolBySlug } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug, orderedSchoolsForPicker, schoolBySlug } from "@/lib/schools";
 import { boltCampusFor } from "@/components/site/bolt";
 import { Bolt } from "@/components/canvas/brand";
 import { ogMeta } from "@/lib/og";
@@ -76,7 +76,7 @@ function CampusCouncilsPage() {
       <PartnerSection id="find-council" title="Find your council page">
         <div className="grid max-w-md gap-2">
           <SearchPicker
-            items={ALL_SCHOOLS.map((s) => ({
+            items={orderedSchoolsForPicker().map((s) => ({
               value: s.slug, label: s.name, aliases: s.aliases,
               icon: <span className="block shrink-0" style={{ width: 15 }} aria-hidden><Bolt {...boltForSlug(s.slug)} /></span>,
             }))}

@@ -11,7 +11,7 @@ import { SearchPicker } from "@/components/site/SearchPicker";
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { Footer } from "@/components/site/SiteFooter";
 import { ogMeta } from "@/lib/og";
-import { ALL_SCHOOLS, boltForSlug, schoolById } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug, orderedSchoolsForPicker, schoolById } from "@/lib/schools";
 import { readCampusPrefs } from "@/lib/campus-prefs.functions";
 
 export const Route = createFileRoute("/rep")({
@@ -53,7 +53,7 @@ function RepPicker() {
 
         <div className="mx-auto mt-8 max-w-sm text-left">
           <SearchPicker
-            items={ALL_SCHOOLS.map((s) => ({
+            items={orderedSchoolsForPicker().map((s) => ({
               value: s.slug,
               label: s.name,
               aliases: s.aliases,

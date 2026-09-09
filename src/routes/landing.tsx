@@ -53,7 +53,7 @@ import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { PickerSheet } from "@/components/site/PickerSheet";
 import { logCampusCodeDemand } from "@/lib/campus-demand.functions";
-import { ALL_SCHOOLS, searchSchools } from "@/lib/schools";
+import { ALL_SCHOOLS, orderedSchoolsForPicker, pinnedRank, searchSchools } from "@/lib/schools";
 import {
   ANIMATED_CAMPUS_BOLT_CSS, BOLT_ACCENTS, orderCampuses, type BoltCampus,
 } from "@/components/site/bolt";
@@ -111,7 +111,7 @@ export type School = {
   aliases: string[];
   code?: string; codeVerified?: boolean;
 };
-export const SCHOOLS: School[] = ALL_SCHOOLS.map((s) => ({
+export const SCHOOLS: School[] = orderedSchoolsForPicker().map((s) => ({
   campusId: s.campusId, id: s.id, name: s.name, slug: s.slug, isSec: s.isSec, conference: s.conference, aliases: s.aliases,
   // The generated code is a build snapshot shown immediately; listCampusIntroCodes still
   // overrides it at runtime, so a mid-semester change never needs a deploy.
@@ -1108,16 +1108,17 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
     : schools;
 
   // GROUPING BY FOOTBALL CONFERENCE. Fixed order — SEC → Big Ten → Big 12 → ACC → Other schools;
-  // Ole Miss is pinned to the TOP OF SEC (under the SEC header, not above it — Lee's call), and
-  // everything else is alphabetical within its group. Headers survive filtering, so a search
-  // result still says which group it came from; empty groups drop out.
+  // within SEC, Ole Miss, LSU and Tennessee lead in that order (under the SEC header, not above
+  // it — Lee's call; PINNED_SCHOOL_IDS in schools.ts), and everything else is alphabetical within
+  // its group. Headers survive filtering, so a search result still says which group it came from;
+  // empty groups drop out.
   const P4 = ["SEC", "Big Ten", "Big 12", "ACC"];
   const groups = ["SEC", "Big Ten", "Big 12", "ACC", "Other schools"].map((label) => ({
     label,
     rows: results
       .filter((s) => (label === "Other schools" ? !P4.includes(s.conference) : s.conference === label))
       .sort((a, b) => {
-        if (label === "SEC") { const ao = a.id === "ole-miss", bo = b.id === "ole-miss"; if (ao !== bo) return ao ? -1 : 1; }
+        if (label === "SEC") { const pa = pinnedRank(a), pb = pinnedRank(b); if (pa !== pb) return pa - pb; }
         return a.name.localeCompare(b.name);
       }),
   })).filter((g) => g.rows.length > 0);

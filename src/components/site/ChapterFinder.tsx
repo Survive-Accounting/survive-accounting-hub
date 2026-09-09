@@ -18,7 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { Bolt } from "@/components/canvas/brand";
-import { ALL_SCHOOLS, boltForSlug, CONFERENCE_ORDER, schoolBySlug } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug, CONFERENCE_ORDER, pinnedRank, schoolBySlug } from "@/lib/schools";
 import { listCampusIntroCodes, type CampusIntroCode } from "@/lib/default-map.functions";
 import { PickerNotListed, SearchPicker } from "@/components/site/SearchPicker";
 import { ChapterSelfCreate } from "@/components/site/ChapterSelfCreate";
@@ -85,15 +85,18 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   // Bolt element, and SearchPicker filters the SAME array reference on every character typed.
   const schoolItems = useMemo(() => {
     const codeByCampus = new Map(codeData.map((r) => [r.campusId, r.code]));
-    // Group by conference, same order and Ole-Miss-first-in-SEC rule as every other school picker
-    // (see orderedSchoolsForPicker in schools.ts). Conference is looked up per slug because the
-    // FinderSchool prop only carries slug + name; an unresolved slug sorts to the end as "Other".
+    // Group by conference, same order and pinned-schools-first-in-SEC rule as every other school
+    // picker (PINNED_SCHOOL_IDS / orderedSchoolsForPicker in schools.ts). Conference is looked up
+    // per slug because the FinderSchool prop only carries slug + name; an unresolved slug sorts
+    // to the end as "Other".
     const rank = (slug: string) => { const i = CONFERENCE_ORDER.indexOf((schoolBySlug(slug)?.conference ?? "Other") as (typeof CONFERENCE_ORDER)[number]); return i < 0 ? CONFERENCE_ORDER.length : i; };
-    const isOle = (slug: string) => slug === "university-of-mississippi";
     const ordered = [...schools].sort((a, b) => {
       const ra = rank(a.slug), rb = rank(b.slug);
       if (ra !== rb) return ra - rb;
-      if (schoolBySlug(a.slug)?.conference === "SEC" && isOle(a.slug) !== isOle(b.slug)) return isOle(a.slug) ? -1 : 1;
+      if (schoolBySlug(a.slug)?.conference === "SEC") {
+        const pa = pinnedRank(schoolBySlug(a.slug)), pb = pinnedRank(schoolBySlug(b.slug));
+        if (pa !== pb) return pa - pb;
+      }
       return a.name.localeCompare(b.name);
     });
     return ordered.map((s) => ({

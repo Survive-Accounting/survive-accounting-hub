@@ -28,7 +28,7 @@ import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { Footer } from "@/components/site/SiteFooter";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { BetaFeedback } from "@/components/reps/BetaFeedback";
-import { ALL_SCHOOLS, boltForSlug } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug, orderedSchoolsForPicker } from "@/lib/schools";
 import { applyAsRep, checkRepVerification, startRepVerification } from "@/lib/rep-auth.functions";
 import { getRepJoinCampus, type JoinCampus } from "@/lib/rep-pre-onboarding.functions";
 import {
@@ -319,7 +319,7 @@ export function RepApply({ campusKey }: { campusKey: string | null }) {
                 ) : (
                   <div id="rj-campus">
                     <SearchPicker
-                      items={ALL_SCHOOLS.map((s) => ({ value: s.slug, label: s.name, aliases: s.aliases, icon: <span className="block shrink-0" style={{ width: 15 }} aria-hidden><Bolt {...boltForSlug(s.slug)} /></span> }))}
+                      items={orderedSchoolsForPicker().map((s) => ({ value: s.slug, label: s.name, aliases: s.aliases, icon: <span className="block shrink-0" style={{ width: 15 }} aria-hidden><Bolt {...boltForSlug(s.slug)} /></span> }))}
                       value={campus?.slug ?? null} placeholder="Pick your campus" searchPlaceholder={`Search ${ALL_SCHOOLS.length} schools…`} onPick={(v) => setCampusPick(v)}
                     />
                   </div>
