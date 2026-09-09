@@ -9,20 +9,26 @@
 // sheet, and the subtitles lived in a command line on a machine he doesn't post from. Three
 // tools, no line. This is the line.
 //
-// THE TAKE IS PICKED ONCE, AT THE TOP, AND NEVER UPLOADED. Every step below reads that same
-// File: the transcript strips ~2MB of audio out of it, the cover grabs a frame out of it, and
-// the subtitles are written from its words. The video goes from his laptop to YouTube by hand,
-// as it always has.
+// THE TAKE IS PICKED ONCE, AT THE TOP. Every step reads that same File — the transcript strips
+// ~2MB of audio out of it locally, the cover grabs a frame out of it locally — and, since he
+// asked ("I actually don't have the video file on this computer… Can we add a way for me to
+// upload the file in the web app?"), the bytes also go up to canvas-media in the background so
+// the renderer can reach them. Direct to storage with a signed upload: a 400MB file never
+// passes through Vercel.
 //
-// THE ONE THING A BROWSER CANNOT DO is re-encode a 300MB video, so burning the captions in stays
-// ffmpeg's job — but all the intelligence (cards, karaoke timings, rail geometry) happens here,
-// and step 3 hands him a command with nothing left to think about.
+// A BROWSER CANNOT RE-ENCODE a 300MB video, and Lee posts from a laptop with no repo, no ffmpeg
+// and no font — so the burn runs on the Fly worker (sa-render-worker), which already has ffmpeg
+// and already re-encodes his video. All the intelligence still happens here: the cards, the
+// karaoke timings and the rail geometry are written into the .ass by lib/captions.ts, the same
+// file the CLI uses, so the server burn and the local one produce the same picture. Step 3 keeps
+// the .srt and the ffmpeg command folded away underneath as the fallback.
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 import { TakeFrame } from "@/components/v3/TakeFrame";
 import { downloadText, storedTranscript, transcribeTakeFile } from "@/components/v3/take-transcript";
 import { assName, burnCommand, burnedName, shortCaptionFiles, srtName, transcriptFromWords, whisperCostUsd, type Word } from "@/lib/short-captions";
+import type { BurnProgress } from "@/components/v3/take-burn";
 import { takeFileProblem } from "@/lib/take-frame";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
@@ -108,10 +114,55 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
   const cmd = file ? burnCommand(file.name) : "";
   const copyCmd = async () => { setCopied(await copyToClipboard(cmd)); window.setTimeout(() => setCopied(false), 1800); };
 
+  // THE UPLOAD. Starts the moment he picks the take and runs in the background while he does
+  // step 2 — by the time the transcript is back the bytes are usually already there. Direct to
+  // storage, so a 400MB file is not a body-limit problem.
+  const [upFrac, setUpFrac] = useState<number | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [upErr, setUpErr] = useState<string | null>(null);
+
   const pick = (picked: File | null) => {
     const problem = takeFileProblem(picked);
     if (problem || !picked) { setErr(problem); return; }
     setErr(null); setFile(picked);
+    setVideoUrl(null); setUpErr(null); setUpFrac(0);
+    void (async () => {
+      try {
+        const { uploadTake } = await import("@/components/v3/take-burn");
+        setVideoUrl(await uploadTake(picked, setUpFrac));
+        setUpFrac(1);
+      } catch (e) {
+        setUpErr(e instanceof Error ? e.message : String(e));
+        setUpFrac(null);
+      }
+    })();
+  };
+
+  // THE BURN, on the Fly worker — because he posts from a laptop with no ffmpeg.
+  const [burning, setBurning] = useState<BurnProgress | null>(null);
+  const [burnUrl, setBurnUrl] = useState<string | null>(null);
+  const [burnErr, setBurnErr] = useState<string | null>(null);
+
+  const burn = useCallback(async () => {
+    if (!file || !files || !videoUrl) return;
+    setBurning({ phase: "uploading", frac: null, note: "Sending the subtitles…" });
+    setBurnErr(null); setBurnUrl(null);
+    try {
+      const { uploadAss, burnCaptions } = await import("@/components/v3/take-burn");
+      const assUrl = await uploadAss(file.name, files.ass);
+      setBurnUrl(await burnCaptions(videoUrl, assUrl, setBurning));
+    } catch (e) {
+      setBurnErr(e instanceof Error ? e.message : String(e));
+      setBurning(null);
+    }
+  }, [file, files, videoUrl]);
+
+  const saveBurned = async () => {
+    if (!burnUrl || !file) return;
+    try {
+      const { downloadUrlAs } = await import("@/components/v3/take-burn");
+      await downloadUrlAs(burnUrl, burnedName(file.name));
+    } catch (e) { setBurnErr(e instanceof Error ? e.message : String(e)); }
   };
 
   return (
@@ -133,12 +184,28 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
         {err && <div style={{ marginTop: 10, fontSize: 12.5, color: "#FF8B7E" }}>{err}</div>}
 
         {/* ── 1 ─────────────────────────────────────────────────────────────────────────────── */}
-        <Step n={1} title="The take" hint={file ? file.name : "the finished .mp4 from OBS"} done={!!file}>
-          <label style={{ ...primary, display: "inline-block", color: V3_GOLD }}>
+        <Step n={1} title="The take" hint={file ? file.name : "the finished .mp4 from OBS"} done={!!videoUrl}>
+          <div style={{ fontSize: 12.5, color: V3_MUTED, lineHeight: 1.5 }}>
+            Pick it from whichever machine you're on — the name doesn't matter, it reads whatever
+            OBS wrote. It uploads in the background while you do step 2.
+          </div>
+          <label style={{ ...primary, display: "inline-block", marginTop: 8, color: V3_GOLD }}>
             {file ? "Pick a different take" : "Pick the take file"}
             <input type="file" accept="video/*,.mp4,.mov,.m4v,.webm" onChange={(e) => pick(e.target.files?.[0] ?? null)} style={{ display: "none" }} />
           </label>
-          {file && <span style={{ marginLeft: 10, fontSize: 11.5, color: V3_MUTED }}>{(file.size / 1048576).toFixed(0)}MB · stays on this machine</span>}
+          {file && (
+            <div style={{ marginTop: 8, fontSize: 11.5, color: V3_MUTED }}>
+              {file.size < 1048576 ? "<1MB" : `${(file.size / 1048576).toFixed(0)}MB`} ·{" "}
+              {upErr ? <span style={{ color: "#FF8B7E" }}>upload failed — {upErr}</span>
+                : videoUrl ? <span style={{ color: MINT }}>uploaded</span>
+                : <span style={{ color: V3_GOLD }}>uploading… {upFrac != null ? `${Math.round(upFrac * 100)}%` : ""}</span>}
+            </div>
+          )}
+          {file && !videoUrl && !upErr && (
+            <div style={{ marginTop: 6, height: 4, borderRadius: 3, background: "rgba(244,239,230,0.10)", overflow: "hidden" }}>
+              <div style={{ width: `${Math.round((upFrac ?? 0) * 100)}%`, height: "100%", background: V3_GOLD, transition: "width 200ms linear" }} />
+            </div>
+          )}
         </Step>
 
         {/* ── 2 ─────────────────────────────────────────────────────────────────────────────── */}
@@ -162,29 +229,59 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
         </Step>
 
         {/* ── 3 ─────────────────────────────────────────────────────────────────────────────── */}
-        <Step n={3} title="Burn the captions in" hint={files ? `${files.cards} cards` : "needs the transcript"}>
+        <Step n={3} title="Burn the captions in" hint={burnUrl ? "ready to download" : files ? `${files.cards} cards` : "needs the transcript"} done={!!burnUrl}>
           {!files || !file ? (
             <div style={{ fontSize: 12.5, color: V3_MUTED }}>Do steps 1 and 2 first.</div>
           ) : (
             <>
               <div style={{ fontSize: 12.5, color: V3_MUTED, lineHeight: 1.5 }}>
-                Save the subtitles beside the take, then run one command in that folder. Rubik Black,
-                the spoken word in gold, sitting in the same rail Review reserves — the burn writes{" "}
-                <b style={{ color: V3_CREAM }}>{burnedName(file.name)}</b> and leaves your original alone.
+                Rubik Black, the spoken word in gold, sitting in the same rail Review reserves. The
+                render happens on our own server — nothing to install here — and hands back{" "}
+                <b style={{ color: V3_CREAM }}>{burnedName(file.name)}</b> with your original untouched.
               </div>
-              <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button type="button" onClick={() => downloadText(assName(file.name), files.ass)} style={primary}>Save {assName(file.name)}</button>
-                <button type="button" onClick={() => downloadText(srtName(file.name), files.srt, "application/x-subrip")} style={small} title="The plain sidecar — YouTube reads this on upload if you'd rather not burn">Save the .srt too</button>
+
+              <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  disabled={!videoUrl || (!!burning && !burnUrl)}
+                  onClick={() => void burn()}
+                  style={{ ...primary, opacity: !videoUrl || (!!burning && !burnUrl) ? 0.5 : 1 }}
+                >
+                  {burning && !burnUrl ? "Burning…" : burnUrl ? "Burn it again" : "Burn the captions in"}
+                </button>
+                {burnUrl && (
+                  <button type="button" onClick={() => void saveBurned()} style={{ ...primary, border: `1.5px solid ${MINT}`, background: "rgba(59,245,160,0.12)", color: V3_CREAM }}>
+                    Download {burnedName(file.name)}
+                  </button>
+                )}
+                {!videoUrl && !upErr && <span style={{ fontSize: 11.5, color: V3_MUTED }}>waiting for the upload to finish…</span>}
+                {burning && !burnUrl && <span style={{ fontSize: 11.5, color: V3_GOLD }}>{burning.note}</span>}
+                {burnErr && <span style={{ fontSize: 12, color: "#FF8B7E" }}>{burnErr}</span>}
               </div>
-              <div style={{ marginTop: 10, fontSize: 11.5, color: V3_MUTED }}>Then, in that folder (right-click → Open in Terminal):</div>
-              <pre style={{ margin: "6px 0 0", padding: "9px 11px", borderRadius: 8, border: `1px solid ${V3_EDGE}`, background: "rgba(244,239,230,0.05)", color: V3_CREAM, fontSize: 11, lineHeight: 1.5, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{cmd}</pre>
-              <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <button type="button" onClick={() => void copyCmd()} style={{ ...small, color: copied ? MINT : V3_CREAM }}>{copied ? "copied" : "Copy the command"}</button>
-                <span style={{ fontSize: 11, color: V3_MUTED }}>
-                  One-time setup: <code style={{ color: V3_CREAM }}>winget install Gyan.FFmpeg</code>, then{" "}
-                  <a href={FONT_URL} style={{ color: V3_GOLD }}>install Rubik Black</a> (double-click → Install).
-                </span>
+              <div style={{ marginTop: 6, fontSize: 11, color: V3_MUTED }}>
+                A three-minute short takes a few minutes; the renderer sleeps when idle, so the
+                first few seconds are it waking up.
               </div>
+
+              {/* THE SIDECAR, and the command — for the times the renderer is down, or he wants the
+                  plain caption track on YouTube instead of pixels. Folded away by default: this is
+                  the fallback, not the path. */}
+              <details style={{ marginTop: 12 }}>
+                <summary style={{ cursor: "pointer", fontSize: 11.5, color: V3_MUTED }}>Or do it yourself — the .srt, or ffmpeg on this machine</summary>
+                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button type="button" onClick={() => downloadText(srtName(file.name), files.srt, "application/x-subrip")} style={small} title="YouTube reads this as a caption track on upload — no burning">Save the .srt</button>
+                  <button type="button" onClick={() => downloadText(assName(file.name), files.ass)} style={small}>Save the .ass</button>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 11, color: V3_MUTED }}>With both files beside the take, in that folder:</div>
+                <pre style={{ margin: "5px 0 0", padding: "9px 11px", borderRadius: 8, border: `1px solid ${V3_EDGE}`, background: "rgba(244,239,230,0.05)", color: V3_CREAM, fontSize: 11, lineHeight: 1.5, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{cmd}</pre>
+                <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <button type="button" onClick={() => void copyCmd()} style={{ ...small, color: copied ? MINT : V3_CREAM }}>{copied ? "copied" : "Copy the command"}</button>
+                  <span style={{ fontSize: 11, color: V3_MUTED }}>
+                    Needs <code style={{ color: V3_CREAM }}>winget install Gyan.FFmpeg</code> and{" "}
+                    <a href={FONT_URL} style={{ color: V3_GOLD }}>Rubik Black</a> installed.
+                  </span>
+                </div>
+              </details>
             </>
           )}
         </Step>
@@ -211,7 +308,7 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
         {/* ── 6 ─────────────────────────────────────────────────────────────────────────────── */}
         <Step n={6} title="Post it" hint="by hand, then tick it off">
           <div style={{ fontSize: 12.5, color: V3_MUTED, lineHeight: 1.6 }}>
-            Upload <b style={{ color: V3_CREAM }}>{file ? burnedName(file.name) : "the captioned file"}</b> to YouTube, Instagram and
+            Upload <b style={{ color: V3_CREAM }}>{file ? burnedName(file.name) : "the captioned file"}</b> — the one step 3 gave you — to YouTube, Instagram and
             TikTok yourself, pasting the copy from step 4 and the cover from step 5. Then close this
             and tick each destination on the row — that's what the queue counts.
           </div>

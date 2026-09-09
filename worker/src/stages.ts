@@ -6,7 +6,7 @@
 // files and produces ONE file; the last stage's output is uploaded. New effects
 // (the queued reversed-tail brand intro, the music bed) register here as new
 // stage kinds — the concat is just the first stage kind, not the pipeline.
-import { LOOP, RENDER } from "./config";
+import { BURN, LOOP, RENDER } from "./config";
 import { loopBuilderArgs } from "./loop-builder";
 
 export interface JobInput { id: string; url: string }
@@ -64,7 +64,24 @@ export interface DissectStitchStage {
   /** Manual per-clip trim overrides (seconds into the source) — win over detection. */
   trims?: ({ start?: number; end?: number } | null)[];
 }
-export type Stage = ConcatStage | ReversedTailStage | MusicBedStage | WarpIntroStage | LoopBuilderStage | DissectStitchStage;
+/** BURN CAPTIONS — Lee's finished Short in, the same file with the subtitles baked into the
+ *  pixels out. Lee, 2026-09-09: "I actually don't have the video file on this computer… Can we
+ *  add a way for me to upload the file in the web app?" He posts from a laptop with no repo and
+ *  no ffmpeg, so the burn moved here.
+ *
+ *  input = the take. subs = the .ass the app wrote from Whisper's word timings, downloaded as an
+ *  input like any other, so nothing here special-cases text. The audio is COPIED, never
+ *  re-encoded: it is already mastered and a second lossy pass buys nothing. */
+export interface BurnCaptionsStage {
+  kind: "burn_captions";
+  input: string;
+  subs: string;
+  /** Where the font lives in the image. Default BURN.fontsDir. */
+  fontsDir?: string;
+  crf?: number;
+  preset?: string;
+}
+export type Stage = ConcatStage | ReversedTailStage | MusicBedStage | WarpIntroStage | LoopBuilderStage | DissectStitchStage | BurnCaptionsStage;
 
 export interface JobSpec {
   v: 1;
@@ -214,8 +231,33 @@ export function warpIntroArgs(clip: StagedFile, bed: StagedFile, outPath: string
   return ["-y", "-i", clip.path, "-i", bed.path, "-filter_complex", graph, "-map", "[vout]", "-map", "[aout]", ...enc(RENDER), outPath];
 }
 
-/** Registry gate — the server calls this per stage. concat + warp_intro render today;
- *  the still-queued kinds fail LOUD (never a silent skip), unknown kinds fail louder. */
+/** ffmpeg's filter parser splits its arguments on ':' and ',', so a path inside ass=... has to
+ *  be escaped — the same rule the CLI follows (scripts/captions.ts filterPath). The worker's
+ *  paths are Linux and absolute, so a drive letter never arises here; what does matter is that
+ *  an unescaped separator truncates the filter and burns NOTHING while still exiting 0. */
+export function assFilterPath(p: string): string {
+  return p.replace(/([:,'[\]\\])/g, "\\$1");
+}
+
+/** BURN CAPTIONS argv. The video is re-encoded — there is no way to paint pixels without it —
+ *  and the audio is copied byte for byte. +faststart because this file goes straight from the
+ *  worker to YouTube. */
+export function burnCaptionsArgs(video: StagedFile, subsPath: string, outPath: string, opts?: { fontsDir?: string; crf?: number; preset?: string }): string[] {
+  const fonts = opts?.fontsDir ?? BURN.fontsDir;
+  const vf = `ass=${assFilterPath(subsPath)}${fonts ? `:fontsdir=${assFilterPath(fonts)}` : ""}`;
+  return [
+    "-y", "-i", video.path,
+    "-vf", vf,
+    "-c:v", "libx264", "-crf", String(opts?.crf ?? BURN.crf), "-preset", opts?.preset ?? BURN.preset, "-pix_fmt", "yuv420p",
+    "-c:a", "copy",
+    "-movflags", "+faststart",
+    outPath,
+  ];
+}
+
+/** Registry gate — the server calls this per stage. concat, warp_intro, loop_builder and
+ *  burn_captions render today; the still-queued kinds fail LOUD (never a silent skip), and an
+ *  unknown kind fails louder. */
 export function planStage(stage: Stage, files: StagedFile[], outPath: string): string[] {
   switch (stage.kind) {
     case "concat":
@@ -235,6 +277,11 @@ export function planStage(stage: Stage, files: StagedFile[], outPath: string): s
         boltFlash: stage.boltFlash, bedDb: stage.bedDb, voiceSeamMs: stage.voiceSeamMs,
         loudI: stage.loudI, loudTP: stage.loudTP, loudLRA: stage.loudLRA,
       });
+    }
+    case "burn_captions": {
+      const [video, subs] = files;
+      if (!video || !subs) throw new Error("burn_captions: needs the take and the .ass subtitles");
+      return burnCaptionsArgs(video, subs.path, outPath, { fontsDir: stage.fontsDir, crf: stage.crf, preset: stage.preset });
     }
     case "dissect_stitch":
       // Needs the silence-DETECTION pass first (I/O) — the server plans this
@@ -277,6 +324,10 @@ export function validateSpec(spec: unknown): asserts spec is JobSpec {
       if (st.trims && st.trims.length !== st.inputs.length) throw new Error("job spec: dissect_stitch trims must match inputs");
       if (st.heads && st.heads.length !== st.inputs.length) throw new Error("job spec: dissect_stitch heads must match inputs");
       if (st.pads && st.pads.length !== st.inputs.length) throw new Error("job spec: dissect_stitch pads must match inputs");
+    }
+    else if (st.kind === "burn_captions") {
+      if (!known(st.input)) throw new Error(`job spec: burn_captions names unknown input "${st.input}"`);
+      if (!known(st.subs)) throw new Error(`job spec: burn_captions names unknown subs "${st.subs}"`);
     }
     else if (st.kind === "reversed_tail" || st.kind === "music_bed") { /* queued kinds validated at plan time */ }
     else throw new Error(`job spec: unknown stage kind "${(st as { kind?: string }).kind}"`);

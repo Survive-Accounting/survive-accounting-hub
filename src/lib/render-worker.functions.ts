@@ -166,6 +166,49 @@ export const startDissectStitch = createServerFn({ method: "POST" })
     return { jobId: String(res.jobId), path, machineId: res.machineId ? String(res.machineId) : null };
   });
 
+
+/** BURN THE CAPTIONS IN (2026-09-09). Lee: "I actually don't have the video file on this
+ *  computer. This is only for claude code. I am filming on a separate laptop. Can we add a way
+ *  for me to upload the file in the web app?"
+ *
+ *  He posts from a laptop with no repo, no ffmpeg and no font — so the burn cannot be a command
+ *  he runs. It happens here instead: the browser puts the take straight into canvas-media (a
+ *  signed upload, never through Vercel's body limit), writes the .ass beside it from Whisper's
+ *  word timings, and this hands both to the Fly worker's burn_captions stage. Poll it with
+ *  resolveWorkerRender like any other job; `fileUrl` is the captioned MP4 to download.
+ *
+ *  Nothing about the LOOK is decided here — the .ass carries all of it, written by
+ *  lib/captions.ts, the same file the CLI uses. */
+export const startCaptionBurn = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({
+      videoUrl: z.string().url(),
+      assUrl: z.string().url(),
+      crf: z.number().int().min(14).max(30).optional(),
+      preset: z.enum(["veryfast", "faster", "fast", "medium", "slow"]).optional(),
+    }).parse(d))
+  .handler(async ({ data }): Promise<{ jobId: string; path: string; machineId: string | null }> => {
+    const c = cfg();
+    if (c.state !== "on") throw new Error(c.state === "partial" ? `Render worker half-configured — ${c.missing} is missing.` : "Render worker not configured (RENDER_WORKER_URL / RENDER_WORKER_TOKEN).");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const path = `blastoff-captioned/${Date.now()}.mp4`;
+    const { data: signed, error } = await supabaseAdmin.storage.from("canvas-media").createSignedUploadUrl(path);
+    if (error || !signed?.signedUrl) throw new Error(`signed upload URL failed: ${error?.message ?? "no url"}`);
+    const body = {
+      v: 1,
+      inputs: [{ id: "take", url: data.videoUrl }, { id: "subs", url: data.assUrl }],
+      stages: [{
+        kind: "burn_captions", input: "take", subs: "subs",
+        ...(data.crf != null ? { crf: data.crf } : {}),
+        ...(data.preset ? { preset: data.preset } : {}),
+      }],
+      output: { putUrl: signed.signedUrl, contentType: "video/mp4" },
+    };
+    const res = await workerFetch(c, "/render", { method: "POST", body: JSON.stringify(body) });
+    if (typeof res.jobId !== "string") throw new Error(`worker refused the burn: ${JSON.stringify(res).slice(0, 300)}`);
+    return { jobId: res.jobId, path, machineId: typeof res.machineId === "string" ? res.machineId : null };
+  });
+
 export const resolveWorkerRender = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), path: z.string().min(5), machineId: z.string().max(64).nullable().optional() }).parse(d))
   .handler(async ({ data }): Promise<{ state: "queued" | "downloading" | "rendering" | "uploading" | "done" | "error"; note: string; fileUrl: string | null; error: string | null; result?: DissectStitchResult | null }> => {

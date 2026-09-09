@@ -56,6 +56,22 @@ export const LOOP = {
  *  jobTimeoutMs caps the WHOLE job (every op is clamped to the time remaining),
  *  and it sits below the app's 60-min publish poll deadline — so the worker can
  *  never still be "legitimately succeeding" after the app has given up. */
+/** BURN CAPTIONS (stage kind "burn_captions") — a finished Blast Off short with the subtitles
+ *  baked into the pixels. Lee posts from a laptop with no repo and no ffmpeg, so this is where
+ *  the burn happens; the .ass carrying the styling is written by the app (src/lib/captions.ts)
+ *  from Whisper's word timings, so nothing about the LOOK is decided here.
+ *
+ *  preset is slower than RENDER's veryfast on purpose: a 3-minute short is small work, and text
+ *  edges are exactly what a fast preset smears. crf 18 matches the CLI the burn came from. */
+export const BURN = {
+  crf: 18,
+  preset: "medium",
+  /** Baked into the image by the Dockerfile. libass falls back SILENTLY when it cannot resolve
+   *  a font by name, so a wrong path here means captions that render in the wrong face rather
+   *  than an error — which is why the path is a constant and not a guess per job. */
+  fontsDir: "/app/fonts",
+} as const;
+
 export const LIMITS = {
   maxInputs: 64,
   maxInputBytes: 2_000_000_000, // 2 GB per clip
