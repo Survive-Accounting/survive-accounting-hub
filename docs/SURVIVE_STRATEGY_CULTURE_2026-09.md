@@ -91,7 +91,86 @@ closest fit; either relabel it or add "tricky" beside it.
 > "deeper-idea" → DEEP QUESTION two days earlier: *distractor* is what a test
 > writer calls it, *tricky* is what a student needs to hear.
 
-## The Slogans, and where each one lives
+## Easy Points, re-planned as Shorts (2026-09-09)
+
+Lee, talking it through: *"What I have for exam one is just a lot of vocab based
+stuff, and it's really just too boring to put upfront… that survive accounting is
+all shorts, vertical shorts that are three minutes or less. The splitting has to
+be ruthless."*
+
+**What the bank actually says today.** Easy Points is *Internal vs. external
+users · Financial vs. managerial · Standards & regulation · Careers* — 39 vocab
+questions. The two sets Lee wants first, *"What type of account is [ ]?"* (33
+cards) and *"How does [ ] affect A = L + E?"* (19), sit under Analyzing
+Transactions. No set has a Blast Off plan. So the re-plan starts with a topic
+reassignment, then a split.
+
+**The ceiling.** Lee's gut: *"around ten to fifteen."* The arithmetic agrees. A
+Short is ≤180 s; the cold open is 10 s and the bio + outro ~15 s, leaving ~155 s.
+A set card runs 10–15 s at his pace, a callout 4–8 s. So **12 slides is the
+target and 15 is the hard ceiling**, and the mix matters more than the count:
+roughly 6–8 cards and 4–6 callouts. A 15-card set with no callouts is already
+over. Anything above 15 in a plan gets split, not trimmed.
+
+**The sequence, in his words, mapped onto the cards that exist:**
+
+| # | Short | Source | Cards | The callouts he named |
+|---|---|---|---|---|
+| 0 | **Intro** — accounting in two sentences: *"there's business transactions in these word problems, and you have to understand how they're impacting the accounting system. The ground floor of that system are five types of accounts."* Then the format: cheat codes, memorize this, tricky questions, go deeper. *"The goal is to get you from a B to an A."* | zero-CEQ deck (strategy-short pattern) | 0 | the B-to-an-A slogan slide |
+| 1 | Types of accounts — **Assets** | ch1-full 0–10 | 11 → trim to 8 | cheat: prepaids are assets, receivables are assets |
+| 2 | — **Liabilities** | ch1-full 11–14 | 4 | cheat: payables are liabilities |
+| 3 | — **Equity** | ch1-full 15–17 | 3 | tricky: Dividends is contra-EQUITY |
+| 4 | — **Revenue** | ch1-full 18–22 | 5 | memorize: "earned" = revenue |
+| 5 | — **Expense** | ch1-full 23–28 | 6 | |
+| 6 | Add-on: **Contra accounts** | ch1-full 5, 17, 32 + new | ~4 | tricky throughout |
+| 7 | Add-on: **Prepaids vs. expenses** — *"prepaid insurance and insurance expense, supplies and supplies expense… a lot of students miss those"* | new cards | ~4 | go deeper: sets up adjusting |
+| 8 | **A = L + E, the main moves** — *"one example of each movement"*: A↔A, A↑E↑, A↓E↓, A↑L↑, A↓L↓ | ch2-full 2, 0, 9, 1, 8 | 5 | cheat: the internal-company perspective (the parked deck's stage 13 — bring it back) |
+| 9 | **A = L + E, the tricky ones** — *"on credit, dividends, accumulated depreciation, unearned revenue"* | ch2-full 4, 6, 7, 13, 12 + the parked depreciation card | 6 | tricky throughout |
+| 10 | **Debits & credits** — *"the plus minus, minus plus… the tricks for memorizing"* | ch4-full 0–14 | 15 → trim to 10 | memorize: the map |
+| 11 | Add-on: **Contra accounts with debits & credits** — *"they just work opposite"* | ch4-full 4, 15 + new | ~4 | tricky |
+| 12 | **Normal balances** — *"choose the side that increases it… these are free points"* | msrrb7su-7 | 16 → trim to 10 | cheat |
+| 13 | **The accounting cycle** — the tease for the rest of the course, and the soft sell: *"all you need to do to keep going for exam one is drop your email"* + the Greek line | ch3-full | 11 (two cards look broken — stages 17 and 20) | go deeper into every later chapter |
+
+**Vocab moves to the end.** Users, financial-vs-managerial, standards, careers,
+and principles all come *after* the cycle — *"I like the idea of teaching the
+principles at the end where I can go back to little things I showed them and say,
+this was an example of the historical cost principle, this was matching."*
+
+**The unlock is a split tool.** A Blast Off plan is one per set, so five Shorts
+from one 33-card set means five sets. There is no way to make them today except
+by hand in the canvas. *Split a set* — pick cards, name the pieces, they become
+sibling sets under the same topic — is the one build standing between this plan
+and filming. Then, his words: *"edit five videos at once and then push them to
+filming and then film five back to back."*
+
+### The brainstorm → edit process (the same conversation)
+
+*"The brainstorming can take ten minutes. The editing last night took me over an
+hour… I want that process to work better to where when I land and edit, I'm
+making some final finishing touches, and I'm ready to film in fifteen minutes
+versus an hour."*
+
+**Brainstorm is five questions per set, and nothing else:**
+
+1. What's the best order to teach these in?
+2. Can the stems be shortened?
+3. Can the answer choices be shortened?
+4. Should the choices be standardized (same A–E every card) or shuffled?
+5. Should this split into multiple videos?
+
+— plus the new slides to add, **each anchored to a card**. *"When I stamp in
+for memorize this, I wanna be more clear: this can go in between this question
+and this question."* The booth already knows which card he is on when he stamps
+(a stamp is anchored to `{ceq, time}`), so the anchor should be automatic: a
+cheat code stamped while on Q3 is a cheat code *after Q3*, and it lands there.
+
+**The Editor gets a prebuilt draft, not a pile to approve.** *"It needs to be
+like suggested stuff to build. If it's confident it knows exactly what I want,
+then cool. It should just have suggested slides and put them IN THEIR PLACE
+already."* So the pass answers the five questions as proposals (a reorder, the
+shortened stems, a split), emits one card per code (not one card per stamp
+window), and the Suggestions page offers *Build the draft* — every suggestion
+placed at its anchor, ready for finishing touches.
 
 Settled 2026-09-08, after the cold open started leading with the wrong words.
 
