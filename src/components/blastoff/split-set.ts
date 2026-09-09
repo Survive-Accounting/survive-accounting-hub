@@ -72,6 +72,46 @@ export function splitProblem(parentIds: readonly string[], pieces: readonly Spli
   return null;
 }
 
+/** THE DRAFT GOES WITH THE CARDS. The parent may already carry a Blast Off plan — Lee had 52
+ *  slides on Account classification when the knife was built: the slogan slide, a memorize-
+ *  this, callouts between the questions. A split that moved the cards and left all of that on
+ *  the parent would throw an hour of editing away.
+ *
+ *  So every insert travels with the card it sits after: walk the parent's frames in order, and
+ *  each non-spine frame joins the piece of the most recent set card; an insert before any card
+ *  joins the FIRST piece. The spine — cold open, intro, bio, outro — is never carried, because a
+ *  Short has one of each and every piece grows its own (plan.ts reconcilePlan). What follows a
+ *  card that is NOT being moved stays with the parent, as does the card. Skips travel with
+ *  their frame. Pure, so this is tested without a scene in sight. */
+export interface CarryFrame { id: string; kind: string; ceqId?: string }
+export const SPINE_KINDS: ReadonlySet<string> = new Set(["open", "intro", "bio", "outro"]);
+
+export function carryFrames<F extends CarryFrame>(parentFrames: readonly F[], pieces: readonly SplitPiece[]): { carried: F[][]; staying: F[] } {
+  const pieceOfCard = new Map<string, number>();
+  pieces.forEach((p, k) => p.ceqIds.forEach((cid) => pieceOfCard.set(cid, k)));
+  const carried: F[][] = pieces.map(() => []);
+  const staying: F[] = [];
+  // Three states, not two: BEFORE any card (an insert there leads the first piece), AFTER a
+  // card that is moving (the insert goes with it), and AFTER a card that is staying (the insert
+  // stays too). Folding the first and the last together sent a parent's own callouts into the
+  // first piece — the bug the tests caught.
+  let current: number | "stay" | null = null;
+  for (const f of parentFrames) {
+    if (SPINE_KINDS.has(f.kind)) { staying.push(f); continue; }
+    if (f.kind === "ceq") {
+      const k = f.ceqId ? pieceOfCard.get(f.ceqId) : undefined;
+      if (k === undefined) { current = "stay"; staying.push(f); continue; }
+      current = k;
+      carried[k].push(f);
+      continue;
+    }
+    if (current === "stay") staying.push(f);
+    else if (current === null) { if (carried.length) carried[0].push(f); else staying.push(f); }
+    else carried[current].push(f);
+  }
+  return { carried, staying };
+}
+
 /** A NAME FOR A RUN, guessed from what its cards ask. The account-type set is the case this was
  *  built for: "What type of account is Cash?" … "Land?" is Assets. It reads the correct answer
  *  when the caller hands one in (the family), else the first stem's tail. Only a suggestion —

@@ -28,7 +28,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { splitProblem } from "@/components/blastoff/split-set";
+import { carryFrames, splitProblem } from "@/components/blastoff/split-set";
 
 const admin = async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -93,6 +93,14 @@ export const splitSet = createServerFn({ method: "POST" })
     const made: SplitResult["pieces"] = [];
     const moving = new Set<string>();
 
+    // THE DRAFT GOES WITH THE CARDS (components/blastoff/split-set.ts carryFrames, tested): every
+    // insert travels with the card it sits after, the spine stays behind and each piece grows its
+    // own. Lee had 52 slides on Account classification when this was built; a split that left
+    // them all on the parent would throw an hour of editing away.
+    type Frame = { id: string; kind: string; ceqId?: string } & Record<string, unknown>;
+    const parentPlan = (liveParent as { blastOff?: { frames?: Frame[]; layout?: string } }).blastOff;
+    const { carried, staying } = carryFrames<Frame>(parentPlan?.frames ?? [], data.pieces);
+
     for (let k = 0; k < n; k++) {
       const piece = data.pieces[k];
       const id = deckId();
@@ -103,6 +111,7 @@ export const splitSet = createServerFn({ method: "POST" })
         topicId: liveParent.topicId ?? null, courseId: liveParent.courseId ?? null,
         sortOrder: base + (k + 1) / (n + 1),
         splitFrom: parent.id,
+        ...(carried[k].length ? { blastOff: { frames: carried[k], updatedAt: now, ...(parentPlan?.layout ? { layout: parentPlan.layout } : {}) } } : {}),
       };
       const cards: Node[] = piece.ceqIds.map((cid, i) => {
         const src = nodes.find((x) => x.id === cid);
@@ -126,6 +135,9 @@ export const splitSet = createServerFn({ method: "POST" })
     const remaining = j.nodes.filter((x) => x.type === "ceq" && x.data?.deckId === parent.id && filmable(x)).length;
     liveParent.splitInto = [...(liveParent.splitInto ?? []), ...made.map((m) => m.deckId)];
     (liveParent as Record<string, unknown>).updatedAt = now;
+    // The parent's draft keeps only what stayed: its spine, the cards that were not cut, and
+    // the inserts that followed those. Everything else left with its card.
+    if (parentPlan) (liveParent as Record<string, unknown>).blastOff = { ...parentPlan, frames: staying, updatedAt: now };
     const parentParked = remaining === 0;
     if (parentParked) { liveParent.parked = true; liveParent.status = "archived"; }
     const up = await db.from("canvas_scenes").update({ nodes_json: j, updated_at: now }).eq("id", o.sceneId);

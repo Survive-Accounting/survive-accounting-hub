@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { PIECE_CARD_CEILING, cuttable, pieceStatus, piecesFromCuts, splitProblem, suggestPieceName, type SplitCard } from "./split-set";
+import { PIECE_CARD_CEILING, SPINE_KINDS, carryFrames, cuttable, pieceStatus, piecesFromCuts, splitProblem, suggestPieceName, type SplitCard } from "./split-set";
 
 // Lee, 2026-09-09: "that survive accounting is all shorts, vertical shorts that are three minutes
 // or less. The splitting has to be ruthless." The account-type set is the case: 31 cards →
@@ -55,6 +55,42 @@ describe("the ceiling", () => {
     expect(PIECE_CARD_CEILING).toBe(12);
     expect(pieceStatus({ name: "x", ceqIds: Array.from({ length: 12 }, (_, i) => `c${i}`) }).over).toBe(false);
     expect(pieceStatus({ name: "x", ceqIds: Array.from({ length: 13 }, (_, i) => `c${i}`) })).toEqual({ n: 13, over: true });
+  });
+});
+
+// Lee had 52 slides on Account classification when the knife was built — the slogan, a
+// memorize-this, callouts between the questions. The draft goes with the cards.
+describe("the draft goes with the cards", () => {
+  const f = (id: string, kind: string, ceqId?: string) => ({ id, kind, ...(ceqId ? { ceqId } : {}) });
+  const parent = [
+    f("open", "open"), f("intro", "intro"),
+    f("slogan", "slogan"),                       // before any card → the FIRST piece
+    f("q-cash", "ceq", "cash"), f("memo-1", "phrase"),
+    f("q-ar", "ceq", "ar"),
+    f("q-ap", "ceq", "ap"), f("cheat-1", "cheat"),
+    f("q-cs", "ceq", "cs"), f("tip-1", "tip"),   // cs is NOT cut — it and its tip stay
+    f("bio", "bio"), f("outro", "outro"),
+  ];
+  const pieces = [{ name: "Assets", ceqIds: ["cash", "ar"] }, { name: "Liabilities", ceqIds: ["ap"] }];
+
+  test("each insert travels with the card it sits after; the leading insert joins the first piece", () => {
+    const { carried } = carryFrames(parent, pieces);
+    expect(carried[0].map((x) => x.id)).toEqual(["slogan", "q-cash", "memo-1", "q-ar"]);
+    expect(carried[1].map((x) => x.id)).toEqual(["q-ap", "cheat-1"]);
+  });
+  test("the spine never travels — every piece grows its own", () => {
+    const { carried, staying } = carryFrames(parent, pieces);
+    for (const c of carried) expect(c.some((x) => SPINE_KINDS.has(x.kind))).toBe(false);
+    expect(staying.filter((x) => SPINE_KINDS.has(x.kind)).map((x) => x.id)).toEqual(["open", "intro", "bio", "outro"]);
+  });
+  test("an uncut card stays, and so does the insert after it", () => {
+    const { staying } = carryFrames(parent, pieces);
+    expect(staying.map((x) => x.id)).toEqual(["open", "intro", "q-cs", "tip-1", "bio", "outro"]);
+  });
+  test("no plan, no problem", () => {
+    const { carried, staying } = carryFrames([], pieces);
+    expect(carried).toEqual([[], []]);
+    expect(staying).toEqual([]);
   });
 });
 
