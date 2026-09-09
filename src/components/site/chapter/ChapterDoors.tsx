@@ -24,7 +24,13 @@ import {
   CHAPTER_BTN, DOOR_BTN_CLASS, DoorCard, DoorRow, SOLO_BTN,
 } from "@/components/site/home-two-door/DoorCard";
 import { nbspCode } from "@/lib/course-code";
-import { BoltBadge } from "@/components/site/BoltBadge";
+// THE SAME ICONS THE HOMEPAGE DOORS WEAR (2026-09-09) — not a generic cap/house badge. A chapter
+// page already knows exactly which campus and which chapter it is, so its doors show that campus's
+// own boiling bolt and that chapter's own letters, the same as the homepage's left/right doors do
+// once a school (and chapter) is known. BoltBadge is the earlier, generic pair — still used where
+// no specific campus/chapter is known yet (the school picker's own placeholder rows).
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { GreekLettersIcon, SOLO_ICON_H } from "@/components/site/home-two-door/HomeFold";
 
 /** The share-kit section's anchor — the right door's destination. */
 export const SHARE_ANCHOR = "share-kit";
@@ -47,21 +53,25 @@ export const shareSupportLine = (code: string | null, letters: string): { muted:
   strong: `Boost ${letters}'s house GPA.`,
 });
 
-export function ChapterDoors({ code, letters, sponsored, onStartExam, onShare }: {
+export function ChapterDoors({ code, letters, sponsored, bolt, onStartExam, onShare }: {
   /** Verified course code for this campus, or null (then the heading degrades honestly). */
   code: string | null;
-  /** Chapter shorthand for the sponsored line ("ΑΔΧ"). */
+  /** Chapter shorthand for the sponsored line ("ΑΔΧ"). Also what the right door's icon wears. */
   letters: string;
   /** TRUE only for a live, paid, unexpired seat pool — see GoChapter.sponsored. Never aspirational. */
   sponsored: boolean;
+  /** This campus's own colours (boltForSlug) — the left door's icon wears them, same as home. */
+  bolt: { c1: string; c2: string };
   onStartExam: () => void;
   onShare: () => void;
 }) {
   return (
     <DoorRow label="Study or spread the word">
-      {/* LEFT DOOR — the member here to study. First in DOM, so it stacks first on mobile. */}
+      {/* LEFT DOOR — the member here to study. First in DOM, so it stacks first on mobile. This
+          campus's own boiling bolt — the same icon the homepage's solo door wears once a school
+          is known, not a generic badge. */}
       <DoorCard
-        icon={<BoltBadge glyph="cap" tint="var(--cta-solo-bg)" size={112} />}
+        icon={<BoltBoil height={SOLO_ICON_H} red={bolt.c1} blue={bolt.c2} />}
         title={code ? `Survive · ${nbspCode(code)}` : "Start studying"}
         button={
           <button type="button" onClick={onStartExam} className={DOOR_BTN_CLASS} style={SOLO_BTN}>
@@ -76,9 +86,11 @@ export function ChapterDoors({ code, letters, sponsored, onStartExam, onShare }:
         }
       />
 
-      {/* RIGHT DOOR — spreading it. Deliberately open to every member, not just exec. */}
+      {/* RIGHT DOOR — spreading it. Deliberately open to every member, not just exec. This
+          chapter's own letters, pinned (no cycling — we already know exactly who this is), the
+          same icon the homepage's chapter door wears once a house is known. */}
       <DoorCard
-        icon={<BoltBadge glyph="house" tint="var(--cta-chapter-bg)" size={112} />}
+        icon={<GreekLettersIcon pinned={letters} cycle={[letters]} />}
         title="Spread the word"
         button={
           <button type="button" onClick={onShare} className={DOOR_BTN_CLASS} style={CHAPTER_BTN}>

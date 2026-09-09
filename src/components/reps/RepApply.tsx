@@ -26,7 +26,10 @@ import { BRAND_DISPLAY, BRAND_SANS, Bolt } from "@/components/canvas/brand";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { Footer } from "@/components/site/SiteFooter";
-import { SearchPicker } from "@/components/site/SearchPicker";
+import { SearchPicker, PickerNotListed } from "@/components/site/SearchPicker";
+// THE MISSING ESCAPE HATCH (2026-09-09) — same reusable write-in every other school picker on
+// the site offers; the rep-application campus picker did not.
+import { NotListedForm } from "@/components/site/NotListedForm";
 import { BetaFeedback } from "@/components/reps/BetaFeedback";
 import { ALL_SCHOOLS, boltForSlug, orderedSchoolsForPicker } from "@/lib/schools";
 import { applyAsRep, checkRepVerification, startRepVerification } from "@/lib/rep-auth.functions";
@@ -111,6 +114,7 @@ export function RepApply({ campusKey }: { campusKey: string | null }) {
   const [campusPick, setCampusPick] = useState<string | null>(campusKey);
   const [campus, setCampus] = useState<JoinCampus | null>(null);
   const [campusErr, setCampusErr] = useState<string | null>(null);
+  const [notListed, setNotListed] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   // A tester's phone is minted for them (a 555 number, kept for the run) — one less thing to invent.
@@ -321,6 +325,7 @@ export function RepApply({ campusKey }: { campusKey: string | null }) {
                     <SearchPicker
                       items={orderedSchoolsForPicker().map((s) => ({ value: s.slug, label: s.name, aliases: s.aliases, icon: <span className="block shrink-0" style={{ width: 15 }} aria-hidden><Bolt {...boltForSlug(s.slug)} /></span> }))}
                       value={campus?.slug ?? null} placeholder="Pick your campus" searchPlaceholder={`Search ${ALL_SCHOOLS.length} schools…`} onPick={(v) => setCampusPick(v)}
+                      footer={<PickerNotListed label="Don't see your school?" onClick={() => setNotListed(true)} />}
                     />
                   </div>
                 )}
@@ -421,6 +426,11 @@ export function RepApply({ campusKey }: { campusKey: string | null }) {
           </div>
           {beta && <BetaFeedback screen="Apply" who={name} isTest={isTest} />}
         </>
+      )}
+      {notListed && (
+        <div className="fixed inset-0 z-[400] grid place-items-center px-4" style={{ background: "rgba(4,8,18,0.66)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) setNotListed(false); }}>
+          <NotListedForm kind="school" title="Which school are you at?" onClose={() => setNotListed(false)} />
+        </div>
       )}
     </RepShell>
   );

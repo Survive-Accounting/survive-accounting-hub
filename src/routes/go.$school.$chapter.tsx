@@ -232,6 +232,7 @@ function GoChapterPage() {
             code={code}
             letters={(ch.letters ?? "").trim() || chapterShortName(ch.chapterName, ch.letters, ch.nickname)}
             sponsored={ch.sponsored}
+            bolt={bolt}
             onStartExam={onStart}
             onShare={openShare}
           />

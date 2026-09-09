@@ -11,7 +11,11 @@ import { PartnerPageShell } from "@/components/site/PartnerPage";
 import { PartnerHero, PartnerPrimary, PartnerSecondary, PartnerSection } from "@/components/site/PartnerKit";
 import { StudentPreview, previewCampus } from "@/components/site/StudentPreview";
 import { FeatureValueStrip } from "@/components/site/Marketing";
-import { SearchPicker } from "@/components/site/SearchPicker";
+import { SearchPicker, PickerNotListed } from "@/components/site/SearchPicker";
+// THE MISSING ESCAPE HATCH (2026-09-09) — every other school picker on the site offers "Don't
+// see your school?"; this one, reached from the footer, did not. Same reusable write-in every
+// Greek surface already uses (ChapterFinder, the national-orgs picker).
+import { NotListedForm } from "@/components/site/NotListedForm";
 import { COUNCILS } from "@/lib/greek-councils.functions";
 import { LEE_PHONE_DISPLAY, LEE_SMS_HREF, problemHeadline } from "@/lib/partners";
 import { ALL_SCHOOLS, boltForSlug, orderedSchoolsForPicker, schoolBySlug } from "@/lib/schools";
@@ -47,6 +51,7 @@ function CampusCouncilsPage() {
   const nav = useNavigate();
   const [school, setSchool] = useState("");
   const [council, setCouncil] = useState("");
+  const [notListed, setNotListed] = useState(false);
   const go = () => { if (school && council) void nav({ to: "/partners/council/$school/$council", params: { school, council } }); };
 
   // Preview switcher from the showcase schools, resolved off the school table so the code and href
@@ -84,6 +89,7 @@ function CampusCouncilsPage() {
             placeholder="Pick your campus"
             searchPlaceholder={`Search ${ALL_SCHOOLS.length} schools…`}
             onPick={(v) => setSchool(v)}
+            footer={<PickerNotListed label="Don't see your school?" onClick={() => setNotListed(true)} />}
           />
           <SearchPicker
             items={COUNCILS.map((c) => ({ value: c.slug, label: c.name, meta: c.full }))}
@@ -109,6 +115,12 @@ function CampusCouncilsPage() {
       )}
 
       <FeatureValueStrip code={null} />
+
+      {notListed && (
+        <div className="fixed inset-0 z-[400] grid place-items-center px-4" style={{ background: "rgba(4,8,18,0.66)" }} onMouseDown={(e) => { if (e.target === e.currentTarget) setNotListed(false); }}>
+          <NotListedForm kind="school" title="Which school is your council at?" onClose={() => setNotListed(false)} />
+        </div>
+      )}
     </PartnerPageShell>
   );
 }
