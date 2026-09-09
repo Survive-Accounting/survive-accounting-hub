@@ -127,11 +127,16 @@ export function GenerationDock() {
   };
 
   const toggle = () => { setOpen((v) => { try { localStorage.setItem(OPEN_KEY, v ? "0" : "1"); } catch { /* fine */ } return !v; }); };
+  // "Review ↗" GOES TO THE SUGGESTIONS PAGE (2026-09-08), not the Editor. Lee, after a
+  // brainstorm that produced 92 of them: "I click 'Review →' and it takes me to the same link,
+  // but it's too hard to find the results." It did — on the Editor the board sits inside a
+  // collapsed <details> below the whole film deck. The suggestions now have their own page and
+  // this is the link to it; the Editor is one click further on, from there.
   const resultsHref = (s: TalkSession): string | null => {
     if (!topics) return null;
     const topic = topicOfSet(topics, s.setId);
     const set = topic?.sets.find((x) => x.id === s.setId);
-    return topic && set ? blastOffPath(topic, set, "results") : null;
+    return topic && set ? blastOffPath(topic, set, "suggestions") : null;
   };
 
   /** RESUME an interrupted synthesis. The pre-flight choices Lee made are on

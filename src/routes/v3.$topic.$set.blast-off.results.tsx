@@ -17,8 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminGate } from "@/components/AdminGate";
 import { ReviewDeck, type DeckApi } from "@/components/blastoff/ReviewDeck";
-import { emptyIllustration } from "@/components/blastoff/illustration";
-import { frameKindForStamp } from "@/components/blastoff/prompter";
+import { frameForIdea } from "@/components/blastoff/idea-to-slide";
 import { SessionView } from "@/components/talkthrough/SessionView";
 import { listSessions, sessionMeta } from "@/components/canvas/talkthrough";
 import { startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
@@ -61,16 +60,14 @@ function V3Results() {
   // The deck's verbs, for the AI board's "＋ slide".
   const deck = useRef<DeckApi | null>(null);
   const register = useCallback((api: DeckApi | null) => { deck.current = api; }, []);
-  const addSlide = useCallback((kind: string, text: string, itemId: string) => {
-    // An illustration idea becomes a blank slide carrying the banked brief — the Editor's
-    // Generate button is where it (maybe) becomes a picture. Nothing is generated here.
-    if (kind === "illustration") {
-      deck.current?.addSlide("blank", { bankItemId: itemId, illustration: emptyIllustration({ prompt: text, teachingIntent: null }) });
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-    const frameKind = frameKindForStamp(kind);
-    deck.current?.addSlide(frameKind, frameKind === "cheat" ? { title: text, bankItemId: itemId } : { text, bankItemId: itemId });
+  // ONE BUILDER (2026-09-08, blastoff/idea-to-slide.ts). This used to shove the board item's
+  // whole multi-line body into a cheat frame's `title` and set nothing else — Lee: "they just
+  // ended up all in the title. Not the list part." The heading is the heading and the body is
+  // the bullets now, and the Suggestions page adds slides through the same function.
+  const addSlide = useCallback((kind: string, text: string, itemId: string, title?: string) => {
+    const f = frameForIdea({ kind, text, itemId, title });
+    const { id: _id, kind: frameKind, ...patch } = f;
+    deck.current?.addSlide(frameKind, patch);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 

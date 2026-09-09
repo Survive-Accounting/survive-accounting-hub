@@ -45,7 +45,28 @@ const setIdOfSession = (sessionId: string): string | null => ttState().doc.sessi
 /** One session's run state. B8 adds `progress` — the incremental queue's
  *  where-is-it-up-to, kept here (not on the synced TalkSession row) so a
  *  per-item update never writes to Supabase. See talkthrough.ts for the why. */
-export interface GenEntry { state: ReviewState; error?: string; progress?: GenerationProgress }
+export interface GenEntry {
+  state: ReviewState;
+  error?: string;
+  progress?: GenerationProgress;
+  /** WHICH PAGE LOAD OWNS THIS RUN (2026-09-08). See TAB below. */
+  tab?: string;
+}
+
+/** THE OWNER OF A RUNNING GENERATION. Lee: "Don't let me lose generation queue when I change
+ *  tab. I went to brainstorm from editor."
+ *
+ *  `sweepStrandedReviews` runs on every step route's boot effect and used to demote EVERY
+ *  queued/generating entry to "interrupted (tab closed?) — retry". That is right for a genuine
+ *  reload, and completely wrong for a route change: this is a single-page app, so walking from
+ *  the Editor to Brainstorm re-ran the sweep while the promises were still in flight in this
+ *  very tab, and the queue Lee was watching turned into a row of failures.
+ *
+ *  A module constant is exactly the right lifetime for the distinction: it survives every
+ *  client-side navigation (the module is not re-evaluated) and is reborn on a real reload. So a
+ *  run stamps the page load that started it, and the sweep only touches runs that some OTHER
+ *  page load left behind. */
+const TAB = Math.random().toString(36).slice(2);
 
 const load = (): Record<string, GenEntry> => {
   try { return JSON.parse(localStorage.getItem(KEY) ?? "{}") as Record<string, GenEntry>; } catch { return {}; }
@@ -63,7 +84,8 @@ const set = (sessionId: string, state: ReviewState, error?: string) => {
   // An idle session keeps its entry ONLY to carry a finished run's progress
   // (so the Booth can say "Generation complete"); reviewStateOf ignores it.
   if (state === "idle" && !progress) delete m[sessionId];
-  else m[sessionId] = { state, ...(error ? { error } : {}), ...(progress ? { progress } : {}) };
+  // A live run carries the page load that owns it; anything settled drops the stamp.
+  else m[sessionId] = { state, ...(error ? { error } : {}), ...(progress ? { progress } : {}), ...(state === "queued" || state === "generating" ? { tab: TAB } : {}) };
   save(m);
   emit();
 };
@@ -110,11 +132,17 @@ export function reviewStateOf(doc: TTDoc, s: TalkSession): { state: "capturing" 
 }
 
 /** A tab reload can strand a "generating" flag with no promise behind it —
- *  demote it to a retryable error at boot so the list never lies. */
+ *  demote it to a retryable error at boot so the list never lies.
+ *
+ *  A RUN THIS PAGE LOAD STARTED IS NOT STRANDED (2026-09-08, see TAB above). Every step route
+ *  calls this on mount, and in a single-page app that includes routes Lee walks to WHILE a
+ *  generation is running — which is precisely how "I went to brainstorm from editor" turned a
+ *  live queue into a list of retries. Only entries stamped by a different page load are swept. */
 export function sweepStrandedReviews(): void {
   const m = load();
   let changed = false;
   for (const k of Object.keys(m)) {
+    if (m[k].tab === TAB) continue;
     if (m[k].state === "generating" || m[k].state === "queued") {
       const err = "interrupted (tab closed?) — retry";
       // B8: keep the progress the run got to, marked stopped, so the Booth

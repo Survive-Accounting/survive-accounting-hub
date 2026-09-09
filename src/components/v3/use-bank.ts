@@ -102,7 +102,10 @@ export function nextSetAfter(topics: BoothTopic[], setId: string): { topic: Boot
 // set like the first three. The ids are NOT the labels any more — StepBar.tsx STEPS spells
 // Brainstorm · Editor · Rehearse & Film · Cross-post · Improve Process over these same ids, so
 // no URL, bookmark or timer path had to change.
-export type BlastOffStep = "talkthrough" | "results" | "arrange" | "film" | "post" | "improve";
+// 2026-09-08: "suggestions" — the brainstorm's board on its OWN page. Lee: "I click 'Review'
+// and it takes me to the same link, but it's too hard to find the results. It should take me to a
+// separate page honestly. The editor page is for AFTER we've reviewed."
+export type BlastOffStep = "talkthrough" | "suggestions" | "results" | "arrange" | "film" | "post" | "improve";
 
 /** /v3/$topic/$set/blast-off[/step] — the one place the nested URL is spelled. Post is the one
  *  exception (2026-09-06): it's a cross-set queue, not a per-set page — StepBar's own blurb says

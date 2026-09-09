@@ -83,7 +83,7 @@ export function SessionView({ tt, session, set, onResume, onAddSlide }: {
   tt: TTState; session: TalkSession; set: BoothSetInfo | null; onResume: () => void;
   /** THE REVIEW DECK (2026-09-03): when the board sits under the film draft,
    *  an idea card can drop itself onto the draft as a slide. */
-  onAddSlide?: (kind: string, text: string, itemId: string) => void;
+  onAddSlide?: (kind: string, text: string, itemId: string, title?: string) => void;
 }) {
   const segs = sessionSegments(tt.doc, session.id);
   const tags = sessionTags(tt.doc, session.id);

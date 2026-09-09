@@ -315,7 +315,13 @@ function Pill({ run, now, open, setOpen, saveErr, dispatch, finishStep, clear }:
   const next = nextPendingStep(run);
 
   return (
-    <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: Z, fontFamily: FONT, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+    // TOP RIGHT, NOT BOTTOM RIGHT (2026-09-08). Lee: "Move timer to top right navbar. It's
+    // blocked the generation queue." Both this pill and the generation dock
+    // (talkthrough/GenerationDock.tsx) anchored to right:16 / bottom:16, and this one carries a
+    // z-index in the two-billions, so it sat on top of the queue's Review and Resume buttons —
+    // the timer was hiding the thing it is timing. The dock keeps the bottom corner (it is the
+    // taller, busier panel); the run pill moves up beside the nav.
+    <div style={{ position: "fixed", right: 16, top: 12, zIndex: Z, fontFamily: FONT, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
       {open && (
         <div role="dialog" aria-label="Production run" style={{ width: 340, maxHeight: "70vh", overflowY: "auto", background: INK, border: `1px solid ${dot}66`, borderRadius: 14, padding: 12, boxShadow: "0 18px 50px -14px rgba(0,0,0,0.9)", color: CREAM }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>

@@ -588,6 +588,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "v3.$topic.$set.blast-off.index.tsx": "V3 Blast Off (noindex) — which step are you on?",
   // Steps renamed 2026-09-07 (Brainstorm · Editor · Rehearse & Film · Cross-post · Iterate); URLs unchanged.
   "v3.$topic.$set.blast-off.talkthrough.tsx": "V3 Blast Off step 1, Brainstorm (AdminGate, noindex) — the booth on one set",
+  "v3.$topic.$set.blast-off.suggestions.tsx": "V3 Blast Off, Suggestions (AdminGate, noindex) — the brainstorm's board on its own page, between Brainstorm and the Editor; a door, not a numbered step (2026-09-08)",
   "v3.$topic.$set.blast-off.results.tsx": "V3 Blast Off step 2, Editor (AdminGate, noindex) — the film draft and running order (Arrange folded in 2026-09-05; teleprompter left for Rehearse & Film 2026-09-07)",
   "v3.$topic.$set.blast-off.arrange.tsx": "redirect (2026-09-05) → the results (Editor) step — Arrange retired, its own job was already Review's",
   "v3.$topic.$set.blast-off.film.tsx": "V3 Blast Off step 3, Rehearse & Film (AdminGate, noindex) — rounds with the teleprompter, then in-page capture; its own step since 2026-09-05",

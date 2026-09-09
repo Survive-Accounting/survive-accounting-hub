@@ -54,6 +54,8 @@ export interface PrompterGroup {
 export const STAMPS_FOR_KIND: Partial<Record<BlastFrameKind, readonly string[]>> = {
   phrase: ["memorize_this", "phrase", "memo", "trigger_word"],
   cheat: ["cheat_code", "tip_trick"],
+  // 2026-09-08: "Tricky stamp for brainstorm" — its own slide kind, red, beside the other three.
+  tricky: ["tricky"],
   tip: ["deeper_idea", "real_world", "nerdout"],
   exhibit: ["visual", "exhibit"],
   // An illustration idea rides on a blank slide (the results route hands it the banked brief).

@@ -36,7 +36,9 @@ import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "./Shell";
 
 /** The numbered steps — the BlastOffStep vocabulary minus "arrange", which keeps its URL
  *  (a redirect into the Editor) but has had no door since 2026-09-05. Five since 2026-09-07. */
-export type NumberedStep = Exclude<BlastOffStep, "arrange">;
+/** ...and, since 2026-09-08, minus "suggestions", which has a page and a door but deliberately
+ *  no number — numbering it would renumber four steps Lee has in his head. */
+export type NumberedStep = Exclude<BlastOffStep, "arrange" | "suggestions">;
 
 export const STEPS: readonly { step: NumberedStep; n: number; label: string; blurb: string; soon?: boolean }[] = [
   // 2026-09-07: "Talkthrough" → "Brainstorm" (id and URL still talkthrough).
@@ -65,7 +67,39 @@ export function StepBar({ topic, set, active, right }: {
 }) {
   return (
     <div className="flex items-center gap-2" style={{ marginBottom: 16, flexWrap: "wrap" }}>
+      {/* SUGGESTIONS — a door, not a numbered step (2026-09-08). Lee: "It should take me to a
+          separate page honestly. The editor page is for AFTER we've reviewed." It sits where it
+          belongs, between talking and building, but deliberately carries NO number: numbering it
+          would renumber Editor, Film, Cross-post and Iterate, and those numbers are in his head,
+          in the timer's path detection and in half the docs. */}
       {STEPS.map((s) => {
+        const suggestions = s.step === "results" ? (
+          <Link key="suggestions" to={blastOffPath(topic, set, "suggestions")}
+            className="flex items-center gap-2 rounded-xl px-3.5 py-2"
+            style={{
+              border: `1.5px dashed ${active === "suggestions" ? V3_GOLD : V3_EDGE}`,
+              background: active === "suggestions" ? "rgba(252,163,17,0.12)" : "transparent",
+              color: active === "suggestions" ? V3_CREAM : V3_MUTED,
+              textDecoration: "none",
+            }}
+            title="Everything the brainstorm suggested, on its own page — add the ones worth filming, then go to the Editor.">
+            <span style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: 14 }}>💡 Suggestions</span>
+          </Link>
+        ) : null;
+        return <StepPill key={s.step} s={s} topic={topic} set={set} active={active} before={suggestions} />;
+      })}
+      {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
+    </div>
+  );
+}
+
+function StepPill({ s, topic, set, active, before }: {
+  s: (typeof STEPS)[number]; topic: BoothTopic; set: BoothSetInfo; active: BlastOffStep; before?: ReactNode;
+}) {
+  return (
+    <>
+      {before}
+      {(() => {
         const on = s.step === active;
         const kicker = (
           <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: on ? V3_GOLD : V3_MUTED }}>
@@ -100,8 +134,7 @@ export function StepBar({ topic, set, active, right }: {
             {kicker}{label}
           </Link>
         );
-      })}
-      {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
-    </div>
+      })()}
+    </>
   );
 }

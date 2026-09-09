@@ -312,6 +312,13 @@ export function dropFrame(frames: readonly BlastFrame[], id: string): BlastFrame
   const f = frames.find((x) => x.id === id);
   if (!f) return [...frames];
   if (isInsert(f.kind)) return removeFrame(frames, id);
+  // A DUPLICATE OF A SET CARD IS REALLY DELETABLE (2026-09-08). Lee: "Let me delete a card. I'm
+  // adding more to return to them faster at the end of a video sometimes." He duplicates a card
+  // so he can come back to it before the outro — and then the copy could not be removed, only
+  // skipped, because this function treated every `ceq` frame as irreplaceable. It is not the
+  // FRAME that reconcile insists on, it is the CARD: as long as another frame still points at
+  // the same ceqId, this one can simply go. The last frame for a card still only skips.
+  if (f.kind === "ceq" && f.ceqId && frames.some((x) => x.id !== id && x.ceqId === f.ceqId)) return removeFrame(frames, id);
   return frames.map((x) => (x.id === id ? { ...x, skipped: true } : x));
 }
 
@@ -325,8 +332,27 @@ export function duplicateFrame(frames: readonly BlastFrame[], id: string): Blast
   const i = frames.findIndex((x) => x.id === id);
   if (i < 0) return [...frames];
   const src = frames[i];
-  const copy: BlastFrame = { ...src, id: newFrameId(src.kind), prompter: src.prompter ? [...src.prompter] : undefined, prompterKeys: src.prompterKeys ? [...src.prompterKeys] : undefined, prompterMarks: src.prompterMarks ? { ...src.prompterMarks } : undefined, illustration: src.illustration ? { ...src.illustration } : src.illustration };
-  return insertFrame(frames, copy, i);
+  return insertFrame(frames, copyOfFrame(src), i);
+}
+
+function copyOfFrame(src: BlastFrame): BlastFrame {
+  return { ...src, id: newFrameId(src.kind), prompter: src.prompter ? [...src.prompter] : undefined, prompterKeys: src.prompterKeys ? [...src.prompterKeys] : undefined, prompterMarks: src.prompterMarks ? { ...src.prompterMarks } : undefined, illustration: src.illustration ? { ...src.illustration } : src.illustration };
+}
+
+/** CLONE TO THE END (2026-09-08). Lee: "Clone slide to move to end" — and why, in his own
+ *  words: "I'm adding more to return to them faster at the end of a video sometimes." So the
+ *  copy does not land next to the original where he would have to drag it the length of the
+ *  deck; it goes straight to the back of the running order, in front of nothing.
+ *
+ *  BEFORE THE SIGN-OFF, though. The bio slot and the outro are the close, and a callback card
+ *  landing after "Start cramming free" is a card nobody sees — so the copy goes in ahead of the
+ *  trailing spine frames rather than literally last. */
+export function cloneFrameToEnd(frames: readonly BlastFrame[], id: string): BlastFrame[] {
+  const src = frames.find((x) => x.id === id);
+  if (!src) return [...frames];
+  let end = frames.length - 1;
+  while (end >= 0 && (frames[end].kind === "outro" || frames[end].kind === "bio")) end -= 1;
+  return insertFrame(frames, copyOfFrame(src), end);
 }
 
 // ---- THE TIMING MARKS (2026-09-07) -----------------------------------------

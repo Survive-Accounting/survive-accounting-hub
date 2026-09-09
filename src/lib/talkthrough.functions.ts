@@ -427,6 +427,55 @@ export const applyCeqEdit = createServerFn({ method: "POST" })
     return { ok: true as const, sceneId };
   });
 
+/** CLONE A CARD SO IT CAN BE EDITED ON ITS OWN (2026-09-08).
+ *
+ *  Lee: "If I duplicate a slide, then change it, it's editing the previous slide. It's more a
+ *  clone one that I can then edit independently thing."
+ *
+ *  Exactly right, and the cause is that duplicating a set-card FRAME copies its `ceqId` — so
+ *  both frames point at one card, and the Editor's card fields write through applyCeqEdit to
+ *  that one card. Two slides, one question. That is the correct behaviour for filming the same
+ *  question twice (his callback use: "I'm adding more to return to them faster at the end of a
+ *  video"), and the wrong one the moment he wants a variant.
+ *
+ *  So a variant needs a REAL new card in the set. This copies the node wholesale — the stem,
+ *  the choices, the feedback, whatever else the card carries — under a fresh id, right after
+ *  the original, and hands the id back so the frame can point at it. The copy starts with no
+ *  edit history: it has never been edited, and inheriting the original's undo stack would let
+ *  a revert put someone else's words on it. */
+export const duplicateCeqCard = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ ceqNodeId: z.string().min(1).max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const db = await admin();
+    const { loadDecksDeduped } = await import("@/lib/student.functions");
+    const owned = await loadDecksDeduped(db as never);
+    let sceneId: string | null = null;
+    for (const o of owned.values()) {
+      if ((o.nodes as { id: string }[]).some((n) => n.id === data.ceqNodeId)) { sceneId = o.sceneId; break; }
+    }
+    if (!sceneId) throw new Error("CEQ not found in any live set");
+    const { data: row, error } = await db.from("canvas_scenes").select("id,nodes_json").eq("id", sceneId).single();
+    if (error) rethrow(error);
+    const j = row.nodes_json as { nodes?: { id: string; data?: Record<string, unknown> }[] };
+    const nodes = j.nodes ?? [];
+    const i = nodes.findIndex((n) => n.id === data.ceqNodeId);
+    if (i < 0) throw new Error("CEQ node vanished from its scene — refresh and retry");
+    const seen = new Set(nodes.map((n) => n.id));
+    let id = "";
+    do { id = `${data.ceqNodeId}-copy-${Math.random().toString(36).slice(2, 8)}`; } while (seen.has(id));
+    const copy = JSON.parse(JSON.stringify(nodes[i])) as { id: string; data?: Record<string, unknown> };
+    copy.id = id;
+    copy.data ??= {};
+    delete copy.data.editHistory;
+    copy.data.clonedFrom = data.ceqNodeId;
+    copy.data.clonedAt = new Date().toISOString();
+    nodes.splice(i + 1, 0, copy);
+    j.nodes = nodes;
+    const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", sceneId);
+    if (up.error) rethrow(up.error);
+    return { ok: true as const, sceneId, ceqNodeId: id };
+  });
+
 /** UNDO the last applyCeqEdit on a card: the words it had before that save come
  *  back, the history shrinks by one. Returns what the card says now. */
 export const revertCeqEdit = createServerFn({ method: "POST" })

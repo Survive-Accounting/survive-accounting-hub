@@ -623,12 +623,12 @@ function SayTheFixCard({ sessionId, label, current, applying, onApply, onEditFir
 
 function IdeaCard({ item, onRegen, film, onAddSlide }: {
   item: BoardItem; onRegen: (c: string) => Promise<void>; film?: { doc: TTDoc; setId: string };
-  onAddSlide?: (kind: string, text: string, itemId: string) => void;
+  onAddSlide?: (kind: string, text: string, itemId: string, title?: string) => void;
 }) {
   const p = item.payload as { kind?: string; body?: string; origin?: string; brief?: string; stamp?: string; visualKind?: string };
   const ai = p.origin === "ai";
   return (
-    <ItemShell item={item} onRegen={onRegen} film={film} onAddSlide={onAddSlide ? () => onAddSlide(p.kind ?? "idea", p.body ?? item.title, item.id) : undefined}>
+    <ItemShell item={item} onRegen={onRegen} film={film} onAddSlide={onAddSlide ? () => onAddSlide(p.kind ?? "idea", p.body ?? "", item.id, item.title) : undefined}>
       {/* WHO IT CAME FROM (Lee, 2026-09-03): a person for his stamps, the AI
           mark for the model's own suggestions — "some way to know who it came from". */}
       <span title={ai ? "AI suggested — not from a stamp" : "From your stamp, cleaned up"} style={{ marginRight: 6, fontSize: 12 }}>{ai ? "✨" : "🧑‍🏫"}</span>
@@ -664,7 +664,7 @@ export function ReviewBoardV2({ items, ceqs, onRegen, film, onAddSlide }: {
   /** B5 — enables the 🎬 pick toggle, targeting this set. */
   film?: { doc: TTDoc; setId: string };
   /** THE REVIEW DECK (2026-09-03): idea cards get "＋ slide". */
-  onAddSlide?: (kind: string, text: string, itemId: string) => void;
+  onAddSlide?: (kind: string, text: string, itemId: string, title?: string) => void;
 }) {
   // CLEARED OLD RESULTS (2026-09-04): a card Lee dismissed in the booth is off
   // the board wherever the board is drawn — sessionBoard already hides them,

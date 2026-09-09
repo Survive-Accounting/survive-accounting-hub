@@ -72,7 +72,7 @@
 // throttle while he talks (LIVE_BRIEF_EVERY_MS, one call in flight, a stale answer dropped).
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { applyCeqEdit, revertCeqEdit, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
+import { applyCeqEdit, duplicateCeqCard, revertCeqEdit, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import { logCeqEdit, recentEditExamples, type EditSource } from "@/lib/edit-log.functions";
 import { logCostEvent } from "@/lib/cost-ledger.functions";
 import { buildShortenMessages, parseShorten, type EditExample, type ShortenFields, type ShortenRequest, type ShortenResult } from "@/lib/shorten-brief";
@@ -96,7 +96,7 @@ import { indentBulletLine } from "./bullet-indent";
 import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
-import { AD_KINDS, FRAME_LABEL, backdropFor, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
+import { AD_KINDS, FRAME_LABEL, backdropFor, cloneFrameToEnd, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 // THE SLOGANS (2026-09-08) — the three lines, in the one place they are allowed to live
 // (brand-cards/slogans.ts). The quick row inserts them; the Editor offers them as chips.
@@ -669,6 +669,35 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   // made: the copy is selected; a removed row hands selection to its
   // neighbour — but only when it was the selected one.
   const duplicateAt = (id: string, i: number) => { const next = duplicateFrame(frames, id); commit(next); setSelId(next[i + 1]?.id ?? id); };
+  const cloneToEnd = (id: string) => { const next = cloneFrameToEnd(frames, id); commit(next); setSelId(next[next.length - 1]?.id ?? id); };
+  // CLONE A SET CARD INTO ITS OWN CARD (2026-09-08). Lee: "If I duplicate a slide, then change
+  // it, it's editing the previous slide. It's more a clone one that I can then edit
+  // independently thing." Duplicate keeps pointing at the same question on purpose (that is how
+  // he films a callback); THIS makes a real new card in the set and points the new slide at it,
+  // so the two can say different things. Server-side, because the card lives in the scene.
+  const [cloning, setCloning] = useState(false);
+  const cloneCard = async (id: string, i: number) => {
+    const f = frames.find((x) => x.id === id);
+    if (!f?.ceqId || cloning) return;
+    setCloning(true);
+    try {
+      const res = await duplicateCeqCard({ data: { ceqNodeId: f.ceqId } });
+      const copy: BlastFrame = { ...f, id: newFrameId("ceq"), ceqId: res.ceqNodeId, skipped: undefined, bankItemId: undefined };
+      const next = insertFrame(frames, copy, i);
+      commit(next);
+      setSelId(copy.id);
+      // The bank is the source of the card's WORDS and it is fetched once per page load, so the
+      // new card does not exist for this tab until the bank is re-read. Drop the cache and
+      // reload rather than paper over it: a frame pointing at a ceqId the bank has never heard
+      // of renders "This card is no longer in the set", which is worse than a reload. The plan
+      // is already saved above, so nothing is lost.
+      refreshBank();
+      window.location.reload();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Could not clone that card.");
+      setCloning(false);
+    }
+  };
   const removeAt = (id: string, i: number) => { const next = dropFrame(frames, id); commit(next); if (id === sel?.id) setSelId(next[Math.min(i, next.length - 1)]?.id ?? null); };
 
   /** What the ⋯ menu offers this slide: the row's own verbs first, then the
@@ -681,9 +710,21 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
         label: f.kind === "ad" ? "✎ Edit the copy" : f.kind === "ceq" && f.ceqId && ceqById.has(f.ceqId) ? "✎ Edit the card" : "✎ Edit this slide",
         title: "Open it in the editor, beside the slide", color: GOLD, run: edit,
       },
-      { label: "⧉ Duplicate", title: "A copy right after this one", run: () => duplicateAt(f.id, i) },
-      isInsert(f.kind)
-        ? { label: "✕ Remove", title: "Remove this slide", color: RED, run: () => removeAt(f.id, i) }
+      // TWO KINDS OF COPY, and the difference is the whole point (2026-09-08). Duplicate is the
+      // SAME card filmed twice — edit it and both slides change, because they are one question.
+      // Clone as a new card makes a real second card in the set that can then say something
+      // different. Lee hit the first expecting the second: "If I duplicate a slide, then change
+      // it, it's editing the previous slide."
+      { label: f.kind === "ceq" ? "⧉ Duplicate — same card, filmed twice" : "⧉ Duplicate", title: f.kind === "ceq" ? "A second slide showing this same question. Editing either one edits the card." : "A copy right after this one", run: () => duplicateAt(f.id, i) },
+      ...(f.kind === "ceq" && f.ceqId
+        ? [{ label: cloning ? "⧉+ Cloning…" : "⧉+ Clone as a NEW card", title: "A real new card in the set, copied from this one — edit it freely without touching the original", color: MINT, run: () => void cloneCard(f.id, i) }]
+        : []),
+      // Lee, 2026-09-08: "Clone slide to move to end" — "I'm adding more to return to them
+      // faster at the end of a video sometimes." The copy lands ahead of the bio and the outro.
+      { label: "⧉↓ Clone to the end", title: "A copy at the back of the running order, before the sign-off — for coming back to it at the end", run: () => cloneToEnd(f.id) },
+      // A DUPLICATED set card really deletes (plan.ts dropFrame); the last one for a card skips.
+      isInsert(f.kind) || (f.kind === "ceq" && f.ceqId && frames.some((x) => x.id !== f.id && x.ceqId === f.ceqId))
+        ? { label: "✕ Remove", title: isInsert(f.kind) ? "Remove this slide" : "Delete this copy — the card itself stays in the set", color: RED, run: () => removeAt(f.id, i) }
         : f.skipped
           ? { label: "↺ Film it", title: "Film this slide again", color: MINT, run: () => commit(toggleSkip(frames, f.id)) }
           : { label: "⊘ Skip in the film", title: "Skip this card in the film (it stays in the set)", color: RED, run: () => commit(toggleSkip(frames, f.id)) },
