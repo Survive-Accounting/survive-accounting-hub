@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { avoidCard, camRect, camSpotOf, defaultCamFor, heroCamRect, nextCamSpot, overlaps, watermarkSize, wordmarkHero } from "./webcam-spots";
+import { avoidCard, camRect, camSpotOf, defaultCamFor, heroCamRect, nextCamSpot, overlaps, watermarkSize, watermarkSpot, wordmarkHero } from "./webcam-spots";
 
 const W = 1080, H = 1920;
 
@@ -64,5 +64,27 @@ describe("the camera's spots", () => {
     expect(cam.y + cam.h).toBeLessThanOrEqual(wmTop);          // camera clears the wordmark
     expect(wm.bottom).toBeLessThanOrEqual(H * 0.61);           // wordmark clears the caption rail
     expect(wm.scale).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// THE WATERMARK CORNER (2026-09-08) — one copy, two callers: PhoneFrame parks the
+// wordmark here for the whole rip and the assembly cold open flies it in to exactly
+// here, so slide one's landing and slide two's watermark are the same mark.
+describe("the watermark corner", () => {
+  test("left / top / size are the phone's own fractions, and the mark rests just under full", () => {
+    const s = watermarkSpot(W);
+    expect(s.left).toBe(Math.round(W * 0.04));
+    expect(s.top).toBe(Math.round(W * 0.05));
+    expect(s.size).toBe(watermarkSize(W));
+    expect(s.opacity).toBeGreaterThan(0.9);
+    expect(s.opacity).toBeLessThanOrEqual(1);
+  });
+  test("it scales with the phone, never off the top-left corner", () => {
+    for (const w of [306, 540, 1080]) {
+      const s = watermarkSpot(w);
+      expect(s.left).toBeGreaterThan(0);
+      expect(s.top).toBeGreaterThan(0);
+      expect(s.left + s.size * 4).toBeLessThan(w);   // the mark stays inside the safe left column
+    }
   });
 });

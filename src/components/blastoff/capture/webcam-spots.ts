@@ -108,6 +108,15 @@ export function wordmarkHero(w: number, h: number): { scale: number; bottom: num
 /** The watermark's resting type size on a phone `w` wide (PhoneFrame draws it at 5.2 % of the width). */
 export function watermarkSize(w: number): number { return Math.max(12, Math.round(w * 0.052)); }
 
+/** THE WATERMARK CORNER (2026-09-08) — where PhoneFrame parks the wordmark for the whole rip,
+ *  and therefore where the assembly cold open's wordmark LANDS. Lee: "the piece that finishes
+ *  the machine is the mark you then live with." ONE copy of the coordinate, two callers
+ *  (PhoneFrame draws it; ColdOpenAssembly flies it in to exactly here) — a second copy would
+ *  drift by a pixel and the handoff from slide one into slide two would show a jump. */
+export function watermarkSpot(w: number): { left: number; top: number; size: number; opacity: number } {
+  return { left: Math.round(w * 0.04), top: Math.round(w * 0.05), size: watermarkSize(w), opacity: 0.92 };
+}
+
 /** B cycles the spots on the take: home → corner → hero → top → off → home. */
 export function nextCamSpot(cur: CamSpot): CamSpot {
   const order: CamSpot[] = ["home", "corner", "hero", "top", "off"];

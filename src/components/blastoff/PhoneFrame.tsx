@@ -18,10 +18,11 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react"
 
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { CampusBanner } from "@/components/brand-cards/BoltZoom";
+import { COLD_OPEN_CLASS, pieceClass } from "@/components/brand-cards/cold-open";
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 
 import { WebcamFrame } from "./capture/Webcam";
-import { camRect, isCamSpot, watermarkSize, wordmarkHero, type Box, type CamSpot } from "./capture/webcam-spots";
+import { camRect, isCamSpot, watermarkSpot, wordmarkHero, type Box, type CamSpot } from "./capture/webcam-spots";
 import { FrameView } from "./frame-view";
 import { IllustrationLayer, PlacedIllustration } from "./IllustrationLayer";
 import { canIllustrate, isPlaced } from "./illustration";
@@ -44,6 +45,17 @@ const STAGE_FADE_CSS = `
 .film-mode .sa-stage-fade-in { animation: sa-stage-fade-in 900ms ease-out both; }
 @media (prefers-reduced-motion: reduce) { .film-mode .sa-stage-fade-in { animation: none; } }`;
 
+// THE CHARGED WATERMARK (2026-09-08). Lee: "I think this is where 'video game' comes in. I really
+// can see like a persistent change up top." The assembly cold open ends with the wordmark landing
+// HARD in this exact corner; the FIRST slide that then carries the watermark holds that charge for
+// a second — a brighter boil bleeding off, nothing more — so the mark reads as the one that just
+// landed rather than as a new one fading in. Position, size and opacity never change (they are
+// watermarkSpot's, one copy), so there is no jump and no second fade-in.
+const WATERMARK_CHARGE_CSS = `
+@keyframes sa-wm-charge { from { filter: brightness(1.9) drop-shadow(0 0 10px rgba(252,163,17,0.55)); } to { filter: none; } }
+.film-mode .sa-wm-charge { animation: sa-wm-charge 1000ms ease-out both; }
+@media (prefers-reduced-motion: reduce) { .film-mode .sa-wm-charge { animation: none; } }`;
+
 /** FrameView's `scale` for a frame on a stage `w` wide: full-frame kinds fill
  *  the stage (a 1080 frame drawn at scale·0.34); the tutor card is a bit
  *  bigger than a detour card so it renders smaller here to fit; every other
@@ -63,7 +75,7 @@ export function watermarkOn(frame: BlastFrame, _backdrop: ReturnType<typeof back
   return !isFullFrame(frame.kind);
 }
 
-export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, popout = false, stageStyle, camSpot, cardOverride: gripOverride, layout = "pass1", hero: heroProp, onHero, onRailStatus }: {
+export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, popout = false, stageStyle, camSpot, cardOverride: gripOverride, layout = "pass1", hero: heroProp, onHero, onRailStatus, coldOpen }: {
   frame: BlastFrame;
   /** The whole running order — the backdrop rule looks at the neighbours. */
   frames: readonly BlastFrame[];
@@ -102,6 +114,11 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   /** THE CAPTION RAIL CHECK (2026-09-05): on the capture, told whether the card or the camera
    *  sits on the fixed caption rail — the /film chrome shows it. */
   onRailStatus?: (s: RailStatus) => void;
+  /** THE ASSEMBLY COLD OPEN (2026-09-08, brand-cards/cold-open.ts). On an `open` frame the
+   *  slide builds itself over `ms` and the wordmark lands last in the watermark corner; `key`
+   *  restarts it (a new countdown, or walking back onto the slide). BlastOffCapture is the only
+   *  caller — the Review stage and the thumbnails never assemble, they show slide one at rest. */
+  coldOpen?: { ms: number; key?: string | number } | null;
 }) {
   const h = Math.round(w * 16 / 9);
   const backdrop = backdropFor(frames, index, (id) => !!set.ceqs.find((c) => c.id === id)?.noteOnly);
@@ -113,7 +130,15 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   // its way.
   const def = camDefault(layout, frame.kind);
   const own: CamSpot = isCamSpot(frame.cam) ? frame.cam : def.spot;
-  const cam: CamSpot = camSpot ?? own;
+  // THE ASSEMBLY COLD OPEN (2026-09-08). Lee: "my camera's out on the right and comes in… it
+  // comes in, slides in" — and THE CAMERA IS FIRST, "the only living thing on screen", so the
+  // cold open has to have one. The open frame's own default is "off" (webcam-spots.defaultCamFor
+  // / layout.camDefault) and that stays true everywhere else; only while this slide is actually
+  // assembling does it borrow the corner spot — the small top-right circle, i.e. out on the
+  // right, exactly where Lee's camera comes in from.
+  const assembling = !!coldOpen && frame.kind === "open";
+  const camAsked: CamSpot = camSpot ?? own;
+  const cam: CamSpot = assembling && camAsked === "off" ? "corner" : camAsked;
   // A SAVED SIZE BELONGS TO THE SLIDE'S OWN SPOT. It used to apply to whatever spot was
   // current, so a home/free size saved on the slide leaked onto B's corner/hero override.
   const camSize = cam === own ? (frame.camSize ?? (cam === def.spot ? def.size : undefined)) : (cam === def.spot ? def.size : undefined);
@@ -182,7 +207,11 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
     const camBox = cam === "off" ? null : camRect(cam, w, h, camSize, frame.camPos);
     onRailStatus(captionRailClear(rail, cardBox, camBox, artBox));
   }, [capture, onRailStatus, rail.x, rail.y, rail.w, rail.h, w, h, cam, camSize, frame.camPos, cardBox, artBox]);
-  const wmLeft = Math.round(w * 0.04), wmTop = Math.round(w * 0.05);
+  // ONE COPY of the watermark corner (webcam-spots.watermarkSpot): the assembly cold open flies
+  // its wordmark into exactly this left/top/size, so slide one's landing and slide two's
+  // watermark are the same mark in the same place — no jump, no second fade-in.
+  const wm = watermarkSpot(w);
+  const wmLeft = wm.left, wmTop = wm.top;
   const wmHero = wordmarkHero(w, h);
   const wmTransform = moment && markBox
     ? (() => {
@@ -207,13 +236,18 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   // once, exactly on arrival, the same way sa-outro-fade (CeqPreviewer.tsx) already does for the
   // sign-off.
   const fadeInFromIntro = capture && frames[index - 1]?.kind === "intro";
+  // THE CHARGE (2026-09-08): the FIRST slide of the rip that carries the watermark is the one
+  // that inherits the cold open's landing — everything before it is a full frame with no
+  // watermark at all (the open, the intro), so this is where the corner comes back.
+  const chargedWatermark = capture && index > 0 && frames.slice(0, index).every((f) => isFullFrame(f.kind));
   return (
     <div ref={phoneRef} className={capture ? "film-mode" : undefined} data-sa-phone="" data-sa-layout={layout} style={{ fontFamily: BRAND_FONT, width: w, height: h, background: "#000", borderRadius: rounded ? Math.round(w * 0.072) : 0, border: rounded ? "1px solid rgba(244,239,230,0.16)" : "none", position: "relative", overflow: "hidden", display: "grid", placeItems: topAligned ? "start center" : "center", opacity: dim ? 0.5 : 1, ...style }}>
       {frame.kind !== "open" && frame.kind !== "intro" && frame.banner === "on" && <CampusBanner w={w} h={h} live={live} />}
       {/* THE WATERMARK — the wordmark with the live bolt in the "i", top-left,
           sized like the film popout's (5.2% of the width). */}
+      {watermarkOn(frame, backdrop) && chargedWatermark && <style>{WATERMARK_CHARGE_CSS}</style>}
       {watermarkOn(frame, backdrop) && (
-        <div ref={markRef} style={{ position: "absolute", left: wmLeft, top: wmTop, pointerEvents: "none", opacity: moment ? 1 : 0.92,
+        <div ref={markRef} className={chargedWatermark ? "sa-wm-charge" : undefined} style={{ position: "absolute", left: wmLeft, top: wmTop, pointerEvents: "none", opacity: moment ? 1 : wm.opacity,
           // THE HERO: same 480 ms overshoot as the camera ring, so the two move as one gesture;
           // above the camera's moment layer (30), below the arrows (40).
           transformOrigin: "50% 50%", transform: wmTransform, transition: "transform 480ms cubic-bezier(0.34, 1.3, 0.64, 1), opacity 480ms ease",
@@ -228,7 +262,7 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
               (Webcam.tsx), the wordmark holds ITS bolt invisible — "surv[ ]ve" — so the one bolt
               on screen is the camera ring's, and the moment it arrives, this one fades in as if
               it just landed. Every non-hero appearance is untouched: always full opacity. */}
-          <SurviveWordmark size={watermarkSize(w)} boilSeconds={1.2} boltOpacity={moment && !cameraReady ? 0 : 1} />
+          <SurviveWordmark size={wm.size} boilSeconds={1.2} boltOpacity={moment && !cameraReady ? 0 : 1} />
         </div>
       )}
       {fadeInFromIntro && <style>{STAGE_FADE_CSS}</style>}
@@ -237,7 +271,7 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
         ...(topAligned ? { marginTop: Math.round(h * (SAFE.top + 0.02)), maxWidth: Math.round(w * (SAFE.right - SAFE.left)) } : {}),
         ...(moment ? { filter: "blur(2px) brightness(0.35)", transition: "filter 480ms ease" } : { transition: "filter 480ms ease" }),
         ...stageStyle }}>
-        <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} layout={layout} />
+        <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} layout={layout} coldOpen={assembling ? coldOpen : null} />
         {/* THE OPTIONAL ILLUSTRATION — second row of the stage grid, under the card; nothing when
             absent. A placed one (or a blank slide's) is the phone-level layer below instead. */}
         {frame.illustration?.assetUrl && canIllustrate(frame.kind) && !isPlaced(frame.kind, frame.illustration) && (
@@ -252,11 +286,22 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
           stageStyle={{ ...(moment ? { filter: "blur(2px) brightness(0.35)" } : {}), transition: "filter 480ms ease, transform 480ms ease", ...(stageStyle?.transform ? { transform: stageStyle.transform, transformOrigin: stageStyle.transformOrigin } : {}) }}
           onPlace={edit && (!capture || popout) ? (p) => edit({ illustration: { ...frame.illustration!, placement: p } }) : undefined} />
       )}
-      {cam !== "off" && (
-        <WebcamFrame w={w} h={h} spot={cam} size={camSize} pos={frame.camPos} live={capture} cardBox={cardBox} moment={moment}
-          onMoment={capture ? () => setMoment(!moment) : undefined} onReadyChange={setCameraReady}
-          onFree={edit && !capture ? (p) => edit({ ...(p.pos ? { camPos: p.pos } : {}), ...(p.size ? { camSize: p.size } : {}) }) : undefined} />
-      )}
+      {cam !== "off" && (() => {
+        const webcam = (
+          <WebcamFrame w={w} h={h} spot={cam} size={camSize} pos={frame.camPos} live={capture} cardBox={cardBox} moment={moment}
+            onMoment={capture ? () => setMoment(!moment) : undefined} onReadyChange={setCameraReady}
+            onFree={edit && !capture ? (p) => edit({ ...(p.pos ? { camPos: p.pos } : {}), ...(p.size ? { camSize: p.size } : {}) }) : undefined} />
+        );
+        // THE CAMERA IS THE FIRST PIECE of the assembly cold open — it slides in from the right
+        // before anything else, and everything else is put together around it. The stylesheet is
+        // ColdOpenAssembly's (mounted inside this same phone by BoltZoom), so both the camera and
+        // the graphics run off ONE plan; the wrapper covers the whole phone so the camera's own
+        // absolute placement is untouched and the transform's containing block stays the frame.
+        if (!assembling) return webcam;
+        return (
+          <div key={coldOpen?.key} className={`${COLD_OPEN_CLASS} ${pieceClass("camera")}`} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>{webcam}</div>
+        );
+      })()}
       {safe && !moment && (
         <div style={{ position: "absolute", left: rail.x, top: rail.y, width: rail.w, height: rail.h, border: "1px dashed rgba(252,163,17,0.55)", borderRadius: 6, pointerEvents: "none" }}>
           <span style={{ ...tag, left: 6, top: 4, color: "rgba(252,163,17,0.8)" }}>captions</span>

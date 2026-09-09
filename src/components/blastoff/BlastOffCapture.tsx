@@ -54,6 +54,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
+import { ASSEMBLY_SHORT_MS } from "@/components/brand-cards/cold-open";
 import { BrandCursor } from "@/components/canvas/BrandCursor";
 import { V3_DISPLAY, type Crumb } from "@/components/v3/Shell";
 import { MoveContext, PersistContext, PracticeContext, PreviewSpotContext, ScaleContext, WidthContext, type PreviewSpotApi } from "@/components/canvas/CeqPreviewer";
@@ -68,7 +69,7 @@ import { CaptureArrows } from "./capture/arrows";
 import { useCaptureCamera } from "./capture/camera";
 import { useFieldRoam } from "./capture/field-roam";
 import { HotkeysModal } from "./capture/HotkeysModal";
-import { countdownTone, useCapturePopout, useCountdown } from "./capture/popout";
+import { COUNTDOWN_SECONDS, countdownTone, useCapturePopout, useCountdown } from "./capture/popout";
 import { previewIndex, useCapturePrompterSyncFrame, usePopoutTake } from "./capture/prompter-sync";
 import { fmtClock, historyLabel, initialRounds, opensReview, prompterEditable, reduceRounds, roundLabel, roundMode, roundSegments, showsPrompterInRound } from "./capture/rehearsal-rounds";
 import { useTeleprompterPopout } from "./capture/teleprompter-popout";
@@ -349,9 +350,38 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
   const openTeleprompter = useTeleprompterPopout(set.id);
   // THE COUNTDOWN (pop-out only; capture/popout.ts). Starting it jumps to slide 0, so slide 1 is
   // what is there when the black lifts. Cancelling (space) leaves slide 1 up as well.
-  const countdown = useCountdown(useCallback(() => setI(0), []));
+  //
+  // THE COUNT AND THE ASSEMBLY ARE THE SAME SECONDS (2026-09-08). Lee: "I do want a countdown as
+  // well to ensure that filming is easy. I can take a deep breath, and know exactly when to hit
+  // F1... so I don't miss the transition. Better yet, for exact consistency, I'd love to reuse the
+  // tool I built for wiring this up to OBS." So the count is NOT a black card in front of slide 1
+  // any more: slide 1 assembles itself across the ten seconds (brand-cards/cold-open.ts), the
+  // number recedes as the frame fills, and the wordmark lands on zero. `countRun` restarts the
+  // assembly when the count is started again from the same slide.
+  //
+  // ONE RUN AT A TIME. `run.id` is the assembly's identity — a new id remounts it and it plays
+  // from the top; the same id leaves it wherever it finished (the CSS holds its end state), which
+  // is what must happen the instant the count reaches zero. Two things start a run: pressing C
+  // (ten seconds, the take) and ARRIVING on the open frame (2.2 s, so the cold open always
+  // assembles even when Lee doesn't count in — walk away and back and it plays again).
+  const [run, setRun] = useState<{ id: number; ms: number }>({ id: 0, ms: ASSEMBLY_SHORT_MS });
+  const countdown = useCountdown(useCallback(() => { setI(0); setRun((r) => ({ id: r.id + 1, ms: COUNTDOWN_SECONDS * 1000 })); }, []));
   const { start: startCountdown, cancel: cancelCountdown } = countdown;
   const counting = countdown.seconds !== null;
+  const isOpenFrame = frame?.kind === "open";
+  const lastOpenId = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isOpenFrame) { lastOpenId.current = null; return; }
+    // The count's own jump to slide 0 lands here too — it already started its run, so record the
+    // slide and leave it alone, and do NOT re-run when the count ends (that would replay the
+    // short assembly on top of the landing).
+    if (lastOpenId.current === frameId || counting) { lastOpenId.current = frameId; return; }
+    lastOpenId.current = frameId;
+    setRun((r) => ({ id: r.id + 1, ms: ASSEMBLY_SHORT_MS }));
+  }, [isOpenFrame, frameId, counting]);
+  // The main window's NEXT preview never assembles: it is showing Lee what is coming, so it shows
+  // slide one finished. Nor does anything outside capture — the Review stage draws it at rest.
+  const coldOpen = isOpenFrame && !preview ? { ms: run.ms, key: run.id } : null;
   // What this window tells the teleprompter (and, from the pop-out, the main window): its slide —
   // or, during the countdown, no slide ("slide 0") with the countdown flag. The main window
   // writes NOTHING while the pop-out's take is live: the pop-out is the one that films.
@@ -471,7 +501,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
         <div style={{ position: "relative", opacity: preview && !take?.countdown ? 0.55 : 1, transition: "opacity 200ms ease-out" }}>
           <SlideEditContext.Provider value={popout.isPopout && chrome ? patchCurrentFrame : null}>
           <ClusterFilmContext.Provider value={clusterFilm}>
-            <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture popout={popout.isPopout} stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} onRailStatus={setRailStatus}
+            <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture popout={popout.isPopout} stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} onRailStatus={setRailStatus} coldOpen={coldOpen}
               progress={questionProgress(frames, ceqById).get(frame.id)} />
           </ClusterFilmContext.Provider>
           </SlideEditContext.Provider>
@@ -489,16 +519,30 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
           wordmark itself already has an animated bolt there; a second one following the mouse
           competes with it. */}
       <BrandCursor hostRef={hostRef} enabled={frame.kind !== "open" && frame.kind !== "intro"} />
-      {/* THE COUNTDOWN (pop-out only, capture/popout.ts): black, the count big in the display
-          face — cream, the last three gold — the wordmark small below. Over everything, so the
-          9:16 window IS this until it lifts onto slide 1. */}
+      {/* THE COUNTDOWN (pop-out only, capture/popout.ts). Until 2026-09-08 this was a black card
+          IN FRONT of slide 1 that simply lifted at zero. It is now the same seconds as the cold
+          open's assembly (brand-cards/cold-open.ts): the slide behind is already black with the
+          bolt on it, so there is no card — just the count, big in the display face (cream, the
+          last three gold), RECEDING as the pieces arrive, because the slide itself becomes the
+          timer. Lee: "I can take a deep breath, and know exactly when to hit F1 so I don't miss
+          the transition." The .sa-co-count class is the assembly's own (it runs for exactly the
+          plan's totalMs); the black card is still what a count started on a slide that is NOT the
+          cold open gets, since there is nothing there to assemble. */}
       {counting && countdown.seconds !== null && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: Math.round(w * 0.06), userSelect: "none" }}>
-          <div key={countdown.seconds} style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: Math.round(w * 0.5), lineHeight: 1, color: countdownTone(countdown.seconds) === "gold" ? GOLD : CREAM, fontVariantNumeric: "tabular-nums" }}>
-            {countdown.seconds}
+        coldOpen ? (
+          <div key={run.id} style={{ position: "fixed", inset: 0, zIndex: 60, display: "grid", placeItems: "center", pointerEvents: "none", userSelect: "none" }}>
+            <div className="sa-co-count" style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: Math.round(w * 0.5), lineHeight: 1, fontVariantNumeric: "tabular-nums", textShadow: "0 6px 30px rgba(0,0,0,0.85)" }}>
+              <div key={countdown.seconds} style={{ color: countdownTone(countdown.seconds) === "gold" ? GOLD : CREAM }}>{countdown.seconds}</div>
+            </div>
           </div>
-          <SurviveWordmark size={Math.max(14, Math.round(w * 0.055))} />
-        </div>
+        ) : (
+          <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: Math.round(w * 0.06), userSelect: "none" }}>
+            <div key={countdown.seconds} style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: Math.round(w * 0.5), lineHeight: 1, color: countdownTone(countdown.seconds) === "gold" ? GOLD : CREAM, fontVariantNumeric: "tabular-nums" }}>
+              {countdown.seconds}
+            </div>
+            <SurviveWordmark size={Math.max(14, Math.round(w * 0.055))} />
+          </div>
+        )
       )}
       {/* BREADCRUMBS (2026-09-07, Lee: "Show navigation breadcrumbs on /film") — the same crumbs
           V3Shell would draw, in the chrome's own quiet style; main window only, chrome only, so
@@ -547,7 +591,10 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
           {/* The long hotkey sentence that used to sit here is the "?" card now (capture/
               HotkeysModal.tsx) — Lee: "put that all behind a modal link. It's a lot of text in
               bottom left." B's camera state stays visible since it changes per take. */}
-          <span title="B cycles the camera">B camera {camNow}</span>
+          {/* The cold open BORROWS the corner while it assembles even though the open frame's own
+              spot is "off" (PhoneFrame's note) — say so, or the bar reads "off" with a camera on
+              screen. Lee: "my camera's out on the right and comes in." */}
+          <span title="B cycles the camera">B camera {coldOpen && camNow === "off" ? "corner · the cold open" : camNow}</span>
           {/* REHEARSAL (2026-09-06, second pass): the toggle lives right here, in the same chrome
               bar as everything else about this take — Lee: "I'd prefer to see it somewhere on
               film." Third pass: the chip is the same R the key is — arm, cancel, or finish. */}
@@ -569,7 +616,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
           {running && <button onClick={scratchTake} title="Scratch this slide's take (`) — this round only" style={chip()}>✕ scratch take</button>}
           {/* THE COUNTDOWN button — pop-out only (H shows this bar there; C is the key). */}
           {popout.isPopout && !counting && (
-            <button onClick={startCountdown} title="10 s countdown (C): black with the count, then slide 1 — space cancels. The main /film window shows slide 1 while it counts, then slide 2 dimmed." style={chip()}>⏱ 10 s countdown</button>
+            <button onClick={startCountdown} title="10 s countdown (C): slide 1 assembles itself across the count and the wordmark lands on zero — space cancels. The main /film window shows slide 1 while it counts, then slide 2 dimmed." style={chip()}>⏱ 10 s countdown</button>
           )}
           {phase === "off" && segmentCount > 0 && (
             // "lines N →", not "review N →" (2026-09-07): "Review" is the Editor step's old name,

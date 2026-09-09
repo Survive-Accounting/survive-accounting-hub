@@ -57,7 +57,10 @@ export const HOTKEY_GROUPS: readonly Group[] = [
     ["F", "fullscreen (in the 9:16 pop-out)"],
     // THE COUNTDOWN + NEXT-SLIDE PREVIEW (2026-09-07). Lee: "a 10 second countdown… like we're on
     // slide 0 at that point… this will help me to see what slide comes next."
-    ["C", "10 s countdown (in the 9:16 pop-out): black, the count, then slide 1 · space cancels it"],
+    ["C", "10 s countdown (in the 9:16 pop-out): the count runs while slide 1 assembles · space cancels it"],
+    // THE ASSEMBLY COLD OPEN (2026-09-08). Lee: "this is a machine being put together… you're
+    // about to get your system shocked. It's like a defibrillator."
+    ["—", "the cold open BUILDS ITSELF: camera in from the right, the question from the top, the topics left then right, the ticker, and the wordmark landing hard in the watermark corner — on zero. Without C it plays short (2.2 s) whenever you land on slide 1"],
     ["—", "while the pop-out is open, the main /film window shows the NEXT slide, dimmed (during the countdown: slide 1) — its own space is ignored; the pop-out drives"],
   ] },
   { title: "Rehearsal", keys: [

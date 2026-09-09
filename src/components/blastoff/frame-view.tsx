@@ -20,6 +20,7 @@ import { BoltZoom } from "@/components/brand-cards/BoltZoom";
 import { isZoomVariant } from "@/components/brand-cards/bolt-zoom";
 
 import { AdSlide } from "./AdSlide";
+import { watermarkSpot } from "./capture/webcam-spots";
 import { ClusterFilmContext, ClusterStage, EmptyMap } from "./cluster/ClusterStage";
 import { LeePortrait } from "./LeePortrait";
 import { SetCard, type CardOverride } from "./SetCard";
@@ -60,9 +61,13 @@ export function questionProgress(frames: readonly BlastFrame[], byId: Map<string
 /** The full-frame kinds size themselves from a 1080×1920 frame at scale·0.34
  *  (a 1080-wide frame sized to sit beside a list); cards are the canvas's own
  *  560-wide card at `scale`. PhoneFrame turns a stage width into both. */
-export function FrameView({ frame, set, scale, topicName, progress, live = false, cardOverride, layout = "pass1" }: {
+export function FrameView({ frame, set, scale, topicName, progress, live = false, cardOverride, layout = "pass1", coldOpen }: {
   frame: BlastFrame; set: BoothSetInfo; scale: number; topicName?: string | null;
   progress?: { x: number; y: number } | null;
+  /** THE ASSEMBLY COLD OPEN (2026-09-08, brand-cards/cold-open.ts): the open frame
+   *  builds itself over `ms`; `key` restarts it (a new countdown, or walking back
+   *  onto the slide). Absent everywhere but the capture surface. */
+  coldOpen?: { ms: number; key?: string | number } | null;
   /** The capture surface: cards are live (SetCard `live`). */
   live?: boolean;
   /** The capture camera's grip override (width, scale multiplier), applied
@@ -99,7 +104,12 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // wordmark sits in the same place on both — Lee: "Make the Survive stay in
     // line between slides 1 and 2 so when I switch it doesn't look like I did."
     // open: tagline = text, domain = url · intro: topic = text, the tutor line = title, domain = url
+    // THE ASSEMBLY COLD OPEN (2026-09-08): only when the capture surface asks for it
+    // (BlastOffCapture → PhoneFrame → here). Its two topic lines are the topic and the
+    // set — "the topics come in, top line, left, bottom line, right" — the copy the
+    // slide already has, nothing invented.
     if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} tagline={frame.text?.trim() || undefined} domain={frame.url?.trim() || undefined} live
+      assembly={coldOpen ? { totalMs: coldOpen.ms, key: coldOpen.key, wordmarkSpot: watermarkSpot(fw) } : null} topicTop={topicName} topicBottom={set.name}
       onEdit={edit ? (p) => edit({ ...(p.tagline !== undefined ? { text: p.tagline } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
     if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} tutorLine={frame.title?.trim() || undefined} domain={frame.url?.trim() || undefined} banner={frame.banner !== "off"} wordmarkTop={introWordmarkTop(layout)} live
       onEdit={edit ? (p) => edit({ ...(p.topic !== undefined ? { text: p.topic } : {}), ...(p.tutorLine !== undefined ? { title: p.tutorLine } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;

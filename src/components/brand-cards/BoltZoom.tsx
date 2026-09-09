@@ -25,6 +25,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Editable } from "./Editable";
 
 import { BoltBoil, BRAND_BLUE, BRAND_CREAM, BRAND_RED, SurviveWordmark } from "./bolt-boil";
+import { ColdOpenAssembly, type WordmarkSpot } from "./ColdOpenAssembly";
 import {
   BANNER_SECONDS, ZOOM, campusMix, campusText, driftDegrees, seededShuffle, zoomKeyframes, zoomLayers,
   type ZoomVariant,
@@ -198,7 +199,7 @@ export function GlowWordmark({ size, palette = "powder", live = true, second, bo
 /** The lines a brand slide lets the Review stage edit. */
 export interface BrandEdit { tagline?: string; topic?: string; tutorLine?: string; domain?: string }
 
-export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, live = true, progress, banner = true, tagline = TAGLINE, topic, tutor = TUTOR, tutorLine, domain = DOMAIN, onEdit, wordmarkTop = WORDMARK_TOP, seed = 7, style }: {
+export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, live = true, progress, banner = true, tagline = TAGLINE, topic, topicTop, topicBottom, tutor = TUTOR, tutorLine, domain = DOMAIN, onEdit, wordmarkTop = WORDMARK_TOP, seed = 7, assembly, style }: {
   /** The frame this fills, in px. */
   w: number; h: number;
   mode?: BoltZoomMode;
@@ -215,6 +216,11 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
   tagline?: string;
   /** Slide two: the set Lee is about to cram, and who is tutoring it. */
   topic?: string;
+  /** THE ASSEMBLY COLD OPEN's two topic lines (open mode, `assembly` on): the topic
+   *  in from the left, the set in from the right — "the topics come in, like, maybe
+   *  top line, left, bottom line, right". */
+  topicTop?: string | null;
+  topicBottom?: string | null;
   tutor?: string;
   /** The whole line under the topic; default "tutored by <tutor>". */
   tutorLine?: string;
@@ -225,6 +231,15 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
   /** Where the wordmark block sits (a fraction of the height); pass 2's intro lowers it for the camera. */
   wordmarkTop?: number;
   seed?: number;
+  /** THE ASSEMBLY COLD OPEN (2026-09-08, cold-open.ts) — open mode only. On, the
+   *  slide BUILDS ITSELF over `totalMs` (the pop-out's countdown on a take, a short
+   *  2.2 s otherwise) and the wordmark lands last in the watermark corner instead
+   *  of sitting centred. `key` restarts it: a new count, or walking back onto the
+   *  slide. Off (the default), slide one is exactly what it has always been — the
+   *  Review stage, /branding and the canvas nodes never pass this. `wordmarkSpot` is
+   *  the corner it lands in, read from webcam-spots.watermarkSpot by the caller (see
+   *  ColdOpenAssembly's note on why it is handed in rather than imported). */
+  assembly?: { totalMs: number; key?: string | number; wordmarkSpot: WordmarkSpot } | null;
   style?: React.CSSProperties;
 }) {
   const m: Exclude<BoltZoomMode, "knockout"> = mode === "knockout" ? "summary" : mode;
@@ -345,8 +360,18 @@ export function BoltZoom({ w, h, mode = "open", variant = "zoom", psych = 0.1, l
         </div>
       )}
 
+      {/* SLIDE ONE, ASSEMBLING (2026-09-08) — the machine being put together: the
+          camera (PhoneFrame's), the question, the two topic lines, the ticker, and
+          the wordmark landing HARD in the watermark corner on the last beat. The
+          bolt is handed straight in, so this is the same bolt, just dimmed. */}
+      {m === "open" && assembly && (
+        <ColdOpenAssembly key={assembly.key} w={w} h={h} totalMs={assembly.totalMs} wordmarkSpot={assembly.wordmarkSpot} still={still}
+          bolt={animation} ticker={banner ? <CampusBanner w={w} h={h} seed={seed} live={!still} /> : null}
+          tagline={tagline} domain={domain} topicTop={topicTop} topicBottom={topicBottom} onEdit={onEdit} />
+      )}
+
       {/* SLIDE ONE — the cold open: the glow wordmark, the line, the ticker. */}
-      {m === "open" && (
+      {m === "open" && !assembly && (
         <>
           {wordmarkBlock(
             <>
