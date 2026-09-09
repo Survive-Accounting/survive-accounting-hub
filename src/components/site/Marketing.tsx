@@ -125,6 +125,13 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
         <p className="mt-4 text-[19px] font-extrabold leading-snug sm:text-[22px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
           Practice what gets tested. Score higher.
         </p>
+        {/* PRODUCT-EXPLANATION TAGLINE (chapter pages only, 2026-09-09) — one punchy line that
+            says what the product IS, sitting under the promise and above the campus/chapter line.
+            Body font, not display, so it reads as a tagline and never competes with the headline
+            above it. A touch of accent color, sparingly, on the comparison itself. */}
+        <p className="mt-2.5 text-[14.5px] font-bold sm:text-[15.5px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
+          Like <span style={{ color: "var(--accent)" }}>YouTube Shorts</span> for exam prep.
+        </p>
         {greek && (
           <CampusLine>
             <CampusFor>for </CampusFor>
@@ -363,6 +370,13 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
       body: "Going from a B to an A is mostly pattern recognition — learn to spot the type of problem and the simpler route to the answer shows up with it.",
     },
   ];
+  // CHAPTER-ONLY COPY (2026-09-09) — tighter, one-line-each version for the Greek chapter page
+  // specifically (variant === "chapter", set only by go.$school.$chapter.tsx). Home and council
+  // keep the two-line CARDS above untouched; this does not touch either of those surfaces.
+  const CHAPTER_CARDS = [
+    { icon: Play, title: "2-minute cram videos", copy: "Fast explanations for the problems you actually need to know." },
+    { icon: ClipboardCheck, title: "Practice exams", copy: "Exam-style questions that teach you to recognize the pattern before test day." },
+  ];
   // 48px icons centered above each heading, with generous vertical room for the longer copy.
   const card = "flex flex-col items-center rounded-2xl px-5 py-8 text-center";
   const cardStyle = { background: "var(--bg-surface)", border: "1px solid var(--border-default)" } as const;
@@ -376,14 +390,22 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
   const iconStyle = { color: "var(--accent)" } as const;
   return (
     <section className="mx-auto grid w-full max-w-[900px] items-stretch gap-4 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
-      {CARDS.map(({ icon: Icon, title, lead, body }) => (
-        <div key={title} className={card} style={cardStyle}>
-          <Icon className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
-          <p className={H} style={hStyle}>{title}</p>
-          <p className={bodyCls} style={bodyStyle}>{lead}</p>
-          <p className="mt-2.5 text-[14px] leading-relaxed" style={bodyStyle}>{body}</p>
-        </div>
-      ))}
+      {variant === "chapter"
+        ? CHAPTER_CARDS.map(({ icon: Icon, title, copy }) => (
+          <div key={title} className={card} style={cardStyle}>
+            <Icon className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
+            <p className={H} style={hStyle}>{title}</p>
+            <p className={bodyCls} style={bodyStyle}>{copy}</p>
+          </div>
+        ))
+        : CARDS.map(({ icon: Icon, title, lead, body }) => (
+          <div key={title} className={card} style={cardStyle}>
+            <Icon className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
+            <p className={H} style={hStyle}>{title}</p>
+            <p className={bodyCls} style={bodyStyle}>{lead}</p>
+            <p className="mt-2.5 text-[14px] leading-relaxed" style={bodyStyle}>{body}</p>
+          </div>
+        ))}
       {variant === "council" ? (
         <div className={card} style={cardStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
@@ -391,11 +413,16 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
           <p className={bodyCls} style={bodyStyle}>Matched to the course your chapters actually take.</p>
         </div>
       ) : variant === "chapter" ? (
-        <div className={card} style={cardStyle}>
+        // CHAPTER CARD 3 (2026-09-09) — now the same actionable syllabus CTA as home, worded for
+        // a page that already knows the visitor's school and course: "matched", not "built for
+        // any course", and never the home card's "these work for any intro course" line, which
+        // would contradict the whole point of a page personalized to one campus.
+        <button type="button" onClick={onSyllabus} className={`${card} transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={actionableStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
-          <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your course"}</p>
-          <p className={bodyCls} style={bodyStyle}>Matched to your exact course.</p>
-        </div>
+          <p className={H} style={hStyle}>Built around your course</p>
+          <p className={bodyCls} style={bodyStyle}>Matched to your school and course. If anything&apos;s missing, send me your syllabus.</p>
+          <span className="mt-3 text-[14px] font-black" style={{ color: "var(--accent)" }}>Send your syllabus →</span>
+        </button>
       ) : (
         /* HOME: card 3 is the ONE actionable card — amber hairline keeps it distinct. */
         <button type="button" onClick={onSyllabus} className={`${card} transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={actionableStyle}>
