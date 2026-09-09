@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cleanHook, THUMB_GROUNDS, THUMB_RATIOS, THUMB_SIZE, thumbFilename, trimToHook, type ThumbGround, type ThumbRatio } from "@/lib/thumb-card";
 import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
+import { TakeFrame } from "@/components/v3/TakeFrame";
 
 const GROUND_LABEL: Record<ThumbGround, string> = { navy: "Navy", gold: "Gold", cream: "Cream" };
 const RATIO_LABEL: Record<ThumbRatio, string> = { "9x16": "9:16 · the cover", "16x9": "16:9 · YouTube search" };
@@ -35,6 +36,10 @@ export function ThumbSheet({ setId, setName, topicName, defaultLine = "", onClos
   const start = useMemo(() => trimToHook(cleanHook(defaultLine)), [defaultLine]);
   const [line, setLine] = useState(start);
   const [settled, setSettled] = useState(start);
+  /** TWO SOURCES (2026-09-09). Lee: "I think with the using the intro slide for the thumbnail,
+   *  let me choose between the first few seconds… since often I have my eyes closed at the start."
+   *  So the cover is either the card we draw, or a still of his own opening. */
+  const [source, setSource] = useState<"card" | "take">("card");
   const [ground, setGround] = useState<ThumbGround>("navy");
   const [ratio, setRatio] = useState<ThumbRatio>("9x16");
   const [loading, setLoading] = useState(true);
@@ -80,6 +85,14 @@ export function ThumbSheet({ setId, setName, topicName, defaultLine = "", onClos
           <button type="button" onClick={onClose} style={{ ...small, color: V3_MUTED }}>close</button>
         </div>
 
+        <div style={{ marginTop: 12, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button type="button" onClick={() => setSource("card")} style={chip(source === "card")}>The card</button>
+          <button type="button" onClick={() => setSource("take")} style={chip(source === "take")}>A frame of the take</button>
+        </div>
+
+        {source === "take" && <div style={{ marginTop: 12 }}><TakeFrame name={setName} /></div>}
+
+        {source === "card" && (
         <div style={{ marginTop: 12, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
           {/* THE PICTURE — the renderer itself, at preview scale. */}
           <div style={{ width: previewW, flexShrink: 0 }}>
@@ -135,6 +148,7 @@ export function ThumbSheet({ setId, setName, topicName, defaultLine = "", onClos
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
