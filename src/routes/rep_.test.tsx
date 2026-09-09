@@ -1,6 +1,6 @@
 // /rep/test — THE ONE LINK a tester needs (Lee, 2026-09-07: "I want it to be very very simple").
 //
-//   /rep/test              → King (king@surviveaccounting.com)
+//   /rep/test              → King (lee@surviveaccounting.com)
 //   /rep/test?who=lee      → Lee
 //   /rep/test?email=you@x.com&t=You   → anyone on TEST_MODE_EMAILS
 //
@@ -12,7 +12,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { TEST_REP_JOIN_URL } from "@/lib/test-mode";
 
 const TESTERS: Record<string, { t: string; email: string }> = {
-  king: { t: "King", email: "king@surviveaccounting.com" },
+  king: { t: "King", email: "lee@surviveaccounting.com" },
   lee: { t: "Lee", email: "lee@surviveaccounting.com" },
 };
 
