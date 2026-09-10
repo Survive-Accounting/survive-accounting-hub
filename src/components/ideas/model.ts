@@ -34,6 +34,10 @@ export const BUILT_IN_CATEGORIES: readonly CategoryDef[] = [
   // 2026-09-06: the strategy board (/admin/ideas/strategy) — notes for the strategy & culture doc
   // and the strategy shorts to film. Forced on by organizeIdea when context.strategy = "1".
   { key: "STRATEGY", label: "Strategy & culture", side: "work", hint: "how Survive operates and where it's going — the operating principles, the conversion model, the rep program, the chair pitch, the roadmap; and strategy shorts to film (build in public, onboarding videos for reps and chairs)" },
+  // 2026-09-09: the quick queue (components/ideas/quick-queue.ts) — Ctrl+I on the production line
+  // files here without asking. Kept by organizeIdea when context.shorts = "1"; the AI filer may
+  // also pick it for a plain capture that reads as a video to make.
+  { key: "SHORTS", label: "Shorts to make", side: "work", hint: "A short to make about the accounting content — an offshoot, a nerd-out, a tangent from a set" },
   { key: "PRODUCTION_EFFICIENCY", label: "Production Efficiency", side: "work", hint: "making a video faster or cheaper to produce — Talkthrough, Review, Film, Post: a slow step, a manual one that should be automatic, a bottleneck" },
   { key: "LEARN_DASHBOARD", label: "Learn dashboard", side: "work", hint: "/learn — the feed, the Shorts player, the share links, what a chapter sees" },
   { key: "CAMPUS_REPS", label: "Campus reps", side: "work", hint: "the rep program — recruiting, the rep kit, rep pages, payouts" },
@@ -226,6 +230,10 @@ export const isDraft = (i: Idea): boolean => i.context?.draft === "1";
 export const isProduction = (i: Idea): boolean => i.context?.production === "1";
 /** A to-do (work/personal) — Terry's, not the build queue. */
 export const isTodoIdea = (i: Idea): boolean => !!i.context?.todo;
+/** A SHORTS IDEA (2026-09-09): caught with Ctrl+I on the production line — Lee's "offshoots
+ *  that come to me mid-take". The flag, not the category: the category is the AI filer's to
+ *  re-decide, the flag says where it was caught. */
+export function isShortsIdea(i: Idea): boolean { return i.context?.shorts === "1"; }
 /** THE BUILD QUEUE (2026-09-03). Armed = Lee added it to the queue from the
  *  bank; the runner on the build machine picks armed ideas up by priority.
  *  Built = the branch is pushed and the testing checklist is written back. */
