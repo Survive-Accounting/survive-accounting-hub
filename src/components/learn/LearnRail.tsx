@@ -10,7 +10,16 @@ import { INK } from "@/components/learn/learn-theme";
 import type { StudentSet, StudentTopic } from "@/lib/student.functions";
 
 export type RailKey = "cram" | "practice" | "problems" | "tools" | "review" | "you";
-export const RAIL_ITEMS: { key: RailKey; label: string }[] = [
+// STUDY SHELL SIMPLIFICATION (2026-09-09) — the product direction is now the topic path + short-
+// form content, not six separate app sections. Practice and Problems point at features that are
+// now reached CONTEXTUALLY from a topic's own end-of-row prompt (see LearnHome's
+// TopicPracticePrompt), not as a standalone destination; Tools pointed at a "coming soon"
+// placeholder with no real content. Their RailKey values, rowRef() scroll targets, and LearnTabs'
+// mapping are UNCHANGED underneath — nothing here breaks if a future pass wants to bring one back;
+// this file just no longer renders a button for it. "Cram" and "You" (home + account) are what
+// this iteration wants to prioritize; "Review" stays since its content row is still real and kept.
+const VISIBLE_RAIL_ITEMS: RailKey[] = ["cram", "review", "you"];
+const ALL_RAIL_ITEMS: { key: RailKey; label: string }[] = [
   { key: "cram", label: "Cram" },
   { key: "practice", label: "Practice" },
   { key: "problems", label: "Problems" },
@@ -18,6 +27,7 @@ export const RAIL_ITEMS: { key: RailKey; label: string }[] = [
   { key: "review", label: "Review" },
   { key: "you", label: "You" },
 ];
+export const RAIL_ITEMS: { key: RailKey; label: string }[] = ALL_RAIL_ITEMS.filter((it) => VISIBLE_RAIL_ITEMS.includes(it.key));
 
 export function RailIcon({ k, on }: { k: RailKey; on?: boolean }) {
   const stroke = on ? "var(--lk-acc)" : "currentColor";

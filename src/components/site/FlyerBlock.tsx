@@ -12,6 +12,24 @@
 // becomes "Save flyer" below the sm breakpoint. Same URL either way; only the label and the
 // behaviour differ, because promising a print dialog that never appears is worse than not offering
 // it.
+//
+// THE ACTUAL PRINT PATH NEVER TOUCHES THIS COMPONENT'S CSS (2026-09-09). `print()` below opens the
+// generated PDF itself in its own tab and calls the browser's native PDF viewer's print — no site
+// chrome, no navbar, no dark page background is ever in that document to begin with, because the
+// PDF (see printFlyerPdf in flyer.server.ts) IS a pure white, single 8.5x11 page. The `@media
+// print` rule just under this comment covers the one path CSS actually reaches: someone pressing
+// Ctrl+P on a page that has the (non-compact) inline preview thumbnail visible — it prints ONLY
+// that thumbnail, full-bleed and white, instead of the dark page around it.
+const FLYER_PRINT_CSS = `
+@media print {
+  /* visibility, not display: works regardless of how deep the preview sits in the page tree —
+     hidden ancestors still lay out normally, and visibility:visible on a descendant overrides
+     an ancestor's hidden value. */
+  body * { visibility: hidden !important; }
+  .sa-flyer-print-root, .sa-flyer-print-root * { visibility: visible !important; }
+  .sa-flyer-print-root { position: fixed; inset: 0; margin: 0; padding: 0; background: #FFFFFF !important; box-shadow: none !important; border: none !important; width: 100% !important; max-width: none !important; }
+  .sa-flyer-print-root svg { width: 100%; height: auto; }
+}`;
 import { useEffect, useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
@@ -107,11 +125,14 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtit
           {subtitle && <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>{subtitle}</p>}
         </div>
       )}
-      <a href={pdf} target="_blank" rel="noreferrer" className="mx-auto block overflow-hidden rounded-lg"
+      <style>{FLYER_PRINT_CSS}</style>
+      <a href={pdf} target="_blank" rel="noreferrer" className="sa-flyer-print-root mx-auto block overflow-hidden rounded-lg"
          aria-label={`Open the ${chapterName ?? "campus"} flyer as a PDF`}
          style={{ width: 263, border: "1px solid rgba(245,239,230,0.18)", boxShadow: "0 18px 40px -18px rgba(0,0,0,0.7)" }}>
         {/* The real generated artwork, not a mockup — a mockup drifts from the output the first
-            time the design changes. */}
+            time the design changes. `.sa-flyer-print-root` is what the @media print rule above
+            isolates if this page is printed directly (Ctrl+P) instead of through the dedicated
+            Print button, which never touches this CSS at all — see the file header. */}
         <div aria-hidden dangerouslySetInnerHTML={{ __html: svg }} />
       </a>
 

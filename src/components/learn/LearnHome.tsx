@@ -1,15 +1,30 @@
-// HOME (learn v3, 09-03) — YouTube's home, for one exam.
+// HOME (learn v4, 09-09) — the short-form cram feed, not a dashboard.
 //
-//   chips (topics) · three plan cards (Cram on by default; Practice / Review add to a live study
-//   time) · Start · then a row per content type: Cram (portrait shorts, one row per topic),
-//   Practice, Study tools, Big Workout Problems, Review.
+// SIMPLIFIED FROM v3 (09-03). v3 opened on three plan-toggle cards, a live "Your study time"
+// block, a row of topic filter chips, then Cram/Practice/Study-tools/Big-Workout-Problems/Review
+// rows. That is an LMS dashboard's shape — a control panel between the student and the first
+// video. The product is "Like YouTube Shorts for exam prep.", so the shell now gets out of the
+// way: a one-line product tagline, then straight into topic rows of vertical shorts, each row
+// closing with one small "finished this topic?" prompt instead of a separate aggregate Practice
+// section competing for attention up top.
 //
-// Every number on this page is a sum of real runtimes and real question counts. Practice time is
-// the one estimate (40s a question) and is labelled "≈". Rows with nothing in them yet say so in
-// one dashed card rather than pretending.
+// REMOVED FROM THIS VIEW, NOT DELETED FROM THE CODEBASE: the plan-card toggles (Plan/PlanTimes
+// stay exported — planTimes() still feeds the "you" summary line and can back a future settings
+// surface), the topic chip filter, the Study Tools and Big Workout Problems rows (both were
+// "Coming soon" placeholders with no real content yet — nothing here removes a real feature),
+// and the standalone cross-topic Practice row (practice is now reached per-topic, per the new
+// end-of-row prompt, or from a set's own practice stage inside the player — same onOpenSet(id,
+// true) call every "Practice" control on this page has always used).
+//
+// Every number on this page is still a sum of real runtimes and real question counts — nothing
+// invented. Where a topic has no runtime data yet, it just doesn't claim a duration (no fake
+// "~12 min"), per the "manageable, not overwhelming" rule: no raw question counts in the main
+// feed either (a locked topic's count still appears in the Paywall dialog, which is a different,
+// opt-in surface).
 import { forwardRef, useMemo } from "react";
-import { Check, Lock, Play, Plus } from "lucide-react";
+import { Check, Lock } from "lucide-react";
 
+import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { INK, type LearnTheme } from "@/components/learn/learn-theme";
 import { fmtRuntime, muxThumb } from "@/components/learn/cram-media";
 import type { RailKey } from "@/components/learn/LearnRail";
@@ -32,12 +47,16 @@ export function planTimes(sets: HomeSet[]): PlanTimes {
     reviewSec: review.reduce((a, s) => a + (s.set.reviewRuntimeSec ?? 0), 0), reviewCount: review.length,
   };
 }
-const mins = (sec: number) => Math.max(1, Math.round(sec / 60));
 export const fmtMins = (sec: number) => { const m = Math.round(sec / 60); return m >= 60 ? `${Math.floor(m / 60)} hr ${m % 60 ? `${m % 60}` : ""}`.trim() : `${Math.max(1, m)} min`; };
+
+const topicSectionId = (id: string) => `lk-topic-${id}`;
 
 export const LearnHome = forwardRef<HTMLDivElement, {
   sets: HomeSet[];
   topics: StudentTopic[];
+  /** Kept in the props contract (LearnShell still computes it) even though the chip filter UI is
+   *  gone from this view — a future settings surface can reintroduce filtering without touching
+   *  the parent. */
   chip: string | null;
   onChip: (topicId: string | null) => void;
   plan: Plan;
@@ -52,97 +71,52 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   onLocked: (topic: StudentTopic) => void;
   rowRef: (key: RailKey) => (el: HTMLElement | null) => void;
   you: { email: string | null; userId: string | null; onSignIn: () => void; signOut: () => void; onShare: () => void; done: number; total: number };
-}>(function LearnHome({ sets, topics, chip, onChip, plan, onPlan, daysOut, examLabel, comingExams, theme, narrow, onStart, onOpenSet, onLocked, rowRef, you }, ref) {
-  const t = useMemo(() => planTimes(sets), [sets]);
-  const visible = chip ? sets.filter((s) => s.topic.id === chip) : sets;
-  const byTopic = useMemo(() => { const m = new Map<string, HomeSet[]>(); for (const s of visible) { const arr = m.get(s.topic.id) ?? []; arr.push(s); m.set(s.topic.id, arr); } return [...m.entries()].map(([id, arr]) => ({ topic: arr[0].topic, id, sets: arr })); }, [visible]);
-  const totalSec = t.cramSec + (plan.practice ? t.practiceSec : 0) + (plan.review ? t.reviewSec : 0);
-  const planLabel = [ "cram", plan.practice ? "practice" : null, plan.review ? "review" : null ].filter(Boolean).join(" + ");
-  const firstUnwatched = sets.find((s) => s.playable && !s.locked && !!s.set.playbackId && !s.done) ?? sets.find((s) => !!s.set.playbackId && !s.locked) ?? null;
+}>(function LearnHome({ sets, theme, narrow, onOpenSet, onLocked, rowRef, you }, ref) {
+  const byTopic = useMemo(() => {
+    const m = new Map<string, HomeSet[]>();
+    for (const s of sets) { const arr = m.get(s.topic.id) ?? []; arr.push(s); m.set(s.topic.id, arr); }
+    return [...m.entries()].map(([id, arr]) => ({ topic: arr[0].topic, id, sets: arr }));
+  }, [sets]);
   const pad = narrow ? "0 16px" : "0 32px";
 
   return (
     <div ref={ref} className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
-      {/* CHIPS — sticky under the top */}
-      <div className="lk-scroll-x sticky top-0 z-[2]" style={{ padding: narrow ? "6px 16px 12px" : "6px 32px 14px", gap: 8, background: INK.bg }}>
-        <button type="button" className="lk-chip" data-on={chip == null} onClick={() => onChip(null)}>All</button>
-        {topics.map((tp) => <button key={tp.id} type="button" className="lk-chip" data-on={chip === tp.id} onClick={() => onChip(chip === tp.id ? null : tp.id)}>{tp.name}</button>)}
-        {comingExams.map((e) => <span key={e} className="lk-chip" style={{ color: INK.dim, cursor: "default" }}>{e} · coming</span>)}
-      </div>
+      <div className="flex flex-col" style={{ gap: narrow ? 26 : 34, paddingTop: narrow ? 18 : 26, paddingBottom: 40 }}>
+        {/* THE PRODUCT LINE — states the product before the product starts. Part of the app (body
+            type, not a marketing hero), but the one line that has to land before a single video
+            does, so a first-time visitor never wonders what this even is. */}
+        <div style={{ padding: pad }}>
+          <p className="lk-disp" style={{ fontSize: narrow ? 19 : 23, lineHeight: 1.2, color: INK.text }}>
+            Like <span style={{ color: "var(--lk-acc)" }}>YouTube Shorts</span> for exam prep.
+          </p>
+          <p className="mt-1 text-[13px]" style={{ fontFamily: BRAND_SANS, color: INK.muted }}>
+            Two minutes or less. Watch the topic, then practice it.
+          </p>
+        </div>
 
-      <div className="flex flex-col" style={{ gap: narrow ? 26 : 34, paddingBottom: 40 }}>
-        {/* THE PLAN */}
-        <section ref={rowRef("cram")} style={{ padding: pad }} className="flex flex-col gap-3">
-          <div className={narrow ? "lk-scroll-x" : "grid grid-cols-3 gap-4"} style={narrow ? { gap: 10 } : undefined}>
-            <PlanCard on locked={false} title="Cram" sub="What's on the exam, fast." detail={t.cramCount ? `${t.cramCount} video${t.cramCount === 1 ? "" : "s"}${t.avgCramSec ? ` · ~${Math.max(1, Math.round(t.avgCramSec / 60))} min each` : ""}` : "videos on the way"} time={t.cramSec ? fmtMins(t.cramSec) : null} theme={theme} narrow={narrow} face="bolt" />
-            <PlanCard on={plan.practice} locked={t.practiceCount === 0} onToggle={() => onPlan({ ...plan, practice: !plan.practice })} title="Practice" sub="Try each set right after cramming it." detail={t.practiceCount ? `${t.practiceCount} questions${t.problemsCount ? ` + ${t.problemsCount} workout problems` : ""}` : "questions on the way"} time={t.practiceCount ? `≈ ${fmtMins(t.practiceSec)}` : null} theme={theme} narrow={narrow} />
-            <PlanCard on={plan.review} locked={t.reviewCount === 0} onToggle={() => onPlan({ ...plan, review: !plan.review })} title="Review" sub="Watch Lee work everything, start to finish." detail={t.reviewCount ? `${t.reviewCount} review video${t.reviewCount === 1 ? "" : "s"}` : "review videos come after the cram videos"} time={t.reviewCount ? fmtMins(t.reviewSec) : null} theme={theme} narrow={narrow} />
-          </div>
-          <div className="lk-card flex items-center gap-4 px-4 py-3.5 sm:px-5">
-            <div className="min-w-0">
-              <div className="text-[10.5px] font-extrabold uppercase" style={{ letterSpacing: "0.14em", color: INK.muted }}>Your study time</div>
-              <div className="lk-disp" style={{ fontSize: narrow ? 22 : 28, lineHeight: 1.1 }}>
-                {totalSec ? fmtMins(totalSec) : "—"}
-                {!narrow && <span className="ml-2 font-medium" style={{ fontSize: 13, color: INK.muted, fontFamily: "inherit" }}>· {planLabel}{daysOut != null && daysOut >= 0 ? ` · ${examLabel} in ${daysOut} day${daysOut === 1 ? "" : "s"}` : ""}</span>}
-              </div>
-              {narrow && <div className="text-[12px]" style={{ color: INK.muted }}>{planLabel}{daysOut != null && daysOut >= 0 ? ` · ${examLabel} in ${daysOut} day${daysOut === 1 ? "" : "s"}` : ""}</div>}
-            </div>
-            <div className="flex-1" />
-            <button type="button" onClick={onStart} disabled={!firstUnwatched} className="lk-btn lk-btn-acc disabled:opacity-40" style={{ padding: narrow ? "11px 18px" : "13px 24px", fontSize: narrow ? 12 : 14 }}><Play className="h-4 w-4" fill="currentColor" /> {firstUnwatched?.done === false && sets.some((s) => s.done) ? "Keep cramming" : "Start cramming"}</button>
-          </div>
-        </section>
-
-        {/* CRAM ROWS — one per topic */}
-        {byTopic.map(({ id, topic, sets: ts }) => (
-          <section key={id} style={{ padding: pad }} className="flex flex-col gap-3">
-            <RowHead icon="bolt" title="Cram" sub={topic.name} theme={theme} />
+        {/* CRAM ROWS — one per topic, the primary structure of the page. First topic, first short
+            sit right under the product line — no control panel between the student and the video. */}
+        {byTopic.map(({ id, topic, sets: ts }, i) => (
+          <section key={id} id={topicSectionId(id)} ref={i === 0 ? rowRef("cram") : undefined} style={{ padding: pad }} className="flex flex-col gap-3">
+            <TopicHead topic={topic} sets={ts} theme={theme} />
             <div className="lk-scroll-x" style={{ gap: narrow ? 8 : 12 }}>
               {ts.map((s) => <Short key={s.set.id} s={s} narrow={narrow} onOpen={() => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id))} />)}
             </div>
+            <TopicPracticePrompt
+              topic={topic} sets={ts} narrow={narrow}
+              nextId={byTopic[i + 1]?.id ?? null}
+              onPractice={(setId) => onOpenSet(setId, true)}
+              onLocked={onLocked}
+            />
           </section>
         ))}
 
-        {/* PRACTICE */}
-        <section ref={rowRef("practice")} style={{ padding: pad }} className="flex flex-col gap-3">
-          <RowHead title="Practice" sub={chip ? topics.find((x) => x.id === chip)?.name ?? "" : `${t.practiceCount} questions`} theme={theme} />
-          <div className="lk-scroll-x" style={{ gap: narrow ? 8 : 12 }}>
-            {visible.filter((s) => s.set.ceqCount > 0).map((s) => (
-              <button key={s.set.id} type="button" onClick={() => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id, true))} className="lk-card flex shrink-0 flex-col gap-2 p-3.5 text-left" style={{ width: narrow ? 230 : 290, color: INK.text, cursor: "pointer" }}>
-                <div className="flex items-center gap-2 text-[13.5px] font-bold"><span className="min-w-0 flex-1 truncate">{s.set.name}</span>{s.locked && <Lock className="h-3.5 w-3.5 shrink-0" style={{ color: INK.muted }} />}</div>
-                <div className="text-[12px]" style={{ color: INK.muted }}>{s.set.ceqCount} question{s.set.ceqCount === 1 ? "" : "s"}{s.set.shortLabel ? ` · ${s.set.shortLabel}` : ""}</div>
-                {s.set.firstStem && <div className="line-clamp-2 text-[12.5px] leading-relaxed" style={{ color: INK.muted }}>{s.set.firstStem}</div>}
-                <span className="lk-btn lk-btn-ghost mt-auto self-start" style={{ padding: "6px 12px", fontSize: 10.5 }}>Start</span>
-              </button>
-            ))}
-            {visible.every((s) => s.set.ceqCount === 0) && <Coming text="Questions for these sets are on the way." narrow={narrow} />}
-          </div>
-        </section>
-
-        {/* STUDY TOOLS */}
-        {!chip && (
-          <section ref={rowRef("tools")} style={{ padding: pad }} className="flex flex-col gap-3">
-            <RowHead title="Study tools" sub="the tables, statements and cheat codes from the videos" theme={theme} />
-            <div className="lk-scroll-x" style={{ gap: narrow ? 8 : 12 }}>
-              <Coming text="Coming: the exhibits from each cram video, clickable. Then flashcards and the formulas you have to memorize." narrow={narrow} wide />
-            </div>
-          </section>
-        )}
-
-        {/* BIG WORKOUT PROBLEMS */}
-        {!chip && (
-          <section ref={rowRef("problems")} style={{ padding: pad }} className="flex flex-col gap-3">
-            <RowHead title="Big Workout Problems" sub={`my best guess at the long ones on ${examLabel}`} theme={theme} />
-            <div className="lk-scroll-x" style={{ gap: narrow ? 8 : 12 }}>
-              <Coming text="Coming after the cram videos: the long multi-part problems, worked start to finish, with a printable to try first." narrow={narrow} wide />
-            </div>
-          </section>
-        )}
-
-        {/* REVIEW */}
+        {/* REVIEW — Lee working each set's questions start to finish. Kept (not part of the
+            "remove" list), just no longer competing above the fold with the cram rows. */}
         <section ref={rowRef("review")} style={{ padding: pad }} className="flex flex-col gap-3">
           <RowHead title="Review" sub="Lee works each set's questions" theme={theme} />
           <div className="lk-scroll-x" style={{ gap: narrow ? 8 : 12 }}>
-            {visible.filter((s) => s.set.hasReview).map((s) => (
+            {sets.filter((s) => s.set.hasReview).map((s) => (
               <button key={s.set.id} type="button" onClick={() => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id))} className="flex shrink-0 flex-col gap-2 text-left" style={{ width: narrow ? 230 : 290, background: "transparent", border: 0, color: INK.text, cursor: "pointer" }}>
                 <div className="relative overflow-hidden rounded-xl" style={{ aspectRatio: "16 / 9", background: "#000" }}>
                   {s.set.reviewPlaybackId && s.set.reviewPlaybackId !== "__demo__" && <img src={muxThumb(s.set.reviewPlaybackId, 640)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}
@@ -151,16 +125,19 @@ export const LearnHome = forwardRef<HTMLDivElement, {
                 <div className="text-[13px] font-semibold">{s.set.name}</div>
               </button>
             ))}
-            {visible.every((s) => !s.set.hasReview) && <Coming text="Review videos come once the cram videos are done." narrow={narrow} wide />}
+            {sets.every((s) => !s.set.hasReview) && <Coming text="Review videos come once the cram videos are done." narrow={narrow} wide />}
           </div>
         </section>
 
-        {/* YOU */}
+        {/* YOU — account state only, kept minimal per the simplified nav priority. The reminder
+            callout is gone from this line since the header's reminder CTA is hidden for now (see
+            LearnTop) — nothing invented to replace it, the underlying ReminderSheet/
+            scheduleExamReminder flow is untouched and just not advertised here either. */}
         <section ref={rowRef("you")} style={{ padding: pad }} className="flex flex-col gap-3">
           <RowHead title="You" sub={you.total ? `${you.done} of ${you.total} crammed` : ""} theme={theme} />
           <div className="lk-card flex flex-wrap items-center gap-3 p-4">
             <div className="min-w-0 flex-1 text-[13px]" style={{ color: INK.muted }}>
-              {you.userId ? <>Progress is saved to <b style={{ color: INK.text }}>{you.email}</b>.</> : <>Progress is saved on this device. Add a number in <b style={{ color: INK.text }}>Get study reminders</b> to keep it across devices.</>}
+              {you.userId ? <>Progress is saved to <b style={{ color: INK.text }}>{you.email}</b>.</> : <>Progress is saved on this device.</>}
             </div>
             <button type="button" onClick={you.onShare} className="lk-btn lk-btn-ghost">Share with a friend</button>
             {you.userId ? <button type="button" onClick={you.signOut} className="lk-btn" style={{ background: "transparent", color: INK.muted }}>Sign out</button> : <button type="button" onClick={you.onSignIn} className="lk-btn" style={{ background: "transparent", color: INK.muted }}>I have an account</button>}
@@ -181,22 +158,57 @@ function RowHead({ title, sub, icon, theme }: { title: string; sub?: string; ico
   );
 }
 
-function PlanCard({ on, locked, onToggle, title, sub, detail, time, theme, narrow, face }: { on: boolean; locked: boolean; onToggle?: () => void; title: string; sub: string; detail: string; time: string | null; theme: LearnTheme; narrow: boolean; face?: "bolt" }) {
-  const clickable = !!onToggle && !locked;
+/** "⚡ Cram — Easy Points — 5 shorts · ~12 min". The count is always real; the duration only
+ *  appears when at least one set in the topic has a real runtime, so a topic with no runtime data
+ *  yet just doesn't claim one — never a made-up number. */
+function TopicHead({ topic, sets, theme }: { topic: StudentTopic; sets: HomeSet[]; theme: LearnTheme }) {
+  const withRt = sets.filter((s) => s.set.runtimeSec != null);
+  const totalSec = withRt.reduce((a, s) => a + (s.set.runtimeSec ?? 0), 0);
+  const n = sets.length;
+  const detail = `${n} short${n === 1 ? "" : "s"}${withRt.length ? ` · ~${Math.max(1, Math.round(totalSec / 60))} min` : ""}`;
   return (
-    <button type="button" onClick={clickable ? onToggle : undefined} disabled={!clickable && !!onToggle} className="lk-card shrink-0 overflow-hidden text-left" style={{ width: narrow ? 250 : undefined, color: INK.text, cursor: clickable ? "pointer" : "default", borderColor: on ? theme.accent : INK.border, boxShadow: on ? `0 0 0 1px ${theme.accent}` : undefined, opacity: locked ? 0.7 : 1 }}>
-      <div className="relative grid place-items-center" style={{ aspectRatio: "16 / 9", background: on ? "#000" : INK.surface2 }}>
-        {face === "bolt" ? <svg width="46" height="60" viewBox="0 0 54 70" fill="none" stroke={INK.text} strokeWidth="3" strokeLinejoin="round"><path d="M34 4 L10 40 L26 40 L18 66 L46 28 L30 28 Z" fill={theme.accent} /></svg> : <span className="text-[13px]" style={{ color: INK.dim }}>{detail}</span>}
-        <span className="lk-btn absolute left-3 top-3" style={{ padding: "5px 10px", fontSize: 10.5, background: on ? theme.accent : INK.border, color: on ? theme.accentInk : INK.text }}>
-          {on ? <><Check className="h-3 w-3" /> On</> : locked ? "Soon" : <><Plus className="h-3 w-3" /> Add</>}
-        </span>
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase" style={{ letterSpacing: "0.12em", color: INK.muted }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill={theme.accent}><path d="M13 2 L4 14 h7 l-1 8 l9 -12 h-7 z" /></svg>
+        Cram
       </div>
-      <div className="px-4 py-3.5">
-        <div className="lk-disp" style={{ fontSize: 18 }}>{title}</div>
-        <div className="mt-0.5 text-[13px]" style={{ color: INK.muted }}>{sub}</div>
-        <div className="mt-2 flex items-baseline gap-2 text-[12.5px]"><span style={{ color: INK.muted }}>{face === "bolt" ? detail : ""}</span>{time && <span className="ml-auto font-bold" style={{ color: on ? theme.accent : INK.muted }}>{on ? time : `+ ${time}`}</span>}</div>
+      <div className="flex items-baseline gap-3">
+        <span className="lk-disp" style={{ fontSize: 19 }}>{topic.name}</span>
+        <span className="truncate text-[13px]" style={{ color: INK.muted }}>{detail}</span>
       </div>
-    </button>
+    </div>
+  );
+}
+
+/** THE ONE PLACE PRACTICE IS OFFERED FOR A TOPIC — after its shorts, not after every single one.
+ *  A student can practice now or keep cramming into the next topic; nothing forces the choice. */
+function TopicPracticePrompt({ topic, sets, narrow, nextId, onPractice, onLocked }: {
+  topic: StudentTopic; sets: HomeSet[]; narrow: boolean;
+  nextId: string | null;
+  onPractice: (setId: string) => void;
+  onLocked: (topic: StudentTopic) => void;
+}) {
+  const practiceable = sets.find((s) => s.set.ceqCount > 0 && !s.locked);
+  const locked = !practiceable && sets.some((s) => s.locked);
+  if (!practiceable && !locked) return null; // nothing to practice yet for this topic — no prompt, no dead-end button
+  const keepCramming = () => { if (nextId) document.getElementById(topicSectionId(nextId))?.scrollIntoView({ behavior: "smooth", block: "start" }); };
+  return (
+    <div className="lk-card flex flex-wrap items-center gap-3 px-4 py-3" style={{ fontFamily: BRAND_SANS }}>
+      <span className="min-w-0 flex-1 text-[13px] font-bold" style={{ color: INK.text }}>Finished {topic.name}?</span>
+      <button
+        type="button"
+        onClick={() => (locked ? onLocked(topic) : onPractice(practiceable!.set.id))}
+        className="lk-btn lk-btn-acc"
+        style={{ fontSize: narrow ? 10.5 : 12 }}
+      >
+        {locked && <Lock className="h-3 w-3" />} Practice this topic →
+      </button>
+      {nextId && (
+        <button type="button" onClick={keepCramming} className="lk-btn" style={{ background: "transparent", color: INK.muted, fontSize: narrow ? 10.5 : 12 }}>
+          Keep cramming →
+        </button>
+      )}
+    </div>
   );
 }
 

@@ -125,6 +125,13 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
         <p className="mt-4 text-[19px] font-extrabold leading-snug sm:text-[22px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
           Practice what gets tested. Score higher.
         </p>
+        {/* PRODUCT-EXPLANATION TAGLINE (chapter pages only, 2026-09-09) — one punchy line that
+            says what the product IS, sitting under the promise and above the campus/chapter line.
+            Body font, not display, so it reads as a tagline and never competes with the headline
+            above it. A touch of accent color, sparingly, on the comparison itself. */}
+        <p className="mt-2.5 text-[14.5px] font-bold sm:text-[15.5px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
+          Like <span style={{ color: "var(--accent)" }}>YouTube Shorts</span> for exam prep.
+        </p>
         {greek && (
           <CampusLine>
             <CampusFor>for </CampusFor>
@@ -342,8 +349,13 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
   onSyllabus?: () => void;
   /** "council" reframes card 3 for someone who is not taking the course: a council officer is
    *  sharing this for her CHAPTERS, and "Built around your course" addressed a student who
-   *  isn't in the room. */
-  variant?: "home" | "chapter" | "council";
+   *  isn't in the room.
+   *  "homepage" (2026-09-09) is the actual "/" TwoDoorHome ONLY — set at that one call site.
+   *  Deliberately its own value, not a repaint of the "home" default: "home" is also what three
+   *  unrelated partner pages (campus-councils, national-organizations, national.$org) and the
+   *  demo/preview routes fall back to with a hardcoded `code={null}`, and this task is scoped to
+   *  the homepage alone — a change to "home" itself would have silently reached all of them. */
+  variant?: "home" | "chapter" | "council" | "homepage";
 }) {
   // p4 §6: real copy a student feels, and more vertical room to hold it. `clip` marks the slot for
   // an example clip in the cram-videos card (placeholder only, home surface).
@@ -363,6 +375,16 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
       body: "Going from a B to an A is mostly pattern recognition — learn to spot the type of problem and the simpler route to the answer shows up with it.",
     },
   ];
+  // THE SIMPLIFIED, ONE-LINE-EACH CARDS (2026-09-09) — shared by the two variants that got a
+  // scan-in-a-few-seconds pass: the Greek chapter page ("chapter", go.$school.$chapter.tsx) and
+  // the actual homepage ("homepage", TwoDoorHome.tsx). Same copy for both by design — nothing
+  // page-specific in what a 2-minute video or a practice exam IS. "home" (the default, still used
+  // by three partner pages and the demo/preview route) and "council" keep the two-line CARDS
+  // above untouched.
+  const SIMPLE_CARDS = [
+    { icon: Play, title: "2-minute cram videos", copy: "Fast explanations for the problems you actually need to know." },
+    { icon: ClipboardCheck, title: "Practice exams", copy: "Exam-style questions that teach you to recognize the pattern before test day." },
+  ];
   // 48px icons centered above each heading, with generous vertical room for the longer copy.
   const card = "flex flex-col items-center rounded-2xl px-5 py-8 text-center";
   const cardStyle = { background: "var(--bg-surface)", border: "1px solid var(--border-default)" } as const;
@@ -376,14 +398,22 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
   const iconStyle = { color: "var(--accent)" } as const;
   return (
     <section className="mx-auto grid w-full max-w-[900px] items-stretch gap-4 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
-      {CARDS.map(({ icon: Icon, title, lead, body }) => (
-        <div key={title} className={card} style={cardStyle}>
-          <Icon className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
-          <p className={H} style={hStyle}>{title}</p>
-          <p className={bodyCls} style={bodyStyle}>{lead}</p>
-          <p className="mt-2.5 text-[14px] leading-relaxed" style={bodyStyle}>{body}</p>
-        </div>
-      ))}
+      {variant === "chapter" || variant === "homepage"
+        ? SIMPLE_CARDS.map(({ icon: Icon, title, copy }) => (
+          <div key={title} className={card} style={cardStyle}>
+            <Icon className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
+            <p className={H} style={hStyle}>{title}</p>
+            <p className={bodyCls} style={bodyStyle}>{copy}</p>
+          </div>
+        ))
+        : CARDS.map(({ icon: Icon, title, lead, body }) => (
+          <div key={title} className={card} style={cardStyle}>
+            <Icon className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
+            <p className={H} style={hStyle}>{title}</p>
+            <p className={bodyCls} style={bodyStyle}>{lead}</p>
+            <p className="mt-2.5 text-[14px] leading-relaxed" style={bodyStyle}>{body}</p>
+          </div>
+        ))}
       {variant === "council" ? (
         <div className={card} style={cardStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
@@ -391,11 +421,31 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
           <p className={bodyCls} style={bodyStyle}>Matched to the course your chapters actually take.</p>
         </div>
       ) : variant === "chapter" ? (
-        <div className={card} style={cardStyle}>
+        // CHAPTER CARD 3 (2026-09-09) — now the same actionable syllabus CTA as home, worded for
+        // a page that already knows the visitor's school and course: "matched", not "built for
+        // any course", and never the home card's "these work for any intro course" line, which
+        // would contradict the whole point of a page personalized to one campus.
+        <button type="button" onClick={onSyllabus} className={`${card} transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={actionableStyle}>
           <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
-          <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your course"}</p>
-          <p className={bodyCls} style={bodyStyle}>Matched to your exact course.</p>
-        </div>
+          <p className={H} style={hStyle}>Built around your course</p>
+          <p className={bodyCls} style={bodyStyle}>Matched to your school and course. If anything&apos;s missing, send me your syllabus.</p>
+          <span className="mt-3 text-[14px] font-black" style={{ color: "var(--accent)" }}>Send your syllabus →</span>
+        </button>
+      ) : variant === "homepage" ? (
+        // HOMEPAGE CARD 3 (2026-09-09) — the one place on "/" that has to work in BOTH states:
+        // no school chosen yet (generic, honest — never invents a course) and a school/course
+        // already selected (personalized — never undercuts that with "any intro course" once the
+        // page has committed to one). `code` is the same prop TwoDoorHero already keys its own
+        // generic-vs-personalized headline on, so this follows the exact same rule the rest of
+        // the homepage does, not a new one.
+        <button type="button" onClick={onSyllabus} className={`${card} transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={actionableStyle}>
+          <Target className={iconCls} strokeWidth={1.75} style={iconStyle} aria-hidden />
+          <p className={H} style={hStyle}>{code ? "Built around your course" : "Built for intro accounting."}</p>
+          <p className={bodyCls} style={bodyStyle}>
+            {code ? "Matched to your school and course. If anything's missing, send me your syllabus." : "Pick your school and I'll match your exact course."}
+          </p>
+          <span className="mt-3 text-[14px] font-black" style={{ color: "var(--accent)" }}>Send your syllabus →</span>
+        </button>
       ) : (
         /* HOME: card 3 is the ONE actionable card — amber hairline keeps it distinct. */
         <button type="button" onClick={onSyllabus} className={`${card} transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={actionableStyle}>
