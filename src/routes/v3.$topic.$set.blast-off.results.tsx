@@ -22,6 +22,8 @@ import { estimatedLengthSeconds, fmtRange, slideCounts } from "@/components/blas
 import { frameForIdea } from "@/components/blastoff/idea-to-slide";
 import { SplitPanel } from "@/components/blastoff/SplitPanel";
 import { SessionView } from "@/components/talkthrough/SessionView";
+import { SuggestedCards } from "@/components/v3/SuggestedCards";
+import { refreshBank } from "@/components/v3/use-bank";
 import { listSessions, sessionMeta } from "@/components/canvas/talkthrough";
 import { startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
@@ -112,6 +114,10 @@ function V3Results() {
 
           {split && <SplitPanel set={set} topic={topic} onClose={() => setSplit(false)} />}
 
+          {/* SUGGESTED CARDS (docs/DESIGN-CEQ-QUEUE.md, 2026-09-10): what the queue made of the
+              brainstorm, ticked into the deck as drafts. Applying refreshes the bank, so the new
+              drafts reconcile into the plan below without a reload. */}
+          <SuggestedCards deckId={set.id} deckName={set.name} onApplied={() => void refreshBank()} />
           <ReviewDeck set={set} topic={topic} register={register} initialSelectedId={frameParam ?? null} />
 
           {/* PRE-FLIGHT (2026-09-09): the film summary that sat under the /blast-off menu's doors.

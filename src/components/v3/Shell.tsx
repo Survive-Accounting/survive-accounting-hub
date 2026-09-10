@@ -24,6 +24,7 @@ import { GenerationDock } from "@/components/talkthrough/GenerationDock";
 // run's controls and the Iterate / Post queue links, in one popover right of the breadcrumb.
 // It lives with the run widget, not here: the popover needs that widget's handlers.
 import { SettingsGear } from "@/components/v3/ProductionTimer";
+import { useCeqQueueDrain } from "@/components/v3/ceq-queue-client";
 
 export const V3_NAVY = "#14213D";
 export const V3_CREAM = "#F5EFE6";
@@ -45,6 +46,18 @@ export interface Crumb {
 // THE TOP BAR COLLAPSES (Lee, 2026-09-05: "Make topbar collapsible") — a working surface
 // wants the height. Remembered per browser; a browser that refuses storage just forgets.
 const BAR_KEY = "sa-v3-topbar";
+/** THE QUEUE CHIP (docs/DESIGN-CEQ-QUEUE.md): the browser drains ceq_jobs from any /v3 page; the
+ *  chip says how many are queued or generating. Nothing to show when the queue is idle. */
+function QueueChip() {
+  const { live } = useCeqQueueDrain();
+  if (!live) return null;
+  return (
+    <span title="Card generation running in the background — the Editor shows the results" style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", color: "#7DD3FC", border: "1px solid #7DD3FC66", borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>
+      ⚙ {live} generating
+    </span>
+  );
+}
+
 export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; children: ReactNode; wide?: boolean }) {
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => { try { setCollapsed(localStorage.getItem(BAR_KEY) === "collapsed"); } catch { /* forgets */ } }, []);
@@ -65,6 +78,7 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
           <Link to="/v3" style={{ color: V3_MUTED, fontSize: 11.5, fontWeight: 700, textDecoration: "none" }}>V3</Link>
           {here && <span style={{ color: V3_MUTED, fontSize: 11 }}>›</span>}
           {here && <span style={{ color: V3_CREAM, fontSize: 11.5, fontWeight: 700 }}>{here.label}</span>}
+          <QueueChip />
           <SettingsGear />
           {toggleBtn}
         </header>
@@ -118,7 +132,8 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
             </span>
           ))}
         </nav>
-        <SettingsGear />
+        <QueueChip />
+          <SettingsGear />
         {toggleBtn}
       </header>
 

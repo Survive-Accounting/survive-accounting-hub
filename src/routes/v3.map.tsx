@@ -25,6 +25,8 @@ import { stageOf, talkStageOf, type StageInfo } from "@/components/v3/set-stage"
 import { LANE_LABEL, laneOf, type DeckLane } from "@/lib/deck-lane";
 import { estimatedLengthSeconds, fmtRange } from "@/components/blastoff/film-summary";
 import { listBlastPlanSetIds, mintBranch, setBranchOrders, updateDeckMeta } from "@/lib/blastoff.functions";
+import { enqueueCeqJob } from "@/lib/ceq-queue.functions";
+import { kickQueue, useCeqJobs } from "@/components/v3/ceq-queue-client";
 import { listPublishStatuses, type SetPublishStatus } from "@/lib/publish-queue.functions";
 import { productionBottleneckReport } from "@/lib/production-time.functions";
 import { orderedSets } from "@/lib/v3-topic-groups";
@@ -161,6 +163,16 @@ function SetPanel({ topic, set, info, layout, takesOf, onChanged, onSelect, onCl
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [minting, setMinting] = useState<DeckLane | null>(null);
+  // THE QUEUE (docs/DESIGN-CEQ-QUEUE.md): cards from the brainstorm, made in the background.
+  const { jobs: ceqJobs, reload: reloadJobs } = useCeqJobs(set.id);
+  const queueCards = () => void write("queuing", async () => { await enqueueCeqJob({ data: { deckId: set.id } }); kickQueue(); reloadJobs(); });
+  const jobNote = (() => {
+    const j = ceqJobs[0]; if (!j) return null;
+    if (j.status === "queued") return "cards: queued";
+    if (j.status === "running") return "cards: generating…";
+    if (j.status === "failed") return `cards: failed — ${j.error ?? "no reason given"}`;
+    const n = j.result?.cards.length ?? 0; return n > j.decided ? `cards: ${n - j.decided} to review in the Editor` : `cards: ${n} made, all decided`;
+  })();
   const [mintName, setMintName] = useState("");
   const [mintHead, setMintHead] = useState("");
 
@@ -254,11 +266,13 @@ function SetPanel({ topic, set, info, layout, takesOf, onChanged, onSelect, onCl
 
       <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
         <Link to={blastOffPath(topic, set, "talkthrough")} style={{ ...small, borderColor: `${V3_GOLD}88`, color: V3_GOLD }}>Brainstorm it</Link>
+        <button type="button" onClick={queueCards} disabled={!!busy} style={{ ...small, borderColor: "#7DD3FC88", color: "#7DD3FC", opacity: busy ? 0.5 : 1 }} title="Turn what you said in the Booth into candidate cards, in the background">Generate cards</button>
         <Link to={blastOffPath(topic, set, info.next)} style={small}>{stepLabel(info.next)}</Link>
         <span style={{ flex: 1 }} />
         {lane !== "cram" && <button type="button" onClick={park} style={{ ...small, color: V3_MUTED }} title="Leaves the map and the queue; nothing is deleted">park</button>}
       </div>
       {(busy || err) && <div style={{ fontSize: 11.5, marginTop: 8, color: err ? "#FF8B7E" : V3_MUTED }}>{err ?? `${busy}…`}</div>}
+      {jobNote && !busy && <div style={{ fontSize: 11.5, marginTop: 6, color: /failed/.test(jobNote) ? "#FF8B7E" : "#7DD3FC" }}>{jobNote}</div>}
     </div>
   );
 }
