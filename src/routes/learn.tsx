@@ -218,6 +218,12 @@ function useIsNarrow(): boolean {
 
 const examNumOf = (unitName: string): number | null => { const m = /exam\s*(\d+)/i.exec(unitName); return m ? Number(m[1]) : /final/i.test(unitName) ? 4 : null; };
 const PLAN_KEY = "sa-learn-plan";
+// STUDY SHELL SIMPLIFICATION (2026-09-09) — the persistent bottom promotional/CTA banner
+// (fraternity/sorority pitch, campus-rep pitch, syllabus ask) is hidden from the ordinary student
+// view; it read as a sales interruption on a study page. The component, its dismiss-for-session
+// behaviour, and its three asks are unchanged and not deleted — only this flag, and therefore the
+// mount point below, is off. Flip back to true to restore it.
+const SHOW_ASKS_BAR = false;
 
 function LearnShell() {
   const search = Route.useSearch();
@@ -380,10 +386,15 @@ function LearnShell() {
   const chapter = usePickedChapter(campusSlug, !demo);
   const sender = search.by || (search.test ?? "").toLowerCase() === "banner" ? shareCtx.contact : null;
   const ctaMounted = !demo && (!!campusSlug || !!search.test);
-  // WHO OWNS THE BOTTOM OF THE PAGE. Once a chapter is picked (or ?test forces one), the CTA bar's
-  // own state machine (C set-up / D join / F you're in) is the ask, so it renders its bar. Until
-  // then the asks bar carries the A/B copy and opens the picker.
-  const ctaOwnBar = ctaMounted && (!!chapter.slug || /^[cdf]$/i.test(search.test ?? ""));
+  // STUDY SHELL SIMPLIFICATION (2026-09-09) — LearnCta's own persistent bar (state C "Set up
+  // <chapter>", D "<chapter> · N members · Join") is a scholarship-chair claim/setup ask, which
+  // belongs on the dedicated Greek chapter landing page, not sitting under a student's study feed.
+  // `ctaOwnBar` used to flip LearnCta into rendering that bar once a chapter was picked; it is
+  // permanently false now, so LearnCta always renders `bare` (sheets only — pick/setup/share),
+  // reachable exactly as before from the header's "Not your chapter?" / "which chapter are you
+  // in?" links and the "Share with a friend" action. Nothing about the picking, joining, or
+  // sharing FLOW changed — only the always-visible bar is gone.
+  const ctaOwnBar = false;
   const share = async () => {
     if (ctaMounted) { openLearnCta("share"); return; }
     const ok = await copyToClipboard(`${window.location.origin}/learn`);
@@ -416,7 +427,7 @@ function LearnShell() {
       <LearnTop
         school={school} campusId={campusId} campusName={campusName}
         exams={examTabs} examNum={examNum} onPickExam={setExamNum}
-        chapter={chapter.slug ? { name: chapter.name, members: chapter.members } : null}
+        chapter={chapter.slug ? { name: chapter.name, letters: chapter.letters, members: chapter.members } : null}
         sender={sender} progress={topProgress} theme={theme}
         onPickChapter={ctaMounted ? () => openLearnCta("pick") : null}
         onOpenPath={() => setPathOpen(true)}
@@ -456,7 +467,7 @@ function LearnShell() {
         )}
       </div>
 
-      {!inPlayer && !isLoading && !isError && sets.length > 0 && (
+      {SHOW_ASKS_BAR && !inPlayer && !isLoading && !isError && sets.length > 0 && (
         <LearnAsksBar theme={theme} campusName={campusName} campusId={campusId} campusSlug={campusSlug} courseCode={school?.courseCode ?? null} greekEnabled={ctaMounted && !ctaOwnBar} council={shareCtx.isCouncil} onGreek={() => openLearnCta("pick")} narrow={isNarrow} demo={demo} />
       )}
       {isNarrow && !inPlayer && <LearnTabs active={rail} onPick={pickRail} />}

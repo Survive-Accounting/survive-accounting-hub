@@ -12,8 +12,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, Loader2, Menu, X } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { BRAND_SANS } from "@/components/canvas/brand";
 import { councilTypeLabel, type ShareContact } from "@/lib/engaged-contacts.functions";
 import { getGoChapter } from "@/lib/greek-go.functions";
+import { chapterShortName } from "@/components/site/ChapterShare";
 import type { School } from "@/lib/schools";
 import type { ExamTabState } from "@/components/learn/ExamRail";
 import { countdownLabel, daysUntil, readExamDate, writeExamDate } from "@/components/learn/exam-date";
@@ -25,8 +27,15 @@ export type TopProgress = { total: number; done: number; secondsLeft: number | n
 
 const pickKey = (campusSlug: string) => `sa-cta-chapter-${campusSlug}`;
 const REMINDER_KEY = "sa-reminder-set";
+// STUDY SHELL SIMPLIFICATION (2026-09-09) — the header's "Get study reminders" CTA is hidden from
+// the ordinary student view for this pass (section 1 of the cleanup spec). ReminderSheet and
+// scheduleExamReminder are completely untouched underneath; only this header button is off. Flip
+// back to true to restore it once the product decides where reminders fit again.
+const SHOW_REMINDER_CTA = false;
 
-/** The CTA bar's picked chapter, read from ITS localStorage key so the two never disagree. */
+/** The CTA bar's picked chapter, read from ITS localStorage key so the two never disagree.
+ *  `letters` rides along for the header's Greek identity treatment — same field, same fallback
+ *  derivation (chapterShortName) the public Greek chapter page already uses for the same job. */
 export function usePickedChapter(campusSlug: string | null, enabled: boolean) {
   const [slug, setSlug] = useState<string | null>(null);
   useEffect(() => {
@@ -43,7 +52,9 @@ export function usePickedChapter(campusSlug: string | null, enabled: boolean) {
     staleTime: 120_000,
     networkMode: "always",
   });
-  return { slug, name: q.data?.chapterName ?? null, members: q.data?.members ?? 0 };
+  const name = q.data?.chapterName ?? null;
+  const letters = q.data ? ((q.data.letters ?? "").trim() || chapterShortName(q.data.chapterName, q.data.letters, q.data.nickname)) : null;
+  return { slug, name, letters, members: q.data?.members ?? 0 };
 }
 
 const titleCase = (s: string) => s.split(/\s+/).map((w) => (w === w.toUpperCase() ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
@@ -66,7 +77,7 @@ export function LearnTop({
   exams: ExamTabState[];
   examNum: number | null;
   onPickExam: (num: number) => void;
-  chapter: { name: string | null; members: number } | null;
+  chapter: { name: string | null; letters?: string | null; members: number } | null;
   sender: ShareContact | null;
   progress: TopProgress;
   theme: LearnTheme;
@@ -119,30 +130,61 @@ export function LearnTop({
       <header className="flex shrink-0 items-center gap-3 px-4 sm:gap-4 sm:px-8" style={{ minHeight: narrow ? 58 : 72, background: INK.bg }}>
         {narrow && <button type="button" onClick={onOpenPath} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ color: INK.text, background: "transparent", border: 0 }} aria-label="Your path"><Menu className="h-5 w-5" /></button>}
         <BoltBoil height={narrow ? 30 : 40} red={theme.schoolAccent ? theme.accent : undefined} blue={theme.schoolAccent && theme.primary ? theme.primary : undefined} cream={INK.text} />
+        {/* BRAND MASTHEAD (2026-09-09) — "survive" + "ACCOUNTING" beneath it is the same two-line
+            lockup the flyer/slide generator draws (flyer.server.ts), so entering the product from
+            a marketing page or a printed flyer reads as the same brand, not a different app. The
+            personalized "school · course · exam" line moved to its own segment to the right,
+            using the same border-l divider language this header already used for chapter/sender
+            info — reused, not invented. */}
         <div className="flex min-w-0 flex-col justify-center">
-          <div className="lk-disp truncate uppercase" style={{ fontSize: narrow ? 14 : 18, letterSpacing: "0.14em", lineHeight: 1.15 }}>
-            {narrow ? (courseCode ?? "Survive") : `Survive · ${courseCode ?? "Intro Accounting"}`}
-          </div>
-          <div className="flex min-w-0 items-center gap-1.5" style={{ fontSize: narrow ? 11.5 : 13, color: INK.muted }}>
-            {schoolName ? <span className="truncate">{schoolName}</span> : <a href="/" style={{ color: "var(--lk-acc)" }}>pick your school</a>}
-            <span aria-hidden>·</span>
-            {availableExams.length > 1 ? (
-              <select value={examNum ?? ""} onChange={(e) => onPickExam(Number(e.target.value))} aria-label="Which exam" className="rounded-md px-1 py-0.5 font-semibold outline-none" style={{ background: "transparent", color: INK.text, border: `1px solid ${INK.border}`, fontSize: narrow ? 11.5 : 12.5 }}>
-                {availableExams.map((e) => <option key={e.num} value={e.num}>{e.label}</option>)}
-              </select>
-            ) : (
-              <span className="font-semibold" style={{ color: INK.text }}>{examLabel}</span>
-            )}
-            {demo && !narrow && <span className="rounded-full px-1.5 py-px text-[9px] font-black uppercase tracking-wider" style={{ color: "#111", background: INK.green }}>Demo</span>}
-          </div>
+          <div className="lk-disp truncate" style={{ fontSize: narrow ? 15 : 19, letterSpacing: "-0.01em", lineHeight: 1.1, color: INK.text }}>survive</div>
+          <div className="truncate text-[9.5px] font-bold uppercase" style={{ letterSpacing: "0.18em", color: INK.muted, lineHeight: 1.2 }}>Accounting</div>
         </div>
 
+        {!narrow && (
+          <div className="flex min-w-0 flex-col border-l pl-4" style={{ borderColor: INK.border, fontSize: 12.5 }}>
+            <div className="flex min-w-0 items-center gap-1.5" style={{ color: INK.muted }}>
+              {schoolName ? <span className="truncate font-semibold" style={{ color: INK.text }}>{schoolName}</span> : <a href="/" style={{ color: "var(--lk-acc)" }}>pick your school</a>}
+              <span aria-hidden>·</span>
+              <span className="truncate">{courseCode ?? "Intro Accounting"}</span>
+              <span aria-hidden>·</span>
+              {availableExams.length > 1 ? (
+                <select value={examNum ?? ""} onChange={(e) => onPickExam(Number(e.target.value))} aria-label="Which exam" className="rounded-md px-1 py-0.5 font-semibold outline-none" style={{ background: "transparent", color: INK.text, border: `1px solid ${INK.border}`, fontSize: 12.5 }}>
+                  {availableExams.map((e) => <option key={e.num} value={e.num}>{e.label}</option>)}
+                </select>
+              ) : (
+                <span className="font-semibold" style={{ color: INK.text }}>{examLabel}</span>
+              )}
+              {demo && <span className="rounded-full px-1.5 py-px text-[9px] font-black uppercase tracking-wider" style={{ color: "#111", background: INK.green }}>Demo</span>}
+            </div>
+          </div>
+        )}
+        {narrow && (
+          <div className="flex min-w-0 items-center gap-1.5" style={{ fontSize: 11.5, color: INK.muted }}>
+            {schoolName ? <span className="truncate">{schoolName}</span> : <a href="/" style={{ color: "var(--lk-acc)" }}>pick school</a>}
+            <span aria-hidden>·</span>
+            <span className="font-semibold" style={{ color: INK.text }}>{examLabel}</span>
+          </div>
+        )}
+
+        {/* CHAPTER / REFERRAL IDENTITY (2026-09-09) — subtle metadata, never a CTA. Real Greek
+            letters, when the roster has them, get the same strong cream treatment with a soft
+            glow the public Greek marketing pages use for chapter letters — a small, tasteful
+            text-shadow here rather than importing that page's full animated SVG mark, which is
+            sized for a hero card, not a 72px header. Falls back to the chapter's plain name while
+            letters resolve or when the roster has none. No claim/setup ask lives here — that
+            belongs on the chapter's own /go page. */}
         {!narrow && (chapter?.name || sender) && (
           <div className="flex min-w-0 flex-col border-l pl-4" style={{ borderColor: INK.border, fontSize: 12.5 }}>
             {chapter?.name ? (
-              <div className="truncate" style={{ color: INK.muted }}>
-                for <b style={{ color: INK.text }}>{chapter.name}</b>
-                {onPickChapter && <button type="button" onClick={onPickChapter} className="ml-2 underline underline-offset-2" style={{ color: INK.dim, background: "transparent", border: 0, fontSize: 11, cursor: "pointer" }}>Not your chapter?</button>}
+              <div className="flex min-w-0 items-center gap-1.5 truncate">
+                {chapter.letters ? (
+                  <span className="font-black" style={{ color: INK.text, fontFamily: BRAND_SANS, letterSpacing: "0.02em", textShadow: `0 0 10px ${theme.accent}55` }}>{chapter.letters}</span>
+                ) : (
+                  <span style={{ color: INK.muted }}>for <b style={{ color: INK.text }}>{chapter.name}</b></span>
+                )}
+                {chapter.letters && schoolName && <span aria-hidden style={{ color: INK.dim }}>· {schoolName.toUpperCase()}</span>}
+                {onPickChapter && <button type="button" onClick={onPickChapter} className="ml-1 underline underline-offset-2" style={{ color: INK.dim, background: "transparent", border: 0, fontSize: 11, cursor: "pointer" }}>Not your chapter?</button>}
               </div>
             ) : sender?.isCouncil && onPickChapter ? (
               <button type="button" onClick={onPickChapter} className="truncate text-left underline underline-offset-2" style={{ color: "var(--lk-acc)", background: "transparent", border: 0, cursor: "pointer", fontSize: 12.5 }}>which chapter are you in?</button>
@@ -166,9 +208,11 @@ export function LearnTop({
             <span className="whitespace-nowrap font-semibold tabular-nums" style={{ fontSize: 12.5, color: allDone ? INK.green : INK.text }}>{progressText}</span>
           </div>
         )}
-        <button type="button" onClick={() => setSheet(true)} className={`lk-btn ${reminderOn ? "lk-btn-ghost" : "lk-btn-acc"}`} style={{ fontSize: narrow ? 10.5 : 12, padding: narrow ? "8px 12px" : undefined }}>
-          {reminderOn && <Check className="h-3.5 w-3.5" />} {ctaLabel}
-        </button>
+        {SHOW_REMINDER_CTA && (
+          <button type="button" onClick={() => setSheet(true)} className={`lk-btn ${reminderOn ? "lk-btn-ghost" : "lk-btn-acc"}`} style={{ fontSize: narrow ? 10.5 : 12, padding: narrow ? "8px 12px" : undefined }}>
+            {reminderOn && <Check className="h-3.5 w-3.5" />} {ctaLabel}
+          </button>
+        )}
       </header>
 
       {sheet && (
