@@ -11,7 +11,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   CARD_BASE_ATTR, CARD_SCALE_MAX, CARD_SCALE_MIN, CARD_W_MAX, CARD_W_MIN, EMPTY_SLIDE, PULL_BACK_ZOOM, ZOOM_MAX, ZOOM_MIN,
-  clampCardScale, clampCardW, clampZoom, isTypingTarget, slideFor, stageTransform, togglePullBack, wheelZoom,
+  clampCardScale, clampCardW, clampZoom, isTypingTarget, latchClass, slideFor, stageTransform, togglePullBack, wheelZoom,
 } from "./camera";
 
 const read = (f: string) => readFileSync(join(import.meta.dir, f), "utf8").split("\r\n").join("\n");
@@ -109,6 +109,27 @@ describe("keys", () => {
     for (const k of ['" "', '"Space"', '"Backquote"', '"`"', '"Escape"', '"h"', '"H"', '"p"', '"P"', '"F1"', '"Delete"']) expect(handler).not.toContain(k);
     expect(handler).toContain('e.key === "o" || e.key === "O"');
     expect(handler).toContain('e.code === "Digit0" || e.key === "0"');
+  });
+  // THE LATCHES (2026-09-09). Lee: a click-drag across a stem turned blue on /film. The root kills
+  // native selection and lets it back in only under Shift — so Shift must latch into a root class
+  // exactly the way Alt does, and both must be on the root at once when both are held.
+  test("Alt and Shift latch into the root's classes, together or apart", () => {
+    expect(latchClass(false, false)).toBe("");
+    expect(latchClass(true, false)).toBe("sa-alt");
+    expect(latchClass(false, true)).toBe("sa-shift");
+    expect(latchClass(true, true)).toBe("sa-alt sa-shift");
+  });
+  test("the hook latches Shift on keydown, releases it on keyup and blur, and hands both to the root", () => {
+    const src = read("camera.ts");
+    const handler = src.slice(src.indexOf("const down = (e: KeyboardEvent) =>"), src.indexOf("const up = (e: KeyboardEvent) =>"));
+    expect(handler).toContain('e.key === "Shift"');
+    expect(handler).toContain("setShift(true)");
+    // Shift is a modifier, never preventDefault'd (shift+space is the walk's).
+    expect(handler.slice(handler.indexOf('e.key === "Shift"'), handler.indexOf('e.key === "Alt"'))).not.toContain("preventDefault");
+    const up = src.slice(src.indexOf("const up = (e: KeyboardEvent) =>"), src.indexOf("const vis = "));
+    expect(up).toContain("if (!e.shiftKey) setShift(false);");
+    expect(up).toContain("setShift(false); }");
+    expect(src).toContain("rootClass: latchClass(alt, shift)");
   });
   test("module scope declares functions, never arrow callables (the tdz ratchet's rule)", () => {
     const src = read("camera.ts");

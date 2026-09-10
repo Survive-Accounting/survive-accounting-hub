@@ -15,7 +15,12 @@
 //   the slide     per slide, reset the moment `frameId` changes: the
 //                 Alt-move translate and the grip overrides (width, scale).
 //   the latch     Alt held ⇒ rootClass "sa-alt", which is what PV_CSS keys
-//                 the grips and the grab affordances on.
+//                 the grips and the grab affordances on. And, since 2026-09-09,
+//                 Shift held ⇒ "sa-shift": the film root kills native text
+//                 selection (Lee: a click-drag across a stem turned blue, and
+//                 the camera got selected) and this class is what lets it back
+//                 in while Shift is down, so shift+drag can still read the
+//                 selection for a highlight (canvas/text-highlights.tsx).
 //
 // THE TRANSFORM. `translate(x, y) scale(z)` about the slide's centre. A CSS
 // translate written BEFORE the scale is in the phone's pixels, so the card
@@ -38,7 +43,8 @@ import type { CardOverride } from "../SetCard";
 export interface CaptureCamera {
   /** Transform applied to the slide (PhoneFrame `stageStyle`). */
   stageStyle?: CSSProperties;
-  /** Extra classes on the film-mode root — `sa-alt` while Alt is latched. */
+  /** Extra classes on the film-mode root — `sa-alt` while Alt is latched, `sa-shift` while
+   *  Shift is; space-joined (latchClass). */
   rootClass: string;
   /** Unused by this camera: the wheel is listened to NATIVELY on the host
    *  (non-passive, so the page scroll and the browser's own ctrl+wheel zoom
@@ -107,6 +113,11 @@ export function stageTransform(tx: number, ty: number, zoom: number): string {
   return `translate(${r(tx * zoom)}px, ${r(ty * zoom)}px) scale(${r(zoom)})`;
 }
 
+/** The root's latch classes: `sa-alt` and/or `sa-shift`, space-joined, "" for neither. */
+export function latchClass(alt: boolean, shift: boolean): string {
+  return [alt ? "sa-alt" : "", shift ? "sa-shift" : ""].filter(Boolean).join(" ");
+}
+
 /** Key events from a field are the field's. */
 export function isTypingTarget(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
@@ -139,6 +150,10 @@ export function useCaptureCamera({ hostRef, frameId, target = "card" }: { hostRe
   /** The zoom O will return to; null when not pulled back. */
   const [pulled, setPulled] = useState<number | null>(null);
   const [alt, setAlt] = useState(false);
+  // THE SHIFT LATCH (2026-09-09) mirrors Alt's: down ⇒ on, up / blur / hidden ⇒ off. Nothing is
+  // preventDefault'd — Shift is a plain modifier and shift+space (back a slide) is another
+  // handler's. The class it produces is what BlastOffCapture's selection CSS keys on.
+  const [shift, setShift] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [slide, setSlide] = useState<SlideState>(EMPTY_SLIDE);
 
@@ -183,6 +198,8 @@ export function useCaptureCamera({ hostRef, frameId, target = "card" }: { hostRe
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;
+      if (e.key === "Shift") { setShift(true); return; }
+      if (e.shiftKey) setShift(true);
       if (e.key === "Alt") {
         // A lone Alt press-and-release would hand focus to the browser's menu
         // (Windows); on a filming surface Alt is a modifier and nothing else.
@@ -209,8 +226,9 @@ export function useCaptureCamera({ hostRef, frameId, target = "card" }: { hostRe
     const up = (e: KeyboardEvent) => {
       if (e.key === "Alt") e.preventDefault();
       if (!e.altKey) setAlt(false);
+      if (!e.shiftKey) setShift(false);
     };
-    const off = () => setAlt(false);
+    const off = () => { setAlt(false); setShift(false); };
     const vis = () => { if (document.visibilityState === "hidden") off(); };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
@@ -283,5 +301,5 @@ export function useCaptureCamera({ hostRef, frameId, target = "card" }: { hostRe
     [cur.cardW, cur.scaleMul],
   );
 
-  return { stageStyle, rootClass: alt ? "sa-alt" : "", moveBy, setWidth, setScale, persist, cardOverride, zoom, pulledBack: pulled != null };
+  return { stageStyle, rootClass: latchClass(alt, shift), moveBy, setWidth, setScale, persist, cardOverride, zoom, pulledBack: pulled != null };
 }

@@ -97,6 +97,28 @@ function cannedSlotOf(kind: BlastFrame["kind"]): CannedSlot | null {
 
 const NO_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
+// NO NATIVE SELECTION ON THE FILM SURFACE, EXCEPT UNDER SHIFT (2026-09-09). Lee: a click-drag
+// across a stem turned blue, and the camera ring got selected — in the shot. CeqPreviewer sets
+// `userSelect: "text"` INLINE on the stem, the choices and the callout body in film mode (that is
+// how shift+drag reads a selection for a highlight), so a plain root rule loses to it: hence
+// `!important`. The `sa-shift` class is capture/camera.ts's Shift latch — while Shift is down the
+// card's text is selectable again and its ::selection is the amber it always was, so shift+drag
+// highlights exactly as before; a single-word shift+click is caret-based and never needed the
+// selection at all. This is CSS, not chrome: it rides in the pop-out too, where it matters most.
+//
+// THE ONE EXCEPTION is the chrome that EDITS: the prompter panel and the rehearsal review read
+// `window.getSelection()` for the mark toolbar ("select words → transition phrase / cue word")
+// and hold a textarea. Both are main-window overlays, never the shot, so `data-sa-film-chrome`
+// hands them their selection back, in the browser's own colour.
+const FILM_SELECT_CSS = `
+.film-mode, .film-mode * { -webkit-user-select: none !important; user-select: none !important; -webkit-user-drag: none; }
+.film-mode.sa-shift .sa-pv-node, .film-mode.sa-shift .sa-pv-node * { -webkit-user-select: text !important; user-select: text !important; }
+.film-mode ::selection { background: transparent; }
+.film-mode.sa-shift .sa-pv-node ::selection { background: rgba(252,163,17,0.9); color: #0B0F1E; }
+.film-mode [data-sa-film-chrome], .film-mode [data-sa-film-chrome] * { -webkit-user-select: text !important; user-select: text !important; }
+.film-mode [data-sa-film-chrome] ::selection { background: Highlight; color: HighlightText; }
+`;
+
 export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takeParam }: {
   set: BoothSetInfo; topicName?: string; onExit: () => void;
   /** The V3 breadcrumb (Lee, 2026-09-07: "Show navigation breadcrumbs on /film") — drawn small,
@@ -558,6 +580,9 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     <PersistContext.Provider value={camera.persist}>
     <div ref={hostRef} className={`film-mode${camera.rootClass ? ` ${camera.rootClass}` : ""}`} onWheel={camera.onWheel}
       style={{ minHeight: "100vh", background: "#000", display: "grid", placeItems: "center", position: "relative", overflow: "hidden" }}>
+      {/* Nothing selects here unless Shift is down (FILM_SELECT_CSS above) — main window AND
+          pop-out, since a blue selection in the pop-out is a blue selection in the video. */}
+      <style>{FILM_SELECT_CSS}</style>
       {/* Gated on `chrome` too (2026-09-06) — not just popout — so the illustration's drag/
           resize decorations (IllustrationLayer.tsx's dashed border + grip, drawn any time
           onPlace exists at all) never persist into the shot: they're only live while chrome is
@@ -771,7 +796,12 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
       )}
       {showHotkeys && <HotkeysModal onClose={() => setShowHotkeys(false)} />}
       {showReview && (
-        <RehearsalReview set={set} frames={frames} ceqById={ceqById} segments={segments} round={rounds.round} initialPicks={cannedPicks} onCommitLine={commitPrompterLine} onClose={closeReview} layout={layoutOf(plan)} />
+        // The review edits lines and selects words to mark them — selection stays on inside it
+        // (FILM_SELECT_CSS's data-sa-film-chrome). display: contents, so the overlay's own fixed
+        // positioning is untouched.
+        <div data-sa-film-chrome="" style={{ display: "contents" }}>
+          <RehearsalReview set={set} frames={frames} ceqById={ceqById} segments={segments} round={rounds.round} initialPicks={cannedPicks} onCommitLine={commitPrompterLine} onClose={closeReview} layout={layoutOf(plan)} />
+        </div>
       )}
       {/* LIVE DICTATION CAPTION (2026-09-06). Lee: "as I'm talking, just live dictate over
           there... seeing the words populate will help me get a feel for brevity visually." What's
@@ -814,7 +844,9 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
         // marks painted the way the teleprompter window paints them.
         const editable = prompterEditable(rounds);
         return (
-          <div style={{
+          // data-sa-film-chrome: the mark toolbar reads the selection — the film root's
+          // no-selection rule (FILM_SELECT_CSS) stops at this panel.
+          <div data-sa-film-chrome="" style={{
             position: "fixed", right: 16, top: "50%", transform: "translateY(-50%)", width: editable ? 360 : 300, maxHeight: "80vh", overflowY: "auto", zIndex: 30,
             background: "rgba(7,11,20,0.88)", border: `1px ${suggested ? "dashed" : "solid"} ${EDGE}`, borderRadius: 12, padding: "10px 14px",
             fontFamily: "'Rubik', system-ui, sans-serif", color: CREAM,
