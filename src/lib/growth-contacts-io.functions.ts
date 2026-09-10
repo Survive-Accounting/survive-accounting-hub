@@ -224,6 +224,19 @@ export const contactsImportPreview = createServerFn({ method: "POST" })
     };
   });
 
+/** Parse + clean and hand back EVERY row, so the page imports exactly what the preview described.
+ *  Separate from the preview because the preview only carries a sample for display. */
+export const contactsCleanForImport = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ text: z.string().max(40_000_000), source: z.string().max(200).default("") }).parse(d))
+  .handler(async ({ data }): Promise<{ rows: ContactRecord[]; legacy: boolean }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const parsed = parseContactsFile(data.text);
+    const source = data.source || `import @ ${new Date().toISOString().slice(0, 10)}`;
+    if (!parsed.legacy) return { rows: parsed.rows.map((r) => withContactId({ ...r, source: r.source || source })), legacy: false };
+    return { rows: cleanContacts(parsed.rows.map(toScrape), source).rows, legacy: true };
+  });
+
 /** Write. Cleans a legacy file first; upserts on contact_id with a natural-key fallback. */
 export const contactsImport = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({

@@ -267,30 +267,66 @@ export const sendToDmQueueFn = createServerFn({ method: "POST" })
     campusId: z.string().uuid(),
     rows: z.array(OfficerRowSchema).max(200),
   }).parse(d))
-  .handler(async ({ data }): Promise<{ ok: boolean; imported: number; error?: string }> => {
+  .handler(async ({ data }): Promise<{
+    ok: boolean; imported: number; error?: string;
+    /** What the cleaner did on the way in, so a dropped row is visible rather than mysterious. */
+    cleaned?: { merged: number; movedToAnotherSchool: number; flagged: number };
+  }> => {
     const by = await actor();
     const db = await admin();
     const campus = await campusOf(db, data.campusId);
     if (!campus) return { ok: false, imported: 0, error: "Campus not found." };
 
     const kept = (data.rows as OfficerRow[]).filter((r) => r.include && (normalizeEmail(r.email) || normalizeHandle(r.instagram)));
-    const contacts = kept.map((r) => {
-      const isPerson = !!(r.name && r.name.trim());
-      const isClub = r.council === "wib";
-      return {
-        kind: isClub ? ("club" as const) : ("council" as const),
-        newClubCategory: isClub ? "women_in_business" : undefined,
-        newClubName: isClub ? "Women in Business" : undefined,
-        councilType: isClub ? undefined : r.council,
-        isPerson,
-        name: isPerson ? r.name : null,
-        role: r.position,
-        email: r.email,
-        instagram: r.instagram,
-        chapter: r.chapter,
-        igRoleAccount: !isPerson,
-      };
-    });
+
+    // ── THE SCRAPE IS CLEANED BEFORE IT IS STORED ────────────────────────────────────────────
+    //
+    // The scraper's four documented defects all get fixed here rather than in four places inside
+    // the scraper: a chapter handle that actually spells another chapter is re-matched, a row whose
+    // email domain belongs to a different school is moved (or flagged), one officer cross-joined
+    // against every chapter is collapsed to a single row, and an advisor emitted once per council
+    // becomes one row carrying the councils they cover. It is the same tested cleaner the CSV
+    // importer runs, so the two paths can never drift apart.
+    //
+    // Row count can go DOWN here — that is the point. `imported` reports what was actually written.
+    const { cleanContacts } = await import("@/lib/contacts-clean");
+    const COUNCIL_LABEL: Record<string, string> = {
+      ifc: "IFC", panhellenic: "Panhellenic", nphc: "NPHC", mgc: "MGC", wib: "Women in Business", fsl: "Other",
+    };
+    const cleaned = cleanContacts(
+      kept.map((r) => ({
+        school: campus.name,
+        council: COUNCIL_LABEL[r.council] ?? "Other",
+        role: r.position ?? "",
+        name: r.name ?? "",
+        instagram: r.instagram ?? "",
+        chapter: r.chapter ?? "",
+        email: r.email ?? "",
+      })),
+      `scrape @ ${new Date().toISOString().slice(0, 10)}`,
+    );
+
+    const contacts = cleaned.rows
+      // A row the cleaner moved to another school does not belong on this campus.
+      .filter((r) => r.school === campus.name)
+      .map((r) => {
+        const isPerson = !!r.full_name;
+        const isClub = r.org_type === "club";
+        const councilType = ({ IFC: "ifc", Panhellenic: "panhellenic", NPHC: "nphc", MGC: "mgc" } as Record<string, string>)[r.council];
+        return {
+          kind: isClub ? ("club" as const) : ("council" as const),
+          newClubCategory: isClub ? "women_in_business" : undefined,
+          newClubName: isClub ? r.org_name || "Women in Business" : undefined,
+          councilType: isClub ? undefined : councilType ?? "fsl",
+          isPerson,
+          name: isPerson ? r.full_name : null,
+          role: r.exec_title,
+          email: r.email,
+          instagram: r.personal_ig || r.org_ig,
+          chapter: r.org_name,
+          igRoleAccount: !isPerson,
+        };
+      });
 
     let imported = 0;
     try {
@@ -306,7 +342,14 @@ export const sendToDmQueueFn = createServerFn({ method: "POST" })
       campus_id: campus.id, queued_at: new Date().toISOString(), queued_by: by, contact_count: imported,
     }, { onConflict: "campus_id" }).then(() => undefined, (e: unknown) => console.warn("ig_queue upsert failed", e));
 
-    return { ok: true, imported };
+    // Say what the cleaner did, rather than letting rows vanish between "submitted" and "imported".
+    const movedAway = cleaned.rows.length - contacts.length;
+    const cleanedAway = kept.length - cleaned.rows.length;
+    return {
+      ok: true,
+      imported,
+      cleaned: { merged: cleanedAway, movedToAnotherSchool: movedAway, flagged: cleaned.rows.filter((r) => r.needs_review === "yes").length },
+    };
   });
 
 /** Records a Confirm / Wrong-clear / manual paste decision on a searched handle, so the header's
