@@ -1,6 +1,8 @@
-// THE PRODUCTION TIMER — server side. One insert per stopped timer (logProductionTime), one
-// read scoped to a set (for the widget's own "so far on this set" line and Review's summary),
-// and one report across every set (for "which step is a bottleneck" — Lee, 2026-09-05).
+// THE PRODUCTION TIMER — server side. One insert per stopped timer (logProductionTime) and one
+// report across every set (for "which step is a bottleneck" — Lee, 2026-09-05). The per-set
+// read (listProductionTimeForSet, "so far on this set") went on 2026-09-09: nothing called it
+// once the checklist run replaced the old timer, and the widget's own line now comes off the
+// run document, not the log.
 //
 // production_time_log is new (migration/supabase-migrations/20260905_2300) and isn't in the
 // generated Supabase types yet — same DB-cast escape hatch as shipped.functions.ts and
@@ -47,27 +49,6 @@ export const logProductionTime = createServerFn({ method: "POST" })
       }
       return { ok: true };
     } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
-  });
-
-export interface TimeLogRow {
-  id: string; step: ProductionStep; seconds: number; startedAt: string; endedAt: string; createdBy: string | null; note: string | null;
-}
-
-/** Every timed session for one set — the widget's own "so far" line, and a per-set summary. */
-export const listProductionTimeForSet = createServerFn({ method: "GET" })
-  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(160) }).parse(d))
-  .handler(async ({ data }): Promise<{ rows: TimeLogRow[] }> => {
-    const { assertAdmin } = await import("@/lib/admin-session.functions");
-    await assertAdmin();
-    const db = await logDb();
-    const { data: rows, error } = await db.from("production_time_log")
-      .select("id,step,seconds,started_at,ended_at,created_by,note")
-      .eq("set_id", data.setId).order("started_at", { ascending: false }).limit(200);
-    if (error) { if (isMissingLog(error)) return { rows: [] }; throw new Error(`Could not load the time log: ${error.message}`); }
-    return { rows: (rows ?? []).map((r: Record<string, unknown>) => ({
-      id: r.id as string, step: (isProductionStep(r.step) ? r.step : "review"), seconds: r.seconds as number,
-      startedAt: r.started_at as string, endedAt: r.ended_at as string, createdBy: r.created_by as string | null, note: r.note as string | null,
-    })) };
   });
 
 export interface BottleneckStep {
