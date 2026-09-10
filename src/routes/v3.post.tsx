@@ -42,6 +42,7 @@ import { V3Shell, V3Note, V3_CREAM, V3_MUTED, V3_GOLD, V3_EDGE, V3_DISPLAY } fro
 import { StageChip, stepLabel } from "@/components/v3/StageChip";
 import { ThumbSheet } from "@/components/v3/ThumbSheet";
 import { PostProduction } from "@/components/v3/PostProduction";
+import { DEST_UPLOAD_URL, looksLikeUrl, shouldAutoTick } from "@/components/v3/post-links";
 import { isFilmedUnconfirmed, matchesFilter, stageOf, stageRank, talkStageOf, STAGE_SKY, type StageFilter, type StageInfo } from "@/components/v3/set-stage";
 import { listBlastPlanSetIds, loadBlastPlan, type PlanTakeRow } from "@/lib/blastoff.functions";
 import { runFor } from "@/components/blastoff/plan";
@@ -138,10 +139,15 @@ function PostQueue() {
   })) ?? [], [topics, takesBySet]);
   const statusFor = (setId: string): SetPublishStatus => status?.[setId] ?? EMPTY;
   // A PLAN AND A FILM TIMER BELONG TO THE SET; publish state belongs to the video. So the stage
-  // reads the set for the first two and the row's own key for the third.
-  const stageFor = (set: BoothSetInfo, key: string): StageInfo => {
+  // reads the set for the first two and the row's own key for the third — with one exception:
+  // the timer only vouches for split #1. It ran on the SET, and one filmed split lit every
+  // sibling "filmed?" as if the whole set were shot; from #2 on, only the row's own filmed flag
+  // counts. (A per-split film log is a later package; until then the timer is set-wide evidence
+  // and the first split is the honest place to credit it.)
+  const stageFor = (set: BoothSetInfo, key: string, takeIndex: number): StageInfo => {
     const publish = status?.[key] ?? null;
-    return stageOf({ talk: talkStageOf(tt, set), hasPlan: plans.has(set.id), filmSeconds: filmSeconds.get(set.id) ?? 0, filmedAt: publish?.filmedAt ?? null, publish });
+    const timerSeconds = takeIndex > 0 ? 0 : filmSeconds.get(set.id) ?? 0;
+    return stageOf({ talk: talkStageOf(tt, set), hasPlan: plans.has(set.id), filmSeconds: timerSeconds, filmedAt: publish?.filmedAt ?? null, publish });
   };
 
   const rows = useMemo(() => {
@@ -150,7 +156,7 @@ function PostQueue() {
   }, [flat, q]);
 
   // Stage once per row per render — the three lookups are cheap, the sort below reads it twice.
-  const staged = status ? rows.map((r) => ({ ...r, info: stageFor(r.set, r.key) })) : [];
+  const staged = status ? rows.map((r) => ({ ...r, info: stageFor(r.set, r.key, r.takeIndex) })) : [];
   const filterCounts = FILTERS.reduce((acc, f) => { acc[f.id] = staged.filter((r) => matchesFilter(r.info.stage, f.id)).length; return acc; }, {} as Record<StageFilter, number>);
   const filter: StageFilter = filterChoice ?? (filterCounts.ready > 0 ? "ready" : "all");
   // READY FIRST. Fully posted sinks to the bottom whatever the filter; above it, the furthest
@@ -195,12 +201,16 @@ function PostQueue() {
     }).catch((e) => { setStatus((prev) => ({ ...(prev ?? {}), [setId]: before })); setSaveErr(e instanceof Error ? e.message : String(e)); });
   };
 
-  const onSaveUrl = (setId: string, destination: PublishDestination, url: string) => {
+  // Resolves to whether the link landed, so a pasted link can tick the destination AFTER the
+  // URL is saved rather than alongside it — two upserts on one row, in flight at once, each
+  // answering with "the row as I saw it", would let the slower answer erase the faster one.
+  const onSaveUrl = (setId: string, destination: PublishDestination, url: string): Promise<boolean> => {
     setSaveErr(null);
-    void setPublishUrl({ data: { setId, destination, url } }).then((r) => {
-      if (r.ok && r.status) setStatus((prev) => ({ ...(prev ?? {}), [setId]: r.status! }));
-      else setSaveErr(r.error ?? "Could not save the link — try again.");
-    }).catch((e) => setSaveErr(e instanceof Error ? e.message : String(e)));
+    return setPublishUrl({ data: { setId, destination, url } }).then((r) => {
+      if (r.ok && r.status) { setStatus((prev) => ({ ...(prev ?? {}), [setId]: r.status! })); return true; }
+      setSaveErr(r.error ?? "Could not save the link — try again.");
+      return false;
+    }).catch((e) => { setSaveErr(e instanceof Error ? e.message : String(e)); return false; });
   };
 
   // THE CAPTION SHEET — one open at a time, keyed by set id.
@@ -303,6 +313,9 @@ function PostQueue() {
         />
       )}
 
+      {/* ONE MODAL AT A TIME. Step 4 opens the caption sheet; the panel steps aside (hidden, not
+          unmounted — the picked take and its upload live in there) and comes back the moment the
+          sheet closes, with step 4 ticked if the captions were saved. */}
       {producingRow && (
         <PostProduction
           pubKey={producingRow.key}
@@ -312,6 +325,8 @@ function PostQueue() {
           onTranscript={(t) => setTranscripts((prev) => (prev[producingRow.key] === t ? prev : { ...prev, [producingRow.key]: t }))}
           onOpenCopy={() => setCaptioning(producingRow.key)}
           onClose={() => setProducing(null)}
+          hidden={!!captioningRow}
+          copyDone={hasCaptions(statusFor(producingRow.key).captions)}
         />
       )}
 
@@ -335,6 +350,11 @@ function takeTitle(name: string, index: number, count: number): string {
   return name.trim() || `Split ${index + 1}`;
 }
 
+/** The four link fields, read off the row — what the inputs show when nobody is typing. */
+function urlsOf(status: SetPublishStatus): Record<PublishDestination, string> {
+  return { site: status.site.url ?? "", youtube: status.youtube.url ?? "", instagram: status.instagram.url ?? "", tiktok: status.tiktok.url ?? "" };
+}
+
 /** The first question this video covers — the thumbnail's default hook. Falls back to the set's
  *  first card when a split carries no cards of its own (a pure brand run). */
 function firstStemOf(set: BoothSetInfo, ceqIds: readonly string[]): string {
@@ -350,17 +370,72 @@ function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards,
   takeName: string; takeIndex: number; takeCount: number; takeCards: number;
   onToggle: (setId: string, d: PublishDestination, posted: boolean) => void;
   onFilmed: (setId: string, filmed: boolean) => void;
-  onSaveUrl: (setId: string, d: PublishDestination, url: string) => void;
+  /** Resolves true when the link is saved — the paste-back waits on it before ticking. */
+  onSaveUrl: (setId: string, d: PublishDestination, url: string) => Promise<boolean>;
   onCaption: () => void;
   onThumb: () => void;
   onProduce: () => void;
 }) {
+  // THE LINK FIELDS — always on screen, one per destination (2026-09-09). Lee: "an icon per
+  // platform that takes me to its upload page, then paste the URL back." Before this the field
+  // only appeared AFTER ticking posted, which put the paste behind the very click it should
+  // replace. Now the paste IS the tick: a real link into an unposted destination marks it posted
+  // (post-links.ts decides), the ✓/○ button stays for a post with no link to show for it.
+  const [drafts, setDrafts] = useState<Record<PublishDestination, string>>(() => urlsOf(status));
   const [editing, setEditing] = useState<PublishDestination | null>(null);
-  const [draft, setDraft] = useState("");
+  // A row back from the server (a tick, a save, another field's paste) refreshes every field he
+  // isn't typing in — never the one under his cursor.
+  useEffect(() => {
+    setDrafts((prev) => {
+      const fresh = urlsOf(status);
+      const next = { ...prev };
+      for (const d of PUBLISH_DESTINATIONS) if (d !== editing) next[d] = fresh[d];
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the four urls, not the row object
+  }, [status.site.url, status.youtube.url, status.instagram.url, status.tiktok.url]);
 
-  const commit = () => {
-    if (editing) onSaveUrl(pubKey, editing, draft.trim());
-    setEditing(null);
+  // A WORD BACK, for a moment — "caption copied — paste it in", "marked posted to TikTok". The
+  // row is the only surface; a global toast would be a new idiom for four strings.
+  const [flash, setFlash] = useState<{ text: string; tone: "good" | "warn" } | null>(null);
+  const flashTimer = useRef<number | null>(null);
+  const say = (text: string, tone: "good" | "warn" = "good") => {
+    setFlash({ text, tone });
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => setFlash(null), 2600);
+  };
+  useEffect(() => () => { if (flashTimer.current) window.clearTimeout(flashTimer.current); }, []);
+
+  // Paste fires a commit and blur fires another a beat later; the second is the same string and
+  // must not be a second save (or a second tick). Cleared on failure so a retry is allowed.
+  const lastSaved = useRef<Partial<Record<PublishDestination, string>>>({});
+  const commitUrl = (d: PublishDestination, raw: string) => {
+    const next = raw.trim();
+    const current = (status[d].url ?? "").trim();
+    if (next === current || next === lastSaved.current[d]) return;
+    lastSaved.current[d] = next;
+    // Decided BEFORE the save lands, off the row as it was — the answer to "was this new?".
+    const tick = shouldAutoTick(status[d].url, next, !!status[d].postedAt);
+    void onSaveUrl(pubKey, d, next).then((ok) => {
+      if (!ok) { delete lastSaved.current[d]; return; }
+      if (!tick) return;
+      onToggle(pubKey, d, true);
+      say(`marked posted to ${DEST_LABEL[d]}`);
+    });
+  };
+
+  // THE DOOR. Copy this destination's caption, open its upload page, say which happened. The
+  // clipboard write is STARTED before the tab opens: the new tab takes focus, and a write asked
+  // for on an unfocused document rejects. A failed copy still gets the tab — the caption is one
+  // 🎙 click away — and says so instead of pretending.
+  const openUpload = (d: PublishDestination) => {
+    const url = DEST_UPLOAD_URL[d];
+    if (!url) return;
+    const c = status.captions?.[d];
+    const copying = c && (c.title || c.caption) ? copyToClipboard(captionClipboardText(c)) : null;
+    window.open(url, "_blank", "noopener");
+    if (!copying) { say("no caption yet", "warn"); return; }
+    void copying.then((ok) => say(ok ? "caption copied — paste it in" : "couldn't copy — open the caption sheet", ok ? "good" : "warn"));
   };
 
   const filmed = !!status.filmedAt;
@@ -445,47 +520,79 @@ function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards,
         {PUBLISH_DESTINATIONS.map((d) => {
           const s = status[d];
           const posted = !!s.postedAt;
+          const door = DEST_UPLOAD_URL[d];
           return (
-            <div key={d} style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
-              <button
-                type="button"
-                onClick={() => onToggle(pubKey, d, !posted)}
-                title={posted ? `Posted ${new Date(s.postedAt!).toLocaleDateString()} — click to unmark` : `Mark posted to ${DEST_LABEL[d]}`}
-                style={{
-                  border: `1px solid ${posted ? `${MINT}88` : V3_EDGE}`,
-                  background: posted ? "rgba(59,245,160,0.12)" : "transparent",
-                  color: posted ? MINT : V3_MUTED,
-                  borderRadius: 8, padding: "5px 10px", fontSize: 11.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
-                }}
-              >
-                {posted ? "✓" : "○"} {DEST_LABEL[d]}
-              </button>
-              {posted && editing !== d && (
-                <div style={{ display: "flex", gap: 8 }}>
-                  {s.url && (
-                    <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10.5, color: V3_GOLD, textDecoration: "none" }}>
-                      open ↗
-                    </a>
-                  )}
-                  <button type="button" onClick={() => { setEditing(d); setDraft(s.url ?? ""); }}
-                    style={{ background: "none", border: "none", color: V3_MUTED, fontSize: 10.5, cursor: "pointer", textDecoration: "underline", padding: 0 }}>
-                    {s.url ? "edit link" : "+ link"}
+            <div key={d} style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+              <div style={{ display: "flex", gap: 4 }}>
+                {/* ↗ — the site has no upload page (it IS this app), so it gets no door. */}
+                {door && (
+                  <button
+                    type="button"
+                    onClick={() => openUpload(d)}
+                    title={`Open ${DEST_LABEL[d]} upload · copies this caption`}
+                    style={{
+                      border: `1px solid ${V3_GOLD}66`, background: "rgba(252,163,17,0.08)", color: V3_GOLD,
+                      borderRadius: 8, padding: "5px 8px", fontSize: 11.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
+                    }}
+                  >
+                    ↗
                   </button>
-                </div>
-              )}
-              {posted && editing === d && (
+                )}
+                <button
+                  type="button"
+                  onClick={() => onToggle(pubKey, d, !posted)}
+                  title={posted ? `Posted ${new Date(s.postedAt!).toLocaleDateString()} — click to unmark` : `Mark posted to ${DEST_LABEL[d]}`}
+                  style={{
+                    border: `1px solid ${posted ? `${MINT}88` : V3_EDGE}`,
+                    background: posted ? "rgba(59,245,160,0.12)" : "transparent",
+                    color: posted ? MINT : V3_MUTED,
+                    borderRadius: 8, padding: "5px 10px", fontSize: 11.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
+                  }}
+                >
+                  {posted ? "✓" : "○"} {DEST_LABEL[d]}
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <input
-                  autoFocus value={draft} onChange={(e) => setDraft(e.target.value)}
-                  onBlur={commit}
-                  onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(null); }}
-                  placeholder="paste the URL"
-                  style={{ fontSize: 11, padding: "3px 6px", borderRadius: 6, border: `1px solid ${V3_EDGE}`, background: "transparent", color: V3_CREAM, width: 160 }}
+                  value={drafts[d]}
+                  onChange={(e) => setDrafts((prev) => ({ ...prev, [d]: e.target.value }))}
+                  onFocus={() => setEditing(d)}
+                  onBlur={(e) => { setEditing(null); commitUrl(d, e.currentTarget.value); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") { commitUrl(d, e.currentTarget.value); e.currentTarget.blur(); }
+                    // Escape puts the saved link back (no blur — the blur would commit the DOM's
+                    // value, which is still the typed one until React repaints).
+                    if (e.key === "Escape") setDrafts((prev) => ({ ...prev, [d]: s.url ?? "" }));
+                  }}
+                  // A pasted link commits on the spot — no Enter, no click-away — so the ○
+                  // becomes ✓ the moment the URL is in. Anything else pasted just types.
+                  onPaste={(e) => {
+                    const pasted = e.clipboardData.getData("text").trim();
+                    if (!looksLikeUrl(pasted)) return;
+                    e.preventDefault();
+                    setDrafts((prev) => ({ ...prev, [d]: pasted }));
+                    commitUrl(d, pasted);
+                  }}
+                  placeholder="paste the link"
+                  title={posted ? `The posted ${DEST_LABEL[d]} link` : `Paste the ${DEST_LABEL[d]} link — that marks it posted`}
+                  style={{ fontSize: 11, padding: "3px 6px", borderRadius: 6, border: `1px solid ${s.url ? `${V3_GOLD}55` : V3_EDGE}`, background: "transparent", color: V3_CREAM, width: 180, boxSizing: "border-box" }}
                 />
-              )}
+                {s.url && (
+                  <a href={s.url} target="_blank" rel="noopener noreferrer" title="Open the posted video" style={{ fontSize: 10.5, color: V3_GOLD, textDecoration: "none", whiteSpace: "nowrap" }}>
+                    view
+                  </a>
+                )}
+              </div>
             </div>
           );
         })}
       </div>
+
+      {flash && (
+        <span role="status" style={{ fontSize: 11.5, fontWeight: 700, color: flash.tone === "good" ? MINT : "#FF9F43", whiteSpace: "nowrap" }}>
+          {flash.text}
+        </span>
+      )}
 
       {/* "→ Film", "→ Review", … — the row resumes the set where it stands. A set already on
           Post has nowhere further to go, so the link points at its front door instead. */}

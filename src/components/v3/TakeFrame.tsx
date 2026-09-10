@@ -4,9 +4,10 @@
 // between the first few seconds (as granular as we can), since often I have my eyes closed at
 // the start."
 //
-// The take file never leaves the machine: a blob URL into a <video>, a seek, a canvas, a
-// download. Nothing is uploaded and nothing is stored — which is also why this had to be
-// client-side rather than another API route.
+// The COVER never leaves the machine: a blob URL into a <video>, a seek, a canvas, a download.
+// Nothing here is uploaded and nothing is stored — which is also why this had to be client-side
+// rather than another API route. (The take itself does go up, since 2026-09-09, but that is the
+// post-production panel's doing, not this frame picker's — the copy below says exactly which.)
 //
 // GRANULARITY. HTMLVideoElement seeking is not frame-exact by spec, so there are two gestures:
 // the contact sheet of the opening (eight stills, click one), and ◀ ▶ which step by exactly one
@@ -109,7 +110,7 @@ export function TakeFrame({ name, file, onFile }: {
       <div style={{ fontSize: 12.5, color: V3_MUTED, lineHeight: 1.5 }}>
         Load the take and step through its opening — the cold open assembles over three seconds, so
         the frame worth keeping is usually just after. ◀ ▶ move one frame; hold Shift for ten.
-        Nothing is uploaded: the file stays on this machine.
+        The take goes to our storage so the renderer can reach it; the transcript sends about 2 MB of audio; the cover is read on this machine.
       </div>
 
       {!file && (

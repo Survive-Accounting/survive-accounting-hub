@@ -22,7 +22,7 @@
 // karaoke timings and the rail geometry are written into the .ass by lib/captions.ts, the same
 // file the CLI uses, so the server burn and the local one produce the same picture. Step 3 keeps
 // the .srt and the ffmpeg command folded away underneath as the fallback.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 import { TakeFrame } from "@/components/v3/TakeFrame";
@@ -63,7 +63,7 @@ function Step({ n, title, hint, done, children }: {
   );
 }
 
-export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTranscript, onOpenCopy, onClose }: {
+export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTranscript, onOpenCopy, onClose, hidden = false, copyDone = false }: {
   /** The publish key for THIS video — the set's id, or "<setId>#N" for a split. */
   pubKey: string;
   /** What this video is called: the set's name, or the split's. */
@@ -76,6 +76,13 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
   /** Opens step 4 — the caption sheet, seeded with the transcript. */
   onOpenCopy: () => void;
   onClose: () => void;
+  /** ONE MODAL AT A TIME (2026-09-09). While the caption sheet is up, the panel steps aside —
+   *  but stays mounted, because the picked take, its upload and the burned file are all state
+   *  in here, and unmounting to make room for the sheet would throw a 300MB upload away. The
+   *  route flips this back off when the sheet closes and the panel is where he left it. */
+  hidden?: boolean;
+  /** Step 4 is done when the captions are saved on the row — the route knows, this doesn't. */
+  copyDone?: boolean;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [words, setWords] = useState<Word[] | null>(null);
@@ -165,6 +172,18 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
     } catch (e) { setBurnErr(e instanceof Error ? e.message : String(e)); }
   };
 
+  // ESCAPE CLOSES — the same capture-phase handler the caption sheet has (routes/v3.post.tsx),
+  // and off while the sheet is up so one Escape closes one modal, not both.
+  const closeRef = useRef(onClose); closeRef.current = onClose;
+  useEffect(() => {
+    if (hidden) return;
+    const on = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeRef.current(); } };
+    window.addEventListener("keydown", on, true);
+    return () => window.removeEventListener("keydown", on, true);
+  }, [hidden]);
+
+  if (hidden) return null;
+
   return (
     <div role="dialog" aria-modal="true" aria-label={`Post-production — ${title}`} onClick={onClose}
       style={{ position: "fixed", inset: 0, zIndex: 2147482800, background: "rgba(5,8,16,0.62)", display: "grid", placeItems: "center", padding: 16 }}>
@@ -176,9 +195,11 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
           <span style={{ flex: 1 }} />
           <button type="button" onClick={onClose} style={{ ...small, color: V3_MUTED }}>close</button>
         </div>
+        {/* HONEST about where the bytes go (2026-09-09): the take DOES upload now — that is
+            what lets the worker burn it — so the old "never uploads" line was a lie the moment
+            the upload shipped. Three clauses, one per thing that moves. */}
         <div style={{ marginTop: 8, fontSize: 12.5, color: V3_MUTED, lineHeight: 1.5 }}>
-          Top to bottom, once per finished take. The video never uploads — everything below reads
-          it off this machine, and the file you post is the one in your folder.
+          The take goes to our storage so the renderer can reach it; the transcript sends about 2 MB of audio; the cover is read on this machine.
         </div>
 
         {err && <div style={{ marginTop: 10, fontSize: 12.5, color: "#FF8B7E" }}>{err}</div>}
@@ -287,7 +308,7 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
         </Step>
 
         {/* ── 4 ─────────────────────────────────────────────────────────────────────────────── */}
-        <Step n={4} title="The copy" hint="title, description, hashtags">
+        <Step n={4} title="The copy" hint={copyDone ? "saved on the row" : "title, description, hashtags"} done={copyDone}>
           <div style={{ fontSize: 12.5, color: V3_MUTED, lineHeight: 1.5 }}>
             {text
               ? "Written from the transcript — what you said on camera outranks everything else. Talk over it if you want to steer the angle."
@@ -298,7 +319,10 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
 
         {/* ── 5 ─────────────────────────────────────────────────────────────────────────────── */}
         <Step n={5} title="The cover" hint="a frame of the take, or the card">
-          <TakeFrame name={title} file={file} onFile={setFile} />
+          {/* The picker inside the frame picker is the SAME door as step 1's: a take chosen here
+              starts the upload too. It used to be plain setFile, so a take picked at step 5 never
+              went up and Burn waited on an upload that had never started. */}
+          <TakeFrame name={title} file={file} onFile={pick} />
           <div style={{ marginTop: 10, fontSize: 11.5, color: V3_MUTED }}>
             Prefer the drawn card? Its hook is{" "}
             <b style={{ color: V3_CREAM }}>{defaultHookLine ? `"${defaultHookLine.slice(0, 60)}"` : "this video's first question"}</b> — the 🖼 button on the row.
