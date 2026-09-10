@@ -699,13 +699,16 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
 // slidePatchFor (a proofread phrase → the slide it becomes) left with the prompter face on
 // 2026-09-07 — it had no caller outside it.
 
-export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
+export function ReviewDeck({ set, topic, register, initialSelectedId = null, focusTake = null }: {
   set: BoothSetInfo; topic: BoothTopic;
   /** Hands the deck's verbs to whoever mounts it (the AI board's "＋ slide"). */
   register?: (api: DeckApi | null) => void;
   /** Open with this slide selected and scrolled into view — the route's ?frame= (2026-09-06,
    *  the illustration bank's deep link). Unknown id → the first slide, as always. */
   initialSelectedId?: string | null;
+  /** ONE SPLIT (2026-09-10): 1-based; every other run folds shut and this one scrolls into view,
+   *  once, when the plan is in. The folds are his from then on. */
+  focusTake?: number | null;
 }) {
   // CEQ edits saved this visit: the bank reloads on the next page load; until
   // then the preview and the list read the edited card from here.
@@ -797,6 +800,15 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   useEffect(() => { if (collapsedState.setId === set.id) writeCollapsed(set.id, collapsedState.ids); }, [collapsedState, set.id]);
   const setCollapsed = useCallback((fn: (s: Set<string>) => Set<string>) => setCollapsedState((c) => ({ setId: c.setId, ids: fn(c.ids) })), []);
   const toggleGroup = useCallback((headId: string) => setCollapsed((s) => { const x = new Set(s); if (x.has(headId)) x.delete(headId); else x.add(headId); return x; }), [setCollapsed]);
+  const focused = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusTake || collapsedState.setId !== set.id || takes.length < 2) return;
+    const want = takes[focusTake - 1];
+    if (!want || focused.current === `${set.id}:${focusTake}`) return;
+    focused.current = `${set.id}:${focusTake}`;
+    setCollapsed(() => new Set(takes.filter((t) => t.headId !== want.headId).map((t) => t.headId)));
+    window.setTimeout(() => document.querySelector(`[data-frame-id="${CSS.escape(want.headId)}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" }), 50);
+  }, [focusTake, takes, collapsedState.setId, set.id, setCollapsed]);
   /** A one-line note on the spine's header row — the pop-out's fate — for a few seconds. */
   const [spineNote, setSpineNote] = useState<string | null>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

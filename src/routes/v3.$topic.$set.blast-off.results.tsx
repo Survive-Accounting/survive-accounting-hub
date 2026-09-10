@@ -36,14 +36,22 @@ import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/results")({
   // ?frame=<id> opens with that slide selected (2026-09-06, the illustration bank's "open
   // slide in Review →" — Lee: "link straight to slide in review"). Absent → the first slide.
-  validateSearch: (s: Record<string, unknown>): { frame?: string } => (typeof s.frame === "string" && s.frame ? { frame: s.frame } : {}),
+  // ?frame=<id> scrolls to one slide; ?take=N (1-based) opens ONE split and folds the rest —
+  // Lee, 2026-09-10: "I am trying to go to the Editor for JUST a split."
+  validateSearch: (s: Record<string, unknown>): { frame?: string; take?: number } => {
+    const take = Number(s.take);
+    return {
+      ...(typeof s.frame === "string" && s.frame ? { frame: s.frame } : {}),
+      ...(s.take !== undefined && s.take !== null && s.take !== "" && Number.isInteger(take) && take >= 1 ? { take } : {}),
+    };
+  },
   component: () => <AdminGate><V3Results /></AdminGate>,
   head: () => ({ meta: [{ title: "✨ Editor — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
 
 function V3Results() {
   const { topic: topicKey, set: setKey } = Route.useParams();
-  const { frame: frameParam } = Route.useSearch();
+  const { frame: frameParam, take: takeParam } = Route.useSearch();
   const navigate = useNavigate();
   const { topics, error, topic, set } = useV3Set(topicKey, setKey);
   const [tt, setTT] = useState<TTState>(() => ttState());
@@ -118,7 +126,7 @@ function V3Results() {
               brainstorm, ticked into the deck as drafts. Applying refreshes the bank, so the new
               drafts reconcile into the plan below without a reload. */}
           <SuggestedCards deckId={set.id} deckName={set.name} onApplied={() => void refreshBank()} />
-          <ReviewDeck set={set} topic={topic} register={register} initialSelectedId={frameParam ?? null} />
+          <ReviewDeck set={set} topic={topic} register={register} initialSelectedId={frameParam ?? null} focusTake={takeParam ?? null} />
 
           {/* PRE-FLIGHT (2026-09-09): the film summary that sat under the /blast-off menu's doors.
               That menu is a redirect into this page now (blast-off.index.tsx — so Escape from

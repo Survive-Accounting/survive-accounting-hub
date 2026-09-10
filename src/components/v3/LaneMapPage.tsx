@@ -31,8 +31,7 @@ import { estimatedLengthSeconds, fmtRange } from "@/components/blastoff/film-sum
 import { listBlastPlanSetIds, mintBranch, setBranchOrders, setDeckLane, updateDeckMeta } from "@/lib/blastoff.functions";
 import { PostProduction } from "@/components/v3/PostProduction";
 import { cramPathGate } from "@/components/v3/cram-gate";
-import { enqueueCeqJob } from "@/lib/ceq-queue.functions";
-import { kickQueue, useCeqJobs } from "@/components/v3/ceq-queue-client";
+import { SplitWizard } from "@/components/blastoff/SplitWizard";
 import { listPublishStatuses, PUBLISH_DESTINATIONS, type PublishDestination, type SetPublishStatus } from "@/lib/publish-queue.functions";
 import { productionBottleneckReport } from "@/lib/production-time.functions";
 import { orderedSets } from "@/lib/v3-topic-groups";
@@ -57,6 +56,8 @@ export function LaneMapPage() {
   // want to leave the map." The same PostProduction panel /v3/post mounts, over the map.
   const [producing, setProducing] = useState<{ key: string; title: string; topicName: string; hook: string } | null>(null);
   const navigate = useNavigate();
+  // THE SPLIT WIZARD (Lee, 2026-09-10): "first thing we do is split it appropriately." Over the map.
+  const [splitting, setSplitting] = useState<BoothSetInfo | null>(null);
 
   const loadPlans = useCallback(() => {
     listBlastPlanSetIds()
@@ -166,6 +167,8 @@ export function LaneMapPage() {
         </div>
       )}
 
+      {splitting && <SplitWizard set={splitting} onClose={() => setSplitting(null)} onSaved={reload} />}
+
       {producing && (
         <PostProduction
           pubKey={producing.key}
@@ -184,6 +187,7 @@ export function LaneMapPage() {
           topic={picked.topic} set={picked.set} info={stageFor(picked.set)} publish={publish}
           layout={layouts.get(picked.topic.id) ?? null} takesOf={takesOf}
           onChanged={reload} onSelect={setSelected} onClose={() => setSelected(null)}
+          onSplit={() => setSplitting(picked.set)}
           onProduce={(key, title) => {
             const idx = key.includes("#") ? Number(key.split("#")[1]) - 1 : 0;
             const ids = plans.get(picked.set.id)?.ceqIds[idx] ?? [];
@@ -218,7 +222,7 @@ const label: React.CSSProperties = { fontSize: 10, fontWeight: 800, letterSpacin
  *  blur / Enter / change — there is no Save button, the same law as the rest of V3. */
 const DEST_SHORT: Record<PublishDestination, string> = { site: "site", youtube: "YT", instagram: "IG", tiktok: "TT" };
 
-function SetPanel({ topic, set, info, layout, takesOf, publish, onChanged, onSelect, onClose, onProduce }: {
+function SetPanel({ topic, set, info, layout, takesOf, publish, onChanged, onSelect, onClose, onProduce, onSplit }: {
   topic: BoothTopic; set: BoothSetInfo; info: StageInfo; layout: LaneLayout | null;
   /** set_publish_status by publish key — a set's id, or "<setId>#N" for its N-th split. */
   publish: Record<string, SetPublishStatus>;
@@ -226,6 +230,8 @@ function SetPanel({ topic, set, info, layout, takesOf, publish, onChanged, onSel
   onChanged: () => Promise<void>; onSelect: (id: string) => void; onClose: () => void;
   /** Open this video's post-production over the map. */
   onProduce: (pubKey: string, title: string) => void;
+  /** Open the split wizard for this set. */
+  onSplit: () => void;
 }) {
   const lane = laneOf(set);
   const parent = set.branchFrom ? topic.sets.find((s) => s.id === set.branchFrom) : null;
@@ -247,16 +253,6 @@ function SetPanel({ topic, set, info, layout, takesOf, publish, onChanged, onSel
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [minting, setMinting] = useState<DeckLane | null>(null);
-  // THE QUEUE (docs/DESIGN-CEQ-QUEUE.md): cards from the brainstorm, made in the background.
-  const { jobs: ceqJobs, reload: reloadJobs } = useCeqJobs(set.id);
-  const queueCards = () => void write("queuing", async () => { await enqueueCeqJob({ data: { deckId: set.id } }); kickQueue(); reloadJobs(); });
-  const jobNote = (() => {
-    const j = ceqJobs[0]; if (!j) return null;
-    if (j.status === "queued") return "cards: queued";
-    if (j.status === "running") return "cards: generating…";
-    if (j.status === "failed") return `cards: failed — ${j.error ?? "no reason given"}`;
-    const n = j.result?.cards.length ?? 0; return n > j.decided ? `cards: ${n - j.decided} to review in the Editor` : `cards: ${n} made, all decided`;
-  })();
   const [mintName, setMintName] = useState("");
   const [mintHead, setMintHead] = useState("");
 
@@ -301,11 +297,20 @@ function SetPanel({ topic, set, info, layout, takesOf, publish, onChanged, onSel
 
       {/* THE VIDEOS — Lee, 2026-09-10: "see the visual map of each video… track whether they're posted
           to IG, YT, TT". Each split is a row; each row is a door into its post-production. */}
-      <div style={label}>Videos</div>
+      <div style={{ ...label, display: "flex", alignItems: "center", gap: 8 }}>
+        <span>Videos</span>
+        {lane === "cram" && <button type="button" onClick={onSplit} style={{ ...small, padding: "1px 7px", fontSize: 10, letterSpacing: 0, textTransform: "none", borderColor: `${V3_GOLD}66`, color: V3_GOLD }} title="Cards on the left, splits on the right — drag them where they go">✂ arrange splits</button>}
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {videos.map((v) => (
           <div key={v.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5 }}>
             <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: V3_CREAM }}>{v.label}</span>
+            {ownTakes.length > 1 && (
+              <>
+                <Link to={blastOffPath(topic, set, "results")} search={{ take: videos.indexOf(v) + 1 } as never} style={{ ...small, padding: "2px 6px", fontSize: 10.5, color: V3_MUTED }} title="The Editor, with just this split open">edit</Link>
+                <Link to={blastOffPath(topic, set, "film")} search={{ take: videos.indexOf(v) } as never} style={{ ...small, padding: "2px 6px", fontSize: 10.5, color: V3_MUTED }} title="Film just this split">film</Link>
+              </>
+            )}
             {v.status?.filmedAt && <span title="filmed" style={{ color: "#7DD3FC", fontSize: 10 }}>🎬</span>}
             {PUBLISH_DESTINATIONS.map((d) => {
               const on = !!v.status?.[d].postedAt;
@@ -363,12 +368,10 @@ function SetPanel({ topic, set, info, layout, takesOf, publish, onChanged, onSel
       )}
 
       <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
-        <button type="button" onClick={queueCards} disabled={!!busy} style={{ ...small, borderColor: "#7DD3FC88", color: "#7DD3FC", opacity: busy ? 0.5 : 1 }} title="Turn what you said in the Booth into candidate cards, in the background">Generate cards</button>
         <span style={{ flex: 1 }} />
         {lane !== "cram" && <button type="button" onClick={park} style={{ ...small, color: V3_MUTED }} title="Leaves the map and the queue; nothing is deleted">park</button>}
       </div>
       {(busy || err) && <div style={{ fontSize: 11.5, marginTop: 8, color: err ? "#FF8B7E" : V3_MUTED }}>{err ?? `${busy}…`}</div>}
-      {jobNote && !busy && <div style={{ fontSize: 11.5, marginTop: 6, color: /failed/.test(jobNote) ? "#FF8B7E" : "#7DD3FC" }}>{jobNote}</div>}
     </div>
   );
 }
