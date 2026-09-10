@@ -30,6 +30,7 @@ import { LANE_LABEL, laneOf, type DeckLane } from "@/lib/deck-lane";
 import { estimatedLengthSeconds, fmtRange } from "@/components/blastoff/film-summary";
 import { listBlastPlanSetIds, mintBranch, setBranchOrders, setDeckLane, updateDeckMeta } from "@/lib/blastoff.functions";
 import { PostProduction } from "@/components/v3/PostProduction";
+import { cramPathGate } from "@/components/v3/cram-gate";
 import { enqueueCeqJob } from "@/lib/ceq-queue.functions";
 import { kickQueue, useCeqJobs } from "@/components/v3/ceq-queue-client";
 import { listPublishStatuses, PUBLISH_DESTINATIONS, type PublishDestination, type SetPublishStatus } from "@/lib/publish-queue.functions";
@@ -238,6 +239,9 @@ function SetPanel({ topic, set, info, layout, takesOf, publish, onChanged, onSel
     label: ownTakes.length > 1 ? (t.name || `Split ${i + 1}`) : set.name,
     status: publish[i === 0 ? set.id : `${set.id}#${i + 1}`] ?? null,
   }));
+  // THE CRAM PATH FIRST (Lee, 2026-09-10): a branch's post → is shut until the topic's cram
+  // path is filmed end to end. The same rule /v3/post applies to its 🎬 button.
+  const gate = cramPathGate({ set, topicSets: topic.sets, takesOf, publish });
   const [name, setName] = useState(set.name);
   const [blurb, setBlurb] = useState(set.blurb ?? "");
   const [busy, setBusy] = useState<string | null>(null);
@@ -307,10 +311,12 @@ function SetPanel({ topic, set, info, layout, takesOf, publish, onChanged, onSel
               const on = !!v.status?.[d].postedAt;
               return <span key={d} title={`${DEST_SHORT[d]}: ${on ? "posted" : "not yet"}`} style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.04em", color: on ? "#3BF5A0" : V3_MUTED, opacity: on ? 1 : 0.55 }}>{on ? "✓" : "○"}{DEST_SHORT[d]}</span>;
             })}
-            <button type="button" onClick={() => onProduce(v.key, v.label)} style={{ ...small, padding: "2px 7px", fontSize: 10.5, borderColor: `${V3_GOLD}66`, color: V3_GOLD }} title="Post-production for this video, right here: transcript, captions, cover, then post">post →</button>
+            <button type="button" onClick={gate ? undefined : () => onProduce(v.key, v.label)} disabled={!!gate} style={{ ...small, padding: "2px 7px", fontSize: 10.5, borderColor: gate ? V3_EDGE : `${V3_GOLD}66`, color: gate ? V3_MUTED : V3_GOLD, cursor: gate ? "not-allowed" : "pointer", opacity: gate ? 0.6 : 1 }} title={gate ? gate.reason : "Post-production for this video, right here: transcript, captions, cover, then post"}>{gate ? "🔒" : "post →"}</button>
           </div>
         ))}
       </div>
+
+      {gate && <div style={{ fontSize: 11, color: "#FF9F43", marginTop: 6, lineHeight: 1.45 }}>{gate.reason}</div>}
 
       <div style={label}>Name</div>
       <input value={name} onChange={(e) => setName(e.target.value)} onBlur={rename} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} style={{ ...field, fontSize: 13.5, fontWeight: 700 }} />

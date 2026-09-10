@@ -45,6 +45,7 @@ import { PostProduction } from "@/components/v3/PostProduction";
 import { DEST_UPLOAD_URL, looksLikeUrl, shouldAutoTick } from "@/components/v3/post-links";
 import { isFilmedUnconfirmed, matchesFilter, stageOf, stageRank, talkStageOf, STAGE_SKY, type StageFilter, type StageInfo } from "@/components/v3/set-stage";
 import { listBlastPlanSetIds, loadBlastPlan, type PlanTakeRow } from "@/lib/blastoff.functions";
+import { cramPathGate, type CramGate } from "@/components/v3/cram-gate";
 import { runFor } from "@/components/blastoff/plan";
 import {
   buildCaptionMessages, CAPTION_DEST_LABEL, CAPTION_DESTINATIONS, CAPTION_LIMITS, captionClipboardText, hasCaptions, normalizeHashtags, parseCaptions, transcriptText,
@@ -142,6 +143,10 @@ function PostQueue() {
     }));
   })) ?? [], [topics, takesBySet]);
   const statusFor = (setId: string): SetPublishStatus => status?.[setId] ?? EMPTY;
+  // THE CRAM PATH FIRST (Lee, 2026-09-10): an offshoot's or pitch's post-production stays shut
+  // until every cram video in its topic is confirmed filmed. Same helper the map uses.
+  const gateFor = (set: BoothSetInfo, topic: BoothTopic): CramGate | null =>
+    cramPathGate({ set, topicSets: topic.sets, takesOf: (id) => takesBySet.get(id) ?? [], publish: status ?? {} });
   // A PLAN AND A FILM TIMER BELONG TO THE SET; publish state belongs to the video. So the stage
   // reads the set for the first two and the row's own key for the third — with one exception:
   // the timer only vouches for split #1. It ran on the SET, and one filmed split lit every
@@ -304,7 +309,7 @@ function PostQueue() {
               <SetRow
                 key={r.key} topic={r.topic} set={r.set} pubKey={r.key} takeName={r.take.name}
                 takeIndex={r.takeIndex} takeCount={r.takeCount} takeCards={r.take.ceqIds.length}
-                status={statusFor(r.key)} info={r.info}
+                status={statusFor(r.key)} info={r.info} gate={gateFor(r.set, r.topic)}
                 onToggle={onToggle} onFilmed={onFilmed} onSaveUrl={onSaveUrl}
                 onCaption={() => setCaptioning(r.key)} onThumb={() => setThumbing(r.key)} onProduce={() => setProducing(r.key)}
               />
@@ -375,8 +380,10 @@ function firstStemOf(set: BoothSetInfo, ceqIds: readonly string[]): string {
   return (mine[0] ?? live[0])?.stem ?? "";
 }
 
-function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards, status, info, onToggle, onFilmed, onSaveUrl, onCaption, onThumb, onProduce }: {
+function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards, status, info, gate, onToggle, onFilmed, onSaveUrl, onCaption, onThumb, onProduce }: {
   topic: BoothTopic; set: BoothSetInfo; status: SetPublishStatus; info: StageInfo;
+  /** Non-null = post-production is shut for this branch until the topic's cram path is filmed. */
+  gate: CramGate | null;
   /** The publish key for THIS video: the set's id for the first, "<setId>#N" after that. */
   pubKey: string;
   takeName: string; takeIndex: number; takeCount: number; takeCards: number;
@@ -494,14 +501,14 @@ function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards,
           is the door; the caption and cover sheets are steps inside it (and still have their own
           buttons, for going straight back to one). */}
       <button
-        type="button" onClick={onProduce}
-        title="The finished take: transcript, burned captions, the copy, the cover — in order"
+        type="button" onClick={gate ? undefined : onProduce} disabled={!!gate} aria-disabled={!!gate}
+        title={gate ? gate.reason : "The finished take: transcript, burned captions, the copy, the cover — in order"}
         style={{
-          border: `1.5px solid ${V3_GOLD}`, background: "rgba(252,163,17,0.14)", color: V3_GOLD,
-          borderRadius: 8, padding: "5px 11px", fontSize: 11.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
+          border: `1.5px solid ${gate ? V3_EDGE : V3_GOLD}`, background: gate ? "transparent" : "rgba(252,163,17,0.14)", color: gate ? V3_MUTED : V3_GOLD,
+          borderRadius: 8, padding: "5px 11px", fontSize: 11.5, fontWeight: 800, cursor: gate ? "not-allowed" : "pointer", whiteSpace: "nowrap", opacity: gate ? 0.7 : 1,
         }}
       >
-        🎬 Post-production
+        {gate ? `🔒 Cram path first · ${gate.done}/${gate.total}` : "🎬 Post-production"}
       </button>
 
       {/* TALK THE CAPTION — the copy for every destination, talked, then copied where his hands are. */}
