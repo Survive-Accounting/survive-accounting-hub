@@ -48,8 +48,23 @@
 // "Finish". The tags land on the step (StepRun.tags) and in production_time_log's note as
 // "[tag] note", so the consultant reads tags, not prose. The pause reason has a mic and NO
 // model — a spoken reason is already the artifact.
+//
+// SETTINGS, AND THE QUIET DEFAULT (2026-09-09). Lee: "every click I can remove, remove" — the
+// "Ready to start …?" dialogs and the performance links moved into a ⚙ in the V3 shell
+// (Shell.tsx → SettingsGear, below), behind one per-browser pref (lib/production-ui.ts):
+//   · quiet (THE DEFAULT) — no dialog, ever. Landing on a step IS the Start button: a pending
+//     step starts silently, a set with no run gets one, an earlier step still running is
+//     finished through finishStep with an empty retro. /v3/post picks the most recently filmed
+//     run where the modal used to ask. The pill shrinks to a chip (⏱ 21:39); the chip and the
+//     ⚙ open the same popover — the only place the run's controls live in this mode.
+//   · full — the story above, with one fix: "Not now" is remembered per set and step for the
+//     life of the run, so bouncing Editor↔Film never re-asks.
+//   · off — this widget mounts nothing: no recorder watch, no round tick, no row written.
+//     set-stage's "filmed?" (read off production_time_log) falls back to "reviewed" (hasPlan).
+// The pop-out rule and every production_runs / production_time_log write shape are unchanged —
+// only the surfacing moved.
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from "react";
 
 import { getAdminWho, isAdminUnlocked } from "@/components/AdminGate";
 import { startTT, subscribeTT, ttState } from "@/components/canvas/talkthrough-sync";
@@ -59,9 +74,13 @@ import { logProductionTime } from "@/lib/production-time.functions";
 import {
   currentStep, DEFAULT_TASK_LISTS, fmtElapsed, isPaused, LOG_STEP, newRun, nextPendingStep, normalizeRun, pillLabel, recordingSignal,
   reduceRun, RUN_STEP_LABEL, RUN_STEPS, runningTask, runStepFromPath, runTotalSeconds, stepSeconds, taskSeconds,
-  type ProductionRun, type RunAction, type RunStepId, type StepRun, type TaskLists,
+  type ProductionRun, type RunAction, type RunStepId, type StepRun, type StepStatus, type TaskLists,
 } from "@/lib/production-run";
 import { getActiveRun, getProductionTaskLists, listProductionRuns, upsertProductionRun } from "@/lib/production-run.functions";
+import {
+  defaultPostRun, earlierRunningSteps, iterateHref, parseProductionUi, postUsable, PRODUCTION_UI_EVENT, PRODUCTION_UI_OPTIONS, readProductionUi,
+  writeProductionUi, type ProductionUi,
+} from "@/lib/production-ui";
 import { buildRetroMessages, parseRetro, retroLogNote, type Retro } from "@/lib/retro-brief";
 import { runMicro, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import { useDictation } from "@/lib/use-dictation";
@@ -92,7 +111,17 @@ const saveLocal = (run: ProductionRun | null): void => {
 type Here = { topic: BoothTopic; set: BoothSetInfo };
 type Modal = { kind: "ready"; step: RunStepId } | { kind: "start-here"; step: RunStepId } | { kind: "pick-post" };
 
+/** THE PREFERENCE GATE (2026-09-09). Read once on mount — this never renders on the server,
+ *  ProductionTimer waits for the admin unlock in an effect — and re-read on the gear's event.
+ *  `off` mounts nothing below: no effect subscribes to the recorder, none ticks a round, no
+ *  row is written. (A conditional return can't skip hooks, so the hooks live one level down.) */
 function ProductionRunInner() {
+  const ui = useProductionUi();
+  if (ui === "off") return null;
+  return <ProductionRunLive ui={ui} />;
+}
+
+function ProductionRunLive({ ui }: { ui: Exclude<ProductionUi, "off"> }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const search = useRouterState({ select: (s) => s.location.search as Record<string, unknown> });
   const path = useMemo(() => runStepFromPath(pathname), [pathname]);
@@ -105,7 +134,10 @@ function ProductionRunInner() {
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [lists, setLists] = useState<TaskLists>(DEFAULT_TASK_LISTS);
   const [open, setOpen] = useState(false);
-  const [dismissed, setDismissed] = useState<string | null>(null);
+  // "NOT NOW", REMEMBERED (2026-09-09). One string slot here meant Editor → Film → Editor asked
+  // about the Editor again — every bounce re-fired the dialog. Now a set of `${setId}/${step}`
+  // keys (and `post/${runId}`) for the life of the run; startRunHere empties it.
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
 
   // The set this page is on, once the bank has loaded (slug → canonical id).
   const here = useMemo<Here | null>(() => {
@@ -166,6 +198,7 @@ function ProductionRunInner() {
       createdBy: who(), lists, now: new Date(), startedAt,
     });
     commit(fresh);
+    setDismissed(new Set());
     return fresh;
   }, [commit, lists]);
 
@@ -236,35 +269,92 @@ function ProductionRunInner() {
     } }).then((r) => { if (!r.ok) setSaveErr(r.error ?? "Couldn't write the time log."); }).catch(() => { /* the run itself is saved; the log row is the legacy report's */ });
   }, [commit]);
 
-  // Escape closes the popover.
+  // The pop-out (?popout=1) is the OBS capture — the guard below draws nothing there. Known up
+  // here too, so quiet mode's auto-start only ever runs in the MAIN window: both windows sit on
+  // the same URL, and two windows starting the same step would upsert the same run twice.
+  const popout = search?.popout === 1 || search?.popout === "1" || (typeof window !== "undefined" && /[?&]popout=1(?:&|$)/.test(window.location.search));
+
+  // Which timed step this page is — full mode's modal trigger, quiet mode's landing.
+  const landedStep: RunStepId | null = path?.kind === "set" && (path.step === "results" || path.step === "film") ? path.step : path?.kind === "post" ? "post" : null;
+
+  // QUIET MODE (2026-09-09). Lee: "every click I can remove, remove." Landing on a step IS the
+  // Start button: the run this set has (or the one "Start a run here" would have made) starts
+  // the step, and every EARLIER step still running is finished first through finishStep with an
+  // empty retro — the same production_time_log row "✓ Done with this step" writes, minus the
+  // sheet. Going BACK finishes nothing (earlierRunningSteps). /v3/post is cross-set: with no
+  // usable run in hand, the most recently filmed run waiting for Cross-post is picked where the
+  // pick-post modal used to ask (defaultPostRun); nothing waiting → nothing starts, no chip.
+  const picking = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    if (ui !== "quiet" || !restored || !landedStep || popout) return;
+    const cur = runRef.current, h = hereRef.current;
+    const live = cur && cur.status === "running" ? cur : null;
+    const usable = live && (landedStep === "post" ? postUsable(live) : !!h && live.setId === h.set.id) ? live : null;
+    if (usable) {
+      for (const s of earlierRunningSteps(usable, landedStep)) finishStep(s, "");
+      if (runRef.current?.steps[landedStep].status === "pending") dispatch({ type: "startStep", step: landedStep });
+      return;
+    }
+    if (landedStep === "post") {
+      if (picking.current) return;
+      picking.current = true;
+      listProductionRuns({ data: {} })
+        .then((r) => {
+          const picked = defaultPostRun(r.runs);
+          if (!picked || postUsable(runRef.current)) return; // nothing waiting, or a run arrived meanwhile
+          commit(picked);
+          dispatch({ type: "startStep", step: "post" });
+        })
+        .catch(() => { /* nothing reachable to pick from — the chip simply doesn't appear */ })
+        .finally(() => { picking.current = false; });
+      return;
+    }
+    if (!h) return;
+    startRunHere(h);
+    dispatch({ type: "startStep", step: landedStep });
+  }, [ui, restored, landedStep, popout, hereSetId, dispatch, finishStep, commit, startRunHere]);
+
+  // THE GEAR'S COPY (2026-09-09). Shell.tsx's ⚙ lives in another subtree; it reads the run and
+  // the handlers off the module store (useRunControls, below), so its Pause / Done go through
+  // dispatch and finishStep HERE — the same commits, the same time-log row. Never from the
+  // pop-out, and withdrawn when this unmounts (timing switched off).
+  const clear = useCallback(() => { setOpen(false); commit(null); }, [commit]);
+  useEffect(() => {
+    if (popout) return;
+    publishControls(run ? { run, now, saveErr, dispatch, finishStep, clear } : null);
+  }, [popout, run, now, saveErr, dispatch, finishStep, clear]);
+  useEffect(() => () => publishControls(null), []);
+
+  // Escape closes the full pill's popover (the quiet chip's closes through useDismiss).
+  useEffect(() => {
+    if (!open || ui !== "full") return;
     const on = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); } };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
-  }, [open]);
+  }, [open, ui]);
 
   // NEVER IN THE POP-OUT (the take).
-  const popout = search?.popout === 1 || search?.popout === "1" || (typeof window !== "undefined" && /[?&]popout=1(?:&|$)/.test(window.location.search));
   if (popout) return null;
 
-  // THE READY MODALS.
-  const modalStep: RunStepId | null = path?.kind === "set" && (path.step === "results" || path.step === "film") ? path.step : path?.kind === "post" ? "post" : null;
+  // THE READY MODALS — full mode only; quiet already started the step above.
   const mine = run && run.status === "running" && here && run.setId === here.set.id ? run : null;
   const modal = ((): Modal | null => {
-    if (!restored || !modalStep) return null;
-    if (modalStep === "post") {
+    if (ui !== "full" || !restored || !landedStep) return null;
+    if (landedStep === "post") {
       // Keyed to the run, so "Not now" on one set's Cross-post doesn't hide the next set's.
-      if (dismissed === `post/${run?.id ?? "none"}`) return null;
+      if (dismissed.has(`post/${run?.id ?? "none"}`)) return null;
       if (run && run.status === "running" && run.steps.post.status === "pending") return { kind: "ready", step: "post" };
       if (!run || run.status !== "running" || run.steps.post.status !== "running") return { kind: "pick-post" };
       return null;
     }
-    if (!here || dismissed === `${here.set.id}/${modalStep}`) return null;
-    if (mine) return mine.steps[modalStep].status === "pending" ? { kind: "ready", step: modalStep } : null;
-    return { kind: "start-here", step: modalStep };
+    if (!here || dismissed.has(`${here.set.id}/${landedStep}`)) return null;
+    if (mine) return mine.steps[landedStep].status === "pending" ? { kind: "ready", step: landedStep } : null;
+    return { kind: "start-here", step: landedStep };
   })();
-  const dismissModal = () => setDismissed(modalStep === "post" ? `post/${runRef.current?.id ?? "none"}` : here ? `${here.set.id}/${modalStep}` : null);
+  const dismissModal = () => {
+    const key = landedStep === "post" ? `post/${runRef.current?.id ?? "none"}` : here ? `${here.set.id}/${landedStep}` : null;
+    if (key) setDismissed((d) => new Set(d).add(key));
+  };
 
   return (
     <>
@@ -285,11 +375,11 @@ function ProductionRunInner() {
           onClose={dismissModal}
         />
       )}
-      {run && (
-        <Pill
-          run={run} now={now} open={open} setOpen={setOpen} saveErr={saveErr} dispatch={dispatch} finishStep={finishStep}
-          clear={() => { setOpen(false); commit(null); }}
-        />
+      {run && ui === "full" && (
+        <Pill run={run} now={now} open={open} setOpen={setOpen} saveErr={saveErr} dispatch={dispatch} finishStep={finishStep} clear={clear} />
+      )}
+      {run && ui === "quiet" && (
+        <QuietChip run={run} now={now} open={open} setOpen={setOpen} improveTo={iterateHref(pathname)} />
       )}
     </>
   );
@@ -439,6 +529,206 @@ function Pill({ run, now, open, setOpen, saveErr, dispatch, finishStep, clear }:
 
 function RUN_STEPS_DONE(run: ProductionRun): number {
   return RUN_STEPS.filter((s) => run.steps[s].status === "done" || run.steps[s].status === "skipped").length;
+}
+
+// ------------------------------------------------------------------ settings: the ⚙ and the quiet chip
+//
+// ONE POPOVER, TWO DOORS (2026-09-09): the ⚙ in the V3 shell (SettingsGear — Shell.tsx drops it
+// into both header branches) and the quiet chip (QuietChip). Cream on navy like the shell; the
+// navy is copied, not imported — Shell.tsx imports THIS file, and import-cycles.test.ts forbids
+// the way back.
+const NAVY = "#14213D";
+
+/** What the gear needs from the widget: the run, its clock, and the two handlers that write.
+ *  A module-scope store (useSyncExternalStore) rather than a context — the shell and the root
+ *  widget share no ancestor to provide one. Hoisted declarations and `var`, per tdz-hazards. */
+export interface RunControls {
+  run: ProductionRun; now: Date; saveErr: string | null;
+  dispatch: (a: RunAction) => ProductionRun | null;
+  finishStep: (step: RunStepId, note: string, tags?: string[]) => void;
+  clear: () => void;
+}
+// eslint-disable-next-line no-var
+var controls: RunControls | null | undefined;
+// eslint-disable-next-line no-var
+var controlListeners: Set<() => void> | undefined;
+function publishControls(next: RunControls | null): void {
+  controls = next;
+  if (controlListeners) for (const l of controlListeners) l();
+}
+function subscribeControls(l: () => void): () => void {
+  (controlListeners ??= new Set()).add(l);
+  return () => { controlListeners?.delete(l); };
+}
+function getControls(): RunControls | null { return controls ?? null; }
+function getNoControls(): null { return null; }
+/** The live run and its handlers — null when the widget isn't mounted (locked, timing off) or
+ *  there is no run. Re-renders the caller on every tick, so call it only from the open panel. */
+export function useRunControls(): RunControls | null {
+  return useSyncExternalStore(subscribeControls, getControls, getNoControls);
+}
+
+/** The pref as state — read on mount, re-read on the gear's event (lib/production-ui.ts). */
+function useProductionUi(): ProductionUi {
+  const [ui, setUi] = useState<ProductionUi>(readProductionUi);
+  useEffect(() => {
+    function on(e: Event) { const d = (e as CustomEvent<unknown>).detail; setUi(parseProductionUi(typeof d === "string" ? d : null)); }
+    window.addEventListener(PRODUCTION_UI_EVENT, on);
+    return () => window.removeEventListener(PRODUCTION_UI_EVENT, on);
+  }, []);
+  return ui;
+}
+
+/** Escape, or a mousedown anywhere outside `ref`, closes. The opener button sits INSIDE the
+ *  ref on purpose: close-on-outside then toggle-on-click would reopen what was just closed. */
+function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, onClose: () => void): void {
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") { e.preventDefault(); close.current(); } }
+    function onDown(e: MouseEvent) { const el = ref.current; if (el && e.target instanceof Node && !el.contains(e.target)) close.current(); }
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onDown);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("mousedown", onDown); };
+  }, [open, ref]);
+}
+
+/** THE ⚙ — Shell.tsx puts this right of the breadcrumb in both header branches. The popover is
+ *  absolute against the HEADER (the shell gives it position: relative), aligned to the header's
+ *  right edge rather than the gear's, so a two-word breadcrumb can't push it off the screen. */
+export function SettingsGear() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(ref, open, close);
+  return (
+    <span ref={ref} style={{ display: "contents" }}>
+      <button type="button" onClick={() => setOpen((v) => !v)} title="Settings" aria-label="Settings" aria-expanded={open} aria-haspopup="dialog"
+        style={{ font: "inherit", fontSize: 14, lineHeight: 1, padding: "3px 7px", borderRadius: 8, border: `1px solid ${open ? `${GOLD}88` : EDGE}`, background: "transparent", color: open ? GOLD : MUTED, cursor: "pointer" }}>
+        ⚙
+      </button>
+      {open && (
+        <div style={{ position: "absolute", right: 20, top: "calc(100% + 6px)", zIndex: 1200 }}>
+          <SettingsPanel onClose={close} improveTo={iterateHref(pathname)} />
+        </div>
+      )}
+    </span>
+  );
+}
+
+/** The step list's tick: finished ✓, skipped –, started ▶ (⏸ while paused), not started ○. */
+const STEP_TICK: Record<StepStatus, string> = { done: "✓", skipped: "–", running: "▶", pending: "○" };
+
+/** THE POPOVER: (1) the timing radio, (2) this run, (3) the two links. In quiet mode this is
+ *  the only place the run's controls live; the gear reaches it from every V3 screen (not /film,
+ *  which renders no shell — quiet never asks there either). Pause and "Done with this step" go
+ *  through the widget's own handlers (useRunControls): the retro sheet, the reducer and the
+ *  time-log row are exactly the pill's. */
+function SettingsPanel({ onClose, improveTo }: { onClose: () => void; improveTo: string }) {
+  const ui = useProductionUi();
+  const c = useRunControls();
+  const [confirmPause, setConfirmPause] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const run = c?.run ?? null;
+  const step = run ? currentStep(run) : null;
+  const stepRun = run && step ? run.steps[step] : null;
+  const paused = !!stepRun && isPaused(stepRun);
+  const headStyle: CSSProperties = { fontSize: 10.5, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: MUTED, marginBottom: 6 };
+  const linkStyle: CSSProperties = { display: "block", color: GOLD, fontSize: 12.5, fontWeight: 700, textDecoration: "none", padding: "4px 0" };
+  return (
+    <div role="dialog" aria-label="Settings"
+      style={{ width: 300, maxHeight: "72vh", overflowY: "auto", background: NAVY, color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 14, padding: 14, boxShadow: "0 18px 50px -14px rgba(0,0,0,0.9)", fontFamily: FONT, textAlign: "left" }}>
+      <div style={headStyle}>Production timing</div>
+      <div role="radiogroup" aria-label="Production timing" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {PRODUCTION_UI_OPTIONS.map((o) => (
+          <label key={o.value} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, padding: "3px 2px", cursor: "pointer", color: ui === o.value ? CREAM : MUTED }}>
+            <input type="radio" name="sa-production-ui" value={o.value} checked={ui === o.value} onChange={() => writeProductionUi(o.value)} style={{ accentColor: GOLD, margin: 0 }} />
+            {o.label}
+          </label>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 12, borderTop: `1px solid ${EDGE}`, paddingTop: 10 }}>
+        <div style={headStyle}>This run</div>
+        {!c || !run ? (
+          <div style={{ fontSize: 12.5, color: MUTED }}>No run in progress</div>
+        ) : (
+          <>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{run.setName}</span>
+              <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{fmtElapsed(runTotalSeconds(run, c.now))}</span>
+            </div>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+              {RUN_STEPS.map((s) => {
+                const sr = run.steps[s];
+                const secs = stepSeconds(sr, c.now);
+                const live = sr.status === "running";
+                const tickColor = sr.status === "done" ? MINT : !live ? MUTED : isPaused(sr) ? ORANGE : MINT;
+                return (
+                  <li key={s} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, padding: "3px 4px", borderRadius: 6, background: live ? "rgba(59,245,160,0.08)" : "transparent" }}>
+                    <span aria-hidden style={{ width: 14, textAlign: "center", color: tickColor, fontSize: 11 }}>{live && isPaused(sr) ? "⏸" : STEP_TICK[sr.status]}</span>
+                    <span style={{ flex: 1, color: sr.status === "pending" ? MUTED : CREAM, textDecoration: sr.status === "skipped" ? "line-through" : "none" }}>{RUN_STEP_LABEL[s]}</span>
+                    {(secs > 0 || live) && <span style={{ fontSize: 11.5, color: live ? MINT : MUTED, fontVariantNumeric: "tabular-nums" }}>{fmtElapsed(secs)}</span>}
+                  </li>
+                );
+              })}
+            </ul>
+            {paused && stepRun && (
+              <div style={{ marginTop: 6, fontSize: 12, color: ORANGE, lineHeight: 1.4 }}>
+                Paused{stepRun.pauses[stepRun.pauses.length - 1]?.reason ? ` — ${stepRun.pauses[stepRun.pauses.length - 1].reason}` : ""}. The clock is stopped; this pause is on the record.
+              </div>
+            )}
+            {step && stepRun && (confirmPause ? (
+              <PauseSheet onCancel={() => setConfirmPause(false)} onPause={(reason) => { c.dispatch({ type: "pause", step, reason }); setConfirmPause(false); }} />
+            ) : finishing ? (
+              <RetroSheet step={step} stepRun={stepRun} now={c.now} setId={run.setId} onBack={() => setFinishing(false)} onFinish={(note, tags) => { c.finishStep(step, note, tags); setFinishing(false); }} />
+            ) : (
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                {paused
+                  ? <button type="button" onClick={() => c.dispatch({ type: "resume", step })} style={btn(MINT)}>▶ Resume</button>
+                  : <button type="button" onClick={() => setConfirmPause(true)} disabled={!runningTask(stepRun)} title={runningTask(stepRun) ? "Requires a reason" : "Nothing is running"} style={btn()}>Pause</button>}
+                <button type="button" onClick={() => setFinishing(true)} style={btn(MINT)}>Done with this step</button>
+              </div>
+            ))}
+            {run.status !== "running" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 12, color: MUTED, lineHeight: 1.4 }}>
+                <span style={{ flex: 1 }}>{run.status === "done" ? "That's the set, start to finish." : "Run abandoned."}</span>
+                <button type="button" onClick={() => { c.clear(); onClose(); }} style={{ ...btn(), flex: "none", padding: "3px 8px", fontSize: 10.5 }}>Clear</button>
+              </div>
+            )}
+            {c.saveErr && <div style={{ marginTop: 6, fontSize: 10.5, color: ORANGE, lineHeight: 1.4 }}>Not saved: {c.saveErr}</div>}
+          </>
+        )}
+      </div>
+
+      <div style={{ marginTop: 12, borderTop: `1px solid ${EDGE}`, paddingTop: 8 }}>
+        <Link to={improveTo} onClick={onClose} style={linkStyle}>Iterate (time to beat)</Link>
+        <Link to="/v3/post" onClick={onClose} style={linkStyle}>Post queue</Link>
+      </div>
+    </div>
+  );
+}
+
+/** QUIET MODE'S PILL — 26 px, the time and nothing else (⏱ 21:39); its popover is the panel. */
+function QuietChip({ run, now, open, setOpen, improveTo }: { run: ProductionRun; now: Date; open: boolean; setOpen: (v: boolean) => void; improveTo: string }) {
+  const step = currentStep(run);
+  const paused = !!step && isPaused(run.steps[step]);
+  const dot = run.status !== "running" ? GOLD : paused ? ORANGE : MINT;
+  const ref = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), [setOpen]);
+  useDismiss(ref, open, close);
+  return (
+    <div ref={ref} style={{ position: "fixed", right: 16, top: 12, zIndex: Z, fontFamily: FONT, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="dialog" title={open ? "Close" : "This run — settings"}
+        style={{ display: "flex", alignItems: "center", gap: 6, height: 26, boxSizing: "border-box", font: "inherit", fontFamily: FONT, fontSize: 11.5, fontWeight: 700, padding: "0 10px", borderRadius: 999, border: `1px solid ${dot}66`, background: INK, color: CREAM, cursor: "pointer", boxShadow: "0 8px 20px rgba(0,0,0,0.4)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+        <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: dot, flexShrink: 0 }} />
+        ⏱ {fmtElapsed(runTotalSeconds(run, now))}
+      </button>
+      {open && <SettingsPanel onClose={close} improveTo={improveTo} />}
+    </div>
+  );
 }
 
 // ------------------------------------------------------------------ the pause sheet

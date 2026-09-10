@@ -20,6 +20,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { FlaskConical, Home } from "lucide-react";
 
 import { GenerationDock } from "@/components/talkthrough/GenerationDock";
+// THE ⚙ (Lee, 2026-09-09: "every click I can remove, remove") — the production-timing pref, this
+// run's controls and the Iterate / Post queue links, in one popover right of the breadcrumb.
+// It lives with the run widget, not here: the popover needs that widget's handlers.
+import { SettingsGear } from "@/components/v3/ProductionTimer";
 
 export const V3_NAVY = "#14213D";
 export const V3_CREAM = "#F5EFE6";
@@ -56,10 +60,12 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
   if (collapsed) {
     return (
       <div style={{ minHeight: "100vh", background: V3_NAVY, color: V3_CREAM, fontFamily: V3_BODY }}>
-        <header className="flex items-center gap-2" style={{ padding: "4px 20px", borderBottom: `1px solid ${V3_EDGE}` }}>
+        {/* position: relative — the ⚙ popover is absolute against the header's right edge. */}
+        <header className="flex items-center gap-2" style={{ padding: "4px 20px", borderBottom: `1px solid ${V3_EDGE}`, position: "relative" }}>
           <Link to="/v3" style={{ color: V3_MUTED, fontSize: 11.5, fontWeight: 700, textDecoration: "none" }}>V3</Link>
           {here && <span style={{ color: V3_MUTED, fontSize: 11 }}>›</span>}
           {here && <span style={{ color: V3_CREAM, fontSize: 11.5, fontWeight: 700 }}>{here.label}</span>}
+          <SettingsGear />
           {toggleBtn}
         </header>
         <main style={{ padding: "18px 20px 90px", maxWidth: wide ? 1440 : 1080, margin: "0 auto" }}>{children}</main>
@@ -69,9 +75,10 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
   }
   return (
     <div style={{ minHeight: "100vh", background: V3_NAVY, color: V3_CREAM, fontFamily: V3_BODY }}>
+      {/* position: relative — the ⚙ popover is absolute against the header's right edge. */}
       <header
         className="flex items-center gap-3"
-        style={{ padding: "12px 20px", borderBottom: `1px solid ${V3_EDGE}`, flexWrap: "wrap" }}
+        style={{ padding: "12px 20px", borderBottom: `1px solid ${V3_EDGE}`, flexWrap: "wrap", position: "relative" }}
       >
         <Link
           to="/v3"
@@ -111,6 +118,7 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
             </span>
           ))}
         </nav>
+        <SettingsGear />
         {toggleBtn}
       </header>
 
