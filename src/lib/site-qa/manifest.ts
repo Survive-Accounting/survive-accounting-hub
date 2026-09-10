@@ -637,6 +637,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "rep_.test.tsx": "redirect — the one-link tester entry for the rep flow (arms Test Mode, lands on the test campus apply page)",
   "api.og.$school.$chapter.tsx": "generated image endpoint",
   "api.thumb.$setId.tsx": "generated image endpoint — the short's cover, admin-gated",
+  "v3.map.tsx": "V3 map (AdminGate, noindex) — cram path vs offshoots per topic, added 2026-09-09 (docs/DESIGN-CRAM-MAP.md)",
   "api.stripe.webhook.tsx": "webhook endpoint",
 };
 

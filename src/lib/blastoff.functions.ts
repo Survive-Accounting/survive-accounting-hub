@@ -100,6 +100,63 @@ export const listBlastPlanSetIds = createServerFn({ method: "GET" })
     return out;
   });
 
+/** SET THE LANE (docs/DESIGN-CRAM-MAP.md, 2026-09-09). Lee: "it'll be fun to reengineer the
+ *  topics and figure out what is core to cramming and what is more of an offshoot."
+ *
+ *  The same read-modify-write saveBlastPlan does — the deck lives inside canvas_scenes.nodes_json
+ *  and there is no other door to it. "cram" DELETES both fields rather than writing lane:"cram",
+ *  so a bank nobody has marked stays byte-identical to one that could not be marked, and putting
+ *  a set back on the path leaves no trace.
+ *
+ *  A branch must hang off a cram set in its own topic. That is checked HERE, not just in the UI:
+ *  a two-level tree would break every reader's "one level deep" assumption, and the map draws
+ *  what the data says. */
+export const setDeckLane = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    setId: z.string().min(1).max(120),
+    lane: z.enum(["cram", "offshoot", "pitch"]),
+    branchFrom: z.string().max(120).optional(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true; lane: string; branchFrom: string | null }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const db = await admin();
+    const { loadDecksDeduped } = await import("./student.functions");
+    const owned = await loadDecksDeduped(db as never);
+    const o = owned.get(data.setId);
+    if (!o) throw new Error("set not found");
+
+    const branch = data.lane !== "cram";
+    if (branch) {
+      // THE PARENT RULE, enforced on the server. The parent must exist, be in the same topic,
+      // not be this set, and be on the cram path itself.
+      const parentId = (data.branchFrom ?? "").trim();
+      if (!parentId) throw new Error("An offshoot or pitch has to hang off a cram set — none was named.");
+      if (parentId === data.setId) throw new Error("A set cannot hang off itself.");
+      const parent = owned.get(parentId);
+      if (!parent) throw new Error("That parent set does not exist.");
+      const mine = (o.deck as { topicId?: string | null }).topicId ?? null;
+      const theirs = (parent.deck as { topicId?: string | null }).topicId ?? null;
+      if (mine !== theirs) throw new Error("It can only hang off a set in the same topic.");
+      const { laneOf } = await import("@/lib/deck-lane");
+      if (laneOf(parent.deck as { lane?: unknown }) !== "cram") throw new Error("It can only hang off a set on the cram path.");
+    }
+
+    const { data: row, error } = await db.from("canvas_scenes").select("id,nodes_json").eq("id", o.sceneId).single();
+    if (error) rethrow(error);
+    const j = row.nodes_json as { decks?: { id: string; lane?: string; branchFrom?: string }[] };
+    const deck = (j.decks ?? []).find((d) => d.id === data.setId);
+    if (!deck) throw new Error("set not found in its scene — nothing written");
+
+    if (branch) { deck.lane = data.lane; deck.branchFrom = (data.branchFrom ?? "").trim(); }
+    else { delete deck.lane; delete deck.branchFrom; }
+
+    const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", o.sceneId);
+    if (up.error) rethrow(up.error);
+    return { ok: true as const, lane: data.lane, branchFrom: branch ? (data.branchFrom ?? "").trim() : null };
+  });
+
+
 /** Write the plan back onto the deck. Whole-plan replace: the client owns the
  *  order, and a partial merge would fight the drag. */
 export const saveBlastPlan = createServerFn({ method: "POST" })

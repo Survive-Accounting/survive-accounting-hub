@@ -42,6 +42,7 @@ import { touchRow, type BoardItem } from "@/components/canvas/talkthrough";
 import { putBoardItem, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
 import { useBank, slugOf, blastOffPath, type BlastOffStep } from "@/components/v3/use-bank";
+import { LANE_LABEL, laneChip, laneOf } from "@/lib/deck-lane";
 import { V3Shell, V3Note, V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED, V3_NAVY } from "@/components/v3/Shell";
 import { StageChip, stepLabel } from "@/components/v3/StageChip";
 import { stageOf, talkStageOf, type StageInfo } from "@/components/v3/set-stage";
@@ -163,6 +164,13 @@ function V3Queue() {
                           {s.name}
                         </Link>
                         <span style={{ color: V3_MUTED, fontSize: 12, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{t.kind === "strategy" ? "short" : `${s.liveCount} q`}</span>
+                        {/* THE LANE (docs/DESIGN-CRAM-MAP.md) — only when it is NOT the cram path,
+                            because a chip on every row would say nothing. */}
+                        {laneChip(laneOf(s)) && (
+                          <span title={`${LANE_LABEL[laneOf(s)]} — see the map`} style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.12em", color: V3_MUTED, border: `1px solid ${V3_EDGE}`, borderRadius: 999, padding: "1px 6px", whiteSpace: "nowrap" }}>
+                            {laneChip(laneOf(s))}
+                          </span>
+                        )}
                         <StageChip info={info} />
                         {/* RESUME — the one primary action per row: gold, named for the step the
                             set is on. Posted sets still land on Post (there's nothing after it). */}
@@ -211,7 +219,8 @@ function V3Queue() {
             </div>
           )}
           {/* The creed (Lee, 2026-09-07: "create a route for where I can review these") — one quiet line at the foot of the queue. */}
-          <div style={{ marginTop: 36, fontSize: 12, color: V3_MUTED }}><Link to="/v3/values" style={{ color: V3_MUTED, textDecoration: "none" }}>The creed — core values, teaching philosophy, production principles →</Link></div>
+          <div style={{ marginTop: 28, fontSize: 12, color: V3_MUTED }}><Link to="/v3/map" style={{ color: V3_MUTED, textDecoration: "none" }}>The map — the cram path, and what hangs off it →</Link></div>
+          <div style={{ marginTop: 8, fontSize: 12, color: V3_MUTED }}><Link to="/v3/values" style={{ color: V3_MUTED, textDecoration: "none" }}>The creed — core values, teaching philosophy, production principles →</Link></div>
         </>
       )}
     </V3Shell>

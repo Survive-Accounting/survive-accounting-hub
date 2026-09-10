@@ -16,15 +16,21 @@
 // This is an INDEX route (v3.$topic.$set.index.tsx) so the blast-off screens
 // are flat siblings under the same URL prefix rather than children rendered
 // inside this one — each screen is its own whole surface.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+
+import { branchProblem, DECK_LANES, LANE_HINT, LANE_LABEL, laneOf, type DeckLane } from "@/lib/deck-lane";
+import { setDeckLane } from "@/lib/blastoff.functions";
+import { orderedSets } from "@/lib/v3-topic-groups";
+import { refreshBank, slugOf } from "@/components/v3/use-bank";
 import { GraduationCap, Rocket, ClipboardList } from "lucide-react";
 
 import { Door } from "@/components/v3/Door";
 import { usePlan } from "@/components/blastoff/BlastOffEditor";
 import { LAYOUTS, LAYOUT_LABEL, isLayout } from "@/components/blastoff/layout";
-import type { BoothSetInfo } from "@/lib/talkthrough.functions";
+import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
 import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
-import { V3Shell, V3Note, V3_DISPLAY, V3_MUTED } from "@/components/v3/Shell";
+import { V3Shell, V3Note, V3_DISPLAY, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 
 export const Route = createFileRoute("/v3/$topic/$set/")({
   component: V3Set,
@@ -62,6 +68,9 @@ function V3Set() {
               /arrange etc, let it have a dropdown for pass 1 (current), pass 2, etc." */}
           <TemplatePicker set={set} />
 
+          {/* THE LANE — cram path, or an offshoot/pitch hanging off one (docs/DESIGN-CRAM-MAP.md). */}
+          {topic.kind !== "strategy" && <LanePicker topic={topic} set={set} />}
+
           <h2 style={{ fontFamily: V3_DISPLAY, fontSize: 12, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: V3_MUTED, marginBottom: 14 }}>
             What are you making?
           </h2>
@@ -81,6 +90,66 @@ function V3Set() {
     </V3Shell>
   );
 }
+
+/** WHICH LANE THIS SET IS ON (docs/DESIGN-CRAM-MAP.md, 2026-09-09). Lee: "I think I just need to
+ *  always be cram, but if you want to learn more about this I will teach you about it."
+ *
+ *  Cram is the default and needs no parent; an offshoot or a pitch names the cram set it hangs
+ *  off. Saved the moment it changes — there is no Save button anywhere else on this screen. */
+function LanePicker({ topic, set }: { topic: BoothTopic; set: BoothSetInfo }) {
+  const [lane, setLane] = useState<DeckLane>(() => laneOf(set));
+  const [parent, setParent] = useState<string>(set.branchFrom ?? "");
+  const [saving, setSaving] = useState<string | null>(null);
+
+  // The cram sets of this topic, in the order the queue lists them — a branch can hang off any
+  // of them but itself.
+  const parents = useMemo(
+    () => orderedSets(slugOf(topic.name), topic.sets).filter((s) => s.id !== set.id && laneOf(s) === "cram"),
+    [topic, set.id],
+  );
+
+  const save = (nextLane: DeckLane, nextParent: string) => {
+    const problem = nextLane === "cram" ? null : branchProblem(set, nextParent, topic.sets);
+    if (problem) { setSaving(problem); return; }
+    setSaving("saving…");
+    void setDeckLane({ data: { setId: set.id, lane: nextLane, ...(nextLane === "cram" ? {} : { branchFrom: nextParent }) } })
+      .then(() => { setSaving("saved"); refreshBank(); })
+      .catch((e: unknown) => setSaving(`⚠ ${e instanceof Error ? e.message : String(e)}`));
+  };
+
+  const sel: React.CSSProperties = { background: "rgba(0,0,0,0.35)", color: "#F4EFE6", border: "1px solid rgba(244,239,230,0.2)", borderRadius: 8, padding: "6px 10px", fontSize: 13 };
+  const carded = set.liveCount + set.draftCount > 0;
+
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ fontFamily: V3_DISPLAY, fontSize: 12, fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: V3_MUTED }}>Lane</span>
+        <select value={lane} onChange={(e) => { const v = e.target.value as DeckLane; setLane(v); if (v === "cram" || parent) save(v, parent); else setSaving("Pick the cram set this hangs off."); }} style={sel}>
+          {DECK_LANES.map((l) => <option key={l} value={l}>{LANE_LABEL[l]}</option>)}
+        </select>
+        {lane !== "cram" && (
+          <>
+            <span style={{ fontSize: 12, color: V3_MUTED }}>off</span>
+            <select value={parent} onChange={(e) => { setParent(e.target.value); save(lane, e.target.value); }} style={sel}>
+              <option value="">— pick a cram set —</option>
+              {parents.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </>
+        )}
+        {saving && <span style={{ fontSize: 11, color: saving.startsWith("⚠") || saving.endsWith(".") ? "#FF9F43" : V3_MUTED }}>{saving}</span>}
+        <Link to="/v3/map" style={{ fontSize: 11.5, color: V3_GOLD, textDecoration: "none", marginLeft: "auto" }}>The map →</Link>
+      </div>
+      <div style={{ fontSize: 11.5, color: V3_MUTED, marginTop: 6, maxWidth: 640, lineHeight: 1.5 }}>{LANE_HINT[lane]}</div>
+      {lane !== "cram" && carded && (
+        // §3.8 of the design, in one line: the student-side filter is a separate, explicit build.
+        <div style={{ fontSize: 11.5, color: "#FF9F43", marginTop: 4, maxWidth: 640, lineHeight: 1.5 }}>
+          This set has cards — until the student-side filter lands it still shows on /learn. Ask before marking it.
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 /** Pass 1 / pass 2 for this set — saved on the plan, read by Review and /film (and by Arrange,
  *  until it folded into Review on 2026-09-05). */
