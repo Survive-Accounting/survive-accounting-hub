@@ -192,6 +192,25 @@ describe("the expensive lanes are skipped for a short", () => {
   });
 });
 
+describe("the home for them on /admin/ideas", () => {
+  const page = src("../../routes/admin.ideas.tsx");
+  test("a Shorts to make fold, above Urgent, newest first", () => {
+    const shortsAt = page.indexOf('fold("shorts", "🎬 Shorts to make"');
+    const urgentAt = page.indexOf('fold("urgent", "🔥 Urgent"');
+    expect(shortsAt).toBeGreaterThan(0);
+    expect(shortsAt).toBeLessThan(urgentAt);
+    expect(page).toContain("shorts: working.filter(isShort).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),");
+  });
+  test("→ Blast off is there and DISABLED — minting an offshoot deck is the cram map's job", () => {
+    expect(page).toContain('<button disabled title="minting an offshoot deck comes with the cram map"');
+    expect(page).not.toContain("blastOffStrategyShort");
+  });
+  test("🎬 production beside ⚙ queue patches context.production through patch(), the idea spread first", () => {
+    expect(page).toContain('onClick={() => void onPatch({ context: { ...idea.context, production: "1" } })}>🎬 production</button>');
+    expect(page).toContain("const next = { ...i, ...p };");
+  });
+});
+
 describe("the category", () => {
   test("SHORTS is built in, on the business side, with the hint the AI filer reads", () => {
     const c = BUILT_IN_CATEGORIES.find((x) => x.key === "SHORTS");

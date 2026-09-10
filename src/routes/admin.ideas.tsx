@@ -24,7 +24,7 @@ import { addIdeaCategory, armIdeas, hideIdeaCategory, listIdeas, listStampedIdea
 import { hasPromptSections, ideaUpdateText, promptSection, replacePromptSection } from "@/lib/ideas-prompt";
 import {
   BUILT_IN_CATEGORIES, FOCUS_LABEL, QUEUE_PRIORITIES, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
-  buildFailed, categoryChildren, categoryFamily, categoryLabel, handsOnPlanOf, isArmed, isBuilding, isBuilt, isDraft, isHandsOn, isProduction, isTodoIdea, isUrgent,
+  buildFailed, categoryChildren, categoryFamily, categoryLabel, handsOnPlanOf, isArmed, isBuilding, isBuilt, isDraft, isHandsOn, isProduction, isShortsIdea, isTodoIdea, isUrgent,
   prioritize, priorityOf, queuePriorityOf, rankIdeas, rankQueue, summaryOf, testChecklistOf, tldrOf, topCategories, visibleCategories,
   type CategoryDef, type CategorySide, type Focus, type Idea, type QueuePriority, type Recommendation, type TimeBox,
 } from "@/components/ideas/model";
@@ -114,8 +114,13 @@ function Ideas() {
     const queued = working.filter((i) => isArmed(i) && !isBuilt(i) && !isTodoIdea(i));
     const built = working.filter((i) => isBuilt(i) && !isTodoIdea(i));
     const handsOn = working.filter((i) => isHandsOn(i) && !isProduction(i) && !isTodoIdea(i));
-    const rest = working.filter((i) => !isArmed(i) && !isBuilt(i) && !isProduction(i) && !isHandsOn(i) && !isTodoIdea(i));
+    // THE QUICK QUEUE (2026-09-09): a shorts idea — caught with Ctrl+I on the production line,
+    // or filed under SHORTS by the organiser — lives in "Shorts to make", newest first, and
+    // nowhere else in the bank. (Sent to production, it shows in both: it is content to film.)
+    const isShort = (i: Idea) => (isShortsIdea(i) || i.categories.includes("SHORTS")) && !isTodoIdea(i);
+    const rest = working.filter((i) => !isArmed(i) && !isBuilt(i) && !isProduction(i) && !isHandsOn(i) && !isTodoIdea(i) && !isShort(i));
     return {
+      shorts: working.filter(isShort).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       production: rankIdeas(working.filter((i) => isProduction(i) && !isTodoIdea(i))),
       urgent: rankIdeas(rest.filter(isUrgent)),
       queue: rankQueue(queued),
@@ -306,6 +311,18 @@ function Ideas() {
             </div>
       ), { color: MINT, hint: "what you stamped while talking — newest set first", dflt: true })}
 
+      {/* THE SHORTS (2026-09-09) — Lee's "offshoots that come to me mid-take", caught with Ctrl+I
+          on the production line and tagged with the set they came from. Above Urgent: these are
+          the videos. "→ Blast off" waits for the cram map — minting an offshoot deck is its job. */}
+      {showWork && fold("shorts", "🎬 Shorts to make", sections.shorts.length, () => (
+        <>
+          <div style={{ fontSize: 12, color: MUTED, margin: "0 0 6px 20px" }}>
+            Ctrl+I anywhere on <a href="/v3" style={{ color: GOLD }}>/v3</a> is one line, Enter, done — it lands here tagged with the set and slide it came from.
+          </div>
+          {rows(sections.shorts)}
+        </>
+      ), { color: MINT, hint: "offshoots, nerd-outs, tangents — newest first", dflt: true })}
+
       {/* THE PIPELINE — what is moving. */}
       {showWork && fold("urgent", "🔥 Urgent", sections.urgent.length, () => rows(sections.urgent), { color: URGENT, dflt: true })}
       {showWork && fold("production", "🎬 Production queue", sections.production.length, () => (
@@ -456,6 +473,9 @@ function Row({ idea, cats, expanded, selected, onSelect, onArm, onToggle, onPatc
   const todo = isTodoIdea(idea);
   const reviewed = idea.status === "APPROVED";
   const archived = idea.status === "PARKED";
+  // A SHORTS IDEA wears the set it was caught on (context.topic / context.set, quick-queue.ts).
+  const shorts = isShortsIdea(idea) || idea.categories.includes("SHORTS");
+  const where = shorts ? [idea.context?.topic, idea.context?.set].filter(Boolean).join(" / ") : "";
   const tldr = tldrOf(idea);
   const summary = summaryOf(idea);
   // THE PROMPT BOX — just the ## Prompt section when the draft has sections
@@ -517,6 +537,7 @@ function Row({ idea, cats, expanded, selected, onSelect, onArm, onToggle, onPatc
           {idea.context?.mergedFrom && <span title="another capture was folded into this one" style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: "#3BF5A0" }}>+{idea.context.mergedFrom.split(",").length}</span>}
           {idea.context?.stalePrompt === "1" && <span title="a capture was merged in since the prompt was drafted — the watch sync redrafts it, or Redraft with AI" style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: GOLD }}>PROMPT STALE</span>}
           {idea.createdBy.toLowerCase() === "king" && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.12em", color: MUTED }}>KING</span>}
+          {where && <span title={`caught on this set${idea.context?.frameId ? ` · slide ${idea.context.frameId}` : ""}`} style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", color: MINT, border: `1px solid ${MINT}55`, borderRadius: 999, padding: "0 7px" }}>{where}</span>}
         </div>
         {/* quick actions: sent · reviewed · archive — the same three states
             the Obsidian checklist writes */}
@@ -524,6 +545,15 @@ function Row({ idea, cats, expanded, selected, onSelect, onArm, onToggle, onPatc
           armed
             ? <button title={built || failed ? "Build it again (a fresh branch)" : "Take it out of the build queue"} style={tiny(false, GOLD)} onClick={() => void onArm(!(built || failed) ? false : true, qp)}>{built || failed ? "re-queue" : "un-queue"}</button>
             : <button title="Add to the build queue (medium priority — tick several and use the bar to set a priority)" style={tiny(false, GOLD)} onClick={() => void onArm(true, "medium")}>⚙ queue</button>
+        )}
+        {/* → PRODUCTION (2026-09-09): the 🎬 Production queue used to be reachable from the
+            review boards only. Spread the idea (onPatch → patch: a whole-row upsert). */}
+        {!archived && !todo && !reviewed && !isProduction(idea) && (
+          <button title="Send to the 🎬 Production queue — content to film" style={tiny(false, MINT)}
+            onClick={() => void onPatch({ context: { ...idea.context, production: "1" } })}>🎬 production</button>
+        )}
+        {shorts && !archived && !reviewed && (
+          <button disabled title="minting an offshoot deck comes with the cram map" style={{ ...tiny(false, MINT), opacity: 0.45, cursor: "not-allowed" }}>→ Blast off</button>
         )}
         {!archived && (
           <button title={reviewed ? "Reviewed — click to reopen" : "Mark reviewed: shipped and checked (strikethrough)"} style={tiny(reviewed, "#3BF5A0")}
