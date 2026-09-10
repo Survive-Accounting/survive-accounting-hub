@@ -16,6 +16,12 @@
 // FAIL LOUD: missing AUPHONIC_API_KEY / AUPHONIC_PRESET_UUID / MUX_TOKEN_* /
 // OUTRO_STING_URL surfaces as a thrown error the take board renders as a banner —
 // never a silent no-op. Re-publish bumps `version`, keeps priors, points at newest.
+//
+// EVERY handler opens with assertAdmin (P7, 2026-09-09) — one exception, listPublishedByLabel,
+// named below and pinned by lib/server-gates.test.ts. Until then all of this was callable by
+// anyone who found the URL: signed uploads into canvas-media, Mux assets, Auphonic productions.
+// The dynamic import is the publish-queue shape — @tanstack/react-start/server may only be
+// touched inside a .handler() body.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -124,7 +130,9 @@ export const publishLesson = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data }): Promise<{ publishId: string; version: number }> => {
-    // env gates first — fail loud before any DB / API work. The OUTRO is a lesson
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    // env gates next — fail loud before any DB / API work. The OUTRO is a lesson
     // upload now (OUTRO_STING_URL is only a fallback), so it's not required here.
     muxAuth();
     requireEnv("AUPHONIC_API_KEY");
@@ -203,6 +211,8 @@ export const publishLesson = createServerFn({ method: "POST" })
 export const resolveLessonPublish = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ publishId: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<LessonVideoRow> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     const t = await tbl();
     const { data: r, error } = await t().select("*").eq("id", data.publishId).single();
     if (error) rethrow(error);
@@ -319,6 +329,8 @@ export const previewLesson = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data }): Promise<{ assetId: string }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     muxAuth();
     const inputs: Record<string, unknown>[] = [];
     if (data.intro) inputs.push(data.intro.trim
@@ -336,6 +348,8 @@ export const previewLesson = createServerFn({ method: "POST" })
 export const resolvePreview = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ assetId: z.string().min(6) }).parse(d))
   .handler(async ({ data }): Promise<{ status: "processing" | "ready" | "errored"; playbackId: string | null; error: string | null }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     const asset = await muxApi(`/video/v1/assets/${data.assetId}`);
     if (asset.status === "errored") return { status: "errored", playbackId: null, error: asset.errors?.messages?.join("; ") ?? "preview failed" };
     if (asset.status !== "ready") return { status: "processing", playbackId: null, error: null };
@@ -358,6 +372,15 @@ export const resolvePreview = createServerFn({ method: "POST" })
 //      Supabase → ingest to a FINAL Mux asset → public playback id (PROCESSED).
 // Fail-loud env gating throughout.
 
+/** Folders an ANONYMOUS caller may open a signed upload into. Each is a public form's
+ *  attachment slot — components/ideas/upload.ts names the same three: a /careers résumé, a rep
+ *  applicant's résumé, a rep's DM screenshot. Nothing else: "pipeline-test", the idea folders
+ *  and the blast-off takes are Lee's, behind assertAdmin. Exact match on the sanitised name,
+ *  so "job-applications2" or "Job-Applications" is not public. */
+export function isPublicUploadFolder(folder: string): boolean {
+  return folder === "job-applications" || folder === "rep-resumes" || folder === "rep-dm-screenshots";
+}
+
 /** 1) A signed Supabase Storage upload URL for the raw file. The client uploads
  *  the bytes DIRECTLY to Storage (bypasses the Vercel server-fn body limit) and
  *  reads the durable public URL — which Auphonic fetches and the panel previews
@@ -365,9 +388,18 @@ export const resolvePreview = createServerFn({ method: "POST" })
 export const createPipelineTestStagingUpload = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ ext: z.string().max(12).optional(), folder: z.string().max(40).optional() }).parse(d))
   .handler(async ({ data }): Promise<{ path: string; token: string; publicUrl: string }> => {
+    const folder = (data.folder ?? "pipeline-test").replace(/[^a-z0-9-]/gi, "").slice(0, 40) || "pipeline-test";
+    // THE ONE GATE WITH A DOOR IN IT (P7, 2026-09-09). Every other handler here is Lee-only, but
+    // an applicant on /careers or /rep/onboarding has no admin session and still has to hand us
+    // a résumé — components/ideas/upload.ts leaned on this fn being open for exactly that. So
+    // the gate goes by FOLDER: the applicant folders stay public; everything else (pipeline
+    // tests, idea audio, blast-off takes, any folder typed in by hand) needs Lee.
+    if (!isPublicUploadFolder(folder)) {
+      const { assertAdmin } = await import("@/lib/admin-session.functions");
+      await assertAdmin();
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const ext = (data.ext ?? "mp4").replace(/[^a-z0-9]/gi, "").slice(0, 8) || "mp4";
-    const folder = (data.folder ?? "pipeline-test").replace(/[^a-z0-9-]/gi, "").slice(0, 40) || "pipeline-test";
     const uid = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const path = `${folder}/raw-${uid}.${ext}`;
     const { data: signed, error } = await supabaseAdmin.storage.from("canvas-media").createSignedUploadUrl(path);
@@ -381,6 +413,8 @@ export const createPipelineTestStagingUpload = createServerFn({ method: "POST" }
 export const startPipelineTestAuphonic = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ fileUrl: z.string().url() }).parse(d))
   .handler(async ({ data }): Promise<{ auphonicUuid: string }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     const prod = await auphonic("productions.json", {
       method: "POST",
       body: JSON.stringify({
@@ -400,6 +434,8 @@ export const startPipelineTestAuphonic = createServerFn({ method: "POST" })
 export const resolvePipelineTestAuphonic = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ auphonicUuid: z.string().min(6), muxAssetId: z.string().nullable().optional(), passthrough: z.string().max(250).optional(), title: z.string().max(250).optional() }).parse(d))
   .handler(async ({ data }): Promise<{ stage: "auphonic" | "ingesting" | "encoding" | "ready" | "errored"; auphonicStatus: string | null; muxAssetId: string | null; playbackId: string | null; error: string | null }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     muxAuth();
     // Not yet ingested → poll Auphonic; when Done, download + stash + create Mux asset.
     if (!data.muxAssetId) {
@@ -445,6 +481,8 @@ export const resolvePipelineTestAuphonic = createServerFn({ method: "POST" })
  *  Studio doesn't DOUBLE the outro (its stitch already includes intro/outro). */
 export const detectAuphonicSlots = createServerFn({ method: "POST" })
   .handler(async (): Promise<{ hasIntro: boolean; hasOutro: boolean; note: string }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     const uuid = requireEnv("AUPHONIC_PRESET_UUID");
     const preset = await auphonic(`preset/${uuid}.json`);
     const inputs = (preset?.multi_input_files ?? []) as { type?: string }[];
@@ -458,6 +496,8 @@ export const detectAuphonicSlots = createServerFn({ method: "POST" })
 export const startCeqConcat = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ urls: z.array(z.string().url()).min(1), passthrough: z.string().max(120).optional() }).parse(d))
   .handler(async ({ data }): Promise<{ assetId: string }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     muxAuth();
     const asset = await muxApi("/video/v1/assets", {
       method: "POST",
@@ -470,6 +510,8 @@ export const startCeqConcat = createServerFn({ method: "POST" })
 export const resolveCeqConcat = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ assetId: z.string().min(6) }).parse(d))
   .handler(async ({ data }): Promise<{ status: "processing" | "ready" | "errored"; mp4Url: string | null; error: string | null }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     muxAuth();
     const asset = await muxApi(`/video/v1/assets/${data.assetId}`);
     if (asset.status === "errored") return { status: "errored", mp4Url: null, error: asset.errors?.messages?.join("; ") ?? "Mux concat failed" };
@@ -484,6 +526,9 @@ export const resolveCeqConcat = createServerFn({ method: "POST" })
 export const listLessonVideos = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ lessonIds: z.array(z.string().min(1)).max(500) }).parse(d))
   .handler(async ({ data }): Promise<LessonVideoRow[]> => {
+    // Pipeline rows carry Auphonic uuids and Mux asset ids — Lee's, like the writes.
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     if (data.lessonIds.length === 0) return [];
     const t = await tbl();
     const { data: rows, error } = await t().select("*").in("lesson_id", data.lessonIds).order("version", { ascending: false });
@@ -491,7 +536,11 @@ export const listLessonVideos = createServerFn({ method: "POST" })
     return (rows ?? []) as LessonVideoRow[];
   });
 
-/** The published (ready) video per lesson, newest version — for the dashboard. */
+/** The published (ready) video per lesson, newest version — for the dashboard.
+ *  DELIBERATELY UNGATED (P7, 2026-09-09): /study/dashboard is a student surface ("no auth
+ *  yet"), and a ready playback id is already public — the player streams it unsigned. It
+ *  writes nothing and touches neither Mux nor Auphonic. lib/server-gates.test.ts pins it as
+ *  the one handler in this file without assertAdmin; gate it and that test tells you. */
 export const listPublishedByLabel = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ courseName: z.string() }).parse(d))
   .handler(async ({ data }): Promise<{ lesson_label: string | null; version: number; playback_id: string | null }[]> => {
