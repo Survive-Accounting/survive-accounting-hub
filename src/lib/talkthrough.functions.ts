@@ -252,6 +252,10 @@ export interface BoothCeq {
   masterNotes: string | null;
   /** Saved edits on the card that can be reverted (applyCeqEdit history). */
   edits: number;
+  /** The choices' feedback was inherited from the card this one was cloned from and has not
+   *  been rewritten since (duplicateCeqCard sets it, applyCeqEdit clears it). Absent = the
+   *  card's own words. The Editor tints the feedback field while it is set. */
+  feedbackStale?: boolean;
 }
 export interface BoothSetInfo { id: string; name: string; ceqs: BoothCeq[]; liveCount: number; draftCount: number }
 /** kind "strategy" (2026-09-06): a topic with no course — the strategy shorts, minted by
@@ -262,7 +266,7 @@ export const loadBoothBank = createServerFn({ method: "POST" }).handler(async ()
   const { loadDecksDeduped, liveDecks } = await import("@/lib/student.functions");
   const db = await admin();
   const owned = await loadDecksDeduped(db as never);
-  type CardData = { deckId?: string; stageOrder?: number; prompt?: string; shorthand?: string; title?: string; noteOnly?: boolean; draft?: boolean; bankArchived?: string; needsExhibit?: string; masterNotes?: string; choices?: { text?: string; correct?: boolean; feedback?: string }[] };
+  type CardData = { deckId?: string; stageOrder?: number; prompt?: string; shorthand?: string; title?: string; noteOnly?: boolean; draft?: boolean; bankArchived?: string; needsExhibit?: string; masterNotes?: string; feedbackStale?: boolean; choices?: { text?: string; correct?: boolean; feedback?: string }[] };
   const { data: chapterRows, error } = await db.from("chapters").select("id,chapter_name,chapter_number,course_id");
   if (error) rethrow(error);
   type ChapterRow = { id: string; chapter_name: string; chapter_number: number; course_id: string | null };
@@ -294,6 +298,7 @@ export const loadBoothBank = createServerFn({ method: "POST" }).handler(async ()
       needsExhibit: c.d.needsExhibit ? String(c.d.needsExhibit) : null,
       masterNotes: c.d.masterNotes ? String(c.d.masterNotes) : null,
       edits: Array.isArray((c.d as { editHistory?: unknown }).editHistory) ? ((c.d as { editHistory: unknown[] }).editHistory).length : 0,
+      ...(c.d.feedbackStale === true ? { feedbackStale: true } : {}),
     }));
     topics.get(tid)!.sets.push({
       id: d.id, name: d.name, ceqs,
@@ -419,7 +424,13 @@ export const applyCeqEdit = createServerFn({ method: "POST" })
     const hist = Array.isArray(node.data.editHistory) ? (node.data.editHistory as unknown[]) : [];
     node.data.editHistory = [...hist, { at: new Date().toISOString(), prompt: node.data.prompt ?? "", choices: node.data.choices ?? [] }].slice(-10);
     if (data.stem) node.data.prompt = data.stem;
-    if (data.choices) node.data.choices = data.choices.map((c, i) => ({ id: `c${i}`, text: c.text, correct: c.correct, ...(c.feedback ? { feedback: c.feedback } : {}) }));
+    if (data.choices) {
+      // A cloned card's borrowed feedback stops being borrowed the first time its words change
+      // (see feedbackChanged / duplicateCeqCard). Compared BEFORE the overwrite, against what
+      // the card holds now.
+      if (node.data.feedbackStale && feedbackChanged(node.data.choices, data.choices)) delete node.data.feedbackStale;
+      node.data.choices = data.choices.map((c, i) => ({ id: `c${i}`, text: c.text, correct: c.correct, ...(c.feedback ? { feedback: c.feedback } : {}) }));
+    }
     (node.data as Record<string, unknown>).editedVia = "talkthrough-review";
     (node.data as Record<string, unknown>).editedAt = new Date().toISOString();
     const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", sceneId);
@@ -443,6 +454,39 @@ export const applyCeqEdit = createServerFn({ method: "POST" })
  *  the original, and hands the id back so the frame can point at it. The copy starts with no
  *  edit history: it has never been edited, and inheriting the original's undo stack would let
  *  a revert put someone else's words on it. */
+
+/** INHERITED FEEDBACK IS A STARTING POINT, NOT A FINISHED SENTENCE (2026-09-09).
+ *
+ *  Lee: "duplicated cards have identical feedback. Audit/fix." Three ⧉-cloned Exam 1 cards
+ *  shipped with their source's feedback verbatim — Bonds Payable ← Notes Payable, Prepaid
+ *  Advertising ← Prepaid Rent, Notes Receivable ← Interest Receivable — and he rewrote each by
+ *  hand. The copy is right to keep the words ("I just want to have the old one as a starting
+ *  point"), so the fix is not to blank them but to say they are borrowed: `feedbackStale` on
+ *  the copy's data, beside clonedFrom/clonedAt, cleared the first time any choice's feedback is
+ *  saved with different words. The Editor can tint the field while it is set (BoothCeq carries
+ *  it), and scripts/curriculum/feedback-audit.ts lists what still has it.
+ *
+ *  True when at least one choice carries a non-empty feedback sentence — the only case where
+ *  there is anything to inherit. */
+export function anyChoiceHasFeedback(choices: unknown): boolean {
+  if (!Array.isArray(choices)) return false;
+  return choices.some((c) => typeof (c as { feedback?: unknown } | null)?.feedback === "string" && ((c as { feedback: string }).feedback).trim() !== "");
+}
+
+/** True when the submitted feedback differs from what the card holds, at any choice index. A
+ *  choice added or removed with no feedback on either side is not a change — only the words
+ *  are, and whitespace around them does not count as words. */
+export function feedbackChanged(stored: unknown, submitted: { feedback: string | null }[]): boolean {
+  const before = Array.isArray(stored) ? (stored as ({ feedback?: unknown } | null)[]) : [];
+  const n = Math.max(before.length, submitted.length);
+  for (let i = 0; i < n; i++) {
+    const was = typeof before[i]?.feedback === "string" ? (before[i]!.feedback as string).trim() : "";
+    const now = (submitted[i]?.feedback ?? "").trim();
+    if (was !== now) return true;
+  }
+  return false;
+}
+
 export const duplicateCeqCard = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ ceqNodeId: z.string().min(1).max(200) }).parse(d))
   .handler(async ({ data }) => {
@@ -483,6 +527,12 @@ export const duplicateCeqCard = createServerFn({ method: "POST" })
     copy.data.stageOrder = Number.isFinite(nextOrder) && nextOrder > srcOrder ? (srcOrder + nextOrder) / 2 : srcOrder + 0.5;
     copy.data.clonedFrom = data.ceqNodeId;
     copy.data.clonedAt = new Date().toISOString();
+    // THE FEEDBACK CAME ACROSS TOO, AND IT IS THE SOURCE'S (2026-09-09). Lee: "duplicated cards
+    // have identical feedback. Audit/fix." Kept, not blanked — he wants the old sentence as the
+    // starting point — but flagged, so nobody mistakes it for written-for-this-card. Cleared by
+    // applyCeqEdit the first time the feedback is saved with different words. Only set when
+    // there is a sentence to inherit, so stale always means "there IS borrowed feedback here".
+    if (anyChoiceHasFeedback(copy.data.choices)) copy.data.feedbackStale = true; else delete copy.data.feedbackStale;
     nodes.splice(i + 1, 0, copy);
     j.nodes = nodes;
     const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", sceneId);
