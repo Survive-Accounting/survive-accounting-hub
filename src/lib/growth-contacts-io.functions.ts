@@ -39,6 +39,15 @@ const COUNCIL_LABEL: Record<string, string> = {
   ifc: "IFC", panhellenic: "Panhellenic", nphc: "NPHC", mgc: "MGC", wib: "Campus Club", fsl: "Other",
 };
 
+/** Has migration 20260910_1800 been applied? Asking once up front turns "column contact_id does
+ *  not exist" into a sentence that says what to run — the schema columns are the whole feature, so
+ *  a missing migration must fail loudly and legibly rather than mid-batch. */
+async function schemaReady(db: DB): Promise<boolean> {
+  const { error } = await db.from("growth_contact_qc").select("contact_id").limit(1);
+  return !error;
+}
+const MIGRATION_HINT = "The growth-contacts columns are not in the database yet. Run migration/supabase-migrations/20260910_1800_growth_contacts_schema.sql in the Supabase SQL editor, then try again.";
+
 const bare = (v: string | null): string => {
   const s = (v ?? "").trim();
   if (!s) return "";
@@ -249,6 +258,7 @@ export const contactsImport = createServerFn({ method: "POST" })
     await assertAdmin();
     const who = (await adminSessionOk())?.email ?? "admin";
     const db = await admin();
+    if (!(await schemaReady(db))) throw new Error(MIGRATION_HINT);
     const source = data.source || `import @ ${new Date().toISOString().slice(0, 10)}`;
 
     let rows: ContactRecord[] = data.rows;
