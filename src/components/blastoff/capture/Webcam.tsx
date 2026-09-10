@@ -100,7 +100,10 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
   const editable = spot === "free" && !!onFree && !moment;
   function onDown(e: React.PointerEvent<HTMLDivElement>) {
     if (e.ctrlKey || e.metaKey) { if (onMoment) { e.preventDefault(); e.stopPropagation(); onMoment(); } return; }
-    if (!editable) return;
+    // NOT EDITABLE (every /film take — no onFree there): a plain press on the ring used to fall
+    // through to the browser, which started a native text selection or an image drag from the
+    // camera — in the shot (2026-09-09). Swallow it; ctrl+click above still fires on its own.
+    if (!editable) { e.preventDefault(); return; }
     e.preventDefault(); e.stopPropagation();
     drag.current = { sx: e.clientX, sy: e.clientY, ox: r.x, oy: r.y };
     setDragging(true);
@@ -127,6 +130,8 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
     <div data-sa-cam={moment ? "moment" : spot} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onWheel={onWheel}
       title={editable ? "Drag to move · wheel to resize · ctrl+click for the moment" : onMoment ? "ctrl+click: the camera takes the frame" : undefined}
       style={{ position: "absolute", left: r.x, top: r.y, width: r.w, height: r.h, zIndex: moment ? 30 : 12, cursor: editable ? "grab" : undefined, pointerEvents: editable || onMoment ? "auto" : "none",
+        // The camera is never text and never a draggable image (see onDown).
+        userSelect: "none", WebkitUserSelect: "none",
         // The move between spots is the choreography — a touch of overshoot, never a snap.
         transition: dragging ? "none" : `left 480ms ${ease}, top 480ms ${ease}, width 480ms ${ease}, height 480ms ${ease}` }}>
       {/* the ring: cream, a soft outer glow, a navy shadow — never loud; the moment breathes */}
@@ -136,7 +141,7 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
           : `0 0 0 ${Math.round(ring * 2.2)}px rgba(245,239,230,0.10), 0 ${Math.round(r.w * 0.06)}px ${Math.round(r.w * 0.16)}px -${Math.round(r.w * 0.05)}px rgba(0,0,0,0.75)`,
         transition: "box-shadow 480ms ease, border-radius 480ms ease" }}>
         <div style={{ width: "100%", height: "100%", borderRadius: radius, overflow: "hidden", background: live ? "#000" : "rgba(20,33,61,0.55)", position: "relative", transition: "border-radius 480ms ease" }}>
-          {live && !err && <video ref={videoRef} autoPlay muted playsInline onLoadedData={() => setReadyAndNotify(true)}
+          {live && !err && <video ref={videoRef} autoPlay muted playsInline draggable={false} onLoadedData={() => setReadyAndNotify(true)}
             style={{ width: "100%", height: "100%", objectFit: "cover", transform: mirror ? "scaleX(-1)" : undefined, display: "block", opacity: ready ? 1 : 0, transition: "opacity 400ms ease" }} />}
           {/* THE PLACEHOLDER, live but not ready: the boiling bolt fills the ring instead of the
               plain black the video's own container shows underneath — something alive and
