@@ -18,6 +18,7 @@ import {
   Rocket,
   Send,
   Users2,
+  MessageSquare,
 } from "lucide-react";
 import { AdminGate, getAdminWho } from "@/components/AdminGate";
 import { AdminSessionGate } from "@/components/AdminSessionGate";
@@ -44,6 +45,8 @@ export const Route = createFileRoute("/admin/growth")({
 // no message_id) and one accidental visit put four phantom emails on the daily counter.
 // It comes back when it's wired to real sends, not before.
 const TABS = [
+  // First, because it is the one page King works from every day.
+  { to: "/admin/growth/dm", label: "DM Console", icon: MessageSquare },
   { to: "/admin/growth/coldoutreach", label: "Cold Outreach", icon: Send },
   { to: "/admin/growth", label: "Campuses", icon: Building2, exact: true },
   { to: "/admin/growth/campaigns", label: "Campaigns", icon: Rocket },
