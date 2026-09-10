@@ -19,6 +19,7 @@ import { z } from "zod";
 
 import { buildPassMessages, buildRegenMessages, type PassContext } from "@/components/canvas/talkthrough-pass";
 import type { BoardKind } from "@/components/canvas/talkthrough";
+import { isDeckLane, type DeckLane } from "@/lib/deck-lane";
 import { isMissingSchema } from "@/lib/pg-errors";
 
 const MISSING = "talkthrough tables missing — apply migration/supabase-migrations/20260828_0900_talkthrough_booth.sql in the Supabase SQL editor";
@@ -257,7 +258,19 @@ export interface BoothCeq {
    *  card's own words. The Editor tints the feedback field while it is set. */
   feedbackStale?: boolean;
 }
-export interface BoothSetInfo { id: string; name: string; ceqs: BoothCeq[]; liveCount: number; draftCount: number }
+export interface BoothSetInfo {
+  id: string; name: string; ceqs: BoothCeq[]; liveCount: number; draftCount: number;
+  /** CRAM MAP (docs/DESIGN-CRAM-MAP.md). Absent = the cram path — the default for the whole
+   *  bank. Only ever one of DECK_LANES; anything else is dropped at the read. */
+  lane?: DeckLane;
+  /** The cram set an offshoot/pitch hangs off. */
+  branchFrom?: string;
+  /** Split provenance, carried so the map can draw the dashed edge between a parent and the
+   *  pieces it was cut into. Never pedagogy. */
+  splitFrom?: string;
+  splitInto?: string[];
+  ideaId?: string;
+}
 /** kind "strategy" (2026-09-06): a topic with no course — the strategy shorts, minted by
  *  strategy.functions.ts. Its sets have no questions on purpose; /v3 says "short", not "0 q". */
 export interface BoothTopic { id: string; name: string; number: number | null; sets: BoothSetInfo[]; kind?: "strategy" }
@@ -274,7 +287,7 @@ export const loadBoothBank = createServerFn({ method: "POST" }).handler(async ()
 
   const topics = new Map<string, BoothTopic>();
   for (const o of liveDecks(owned)) {
-    const d = o.deck as { id: string; name: string; topicId?: string | null; sortOrder?: number };
+    const d = o.deck as { id: string; name: string; topicId?: string | null; sortOrder?: number; lane?: unknown; branchFrom?: unknown; splitFrom?: unknown; splitInto?: unknown; ideaId?: unknown };
     const ch = d.topicId ? chById.get(d.topicId) as ChapterRow | undefined : undefined;
     const tid = ch?.id ?? "__untopiced";
     if (!topics.has(tid)) topics.set(tid, { id: tid, name: ch?.chapter_name ?? "More", number: ch?.chapter_number ?? 9999, sets: [], ...(ch && ch.course_id == null ? { kind: "strategy" as const } : {}) });
@@ -304,6 +317,13 @@ export const loadBoothBank = createServerFn({ method: "POST" }).handler(async ()
       id: d.id, name: d.name, ceqs,
       liveCount: ceqs.filter((c) => !c.draft && !c.noteOnly).length,
       draftCount: ceqs.filter((c) => c.draft && !c.noteOnly).length,
+      // THE MAP'S FIELDS, only when present and well-formed — a set that has never been marked
+      // is byte-identical to what this returned before the cram map existed.
+      ...(isDeckLane(d.lane) ? { lane: d.lane } : {}),
+      ...(typeof d.branchFrom === "string" && d.branchFrom ? { branchFrom: d.branchFrom } : {}),
+      ...(typeof d.splitFrom === "string" && d.splitFrom ? { splitFrom: d.splitFrom } : {}),
+      ...(Array.isArray(d.splitInto) && d.splitInto.length ? { splitInto: d.splitInto.filter((x): x is string => typeof x === "string") } : {}),
+      ...(typeof d.ideaId === "string" && d.ideaId ? { ideaId: d.ideaId } : {}),
     });
   }
   const list = [...topics.values()].sort((a, b) => (a.number ?? 9999) - (b.number ?? 9999) || a.name.localeCompare(b.name));

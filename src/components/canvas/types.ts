@@ -1,6 +1,7 @@
 // Present Canvas — card data model. Every card is a React Flow node whose `data` is one of
 // these shapes (discriminated by `kind`). Edits mutate this node data ONLY (scene-local) —
 // they never write back to scenario docs. Scenes serialize the whole node array.
+import type { DeckLane } from "@/lib/deck-lane";
 import type { PublicationDef, StitchDef } from "./stitch-defs";
 import type { Node } from "@xyflow/react";
 
@@ -1593,6 +1594,24 @@ export interface DeckDef {
    *  set is NEVER served to students regardless of `status` — fetchStudentTree drops it server-side.
    *  Additive scene JSON; no migration. */
   parked?: boolean;
+  /** CRAM PATH vs OFFSHOOTS (docs/DESIGN-CRAM-MAP.md, 2026-09-09). Which lane this set is on:
+   *  ABSENT = "cram" — the main path students cram, ordered by sortOrder. "offshoot" = a
+   *  teaching / go-deeper video hanging off a cram set. "pitch" = a video that sells the student
+   *  on something, hanging off a cram set. Writers DELETE the field to mean cram, so a bank that
+   *  has never been marked is byte-identical to one that cannot be. Additive scene JSON; no
+   *  migration. NOT the strategy board's audience lane (lib/strategy.ts ShortLane). */
+  lane?: DeckLane;
+  /** The CRAM deck this offshoot/pitch hangs off (DeckDef.id, same topic). Meaningless when
+   *  `lane` is absent or "cram". One level deep by construction — setDeckLane refuses a parent
+   *  that is not itself on the cram path. */
+  branchFrom?: string;
+  /** SPLIT PROVENANCE (lib/split-set.functions.ts) — where a piece came from / what a parent was
+   *  cut into. Provenance only, never pedagogy: a split piece is still on whatever lane it
+   *  inherited. Declared here so the deck's real schema has one home; written there. */
+  splitFrom?: string;
+  splitInto?: string[];
+  /** The idea this deck was minted from (strategy.functions.ts / blastOffIdeaShort). Provenance. */
+  ideaId?: string;
   /** TAKE LOGGER (film-prep tools) — a free-text sticky note on the set ("run A =
    *  clip 0047, redo Q9"), autosaved, no structure or parsing. Additive. */
   takesNote?: string;

@@ -53,7 +53,7 @@ const setName = (n?: string) => (n ?? "Set").replace(/^\s*ch\s*\d+\s*·\s*/i, ""
 export type RawPub = { id?: string; kind?: string; state?: string; render?: { muxPlaybackId?: string | null; durationS?: number | null } };
 /** `blastOff` = the saved Review plan (blastoff.functions.ts writes it; learn-plan.ts reads it) — the
  *  final edit Lee films from, and so what /learn serves when present. Read raw; never trusted blindly. */
-type RawDeck = { id: string; name?: string; payloadType?: string; status?: string; access?: string; lessonId?: string | null; topicId?: string | null; courseId?: string | null; parked?: boolean; sortOrder?: number; publications?: RawPub[]; blastOff?: unknown };
+type RawDeck = { id: string; name?: string; payloadType?: string; status?: string; access?: string; lessonId?: string | null; topicId?: string | null; courseId?: string | null; parked?: boolean; sortOrder?: number; publications?: RawPub[]; blastOff?: unknown; lane?: unknown; branchFrom?: unknown };
 /** The set's shipped publication of a kind, or null. state must be "shipped" WITH a playback id —
  *  a rendered-but-never-shipped cut is not student content. */
 export const shippedPub = (d: { publications?: RawPub[] }, kind: "blast" | "lookback"): RawPub | null =>
