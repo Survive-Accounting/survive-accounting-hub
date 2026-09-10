@@ -53,6 +53,8 @@ export const loadBlastPlan = createServerFn({ method: "POST" })
  *  A set with no cuts reports exactly one take, so Post treats every set the same way. */
 export interface PlanTakeRow {
   name: string;
+  /** The run's head frame id — what an offshoot's branchTakeHead points at. "" for an empty plan. */
+  headId: string;
   /** Slides in this run (skipped ones excluded — a skipped slide is in no video). */
   frames: number;
   /** The set's own cards this run covers, in order. Post uses them to caption and to cover the
@@ -84,6 +86,7 @@ export const listBlastPlanSetIds = createServerFn({ method: "GET" })
         const head = run[0] as { takeName?: unknown } | undefined;
         takes.push({
           name: typeof head?.takeName === "string" ? head.takeName.trim().slice(0, 80) : "",
+          headId: typeof (head as { id?: unknown } | undefined)?.id === "string" ? String((head as { id: string }).id) : "",
           frames: run.length,
           ceqIds: run.filter((r) => typeof r.ceqId === "string" && r.ceqId).map((r) => String(r.ceqId)),
         });
@@ -116,6 +119,7 @@ export const setDeckLane = createServerFn({ method: "POST" })
     setId: z.string().min(1).max(120),
     lane: z.enum(["cram", "offshoot", "pitch"]),
     branchFrom: z.string().max(120).optional(),
+    branchTakeHead: z.string().max(120).optional(),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true; lane: string; branchFrom: string | null }> => {
     const { assertAdmin } = await import("@/lib/admin-session.functions");
@@ -148,12 +152,182 @@ export const setDeckLane = createServerFn({ method: "POST" })
     const deck = (j.decks ?? []).find((d) => d.id === data.setId);
     if (!deck) throw new Error("set not found in its scene — nothing written");
 
-    if (branch) { deck.lane = data.lane; deck.branchFrom = (data.branchFrom ?? "").trim(); }
-    else { delete deck.lane; delete deck.branchFrom; }
+    if (branch) {
+      deck.lane = data.lane; deck.branchFrom = (data.branchFrom ?? "").trim();
+      const dk = deck as { branchTakeHead?: string };
+      if (data.branchTakeHead !== undefined) { if (data.branchTakeHead) dk.branchTakeHead = data.branchTakeHead; else delete dk.branchTakeHead; }
+    } else { delete deck.lane; delete deck.branchFrom; delete (deck as { branchTakeHead?: string }).branchTakeHead; }
 
     const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", o.sceneId);
     if (up.error) rethrow(up.error);
     return { ok: true as const, lane: data.lane, branchFrom: branch ? (data.branchFrom ?? "").trim() : null };
+  });
+
+
+// ── THE MAP'S WRITERS (docs/DESIGN-CRAM-MAP.md; 2026-09-10) ─────────────────────────────────────
+// Lee: "set this up in a UI where I can play with it myself. I want to start arranging the
+// offshoots in particular orders, connect them to the right splits, and this way I'll know what
+// order of production I'm making the videos today."
+
+const LANE_META_SCHEMA = z.object({
+  setId: z.string().min(1).max(120),
+  name: z.string().min(1).max(120).optional(),
+  blurb: z.string().max(400).optional(),
+  branchOrder: z.number().int().min(0).max(999).optional(),
+  /** "" clears it — the offshoot hangs off the set as a whole again. */
+  branchTakeHead: z.string().max(120).optional(),
+  parked: z.boolean().optional(),
+});
+
+/** Rename, describe, reorder, re-attach, or park a set — one read-modify-write, only the named
+ *  fields touched. The head-frame check is real: an id the parent's plan does not have is refused,
+ *  because a dangling pointer would draw the offshoot under "hanging off nothing" and Lee would
+ *  think he lost it. */
+export const updateDeckMeta = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => LANE_META_SCHEMA.parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const db = await admin();
+    const { loadDecksDeduped } = await import("./student.functions");
+    const owned = await loadDecksDeduped(db as never);
+    const o = owned.get(data.setId);
+    if (!o) throw new Error("set not found");
+
+    if (data.branchTakeHead) {
+      const parentId = (o.deck as { branchFrom?: string }).branchFrom;
+      if (!parentId) throw new Error("This set hangs off nothing — set its lane first.");
+      const parent = owned.get(parentId);
+      const frames = (parent?.deck as { blastOff?: { frames?: { id?: unknown; skipped?: unknown }[] } } | undefined)?.blastOff?.frames ?? [];
+      if (!frames.some((f) => f?.id === data.branchTakeHead && f?.skipped !== true)) throw new Error("That split is not in the parent's plan any more.");
+    }
+
+    const { data: row, error } = await db.from("canvas_scenes").select("id,nodes_json").eq("id", o.sceneId).single();
+    if (error) rethrow(error);
+    const j = row.nodes_json as { decks?: Record<string, unknown>[] };
+    const deck = (j.decks ?? []).find((d) => d.id === data.setId);
+    if (!deck) throw new Error("set not found in its scene — nothing written");
+
+    if (data.name !== undefined) deck.name = data.name.trim();
+    if (data.blurb !== undefined) { const b = data.blurb.trim(); if (b) deck.blurb = b; else delete deck.blurb; }
+    if (data.branchOrder !== undefined) deck.branchOrder = data.branchOrder;
+    if (data.branchTakeHead !== undefined) { if (data.branchTakeHead) deck.branchTakeHead = data.branchTakeHead; else delete deck.branchTakeHead; }
+    if (data.parked !== undefined) deck.parked = data.parked;
+    deck.updatedAt = new Date().toISOString();
+
+    const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", o.sceneId);
+    if (up.error) rethrow(up.error);
+    return { ok: true as const };
+  });
+
+/** REORDER SIBLINGS IN ONE CALL. A nudge on the map rewrites every sibling's branchOrder so the
+ *  arrangement is explicit from then on (lane-map.ts nudgeOrder) — six updateDeckMeta calls, each
+ *  reloading the whole bank, took longer than the click felt like it should and could interleave
+ *  with the next click. One load, one write per scene, done. Ids not found are skipped, not
+ *  fatal: a sibling parked between the click and the write is not a reason to lose the rest. */
+export const setBranchOrders = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    orders: z.array(z.object({ setId: z.string().min(1).max(120), branchOrder: z.number().int().min(0).max(999) })).min(1).max(60),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true; written: number }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const db = await admin();
+    const { loadDecksDeduped } = await import("./student.functions");
+    const owned = await loadDecksDeduped(db as never);
+    // Group by scene: a scene holds one branch deck today, but the write is per scene regardless.
+    const byScene = new Map<string, { setId: string; branchOrder: number }[]>();
+    for (const o of data.orders) {
+      const own = owned.get(o.setId);
+      if (!own) continue;
+      const list = byScene.get(own.sceneId) ?? [];
+      list.push(o);
+      byScene.set(own.sceneId, list);
+    }
+    let written = 0;
+    const now = new Date().toISOString();
+    for (const [sceneId, list] of byScene) {
+      const { data: row, error } = await db.from("canvas_scenes").select("id,nodes_json").eq("id", sceneId).single();
+      if (error) rethrow(error);
+      const j = row.nodes_json as { decks?: Record<string, unknown>[] };
+      for (const o of list) {
+        const deck = (j.decks ?? []).find((d) => d.id === o.setId);
+        if (!deck) continue;
+        deck.branchOrder = o.branchOrder;
+        deck.updatedAt = now;
+        written += 1;
+      }
+      const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", sceneId);
+      if (up.error) rethrow(up.error);
+    }
+    return { ok: true as const, written };
+  });
+
+/** MINT AN OFFSHOOT OR A PITCH off a cram set: a new scene holding one zero-card deck in the
+ *  parent's topic, on the given lane, hanging off the parent (and one of its splits, when named),
+ *  with the standard spine and the blurb as its one slide — exactly what blastOffStrategyShort
+ *  mints for a strategy short, so Brainstorm / Editor / Film / Post all work on it from the first
+ *  second. Zero cards means student.functions.ts drops it from /learn until it has content, which
+ *  is the right default for a video that does not exist yet. */
+export const mintBranch = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    parentId: z.string().min(1).max(120),
+    lane: z.enum(["offshoot", "pitch"]),
+    name: z.string().min(1).max(120),
+    blurb: z.string().max(400).optional(),
+    branchTakeHead: z.string().max(120).optional(),
+    branchOrder: z.number().int().min(0).max(999).optional(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ deckId: string; created: boolean }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const db = await admin();
+    const { loadDecksDeduped } = await import("./student.functions");
+    const { laneOf } = await import("@/lib/deck-lane");
+    const owned = await loadDecksDeduped(db as never);
+    const parent = owned.get(data.parentId);
+    if (!parent) throw new Error("parent set not found");
+    const pd = parent.deck as { topicId?: string | null; courseId?: string | null; lane?: unknown; blastOff?: { frames?: { id?: unknown; skipped?: unknown }[] } };
+    if (laneOf(pd) !== "cram") throw new Error("A branch can only hang off a set on the cram path.");
+    if (data.branchTakeHead) {
+      const frames = pd.blastOff?.frames ?? [];
+      if (!frames.some((f) => f?.id === data.branchTakeHead && f?.skipped !== true)) throw new Error("That split is not in the parent's plan.");
+    }
+
+    // IDEMPOTENT ON NAME + PARENT: the seed script runs more than once, and a double-click on the
+    // map must not mint twins. A second, different offshoot with the same name is a rename away.
+    const name = data.name.trim();
+    for (const o of owned.values()) {
+      const d = o.deck as { id: string; name?: string; branchFrom?: string; parked?: boolean };
+      if (d.branchFrom === data.parentId && (d.name ?? "").trim().toLowerCase() === name.toLowerCase() && d.parked !== true) {
+        return { deckId: d.id, created: false };
+      }
+    }
+
+    const now = new Date().toISOString();
+    const id = `deck-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    const { planFramesForShort } = await import("./strategy.functions");
+    const frames = planFramesForShort({ title: name, context: {}, body: data.blurb ?? "" });
+    const deck = {
+      id, name, payloadType: "cards", filter: null, runMode: "sequence", lessonId: null, slots: [], showSkeletons: true,
+      createdAt: now, updatedAt: now,
+      status: "live", parked: false, access: "free",
+      topicId: pd.topicId ?? null, courseId: pd.courseId ?? null,
+      lane: data.lane, branchFrom: data.parentId,
+      ...(data.branchTakeHead ? { branchTakeHead: data.branchTakeHead } : {}),
+      ...(data.branchOrder != null ? { branchOrder: data.branchOrder } : {}),
+      ...(data.blurb?.trim() ? { blurb: data.blurb.trim() } : {}),
+      blastOff: { frames, updatedAt: now, layout: "pass2" },
+    };
+    const parentName = String((parent.deck as { name?: string }).name ?? "");
+    const { error } = await db.from("canvas_scenes").insert({
+      name: `${data.lane === "pitch" ? "Pitch" : "Offshoot"} · ${name} · off ${parentName}`,
+      chapter_id: pd.topicId ?? null,
+      nodes_json: { nodes: [], edges: [], zones: [], decks: [deck], branch: true },
+      viewport_json: { x: 0, y: 0, zoom: 1 },
+    });
+    if (error) rethrow(error);
+    return { deckId: id, created: true };
   });
 
 

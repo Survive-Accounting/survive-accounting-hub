@@ -131,7 +131,7 @@ function PostQueue() {
   // which set_publish_status accepts unchanged (its primary key is free text).
   const flat = useMemo(() => topics?.flatMap((t) => t.sets.flatMap((s) => {
     const takes = takesBySet.get(s.id) ?? [];
-    const list: PlanTakeRow[] = takes.length ? takes : [{ name: "", frames: 0, ceqIds: [] }];
+    const list: PlanTakeRow[] = takes.length ? takes : [{ name: "", headId: "", frames: 0, ceqIds: [] }];
     return list.map((tk, i) => ({
       topic: t, set: s, take: tk, takeIndex: i, takeCount: list.length,
       key: i === 0 ? s.id : `${s.id}#${i + 1}`,

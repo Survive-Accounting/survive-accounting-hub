@@ -1605,6 +1605,16 @@ export interface DeckDef {
    *  `lane` is absent or "cram". One level deep by construction — setDeckLane refuses a parent
    *  that is not itself on the cram path. */
   branchFrom?: string;
+  /** WHICH SPLIT of the parent it hangs off (2026-09-10). Lee: "These splits are cram videos and
+   *  each can have offshoots." A split is a run between cuts inside the parent's plan, anchored
+   *  by its HEAD frame's id (plan.ts planTakes) — stable when a cut above renumbers the takes.
+   *  Absent = hangs off the set as a whole. Never a take INDEX. */
+  branchTakeHead?: string;
+  /** Production order among the branches on one parent — Lee arranges these on /v3/map to know
+   *  what he films next. Absent sorts last, ties by name. */
+  branchOrder?: number;
+  /** One line about the video, for the map and the brainstorm. Additive; never student-facing. */
+  blurb?: string;
   /** SPLIT PROVENANCE (lib/split-set.functions.ts) — where a piece came from / what a parent was
    *  cut into. Provenance only, never pedagogy: a split piece is still on whatever lane it
    *  inherited. Declared here so the deck's real schema has one home; written there. */
