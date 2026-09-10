@@ -16,7 +16,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AdminGate } from "@/components/AdminGate";
+import { usePlan } from "@/components/blastoff/BlastOffEditor";
 import { ReviewDeck, type DeckApi } from "@/components/blastoff/ReviewDeck";
+import { estimatedLengthSeconds, fmtRange, slideCounts } from "@/components/blastoff/film-summary";
 import { frameForIdea } from "@/components/blastoff/idea-to-slide";
 import { SplitPanel } from "@/components/blastoff/SplitPanel";
 import { SessionView } from "@/components/talkthrough/SessionView";
@@ -25,7 +27,9 @@ import { startTT, subscribeTT, ttState, type TTState } from "@/components/canvas
 import { subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
 import { StepBar } from "@/components/v3/StepBar";
 import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
-import { V3Shell, V3Note, V3_CREAM, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
+import { V3Shell, V3Note, V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
+import { listIllustrationLibrary } from "@/lib/illustrate.functions";
+import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/results")({
   // ?frame=<id> opens with that slide selected (2026-09-06, the illustration bank's "open
@@ -44,6 +48,10 @@ function V3Results() {
   const [, forceReview] = useState(0);
   // THE KNIFE is open (SplitPanel) — off by default; the step bar's ✂ Split toggles it.
   const [split, setSplit] = useState(false);
+  // THE PRE-FLIGHT FOLD is open — closed by default, and the readout inside is not mounted until
+  // it opens (see the <details> below), so its fetches never run on an Editor visit that didn't
+  // ask for them.
+  const [preflightOpen, setPreflightOpen] = useState(false);
 
   useEffect(() => {
     startTT();
@@ -106,6 +114,22 @@ function V3Results() {
 
           <ReviewDeck set={set} topic={topic} register={register} initialSelectedId={frameParam ?? null} />
 
+          {/* PRE-FLIGHT (2026-09-09): the film summary that sat under the /blast-off menu's doors.
+              That menu is a redirect into this page now (blast-off.index.tsx — so Escape from
+              /film lands here in one key), so the numbers live here, folded with the board.
+              Closed by default; FilmPreflight is mounted only once the fold opens, so usePlan's
+              fetch and the illustration-library call fire when Lee asks for the readout, not on
+              every visit to the Editor. */}
+          <details
+            onToggle={(e) => setPreflightOpen(e.currentTarget.open)}
+            style={{ marginTop: 22, border: `1px solid ${V3_EDGE}`, borderRadius: 12, padding: "8px 14px" }}
+          >
+            <summary style={{ cursor: "pointer", fontSize: 11, letterSpacing: "0.2em", color: V3_GOLD, textTransform: "uppercase", fontWeight: 800 }}>
+              Pre-flight
+            </summary>
+            {preflightOpen && <FilmPreflight set={set} />}
+          </details>
+
           <details style={{ marginTop: 22, border: `1px solid ${V3_EDGE}`, borderRadius: 12, padding: "8px 14px" }}>
             <summary style={{ cursor: "pointer", fontSize: 11, letterSpacing: "0.2em", color: V3_GOLD, textTransform: "uppercase", fontWeight: 800 }}>
               Transcript &amp; AI board {session ? "" : "— nothing captured yet"}
@@ -150,5 +174,60 @@ function V3Results() {
         </>
       )}
     </V3Shell>
+  );
+}
+
+/** THE FILM SUMMARY (Lee, 2026-09-05: "just a summary of total slides... # of Q's, # of
+ *  memorize this, # of cheat code, # of deep idea, # of illustration, and total production
+ *  cost") — a pre-flight readout before Lee commits to a take. It lived under the /blast-off
+ *  menu's doors until 2026-09-09, when that menu became a redirect into this page; its own
+ *  component, mounted only while the Pre-flight fold is open, so usePlan's fetch and the
+ *  illustration-library call never fire on an Editor visit that didn't ask for them.
+ *
+ *  It reads the STORED plan — ReviewDeck has the copy being edited, and usePlan saves that copy
+ *  500 ms after the typing pauses — so a slide added a moment ago shows up here on the next open,
+ *  not the same instant. This instance never commits, so the two hooks cannot fight over the
+ *  save. */
+function FilmPreflight({ set }: { set: BoothSetInfo }) {
+  const { plan } = usePlan(set);
+  const [illoCost, setIlloCost] = useState<number | null>(null);
+  useEffect(() => {
+    listIllustrationLibrary({ data: { setId: set.id } })
+      .then((r) => setIlloCost(r.rows.reduce((sum, row) => sum + (row.costUsd ?? 0), 0)))
+      .catch(() => setIlloCost(null));
+  }, [set.id]);
+
+  if (!plan) return <div style={{ marginTop: 12, fontSize: 12, color: V3_MUTED }}>Counting the slides…</div>;
+  const counts = slideCounts(plan.frames);
+  // Lee's own ask on the summary (2026-09-05): "an estimate range of video length based on how
+  // many slides" — film-summary.ts's heuristic, a range and not a promise.
+  const range = estimatedLengthSeconds(counts);
+  const stat = (label: string, n: number) => (
+    <div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: V3_CREAM, fontVariantNumeric: "tabular-nums" }}>{n}</div>
+      <div style={{ fontSize: 10.5, color: V3_MUTED, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
+    </div>
+  );
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+        <span style={{ fontFamily: V3_DISPLAY, fontSize: 12, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: V3_GOLD }}>Before you film</span>
+        <span style={{ fontSize: 12, color: V3_MUTED }}>≈ {fmtRange(range)} on camera</span>
+        <span style={{ fontSize: 12, color: V3_MUTED, marginLeft: "auto" }}>🎙 Rehearsal lives on Rehearse &amp; Film — press R once you're there.</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(76px, 1fr))", gap: 10 }}>
+        {stat("Slides", counts.total)}
+        {stat("Questions", counts.questions)}
+        {stat("Memorize this", counts.memorizeThis)}
+        {stat("Cheat code", counts.cheatCode)}
+        {stat("Deep question", counts.deeperIdea)}
+        {stat("Illustrations", counts.illustrations)}
+      </div>
+      {illoCost !== null && illoCost > 0 && (
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${V3_EDGE}`, fontSize: 12, color: V3_MUTED }}>
+          Production cost so far: <b style={{ color: V3_CREAM }}>${illoCost.toFixed(2)}</b> (illustrations — Mux joins this once Post is wired up)
+        </div>
+      )}
+    </div>
   );
 }
