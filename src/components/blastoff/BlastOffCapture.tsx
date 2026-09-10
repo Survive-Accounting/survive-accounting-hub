@@ -392,8 +392,15 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
   // F4 REACHES THE POP-OUT FROM EITHER WINDOW. Only the focused window sees a keypress, and the
   // window that must assemble is the pop-out — so whichever window gets the key rolls itself and
   // writes the roll (capture/prompter-sync.ts), and the pop-out acts on it either way.
+  //
+  // F4 DOES NOT MOVE THE SLIDE (2026-09-09, later). It used to `setI(0)` as well — every F4, in
+  // both windows, snapped back to slide 1. Lee: "I press it mid-split and it wrecks the take."
+  // F4 is the OBS record key; recording can start on any slide (a second split, a retake from
+  // slide 4). So `roll` only bumps the run: the cold open is gated on idx === 0 below, so F4 on
+  // slide 1 still assembles it and F4 anywhere else just means OBS is recording. The COUNT keeps
+  // its jump to the top — C means "go to slide 0 and count in", and that is a different key.
   const [run, setRun] = useState<{ id: number; ms: number; held?: boolean }>({ id: 0, ms: ASSEMBLY_SHORT_MS });
-  const roll = useCallback(() => { setI(0); setRun((r) => ({ id: r.id + 1, ms: ASSEMBLY_TOTAL_MS })); }, []);
+  const roll = useCallback(() => setRun((r) => ({ id: r.id + 1, ms: ASSEMBLY_TOTAL_MS })), []);
   const countdown = useCountdown(useCallback(() => { setI(0); setRun((r) => ({ id: r.id + 1, ms: ASSEMBLY_SHORT_MS, held: true })); }, []));
   const { start: startCountdown, cancel: cancelCountdown } = countdown;
   // F4 pressed in the OTHER window: roll, and end any count that was still running.

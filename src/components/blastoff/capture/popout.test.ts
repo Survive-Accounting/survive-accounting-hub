@@ -7,6 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { COUNTDOWN_GOLD_FROM, COUNTDOWN_SECONDS, POPOUT_BLOCKED, POPOUT_FEATURES, POPOUT_NAME, captureStatus, countdownCue, countdownStep, countdownTone, isPopoutSearch, popoutHref } from "./popout";
 
 const route = readFileSync(join(import.meta.dir, "../../../routes/v3.$topic.$set.blast-off.film.tsx"), "utf8").split("\r\n").join("\n");
+const capture = readFileSync(join(import.meta.dir, "../BlastOffCapture.tsx"), "utf8").split("\r\n").join("\n");
 
 describe("the URL", () => {
   test("the same page, popout=1 added, everything else on it kept", () => {
@@ -58,6 +59,16 @@ describe("the countdown", () => {
     expect(countdownCue(1)).toContain("F4 NOW");
     // The key is named at every second — the count exists to land that one press.
     for (const s of [COUNTDOWN_SECONDS, 5, 3, 1]) expect(countdownCue(s)).toContain("F4");
+  });
+  // Lee, 2026-09-09: "I press it mid-split and it wrecks the take." F4 is the OBS record key and
+  // nothing about the slide: `roll` bumps the assembly run and leaves `i` alone, in both windows
+  // (the other window's useRollSignal calls the same `roll`). The count's own `setI(0)` stays —
+  // C is the key that goes to the top.
+  test("F4 records where you are — roll never resets the slide", () => {
+    const line = capture.split("\n").find((l) => l.trim().startsWith("const roll = "));
+    expect(line).toBeDefined();
+    expect(line).not.toContain("setI(0)");
+    expect(line).toContain("ASSEMBLY_TOTAL_MS");
   });
 });
 
