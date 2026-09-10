@@ -10,12 +10,16 @@ export const INTAKE_KINDS = [
   // number is what gets shown to a scholarship chair. A boolean on the member row would make
   // "14 members want this" indistinguishable from "14 members signed up".
   "greek_sponsor_interest",
+  // A STUDENT ASKING FOR A "TAKE IT TO AN A" VIDEO that is not made yet (/v3/learn, 2026-09-10).
+  // Its note carries the deck id, the video's name and scope=one|all; topic is the exam topic.
+  // Priority: a request for a specific video is the clearest signal of what to film next.
+  "offshoot_request",
 ] as const;
 export type IntakeKind = (typeof INTAKE_KINDS)[number];
 
 /** Founder alert routing (spec §5): priority kinds page Lee immediately; the rest roll into
  *  the Sunday digest's Demand section. Purchases will join priority when checkout exists. */
-export const PRIORITY_KINDS: readonly IntakeKind[] = ["syllabus", "greek_claim", "rep", "question"];
+export const PRIORITY_KINDS: readonly IntakeKind[] = ["syllabus", "greek_claim", "rep", "question", "offshoot_request"];
 
 export const KIND_LABEL: Record<IntakeKind, string> = {
   notify_exam: "Notify me (exam)",
@@ -31,4 +35,5 @@ export const KIND_LABEL: Record<IntakeKind, string> = {
   outreach_page: "Campus page signup",
   referral: "Referral",
   question: "Question about a problem",
+  offshoot_request: "Wants a Take-it-to-an-A video",
 };

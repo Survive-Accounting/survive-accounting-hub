@@ -471,6 +471,10 @@ export const confirmTemplateFor = (kind: IntakeKind): TemplateKey => {
     // noise. Its caller passes skipConfirmation, so this is a never-sent fallback and reuses the
     // member confirmation rather than inventing a template nobody will read.
     case "greek_sponsor_interest": return "confirm_greek_member";
+    // A REQUEST FOR A VIDEO THAT IS NOT MADE YET (/v3/learn, 2026-09-10). No template of its own:
+    // the page submits with skipConfirmation and says on screen that Lee was paged, so this is a
+    // never-sent fallback — the question confirmation is the closest honest shape.
+    case "offshoot_request": return "confirm_question";
   }
 };
 
