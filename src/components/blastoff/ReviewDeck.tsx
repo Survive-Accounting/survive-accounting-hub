@@ -70,7 +70,7 @@
 // the spine (one call per slide, in order, a progress line; every proposal waits on its slide
 // for his click — never applied on its own). The mic re-briefs on the rehearsal review's
 // throttle while he talks (LIVE_BRIEF_EVERY_MS, one call in flight, a stale answer dropped).
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { applyCeqEdit, duplicateCeqCard, revertCeqEdit, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import { logCeqEdit, recentEditExamples, type EditSource } from "@/lib/edit-log.functions";
@@ -97,7 +97,12 @@ import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
 import { emptyTakes, nameTake, planTakes, takeLabel, type PlanTake } from "./plan";
-import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
+import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, moveMany, newFrameId, pasteAfter, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
+// THE MULTI-SELECT and THE DRAG (2026-09-09, Lee's notes: multi-select, range select, group
+// drag, copy/cut/paste, bundled ghost, zoom-out while dragging, auto-scroll). The pure parts
+// live beside the plan (spine-select.ts, spine-drag.ts); this file only wires them to rows.
+import { EMPTY_SELECTION, clickSelect, focusOnly, getClip, pickOrdered, setClip, type Selection } from "./spine-select";
+import { DRAG_ZOOM_AFTER_MS, autoScrollDelta, buildBundleGhost } from "./spine-drag";
 // THE FILM POP-OUT, opened from the spine (2026-09-09). The window name is what makes a second
 // click refocus the same window instead of spawning another; the features snap it to 9:16.
 import { POPOUT_BLOCKED, POPOUT_FEATURES, POPOUT_NAME, POPOUT_OPENED } from "./capture/popout";
@@ -350,6 +355,9 @@ const SPINE_CSS = `
 .sa-spine-row .sa-spine-tools{opacity:0;transition:opacity .12s}
 .sa-spine-row:hover .sa-spine-tools,.sa-spine-row.is-on .sa-spine-tools,.sa-spine-row.is-menu .sa-spine-tools,.sa-spine-row .sa-spine-tools:focus-within{opacity:1}
 .sa-slide-menu button:hover{background:rgba(255,255,255,0.06)}
+.sa-spine-row.is-picked{outline:1px solid ${CREAM};outline-offset:-1px}
+.sa-spine.is-dragging .sa-spine-row{height:26px;overflow:hidden;padding-top:0!important;padding-bottom:0!important;box-sizing:border-box}
+.sa-spine.is-dragging .sa-spine-thumb{display:none}
 `;
 
 // THE SKIPPED FOLDER (Lee, 2026-09-06: "once a slide is skipped, move it to bottom
@@ -393,8 +401,12 @@ const gutterBtn: React.CSSProperties = {
  *  Click, don't drag: on a fifty-slide deck a click is the gesture that gets used. */
 function MoveSlot({ to, onPick, first, last }: { to: number; onPick: (to: number) => void; first?: boolean; last?: boolean }) {
   const [hot, setHot] = useState(false);
+  // A DRAG LANDS HERE TOO (2026-09-09): the overlay's tiles can be picked up, and a slot takes
+  // the drop the same way it takes the click.
   return (
     <button onClick={() => onPick(to)} onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
+      onDragOver={(e) => { e.preventDefault(); setHot(true); }} onDragLeave={() => setHot(false)}
+      onDrop={(e) => { e.preventDefault(); setHot(false); onPick(to); }}
       title={first ? "Put it first" : last ? "Put it last" : "Put it here"}
       style={{
         width: hot ? 22 : 14, alignSelf: "stretch", minHeight: 128, margin: "0 1px", cursor: "pointer",
@@ -525,6 +537,165 @@ const isTyping = (t: EventTarget | null): boolean => {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
 };
 
+// ------------------------------------------------------------------- one spine row
+// A REAL COMPONENT, MEMOIZED (2026-09-09). `spineRow` was a closure inside the deck, so every
+// keystroke in the right-hand editor (usePlan.commit → setPlan, synchronously) re-ran every row
+// and re-drew every 88 px PhoneFrame — the "scrolling is laggy" on a 39-question set. Now the
+// deck hands each row primitives and ONE stable handler object, and a row only re-renders when
+// something about IT changed.
+
+/** The deck's verbs, as one object that never changes identity (it reads the deck's latest
+ *  closures through a ref). `i` is the REAL index into `frames` — the skipped-folder invariant
+ *  every menu action depends on — never the row's position. */
+interface SpineRowHandlers {
+  select: (id: string, e: React.MouseEvent) => void;
+  dragStart: (id: string, dt: DataTransfer | null) => void;
+  over: (i: number, below: boolean) => void;
+  drop: () => void;
+  dragEnd: () => void;
+  menu: (id: string) => void;
+  closeMenu: () => void;
+  move: (id: string) => void;
+  duplicate: (id: string, i: number) => void;
+  cloneCard: (id: string, i: number) => void;
+  toggleSkip: (id: string) => void;
+  remove: (id: string, i: number) => void;
+}
+
+interface SpineRowProps {
+  frame: BlastFrame;
+  /** The real index into `frames`. */
+  i: number;
+  /** The row's number in the film order; undefined inside the skipped folder. */
+  number?: number;
+  foldered: boolean;
+  thumb: boolean;
+  isSelected: boolean;
+  isPicked: boolean;
+  isMenuOpen: boolean;
+  isDragging: boolean;
+  dropEdge: "above" | "below" | null;
+  label: string;
+  color: string;
+  snippet: string;
+  sameCardCount: number;
+  prompterLines: number;
+  tightened: boolean;
+  /** The row's own set card (override-applied) — the comparator's stand-in for `set`. */
+  ceq?: BoothCeq;
+  /** The backdrop rule's answer for this slide, computed once per plan by the deck — the
+   *  comparator's stand-in for `frames`. */
+  backdrop: BackdropMode | null;
+  /** The thumbnail's inputs. `frames` and `set` change identity on every keystroke, so the
+   *  comparator ignores them: everything they feed the thumbnail is covered by `ceq`,
+   *  `backdrop`, `progressX/Y` and `frame`. */
+  frames: readonly BlastFrame[];
+  set: BoothSetInfo;
+  topicName: string;
+  progressX?: number;
+  progressY?: number;
+  layout: "pass1" | "pass2";
+  /** The ⋯ menu's contents — only ever built for the one row whose menu is open. */
+  menu: { items: MenuItem[]; chips: MenuChips[] } | null;
+  on: SpineRowHandlers;
+}
+
+/** Everything but `frames` and `set` by identity — see SpineRowProps for why those two are
+ *  represented by `ceq` and `backdrop` instead. */
+function sameRowProps(a: SpineRowProps, b: SpineRowProps): boolean {
+  for (const k of Object.keys(b) as (keyof SpineRowProps)[]) {
+    if (k === "frames" || k === "set") continue;
+    if (!Object.is(a[k], b[k])) return false;
+  }
+  return true;
+}
+
+const SpineRow = memo(function SpineRow(p: SpineRowProps) {
+  const { frame: f, i, foldered, on } = p;
+  const menu = p.isMenuOpen;
+  // Foldered rows accept neither drag (nothing to reorder — a skipped card's
+  // order relative to other skipped cards films nothing) nor drop (dragging an
+  // active card into the folder isn't how a card gets skipped; the ⊘ button is).
+  // An active row with its own menu open keeps accepting drops, same as before —
+  // only picking IT up is disabled, so a press inside the menu never drags the row.
+  const canDrop = !foldered;
+  const draggableRow = !menu && canDrop;
+  const progress = useMemo(() => (p.progressX != null && p.progressY != null ? { x: p.progressX, y: p.progressY } : undefined), [p.progressX, p.progressY]);
+  return (
+    <div data-frame-id={f.id} draggable={draggableRow}
+      className={`sa-spine-row${p.isSelected ? " is-on" : ""}${p.isPicked ? " is-picked" : ""}${menu ? " is-menu" : ""}`}
+      onDragStart={(e) => on.dragStart(f.id, e.dataTransfer)}
+      onDragOver={canDrop ? (e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); on.over(i, e.clientY > r.top + r.height / 2); } : undefined}
+      onDrop={canDrop ? (e) => { e.preventDefault(); on.drop(); } : undefined}
+      onDragEnd={on.dragEnd}
+      onClick={(e) => on.select(f.id, e)}
+      title={canDrop ? "Click to open · shift-click a range · ctrl-click to add · drag to reorder" : "Click to open"}
+      style={{
+        position: "relative", display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 7,
+        background: foldered ? "rgba(9,13,26,0.35)" : PANEL,
+        border: `1px solid ${p.isSelected ? GOLD : foldered ? FOLDER_EDGE : EDGE}`,
+        boxShadow: p.dropEdge === "above" ? `0 -3px 0 0 ${SKY}` : p.dropEdge === "below" ? `0 3px 0 0 ${SKY}` : "none",
+        opacity: foldered ? 0.8 : p.isDragging ? 0.5 : 1, cursor: draggableRow ? "grab" : "pointer",
+      }}>
+      <span style={{ color: MUTED, fontSize: 11, fontWeight: 800, minWidth: 18, borderRight: `1px solid ${EDGE}`, paddingRight: 6, fontVariantNumeric: "tabular-nums" }}>
+        {p.number != null ? p.number : "⊘"}
+      </span>
+      {/* THE SLIDE ITSELF, small — the same renderer the middle pane and the film use, so what
+          he scans here is what films. Not interactive: pointer events off, so the row's own
+          click and drag still own the whole area. */}
+      {p.thumb && (
+        <span className="sa-spine-thumb" style={{ display: "inline-flex", flex: "0 0 auto", pointerEvents: "none", borderRadius: 4, overflow: "hidden", border: `1px solid ${EDGE}`, opacity: f.skipped ? 0.45 : 1 }}>
+          <PhoneFrame frame={f} frames={p.frames} index={i} set={p.set} topicName={p.topicName} w={THUMB_W} live={false} rounded={false}
+            progress={progress} layout={p.layout} backdrop={p.backdrop} />
+        </span>
+      )}
+      <span style={kindTag(p.color)}>{p.label}</span>
+      <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{p.snippet}</span>
+      {/* SAME CARD, TWICE — say so on the row (2026-09-09). Lee duplicated Prepaid Rent
+          meaning to make the copy a different question, and could not see that the two slides
+          were one card until he edited one and both changed. A duplicate is a real thing he
+          wants (a callback before the outro); it just has to be legible as one. */}
+      {p.sameCardCount > 1 && (
+        <span title="The same card appears more than once in this running order — editing it changes every copy. Use ⧉+ for a card you can edit on its own." style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", color: SKY, border: `1px solid ${SKY}55`, borderRadius: 5, padding: "1px 4px", whiteSpace: "nowrap" }}>SAME CARD ×{p.sameCardCount}</span>
+      )}
+      {/* Lines are made on Rehearse & Film (2026-09-07); the count still shows here so the spine says which slides have them. */}
+      {p.prompterLines > 0 && <span title={`${p.prompterLines} teleprompter line${p.prompterLines > 1 ? "s" : ""} — made on Rehearse & Film`} style={{ fontSize: 10, color: MINT, fontWeight: 800 }}>🗒{p.prompterLines}</span>}
+      {p.tightened && <span title="Tighten all: a proposal is waiting on this slide — open it to use or dismiss it" style={{ fontSize: 11 }}>🪄</span>}
+      <span className="sa-spine-tools" style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: 2 }}>
+        {/* TWO KINDS OF COPY, both on the row (2026-09-09). Lee reached for ⧉ expecting the
+            second one: "I need to be able to clone a CEQ and edit it independently. I tried
+            and it didn't work. See how I have two Q9's… I have Prepaid Rent first, then I
+            wanted to make it Prepaid Insurance for a second one." ⧉ is the SAME card shown
+            twice (a callback — edit either and both change, because they are one card); ⧉+
+            makes a real new card he can edit freely. It was only in the ⋯ menu, which is how
+            he missed it. */}
+        {/* MOVE IT (2026-09-09). Lee: "if I want to reorder a slide we can put like a reorder
+            icon to the top right of it outside the slide, and if I click that it lets me — it
+            maybe zooms out a little bit and lets me drag it to where I would like it to be."
+            Dragging the row still works; this is the version that does not need a steady hand
+            down a fifty-slide list. */}
+        {!foldered && (
+          <button style={tiny} title="Move this slide — pick a place in the zoomed-out order" onClick={(e) => { e.stopPropagation(); on.move(f.id); }}>⇅</button>
+        )}
+        <button style={tiny} title={f.kind === "ceq" ? "Duplicate — the SAME card, filmed twice. Editing either one edits the card." : "A copy right after this one"} onClick={(e) => { e.stopPropagation(); on.duplicate(f.id, i); }}>⧉</button>
+        {f.kind === "ceq" && f.ceqId && (
+          <button style={tiny} title="Clone as a NEW card — a real second card in the set, copied from this one, editable without touching the original" onClick={(e) => { e.stopPropagation(); on.cloneCard(f.id, i); }}>⧉+</button>
+        )}
+        {f.skipped ? (
+          <button style={{ ...tiny, color: MINT }} title="Film this slide again" onClick={(e) => { e.stopPropagation(); on.toggleSkip(f.id); }}>↺</button>
+        ) : isInsert(f.kind) ? (
+          <button style={{ ...tiny, color: RED }} title="Remove this slide" onClick={(e) => { e.stopPropagation(); on.remove(f.id, i); }}>✕</button>
+        ) : (
+          <button style={{ ...tiny, color: RED }} title="Skip this card in the film (it stays in the set)" onClick={(e) => { e.stopPropagation(); on.toggleSkip(f.id); }}>⊘</button>
+        )}
+        <button className="sa-spine-more" style={{ ...tiny, color: menu ? GOLD : MUTED }} title="Everything for this slide — edit, duplicate, skip, backdrop, banner, and what only this kind has"
+          aria-haspopup="menu" aria-expanded={menu} onClick={(e) => { e.stopPropagation(); on.menu(f.id); }}>⋯</button>
+      </span>
+      {menu && p.menu && <SlideMenu items={p.menu.items} chips={p.menu.chips} onClose={on.closeMenu} />}
+    </div>
+  );
+}, sameRowProps);
+
 // slidePatchFor (a proofread phrase → the slide it becomes) left with the prompter face on
 // 2026-09-07 — it had no caller outside it.
 
@@ -563,9 +734,20 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
     return m;
   }, [viewSet.ceqs]);
 
-  const [selId, setSelId] = useState<string | null>(initialSelectedId);
+  // THE PICK (2026-09-09, spine-select.ts): a list with the focused slide LAST. `selId` is
+  // derived from it, so the stage, the editor panel, Shorten, the callout log, the insert point
+  // and DeckApi.addSlide keep reading the one focused slide exactly as they did; only the spine
+  // knows there can be more than one. `setSelId` is a plain pick — every existing caller
+  // (the Space walk, the row verbs, the deep link) means "just this one".
+  const [pick, setPick] = useState<Selection>(() => (initialSelectedId ? { ids: [initialSelectedId], anchor: initialSelectedId } : EMPTY_SELECTION));
+  const selId = pick.ids[pick.ids.length - 1] ?? null;
+  const setSelId = useCallback((id: string | null) => setPick(id ? { ids: [id], anchor: id } : EMPTY_SELECTION), []);
   const sel = frames.find((f) => f.id === selId) ?? frames[0] ?? null;
   const selIdx = sel ? frames.indexOf(sel) : -1;
+  /** The spine's row order — the running order without the skipped folder — which a shift-click
+   *  range is measured along (a folded run's slides included: they are still in the order). */
+  const spineOrder = useMemo(() => frames.filter((f) => !f.skipped).map((f) => f.id), [frames]);
+  const pickedSet = useMemo(() => new Set(pick.ids), [pick]);
   // The deep link's slide scrolls into view once the plan is in — once, not on every select.
   const scrolledTo = useRef<string | null>(null);
   useEffect(() => {
@@ -794,22 +976,136 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [frames, selIdx, menuId]);
+  }, [frames, selIdx, menuId, setSelId]);
+
+  // THE CLIPBOARD KEYS (2026-09-09, Lee's notes: copy / cut / paste) — same guard as the Space
+  // walk: never while typing, never with a ⋯ menu open. Ctrl/Cmd+C copies the pick (spine
+  // order) into the tab's own buffer; Ctrl/Cmd+X copies then drops each one through dropFrame
+  // (an insert goes; a set card is SKIPPED, never deleted — the folder is the undo); Ctrl/Cmd+V
+  // puts fresh copies after the focused slide (plan.ts pasteAfter — the cut and the take name
+  // stay behind) and picks them. Delete / Backspace skips the pick. Escape on a multi-pick
+  // keeps only the focused slide. Nothing here touches a card on the server — it moves plan
+  // frames only.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat || e.altKey || menuId || isTyping(e.target) || isTyping(document.activeElement) || !frames.length) return;
+      const mod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+      if (e.key === "Escape") {
+        if (pick.ids.length > 1) { e.preventDefault(); setPick(focusOnly(pick)); }
+        return;
+      }
+      const picked = pickOrdered(pick, spineOrder).map((id) => frames.find((f) => f.id === id)).filter((f): f is BlastFrame => !!f);
+      if (mod && key === "c") {
+        if (!picked.length) return;
+        e.preventDefault();
+        setClip(picked);
+        return;
+      }
+      if (mod && key === "x") {
+        if (!picked.length) return;
+        e.preventDefault();
+        setClip(picked);
+        let next: BlastFrame[] = [...frames];
+        for (const f of [...picked].reverse()) next = dropFrame(next, f.id);
+        commit(next);
+        const from = frames.indexOf(picked[0]);
+        const landing = next.slice(Math.max(0, from)).find((f) => !f.skipped) ?? next[next.length - 1];
+        setSelId(landing?.id ?? null);
+        return;
+      }
+      if (mod && key === "v") {
+        const clip = getClip();
+        if (!clip.length) return;
+        e.preventDefault();
+        const { frames: next, ids } = pasteAfter(frames, clip, selIdx < 0 ? frames.length - 1 : selIdx);
+        commit(next);
+        setPick({ ids, anchor: ids[0] ?? null });
+        return;
+      }
+      if (!mod && (e.key === "Delete" || e.key === "Backspace")) {
+        if (!picked.length) return;
+        e.preventDefault();
+        let next: BlastFrame[] = [...frames];
+        for (const f of picked) next = toggleSkip(next, f.id);
+        commit(next);
+        const from = frames.indexOf(picked[picked.length - 1]);
+        const landing = next.slice(Math.max(0, from)).find((f) => !f.skipped) ?? next.slice(0, from).reverse().find((f) => !f.skipped);
+        setSelId(landing?.id ?? null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [frames, selIdx, menuId, pick, spineOrder, commit, setSelId]);
 
   // DRAG TO REORDER — plain HTML5 drag, no library. The drop line sits above
   // or below the row under the cursor, so it is never a guess (Lee: "I can't
   // tell if it slots in above or below").
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<{ i: number; below: boolean } | null>(null);
+  /** The bundle ghost under the pointer while a multi-pick drags (spine-drag.ts); removed on dragend. */
+  const ghost = useRef<HTMLElement | null>(null);
+  /** The rows' one stable handler object, and the ref it reads the deck's latest verbs through. */
+  const live = useRef<SpineRowHandlers | null>(null);
+  const rowOn = useMemo<SpineRowHandlers>(() => ({
+    select: (id, e) => live.current?.select(id, e),
+    dragStart: (id, dt) => live.current?.dragStart(id, dt),
+    over: (i, below) => live.current?.over(i, below),
+    drop: () => live.current?.drop(),
+    dragEnd: () => live.current?.dragEnd(),
+    menu: (id) => live.current?.menu(id),
+    closeMenu: () => live.current?.closeMenu(),
+    move: (id) => live.current?.move(id),
+    duplicate: (id, i) => live.current?.duplicate(id, i),
+    cloneCard: (id, i) => live.current?.cloneCard(id, i),
+    toggleSkip: (id) => live.current?.toggleSkip(id),
+    remove: (id, i) => live.current?.remove(id, i),
+  }), []);
+  const dropGhost = () => { ghost.current?.remove(); ghost.current = null; };
+  /** THE ZOOM-OUT (Lee's notes: zoom-out while dragging): after DRAG_ZOOM_AFTER_MS of dragging
+   *  the spine gets `is-dragging` — rows shrink to a line each so the whole running order fits
+   *  the viewport and the target is findable. Off again the moment the drag ends. */
+  const [dragZoom, setDragZoom] = useState(false);
   const drop = () => {
     if (plan && dragId && over) {
-      const from = plan.frames.findIndex((f) => f.id === dragId);
-      let to = over.below ? over.i + 1 : over.i;
-      if (from < to) to -= 1;
-      if (from >= 0 && from !== to) commit(moveFrame(plan.frames, from, to));
+      const to = over.below ? over.i + 1 : over.i;
+      // A DRAGGED ROW THAT IS IN THE PICK DRAGS THE WHOLE PICK (B4/B5): one block, plan.ts
+      // moveMany. A row outside the pick moves alone, as it always did.
+      const bundle = pickedSet.has(dragId) ? pickOrdered(pick, spineOrder) : [dragId];
+      if (bundle.length > 1) {
+        commit(moveMany(plan.frames, bundle, to));
+      } else {
+        const from = plan.frames.findIndex((f) => f.id === dragId);
+        const dest = from < to ? to - 1 : to;
+        if (from >= 0 && from !== dest) commit(moveFrame(plan.frames, from, dest));
+      }
     }
-    setDragId(null); setOver(null);
+    setDragId(null); setOver(null); dropGhost();
   };
+  // AUTO-SCROLL WHILE DRAGGING (spine-drag.ts autoScrollDelta). The spine scrolls the DOCUMENT,
+  // so the window is the scroller: a window-level dragover records the pointer's y (registered
+  // only while a drag is on), a rAF loop scrolls by the band's answer, and the drag's end
+  // cancels both. If a future layout makes the spine its own scroller, hand that element's
+  // rect and scrollBy in here instead of the window's.
+  useEffect(() => {
+    if (!dragId) return;
+    let y = -1;
+    let raf = 0;
+    const onMove = (e: DragEvent) => { y = e.clientY; };
+    const tick = () => {
+      if (y >= 0) { const d = autoScrollDelta(y, 0, window.innerHeight); if (d) window.scrollBy(0, d); }
+      raf = window.requestAnimationFrame(tick);
+    };
+    window.addEventListener("dragover", onMove);
+    raf = window.requestAnimationFrame(tick);
+    const zoom = window.setTimeout(() => setDragZoom(true), DRAG_ZOOM_AFTER_MS);
+    return () => {
+      window.removeEventListener("dragover", onMove);
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(zoom);
+      setDragZoom(false);
+    };
+  }, [dragId]);
 
   // THE ROW VERBS (Lee, 2026-09-04: "Duplicate and remove also can be icons
   // that show up on hover on the left spine"). Same moves the slide's chips
@@ -865,7 +1161,9 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
    *  run's head; cutAfterFrame toggles it off. The opener slides it added stay — his now. */
   const uncutBefore = (take: PlanTake) => {
     const headAt = frames.findIndex((x) => x.id === take.headId);
-    for (let k = headAt - 1; k >= 0; k--) if (frames[k].cutAfter) { commit(cutAfterFrame(frames, frames[k].id, [])); return; }
+    // The spine's takes are over filmFrames, so a mark on a SKIPPED slide is not the boundary
+    // it shows — walk past those to the cut that actually opens this run.
+    for (let k = headAt - 1; k >= 0; k--) if (!frames[k].skipped && frames[k].cutAfter) { commit(cutAfterFrame(frames, frames[k].id, [])); return; }
   };
   // CLONE A SET CARD INTO ITS OWN CARD (2026-09-08). Lee: "If I duplicate a slide, then change
   // it, it's editing the previous slide. It's more a clone one that I can then edit
@@ -1006,98 +1304,82 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   const moveTo = (to: number) => {
     const from = moveFrameRef ? frames.indexOf(moveFrameRef) : -1;
     if (from < 0) { setMoveId(null); return; }
-    const dest = to > from ? to - 1 : to;
-    if (dest !== from) commit(moveFrame(frames, from, dest));
+    // The slide being placed is part of the pick → the whole pick goes, as one block (B4).
+    const bundle = moveFrameRef && pickedSet.has(moveFrameRef.id) ? pickOrdered(pick, spineOrder) : [];
+    if (bundle.length > 1) {
+      commit(moveMany(frames, bundle, to));
+    } else {
+      const dest = to > from ? to - 1 : to;
+      if (dest !== from) commit(moveFrame(frames, from, dest));
+    }
     setMoveId(null);
   };
+  /** The set's slide template — once, not once per row (it was read inside the row loop). */
+  const layout = layoutOf(plan);
+  /** SAME CARD ×n, counted once per plan rather than twice per row. */
+  const sameCard = new Map<string, number>();
+  for (const f of frames) if (f.kind === "ceq" && f.ceqId) sameCard.set(f.ceqId, (sameCard.get(f.ceqId) ?? 0) + 1);
+  /** The backdrop rule's answer per slide, once per plan — the thumbnails read this (SpineRow
+   *  passes it to PhoneFrame) so `frames` changing identity on a keystroke is not a re-render. */
+  const backdropOf = new Map<string, BackdropMode | null>();
+  frames.forEach((f, i) => backdropOf.set(f.id, backdropFor(frames, i, (id) => !!ceqById.get(id)?.noteOnly)));
 
   /** One spine row, shared by the running order and the folder — `number` is the
    *  row's place in the actual film order (undefined inside the folder, where a
    *  slide has no such place); `foldered` turns off drag (a skipped card's order
    *  relative to other skipped cards films nothing, so there is nothing to reorder). */
+  // THE DECK'S VERBS, for the rows (SpineRow is memoized on primitives + this one object). The
+  // object never changes identity; it reads the latest closures through `live`, assigned every
+  // render below, so a row's click always runs against the current plan.
+  live.current = {
+    select: (id, e) => {
+      // A foldered row (not in the spine order) is only ever a plain pick.
+      if (!spineOrder.includes(id)) { setSelId(id); return; }
+      setPick((p) => clickSelect(p, spineOrder, id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }));
+    },
+    dragStart: (id, dt) => {
+      setDragId(id);
+      // A ROW IN THE PICK DRAGS THE WHOLE PICK, under one bundle ghost (spine-drag.ts).
+      const bundle = pickedSet.has(id) ? pickOrdered(pick, spineOrder) : [id];
+      if (dt) {
+        try { dt.effectAllowed = "move"; } catch { /* some engines refuse */ }
+        if (bundle.length > 1) {
+          const first = frames.find((f) => f.id === bundle[0]);
+          dropGhost();
+          ghost.current = buildBundleGhost(document, bundle.length, first ? snippet(first) : "");
+          try { dt.setDragImage(ghost.current, 20, 14); } catch { /* no custom image — the row's own snapshot then */ }
+        }
+      }
+    },
+    over: (i, below) => setOver({ i, below }),
+    drop,
+    dragEnd: () => { setDragId(null); setOver(null); dropGhost(); },
+    menu: (id) => setMenuId((m) => (m === id ? null : id)),
+    closeMenu,
+    move: (id) => setMoveId(id),
+    duplicate: duplicateAt,
+    cloneCard: (id, i) => void cloneCard(id, i),
+    toggleSkip: (id) => commit(toggleSkip(frames, id)),
+    remove: removeAt,
+  };
+  /** One spine row, shared by the running order and the folder — `number` is the
+   *  row's place in the actual film order (undefined inside the folder, where a
+   *  slide has no such place); `foldered` turns off drag (a skipped card's order
+   *  relative to other skipped cards films nothing, so there is nothing to reorder). */
   const spineRow = (f: BlastFrame, i: number, opts: { number?: number; foldered?: boolean; thumb?: boolean } = {}) => {
-    const on = f.id === sel?.id;
-    const menu = menuId === f.id;
-    const lineAbove = !opts.foldered && over?.i === i && !over.below && dragId !== f.id;
-    const lineBelow = !opts.foldered && over?.i === i && over.below && dragId !== f.id;
-    // Foldered rows accept neither drag (nothing to reorder — a skipped card's
-    // order relative to other skipped cards films nothing) nor drop (dragging an
-    // active card into the folder isn't how a card gets skipped; the ⊘ button is).
-    // An active row with its own menu open keeps accepting drops, same as before —
-    // only picking IT up is disabled, so a press inside the menu never drags the row.
-    const canDrop = !opts.foldered;
-    const draggableRow = !menu && canDrop;
+    const foldered = !!opts.foldered;
+    const prog = progress.get(f.id);
     return (
-      <div key={f.id} data-frame-id={f.id} draggable={draggableRow} className={`sa-spine-row${on ? " is-on" : ""}${menu ? " is-menu" : ""}`}
-        onDragStart={() => setDragId(f.id)}
-        onDragOver={canDrop ? (e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setOver({ i, below: e.clientY > r.top + r.height / 2 }); } : undefined}
-        onDrop={canDrop ? (e) => { e.preventDefault(); drop(); } : undefined}
-        onDragEnd={() => { setDragId(null); setOver(null); }}
-        onClick={() => setSelId(f.id)}
-        title={canDrop ? "Click to open · drag to reorder" : "Click to open"}
-        style={{
-          position: "relative", display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 7,
-          background: opts.foldered ? "rgba(9,13,26,0.35)" : PANEL,
-          border: `1px solid ${on ? GOLD : opts.foldered ? FOLDER_EDGE : EDGE}`,
-          boxShadow: lineAbove ? `0 -3px 0 0 ${SKY}` : lineBelow ? `0 3px 0 0 ${SKY}` : "none",
-          opacity: opts.foldered ? 0.8 : dragId === f.id ? 0.5 : 1, cursor: draggableRow ? "grab" : "pointer",
-        }}>
-        <span style={{ color: MUTED, fontSize: 11, fontWeight: 800, minWidth: 18, borderRight: `1px solid ${EDGE}`, paddingRight: 6, fontVariantNumeric: "tabular-nums" }}>
-          {opts.number != null ? opts.number : "⊘"}
-        </span>
-        {/* THE SLIDE ITSELF, small — the same renderer the middle pane and the film use, so what
-            he scans here is what films. Not interactive: pointer events off, so the row's own
-            click and drag still own the whole area. */}
-        {opts.thumb && (
-          <span style={{ display: "inline-flex", flex: "0 0 auto", pointerEvents: "none", borderRadius: 4, overflow: "hidden", border: `1px solid ${EDGE}`, opacity: f.skipped ? 0.45 : 1 }}>
-            <PhoneFrame frame={f} frames={frames} index={i} set={viewSet} topicName={topic.name} w={THUMB_W} live={false} rounded={false}
-              progress={progress.get(f.id)} layout={layoutOf(plan)} />
-          </span>
-        )}
-        <span style={kindTag(colorOf(f))}>{labelOf(f)}</span>
-        <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{snippet(f)}</span>
-        {/* SAME CARD, TWICE — say so on the row (2026-09-09). Lee duplicated Prepaid Rent
-            meaning to make the copy a different question, and could not see that the two slides
-            were one card until he edited one and both changed. A duplicate is a real thing he
-            wants (a callback before the outro); it just has to be legible as one. */}
-        {f.kind === "ceq" && f.ceqId && frames.filter((x) => x.ceqId === f.ceqId).length > 1 && (
-          <span title="The same card appears more than once in this running order — editing it changes every copy. Use ⧉+ for a card you can edit on its own." style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", color: SKY, border: `1px solid ${SKY}55`, borderRadius: 5, padding: "1px 4px", whiteSpace: "nowrap" }}>SAME CARD ×{frames.filter((x) => x.ceqId === f.ceqId).length}</span>
-        )}
-        {/* Lines are made on Rehearse & Film (2026-09-07); the count still shows here so the spine says which slides have them. */}
-        {(f.prompter?.length ?? 0) > 0 && <span title={`${f.prompter!.length} teleprompter line${f.prompter!.length > 1 ? "s" : ""} — made on Rehearse & Film`} style={{ fontSize: 10, color: MINT, fontWeight: 800 }}>🗒{f.prompter!.length}</span>}
-        {tightenProposals[f.id] && <span title="Tighten all: a proposal is waiting on this slide — open it to use or dismiss it" style={{ fontSize: 11 }}>🪄</span>}
-        <span className="sa-spine-tools" style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: 2 }}>
-          {/* TWO KINDS OF COPY, both on the row (2026-09-09). Lee reached for ⧉ expecting the
-              second one: "I need to be able to clone a CEQ and edit it independently. I tried
-              and it didn't work. See how I have two Q9's… I have Prepaid Rent first, then I
-              wanted to make it Prepaid Insurance for a second one." ⧉ is the SAME card shown
-              twice (a callback — edit either and both change, because they are one card); ⧉+
-              makes a real new card he can edit freely. It was only in the ⋯ menu, which is how
-              he missed it. */}
-          {/* MOVE IT (2026-09-09). Lee: "if I want to reorder a slide we can put like a reorder
-              icon to the top right of it outside the slide, and if I click that it lets me — it
-              maybe zooms out a little bit and lets me drag it to where I would like it to be."
-              Dragging the row still works; this is the version that does not need a steady hand
-              down a fifty-slide list. */}
-          {!opts.foldered && (
-            <button style={tiny} title="Move this slide — pick a place in the zoomed-out order" onClick={(e) => { e.stopPropagation(); setMoveId(f.id); }}>⇅</button>
-          )}
-          <button style={tiny} title={f.kind === "ceq" ? "Duplicate — the SAME card, filmed twice. Editing either one edits the card." : "A copy right after this one"} onClick={(e) => { e.stopPropagation(); duplicateAt(f.id, i); }}>⧉</button>
-          {f.kind === "ceq" && f.ceqId && (
-            <button style={tiny} title="Clone as a NEW card — a real second card in the set, copied from this one, editable without touching the original" onClick={(e) => { e.stopPropagation(); void cloneCard(f.id, i); }}>⧉+</button>
-          )}
-          {f.skipped ? (
-            <button style={{ ...tiny, color: MINT }} title="Film this slide again" onClick={(e) => { e.stopPropagation(); commit(toggleSkip(frames, f.id)); }}>↺</button>
-          ) : isInsert(f.kind) ? (
-            <button style={{ ...tiny, color: RED }} title="Remove this slide" onClick={(e) => { e.stopPropagation(); removeAt(f.id, i); }}>✕</button>
-          ) : (
-            <button style={{ ...tiny, color: RED }} title="Skip this card in the film (it stays in the set)" onClick={(e) => { e.stopPropagation(); commit(toggleSkip(frames, f.id)); }}>⊘</button>
-          )}
-          <button className="sa-spine-more" style={{ ...tiny, color: menu ? GOLD : MUTED }} title="Everything for this slide — edit, duplicate, skip, backdrop, banner, and what only this kind has"
-            aria-haspopup="menu" aria-expanded={menu} onClick={(e) => { e.stopPropagation(); setMenuId(menu ? null : f.id); }}>⋯</button>
-        </span>
-        {menu && <SlideMenu {...menuFor(f, i)} onClose={closeMenu} />}
-      </div>
+      <SpineRow key={f.id} frame={f} i={i} number={opts.number} foldered={foldered} thumb={!!opts.thumb}
+        isSelected={f.id === sel?.id} isPicked={pickedSet.has(f.id) && pick.ids.length > 1} isMenuOpen={menuId === f.id} isDragging={dragId === f.id}
+        dropEdge={!foldered && over?.i === i && dragId !== f.id ? (over.below ? "below" : "above") : null}
+        label={labelOf(f)} color={colorOf(f)} snippet={snippet(f)}
+        sameCardCount={f.kind === "ceq" && f.ceqId ? sameCard.get(f.ceqId) ?? 0 : 0}
+        prompterLines={f.prompter?.length ?? 0} tightened={!!tightenProposals[f.id]}
+        ceq={f.ceqId ? ceqById.get(f.ceqId) : undefined} backdrop={backdropOf.get(f.id) ?? null}
+        frames={frames} set={viewSet} topicName={topic.name} progressX={prog?.x} progressY={prog?.y} layout={layout}
+        menu={menuId === f.id ? menuFor(f, i) : null}
+        on={rowOn} />
     );
   };
 
@@ -1197,7 +1479,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
             button… AND have a scissor icon for cutting there." Everything he does between slides
             is now done between slides, instead of in a panel somewhere else. A run of slides
             between two cuts is one Short, and it collapses. */}
-        <div className="sa-spine flex flex-col" style={{ gap: 5 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
+        <div className={`sa-spine flex flex-col${dragZoom ? " is-dragging" : ""}`} style={{ gap: 5 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
           {/* ONE RUN PER TAKE (2026-09-09), each with THE BRACKET in a left gutter — Lee's notes:
               a left-gutter Excel bracket per split, with a film icon on it. A
               2 px gold rule with caps spans the run; ▾/▸ folds it, 🎬 pops the 9:16 window out on
@@ -1317,9 +1599,12 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
               {activeRows.map(({ f, i }, pos) => (
                 <span key={f.id} className="flex" style={{ alignItems: "stretch" }}>
                   <MoveSlot to={i} onPick={moveTo} first={pos === 0} />
-                  <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 3, opacity: f.id === moveFrameRef.id ? 0.35 : 1 }}>
+                  {/* A tile can be picked up and dragged to a slot (2026-09-09) — picking it up
+                      makes IT the slide being placed. */}
+                  <span draggable onDragStart={() => setMoveId(f.id)}
+                    style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 3, opacity: f.id === moveFrameRef.id ? 0.35 : 1, cursor: "grab" }}>
                     <span style={{ borderRadius: 5, overflow: "hidden", border: `1px solid ${f.id === moveFrameRef.id ? GOLD : EDGE}`, pointerEvents: "none" }}>
-                      <PhoneFrame frame={f} frames={frames} index={i} set={viewSet} topicName={topic.name} w={72} live={false} rounded={false} layout={layoutOf(plan)} />
+                      <PhoneFrame frame={f} frames={frames} index={i} set={viewSet} topicName={topic.name} w={72} live={false} rounded={false} layout={layout} backdrop={backdropOf.get(f.id) ?? null} />
                     </span>
                     <span style={{ fontSize: 9.5, color: MUTED, fontVariantNumeric: "tabular-nums" }}>{pos + 1}</span>
                   </span>
@@ -1342,7 +1627,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
             progress={progress.get(sel.id)}
             backdrop={backdropFor(frames, selIdx, (id) => !!ceqById.get(id)?.noteOnly)}
             frames={frames}
-            layout={layoutOf(plan)}
+            layout={layout}
             onMove={(d) => commit(moveFrame(frames, selIdx, selIdx + d))}
             onPatch={(p) => patch(sel.id, p)}
             shorten={shortenReq ? { on: shortenId === sel.id, open: openShorten } : null} />
@@ -1375,7 +1660,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
             : <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5 }}>Pictures go on Memorize This, Cheat Code, Go Deeper, Tricky Question, blank and slogan slides. Pick one of those in the spine, or insert a <b style={{ color: CREAM }}>＋ Blank</b> — on a blank slide the picture is the slide: the watermark, the picture and the camera if you want it.</div>}
         </section>
       ) : (
-        <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs} layout={layoutOf(plan)}
+        <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs} layout={layout}
           ceq={selCeq}
           saving={saving}
           shortenApplied={shortenApplied}

@@ -14,7 +14,7 @@
 // (the card centred); pass 2 is the vertical template — the card at the top
 // of the safe column, narrower and bigger so it reads portrait, the camera
 // bigger and placed to the content. The set picks its pass on /v3.
-import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { CampusBanner } from "@/components/brand-cards/BoltZoom";
@@ -27,7 +27,7 @@ import { FrameView } from "./frame-view";
 import { IllustrationLayer, PlacedIllustration } from "./IllustrationLayer";
 import { canIllustrate, isPlaced } from "./illustration";
 import { SAFE, camDefault, captionRailClear, captionRailRect, cardPlacement, type RailStatus, type SlideLayout } from "./layout";
-import { backdropFor, framesFullFrame, isBigCallout, isFullFrame, type BlastFrame } from "./plan";
+import { backdropFor, framesFullFrame, isBigCallout, isFullFrame, type BackdropMode, type BlastFrame } from "./plan";
 import type { CardOverride } from "./SetCard";
 import { SlideEditContext } from "./slide-edit";
 import { BRAND_FONT } from "./stage";
@@ -97,11 +97,18 @@ export function watermarkOn(frame: BlastFrame, _backdrop: ReturnType<typeof back
   return !isFullFrame(frame.kind);
 }
 
-export function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, popout = false, stageStyle, camSpot, cardOverride: gripOverride, layout = "pass1", hero: heroProp, onHero, onRailStatus, coldOpen }: {
+// MEMOIZED (2026-09-09): the Editor's spine draws one of these per row at 88 px, and every
+// keystroke in the editor re-rendered all of them. React.memo with the default shallow compare —
+// the spine's row passes stable props (see ReviewDeck's SpineRow); every other caller is one
+// phone and behaves exactly as before. The display name stays "PhoneFrame".
+export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, popout = false, stageStyle, camSpot, cardOverride: gripOverride, layout = "pass1", hero: heroProp, onHero, onRailStatus, coldOpen, backdrop: backdropGiven }: {
   frame: BlastFrame;
   /** The whole running order — the backdrop rule looks at the neighbours. */
   frames: readonly BlastFrame[];
   index: number;
+  /** The backdrop rule's answer, when the caller already has it (the spine computes it once per
+   *  plan for every row). Absent = ask backdropFor here, as always. */
+  backdrop?: BackdropMode | null;
   set: BoothSetInfo; topicName?: string | null; progress?: { x: number; y: number } | null;
   w?: number; live?: boolean;
   /** Draw the Shorts safe zones (status bar, caption, like/share rail). */
@@ -143,7 +150,7 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
   coldOpen?: { ms: number; key?: string | number; held?: boolean } | null;
 }) {
   const h = Math.round(w * 16 / 9);
-  const backdrop = backdropFor(frames, index, (id) => !!set.ceqs.find((c) => c.id === id)?.noteOnly);
+  const backdrop = backdropGiven !== undefined ? backdropGiven : backdropFor(frames, index, (id) => !!set.ceqs.find((c) => c.id === id)?.noteOnly);
   // A callout drawn BIG is laid out like a slogan slide, so its picture is placed like one.
   const big = isBigCallout(frame);
   const place = cardPlacement(layout, frame.kind);
@@ -380,4 +387,4 @@ export function PhoneFrame({ frame, frames, index, set, topicName, progress, w =
       )}
     </div>
   );
-}
+});
