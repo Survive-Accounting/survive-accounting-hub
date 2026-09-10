@@ -767,111 +767,104 @@ function SchoolTicker({ size = 14, className = "mt-3 w-full max-w-md", onPick }:
 // Callbacks come from the page so a link reuses the existing flow (the chapter finder, the syllabus
 // modal, the picker) rather than wiring a new route. When a page passes none, links fall back to a
 // real href so the FAQ still works wherever it renders.
-/** THE STUDENT FAQ, IN FOUR GROUPS.
+/** THE STUDENT FAQ (rebuilt 2026-09-09) — ONE FLAT LIST, not four category toggles.
  *
- *  Nine questions in one column is a wall: every answer looks equally likely to be the one you
- *  came for, so the reader scans none of them. Grouped, the page asks one question first — which
- *  KIND of thing do you want to know — and that is a question anyone can answer in a second.
+ *  It used to be grouped ("The basics" / "The content" / "Greek life" / "Working with me")
+ *  because nine questions in one column read as a wall. But four category headers on a landing
+ *  page reads as documentation, not an FAQ — and the fix for "too many questions" doesn't have to
+ *  be a taxonomy. It can just be showing fewer of them: the three that actually block a decision
+ *  (is it free, is it worth it tonight, will it match my course), then a plain "Show more
+ *  questions" for everyone still reading. See Faq() below for that split — this function only
+ *  returns the flat, ordered list; ORDER IS THE PRIORITY, not a group name.
  *
- *  The groups are ordered by how load-bearing they are: money and timing block the decision, the
- *  content is the pitch, Greek is a large but not universal audience, and working-with-me is for
- *  the few who want more than the product. */
-function studentFaqGroups(cb: { onSyllabus?: () => void; onFindChapter?: () => void; onNotListed?: () => void }): FaqGroup[] {
+ *  Answers are trimmed to 1-3 short sentences on purpose (comp spec) — this is a landing page, not
+ *  a help center. Existing flows (syllabus modal, chapter finder, school write-in, notify capture)
+ *  are unchanged; only the copy around them got shorter. */
+function studentFaqs(cb: { onSyllabus?: () => void; onFindChapter?: () => void; onNotListed?: () => void }): Array<{ q: string; a: React.ReactNode }> {
   return [
+    // THE TOP THREE — shown by default, nothing else. Money, timing, and "will it fit my course",
+    // in that order: the three things that block a decision before anything else matters.
     {
-      group: "The basics",
-      items: [
-        {
-          q: "Is Exam 1 really free?",
-          a: "Exam 1 is free — every video, every practice question. Just click and start cramming. I make money when students want Survive for the whole semester.",
-        },
-        {
-          q: "My exam is tomorrow. Is this still worth it?",
-          a: "That's exactly what it's built for. Start in cram mode — every video is two minutes or less, and you can get through a whole exam's worth tonight. If you've got more time, the practice questions are where it sticks.",
-        },
-        {
-          q: "Will this replace my lectures?",
-          a: "No. This is exam prep. Go to class — use this when it's time to actually get ready.",
-        },
-      ],
+      q: "Is Exam 1 really free?",
+      a: "Yes. Every Exam 1 video and practice question is free. Just click and start cramming. I make money if you want Survive for the rest of the semester.",
     },
     {
-      group: "The content",
-      items: [
-        {
-          q: "How do you make your content?",
-          a: (
-            <>
-              <p>Ten years of tutoring means I&apos;ve watched professors spin the same topic five different ways — where they hide the curveball, what they make tricky on purpose. So instead of memorizing one version of a problem, I teach you to recognize the <em>type</em> and see it coming.</p>
-              <p className="mt-2.5">That&apos;s most of the gap between a B and an A.</p>
-              <p className="mt-2.5"><FaqLink onClick={cb.onSyllabus} href="/chapters">Send me your syllabus →</FaqLink> and I&apos;ll match my content to your course.</p>
-            </>
-          ),
-        },
-        {
-          q: "What if you don't have my school?",
-          a: (
-            <>
-              <p>Intro accounting is close to the same course almost everywhere, so these will still carry you. Tell me your school and I&apos;ll add it — and send your syllabus so I can make sure yours is covered.</p>
-              <p className="mt-2.5">
-                <FaqLink onClick={cb.onNotListed} href="/chapters">Don&apos;t see your school? →</FaqLink>
-                <span aria-hidden style={{ opacity: 0.5 }}> · </span>
-                <FaqLink onClick={cb.onSyllabus} href="/chapters">Send your syllabus →</FaqLink>
-              </p>
-            </>
-          ),
-        },
-      ],
+      q: "My exam is tomorrow. Is this still worth it?",
+      a: "That's what Survive is built for. Start with the cram videos — they're two minutes or less — then hit the practice questions if you have time.",
     },
     {
-      group: "Greek life",
-      items: [
-        {
-          q: "I'm not in a fraternity or sorority. Can I still use this?",
-          a: "For sure — everything works the same. Chapters have a group option, but Exam 1 is free for anyone.",
-        },
-        {
-          q: "How does this work with fraternities and sororities?",
-          a: (
-            <>
-              <p>Your chapter gets its own page and Exam 1 is free for every member. Chapters that want the whole semester can sponsor seats at $100 each.</p>
-              <p className="mt-2.5"><FaqLink onClick={cb.onFindChapter} href="/chapters">Find your chapter →</FaqLink></p>
-            </>
-          ),
-        },
-      ],
+      q: "Will this work for my course?",
+      a: (
+        <>
+          <p>Intro accounting overlaps a lot from school to school. Pick your school if it&apos;s listed. If it isn&apos;t, send me your syllabus and I&apos;ll make sure you&apos;re covered.</p>
+          <p className="mt-2.5"><FaqLink onClick={cb.onSyllabus} href="/chapters">Send your syllabus →</FaqLink></p>
+        </>
+      ),
+    },
+    // EVERYTHING BELOW IS BEHIND "Show more questions" — one clean accordion list, no second
+    // category layer. Order still matters (most-asked first); it just isn't labelled anymore.
+    {
+      q: "Will this replace my lectures?",
+      a: "No. This is exam prep. Go to class — use this when it's time to actually get ready.",
     },
     {
-      group: "Working with me",
-      items: [
-        {
-          q: "Do you do 1-on-1 tutoring?",
-          a: (
-            <>
-              <p>A little. I tutored in person from 2015 on, then started making videos during the pandemic and never went back — turns out I like the making as much as the teaching. Most of my week goes to filming now, but I keep a few hours open at $120/hr.</p>
-              <FaqNotify topic="1-on-1 tutoring" cta="Contact me →" />
-            </>
-          ),
-        },
-        {
-          q: "Are you doing live streams?",
-          a: (
-            <>
-              <p>Thinking about it — live test-prep sessions before big exams, priced for a college budget. Drop your email if you&apos;d want in.</p>
-              <FaqNotify topic="Live test-prep streams" cta="Notify me →" />
-            </>
-          ),
-        },
-        {
-          q: "What if I watch everything and still feel lost?",
-          a: (
-            <>
-              <p>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a>. I read every message myself.</p>
-              <p className="mt-2.5">Fair warning: I love talking about this stuff and I&apos;m always down to give a pep talk.</p>
-            </>
-          ),
-        },
-      ],
+      q: "How do you make your content?",
+      a: (
+        <>
+          <p>Ten years of tutoring taught me where professors hide the tricky parts, so I teach you to recognize the type of problem instead of memorizing one version of it.</p>
+          <p className="mt-2.5"><FaqLink onClick={cb.onSyllabus} href="/chapters">Send your syllabus →</FaqLink> and I&apos;ll match my content to your course.</p>
+        </>
+      ),
+    },
+    {
+      q: "What if you don't have my school?",
+      a: (
+        <>
+          <p>Intro accounting is close to the same course almost everywhere, so these will still carry you. Tell me your school and I&apos;ll add it.</p>
+          <p className="mt-2.5">
+            <FaqLink onClick={cb.onNotListed} href="/chapters">Don&apos;t see your school? →</FaqLink>
+            <span aria-hidden style={{ opacity: 0.5 }}> · </span>
+            <FaqLink onClick={cb.onSyllabus} href="/chapters">Send your syllabus →</FaqLink>
+          </p>
+        </>
+      ),
+    },
+    {
+      q: "I'm not in a fraternity or sorority. Can I still use this?",
+      a: "For sure — everything works the same. Chapters have a group option, but Exam 1 is free for anyone.",
+    },
+    {
+      q: "How does this work with fraternities and sororities?",
+      a: (
+        <>
+          <p>Your chapter gets its own page and Exam 1 is free for every member. Chapters that want the whole semester can sponsor seats at $100 each.</p>
+          <p className="mt-2.5"><FaqLink onClick={cb.onFindChapter} href="/chapters">Find your chapter →</FaqLink></p>
+        </>
+      ),
+    },
+    {
+      q: "Do you do 1-on-1 tutoring?",
+      a: (
+        <>
+          <p>A little — most of my week goes to filming now, but I keep a few hours open at $120/hr.</p>
+          <FaqNotify topic="1-on-1 tutoring" cta="Contact me →" />
+        </>
+      ),
+    },
+    {
+      q: "Are you doing live streams?",
+      a: (
+        <>
+          <p>Thinking about it — live test-prep sessions before big exams. Drop your email if you&apos;d want in.</p>
+          <FaqNotify topic="Live test-prep streams" cta="Notify me →" />
+        </>
+      ),
+    },
+    {
+      q: "What if I watch everything and still feel lost?",
+      a: (
+        <p>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a>. I read every message myself.</p>
+      ),
     },
   ];
 }
@@ -907,60 +900,59 @@ const GREEK_FAQS: Array<{ q: string; a: string }> = [
   },
 ];
 
-/** One titled group of questions. */
-type FaqGroup = { group: string; items: Array<{ q: string; a: React.ReactNode }> };
-
 export function Faq({ greek, onSyllabus, onFindChapter, onNotListed }: { greek?: string; onSyllabus?: () => void; onFindChapter?: () => void; onNotListed?: () => void }) {
-  // GROUPED, NOT A WALL. Nine accordions in one column all look equally likely to hold the answer
-  // you came for, so the reader scans none of them; the old fix was a "Show more" that just hid
-  // four of them. Now the page asks the easy question first — which KIND of thing do you want to
-  // know — and only the group you open costs you any reading.
-  //
-  // The FIRST GROUP is open, the rest closed: the basics are what block the decision, and a page
-  // where every group is shut looks like it is hiding something. Individual ANSWERS all start
-  // closed, in every group, including the open one.
-  const groups: FaqGroup[] = greek
-    ? [{ group: "Chapter questions", items: GREEK_FAQS }]
-    : studentFaqGroups({ onSyllabus, onFindChapter, onNotListed });
-  const [openGroup, setOpenGroup] = useState<string | null>(groups[0]?.group ?? null);
+  // THE CHAPTER FAQ — UNCHANGED (2026-09-09). Kept as its own early return, byte-for-byte the same
+  // rendering the single-group case always produced, so nothing about the Greek chapter page's FAQ
+  // moves, sizes, or behaves differently. Only the student branch below was touched this pass.
+  if (greek) {
+    return (
+      <section className="py-10">
+        <p className="text-center text-[11.5px] font-bold" style={{ color: "var(--text-muted)", letterSpacing: "0.16em" }}>
+          CHAPTER QUESTIONS
+        </p>
+        <div className="mx-auto mt-5 max-w-[640px]">
+          <div className="mt-3 space-y-3">
+            {GREEK_FAQS.map((f) => <FaqCard key={f.q} f={f} />)}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
+  // THE STUDENT FAQ (rebuilt 2026-09-09) — ONE FLAT LIST, three questions by default, the rest
+  // behind "Show more questions". No category navigation at any point: this replaces the old
+  // four-toggle-group layout (which read as documentation on a landing page), not just its
+  // default state — expanding never introduces a second category layer, just the remaining
+  // accordions in the same flat list. See studentFaqs() for why these three lead and why the
+  // answers are this short.
+  const [showMore, setShowMore] = useState(false);
+  const all = studentFaqs({ onSyllabus, onFindChapter, onNotListed });
+  const HEAD_COUNT = 3;
+  const visible = showMore ? all : all.slice(0, HEAD_COUNT);
   return (
     <section className="py-10">
       <p className="text-center text-[11.5px] font-bold" style={{ color: "var(--text-muted)", letterSpacing: "0.16em" }}>
-        {greek ? "CHAPTER QUESTIONS" : "FREQUENTLY ASKED QUESTIONS"}
+        FREQUENTLY ASKED QUESTIONS
       </p>
-      <div className="mx-auto mt-5 max-w-[640px]">
-        {groups.map((g, gi) => {
-          const open = openGroup === g.group;
-          // A single group (the Greek page) has nothing to choose between, so it renders as a
-          // plain list rather than a toggle that can only ever be open.
-          const only = groups.length === 1;
-          return (
-            <div key={g.group} className={gi === 0 ? "" : "mt-6"}>
-              {!only && (
-                <button
-                  type="button"
-                  onClick={() => setOpenGroup((cur) => (cur === g.group ? null : g.group))}
-                  aria-expanded={open}
-                  className="flex w-full items-center gap-2 text-left"
-                  style={{ minHeight: 44, background: "none", border: 0, cursor: "pointer" }}
-                >
-                  <span className="text-[11.5px] font-bold" style={{ color: open ? "var(--brand-cream)" : "var(--text-muted)", letterSpacing: "0.16em", textTransform: "uppercase" }}>
-                    {g.group}
-                  </span>
-                  <span aria-hidden className="text-[11px]" style={{ color: "var(--text-muted)" }}>({g.items.length})</span>
-                  <span aria-hidden className="ml-auto text-[13px]" style={{ color: "var(--accent)", transform: open ? "rotate(90deg)" : "none", transition: "transform 160ms ease" }}>›</span>
-                </button>
-              )}
-              {(open || only) && (
-                <div className="mt-3 space-y-3">
-                  {g.items.map((f) => <FaqCard key={f.q} f={f} />)}
-                </div>
-              )}
-            </div>
-          );
-        })}
+      <div className="mx-auto mt-5 max-w-[640px] space-y-3">
+        {visible.map((f) => <FaqCard key={f.q} f={f} />)}
       </div>
+      {!showMore && all.length > HEAD_COUNT && (
+        <div className="mt-4 text-center">
+          {/* A plain button, not another accordion header — Enter/Space/focus-ring come free from
+              the element itself, same as FaqCard's own header does. Understated on purpose: this
+              is a "there's more if you want it" offer, not a second CTA competing with the page's
+              real ones. */}
+          <button
+            type="button"
+            onClick={() => setShowMore(true)}
+            className="text-[13.5px] font-bold underline underline-offset-4 focus-visible:ring-2"
+            style={{ background: "none", border: 0, padding: "6px 4px", cursor: "pointer", color: "var(--text-muted)", minHeight: 44 }}
+          >
+            Show more questions ↓
+          </button>
+        </div>
+      )}
     </section>
   );
 }
