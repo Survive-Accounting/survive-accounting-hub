@@ -142,7 +142,8 @@ export function pageLabel(sourcePath: string): string {
   if (v3set) return `Set menu · ${nice(v3set[2])}`;
   const v3topic = p.match(/^\/v3\/([^/]+)\/?$/);
   if (v3topic) return `Topic · ${nice(v3topic[1])}`;
-  if (p === "/v3" || p === "/v3/") return "The Queue (/v3)";
+  if (p === "/v3" || p === "/v3/" || p === "/v3/map") return "The map (/v3)";
+  if (p === "/v3/queue") return "The Queue (/v3/queue)";
   const known: [RegExp, string][] = [
     [/^\/admin\/ideas\/strategy/, "Strategy board"], [/^\/admin\/ideas/, "Idea Bank"], [/^\/admin\/growth\/coldoutreach/, "Cold outreach"], [/^\/admin\/growth/, "Growth dashboard"],
     [/^\/admin\/reps/, "Reps admin"], [/^\/outreach/, "Outreach"], [/^\/talkthrough/, "Talkthrough studio"], [/^\/blast-off/, "Blast Off (old)"],

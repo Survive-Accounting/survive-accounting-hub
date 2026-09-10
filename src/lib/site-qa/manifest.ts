@@ -638,7 +638,8 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "rep_.test.tsx": "redirect — the one-link tester entry for the rep flow (arms Test Mode, lands on the test campus apply page)",
   "api.og.$school.$chapter.tsx": "generated image endpoint",
   "api.thumb.$setId.tsx": "generated image endpoint — the short's cover, admin-gated",
-  "v3.map.tsx": "V3 map (AdminGate, noindex) — cram path vs offshoots per topic, added 2026-09-09 (docs/DESIGN-CRAM-MAP.md)",
+  "v3.map.tsx": "V3 map (AdminGate, noindex) — alias of the /v3 home since 2026-09-10; cram path vs offshoots per topic (docs/DESIGN-CRAM-MAP.md)",
+  "v3.queue.tsx": "V3 queue list (AdminGate, noindex) — the former /v3 home, moved 2026-09-10 when the map became the home",
   "v3.learn.tsx": "V3 learn mock-up (noindex; ?admin=1 is AdminGate) — the cram path as students will see it, with the Take-me-to-an-A offshoots, added 2026-09-10",
   "api.stripe.webhook.tsx": "webhook endpoint",
 };

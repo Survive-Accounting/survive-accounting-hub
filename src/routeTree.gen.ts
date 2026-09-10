@@ -54,6 +54,7 @@ import { Route as SchoolIndexRouteImport } from './routes/$school.index'
 import { Route as VaTokenRouteImport } from './routes/va.$token'
 import { Route as V3ValuesRouteImport } from './routes/v3.values'
 import { Route as V3TeleprompterRouteImport } from './routes/v3.teleprompter'
+import { Route as V3QueueRouteImport } from './routes/v3.queue'
 import { Route as V3PostRouteImport } from './routes/v3.post'
 import { Route as V3MapRouteImport } from './routes/v3.map'
 import { Route as V3LearnRouteImport } from './routes/v3.learn'
@@ -422,6 +423,11 @@ const V3ValuesRoute = V3ValuesRouteImport.update({
 const V3TeleprompterRoute = V3TeleprompterRouteImport.update({
   id: '/v3/teleprompter',
   path: '/v3/teleprompter',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V3QueueRoute = V3QueueRouteImport.update({
+  id: '/v3/queue',
+  path: '/v3/queue',
   getParentRoute: () => rootRouteImport,
 } as any)
 const V3PostRoute = V3PostRouteImport.update({
@@ -1275,6 +1281,7 @@ export interface FileRoutesByFullPath {
   '/v3/learn': typeof V3LearnRoute
   '/v3/map': typeof V3MapRoute
   '/v3/post': typeof V3PostRoute
+  '/v3/queue': typeof V3QueueRoute
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
   '/va/$token': typeof VaTokenRoute
@@ -1463,6 +1470,7 @@ export interface FileRoutesByTo {
   '/v3/learn': typeof V3LearnRoute
   '/v3/map': typeof V3MapRoute
   '/v3/post': typeof V3PostRoute
+  '/v3/queue': typeof V3QueueRoute
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
   '/va/$token': typeof VaTokenRoute
@@ -1654,6 +1662,7 @@ export interface FileRoutesById {
   '/v3/learn': typeof V3LearnRoute
   '/v3/map': typeof V3MapRoute
   '/v3/post': typeof V3PostRoute
+  '/v3/queue': typeof V3QueueRoute
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
   '/va/$token': typeof VaTokenRoute
@@ -1847,6 +1856,7 @@ export interface FileRouteTypes {
     | '/v3/learn'
     | '/v3/map'
     | '/v3/post'
+    | '/v3/queue'
     | '/v3/teleprompter'
     | '/v3/values'
     | '/va/$token'
@@ -2035,6 +2045,7 @@ export interface FileRouteTypes {
     | '/v3/learn'
     | '/v3/map'
     | '/v3/post'
+    | '/v3/queue'
     | '/v3/teleprompter'
     | '/v3/values'
     | '/va/$token'
@@ -2225,6 +2236,7 @@ export interface FileRouteTypes {
     | '/v3/learn'
     | '/v3/map'
     | '/v3/post'
+    | '/v3/queue'
     | '/v3/teleprompter'
     | '/v3/values'
     | '/va/$token'
@@ -2387,6 +2399,7 @@ export interface RootRouteChildren {
   V3LearnRoute: typeof V3LearnRoute
   V3MapRoute: typeof V3MapRoute
   V3PostRoute: typeof V3PostRoute
+  V3QueueRoute: typeof V3QueueRoute
   V3TeleprompterRoute: typeof V3TeleprompterRoute
   V3ValuesRoute: typeof V3ValuesRoute
   VaTokenRoute: typeof VaTokenRoute
@@ -2751,6 +2764,13 @@ declare module '@tanstack/react-router' {
       path: '/v3/teleprompter'
       fullPath: '/v3/teleprompter'
       preLoaderRoute: typeof V3TeleprompterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v3/queue': {
+      id: '/v3/queue'
+      path: '/v3/queue'
+      fullPath: '/v3/queue'
+      preLoaderRoute: typeof V3QueueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/v3/post': {
@@ -4062,6 +4082,7 @@ const rootRouteChildren: RootRouteChildren = {
   V3LearnRoute: V3LearnRoute,
   V3MapRoute: V3MapRoute,
   V3PostRoute: V3PostRoute,
+  V3QueueRoute: V3QueueRoute,
   V3TeleprompterRoute: V3TeleprompterRoute,
   V3ValuesRoute: V3ValuesRoute,
   VaTokenRoute: VaTokenRoute,
