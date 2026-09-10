@@ -151,12 +151,13 @@ export function councilKeyOf(raw: string | null | undefined): string | null {
   return COUNCIL_ALIASES[k] ?? null;
 }
 
-/** The bare instagram handle from a handle, an @handle or a full URL. Mirrors normalizeHandle in
- *  find-contacts-shared, kept here so the parser stays dependency-free and testable on its own. */
+/** The bare instagram handle from a handle, an @handle or a full URL.
+ *  ANCHORED AT BOTH ENDS: unanchored, this matches the tail of any string, so a name landing in a
+ *  handle column would silently become a handle ("John Smith" → "smith"). Not a handle ⇒ "". */
 export function bareIg(v: string | null | undefined): string {
   const s = (v ?? "").trim();
   if (!s || s === "-") return "";
-  const m = s.match(/(?:instagram\.com\/)?@?([A-Za-z0-9._]{2,40})\/?$/);
+  const m = s.match(/^(?:https?:\/\/)?(?:www\.)?(?:instagram\.com\/)?@?([A-Za-z0-9._]{2,40})\/?$/);
   return m ? m[1].toLowerCase() : "";
 }
 

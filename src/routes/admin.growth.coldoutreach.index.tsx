@@ -44,6 +44,7 @@ import { BottomSheet } from "@/components/growth/BottomSheet";
 import { DmBoard } from "@/components/growth/DmBoard";
 import { ColdHeader } from "@/components/growth/ColdHeader";
 import { renderQueryState } from "@/components/growth/QueryState";
+import { ContactsCsvBar } from "@/components/growth/ContactsCsvBar";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/growth/coldoutreach/")({
@@ -183,6 +184,9 @@ function ColdOutreachPage() {
           <button key={o.id} onClick={() => setOwner(o.id)} className={cn("px-4 py-1.5 font-medium", owner === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>{o.label}</button>
         ))}
       </div>
+
+      {/* Every school at once. The per-school pair lives on the DM board, in the same shape. */}
+      <ContactsCsvBar />
 
       {renderQueryState(board)}
 

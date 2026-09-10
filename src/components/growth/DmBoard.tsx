@@ -11,6 +11,7 @@ import { Copy, Check, Square, Link as LinkIcon, Landmark, MessageSquare, Send, C
 
 import { BottomSheet } from "@/components/growth/BottomSheet";
 import { FindContactsPanel } from "@/components/growth/FindContactsPanel";
+import { ContactsCsvBar } from "@/components/growth/ContactsCsvBar";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { schoolByCampusId, boltForSlug } from "@/lib/schools";
 import { buildDmMessage } from "@/lib/dm-template";
@@ -61,6 +62,10 @@ export function DmBoard({ campusId, campusName, onClose }: { campusId: string; c
                   {showAdd ? <><ArrowLeft className="size-3.5" /> Back to board</> : <><UserPlus className="size-3.5" /> Add / scrape contacts</>}
                 </button>
               </div>
+
+              {/* This school's contacts in and out, same file shape as the all-schools pair on the
+                  Cold Outreach index. */}
+              <ContactsCsvBar campusId={campusId} campusName={campusName} />
 
               {showAdd ? (
                 <FindContactsPanel campusId={campusId} campusName={campusName} onImported={() => { qc.invalidateQueries({ queryKey: ["ig-campus", campusId] }); setShowAdd(false); }} />

@@ -92,6 +92,9 @@ describe("handles and councils", () => {
     expect(bareIg("")).toBe("");
     expect(bareIg("-")).toBe("");
     expect(bareIg("not a handle at all!!")).toBe("");
+    // A name that slipped into a handle column must come back empty, never its last word.
+    expect(bareIg("John Smith")).toBe("");
+    expect(bareIg("Maddie Carter")).toBe("");
   });
 
   it("maps what people actually type to a council key", () => {
