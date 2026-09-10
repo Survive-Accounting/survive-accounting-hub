@@ -8,9 +8,11 @@
 // Sessions are the booth's own: the set's open session is resumed, or a fresh
 // one starts (one open session per set, the same rule as the booth home).
 // "End Session → Review" runs the usual pre-flight and queues the AI review;
-// the review itself is read on Step 2 (/results — the AI board folds under the
-// film draft there since 2026-09-03). The Talkthrough studio (/talkthrough)
-// stays the place for sessions, boards and the bank.
+// the review itself is read on THIS set's Suggestions page (/suggestions, the
+// board on its own page since 2026-09-08 — before that it folded under the
+// film draft on /results), and that is where ending a session lands since
+// 2026-09-09. The Talkthrough studio (/talkthrough) stays the place for
+// sessions, boards and the bank.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 
@@ -21,7 +23,7 @@ import { queueIncrementalReview, sweepStrandedReviews } from "@/components/canva
 import { listSessions, makeSession, touchRow, type TalkSession } from "@/components/canvas/talkthrough";
 import { putSession, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { StepBar } from "@/components/v3/StepBar";
-import { blastOffPath, nextSetAfter, topicOfSet, useV3Set } from "@/components/v3/use-bank";
+import { blastOffPath, topicOfSet, useV3Set } from "@/components/v3/use-bank";
 import { V3Shell, V3Note } from "@/components/v3/Shell";
 
 export const Route = createFileRoute("/v3/$topic/$set/blast-off/talkthrough")({
@@ -109,11 +111,15 @@ function V3Talkthrough() {
             // written to the board as it lands, with a progress line in the
             // booth. The one-shot pass is still queueReview (the studio).
             queueIncrementalReview({ session: ses, ceqs: set.ceqs.map(boothToPassCeq), excludedKinds, wantVibePlan });
-            // ON TO THE NEXT SET (Lee, 2026-09-03): generation runs in the
-            // background — the dock bottom-right tracks it and links to the
-            // results when ready. After the last set, back to the queue.
-            const next = nextSetAfter(topics, set.id);
-            void navigate({ to: next ? blastOffPath(next.topic, next.set, "talkthrough") : "/v3" });
+            // TO THIS SET'S SUGGESTIONS (2026-09-09). Until today this sent Lee
+            // on to the NEXT set's Brainstorm ("on to the next set", 2026-09-03:
+            // generation runs in the background, the dock tracks it) — which
+            // stranded the board he had just made: the suggestions landed on a
+            // page he had already left. Ending a session lands on this set's
+            // board now, where the ideas arrive as they are written. The batch
+            // case still has its door: the generation dock's own "Review ↗"
+            // (GenerationDock.tsx) links each finished set's Suggestions.
+            void navigate({ to: blastOffPath(topic, set, "suggestions") });
           }}
         />
       )}
