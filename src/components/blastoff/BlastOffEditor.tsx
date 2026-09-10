@@ -45,13 +45,27 @@ export function usePlan(set: BoothSetInfo) {
   const [saving, setSaving] = useState<string | null>(null);
   const dirty = useRef(false);
 
+  // FETCH ONCE PER SET. Until 2026-09-10 this re-fetched on every ceqs change too — and every
+  // card save, clone or bank refresh changes ceqs. The fetch raced the debounced plan save: the
+  // server answered with the order from BEFORE the save, the frames on screen were replaced by
+  // it, the selected slide (often the one just cloned) was gone from them, and the deck fell
+  // back to slide 0 — Lee: "it keeps returning the slide 0… I clone one and lose my place". Now
+  // a ceqs change reconciles the CURRENT frames locally (new cards appear, deleted ones go) and
+  // the server is asked only when the set itself changes.
   useEffect(() => {
     let live = true;
     loadBlastPlan({ data: { setId: set.id } })
       .then((stored) => { if (live) { const s = stored as BlastPlan | null; setPlan({ ...reconcilePlan(s, set.ceqs), ...(s?.layout ? { layout: s.layout } : {}) }); } })
       .catch(() => { if (live) setPlan(reconcilePlan(null, set.ceqs)); });
     return () => { live = false; };
-  }, [set.id, set.ceqs]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [set.id]);
+  const ceqsRef = useRef(set.ceqs);
+  useEffect(() => {
+    if (ceqsRef.current === set.ceqs) return;
+    ceqsRef.current = set.ceqs;
+    setPlan((prev) => (prev ? { ...prev, ...reconcilePlan(prev, set.ceqs), ...(prev.layout ? { layout: prev.layout } : {}) } : prev));
+  }, [set.ceqs]);
 
   // DEBOUNCED SAVE (2026-09-03, the review deck types into frames): the
   // screen updates on every keystroke; the server gets the plan once the
@@ -67,7 +81,15 @@ export function usePlan(set: BoothSetInfo) {
       .then(() => setSaving("saved"))
       .catch((e) => setSaving(`⚠ ${e instanceof Error ? e.message : String(e)}`));
   }, [set.id]);
-  const commit = useCallback((frames: BlastFrame[]) => {
+  // UNDO (Lee, 2026-09-10: "Ctrl Z undo needs to work on the slide editor. I moved a slide, and
+  // lost it."). Every commit pushes the order it replaced; undo pops it back through the same
+  // commit path (so it saves like any other change) without pushing; redo is the mirror. Fifty
+  // deep, per mounted editor — a reload starts fresh, the server has the truth.
+  const past = useRef<BlastFrame[][]>([]);
+  const future = useRef<BlastFrame[][]>([]);
+  const planRef = useRef<BlastPlan | null>(null);
+  planRef.current = plan;
+  const commitRaw = useCallback((frames: BlastFrame[]) => {
     setPlan((prev) => ({ frames, updatedAt: new Date().toISOString(), ...(prev?.layout ? { layout: prev.layout } : {}) }));
     dirty.current = true;
     setSaving("saving…");
@@ -75,6 +97,26 @@ export function usePlan(set: BoothSetInfo) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 500);
   }, [flush]);
+  const commit = useCallback((frames: BlastFrame[]) => {
+    const cur = planRef.current?.frames;
+    if (cur && cur !== frames) { past.current.push(cur); if (past.current.length > 50) past.current.shift(); future.current = []; }
+    commitRaw(frames);
+  }, [commitRaw]);
+  /** True when there was something to undo. */
+  const undo = useCallback((): boolean => {
+    const prev = past.current.pop();
+    if (!prev) return false;
+    if (planRef.current?.frames) future.current.push(planRef.current.frames);
+    commitRaw(prev);
+    return true;
+  }, [commitRaw]);
+  const redo = useCallback((): boolean => {
+    const next = future.current.pop();
+    if (!next) return false;
+    if (planRef.current?.frames) past.current.push(planRef.current.frames);
+    commitRaw(next);
+    return true;
+  }, [commitRaw]);
   useEffect(() => () => { if (pendingFrames.current) flush(); }, [flush]);
 
   // THE TEMPLATE (2026-09-05): pass 1 / pass 2, chosen on the set screen; saved at once.
@@ -89,7 +131,7 @@ export function usePlan(set: BoothSetInfo) {
     });
   }, [set.id]);
 
-  return { plan, commit, saving, setLayout };
+  return { plan, commit, saving, setLayout, undo, redo };
 }
 
 // ---------------------------------------------------------------- editor

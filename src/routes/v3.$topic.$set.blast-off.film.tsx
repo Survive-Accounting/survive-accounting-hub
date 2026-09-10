@@ -28,11 +28,20 @@ export const Route = createFileRoute("/v3/$topic/$set/blast-off/film")({
   // the full thing." A finite integer ≥ 0 or nothing; out of range is BlastOffCapture's to say
   // (it films the whole set and shows a chip). The pop-out copies the URL verbatim, so it inherits
   // the take and both windows walk the same frames.
-  validateSearch: (s: Record<string, unknown>): { popout?: 1; take?: number } => {
+  //
+  // ?frame=<id> (2026-09-10) — FILM FROM HERE. Lee: "'Film from here' is essential. I'm sick of
+  // scrolling all the way through. If that can be a popout from right there, that'd be epic. I
+  // don't have to go to the rehearsal spot most times." The id of a frame in the plan (the same
+  // id /results's ?frame= takes); BlastOffCapture starts its walk ON that slide instead of slide
+  // 1 — with a ?take=N it must be a slide of that split. An id the walked list does not have is
+  // ignored (slide 1, as before). Non-empty string or nothing. The pop-out inherits it with the
+  // rest of the URL, so a pop-out opened "from here" opens ON here.
+  validateSearch: (s: Record<string, unknown>): { popout?: 1; take?: number; frame?: string } => {
     const take = Number(s.take);
     return {
       ...(s.popout === 1 || s.popout === "1" || s.popout === true ? { popout: 1 as const } : {}),
       ...(s.take !== undefined && s.take !== null && s.take !== "" && Number.isInteger(take) && take >= 0 ? { take } : {}),
+      ...(typeof s.frame === "string" && s.frame ? { frame: s.frame } : {}),
     };
   },
   component: () => <AdminGate><V3Film /></AdminGate>,
@@ -41,7 +50,7 @@ export const Route = createFileRoute("/v3/$topic/$set/blast-off/film")({
 
 function V3Film() {
   const { topic: topicKey, set: setKey } = Route.useParams();
-  const { take } = Route.useSearch();
+  const { take, frame } = Route.useSearch();
   const navigate = useNavigate();
   const { topics, error, topic, set } = useV3Set(topicKey, setKey);
 
@@ -58,7 +67,7 @@ function V3Film() {
     // Still no V3Shell — but the same crumbs it would draw (Lee, 2026-09-07: "Show navigation
     // breadcrumbs on /film"): BlastOffCapture draws them small, top-left, chrome-only, main
     // window only, so they can never be in the shot.
-    return <BlastOffCapture set={set} topicName={topic.name} onExit={exit} crumbs={crumbs} take={take} />;
+    return <BlastOffCapture set={set} topicName={topic.name} onExit={exit} crumbs={crumbs} take={take} startFrameId={frame} />;
   }
 
   return (

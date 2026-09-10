@@ -263,8 +263,11 @@ export interface BoothSetInfo {
   /** CRAM MAP (docs/DESIGN-CRAM-MAP.md). Absent = the cram path — the default for the whole
    *  bank. Only ever one of DECK_LANES; anything else is dropped at the read. */
   lane?: DeckLane;
-  /** The cram set an offshoot/pitch hangs off. */
+  /** The cram set an offshoot/pitch hangs off, and which of its splits (head frame id). */
   branchFrom?: string;
+  branchTakeHead?: string;
+  branchOrder?: number;
+  blurb?: string;
   /** Split provenance, carried so the map can draw the dashed edge between a parent and the
    *  pieces it was cut into. Never pedagogy. */
   splitFrom?: string;
@@ -287,7 +290,7 @@ export const loadBoothBank = createServerFn({ method: "POST" }).handler(async ()
 
   const topics = new Map<string, BoothTopic>();
   for (const o of liveDecks(owned)) {
-    const d = o.deck as { id: string; name: string; topicId?: string | null; sortOrder?: number; lane?: unknown; branchFrom?: unknown; splitFrom?: unknown; splitInto?: unknown; ideaId?: unknown };
+    const d = o.deck as { id: string; name: string; topicId?: string | null; sortOrder?: number; lane?: unknown; branchFrom?: unknown; branchTakeHead?: unknown; branchOrder?: unknown; blurb?: unknown; splitFrom?: unknown; splitInto?: unknown; ideaId?: unknown };
     const ch = d.topicId ? chById.get(d.topicId) as ChapterRow | undefined : undefined;
     const tid = ch?.id ?? "__untopiced";
     if (!topics.has(tid)) topics.set(tid, { id: tid, name: ch?.chapter_name ?? "More", number: ch?.chapter_number ?? 9999, sets: [], ...(ch && ch.course_id == null ? { kind: "strategy" as const } : {}) });
@@ -321,6 +324,9 @@ export const loadBoothBank = createServerFn({ method: "POST" }).handler(async ()
       // is byte-identical to what this returned before the cram map existed.
       ...(isDeckLane(d.lane) ? { lane: d.lane } : {}),
       ...(typeof d.branchFrom === "string" && d.branchFrom ? { branchFrom: d.branchFrom } : {}),
+      ...(typeof d.branchTakeHead === "string" && d.branchTakeHead ? { branchTakeHead: d.branchTakeHead } : {}),
+      ...(typeof d.branchOrder === "number" && Number.isFinite(d.branchOrder) ? { branchOrder: d.branchOrder } : {}),
+      ...(typeof d.blurb === "string" && d.blurb.trim() ? { blurb: d.blurb.trim().slice(0, 400) } : {}),
       ...(typeof d.splitFrom === "string" && d.splitFrom ? { splitFrom: d.splitFrom } : {}),
       ...(Array.isArray(d.splitInto) && d.splitInto.length ? { splitInto: d.splitInto.filter((x): x is string => typeof x === "string") } : {}),
       ...(typeof d.ideaId === "string" && d.ideaId ? { ideaId: d.ideaId } : {}),

@@ -14,7 +14,6 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { AdminGate } from "@/components/AdminGate";
 import { ImprovePage } from "@/components/v3/improve/ImprovePage";
-import { StepBar } from "@/components/v3/StepBar";
 import { useV3Set } from "@/components/v3/use-bank";
 import { V3Shell, V3Note } from "@/components/v3/Shell";
 
@@ -42,10 +41,7 @@ function V3Improve() {
       {topics && !set && <V3Note tone="bad">No set called “{setKey}” under {topic?.name ?? topicKey}.</V3Note>}
 
       {set && topic && (
-        <>
-          <StepBar topic={topic} set={set} active="improve" />
-          <ImprovePage topic={topic} set={set} />
-        </>
+        <ImprovePage topic={topic} set={set} />
       )}
     </V3Shell>
   );

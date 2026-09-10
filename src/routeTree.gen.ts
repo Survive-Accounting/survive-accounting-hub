@@ -54,8 +54,10 @@ import { Route as SchoolIndexRouteImport } from './routes/$school.index'
 import { Route as VaTokenRouteImport } from './routes/va.$token'
 import { Route as V3ValuesRouteImport } from './routes/v3.values'
 import { Route as V3TeleprompterRouteImport } from './routes/v3.teleprompter'
+import { Route as V3QueueRouteImport } from './routes/v3.queue'
 import { Route as V3PostRouteImport } from './routes/v3.post'
 import { Route as V3MapRouteImport } from './routes/v3.map'
+import { Route as V3LearnRouteImport } from './routes/v3.learn'
 import { Route as UTokenRouteImport } from './routes/u.$token'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
@@ -423,6 +425,11 @@ const V3TeleprompterRoute = V3TeleprompterRouteImport.update({
   path: '/v3/teleprompter',
   getParentRoute: () => rootRouteImport,
 } as any)
+const V3QueueRoute = V3QueueRouteImport.update({
+  id: '/v3/queue',
+  path: '/v3/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const V3PostRoute = V3PostRouteImport.update({
   id: '/v3/post',
   path: '/v3/post',
@@ -431,6 +438,11 @@ const V3PostRoute = V3PostRouteImport.update({
 const V3MapRoute = V3MapRouteImport.update({
   id: '/v3/map',
   path: '/v3/map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V3LearnRoute = V3LearnRouteImport.update({
+  id: '/v3/learn',
+  path: '/v3/learn',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UTokenRoute = UTokenRouteImport.update({
@@ -1266,8 +1278,10 @@ export interface FileRoutesByFullPath {
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/v3/learn': typeof V3LearnRoute
   '/v3/map': typeof V3MapRoute
   '/v3/post': typeof V3PostRoute
+  '/v3/queue': typeof V3QueueRoute
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
   '/va/$token': typeof VaTokenRoute
@@ -1453,8 +1467,10 @@ export interface FileRoutesByTo {
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/v3/learn': typeof V3LearnRoute
   '/v3/map': typeof V3MapRoute
   '/v3/post': typeof V3PostRoute
+  '/v3/queue': typeof V3QueueRoute
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
   '/va/$token': typeof VaTokenRoute
@@ -1643,8 +1659,10 @@ export interface FileRoutesById {
   '/study_/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/v3/learn': typeof V3LearnRoute
   '/v3/map': typeof V3MapRoute
   '/v3/post': typeof V3PostRoute
+  '/v3/queue': typeof V3QueueRoute
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
   '/va/$token': typeof VaTokenRoute
@@ -1835,8 +1853,10 @@ export interface FileRouteTypes {
     | '/study/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/v3/learn'
     | '/v3/map'
     | '/v3/post'
+    | '/v3/queue'
     | '/v3/teleprompter'
     | '/v3/values'
     | '/va/$token'
@@ -2022,8 +2042,10 @@ export interface FileRouteTypes {
     | '/study/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/v3/learn'
     | '/v3/map'
     | '/v3/post'
+    | '/v3/queue'
     | '/v3/teleprompter'
     | '/v3/values'
     | '/va/$token'
@@ -2211,8 +2233,10 @@ export interface FileRouteTypes {
     | '/study_/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/v3/learn'
     | '/v3/map'
     | '/v3/post'
+    | '/v3/queue'
     | '/v3/teleprompter'
     | '/v3/values'
     | '/va/$token'
@@ -2372,8 +2396,10 @@ export interface RootRouteChildren {
   StudyFoundationsRoute: typeof StudyFoundationsRoute
   TSlugRoute: typeof TSlugRoute
   UTokenRoute: typeof UTokenRoute
+  V3LearnRoute: typeof V3LearnRoute
   V3MapRoute: typeof V3MapRoute
   V3PostRoute: typeof V3PostRoute
+  V3QueueRoute: typeof V3QueueRoute
   V3TeleprompterRoute: typeof V3TeleprompterRoute
   V3ValuesRoute: typeof V3ValuesRoute
   VaTokenRoute: typeof VaTokenRoute
@@ -2740,6 +2766,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof V3TeleprompterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/v3/queue': {
+      id: '/v3/queue'
+      path: '/v3/queue'
+      fullPath: '/v3/queue'
+      preLoaderRoute: typeof V3QueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/v3/post': {
       id: '/v3/post'
       path: '/v3/post'
@@ -2752,6 +2785,13 @@ declare module '@tanstack/react-router' {
       path: '/v3/map'
       fullPath: '/v3/map'
       preLoaderRoute: typeof V3MapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v3/learn': {
+      id: '/v3/learn'
+      path: '/v3/learn'
+      fullPath: '/v3/learn'
+      preLoaderRoute: typeof V3LearnRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/u/$token': {
@@ -4039,8 +4079,10 @@ const rootRouteChildren: RootRouteChildren = {
   StudyFoundationsRoute: StudyFoundationsRoute,
   TSlugRoute: TSlugRoute,
   UTokenRoute: UTokenRoute,
+  V3LearnRoute: V3LearnRoute,
   V3MapRoute: V3MapRoute,
   V3PostRoute: V3PostRoute,
+  V3QueueRoute: V3QueueRoute,
   V3TeleprompterRoute: V3TeleprompterRoute,
   V3ValuesRoute: V3ValuesRoute,
   VaTokenRoute: VaTokenRoute,

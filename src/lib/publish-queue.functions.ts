@@ -181,3 +181,58 @@ export const setPublishUrl = createServerFn({ method: "POST" })
       return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };
     } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
   });
+
+const rekeyMoveShape = z.object({ from: z.string().min(1).max(200), to: z.string().min(1).max(200) });
+
+/** ROWS FOLLOW THEIR SPLIT (2026-09-10, "my Revenues split became Expenses"). The keys are
+ *  positional — "<setId>", "<setId>#2", … — so a cut before a filmed split, or the wizard
+ *  reordering, leaves every later row describing the wrong video. components/v3/publish-rekey.ts
+ *  computes the moves; this applies them AS A SET: read every row keyed by any `from` or `to`,
+ *  then write each moved row under its `to` key (every column kept, only set_id changes), then
+ *  delete the `from` keys nothing moved into. Reading everything first is what makes a swap
+ *  (A→B, B→A) safe — no move ever sees another move's result.
+ *
+ *  A `to` key that already had a row but is not itself a `from` is OVERWRITTEN by the incoming
+ *  row: it was the orphan of a split that no longer exists at that seat, and the surviving
+ *  split's history is the truth for that seat now. A `from` key with no row moves nothing (and
+ *  counts nothing). Missing table → { moved: 0 }, the same quiet case listPublishStatuses
+ *  allows: a fresh install has no rows to move. Zero moves → { moved: 0 }, never a throw.
+ *  Any other DB error throws — a rekey that half-fails is a queue that lies, and the caller
+ *  must hear it. Not transactional (PostgREST); the upsert runs before the delete so the worst
+ *  interruption leaves a duplicate under the old key, never a lost row. */
+export const rekeyPublishRows = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    setId: z.string().min(1).max(160),
+    moves: z.array(rekeyMoveShape).max(60),
+  }).refine((v) => v.moves.every((m) => (m.from === v.setId || m.from.startsWith(`${v.setId}#`)) && (m.to === v.setId || m.to.startsWith(`${v.setId}#`))), { message: "every key must belong to setId" })
+    .refine((v) => new Set(v.moves.map((m) => m.from)).size === v.moves.length && new Set(v.moves.map((m) => m.to)).size === v.moves.length, { message: "moves must not repeat a from or a to key" })
+    .parse(d))
+  .handler(async ({ data }): Promise<{ moved: number }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    if (!data.moves.length) return { moved: 0 };
+    const db = await publishDb();
+    const keys = [...new Set(data.moves.flatMap((m) => [m.from, m.to]))];
+    const { data: rows, error } = await db.from("set_publish_status").select("*").in("set_id", keys);
+    if (error) {
+      if (error.code === "42P01" || /does not exist/i.test(error.message ?? "") || isMissingTable(error)) return { moved: 0 };
+      throw new Error(`Could not read the publish rows to rekey: ${error.message}`);
+    }
+    const byKey = new Map<string, Record<string, unknown>>();
+    for (const r of (rows ?? []) as Record<string, unknown>[]) if (typeof r.set_id === "string") byKey.set(r.set_id, r);
+    const incoming: Record<string, unknown>[] = [];
+    for (const m of data.moves) {
+      const src = byKey.get(m.from);
+      if (src) incoming.push({ ...src, set_id: m.to });
+    }
+    if (!incoming.length) return { moved: 0 };
+    const { error: upErr } = await db.from("set_publish_status").upsert(incoming, { onConflict: "set_id" });
+    if (upErr) throw new Error(`Could not rekey the publish rows: ${upErr.message}`);
+    const landed = new Set(incoming.map((r) => r.set_id as string));
+    const vacate = data.moves.map((m) => m.from).filter((k) => byKey.has(k) && !landed.has(k));
+    if (vacate.length) {
+      const { error: delErr } = await db.from("set_publish_status").delete().in("set_id", vacate);
+      if (delErr) throw new Error(`Rekeyed ${incoming.length} publish rows but could not clear the old keys: ${delErr.message}`);
+    }
+    return { moved: incoming.length };
+  });

@@ -49,6 +49,13 @@
 // The camera gestures act on the FIELD there (capture/field-roam.ts — wheel, alt-drag, 0, O),
 // the card camera stands down (`target: "field"`), the record carries the shot for the prompter,
 // and a click on A / L / E cycles its arrow for the take only (never written to the map).
+//
+// FILM FROM HERE (2026-09-10, `startFrameId` / the route's ?frame=<id>). Lee: "'Film from here'
+// is essential. I'm sick of scrolling all the way through. If that can be a popout from right
+// there, that'd be epic. I don't have to go to the rehearsal spot most times." The walk OPENS on
+// the named slide (startIndexOf, seeded once when the plan lands) — main window and, because the
+// pop-out copies the URL, the pop-out too. Nothing else moved: F4 still never moves the slide, C
+// still counts in from slide 0, and the rounds' "from slide 1" is still slide 1.
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
@@ -119,7 +126,17 @@ const FILM_SELECT_CSS = `
 .film-mode [data-sa-film-chrome] ::selection { background: Highlight; color: HighlightText; }
 `;
 
-export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takeParam }: {
+/** FILM FROM HERE (2026-09-10): where the walk starts — the index of `startFrameId` in the frames
+ *  being walked (the split's, or the whole set's), or 0 when there is no id or the list does not
+ *  have it. Never throws: an id from another split, a skipped slide, or a stale link is slide 1,
+ *  exactly as before. Pure, so it is testable on its own. */
+export function startIndexOf(frames: readonly { id: string }[], startFrameId: string | undefined | null): number {
+  if (!startFrameId) return 0;
+  const k = frames.findIndex((f) => f.id === startFrameId);
+  return k < 0 ? 0 : k;
+}
+
+export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takeParam, startFrameId }: {
   set: BoothSetInfo; topicName?: string; onExit: () => void;
   /** The V3 breadcrumb (Lee, 2026-09-07: "Show navigation breadcrumbs on /film") — drawn small,
    *  top-left, only with the chrome and only in the main window, so it never films. */
@@ -128,6 +145,12 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
    *  /v3/post's rows are. Undefined films the whole set. Lee: "I only did account classification
    *  > assets. Not the full thing." */
   take?: number;
+  /** ?frame=<id> (2026-09-10): FILM FROM HERE — the walk opens ON this slide instead of slide 1.
+   *  Lee: "'Film from here' is essential. I'm sick of scrolling all the way through. If that can
+   *  be a popout from right there, that'd be epic. I don't have to go to the rehearsal spot most
+   *  times." An id not in the walked frames is ignored. Only where the walk STARTS: C (count in)
+   *  and the rehearsal's own "from slide 1" jumps are untouched. */
+  startFrameId?: string;
 }) {
   const { plan, commit } = usePlan(set);
   const [i, setI] = useState(0);
@@ -156,6 +179,18 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   const takeMissing = takeParam != null && !takeInfo;
   const frames = takeInfo ? takeInfo.frames : all;
   const n = frames.length;
+  // FILM FROM HERE (2026-09-10, startIndexOf above). The plan arrives after mount, so `i` cannot
+  // be seeded in useState — it is seeded ONCE, the first render that has a plan, and set DURING
+  // that render (React re-renders before committing, so no paint and no effect — in particular
+  // the sa-film-active record — ever sees slide 1 first). Once only: after that the walk is
+  // Lee's, and nothing here pulls him back. Rehearsal needs no skipping: the rounds start "off",
+  // which IS filming — R is the way in, never the way out.
+  const [startSeeded, setStartSeeded] = useState(!startFrameId);
+  if (!startSeeded && plan) {
+    setStartSeeded(true);
+    const k = startIndexOf(frames, startFrameId);
+    if (k > 0) setI(k);
+  }
   // THE NEXT-SLIDE PREVIEW (2026-09-07, header). This is the main window when `take` is non-null:
   // the 9:16 pop-out is live (its record is fresh, capture/prompter-sync.ts) and this window shows
   // the slide AFTER the pop-out's — `idx` IS that slide for everything below (the phone, the

@@ -31,9 +31,20 @@ function bankOnce(): Promise<BoothTopic[]> {
   return pending;
 }
 
-/** Drop the cache — for a "reload the bank" affordance. */
-export function refreshBank(): void {
+// EVERY MOUNTED useBank, so a refresh reaches the screen that asked for it (2026-09-10). The first
+// refreshBank only cleared the cache — a page already on screen kept its old topics until it
+// remounted, so /v3/map wrote a reorder, drew nothing new, and the next click computed from a
+// stale layout. Now a refresh re-fetches and hands the fresh tree to every subscriber.
+// eslint-disable-next-line no-var
+var subscribers: Array<(s: BankState) => void> = [];
+
+/** Drop the cache, fetch again, and tell every mounted screen. Resolves when the new tree is in
+ *  hand — callers that just wrote something await this before they let the user click again. */
+export function refreshBank(): Promise<void> {
   pending = undefined;
+  return bankOnce()
+    .then((topics) => { for (const fn of subscribers) fn({ topics, error: null }); })
+    .catch((e) => { for (const fn of subscribers) fn({ topics: null, error: e instanceof Error ? e.message : String(e) }); });
 }
 
 export interface BankState {
@@ -45,10 +56,12 @@ export function useBank(): BankState {
   const [state, setState] = useState<BankState>({ topics: null, error: null });
   useEffect(() => {
     let live = true;
+    function onBank(s: BankState) { if (live) setState(s); }
+    subscribers.push(onBank);
     bankOnce()
-      .then((topics) => { if (live) setState({ topics, error: null }); })
-      .catch((e) => { if (live) setState({ topics: null, error: e instanceof Error ? e.message : String(e) }); });
-    return () => { live = false; };
+      .then((topics) => onBank({ topics, error: null }))
+      .catch((e) => onBank({ topics: null, error: e instanceof Error ? e.message : String(e) }));
+    return () => { live = false; subscribers = subscribers.filter((fn) => fn !== onBank); };
   }, []);
   return state;
 }

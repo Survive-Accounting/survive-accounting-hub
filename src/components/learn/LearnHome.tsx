@@ -21,8 +21,8 @@
 // "~12 min"), per the "manageable, not overwhelming" rule: no raw question counts in the main
 // feed either (a locked topic's count still appears in the Paywall dialog, which is a different,
 // opt-in surface).
-import { forwardRef, useMemo } from "react";
-import { Check, Lock } from "lucide-react";
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronRight, Lock } from "lucide-react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { INK, type LearnTheme } from "@/components/learn/learn-theme";
@@ -99,15 +99,14 @@ export const LearnHome = forwardRef<HTMLDivElement, {
         {byTopic.map(({ id, topic, sets: ts }, i) => (
           <section key={id} id={topicSectionId(id)} ref={i === 0 ? rowRef("cram") : undefined} style={{ padding: pad }} className="flex flex-col gap-3">
             <TopicHead topic={topic} sets={ts} theme={theme} />
-            <div className="lk-scroll-x" style={{ gap: narrow ? 8 : 12 }}>
-              {ts.map((s) => <Short key={s.set.id} s={s} narrow={narrow} onOpen={() => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id))} />)}
+            {/* FOUR FRAMES, THEN PRACTICE (Lee, 2026-09-10): "four cram frames in the middle,
+                practice pinned right, so it's 5 total vertical frames. Odd numbers tend to appear
+                cleaner." More than four: "fade out on the right side of the last one, a show-more
+                arrow makes it clear there's more." */}
+            <div className="flex items-stretch" style={{ gap: narrow ? 8 : 12 }}>
+              <CramStrip sets={ts} narrow={narrow} onOpen={(s) => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id))} />
+              <PracticeFrame topic={topic} sets={ts} narrow={narrow} onPractice={(setId) => onOpenSet(setId, true)} onLocked={onLocked} />
             </div>
-            <TopicPracticePrompt
-              topic={topic} sets={ts} narrow={narrow}
-              nextId={byTopic[i + 1]?.id ?? null}
-              onPractice={(setId) => onOpenSet(setId, true)}
-              onLocked={onLocked}
-            />
           </section>
         ))}
 
@@ -180,35 +179,74 @@ function TopicHead({ topic, sets, theme }: { topic: StudentTopic; sets: HomeSet[
   );
 }
 
-/** THE ONE PLACE PRACTICE IS OFFERED FOR A TOPIC — after its shorts, not after every single one.
- *  A student can practice now or keep cramming into the next topic; nothing forces the choice. */
-function TopicPracticePrompt({ topic, sets, narrow, nextId, onPractice, onLocked }: {
+const SHORT_W = { wide: 152, narrow: 118 };
+const SHORT_H = { wide: 270, narrow: 210 };
+/** How many cram frames sit in view before the fade: four (Lee), and whatever fits on a phone. */
+const FRAMES_IN_VIEW = 4;
+
+/** THE CRAM STRIP — up to four frames wide; when the topic has more, the last visible one fades
+ *  at the right edge and an arrow scrolls the strip by one frame. The fade and the arrow exist
+ *  only while there is more to the right, so a four-video topic shows neither. */
+function CramStrip({ sets, narrow, onOpen }: { sets: HomeSet[]; narrow: boolean; onOpen: (s: HomeSet) => void }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [more, setMore] = useState(false);
+  const gap = narrow ? 8 : 12;
+  const w = narrow ? SHORT_W.narrow : SHORT_W.wide;
+  const maxW = FRAMES_IN_VIEW * w + (FRAMES_IN_VIEW - 1) * gap;
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const check = () => setMore(el.scrollWidth - el.clientWidth - el.scrollLeft > 4);
+    check();
+    el.addEventListener("scroll", check, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(check) : null;
+    ro?.observe(el);
+    return () => { el.removeEventListener("scroll", check); ro?.disconnect(); };
+  }, [sets.length]);
+  const next = () => { ref.current?.scrollBy({ left: w + gap, behavior: "smooth" }); };
+  return (
+    <div className="relative min-w-0" style={{ maxWidth: maxW, flex: "0 1 auto" }}>
+      <div ref={ref} className="lk-scroll-x" style={{ gap }}>
+        {sets.map((s) => <Short key={s.set.id} s={s} narrow={narrow} onOpen={() => onOpen(s)} />)}
+      </div>
+      {more && (
+        <>
+          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0" style={{ width: narrow ? 44 : 64, background: "linear-gradient(to right, rgba(17,17,17,0), var(--lk-bg))" }} />
+          <button type="button" onClick={next} aria-label="More videos" className="absolute right-1 top-1/2 grid -translate-y-1/2 place-items-center rounded-full" style={{ width: 34, height: 34, background: "var(--lk-text)", color: "#111", border: 0, cursor: "pointer", boxShadow: "0 4px 14px rgba(0,0,0,0.5)" }}>
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** PRACTICE, PINNED FAR RIGHT — the fifth frame. The one place practice is offered for a topic:
+ *  after its videos, not after every single one. Dimmed until the topic has questions to practice. */
+function PracticeFrame({ topic, sets, narrow, onPractice, onLocked }: {
   topic: StudentTopic; sets: HomeSet[]; narrow: boolean;
-  nextId: string | null;
   onPractice: (setId: string) => void;
   onLocked: (topic: StudentTopic) => void;
 }) {
   const practiceable = sets.find((s) => s.set.ceqCount > 0 && !s.locked);
   const locked = !practiceable && sets.some((s) => s.locked);
-  if (!practiceable && !locked) return null; // nothing to practice yet for this topic — no prompt, no dead-end button
-  const keepCramming = () => { if (nextId) document.getElementById(topicSectionId(nextId))?.scrollIntoView({ behavior: "smooth", block: "start" }); };
+  const ready = !!practiceable || locked;
   return (
-    <div className="lk-card flex flex-wrap items-center gap-3 px-4 py-3" style={{ fontFamily: BRAND_SANS }}>
-      <span className="min-w-0 flex-1 text-[13px] font-bold" style={{ color: INK.text }}>Finished {topic.name}?</span>
-      <button
-        type="button"
-        onClick={() => (locked ? onLocked(topic) : onPractice(practiceable!.set.id))}
-        className="lk-btn lk-btn-acc"
-        style={{ fontSize: narrow ? 10.5 : 12 }}
-      >
-        {locked && <Lock className="h-3 w-3" />} Practice this topic →
-      </button>
-      {nextId && (
-        <button type="button" onClick={keepCramming} className="lk-btn" style={{ background: "transparent", color: INK.muted, fontSize: narrow ? 10.5 : 12 }}>
-          Keep cramming →
-        </button>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={() => { if (locked) onLocked(topic); else if (practiceable) onPractice(practiceable.set.id); }}
+      disabled={!ready}
+      className="lk-card flex shrink-0 flex-col justify-between p-3 text-left"
+      style={{ width: narrow ? SHORT_W.narrow : SHORT_W.wide, height: narrow ? SHORT_H.narrow : SHORT_H.wide, marginLeft: "auto", cursor: ready ? "pointer" : "default", opacity: ready ? 1 : 0.55, fontFamily: BRAND_SANS, color: INK.text }}
+      title={ready ? `Practice ${topic.name}` : "Practice comes once this topic has questions"}
+    >
+      <div>
+        <div className="lk-disp" style={{ fontSize: narrow ? 15 : 17 }}>Practice</div>
+        <div className="mt-1 text-[11.5px] leading-snug" style={{ color: INK.muted }}>Every question from {topic.name}, shuffled. Comes at the end.</div>
+      </div>
+      <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase" style={{ letterSpacing: "0.08em", color: ready ? "var(--lk-acc)" : INK.dim }}>
+        {locked && <Lock className="h-3 w-3" />}{ready ? "Practice this topic →" : "Coming soon"}
+      </div>
+    </button>
   );
 }
 
