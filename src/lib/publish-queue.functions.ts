@@ -53,21 +53,31 @@ function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
 
 /** Every set with any publish state at all, keyed by set id. A set with no row yet (nothing
  *  clicked) simply isn't in the map — the dashboard treats "absent" the same as "all four
- *  unposted". Missing table → empty map, not an error: a brand new install has posted nothing. */
+ *  unposted". Missing table → empty map, not an error: a brand new install has posted nothing
+ *  (the table is migration/supabase-migrations/20260906_0200_set_publish_status.sql, the same
+ *  file the write paths below name).
+ *
+ *  ANY OTHER ERROR THROWS. Until 2026-09-09 every failure here read as an empty map, which on
+ *  this page means "nothing posted, nothing filmed" — a bad key or a network blip quietly
+ *  emptied the queue, the one thing this dashboard exists to keep accurate. The route already
+ *  has a banner for a load error (setLoadErr); this just stops hiding from it. */
 export const listPublishStatuses = createServerFn({ method: "GET" }).handler(async (): Promise<Record<string, SetPublishStatus>> => {
   const { assertAdmin } = await import("@/lib/admin-session.functions");
   await assertAdmin();
-  try {
-    const db = await publishDb();
-    const { data, error } = await db.from("set_publish_status").select("*");
-    if (error) return {};
-    const out: Record<string, SetPublishStatus> = {};
-    for (const r of (data ?? []) as Record<string, unknown>[]) {
-      const id = r.set_id as string;
-      if (id) out[id] = rowToStatus(r);
-    }
-    return out;
-  } catch { return {}; }
+  const db = await publishDb();
+  const { data, error } = await db.from("set_publish_status").select("*");
+  if (error) {
+    // The table itself absent — raw PG 42P01, its "does not exist" wording, or PostgREST's
+    // schema-cache spelling of the same fact — is the one quiet case.
+    if (error.code === "42P01" || /does not exist/i.test(error.message ?? "") || isMissingTable(error)) return {};
+    throw new Error(`Could not load the publish queue: ${error.message}`);
+  }
+  const out: Record<string, SetPublishStatus> = {};
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const id = r.set_id as string;
+    if (id) out[id] = rowToStatus(r);
+  }
+  return out;
 });
 
 const COL: Record<PublishDestination, { at: string; url: string }> = {
