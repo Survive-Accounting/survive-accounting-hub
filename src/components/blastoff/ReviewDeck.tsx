@@ -1324,10 +1324,6 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   const backdropOf = new Map<string, BackdropMode | null>();
   frames.forEach((f, i) => backdropOf.set(f.id, backdropFor(frames, i, (id) => !!ceqById.get(id)?.noteOnly)));
 
-  /** One spine row, shared by the running order and the folder — `number` is the
-   *  row's place in the actual film order (undefined inside the folder, where a
-   *  slide has no such place); `foldered` turns off drag (a skipped card's order
-   *  relative to other skipped cards films nothing, so there is nothing to reorder). */
   // THE DECK'S VERBS, for the rows (SpineRow is memoized on primitives + this one object). The
   // object never changes identity; it reads the latest closures through `live`, assigned every
   // render below, so a row's click always runs against the current plan.
