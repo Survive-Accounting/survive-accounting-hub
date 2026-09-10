@@ -64,6 +64,10 @@ import { useDictation } from "@/lib/use-dictation";
 const LIVE_BRIEF_EVERY_MS = 2500;
 
 export const Route = createFileRoute("/v3/post")({
+  // ?open=<pubKey> (2026-09-10): the map links straight into one video's post-production — a set
+  // id, or "<setId>#N" for a split. The row is forced visible (the default filter hides unfilmed
+  // rows) and its panel opens. Unknown key: the page just loads.
+  validateSearch: (s: Record<string, unknown>): { open?: string } => (typeof s.open === "string" && s.open ? { open: s.open } : {}),
   component: () => <AdminGate><PostQueue /></AdminGate>,
   head: () => ({ meta: [{ title: "📮 Cross-post — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
@@ -219,6 +223,14 @@ function PostQueue() {
   /** POST-PRODUCTION (2026-09-09). Lee: "I'm a bit confused the order of operations once I have
    *  a finished video file." One door, six numbered steps, keyed by video. */
   const [producing, setProducing] = useState<string | null>(null);
+  // THE MAP'S DOOR: open straight onto one video (see validateSearch). Once, when the rows exist.
+  const { open: openKey } = Route.useSearch();
+  const [opened, setOpened] = useState<string | null>(null);
+  useEffect(() => {
+    if (!openKey || opened === openKey || !flat.length) return;
+    if (!flat.some((r) => r.key === openKey)) return;
+    setOpened(openKey); setFilterChoice("all"); setProducing(openKey);
+  }, [openKey, opened, flat]);
   const producingRow = producing ? flat.find((r) => r.key === producing) ?? null : null;
   /** The take's own words, per video — held for this visit so the caption sheet can write from
    *  them. The durable copy is the take_transcripts row; this is just what's in hand. */

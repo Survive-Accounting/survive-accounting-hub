@@ -27,7 +27,7 @@ import { estimatedLengthSeconds, fmtRange } from "@/components/blastoff/film-sum
 import { listBlastPlanSetIds, mintBranch, setBranchOrders, updateDeckMeta } from "@/lib/blastoff.functions";
 import { enqueueCeqJob } from "@/lib/ceq-queue.functions";
 import { kickQueue, useCeqJobs } from "@/components/v3/ceq-queue-client";
-import { listPublishStatuses, type SetPublishStatus } from "@/lib/publish-queue.functions";
+import { listPublishStatuses, PUBLISH_DESTINATIONS, type PublishDestination, type SetPublishStatus } from "@/lib/publish-queue.functions";
 import { productionBottleneckReport } from "@/lib/production-time.functions";
 import { orderedSets } from "@/lib/v3-topic-groups";
 import { startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
@@ -133,7 +133,7 @@ function LaneMapPage() {
       {picked && (
         <SetPanel
           key={picked.set.id}
-          topic={picked.topic} set={picked.set} info={stageFor(picked.set)}
+          topic={picked.topic} set={picked.set} info={stageFor(picked.set)} publish={publish}
           layout={layouts.get(picked.topic.id) ?? null} takesOf={takesOf}
           onChanged={reload} onSelect={setSelected} onClose={() => setSelected(null)}
         />
@@ -148,8 +148,12 @@ const label: React.CSSProperties = { fontSize: 10, fontWeight: 800, letterSpacin
 
 /** THE EDITOR, docked bottom-right so Lee reads the map while he uses it. Everything saves on
  *  blur / Enter / change — there is no Save button, the same law as the rest of V3. */
-function SetPanel({ topic, set, info, layout, takesOf, onChanged, onSelect, onClose }: {
+const DEST_SHORT: Record<PublishDestination, string> = { site: "site", youtube: "YT", instagram: "IG", tiktok: "TT" };
+
+function SetPanel({ topic, set, info, layout, takesOf, publish, onChanged, onSelect, onClose }: {
   topic: BoothTopic; set: BoothSetInfo; info: StageInfo; layout: LaneLayout | null;
+  /** set_publish_status by publish key — a set's id, or "<setId>#N" for its N-th split. */
+  publish: Record<string, SetPublishStatus>;
   takesOf: (id: string) => readonly LaneTake[];
   onChanged: () => Promise<void>; onSelect: (id: string) => void; onClose: () => void;
 }) {
@@ -158,6 +162,14 @@ function SetPanel({ topic, set, info, layout, takesOf, onChanged, onSelect, onCl
   const node = layout?.nodes.find((n) => n.id === set.id) ?? null;
   const kids = topic.sets.filter((s) => s.branchFrom === set.id);
   const parentTakes = parent ? takesOf(parent.id) : [];
+  // THE VIDEOS this set is: one per split when it has cuts, else itself. Keyed the way /v3/post
+  // keys its rows, so the ticks here are the ticks there.
+  const ownTakes = takesOf(set.id);
+  const videos = (ownTakes.length > 1 ? ownTakes : [{ headId: "", name: "" }]).map((t, i) => ({
+    key: i === 0 ? set.id : `${set.id}#${i + 1}`,
+    label: ownTakes.length > 1 ? (t.name || `Split ${i + 1}`) : set.name,
+    status: publish[i === 0 ? set.id : `${set.id}#${i + 1}`] ?? null,
+  }));
   const [name, setName] = useState(set.name);
   const [blurb, setBlurb] = useState(set.blurb ?? "");
   const [busy, setBusy] = useState<string | null>(null);
@@ -212,6 +224,23 @@ function SetPanel({ topic, set, info, layout, takesOf, onChanged, onSelect, onCl
         <span style={{ fontSize: 11, color: V3_MUTED, flex: 1 }}>{LANE_LABEL[lane]}{parent ? ` · off ${parent.name}` : ""}</span>
         <StageChip info={info} />
         <button type="button" onClick={onClose} style={{ ...small, color: V3_MUTED, padding: "3px 8px" }}>close</button>
+      </div>
+
+      {/* THE VIDEOS — Lee, 2026-09-10: "see the visual map of each video… track whether they're posted
+          to IG, YT, TT". Each split is a row; each row is a door into its post-production. */}
+      <div style={label}>Videos</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {videos.map((v) => (
+          <div key={v.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5 }}>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: V3_CREAM }}>{v.label}</span>
+            {v.status?.filmedAt && <span title="filmed" style={{ color: "#7DD3FC", fontSize: 10 }}>🎬</span>}
+            {PUBLISH_DESTINATIONS.map((d) => {
+              const on = !!v.status?.[d].postedAt;
+              return <span key={d} title={`${DEST_SHORT[d]}: ${on ? "posted" : "not yet"}`} style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.04em", color: on ? "#3BF5A0" : V3_MUTED, opacity: on ? 1 : 0.55 }}>{on ? "✓" : "○"}{DEST_SHORT[d]}</span>;
+            })}
+            <Link to="/v3/post" search={{ open: v.key }} style={{ ...small, padding: "2px 7px", fontSize: 10.5, borderColor: `${V3_GOLD}66`, color: V3_GOLD }} title="Post-production for this video: transcript, captions, copy, cover, then post">post →</Link>
+          </div>
+        ))}
       </div>
 
       <div style={label}>Name</div>
