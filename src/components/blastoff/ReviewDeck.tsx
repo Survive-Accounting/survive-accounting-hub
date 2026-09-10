@@ -664,6 +664,7 @@ function sameRowProps(a: SpineRowProps, b: SpineRowProps): boolean {
 
 const SpineRow = memo(function SpineRow(p: SpineRowProps) {
   const { frame: f, i, foldered, on } = p;
+  const [peeking, setPeeking] = useState(false);
   const menu = p.isMenuOpen;
   // Foldered rows accept neither drag (nothing to reorder — a skipped card's
   // order relative to other skipped cards films nothing) nor drop (dragging an
@@ -681,6 +682,8 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
       onDrop={canDrop ? (e) => { e.preventDefault(); on.drop(); } : undefined}
       onDragEnd={on.dragEnd}
       onClick={(e) => on.select(f.id, e)}
+      onMouseEnter={p.card ? () => setPeeking(true) : undefined}
+      onMouseLeave={p.card ? () => setPeeking(false) : undefined}
       title={canDrop ? "Click to open · shift-click a range · ctrl-click to add · drag to reorder" : "Click to open"}
       style={{
         position: "relative", display: "flex", alignItems: p.card ? "stretch" : "center", gap: p.card ? 4 : 8, padding: p.card ? "6px 6px 5px" : "7px 10px", borderRadius: 7,
@@ -706,7 +709,7 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
       {/* THE CARD IS THE LABEL (Lee, 2026-09-10: "I only need that label. None of the other text is
           needed. If I hover over a slide, pop out a more zoomed in version so I can see it better"). */}
       {!p.card && <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{p.snippet}</span>}
-      {p.card && p.thumb && (
+      {p.card && p.thumb && peeking && (
         <span className="sa-spine-peek" aria-hidden="true">
           <PhoneFrame frame={f} frames={p.frames} index={i} set={p.set} topicName={p.topicName} w={220} live={false} rounded={false} progress={progress} layout={p.layout} backdrop={p.backdrop} />
         </span>
@@ -788,6 +791,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
 
   const { plan, commit, saving, undo, redo } = usePlan(set);
   const frames = useMemo(() => plan?.frames ?? [], [plan]);
+  const framesRef = useRef(frames); framesRef.current = frames;
   const ceqById = useMemo(() => new Map(viewSet.ceqs.map((c) => [c.id, c])), [viewSet.ceqs]);
   const progress = useMemo(() => questionProgress(filmFrames(frames), ceqById), [frames, ceqById]);
   // SUMMARY SLIDES (Lee: "instead of calling this a note slide, we call it a
@@ -1264,15 +1268,9 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     const next = cutAfterFrame(frames, f.id, standardOpener(set.name, CRAM_NOT_LECTURE));
     commit(next);
     rekey(frames, next);
-    if (wasCut) return;
-    const t = planTakes(filmFrames(next));
-    const k = t.findIndex((x) => x.frames.some((x) => x.id === f.id));
-    const done = t[k];
-    const following = t[k + 1];
-    if (!done || !following) return;
-    setCollapsed((s) => new Set(s).add(done.headId));
-    setSelId(following.headId);
-    scrollTo.current = following.headId;
+    // STAY PUT (Lee, 2026-09-10: "if I split on the spine, you don't have to zoom back to the
+    // middle, just stay in the spot I'm at"). The cut lands; nothing folds, selects or scrolls.
+    void wasCut;
   };
   // FILM THIS SPLIT (2026-09-09, Lee's notes: film from this split — the film icon on the
   // bracket). The 9:16 pop-out opens straight from the spine on /film with `?take=N` (the capture films that
@@ -1317,17 +1315,17 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     setCloning(true);
     try {
       const res = await duplicateCeqCard({ data: { ceqNodeId: f.ceqId } });
+      // THE BANK FIRST (2026-09-10). This used to reload the whole page so the tab would learn
+      // the new card's words — Lee: "if I clone a CEQ slide, it refreshes… I have to re-find
+      // where I was." refreshBank re-fetches and hands the tree to every mounted screen now, so
+      // we wait for it, THEN drop the frame in: the new ceqId is already live when the plan
+      // reconciles, nothing flashes "no longer in the set", and the selection never moves.
+      await refreshBank();
       const copy: BlastFrame = { ...f, id: newFrameId("ceq"), ceqId: res.ceqNodeId, skipped: undefined, bankItemId: undefined };
-      const next = insertFrame(frames, copy, i);
+      const next = insertFrame(framesRef.current, copy, i);
       commit(next);
-      setSelId(copy.id);
-      // The bank is the source of the card's WORDS and it is fetched once per page load, so the
-      // new card does not exist for this tab until the bank is re-read. Drop the cache and
-      // reload rather than paper over it: a frame pointing at a ceqId the bank has never heard
-      // of renders "This card is no longer in the set", which is worse than a reload. The plan
-      // is already saved above, so nothing is lost.
-      refreshBank();
-      window.location.reload();
+      showMoved(copy.id);
+      setCloning(false);
     } catch (e) {
       window.alert(e instanceof Error ? e.message : "Could not clone that card.");
       setCloning(false);

@@ -60,7 +60,8 @@ export function cardPlacement(layout: SlideLayout, kind: BlastFrame["kind"]): Ca
 
 /** The camera's default spot and size in a layout (absent frame.cam). */
 export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spot: CamSpot; size?: number } {
-  if (kind === "open" || kind === "outro" || kind === "bolt" || kind === "ad") return { spot: "off" };
+  // SLOGAN: camera off by default (Lee, 2026-09-10) — the words are the slide.
+  if (kind === "open" || kind === "outro" || kind === "bolt" || kind === "ad" || kind === "slogan") return { spot: "off" };
   // THE MAP (2026-09-07): the small corner circle in both templates — a field wants the camera
   // out of the way (webcam-spots.defaultCamFor says the same).
   if (kind === "cluster") return { spot: "corner" };
