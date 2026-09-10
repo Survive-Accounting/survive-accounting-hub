@@ -723,7 +723,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     }),
   }), [set, overrides]);
 
-  const { plan, commit, saving } = usePlan(set);
+  const { plan, commit, saving, undo, redo } = usePlan(set);
   const frames = useMemo(() => plan?.frames ?? [], [plan]);
   const ceqById = useMemo(() => new Map(viewSet.ceqs.map((c) => [c.id, c])), [viewSet.ceqs]);
   const progress = useMemo(() => questionProgress(filmFrames(frames), ceqById), [frames, ceqById]);
@@ -745,6 +745,12 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   const [pick, setPick] = useState<Selection>(() => (initialSelectedId ? { ids: [initialSelectedId], anchor: initialSelectedId } : EMPTY_SELECTION));
   const selId = pick.ids[pick.ids.length - 1] ?? null;
   const setSelId = useCallback((id: string | null) => setPick(id ? { ids: [id], anchor: id } : EMPTY_SELECTION), []);
+  /** After any move: the moved slide is the pick, and the spine shows it — so a move never
+   *  leaves him at the top wondering where it went. */
+  const showMoved = useCallback((id: string) => {
+    setSelId(id);
+    window.setTimeout(() => document.querySelector(`[data-frame-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 80);
+  }, [setSelId]);
   const sel = frames.find((f) => f.id === selId) ?? frames[0] ?? null;
   const selIdx = sel ? frames.indexOf(sel) : -1;
   /** The spine's row order — the running order without the skipped folder — which a shift-click
@@ -1007,6 +1013,13 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
         if (pick.ids.length > 1) { e.preventDefault(); setPick(focusOnly(pick)); }
         return;
       }
+      // UNDO / REDO (Lee, 2026-09-10: "Ctrl Z undo needs to work on the slide editor. I moved a
+      // slide, and lost it."). The running order only — a card's words have their own ↶ Revert.
+      if (mod && key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+        return;
+      }
       const picked = pickOrdered(pick, spineOrder).map((id) => frames.find((f) => f.id === id)).filter((f): f is BlastFrame => !!f);
       if (mod && key === "c") {
         if (!picked.length) return;
@@ -1048,7 +1061,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [frames, selIdx, menuId, pick, spineOrder, commit, setSelId]);
+  }, [undo, redo, frames, selIdx, menuId, pick, spineOrder, commit, setSelId]);
 
   // DRAG TO REORDER — plain HTML5 drag, no library. The drop line sits above
   // or below the row under the cursor, so it is never a guess (Lee: "I can't
@@ -1091,6 +1104,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
         const dest = from < to ? to - 1 : to;
         if (from >= 0 && from !== dest) commit(moveFrame(plan.frames, from, dest));
       }
+      const movedId = dragId;
+      window.setTimeout(() => showMoved(movedId), 0);
     }
     setDragId(null); setOver(null); dropGhost();
   };
@@ -1313,9 +1328,17 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   // it before the frame at `to`. moveFrame takes a from/to pair in the SAME list, and removing
   // the slide first shifts everything after it down one — so a target past the origin loses one.
   const moveFrameRef = moveId ? frames.find((f) => f.id === moveId) ?? null : null;
+  // THIS SPLIT ONLY (Lee, 2026-09-10: "it should only let me reorder into the split. If I want to
+  // move a slide into a different split, I'll just Ctrl X it and Ctrl V"). A skipped slide is in
+  // no take, so it sees the whole order, as before.
+  const moveTake = moveFrameRef ? takeOf.get(moveFrameRef.id)?.take ?? null : null;
+  const moveRows = moveTake ? activeRows.filter((r) => takeOf.get(r.f.id)?.take === moveTake) : activeRows;
+  const moveEnd = moveRows.length ? moveRows[moveRows.length - 1].i + 1 : frames.length;
   const moveTo = (to: number) => {
     const from = moveFrameRef ? frames.indexOf(moveFrameRef) : -1;
     if (from < 0) { setMoveId(null); return; }
+    const movedId = moveFrameRef!.id;
+    window.setTimeout(() => showMoved(movedId), 0);
     // The slide being placed is part of the pick → the whole pick goes, as one block (B4).
     const bundle = moveFrameRef && pickedSet.has(moveFrameRef.id) ? pickOrdered(pick, spineOrder) : [];
     if (bundle.length > 1) {
@@ -1600,11 +1623,11 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
           <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 1100, margin: "0 auto" }}>
             <div className="flex items-center" style={{ gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
               <span style={{ fontFamily: "'League Spartan', Rubik, system-ui, sans-serif", fontSize: 18, fontWeight: 900, color: CREAM }}>Move “{snippet(moveFrameRef).slice(0, 46)}”</span>
-              <span style={{ fontSize: 12.5, color: MUTED }}>Click where it should go.</span>
+              <span style={{ fontSize: 12.5, color: MUTED }}>Click where it should go{moveTake ? ` — within ${takeLabel(moveTake)}` : ""}. Another split: Ctrl+X, then Ctrl+V there.</span>
               <button onClick={() => setMoveId(null)} style={{ ...chip(false), marginLeft: "auto" }}>cancel</button>
             </div>
             <div className="flex" style={{ flexWrap: "wrap", alignItems: "flex-start", gap: 2 }}>
-              {activeRows.map(({ f, i }, pos) => (
+              {moveRows.map(({ f, i }, pos) => (
                 <span key={f.id} className="flex" style={{ alignItems: "stretch" }}>
                   <MoveSlot to={i} onPick={moveTo} first={pos === 0} />
                   {/* A tile can be picked up and dragged to a slot (2026-09-09) — picking it up
@@ -1612,13 +1635,13 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                   <span draggable onDragStart={() => setMoveId(f.id)}
                     style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 3, opacity: f.id === moveFrameRef.id ? 0.35 : 1, cursor: "grab" }}>
                     <span style={{ borderRadius: 5, overflow: "hidden", border: `1px solid ${f.id === moveFrameRef.id ? GOLD : EDGE}`, pointerEvents: "none" }}>
-                      <PhoneFrame frame={f} frames={frames} index={i} set={viewSet} topicName={topic.name} w={72} live={false} rounded={false} layout={layout} backdrop={backdropOf.get(f.id) ?? null} />
+                      <PhoneFrame frame={f} frames={frames} index={i} set={viewSet} topicName={topic.name} w={moveRows.length > 24 ? 84 : 112} live={false} rounded={false} layout={layout} backdrop={backdropOf.get(f.id) ?? null} />
                     </span>
                     <span style={{ fontSize: 9.5, color: MUTED, fontVariantNumeric: "tabular-nums" }}>{pos + 1}</span>
                   </span>
                 </span>
               ))}
-              <MoveSlot to={frames.length} onPick={moveTo} last />
+              <MoveSlot to={moveEnd} onPick={moveTo} last />
             </div>
           </div>
         </div>
@@ -1637,6 +1660,11 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
             frames={frames}
             layout={layout}
             onMove={(d) => commit(moveFrame(frames, selIdx, selIdx + d))}
+            onGoHere={() => {
+              const t = takeOf.get(sel.id)?.take;
+              if (t) setCollapsed((c) => { if (!c.has(t.headId)) return c; const x = new Set(c); x.delete(t.headId); return x; });
+              window.setTimeout(() => document.querySelector(`[data-frame-id="${CSS.escape(sel.id)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
+            }}
             onPatch={(p) => patch(sel.id, p)}
             shorten={shortenReq ? { on: shortenId === sel.id, open: openShorten } : null} />
         )}
@@ -1714,7 +1742,9 @@ function RightTabs({ tab, onTab, canIllustrate: can }: { tab: RightTab; onTab: (
 
 // ------------------------------------------------------ the middle column
 
-function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop, frames, layout, onMove, onPatch, shorten }: {
+function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop, frames, layout, onMove, onPatch, shorten, onGoHere }: {
+  /** Scroll the spine to this slide (unfolding its split if it is shut). */
+  onGoHere: () => void;
   sel: BlastFrame; idx: number; count: number; label: string; viewSet: BoothSetInfo; topic: BoothTopic;
   progress?: { x: number; y: number };
   /** The bolt-zoom backdrop the rule (or the override) gives this slide. */
@@ -1746,6 +1776,7 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
           <button style={chip(safe, SKY)} title="Shade the zones TikTok and Shorts paint their own UI over" onClick={() => setSafe((v) => !v)}>safe zones</button>
           <button style={tiny} title="Move up" onClick={() => onMove(-1)}>↑</button>
           <button style={tiny} title="Move down" onClick={() => onMove(1)}>↓</button>
+          <button style={{ ...tiny, color: GOLD }} title="Scroll the spine to this slide" onClick={onGoHere}>Go here ↓</button>
         </span>
       </div>
 
@@ -2069,6 +2100,16 @@ function CeqEditor({ ceq, setId, shortenApplied, onSaved }: { ceq: BoothCeq; set
   const valid = draftValid(d, ceq.noteOnly);
   const setChoice = (i: number, p: Partial<CeqDraft["choices"][number]>) =>
     setD((v) => ({ ...v, choices: v.choices.map((c, k) => (k === i ? { ...c, ...p } : p.correct ? { ...c, correct: false } : c)) }));
+  // DRAG TO REORDER (Lee, 2026-09-10: "a drag/drop reorder tool for answer choices"). The grip
+  // is the handle; dropping on another row puts the dragged choice at that row's spot. Saves
+  // like any other edit — the order is part of the card.
+  const dragChoice = useRef<number | null>(null);
+  const [overChoice, setOverChoice] = useState<number | null>(null);
+  const dropChoice = (to: number) => {
+    const from = dragChoice.current; dragChoice.current = null; setOverChoice(null);
+    if (from == null || from === to) return;
+    setD((v) => { const next = [...v.choices]; const [m] = next.splice(from, 1); next.splice(to, 0, m); return { ...v, choices: next }; });
+  };
   // The deck hands onSaved in as an inline arrow; read through a ref so a parent re-render never
   // rebuilds `save` and restarts the 800 ms clock under him.
   const onSavedRef = useRef(onSaved);
@@ -2148,7 +2189,12 @@ function CeqEditor({ ceq, setId, shortenApplied, onSaved }: { ceq: BoothCeq; set
         <div className="flex flex-col" style={{ gap: 6, marginTop: 8 }}>
           <div style={{ fontSize: 11, color: MUTED }}>Choices — tick the correct one</div>
           {d.choices.map((c, i) => (
-            <div key={i} className="flex items-start" style={{ gap: 6 }}>
+            <div key={i} className="flex items-start" style={{ gap: 6, borderTop: `2px solid ${overChoice === i ? MINT : "transparent"}`, paddingTop: 2 }}
+              onDragOver={(e) => { if (dragChoice.current != null) { e.preventDefault(); setOverChoice(i); } }}
+              onDragLeave={() => setOverChoice((o) => (o === i ? null : o))}
+              onDrop={(e) => { e.preventDefault(); dropChoice(i); }}>
+              <span draggable onDragStart={(e) => { dragChoice.current = i; e.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => { dragChoice.current = null; setOverChoice(null); }}
+                title="Drag to reorder" style={{ cursor: "grab", color: MUTED, fontSize: 14, lineHeight: 1, marginTop: 8, userSelect: "none" }}>⋮⋮</span>
               <input type="radio" name={`correct-${ceq.id}`} checked={c.correct} onChange={() => setChoice(i, { correct: true })} title="Correct" style={{ marginTop: 9, accentColor: MINT }} />
               <div style={{ flex: 1 }}>
                 <input style={field} value={c.text} onChange={(e) => setChoice(i, { text: e.target.value })} placeholder={`Choice ${String.fromCharCode(65 + i)}`} />

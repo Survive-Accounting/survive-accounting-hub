@@ -15,7 +15,7 @@
 //
 // Nothing here is deleted from the old canvas; /study/canvas is untouched and
 // stays the fallback until V3 has actually filmed something.
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation, useParams } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { FlaskConical, Home } from "lucide-react";
 
@@ -58,6 +58,38 @@ function QueueChip() {
   );
 }
 
+/** THE STEP STRIP (Lee, 2026-09-10: "yes to the persistent step strip on /v3 pages" — "I'm kinda
+ *  tired of having to load different pages"). On any page that belongs to one set, the four
+ *  steps for THAT set sit under the header, the one you are on lit, so no step needs the map
+ *  just to reach the next. Read off the URL — the same spelling blastOffPath uses — so it needs
+ *  no data and never lags the page. */
+function StepStrip() {
+  const params = useParams({ strict: false }) as { topic?: string; set?: string };
+  const { pathname } = useLocation();
+  if (!params.topic || !params.set) return null;
+  const base = `/v3/${params.topic}/${params.set}/blast-off`;
+  const steps: { label: string; to: string; on: boolean; title: string }[] = [
+    { label: "🎙 Brainstorm", to: `${base}/talkthrough`, on: pathname.endsWith("/talkthrough"), title: "Talk it through in the Booth" },
+    { label: "✨ Editor", to: `${base}/results`, on: /\/(results|suggestions|arrange)$/.test(pathname), title: "The cards and slides" },
+    { label: "🎬 Film", to: `${base}/film`, on: pathname.endsWith("/film"), title: "Rehearse & Film — the pop-out" },
+    { label: "📮 Post", to: "/v3/post", on: false, title: "Cross-post — every set's videos" },
+  ];
+  const setLabel = params.set.replace(/-/g, " ");
+  return (
+    <nav aria-label="Steps" className="flex items-center gap-1.5" style={{ padding: "5px 20px", borderBottom: `1px solid ${V3_EDGE}`, background: "#05070D", flexWrap: "wrap" }}>
+      <Link to="/v3" style={{ color: V3_MUTED, fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none", marginRight: 6 }} title="The map">🗺 map</Link>
+      <span style={{ color: V3_CREAM, fontSize: 11.5, fontWeight: 700, marginRight: 8, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{setLabel}</span>
+      {steps.map((st) => (
+        <Link key={st.label} to={st.to} title={st.title}
+          style={{ fontSize: 11.5, fontWeight: 800, padding: "3px 10px", borderRadius: 999, textDecoration: "none", whiteSpace: "nowrap",
+            border: `1px solid ${st.on ? V3_GOLD : V3_EDGE}`, background: st.on ? "rgba(252,163,17,0.14)" : "transparent", color: st.on ? V3_GOLD : V3_MUTED }}>
+          {st.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; children: ReactNode; wide?: boolean }) {
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => { try { setCollapsed(localStorage.getItem(BAR_KEY) === "collapsed"); } catch { /* forgets */ } }, []);
@@ -82,6 +114,7 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
           <SettingsGear />
           {toggleBtn}
         </header>
+        <StepStrip />
         <main style={{ padding: "18px 20px 90px", maxWidth: wide ? 1440 : 1080, margin: "0 auto" }}>{children}</main>
         <GenerationDock />
       </div>
@@ -136,6 +169,7 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
           <SettingsGear />
         {toggleBtn}
       </header>
+      <StepStrip />
 
       <main style={{ padding: "34px 20px 90px", maxWidth: wide ? 1440 : 1080, margin: "0 auto" }}>{children}</main>
       {/* THE GENERATION DOCK — bottom right on every V3 screen (Lee, 2026-09-03). */}

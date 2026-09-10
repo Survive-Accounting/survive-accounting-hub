@@ -67,7 +67,15 @@ export function usePlan(set: BoothSetInfo) {
       .then(() => setSaving("saved"))
       .catch((e) => setSaving(`⚠ ${e instanceof Error ? e.message : String(e)}`));
   }, [set.id]);
-  const commit = useCallback((frames: BlastFrame[]) => {
+  // UNDO (Lee, 2026-09-10: "Ctrl Z undo needs to work on the slide editor. I moved a slide, and
+  // lost it."). Every commit pushes the order it replaced; undo pops it back through the same
+  // commit path (so it saves like any other change) without pushing; redo is the mirror. Fifty
+  // deep, per mounted editor — a reload starts fresh, the server has the truth.
+  const past = useRef<BlastFrame[][]>([]);
+  const future = useRef<BlastFrame[][]>([]);
+  const planRef = useRef<BlastPlan | null>(null);
+  planRef.current = plan;
+  const commitRaw = useCallback((frames: BlastFrame[]) => {
     setPlan((prev) => ({ frames, updatedAt: new Date().toISOString(), ...(prev?.layout ? { layout: prev.layout } : {}) }));
     dirty.current = true;
     setSaving("saving…");
@@ -75,6 +83,26 @@ export function usePlan(set: BoothSetInfo) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(flush, 500);
   }, [flush]);
+  const commit = useCallback((frames: BlastFrame[]) => {
+    const cur = planRef.current?.frames;
+    if (cur && cur !== frames) { past.current.push(cur); if (past.current.length > 50) past.current.shift(); future.current = []; }
+    commitRaw(frames);
+  }, [commitRaw]);
+  /** True when there was something to undo. */
+  const undo = useCallback((): boolean => {
+    const prev = past.current.pop();
+    if (!prev) return false;
+    if (planRef.current?.frames) future.current.push(planRef.current.frames);
+    commitRaw(prev);
+    return true;
+  }, [commitRaw]);
+  const redo = useCallback((): boolean => {
+    const next = future.current.pop();
+    if (!next) return false;
+    if (planRef.current?.frames) past.current.push(planRef.current.frames);
+    commitRaw(next);
+    return true;
+  }, [commitRaw]);
   useEffect(() => () => { if (pendingFrames.current) flush(); }, [flush]);
 
   // THE TEMPLATE (2026-09-05): pass 1 / pass 2, chosen on the set screen; saved at once.
@@ -89,7 +117,7 @@ export function usePlan(set: BoothSetInfo) {
     });
   }, [set.id]);
 
-  return { plan, commit, saving, setLayout };
+  return { plan, commit, saving, setLayout, undo, redo };
 }
 
 // ---------------------------------------------------------------- editor
