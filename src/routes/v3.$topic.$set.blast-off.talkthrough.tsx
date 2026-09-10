@@ -22,7 +22,6 @@ import { PreFlight } from "@/components/canvas/ReviewBoard";
 import { queueIncrementalReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
 import { listSessions, makeSession, touchRow, type TalkSession } from "@/components/canvas/talkthrough";
 import { putSession, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
-import { StepBar } from "@/components/v3/StepBar";
 import { blastOffPath, topicOfSet, useV3Set } from "@/components/v3/use-bank";
 import { V3Shell, V3Note } from "@/components/v3/Shell";
 
@@ -78,8 +77,6 @@ function V3Talkthrough() {
 
   return (
     <V3Shell crumbs={crumbs} wide>
-      <StepBar topic={topic} set={set} active="talkthrough" />
-
       {!session && <V3Note>{settled ? "Starting a session…" : "Syncing your sessions…"}</V3Note>}
 
       {session && (

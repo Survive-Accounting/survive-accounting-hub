@@ -31,7 +31,6 @@ import { SessionView } from "@/components/talkthrough/SessionView";
 import { listSessions, sessionBoard, sessionMeta } from "@/components/canvas/talkthrough";
 import { startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
-import { StepBar } from "@/components/v3/StepBar";
 import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
 import { V3Shell, V3Note, V3_CREAM, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 
@@ -138,13 +137,15 @@ function V3Suggestions() {
 
       {set && topic && (
         <>
-          <StepBar topic={topic} set={set} active="suggestions" right={
+          {/* The step bar is gone (2026-09-10: the steps live in the navbar — components/v3/Shell.tsx);
+              the way onward stays, on its own right-aligned row. */}
+          <div className="flex items-center justify-end gap-2" style={{ marginBottom: 16 }}>
             <Link to={blastOffPath(topic, set, "results")} className="rounded-xl px-3.5 py-2"
               style={{ border: `1.5px solid ${V3_GOLD}`, background: "rgba(252,163,17,0.12)", color: V3_CREAM, textDecoration: "none", fontWeight: 800, fontSize: 13 }}
               title="Everything you added lands on the film draft">
               To the Editor →
             </Link>
-          } />
+          </div>
 
           <div className="flex items-baseline" style={{ gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
             <h1 style={{ fontFamily: "'League Spartan', Rubik, system-ui, sans-serif", fontSize: 26, fontWeight: 900, margin: 0, letterSpacing: "-0.01em" }}>

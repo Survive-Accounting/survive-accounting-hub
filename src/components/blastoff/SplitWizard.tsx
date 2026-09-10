@@ -15,8 +15,10 @@ import { loadBlastPlan, saveBlastPlan } from "@/lib/blastoff.functions";
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 import { CRAM_NOT_LECTURE } from "@/components/brand-cards/slogans";
 import { V3_CREAM, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
+import { headsOf, rekeyMoves } from "@/components/v3/publish-rekey";
+import { rekeyPublishRows } from "@/lib/publish-queue.functions";
 
-import { reconcilePlan, type BlastPlan } from "./plan";
+import { reconcilePlan, type BlastFrame, type BlastPlan } from "./plan";
 import { moveBucket, moveUnits, newBucket, readBuckets, removeBucket, renameBucket, splitProblem, writeBuckets, type CardUnit, type SplitBucket } from "./split-wizard";
 
 const MINT = "#3BF5A0";
@@ -29,6 +31,9 @@ function fit(s: string, n = 110): string { const t = s.replace(/\s+/g, " ").trim
 
 export function SplitWizard({ set, onClose, onSaved }: { set: BoothSetInfo; onClose: () => void; onSaved: () => Promise<void> | void }) {
   const [buckets, setBuckets] = useState<SplitBucket[] | null>(null);
+  // The running order as loaded — Confirm diffs its split heads against the rebuilt order so
+  // the publish rows (keyed by seat: "<setId>", "<setId>#2", …) follow their split.
+  const [loaded, setLoaded] = useState<BlastFrame[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const [over, setOver] = useState<string | null>(null);
@@ -39,7 +44,12 @@ export function SplitWizard({ set, onClose, onSaved }: { set: BoothSetInfo; onCl
   useEffect(() => {
     let live = true;
     loadBlastPlan({ data: { setId: set.id } })
-      .then((stored) => { if (live) setBuckets(readBuckets(reconcilePlan(stored as BlastPlan | null, set.ceqs).frames)); })
+      .then((stored) => {
+        if (!live) return;
+        const frames = reconcilePlan(stored as BlastPlan | null, set.ceqs).frames;
+        setLoaded(frames);
+        setBuckets(readBuckets(frames));
+      })
       .catch((e) => { if (live) setLoadErr(e instanceof Error ? e.message : String(e)); });
     return () => { live = false; };
   }, [set.id, set.ceqs]);
@@ -72,7 +82,11 @@ export function SplitWizard({ set, onClose, onSaved }: { set: BoothSetInfo; onCl
     if (!buckets || problem) return;
     setBusy(true); setErr(null);
     try {
-      await saveBlastPlan({ data: { setId: set.id, frames: writeBuckets(buckets, CRAM_NOT_LECTURE) as never } });
+      const frames = writeBuckets(buckets, CRAM_NOT_LECTURE);
+      await saveBlastPlan({ data: { setId: set.id, frames: frames as never } });
+      // Splits moved seats? Move their filmed / posted rows with them (publish-rekey.ts).
+      const moves = rekeyMoves(set.id, headsOf(loaded), headsOf(frames));
+      if (moves.length) await rekeyPublishRows({ data: { setId: set.id, moves } });
       await onSaved();
       onClose();
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }

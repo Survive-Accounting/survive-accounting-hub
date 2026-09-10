@@ -27,7 +27,6 @@ import { refreshBank } from "@/components/v3/use-bank";
 import { listSessions, sessionMeta } from "@/components/canvas/talkthrough";
 import { startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
-import { StepBar } from "@/components/v3/StepBar";
 import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
 import { V3Shell, V3Note, V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 import { listIllustrationLibrary } from "@/lib/illustrate.functions";
@@ -112,13 +111,15 @@ function V3Results() {
               be ruthless… a short for assets, one for liabilities, one for equity, one for revenue,
               one for expense." A Blast Off plan is one per set, so a set over the ceiling is cut
               into sibling sets from here, then each gets its own Editor and Film. */}
-          <StepBar topic={topic} set={set} active="results" right={
+          {/* The step bar that used to carry this button is gone (2026-09-10: the steps live in the
+              navbar now — components/v3/Shell.tsx); the knife stays, on its own right-aligned row. */}
+          <div className="flex items-center justify-end gap-2" style={{ marginBottom: 16 }}>
             <button onClick={() => setSplit((v) => !v)} className="rounded-xl px-3.5 py-2"
               style={{ border: `1.5px solid ${split ? V3_GOLD : V3_EDGE}`, background: split ? "rgba(252,163,17,0.12)" : "transparent", color: split ? V3_CREAM : V3_MUTED, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
               title={`Cut this set into sibling sets — ${set.liveCount} cards is ${set.liveCount > 12 ? "over" : "under"} the 12-card ceiling for one Short`}>
               ✂ Split{set.liveCount > 12 ? ` · ${set.liveCount} cards` : ""}
             </button>
-          } />
+          </div>
 
           {split && <SplitPanel set={set} topic={topic} onClose={() => setSplit(false)} />}
 

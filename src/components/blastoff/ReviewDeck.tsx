@@ -92,6 +92,7 @@ import { renderInline } from "@/components/canvas/inline-md";
 import { getAdminWho } from "@/components/AdminGate";
 import { blastOffPath, refreshBank } from "@/components/v3/use-bank";
 import { V3_NAVY } from "@/components/v3/Shell";
+import { rekeyAfterPlanChange } from "@/components/v3/publish-rekey";
 import { BankPicker } from "./BankPicker";
 import { indentBulletLine } from "./bullet-indent";
 import { BIO_CARD } from "./bio-card";
@@ -356,9 +357,9 @@ const SPINE_CSS = `
 .sa-spine-row:hover .sa-spine-tools,.sa-spine-row.is-on .sa-spine-tools,.sa-spine-row.is-menu .sa-spine-tools,.sa-spine-row .sa-spine-tools:focus-within{opacity:1}
 .sa-slide-menu button:hover{background:rgba(255,255,255,0.06)}
 .sa-spine-row.is-picked{outline:1px solid ${CREAM};outline-offset:-1px}
-.sa-spine.is-dragging .sa-spine-row:not(.sa-spine-card){height:26px;overflow:hidden;padding-top:0!important;padding-bottom:0!important;box-sizing:border-box}
-.sa-spine.is-dragging .sa-spine-card{width:30px!important;min-height:80px;overflow:hidden}
-.sa-spine.is-dragging .sa-spine-thumb{display:none}
+.sa-spine-card .sa-spine-peek{display:none;position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);z-index:40;pointer-events:none;border-radius:8px;overflow:hidden;border:1px solid ${GOLD};box-shadow:0 14px 40px rgba(0,0,0,0.6);background:#000}
+.sa-spine-card:hover .sa-spine-peek{display:block}
+.sa-spine-card.is-hit{outline:2px solid ${MINT};outline-offset:-2px}
 .sa-spine-h{scrollbar-width:thin}
 .sa-spine-card > span:first-child{position:absolute;top:5px;left:5px;z-index:1;border-right:0!important;min-width:0!important;padding:1px 5px!important;background:rgba(9,13,26,0.85);border-radius:4px}
 .sa-spine-card .sa-spine-thumb{align-self:center}
@@ -603,6 +604,8 @@ interface SpineRowHandlers {
   move: (id: string) => void;
   duplicate: (id: string, i: number) => void;
   cloneCard: (id: string, i: number) => void;
+  /** FILM FROM HERE (Lee, 2026-09-10: "I'm sick of scrolling all the way through"). */
+  filmFrom: (id: string) => void;
   toggleSkip: (id: string) => void;
   remove: (id: string, i: number) => void;
 }
@@ -617,6 +620,8 @@ interface SpineRowProps {
   thumb: boolean;
   /** THE STRIP (2026-09-10): a vertical card — thumb on top, words under — sitting in a row. */
   card: boolean;
+  /** A search hit (the 🔍 box) — outlined so the eye finds it on the strip. */
+  isHit: boolean;
   isSelected: boolean;
   isPicked: boolean;
   isMenuOpen: boolean;
@@ -670,7 +675,7 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
   const progress = useMemo(() => (p.progressX != null && p.progressY != null ? { x: p.progressX, y: p.progressY } : undefined), [p.progressX, p.progressY]);
   return (
     <div data-frame-id={f.id} draggable={draggableRow}
-      className={`sa-spine-row${p.card ? " sa-spine-card" : ""}${p.isSelected ? " is-on" : ""}${p.isPicked ? " is-picked" : ""}${menu ? " is-menu" : ""}`}
+      className={`sa-spine-row${p.card ? " sa-spine-card" : ""}${p.isSelected ? " is-on" : ""}${p.isPicked ? " is-picked" : ""}${p.isHit ? " is-hit" : ""}${menu ? " is-menu" : ""}`}
       onDragStart={(e) => on.dragStart(f.id, e.dataTransfer)}
       onDragOver={canDrop ? (e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); on.over(i, p.card ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2); } : undefined}
       onDrop={canDrop ? (e) => { e.preventDefault(); on.drop(); } : undefined}
@@ -698,7 +703,14 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
         </span>
       )}
       <span style={kindTag(p.color)}>{p.label}</span>
-      <span style={{ fontSize: p.card ? 11 : 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: p.card ? undefined : 1, textDecoration: f.skipped ? "line-through" : "none" }}>{p.snippet}</span>
+      {/* THE CARD IS THE LABEL (Lee, 2026-09-10: "I only need that label. None of the other text is
+          needed. If I hover over a slide, pop out a more zoomed in version so I can see it better"). */}
+      {!p.card && <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{p.snippet}</span>}
+      {p.card && p.thumb && (
+        <span className="sa-spine-peek" aria-hidden="true">
+          <PhoneFrame frame={f} frames={p.frames} index={i} set={p.set} topicName={p.topicName} w={220} live={false} rounded={false} progress={progress} layout={p.layout} backdrop={p.backdrop} />
+        </span>
+      )}
       {/* SAME CARD, TWICE — say so on the row (2026-09-09). Lee duplicated Prepaid Rent
           meaning to make the copy a different question, and could not see that the two slides
           were one card until he edited one and both changed. A duplicate is a real thing he
@@ -722,6 +734,9 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
             maybe zooms out a little bit and lets me drag it to where I would like it to be."
             Dragging the row still works; this is the version that does not need a steady hand
             down a fifty-slide list. */}
+        {!foldered && (
+          <button style={{ ...tiny, color: GOLD }} title="Film from here — pops out the 9:16 window starting on this slide" onClick={(e) => { e.stopPropagation(); on.filmFrom(f.id); }}>🎬</button>
+        )}
         {!foldered && (
           <button style={tiny} title="Move this slide — pick a place in the zoomed-out order" onClick={(e) => { e.stopPropagation(); on.move(f.id); }}>⇅</button>
         )}
@@ -832,6 +847,16 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   const setStripView = (v: "film" | "list") => { setStripViewState(v); try { localStorage.setItem(STRIP_VIEW_KEY, v); } catch { /* cosmetic */ } };
   /** The slide whose ⇅ was pressed — the zoomed-out placement overlay is up for it. */
   const [moveId, setMoveId] = useState<string | null>(null);
+  // THE SEARCH (Lee, 2026-09-10: "Search tool would be great too. Like CTRL F but better at
+  // finding a slide than the browser CTRL F."). Matches a slide's label, its words, its card's
+  // stem and choices; Enter walks the hits; Escape clears. Ctrl+F on this page opens it.
+  const [query, setQuery] = useState("");
+  const [hitAt, setHitAt] = useState(0);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  // THE STRIP CAN HIDE (Lee: "Let me show / hide the top spine."). Remembered per browser.
+  const [stripOpen, setStripOpenState] = useState(true);
+  useEffect(() => { try { setStripOpenState(localStorage.getItem("sa-review-strip") !== "hidden"); } catch { /* forgets */ } }, []);
+  const setStripOpen = (v: boolean) => { setStripOpenState(v); try { localStorage.setItem("sa-review-strip", v ? "open" : "hidden"); } catch { /* forgets */ } };
   // THE TAKES, ONCE (2026-09-09). Lee: "would be a huge help if I could collapse a split
   // group." The spine used to re-derive the grouping inline, per row, in O(n³); this is the one
   // planTakes the rest of the line uses — over filmFrames, so take N here IS /v3/post's
@@ -864,6 +889,27 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     setSelId(want.headId);
     window.setTimeout(() => document.querySelector(`[data-frame-id="${CSS.escape(want.headId)}"]`)?.scrollIntoView({ inline: "start", block: "nearest", behavior: "smooth" }), 50);
   }, [focusTake, takes, collapsedState.setId, set.id, setCollapsed, setSelId]);
+  const hits = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [] as string[];
+    const hay = (f: BlastFrame): string => {
+      const c = f.ceqId ? ceqById.get(f.ceqId) : undefined;
+      return [labelOf(f), snippet(f), f.text ?? "", f.title ?? "", c?.stem ?? "", ...(c?.choices.map((x) => x.text) ?? [])].join(" · ").toLowerCase();
+    };
+    return frames.filter((f) => !f.skipped && hay(f).includes(q)).map((f) => f.id);
+  }, [query, frames, ceqById]);
+  const hitSet = useMemo(() => new Set(hits), [hits]);
+  const goHit = useCallback((k: number) => {
+    if (!hits.length) return;
+    const n = ((k % hits.length) + hits.length) % hits.length;
+    setHitAt(n);
+    const id = hits[n];
+    const t = takeOf.get(id)?.take;
+    if (t) setCollapsed((c) => { if (!c.has(t.headId)) return c; const x = new Set(c); x.delete(t.headId); return x; });
+    setSelId(id);
+    window.setTimeout(() => document.querySelector(`[data-frame-id="${CSS.escape(id)}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" }), 60);
+  }, [hits, takeOf, setCollapsed, setSelId]);
+  useEffect(() => { if (hits.length) goHit(0); }, [hits.length === 0 ? "" : hits[0]]); // eslint-disable-line react-hooks/exhaustive-deps
   /** A one-line note on the spine's header row — the pop-out's fate — for a few seconds. */
   const [spineNote, setSpineNote] = useState<string | null>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1062,6 +1108,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
         if (pick.ids.length > 1) { e.preventDefault(); setPick(focusOnly(pick)); }
         return;
       }
+      if (mod && key === "f") { e.preventDefault(); setStripOpen(true); window.setTimeout(() => { searchRef.current?.focus(); searchRef.current?.select(); }, 30); return; }
       // UNDO / REDO (Lee, 2026-09-10: "Ctrl Z undo needs to work on the slide editor. I moved a
       // slide, and lost it."). The running order only — a card's words have their own ↶ Revert.
       if (mod && key === "z") {
@@ -1132,6 +1179,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     move: (id) => live.current?.move(id),
     duplicate: (id, i) => live.current?.duplicate(id, i),
     cloneCard: (id, i) => live.current?.cloneCard(id, i),
+    filmFrom: (id) => live.current?.filmFrom(id),
     toggleSkip: (id) => live.current?.toggleSkip(id),
     remove: (id, i) => live.current?.remove(id, i),
   }), []);
@@ -1139,7 +1187,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   /** THE ZOOM-OUT (Lee's notes: zoom-out while dragging): after DRAG_ZOOM_AFTER_MS of dragging
    *  the spine gets `is-dragging` — rows shrink to a line each so the whole running order fits
    *  the viewport and the target is findable. Off again the moment the drag ends. */
-  const [dragZoom, setDragZoom] = useState(false);
+  const dragZoom = false;
   const drop = () => {
     if (plan && dragId && over) {
       const to = over.below ? over.i + 1 : over.i;
@@ -1174,12 +1222,11 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     };
     window.addEventListener("dragover", onMove);
     raf = window.requestAnimationFrame(tick);
-    const zoom = window.setTimeout(() => setDragZoom(true), DRAG_ZOOM_AFTER_MS);
+    // NO ZOOM-OUT (Lee, 2026-09-10: "No more zoom out when drag drop"). The strip is one row; the
+    // target is in view already. DRAG_ZOOM_AFTER_MS stays exported for the list face.
     return () => {
       window.removeEventListener("dragover", onMove);
       window.cancelAnimationFrame(raf);
-      window.clearTimeout(zoom);
-      setDragZoom(false);
     };
   }, [dragId]);
 
@@ -1206,10 +1253,17 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   // take that just closed is done with; so it collapses, the selection lands on the new opener's
   // intro — the head of the split he is now working on — and the spine scrolls there.
   // Un-cutting (✂ undo) only lifts the mark; nothing folds or moves.
+  /** A CUT MOVES EVERY LATER SPLIT'S NUMBER — and /v3/post's rows are keyed by that number. So
+   *  the rows follow their split (publish-rekey.ts) — Lee, 2026-09-10: "my revenues slide became
+   *  expenses… so it doesn't happen again". */
+  const rekey = (before: readonly BlastFrame[], after: readonly BlastFrame[]) => {
+    void rekeyAfterPlanChange(set.id, before, after).catch((e) => flashNote(`⚠ post rows not re-keyed: ${e instanceof Error ? e.message : String(e)}`));
+  };
   const cutAfter = (f: BlastFrame) => {
     const wasCut = !!f.cutAfter;
     const next = cutAfterFrame(frames, f.id, standardOpener(set.name, CRAM_NOT_LECTURE));
     commit(next);
+    rekey(frames, next);
     if (wasCut) return;
     const t = planTakes(filmFrames(next));
     const k = t.findIndex((x) => x.frames.some((x) => x.id === f.id));
@@ -1225,6 +1279,16 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   // run once P2 lands; until then it starts at slide 1). From the click, never an effect — a
   // popup opened from an effect is blocked — and under POPOUT_NAME, so a second click on any
   // bracket refocuses the one window rather than spawning another.
+  /** FILM FROM HERE: the split this slide is in, starting on this slide, in the pop-out. */
+  const filmFrom = (id: string) => {
+    const t = takeOf.get(id)?.take;
+    const href = blastOffPath(topic, set, "film") + "?popout=1" + (t ? "&take=" + t.index : "") + "&frame=" + encodeURIComponent(id);
+    let w: Window | null = null;
+    try { w = window.open(href, POPOUT_NAME, POPOUT_FEATURES); } catch { w = null; }
+    if (w === null) { flashNote(POPOUT_BLOCKED); return; }
+    try { w.focus(); } catch { /* ignore */ }
+    flashNote(POPOUT_OPENED);
+  };
   const filmTake = (take: PlanTake) => {
     const href = blastOffPath(topic, set, "film") + "?popout=1&take=" + take.index;
     let w: Window | null = null;
@@ -1239,7 +1303,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     const headAt = frames.findIndex((x) => x.id === take.headId);
     // The spine's takes are over filmFrames, so a mark on a SKIPPED slide is not the boundary
     // it shows — walk past those to the cut that actually opens this run.
-    for (let k = headAt - 1; k >= 0; k--) if (!frames[k].skipped && frames[k].cutAfter) { commit(cutAfterFrame(frames, frames[k].id, [])); return; }
+    for (let k = headAt - 1; k >= 0; k--) if (!frames[k].skipped && frames[k].cutAfter) { const next = cutAfterFrame(frames, frames[k].id, []); commit(next); rekey(frames, next); return; }
   };
   // CLONE A SET CARD INTO ITS OWN CARD (2026-09-08). Lee: "If I duplicate a slide, then change
   // it, it's editing the previous slide. It's more a clone one that I can then edit
@@ -1412,6 +1476,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   // object never changes identity; it reads the latest closures through `live`, assigned every
   // render below, so a row's click always runs against the current plan.
   live.current = {
+    filmFrom: (id) => filmFrom(id),
     select: (id, e) => {
       // A foldered row (not in the spine order) is only ever a plain pick.
       if (!spineOrder.includes(id)) { setSelId(id); return; }
@@ -1451,13 +1516,16 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   const gapKinds = (f: BlastFrame) => [
     ...QUICK.map((q) => ({ label: q.label, color: KIND_COLOR[q.kind] ?? MUTED, add: () => insertAfter(f.id, q.kind, q.patch ?? {}, true) })),
     { label: "Blank", color: MUTED, add: () => insertAfter(f.id, "blank", {}, true) },
+    ...SLOGANS.map((sl) => ({ label: `Slogan · ${sl.text.slice(0, 22)}`, color: KIND_COLOR.slogan ?? MUTED, add: () => { insertAfter(f.id, "slogan", { text: sl.text }, true); if (sl.art) setRightTab("illustrator"); } })),
+    { label: "Map", color: KIND_COLOR.cluster ?? MUTED, add: () => insertAfter(f.id, "cluster", { cluster: emptyCluster("New map") }, true) },
+    { label: "Exhibit…", color: MUTED, add: () => { setSelId(f.id); setPicker("exhibit"); } },
   ];
   const spineRow = (f: BlastFrame, i: number, opts: { number?: number; foldered?: boolean; thumb?: boolean; card?: boolean } = {}) => {
     const foldered = !!opts.foldered;
     const prog = progress.get(f.id);
     return (
       <SpineRow key={f.id} frame={f} i={i} number={opts.number} foldered={foldered} thumb={!!opts.thumb} card={!!opts.card}
-        isSelected={f.id === sel?.id} isPicked={pickedSet.has(f.id) && pick.ids.length > 1} isMenuOpen={menuId === f.id} isDragging={dragId === f.id}
+        isSelected={f.id === sel?.id} isPicked={pickedSet.has(f.id) && pick.ids.length > 1} isHit={hitSet.has(f.id)} isMenuOpen={menuId === f.id} isDragging={dragId === f.id}
         dropEdge={!foldered && over?.i === i && dragId !== f.id ? (over.below ? "below" : "above") : null}
         label={labelOf(f)} color={colorOf(f)} snippet={snippet(f)}
         sameCardCount={f.kind === "ceq" && f.ceqId ? sameCard.get(f.ceqId) ?? 0 : 0}
@@ -1478,62 +1546,20 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
           centered"). Sticky, so the strip stays while the columns below scroll. */}
       <section style={{ position: "sticky", top: 0, zIndex: 6, background: V3_NAVY, paddingBottom: 4 }}>
         <style>{SPINE_CSS}</style>
-        <div className="flex items-center" style={{ gap: 8, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
-          <span style={eyebrow}>Film draft</span>
-          <span style={{ fontSize: 11.5, color: MUTED }}>{filmed} slides{skipped ? ` · ${skipped} in the skipped folder` : ""}</span>
+        <div className="flex items-center" style={{ gap: 8, marginBottom: stripOpen ? 8 : 0, flexWrap: "wrap" }}>
+          <button onClick={() => setStripOpen(!stripOpen)} title={stripOpen ? "Hide the slides" : "Show the slides"} aria-expanded={stripOpen}
+            style={{ background: "transparent", border: `1px solid ${EDGE}`, borderRadius: 8, color: MUTED, cursor: "pointer", padding: "3px 8px", fontSize: 11, lineHeight: 1 }}>{stripOpen ? "▴ slides" : "▾ slides"}</button>
+          <span style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+            <input ref={searchRef} value={query} onChange={(e) => { setQuery(e.target.value); setHitAt(0); }} placeholder="🔍 find a slide (Ctrl+F)"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); goHit(hitAt + (e.shiftKey ? -1 : 1)); } if (e.key === "Escape") { setQuery(""); (e.target as HTMLInputElement).blur(); } }}
+              style={{ font: "inherit", fontSize: 12, padding: "4px 9px", borderRadius: 8, border: `1px solid ${query ? MINT : EDGE}`, background: "rgba(255,255,255,0.05)", color: CREAM, outline: "none", width: 230 }} />
+            {query && <span style={{ position: "absolute", right: 8, fontSize: 10.5, color: hits.length ? MINT : RED, pointerEvents: "none" }}>{hits.length ? `${hitAt + 1}/${hits.length}` : "0"}</span>}
+          </span>
+          <span style={{ fontSize: 11.5, color: MUTED }}>{filmed} slides{skipped ? ` · ${skipped} skipped` : ""}</span>
           {(spineNote ?? saving) && (() => { const s = spineNote ?? saving!; return <span style={{ fontSize: 11, color: s === POPOUT_BLOCKED || s.startsWith("⚠") ? RED : s === "saved" || s === POPOUT_OPENED ? MINT : MUTED, marginLeft: "auto" }}>{s}</span>; })()}
         </div>
-        {/* INSERT IS A TOGGLE NOW (2026-09-09). Lee: "the insert a slide, it looks like we could
-            put that in like a toggle where I click it and then find the one I want to insert,
-            cuz there's just so much text over there." Fifteen chips were on screen at all times
-            for a thing he does a few times a set; now it is one button until he wants it. */}
-        <button onClick={() => setInsertOpen((v) => !v)} style={{ ...chip(insertOpen, GOLD), marginTop: 10, marginBottom: insertOpen ? 6 : 0 }}
-          title={`Insert a slide after slide ${selIdx + 1}`} aria-expanded={insertOpen}>
-          ＋ Insert a slide {insertOpen ? "▴" : "▾"}
-        </button>
-        <div className="flex" style={{ gap: 6, flexWrap: "wrap", marginBottom: 4, display: insertOpen ? undefined : "none" }}>
-          {QUICK.map((q) => (
-            <button key={q.label} style={chip(false, KIND_COLOR[q.kind])} title={`Insert a ${q.label} slide after slide ${selIdx + 1}`} onClick={() => add(q.kind, q.patch)}>＋ {q.label}</button>
-          ))}
-          <button style={chip(picker === "exhibit")} title="Insert an exhibit after the selected slide" onClick={() => setPicker(picker === "exhibit" ? null : "exhibit")}>＋ Exhibit</button>
-          <button style={chip(false)} title="Insert a bare frame" onClick={() => add("blank")}>＋ Blank</button>
-          {/* THE MAP (2026-09-07). Lee: "create these sorts of clusters with just brainstorming" — an
-              empty map opens the assistant's thread in the right column; ▾ offers the three examples
-              as one-click inserts (a list slide is a one-node map). */}
-          <button style={chip(false, KIND_COLOR.cluster)} title="Insert an empty map after the selected slide — then tell the assistant what you're thinking" onClick={() => add("cluster", { cluster: emptyCluster("New map") })}>＋ Map</button>
-          <button style={{ ...chip(mapMenu, KIND_COLOR.cluster), padding: "4px 7px" }} title="Insert one of the example maps" aria-haspopup="menu" aria-expanded={mapMenu} onClick={() => setMapMenu((v) => !v)}>▾</button>
-          {/* THE SLOGAN SLIDES (2026-09-08). Lee: "do the three slogan slides. B to an A is the
-              picture, yes. Others just text." One click each, the words already in — they are
-              never typed, they come from brand-cards/slogans.ts, because he says them out loud
-              ("I will say it word for word in outros") and the slide has to match. */}
-          <button style={chip(sloganMenu, KIND_COLOR.slogan)} title="The three slogans — one click each" aria-haspopup="menu" aria-expanded={sloganMenu} onClick={() => setSloganMenu((v) => !v)}>＋ Slogan ▾</button>
-        </div>
-        {sloganMenu && (
-          <div className="flex" style={{ gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-            {SLOGANS.map((s) => (
-              <button key={s.id} style={{ ...chip(false, KIND_COLOR.slogan), fontSize: 10.5, textTransform: "none", letterSpacing: 0 }} title={s.blurb}
-                onClick={() => {
-                  add("slogan", { text: s.text });
-                  // "B to an A is the picture, yes" — that one wants a picture, so the right
-                  // column lands on the Illustrator with the new slide already selected and he
-                  // can generate one there and then. The other two are words alone.
-                  if (s.art) setRightTab("illustrator");
-                  setSloganMenu(false);
-                }}>{s.text}</button>
-            ))}
-          </div>
-        )}
-        {mapMenu && (
-          <div className="flex" style={{ gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-            {MAP_EXAMPLES.map((e) => (
-              <button key={e.id} style={{ ...chip(false, KIND_COLOR.cluster), fontSize: 10.5 }} title={`Insert "${e.spec.title}" — ${e.spec.nodes.length} node${e.spec.nodes.length === 1 ? "" : "s"}, ${e.spec.shots.length} shots`}
-                onClick={() => { add("cluster", { cluster: cloneExample(e) }); setMapMenu(false); }}>Map · {e.title}</button>
-            ))}
-          </div>
-        )}
-        {/* The helper line is gone (2026-09-09). Lee: "you don't have to tell me the drag to
-            reorder, inserts land after selected slide… there's just so much text over there."
-            Every one of those facts is on the control it describes, as a title. */}
+        {/* THE INSERT TOGGLE AND ITS CHIP ROWS LEFT (Lee, 2026-09-10: "Insert a slide isn't needed.
+            I will do it with the + hover icon"). Every kind they offered is in the gap's "+" now. */}
         {picker && <BankPicker kind={picker} setId={set.id} setName={set.name} onPick={(p) => add(picker, p)} onClose={() => setPicker(null)} />}
 
         {/* THE LAST WORD for every slide at once (2026-09-07) — only once some slide has kept
@@ -1557,16 +1583,12 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
             So the list is thumbnails of the real slides — the same PhoneFrame the middle pane
             draws, at 88px — and the text rows stay one click away for a set where the words are
             what he is scanning for. The choice is remembered per browser. */}
-        <div className="flex items-center" style={{ gap: 8, marginBottom: 5 }}>
-          <span style={subhead}>Running order</span>
-          <span style={{ fontSize: 10.5, color: MUTED }}>· scroll sideways · hover the gap after a slide for ＋ ⧉+ ✂ · Ctrl+Z undoes</span>
-        </div>
         {/* THE GAP BETWEEN TWO SLIDES IS A CONTROL (2026-09-09). Lee: "When I hover underneath a
             slide in the spine, just put a + there that pops up to add a new slide OR put a clone
             button… AND have a scissor icon for cutting there." Everything he does between slides
             is now done between slides, instead of in a panel somewhere else. A run of slides
             between two cuts is one Short, and it collapses. */}
-        <div className={`sa-spine sa-spine-h flex${dragZoom ? " is-dragging" : ""}`} style={{ gap: 14, overflowX: "auto", alignItems: "flex-start", paddingBottom: 8 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
+        <div className={`sa-spine sa-spine-h flex${dragZoom ? " is-dragging" : ""}`} style={{ gap: 14, overflowX: "auto", alignItems: "flex-start", paddingBottom: 8, display: stripOpen ? undefined : "none" }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
           {/* ONE RUN PER TAKE (2026-09-09), each with THE BRACKET in a left gutter — Lee's notes:
               a left-gutter Excel bracket per split, with a film icon on it. A
               2 px gold rule with caps spans the run; ▾/▸ folds it, 🎬 pops the 9:16 window out on
@@ -1589,15 +1611,15 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                 </div>
                 <div className="flex flex-col" style={{ gap: 4, minWidth: 0 }}>
                   {isCollapsed ? (
-                    <button onClick={() => toggleGroup(take.headId)} title="Expand this split"
+                    <button onClick={() => toggleGroup(take.headId)} title={`Expand ${takeLabel(take)} · ${count} slides`}
                       onDragOver={(e) => { e.preventDefault(); setOver({ i: firstReal, below: false }); }}
                       onDrop={(e) => { e.preventDefault(); drop(); }}
                       style={{
-                        display: "flex", alignItems: "center", gap: 6, textAlign: "left", minWidth: 170, cursor: "pointer", fontFamily: "inherit",
+                        display: "flex", alignItems: "center", gap: 4, textAlign: "left", minWidth: 0, cursor: "pointer", fontFamily: "inherit",
                         background: PANEL, border: `1px solid ${over?.i === firstReal && !over.below ? SKY : EDGE}`, borderRadius: 7, padding: "4px 10px",
                         fontSize: 11, fontWeight: 800, color: CREAM, boxShadow: over?.i === firstReal && !over.below ? `0 -3px 0 0 ${SKY}` : "none",
                       }}>
-                      <span style={{ color: GOLD }}>▸</span> Split {take.index + 1}{take.name ? ` · ${take.name}` : ""} <span style={{ color: MUTED, fontWeight: 600 }}>· {count} slide{count === 1 ? "" : "s"}</span>
+                      <span style={{ color: GOLD }}>▸</span> {take.index + 1}
                     </button>
                   ) : (
                     <>
