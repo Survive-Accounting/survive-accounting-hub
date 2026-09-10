@@ -53,6 +53,24 @@ export function popoutHref(href: string): string {
   return u.toString();
 }
 
+export const TAKE_PARAM = "take";
+
+/** A FILM PATH AS THE POP-OUT, for ONE SPLIT (2026-09-09). The Editor (or anything that is not
+ *  /film itself) builds the pop-out's URL from the route path rather than from its own location:
+ *  `?popout=1`, and `&take=N` when a split is named — the film route's validateSearch keeps both
+ *  and BlastOffCapture films that run alone. A popout/take already on the path is replaced, never
+ *  doubled. Pure: a path in, a path out; window.open is the caller's. */
+export function filmPopoutHref(filmPath: string, takeIndex?: number): string {
+  const q = filmPath.indexOf("?");
+  const base = q < 0 ? filmPath : filmPath.slice(0, q);
+  const params = new URLSearchParams(q < 0 ? "" : filmPath.slice(q + 1));
+  params.delete(POPOUT_PARAM);
+  params.delete(TAKE_PARAM);
+  params.set(POPOUT_PARAM, "1");
+  if (takeIndex != null && Number.isInteger(takeIndex) && takeIndex >= 0) params.set(TAKE_PARAM, String(takeIndex));
+  return `${base}?${params.toString()}`;
+}
+
 /** The one line the chrome shows: what OBS actually captures, in physical
  *  pixels, and what to do about it when that is not 1080×1920. */
 export function captureStatus(innerCssW: number, innerCssH: number, dpr: number, reason?: string): string {

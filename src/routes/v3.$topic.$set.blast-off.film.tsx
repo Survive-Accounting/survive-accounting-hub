@@ -22,15 +22,26 @@ export const Route = createFileRoute("/v3/$topic/$set/blast-off/film")({
   // (2026-09-06, second pass) used to be a separate ?rehearse=1 screen here — Lee: "I'd prefer to
   // see it somewhere on film" — so it moved INTO BlastOffCapture itself (the R toggle in its
   // chrome bar); this route is back to one surface again.
-  validateSearch: (s: Record<string, unknown>): { popout?: 1 } => ({
-    ...(s.popout === 1 || s.popout === "1" || s.popout === true ? { popout: 1 as const } : {}),
-  }),
+  //
+  // ?take=N (2026-09-09) films ONE split — the Nth run between cuts (plan.ts planTakes, 0-based),
+  // the same numbering /v3/post's rows use. Lee: "I only did account classification > assets. Not
+  // the full thing." A finite integer ≥ 0 or nothing; out of range is BlastOffCapture's to say
+  // (it films the whole set and shows a chip). The pop-out copies the URL verbatim, so it inherits
+  // the take and both windows walk the same frames.
+  validateSearch: (s: Record<string, unknown>): { popout?: 1; take?: number } => {
+    const take = Number(s.take);
+    return {
+      ...(s.popout === 1 || s.popout === "1" || s.popout === true ? { popout: 1 as const } : {}),
+      ...(s.take !== undefined && s.take !== null && s.take !== "" && Number.isInteger(take) && take >= 0 ? { take } : {}),
+    };
+  },
   component: () => <AdminGate><V3Film /></AdminGate>,
   head: () => ({ meta: [{ title: "🎬 Rehearse & Film — Blast Off" }, { name: "robots", content: "noindex" }] }),
 });
 
 function V3Film() {
   const { topic: topicKey, set: setKey } = Route.useParams();
+  const { take } = Route.useSearch();
   const navigate = useNavigate();
   const { topics, error, topic, set } = useV3Set(topicKey, setKey);
 
@@ -47,7 +58,7 @@ function V3Film() {
     // Still no V3Shell — but the same crumbs it would draw (Lee, 2026-09-07: "Show navigation
     // breadcrumbs on /film"): BlastOffCapture draws them small, top-left, chrome-only, main
     // window only, so they can never be in the shot.
-    return <BlastOffCapture set={set} topicName={topic.name} onExit={exit} crumbs={crumbs} />;
+    return <BlastOffCapture set={set} topicName={topic.name} onExit={exit} crumbs={crumbs} take={take} />;
   }
 
   return (

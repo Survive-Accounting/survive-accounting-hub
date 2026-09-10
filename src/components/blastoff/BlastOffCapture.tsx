@@ -83,7 +83,7 @@ import { questionProgress } from "./frame-view";
 import { PhoneFrame } from "./PhoneFrame";
 import { markStyle, paintLine } from "@/lib/prompter-marks";
 
-import { FRAME_LABEL, filmFrames, normalizeMarks, patchFrame, type BlastFrame, type PrompterMarks } from "./plan";
+import { FRAME_LABEL, filmFrames, normalizeMarks, patchFrame, planTakes, takeLabel, type BlastFrame, type PrompterMarks } from "./plan";
 import { RehearsalReview, SuggestedCard } from "./RehearsalReview";
 import { SlideEditContext } from "./slide-edit";
 
@@ -97,11 +97,15 @@ function cannedSlotOf(kind: BlastFrame["kind"]): CannedSlot | null {
 
 const NO_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
-export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
+export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takeParam }: {
   set: BoothSetInfo; topicName?: string; onExit: () => void;
   /** The V3 breadcrumb (Lee, 2026-09-07: "Show navigation breadcrumbs on /film") — drawn small,
    *  top-left, only with the chrome and only in the main window, so it never films. */
   crumbs?: Crumb[];
+  /** ?take=N (2026-09-09): film ONE split — the Nth run between cuts, 0-based, numbered the way
+   *  /v3/post's rows are. Undefined films the whole set. Lee: "I only did account classification
+   *  > assets. Not the full thing." */
+  take?: number;
 }) {
   const { plan, commit } = usePlan(set);
   const [i, setI] = useState(0);
@@ -118,7 +122,17 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
   const hostRef = useRef<HTMLDivElement>(null);
 
   // Skipped cards never reach a take.
-  const frames = useMemo(() => filmFrames(plan?.frames ?? []), [plan]);
+  const all = useMemo(() => filmFrames(plan?.frames ?? []), [plan]);
+  // ONE SPLIT (2026-09-09): with ?take=N the frames are that run's alone, so everything below —
+  // n, idx, the pop-out's next-slide preview, the prompter sync, the rounds — walks only the split
+  // and never has to know. The takes are cut over the FILMED frames, exactly as /v3/post numbers
+  // them (lib/blastoff.functions.ts), so "Split 2" here is "Split 2" there. The pop-out inherits
+  // the URL, so both windows compute the same list — previewIndex depends on that.
+  const takes = useMemo(() => planTakes(all), [all]);
+  const takeInfo = takeParam != null ? takes[takeParam] : undefined;
+  /** ?take=N named a split the plan does not have — film the whole set, and say so in the chrome. */
+  const takeMissing = takeParam != null && !takeInfo;
+  const frames = takeInfo ? takeInfo.frames : all;
   const n = frames.length;
   // THE NEXT-SLIDE PREVIEW (2026-09-07, header). This is the main window when `take` is non-null:
   // the 9:16 pop-out is live (its record is fresh, capture/prompter-sync.ts) and this window shows
@@ -650,8 +664,18 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs }: {
             <span style={{ color: GOLD, fontWeight: 800 }}>
               pop-out {take?.countdown ? "counting down" : `on ${previewIdx} / ${n}`} · showing {atEnd ? "the end" : previewIdx + 1}
             </span>
+          ) : takeInfo ? (
+            // ONE SPLIT: which run this is, his name for it when he gave one, and where in it.
+            <span title={`?take=${takeInfo.index} — filming this split only (${n} of ${all.length} slides)`} style={{ color: GOLD, fontWeight: 800 }}>
+              Split {takeInfo.index + 1}{takeInfo.name ? ` · ${takeLabel(takeInfo)}` : ""} · {idx + 1}/{n}
+            </span>
           ) : (
             <span style={{ color: GOLD, fontWeight: 800 }}>{idx + 1} / {n}</span>
+          )}
+          {takeMissing && (
+            <span title={`The plan has ${takes.length} split${takes.length === 1 ? "" : "s"}; ?take=${takeParam} names none of them`} style={{ color: "#FF9F43", fontWeight: 800 }}>
+              split {(takeParam ?? 0) + 1} not found — filming the whole set
+            </span>
           )}
           <span>{atEnd ? "— end —" : FRAME_LABEL[frame.kind]}</span>
           {/* THE MAP: where the walk is inside the slide, and the shot's label. */}

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-import { COUNTDOWN_GOLD_FROM, COUNTDOWN_SECONDS, POPOUT_BLOCKED, POPOUT_FEATURES, POPOUT_NAME, captureStatus, countdownCue, countdownStep, countdownTone, isPopoutSearch, popoutHref } from "./popout";
+import { COUNTDOWN_GOLD_FROM, COUNTDOWN_SECONDS, POPOUT_BLOCKED, POPOUT_FEATURES, POPOUT_NAME, captureStatus, countdownCue, countdownStep, countdownTone, filmPopoutHref, isPopoutSearch, popoutHref } from "./popout";
 
 const route = readFileSync(join(import.meta.dir, "../../../routes/v3.$topic.$set.blast-off.film.tsx"), "utf8").split("\r\n").join("\n");
 const capture = readFileSync(join(import.meta.dir, "../BlastOffCapture.tsx"), "utf8").split("\r\n").join("\n");
@@ -25,6 +25,28 @@ describe("the URL", () => {
     expect(route).toContain("validateSearch");
     expect(route).toContain("popout?: 1");
     expect(route).toContain("popout: 1");
+  });
+  // ?take=N (2026-09-09) — one split. Lee: "I only did account classification > assets. Not the
+  // full thing." The route must declare it too, or TanStack drops it on the way to the pop-out.
+  test("the film route declares the take, and hands it to the capture surface", () => {
+    expect(route).toContain("take?: number");
+    expect(route).toContain("take={take}");
+    // Filmed frames, then the cuts — the same numbering /v3/post's rows carry.
+    expect(capture).toContain("planTakes(all)");
+  });
+  test("a film path as the pop-out for one split: popout=1, then the take", () => {
+    expect(filmPopoutHref("/v3/t/s/blast-off/film")).toBe("/v3/t/s/blast-off/film?popout=1");
+    expect(filmPopoutHref("/v3/t/s/blast-off/film", 1)).toBe("/v3/t/s/blast-off/film?popout=1&take=1");
+    expect(filmPopoutHref("/v3/t/s/blast-off/film", 0)).toBe("/v3/t/s/blast-off/film?popout=1&take=0");
+    expect(filmPopoutHref("/v3/t/s/blast-off/film?ref=x", 2)).toBe("/v3/t/s/blast-off/film?ref=x&popout=1&take=2");
+  });
+  test("a popout or take already on the path is replaced, never doubled", () => {
+    expect(filmPopoutHref("/v3/t/s/blast-off/film?popout=1&take=3", 1)).toBe("/v3/t/s/blast-off/film?popout=1&take=1");
+    expect(filmPopoutHref("/v3/t/s/blast-off/film?take=3")).toBe("/v3/t/s/blast-off/film?popout=1");
+    expect(filmPopoutHref(filmPopoutHref("/v3/t/s/blast-off/film", 1), 1)).toBe("/v3/t/s/blast-off/film?popout=1&take=1");
+    // Not a split index → no take on the URL.
+    expect(filmPopoutHref("/v3/t/s/blast-off/film", -1)).toBe("/v3/t/s/blast-off/film?popout=1");
+    expect(filmPopoutHref("/v3/t/s/blast-off/film", 1.5)).toBe("/v3/t/s/blast-off/film?popout=1");
   });
   test("its own window name and a popup (not a tab), so OBS sees one window", () => {
     expect(POPOUT_NAME).toBe("sa-film-popout");
