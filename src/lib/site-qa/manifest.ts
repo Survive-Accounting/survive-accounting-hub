@@ -639,6 +639,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "api.og.$school.$chapter.tsx": "generated image endpoint",
   "api.thumb.$setId.tsx": "generated image endpoint — the short's cover, admin-gated",
   "v3.map.tsx": "V3 map (AdminGate, noindex) — cram path vs offshoots per topic, added 2026-09-09 (docs/DESIGN-CRAM-MAP.md)",
+  "v3.learn.tsx": "V3 learn mock-up (noindex; ?admin=1 is AdminGate) — the cram path as students will see it, with the Take-me-to-an-A offshoots, added 2026-09-10",
   "api.stripe.webhook.tsx": "webhook endpoint",
 };
 
