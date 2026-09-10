@@ -8,6 +8,11 @@
 // unset ⇒ the worker is "not configured" and publish falls back to the legacy
 // Mux concat (loudly noted). Configured-but-unreachable ⇒ preflight blocks —
 // never a silent fallback once Lee has opted into worker rendering.
+//
+// EVERY handler below opens with assertAdmin (P7, 2026-09-09). Until then the three that queue
+// Fly jobs were callable by anyone who found the URL: a job fetches whatever `urls` it is
+// handed and the worker bills by the minute. The dynamic import is the publish-queue shape —
+// @tanstack/react-start/server may only be touched inside a .handler() body.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -37,6 +42,8 @@ const workerFetch = async (c: { url: string; token: string }, path: string, init
  *  the three states the combo checklist needs: fallback / healthy / blocked. */
 export const workerPreflight = createServerFn({ method: "POST" }).handler(
   async (): Promise<{ configured: boolean; healthy: boolean; detail: string }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     const c = cfg();
     if (c.state === "off") return { configured: false, healthy: false, detail: "not configured — publishes use the legacy Mux concat" };
     if (c.state === "partial") return { configured: true, healthy: false, detail: `half-configured — ${c.missing} is missing; set both env vars (or unset both)` };
@@ -77,6 +84,8 @@ export const startWorkerRender = createServerFn({ method: "POST" })
       }).optional(),
     }).parse(d))
   .handler(async ({ data }): Promise<{ jobId: string; path: string; machineId: string | null }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     const c = cfg();
     if (c.state !== "on") throw new Error(c.state === "partial" ? `Render worker half-configured — ${c.missing} is missing.` : "Render worker not configured (RENDER_WORKER_URL / RENDER_WORKER_TOKEN).");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -140,6 +149,8 @@ export const startDissectStitch = createServerFn({ method: "POST" })
       trims: z.array(z.object({ start: z.number().min(0), end: z.number().min(0) }).nullable()).optional(),
     }).parse(d))
   .handler(async ({ data }): Promise<{ jobId: string; path: string; machineId: string | null }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     const c = cfg();
     if (c.state !== "on") throw new Error(c.state === "partial" ? `Render worker half-configured — ${c.missing} is missing.` : "Render worker not configured (RENDER_WORKER_URL / RENDER_WORKER_TOKEN).");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -188,6 +199,10 @@ export const startCaptionBurn = createServerFn({ method: "POST" })
       preset: z.enum(["veryfast", "faster", "fast", "medium", "slow"]).optional(),
     }).parse(d))
   .handler(async ({ data }): Promise<{ jobId: string; path: string; machineId: string | null }> => {
+    // The audit's finding: this was the burn anyone could queue — a Fly job that fetches any
+    // `videoUrl` and `assUrl` it is handed, on Lee's worker minutes.
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     const c = cfg();
     if (c.state !== "on") throw new Error(c.state === "partial" ? `Render worker half-configured — ${c.missing} is missing.` : "Render worker not configured (RENDER_WORKER_URL / RENDER_WORKER_TOKEN).");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -212,6 +227,8 @@ export const startCaptionBurn = createServerFn({ method: "POST" })
 export const resolveWorkerRender = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), path: z.string().min(5), machineId: z.string().max(64).nullable().optional() }).parse(d))
   .handler(async ({ data }): Promise<{ state: "queued" | "downloading" | "rendering" | "uploading" | "done" | "error"; note: string; fileUrl: string | null; error: string | null; result?: DissectStitchResult | null }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
     const c = cfg();
     if (c.state !== "on") throw new Error("Render worker not (fully) configured.");
     // pin to the job's machine (see startWorkerRender) — Fly routes the request
