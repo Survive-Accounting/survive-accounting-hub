@@ -1,5 +1,9 @@
 // THE QUICK QUEUE's pure parts — what Ctrl+I means where, what a capture on the line carries,
-// and the row it saves. Lee: "Ctrl+I, type, done, no clicking."
+// and the row it saves. Lee: "Ctrl+I, type, done, no clicking." Plus the source pins: the two
+// docks render NOTHING in the film pop-out (it is the OBS shot), and the notepad's Ctrl+I
+// italicises only.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
 import type { FilmActive } from "@/components/blastoff/capture/prompter-sync";
@@ -128,6 +132,63 @@ describe("the toast and the copy", () => {
   test("the placeholder says the three keys; the retry line says the one", () => {
     expect(QUICK_PLACEHOLDER).toBe("Short idea… Enter saves · Esc closes · Ctrl+Shift+I for the full bank");
     expect(QUICK_RETRY).toBe("didn't save — Enter to retry");
+  });
+});
+
+// ------------------------------------------------------------------ source pins
+const src = (rel: string) => readFileSync(join(import.meta.dir, rel), "utf8").split("\r\n").join("\n");
+
+describe("never in the shot", () => {
+  const dock = src("IdeasDock.tsx");
+  const shipped = src("../shipped/ShippedDock.tsx");
+  test("IdeasDock returns null under ?popout=1 — the pop-out is what OBS captures", () => {
+    expect(dock).toContain('import { isPopoutSearch } from "@/components/blastoff/capture/popout";');
+    expect(dock).toContain("isPopoutSearch(window.location.search)");
+    expect(dock).toContain("if (popout || !listen) return null;");
+  });
+  test("ShippedDock too — no banner, no notepad, no R/N in the take", () => {
+    expect(shipped).toContain("isPopoutSearch(window.location.search)");
+    expect(shipped).toContain("if (popout || !unlocked) return null;");
+  });
+  test("the quick box stops every key — the editor's Space must not hear typing", () => {
+    expect(dock).toContain("e.stopPropagation();\n    if (e.key === \"Enter\")");
+    expect(dock).toContain("onKeyUp={(e) => e.stopPropagation()}");
+  });
+});
+
+describe("the hotkey's neighbours", () => {
+  test("the notepad's Ctrl+B/I/U stop at the notepad — italic no longer opens the bank", () => {
+    const pad = src("../shipped/NotepadSurface.tsx");
+    expect(pad).toContain('if (mod && e.key.toLowerCase() === "i") { e.preventDefault(); e.stopPropagation(); cmd("italic"); return; }');
+    expect(pad).toContain('if (mod && e.key.toLowerCase() === "b") { e.preventDefault(); e.stopPropagation(); cmd("bold"); return; }');
+    expect(pad).toContain('if (mod && e.key.toLowerCase() === "u") { e.preventDefault(); e.stopPropagation(); cmd("underline"); return; }');
+  });
+  test("the unlock is announced, and the dock re-reads the flag on every open", () => {
+    const gate = src("../AdminGate.tsx");
+    expect(gate).toContain('export const ADMIN_UNLOCKED_EVENT = "sa:unlocked";');
+    expect(gate.split("announceUnlock();").length).toBe(3); // unlockAdmin + tryUnlock
+    const dock = src("IdeasDock.tsx");
+    expect(dock).toContain("window.addEventListener(ADMIN_UNLOCKED_EVENT, onUnlocked);");
+    expect(dock).toContain("setUnlocked(isAdminUnlocked());\n      setPreset(hk === \"quick\"");
+  });
+  test("the dock uses the pure hotkey, and the full modal skips the build prompt for a shorts idea", () => {
+    const dock = src("IdeasDock.tsx");
+    expect(dock).toContain("const hk = ideasHotkey(e, pathname);");
+    expect(dock).toContain('preset?.context?.shorts !== "1"');
+    expect(dock).toContain("...(preset?.context ?? {}),");
+  });
+});
+
+describe("the expensive lanes are skipped for a short", () => {
+  const fns = src("../../lib/ideas.functions.ts");
+  test("the auto-merge never folds a shorts idea into another — two captures on one set are two rows", () => {
+    expect(fns).toContain('&& ctx.strategy !== "1" && ctx.shorts !== "1" && words) {');
+  });
+  test("no Claude Code build prompt for a shorts idea, whoever calls", () => {
+    expect(fns).toContain('const wantPrompt = data.draftPrompt && !isTodo && ctx.draft !== "1" && ctx.shorts !== "1" && (data.redraft || !r.prompt_md?.trim());');
+  });
+  test("the cheap organise still runs, and SHORTS passes through it unchanged", () => {
+    expect(fns).toContain('if (ctx.shorts === "1" && !(r.categories ?? []).includes("SHORTS")) r.categories = ["SHORTS", ...(r.categories ?? [])].slice(0, 2);');
   });
 });
 

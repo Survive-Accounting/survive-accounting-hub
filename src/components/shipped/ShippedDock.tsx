@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { isAdminUnlocked, getAdminWho } from "@/components/AdminGate";
 import { AdminSessionGate } from "@/components/AdminSessionGate";
+import { isPopoutSearch } from "@/components/blastoff/capture/popout";
 import { createShippedUpload, resolveShippedUpload, saveShippedEntry } from "@/lib/shipped.functions";
 
 import { ConfirmScreen } from "./ConfirmScreen";
@@ -27,6 +28,10 @@ type Stage = "closed" | "recorder" | "uploading" | "upload-error" | "confirm";
 export function ShippedDock() {
   const [unlocked, setUnlocked] = useState(false);
   useEffect(() => { setUnlocked(isAdminUnlocked()); }, []);
+  // NEVER IN THE SHOT (2026-09-09): the 9:16 film pop-out (?popout=1) is what OBS window-captures,
+  // so nothing of this dock renders there — R and N are dead in the pop-out, and the banner and
+  // the notepad cannot land in a take. Same rule as IdeasDock and ProductionTimer.
+  const [popout] = useState<boolean>(() => typeof window !== "undefined" && isPopoutSearch(window.location.search));
 
   const [stage, setStage] = useState<Stage>("closed");
   const [notepadOpen, setNotepadOpen] = useState(false);
@@ -121,7 +126,7 @@ export function ShippedDock() {
     }
   }, [entry, reset]);
 
-  if (!unlocked) return null;
+  if (popout || !unlocked) return null;
 
   return (
     <>

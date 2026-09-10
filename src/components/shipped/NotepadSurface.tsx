@@ -34,9 +34,11 @@ export function NotepadSurface({ html, onChange, autoFocus, compact }: {
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     const mod = e.metaKey || e.ctrlKey;
-    if (mod && e.key.toLowerCase() === "b") { e.preventDefault(); cmd("bold"); return; }
-    if (mod && e.key.toLowerCase() === "i") { e.preventDefault(); cmd("italic"); return; }
-    if (mod && e.key.toLowerCase() === "u") { e.preventDefault(); cmd("underline"); return; }
+    // The formatting chords stop HERE. Ctrl+I is also the Ideas Bank's hotkey on window, and
+    // without stopPropagation italic used to open the bank on top of the notepad (2026-09-09).
+    if (mod && e.key.toLowerCase() === "b") { e.preventDefault(); e.stopPropagation(); cmd("bold"); return; }
+    if (mod && e.key.toLowerCase() === "i") { e.preventDefault(); e.stopPropagation(); cmd("italic"); return; }
+    if (mod && e.key.toLowerCase() === "u") { e.preventDefault(); e.stopPropagation(); cmd("underline"); return; }
     if (e.shiftKey && (e.key === ">" || e.key === ".")) { e.preventDefault(); sizeRef.current = stepFontSize(sizeRef.current, 1); cmd("fontSize", String(sizeRef.current)); return; }
     if (e.shiftKey && (e.key === "<" || e.key === ",")) { e.preventDefault(); sizeRef.current = stepFontSize(sizeRef.current, -1); cmd("fontSize", String(sizeRef.current)); return; }
     // Every other key is plain typing. R and N stay the site's global shortcuts everywhere

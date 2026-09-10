@@ -273,6 +273,10 @@ export const organizeIdea = createServerFn({ method: "POST" })
         // THE STRATEGY BOARD (2026-09-06): a note or short captured for it keeps STRATEGY
         // whatever else the AI files it under — the board reads by that flag and category.
         if (ctx.strategy === "1" && !(r.categories ?? []).includes("STRATEGY")) r.categories = ["STRATEGY", ...(r.categories ?? [])].slice(0, 2);
+        // THE QUICK QUEUE (2026-09-09): a shorts idea (Ctrl+I on the production line) keeps
+        // SHORTS whatever else the filer picks — the title and TLDR are welcome, the category
+        // passes through unchanged, and /admin/ideas' "Shorts to make" reads by it.
+        if (ctx.shorts === "1" && !(r.categories ?? []).includes("SHORTS")) r.categories = ["SHORTS", ...(r.categories ?? [])].slice(0, 2);
         // AI may FLAG urgency but never un-flag what a person set.
         if (j.urgent === true && !ctx.urgent) ctx.urgentSuggested = "1";
       }
@@ -292,7 +296,10 @@ export const organizeIdea = createServerFn({ method: "POST" })
     // prompt is flagged stale so the watch sync redrafts it. Never for
     // to-dos, drafts, uploads, or an idea that already merged.
     // Strategy notes are never merged away: a thought for the doc is not a duplicate of a build idea.
-    if (data.organize && !isTodo && ctx.draft !== "1" && !ctx.mergedInto && !ctx.importedFrom && ctx.strategy !== "1" && words) {
+    // Nor shorts ideas (2026-09-09): two offshoots on one set, three seconds apart, are two
+    // videos — Lee's "offshoots that come to me mid-take" — and folding one into the other and
+    // parking it would lose a short. Each capture is its own row, always.
+    if (data.organize && !isTodo && ctx.draft !== "1" && !ctx.mergedInto && !ctx.importedFrom && ctx.strategy !== "1" && ctx.shorts !== "1" && words) {
       const { data: openRows } = await db.from("ideas").select("id,title,context,status")
         .in("status", ["IDEA", "DRAFTED", "SUBMITTED"]).neq("id", r.id).order("updated_at", { ascending: false }).limit(60);
       const cands = ((openRows ?? []) as Pick<Row, "id" | "title" | "context">[])
@@ -334,9 +341,12 @@ export const organizeIdea = createServerFn({ method: "POST" })
       return { idea: toIdea(out as Row), drafted: false };
     }
 
-    // 2. The prompt — synthesis lane. Never for a to-do or a draft-in-progress.
+    // 2. The prompt — synthesis lane. Never for a to-do or a draft-in-progress, and never for a
+    // shorts idea (ctx.shorts = "1"): that is a video to make, not a build for Claude Code, and
+    // the synthesis lane is the expensive one. The client skips this lane for shorts too; this
+    // is the rule at the door for any other caller.
     let drafted = false;
-    const wantPrompt = data.draftPrompt && !isTodo && ctx.draft !== "1" && (data.redraft || !r.prompt_md?.trim());
+    const wantPrompt = data.draftPrompt && !isTodo && ctx.draft !== "1" && ctx.shorts !== "1" && (data.redraft || !r.prompt_md?.trim());
     if (wantPrompt) {
       const { system, user } = buildIdeaPromptMessages({
         title: r.title, body: r.body, categories: r.categories ?? [], subcategory: r.subcategory ?? "",

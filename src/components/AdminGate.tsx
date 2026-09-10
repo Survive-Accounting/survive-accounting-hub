@@ -12,6 +12,14 @@ const WHO_KEY = "sa-admin-who";
 
 export type AdminWho = "lee" | "king";
 
+/** SAID OUT LOUD (2026-09-09): dispatched on window whenever the unlock flag is written, so a
+ *  surface already mounted on this page load (IdeasDock, which re-read the flag only on a route
+ *  change) hears the unlock at once instead of asking for the passcode a second time. */
+export const ADMIN_UNLOCKED_EVENT = "sa:unlocked";
+function announceUnlock(): void {
+  try { window.dispatchEvent(new CustomEvent(ADMIN_UNLOCKED_EVENT)); } catch { /* no window (server), nobody to tell */ }
+}
+
 /** True when this browser has already passed the AdminGate passcode (same flag the
  *  /outreach shell sets). Lets other surfaces (e.g. /je's edit affordance) reuse the
  *  gate without wrapping their whole route in it. */
@@ -45,6 +53,7 @@ export function unlockAdmin(code: string, who: AdminWho): boolean {
     localStorage.setItem(STORAGE_KEY, "yes");
     localStorage.setItem(WHO_KEY, who);
   } catch { /* private mode: works for this page load only */ }
+  announceUnlock();
   return true;
 }
 
@@ -76,6 +85,7 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
       } catch {
         /* ignore */
       }
+      announceUnlock();
       setUnlocked(true);
     } else {
       setShake(true);

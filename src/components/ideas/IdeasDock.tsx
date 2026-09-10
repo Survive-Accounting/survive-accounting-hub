@@ -19,14 +19,27 @@
 // STEPS: lock (once) → kind (the four buttons) → capture → Save, or Save
 // draft to come back to. After a save: "Nice! Thanks for helping improve
 // Survive." and AI takes it from there.
+//
+// THE QUICK QUEUE (2026-09-09). Lee: "Ctrl+I, type, done, no clicking — for shorts ideas
+// (offshoots that come to me mid-take)." On the production line (/v3/…) the same hotkey opens a
+// ONE-LINE box near the top instead of the modal: Enter saves it pre-tagged SHORTS with the set
+// and slide it was had on, Esc closes, Ctrl+Shift+I is the full bank. The pure parts are in
+// quick-queue.ts. Off the line nothing changed.
+//
+// NEVER IN THE SHOT: the 9:16 pop-out (?popout=1) is what OBS window-captures, so this dock
+// renders nothing there at all — Ctrl+I in the pop-out is dead; the quick box is the main
+// window's. (ProductionTimer keeps the same rule.)
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 
 import { listIdeas, organizeIdea, saveIdea } from "@/lib/ideas.functions";
-import { getAdminWho, isAdminUnlocked, unlockAdmin, type AdminWho } from "@/components/AdminGate";
+import { ADMIN_UNLOCKED_EVENT, getAdminWho, isAdminUnlocked, unlockAdmin, type AdminWho } from "@/components/AdminGate";
+import { isPopoutSearch } from "@/components/blastoff/capture/popout";
+import { readFilmActive } from "@/components/blastoff/capture/prompter-sync";
 import { IdeaRecorder, judgeTranscript, shouldTranscribe } from "./voice";
 import { uploadIdeaFile, transcribeIdeaAudio } from "./upload";
 import { deriveTitle, isDraft, newIdeaId, unsubmittedCount, type Attachment, type Idea } from "./model";
+import { QUICK_PLACEHOLDER, QUICK_RETRY, QUICK_TOAST_MS, ideasHotkey, productionContext, quickIdeaRow, quickToastText } from "./quick-queue";
 import { FastTrackSheet } from "./FastTrackSheet";
 import { laneDef, shortLaneDef } from "@/lib/strategy";
 
@@ -46,23 +59,28 @@ export const isInternalPath = (p: string): boolean =>
 
 const POS_KEY = "sa-ideas-modal-pos";
 
-type SavedKind = "idea" | "todo" | "draft" | "strategy";
+type SavedKind = "idea" | "todo" | "draft" | "strategy" | "quick";
 /** THE FOUR BUTTONS — and, since 2026-09-06, the strategy board's. */
 type Intent = "general" | "page" | "todo" | "other" | "strategy";
 
 /** OPEN THE MODAL FROM CODE: `window.dispatchEvent(new CustomEvent("sa:ideas", { detail }))`.
  *  The strategy board uses it to start a capture already aimed at a lane, the way
- *  /buildqueue opens the fast track with "sa:fasttrack". */
-export interface IdeaPreset { intent?: Intent; lane?: string; short?: boolean }
+ *  /buildqueue opens the fast track with "sa:fasttrack".
+ *  `quick` (2026-09-09) is the one-line box instead of the modal; `context` is merged into the
+ *  saved idea's context either way — the production line's set/slide tags ride on it. */
+export interface IdeaPreset { intent?: Intent; lane?: string; short?: boolean; quick?: boolean; context?: Record<string, string> }
 
 export function IdeasDock() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ text: string; kind: SavedKind } | null>(null);
+  // `ms` is how long the toast stays; the modal's saves take the 7 s default, the quick box 2.5.
+  const [toast, setToast] = useState<{ text: string; kind: SavedKind; ms?: number } | null>(null);
   const [preset, setPreset] = useState<IdeaPreset | null>(null);
-
+  // THE POP-OUT IS THE SHOT. Decided once on the client (false on the server — the dock's
+  // closed render is empty anyway, so hydration has nothing to disagree about).
+  const [popout] = useState<boolean>(() => typeof window !== "undefined" && isPopoutSearch(window.location.search));
 
   const refresh = useCallback(() => {
     listIdeas().then((r) => { setIdeas(r.ideas); setLoadErr(null); })
@@ -74,24 +92,32 @@ export function IdeasDock() {
   // FAST TRACK (Lee, 2026-09-05): Ctrl+F on an unlocked device opens the small-change request.
   // Only once the device is unlocked — a student's Ctrl+F stays the browser's find.
   const [ftOpen, setFtOpen] = useState(false);
-  const listen = pathname !== VAULT;
+  // Not on the vault's own page, and not in the pop-out: no hotkeys, no fetch, nothing.
+  const listen = pathname !== VAULT && !popout;
   const show = listen && (isInternalPath(pathname) || unlocked);
   useEffect(() => { if (show) refresh(); }, [show, refresh]);
 
-  // ⌘I / Ctrl+I from anywhere — the whole point.
+  // ⌘I / Ctrl+I from anywhere — the whole point. On the production line the plain chord is
+  // the quick box and Shift is the modal (quick-queue.ts ideasHotkey); elsewhere both are the
+  // modal, as before. The unlock flag is re-read on EVERY open, not only on a route change: an
+  // unlock through AdminGate on this page load used to go unheard, and the modal asked again.
   useEffect(() => {
     if (!listen) return;
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "i") {
-        e.preventDefault();
-        setOpen(true);
-      }
+      const hk = ideasHotkey(e, pathname);
+      if (!hk) return;
+      e.preventDefault();
+      setUnlocked(isAdminUnlocked());
+      setPreset(hk === "quick" ? { intent: "general", quick: true, context: productionContext(pathname, readFilmActive()) } : null);
+      setOpen(true);
     };
-    const onOpen = (e: Event) => { setPreset((e as CustomEvent<IdeaPreset>).detail ?? null); setOpen(true); };
+    const onOpen = (e: Event) => { setUnlocked(isAdminUnlocked()); setPreset((e as CustomEvent<IdeaPreset>).detail ?? null); setOpen(true); };
+    const onUnlocked = () => setUnlocked(true);
     window.addEventListener("keydown", onKey);
     window.addEventListener("sa:ideas", onOpen);
-    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("sa:ideas", onOpen); };
-  }, [listen]);
+    window.addEventListener(ADMIN_UNLOCKED_EVENT, onUnlocked);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("sa:ideas", onOpen); window.removeEventListener(ADMIN_UNLOCKED_EVENT, onUnlocked); };
+  }, [listen, pathname]);
   useEffect(() => {
     if (!listen || !show) return;
     const onKey = (e: KeyboardEvent) => {
@@ -105,7 +131,7 @@ export function IdeasDock() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 7000);
+    const t = setTimeout(() => setToast(null), toast.ms ?? 7000);
     return () => clearTimeout(t);
   }, [toast]);
   const onSaved = (kind: SavedKind) => {
@@ -119,8 +145,43 @@ export function IdeasDock() {
     });
   };
 
-  if (!listen) return null;
+  // THE QUICK SAVE. The box closes and the toast shows BEFORE the network answers — Lee is
+  // mid-take and "done" has to mean done. A failure re-opens the box with his words and the
+  // retry line; the id is kept, so a retry is the same row (saveIdea upserts on id), never a
+  // duplicate when the first request landed but its answer did not.
+  const [quickRetry, setQuickRetry] = useState<{ id: string; text: string } | null>(null);
+  const submitQuick = useCallback((text: string) => {
+    const p = preset;
+    const id = quickRetry?.id ?? newIdeaId();
+    setOpen(false); setPreset(null); setQuickRetry(null);
+    setToast({ kind: "quick", text: quickToastText(text), ms: QUICK_TOAST_MS });
+    const row = quickIdeaRow({
+      id, text, pathname,
+      pageTitle: typeof document !== "undefined" ? document.title : "",
+      href: typeof location !== "undefined" ? location.href : "",
+      createdBy: getAdminWho() ?? "",
+      context: p?.context ?? {},
+    });
+    saveIdea({ data: row })
+      .then(() => {
+        refresh();
+        // The cheap organise only (title, TLDR, categories). No build prompt: a shorts idea is a
+        // video to make, not a thing for Claude Code — the server skips that lane for it too.
+        organizeIdea({ data: { id, draftPrompt: false } })
+          .catch((e) => console.warn("[ideas] organise failed — the idea is saved; /admin/ideas can file it", e));
+      })
+      .catch((e) => {
+        console.warn("[ideas] quick save failed — the box comes back with the words", e);
+        setQuickRetry({ id, text }); setPreset(p); setOpen(true);
+      });
+  }, [preset, quickRetry, pathname, refresh]);
+  const closeQuick = () => { setOpen(false); setPreset(null); setQuickRetry(null); };
+
+  if (popout || !listen) return null;
   const count = unsubmittedCount(ideas);
+  // The quick box needs an unlocked device like everything else; locked, it is the modal's
+  // lock step (the preset survives it, so the capture step comes up with the same tags).
+  const quickOpen = open && !!preset?.quick && (unlocked || isInternalPath(pathname));
 
   return (
     <>
@@ -137,14 +198,25 @@ export function IdeasDock() {
           padding: "12px 18px", fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 13.5, fontWeight: 700,
           boxShadow: "0 18px 50px -14px rgba(0,0,0,0.9)", display: "flex", gap: 12, alignItems: "center",
         }}>
-          <span style={{ color: GOLD }}>{toast.kind === "todo" ? "☑" : "⚡"}</span>
+          <span style={{ color: GOLD }}>{toast.kind === "todo" ? "☑" : toast.kind === "quick" ? "🎬" : "⚡"}</span>
           <span>{toast.text}</span>
           <a href={toast.kind === "strategy" ? "/admin/ideas/strategy" : "/admin/ideas"} style={{ color: GOLD, fontSize: 12, textDecoration: "underline", whiteSpace: "nowrap" }}>{toast.kind === "strategy" ? "Open the strategy board →" : "View in Ideas Bank →"}</a>
           <button onClick={() => setToast(null)} style={{ background: "transparent", border: "none", color: MUTED, cursor: "pointer", fontSize: 14 }}>×</button>
         </div>
       )}
 
-      {open && (
+      {quickOpen && (
+        <QuickBox
+          key={quickRetry?.id ?? "fresh"}
+          initial={quickRetry?.text ?? ""}
+          err={quickRetry ? QUICK_RETRY : null}
+          context={preset?.context ?? {}}
+          onSubmit={submitQuick}
+          onClose={closeQuick}
+        />
+      )}
+
+      {open && !quickOpen && (
         <Drawer
           pathname={pathname}
           ideas={ideas}
@@ -157,6 +229,52 @@ export function IdeasDock() {
         />
       )}
     </>
+  );
+}
+
+// --------------------------------------------------------------- the quick box
+
+/** ONE LINE, NEAR THE TOP — not the middle, so it stays out of the eye line while Lee is
+ *  looking at the slide. No backdrop: the page underneath is the take. Every key stops here
+ *  (the editor's Space and the film surface's keys must not hear typing). */
+function QuickBox({ initial, err, context, onSubmit, onClose }: {
+  initial: string; err: string | null; context: Record<string, string>;
+  onSubmit: (text: string) => void; onClose: () => void;
+}) {
+  const [text, setText] = useState(initial);
+  const where = [context.topic, context.set].filter(Boolean).join(" / ");
+  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    if (e.key === "Enter") { e.preventDefault(); const t = text.trim(); if (t) onSubmit(t); }
+    else if (e.key === "Escape") { e.preventDefault(); onClose(); }
+  };
+  return (
+    <div
+      role="dialog"
+      aria-label="Quick queue"
+      style={{
+        position: "fixed", top: 64, left: "50%", transform: "translateX(-50%)", zIndex: 2147483001,
+        width: "min(520px, 94vw)", background: PANEL, border: `1px solid ${GOLD}55`, borderRadius: 14,
+        boxShadow: "0 24px 60px -18px rgba(0,0,0,0.9)", padding: "10px 12px",
+        fontFamily: "'Rubik', system-ui, sans-serif", color: CREAM,
+      }}
+    >
+      <input
+        autoFocus
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={onKey}
+        onKeyUp={(e) => e.stopPropagation()}
+        placeholder={QUICK_PLACEHOLDER}
+        aria-label="Short idea"
+        style={{ width: "100%", background: "rgba(9,13,26,0.8)", border: `1px solid ${err ? "#F87171" : EDGE}`, borderRadius: 10, color: CREAM, fontSize: 15, padding: "9px 12px", outline: "none", fontFamily: "inherit" }}
+      />
+      <div className="flex items-center" style={{ gap: 8, marginTop: 6, fontSize: 11, color: MUTED }}>
+        <span style={{ color: GOLD, fontWeight: 800, letterSpacing: "0.08em" }}>🎬 SHORTS</span>
+        {where && <span title="tagged with the set this came from">{where}</span>}
+        {err && <span style={{ color: "#F87171", marginLeft: "auto", fontWeight: 700 }}>{err}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -277,6 +395,8 @@ function Drawer({ pathname, ideas, loadErr, locked, preset, onUnlocked, onClose,
         title: pageTitle,
         href: typeof location !== "undefined" ? location.href : "",
         intent: intent ?? "general",
+        // The caller's tags (the production line's set/slide, via sa:ideas or the quick preset).
+        ...(preset?.context ?? {}),
         ...(intent === "other" && other.trim() ? { other: other.trim() } : {}),
         ...(intent === "strategy" ? { strategy: "1", ...(lane ? { lane } : {}), ...(short ? { short: "1" } : {}) } : {}),
         ...(todoTag ? { todo: todoTag } : {}),
@@ -293,14 +413,15 @@ function Drawer({ pathname, ideas, loadErr, locked, preset, onUnlocked, onClose,
       .then(() => {
         onSaved(kind);
         onClose();
-        // A strategy note is for the doc, not for Claude Code — no build prompt.
-        const wantPrompt = !asDraft && !todoTag && intent !== "strategy";
+        // A strategy note is for the doc, not for Claude Code — no build prompt. Nor for a
+        // shorts idea (context.shorts = "1"): that is a video to make.
+        const wantPrompt = !asDraft && !todoTag && intent !== "strategy" && preset?.context?.shorts !== "1";
         organizeIdea({ data: { id, draftPrompt: false } })
           .then(() => (wantPrompt ? organizeIdea({ data: { id, organize: false, draftPrompt: true } }) : undefined))
           .catch((e) => console.warn("[ideas] organise failed — the idea is saved; the watch sync or /admin/ideas can draft it", e));
       })
       .catch((e) => { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); });
-  }, [body, pathname, pageTitle, busy, audio, files, onSaved, onClose, intent, todo, other, lane, short, editingId]);
+  }, [body, pathname, pageTitle, busy, audio, files, onSaved, onClose, intent, todo, other, lane, short, editingId, preset]);
 
   /** HOLD to talk, or tap-tap for a longer note. */
   const startRec = async () => {
