@@ -337,6 +337,25 @@ export function moveFrame(frames: readonly BlastFrame[], from: number, to: numbe
   return next;
 }
 
+/** MOVE A BLOCK (2026-09-09, the multi-select — Lee's notes: range select, group drag).
+ *  `ids` leave the list in the order they sit in the running order — a non-contiguous
+ *  pick becomes one contiguous block — and the block goes in BEFORE the frame that was at `to`
+ *  (so `to` means "in front of this one", and `to === frames.length` means "at the end"). When
+ *  the frame at `to` is itself in the block, the block lands where it already is: dropping a
+ *  selection onto itself changes nothing. Ids not in the list are ignored, an empty pick is the
+ *  identity, and the result is always a fresh array. */
+export function moveMany(frames: readonly BlastFrame[], ids: readonly string[], to: number): BlastFrame[] {
+  const want = new Set(ids);
+  const block = frames.filter((f) => want.has(f.id));
+  if (!block.length) return [...frames];
+  const rest = frames.filter((f) => !want.has(f.id));
+  // The first frame at or after `to` that stays behind is the one the block goes in front of.
+  let anchor: BlastFrame | undefined;
+  for (let k = Math.max(0, to); k < frames.length && !anchor; k++) if (!want.has(frames[k].id)) anchor = frames[k];
+  const at = anchor ? rest.indexOf(anchor) : rest.length;
+  return [...rest.slice(0, at), ...block, ...rest.slice(at)];
+}
+
 /** Drop a new frame in after `afterIndex`. */
 export function insertFrame(frames: readonly BlastFrame[], frame: BlastFrame, afterIndex: number): BlastFrame[] {
   const next = [...frames];
@@ -443,6 +462,17 @@ export function planTakes(frames: readonly BlastFrame[]): PlanTake[] {
 /** What a surface calls a take: his name, else its number. */
 export const takeLabel = (t: PlanTake): string => t.name || `Split ${t.index + 1}`;
 
+/** THE EMPTY RUN (2026-09-09). A cut lands with a sign-off above it and the standard opener
+ *  below, so two cuts in a row — or a cut under a run whose cards were all skipped — leave a
+ *  take of intro + bio + outro and no question at all. Nothing warned: the live
+ *  account-classification plan carried exactly that (a run named "Liabilities" with zero
+ *  cards, while the real liabilities run sat unnamed under it). This names them; the spine
+ *  shows the chip and offers to remove the cut. It never fixes the plan on its own. A set with
+ *  no cuts and no cards is one empty take, which is the honest answer. */
+export function emptyTakes(frames: readonly BlastFrame[]): PlanTake[] {
+  return planTakes(frames).filter((t) => !t.frames.some((f) => f.kind === "ceq"));
+}
+
 /** THE RUN THAT COVERS THESE CARDS. Post knows which of a set's cards belong to one split, and
  *  needs the SLIDES for them — the prompter lines it captions from live on brand slides too, so
  *  filtering by ceqId alone would drop the opener and the callouts that belong to that video.
@@ -480,8 +510,22 @@ export function duplicateFrame(frames: readonly BlastFrame[], id: string): Blast
   return insertFrame(frames, copyOfFrame(src), i);
 }
 
-function copyOfFrame(src: BlastFrame): BlastFrame {
+/** THE ONE COPY of a frame — its own id, its own arrays. Exported (2026-09-09) so the spine's
+ *  paste uses this and not a second cloning path. */
+export function copyOfFrame(src: BlastFrame): BlastFrame {
   return { ...src, id: newFrameId(src.kind), prompter: src.prompter ? [...src.prompter] : undefined, prompterKeys: src.prompterKeys ? [...src.prompterKeys] : undefined, prompterMarks: src.prompterMarks ? { ...src.prompterMarks } : undefined, illustration: src.illustration ? { ...src.illustration } : src.illustration };
+}
+
+/** PASTE (2026-09-09, Ctrl+V on the spine): copies of `src`, in their order, right after
+ *  `afterIndex` — fresh ids through copyOfFrame, and the CUT and the take's NAME left behind. A
+ *  pasted block is slides, not structure: a copied outro that carried a cut must not cut the
+ *  destination in two, and a copied head must not rename the run it lands in. The pasted ids
+ *  come back with the frames so the caller can select them. */
+export function pasteAfter(frames: readonly BlastFrame[], src: readonly BlastFrame[], afterIndex: number): { frames: BlastFrame[]; ids: string[] } {
+  const copies = src.map((f) => { const { cutAfter: _cut, takeName: _name, ...rest } = copyOfFrame(f); return rest; });
+  const next = [...frames];
+  next.splice(Math.max(0, Math.min(afterIndex + 1, next.length)), 0, ...copies);
+  return { frames: next, ids: copies.map((c) => c.id) };
 }
 
 /** CLONE TO THE END (2026-09-08). Lee: "Clone slide to move to end" — and why, in his own

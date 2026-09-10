@@ -70,7 +70,7 @@
 // the spine (one call per slide, in order, a progress line; every proposal waits on its slide
 // for his click — never applied on its own). The mic re-briefs on the rehearsal review's
 // throttle while he talks (LIVE_BRIEF_EVERY_MS, one call in flight, a stale answer dropped).
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { applyCeqEdit, duplicateCeqCard, revertCeqEdit, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import { logCeqEdit, recentEditExamples, type EditSource } from "@/lib/edit-log.functions";
@@ -90,14 +90,17 @@ import { LIVE_BRIEF_EVERY_MS } from "./RehearsalReview";
 import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
 import { renderInline } from "@/components/canvas/inline-md";
 import { getAdminWho } from "@/components/AdminGate";
-import { refreshBank } from "@/components/v3/use-bank";
+import { blastOffPath, refreshBank } from "@/components/v3/use-bank";
 import { BankPicker } from "./BankPicker";
 import { indentBulletLine } from "./bullet-indent";
 import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
-import { nameTake, takeLabel, type PlanTake } from "./plan";
+import { emptyTakes, nameTake, planTakes, takeLabel, type PlanTake } from "./plan";
 import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, newFrameId, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
+// THE FILM POP-OUT, opened from the spine (2026-09-09). The window name is what makes a second
+// click refocus the same window instead of spawning another; the features snap it to 9:16.
+import { POPOUT_BLOCKED, POPOUT_FEATURES, POPOUT_NAME, POPOUT_OPENED } from "./capture/popout";
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 // THE SLOGANS (2026-09-08) — the three lines, in the one place they are allowed to live
 // (brand-cards/slogans.ts). The quick row inserts them; the Editor offers them as chips.
@@ -363,6 +366,28 @@ const FOLDER_EDGE = "rgba(252,163,17,0.34)";
 const THUMB_W = 88;
 const STRIP_VIEW_KEY = "sa-review-strip-view";
 const readStripView = (): "film" | "list" => { try { return localStorage.getItem(STRIP_VIEW_KEY) === "list" ? "list" : "film"; } catch { return "film"; } };
+/** THE FOLDS, per set (2026-09-09): which runs are collapsed, as their head frame ids, so a
+ *  fold survives a reload, a trip to Film and back, and a new cut landing above it. A browser
+ *  that refuses storage just forgets, like the other keys here. */
+const COLLAPSED_KEY = "sa-review-collapsed:";
+function readCollapsed(setId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_KEY + setId);
+    const arr: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : []);
+  } catch { return new Set(); }
+}
+function writeCollapsed(setId: string, ids: Set<string>): void {
+  try { localStorage.setItem(COLLAPSED_KEY + setId, JSON.stringify([...ids])); } catch { /* storage refused — the folds just won't stick */ }
+}
+/** THE EMPTY-RUN CHIP's colour — amber, a warning and not an error. */
+const AMBER = "#F59E0B";
+/** THE GUTTER BUTTONS on a split's bracket (▾ / 🎬): small, boxed, on the panel colour so they
+ *  sit over the bracket's line. */
+const gutterBtn: React.CSSProperties = {
+  width: 18, height: 18, padding: 0, lineHeight: 1, fontSize: 10, cursor: "pointer", color: GOLD,
+  background: PANEL, border: `1px solid ${EDGE}`, borderRadius: 4, display: "inline-flex", alignItems: "center", justifyContent: "center",
+};
 
 /** One landing place in the zoomed-out move overlay — a tall thin target between two slides.
  *  Click, don't drag: on a fifty-slide deck a click is the gesture that gets used. */
@@ -383,7 +408,13 @@ function MoveSlot({ to, onPick, first, last }: { to: number; onPick: (to: number
 /** THE GAP UNDER A SLIDE (2026-09-09) — invisible until hovered, then three verbs: add a slide
  *  here, clone this one as its own editable card, or cut the video here. A marked cut stays
  *  visible, because it is structure rather than a hover affordance. */
-function GapTools({ onInsert, onClone, onCut, cut }: { onInsert: () => void; onClone: () => void; onCut: () => void; cut: boolean }) {
+function GapTools({ onInsert, onClone, onCut, cut, onOver, onDrop }: {
+  onInsert: () => void; onClone: () => void; onCut: () => void; cut: boolean;
+  /** A DROP TARGET TOO (2026-09-09). Releasing a dragged row over the gap used to produce no
+   *  drop event at all — the move was silently discarded. The gap now says "below the slide
+   *  above me", the same thing the row's own lower half says. */
+  onOver?: () => void; onDrop?: () => void;
+}) {
   const [hot, setHot] = useState(false);
   const btn = (label: string, title: string, run: () => void, color: string) => (
     <button title={title} onClick={(e) => { e.stopPropagation(); run(); }}
@@ -391,6 +422,8 @@ function GapTools({ onInsert, onClone, onCut, cut }: { onInsert: () => void; onC
   );
   return (
     <div onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
+      onDragOver={onOver ? (e) => { e.preventDefault(); onOver(); } : undefined}
+      onDrop={onDrop ? (e) => { e.preventDefault(); onDrop(); } : undefined}
       style={{ position: "relative", width: "100%", alignSelf: "stretch", height: cut ? 18 : 12, marginTop: -2, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
       {cut && <span style={{ position: "absolute", left: 0, right: 0, top: "50%", height: 0, borderTop: `2px dashed ${GOLD}`, pointerEvents: "none" }} />}
       {cut && !hot && (
@@ -560,11 +593,45 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   const setStripView = (v: "film" | "list") => { setStripViewState(v); try { localStorage.setItem(STRIP_VIEW_KEY, v); } catch { /* cosmetic */ } };
   /** The slide whose ⇅ was pressed — the zoomed-out placement overlay is up for it. */
   const [moveId, setMoveId] = useState<string | null>(null);
-  /** Which cut groups are folded shut. Lee: "would be a huge help if I could collapse a split
-   *  group." Numbered from the top, so a new cut renumbers what is below it — which is right:
-   *  the fold belongs to the position in the running order, not to a slide. */
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(() => new Set());
-  const toggleGroup = (n: number) => setCollapsedGroups((s) => { const x = new Set(s); if (x.has(n)) x.delete(n); else x.add(n); return x; });
+  // THE TAKES, ONCE (2026-09-09). Lee: "would be a huge help if I could collapse a split
+  // group." The spine used to re-derive the grouping inline, per row, in O(n³); this is the one
+  // planTakes the rest of the line uses — over filmFrames, so take N here IS /v3/post's
+  // `<setId>#N` and /film's `?take=`. Skipped frames are in no take: they are in the folder.
+  const takes = useMemo(() => planTakes(filmFrames(frames)), [frames]);
+  const takeOf = useMemo(() => {
+    const m = new Map<string, { take: PlanTake; posInTake: number }>();
+    for (const t of takes) t.frames.forEach((f, k) => m.set(f.id, { take: t, posInTake: k }));
+    return m;
+  }, [takes]);
+  /** Runs with no question in them (plan.ts emptyTakes) — flagged, never auto-fixed. */
+  const emptyHeads = useMemo(() => new Set(emptyTakes(filmFrames(frames)).map((t) => t.headId)), [frames]);
+  /** Which runs are folded shut, BY HEAD ID and remembered per set. It was a set of ordinals,
+   *  in memory: a new cut above renumbered every fold below it, and Film-and-back lost them all.
+   *  Read after mount like stripView (the server has no localStorage); written on every change
+   *  once this set's folds are in, so the first paint never clobbers the stored ones. */
+  const [collapsedState, setCollapsedState] = useState<{ setId: string | null; ids: Set<string> }>({ setId: null, ids: new Set() });
+  const collapsed = collapsedState.ids;
+  useEffect(() => { setCollapsedState({ setId: set.id, ids: readCollapsed(set.id) }); }, [set.id]);
+  useEffect(() => { if (collapsedState.setId === set.id) writeCollapsed(set.id, collapsedState.ids); }, [collapsedState, set.id]);
+  const setCollapsed = useCallback((fn: (s: Set<string>) => Set<string>) => setCollapsedState((c) => ({ setId: c.setId, ids: fn(c.ids) })), []);
+  const toggleGroup = useCallback((headId: string) => setCollapsed((s) => { const x = new Set(s); if (x.has(headId)) x.delete(headId); else x.add(headId); return x; }), [setCollapsed]);
+  /** A one-line note on the spine's header row — the pop-out's fate — for a few seconds. */
+  const [spineNote, setSpineNote] = useState<string | null>(null);
+  const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashNote = useCallback((text: string) => {
+    setSpineNote(text);
+    if (noteTimer.current) clearTimeout(noteTimer.current);
+    noteTimer.current = setTimeout(() => setSpineNote(null), 6000);
+  }, []);
+  useEffect(() => () => { if (noteTimer.current) clearTimeout(noteTimer.current); }, []);
+  /** A row to scroll to once the plan that contains it has rendered (the cut's new intro). */
+  const scrollTo = useRef<string | null>(null);
+  useEffect(() => {
+    const id = scrollTo.current;
+    if (!id || !frames.some((f) => f.id === id)) return;
+    scrollTo.current = null;
+    document.querySelector(`[data-frame-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [frames]);
   /** The head frame whose name is being typed. Lee: "I'd also like to name it from the edit side." */
   const [renamingHead, setRenamingHead] = useState<string | null>(null);
   const renameTake = (headId: string, name: string) => { if (plan) commit(nameTake(plan.frames, headId, name)); setRenamingHead(null); };
@@ -763,7 +830,43 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
     duplicateAt(f.id, i);
   };
   // CUT. The mark, the sign-off in front of it and the standard opener behind it, in one press.
-  const cutAfter = (f: BlastFrame) => commit(cutAfterFrame(frames, f.id, standardOpener(set.name, CRAM_NOT_LECTURE)));
+  // AND THE RUN ABOVE FOLDS (2026-09-09, Lee's notes: hide / collapse the previous split). The
+  // take that just closed is done with; so it collapses, the selection lands on the new opener's
+  // intro — the head of the split he is now working on — and the spine scrolls there.
+  // Un-cutting (✂ undo) only lifts the mark; nothing folds or moves.
+  const cutAfter = (f: BlastFrame) => {
+    const wasCut = !!f.cutAfter;
+    const next = cutAfterFrame(frames, f.id, standardOpener(set.name, CRAM_NOT_LECTURE));
+    commit(next);
+    if (wasCut) return;
+    const t = planTakes(filmFrames(next));
+    const k = t.findIndex((x) => x.frames.some((x) => x.id === f.id));
+    const done = t[k];
+    const following = t[k + 1];
+    if (!done || !following) return;
+    setCollapsed((s) => new Set(s).add(done.headId));
+    setSelId(following.headId);
+    scrollTo.current = following.headId;
+  };
+  // FILM THIS SPLIT (2026-09-09, Lee's notes: film from this split — the film icon on the
+  // bracket). The 9:16 pop-out opens straight from the spine on /film with `?take=N` (the capture films that
+  // run once P2 lands; until then it starts at slide 1). From the click, never an effect — a
+  // popup opened from an effect is blocked — and under POPOUT_NAME, so a second click on any
+  // bracket refocuses the one window rather than spawning another.
+  const filmTake = (take: PlanTake) => {
+    const href = blastOffPath(topic, set, "film") + "?popout=1&take=" + take.index;
+    let w: Window | null = null;
+    try { w = window.open(href, POPOUT_NAME, POPOUT_FEATURES); } catch { w = null; }
+    if (w === null) { flashNote(POPOUT_BLOCKED); return; }
+    try { w.focus(); } catch { /* ignore */ }
+    flashNote(POPOUT_OPENED);
+  };
+  /** REMOVE THE CUT that opens an empty run (A7): the mark sits on the frame right before the
+   *  run's head; cutAfterFrame toggles it off. The opener slides it added stay — his now. */
+  const uncutBefore = (take: PlanTake) => {
+    const headAt = frames.findIndex((x) => x.id === take.headId);
+    for (let k = headAt - 1; k >= 0; k--) if (frames[k].cutAfter) { commit(cutAfterFrame(frames, frames[k].id, [])); return; }
+  };
   // CLONE A SET CARD INTO ITS OWN CARD (2026-09-08). Lee: "If I duplicate a slide, then change
   // it, it's editing the previous slide. It's more a clone one that I can then edit
   // independently thing." Duplicate keeps pointing at the same question on purpose (that is how
@@ -887,10 +990,14 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
   // the folder needs no "restore its old slot" logic because it never left one.
   const indexed = frames.map((f, i) => ({ f, i }));
   const activeRows = indexed.filter((r) => !r.f.skipped);
-  /** How many cuts the running order carries. One or more means every run gets a header — the
-   *  first one included, which is what makes it collapsible and nameable. */
-  const cutCount = activeRows.filter((r) => r.f.cutAfter).length;
   const skippedRows = indexed.filter((r) => r.f.skipped);
+  /** id → real index into `frames` (what every menu action and drop closes over), and id → the
+   *  row's number in the film order. Both once per render, not once per row. */
+  const indexOf = new Map(indexed.map((r) => [r.f.id, r.i]));
+  const numberOf = new Map(activeRows.map((r, pos) => [r.f.id, pos + 1]));
+  /** More than one take means every run gets a header — the first one included, which is what
+   *  makes it collapsible and nameable. */
+  const hasCuts = takes.length > 1;
 
   // THE ZOOMED-OUT MOVE (2026-09-09). `moveFrameRef` is the slide being placed; `moveTo` drops
   // it before the frame at `to`. moveFrame takes a from/to pair in the SAME list, and removing
@@ -1002,7 +1109,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
         <div className="flex items-center" style={{ gap: 8, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
           <span style={eyebrow}>Film draft</span>
           <span style={{ fontSize: 11.5, color: MUTED }}>{filmed} slides{skipped ? ` · ${skipped} in the skipped folder` : ""}</span>
-          {saving && <span style={{ fontSize: 11, color: saving.startsWith("⚠") ? RED : saving === "saved" ? MINT : MUTED, marginLeft: "auto" }}>{saving}</span>}
+          {(spineNote ?? saving) && (() => { const s = spineNote ?? saving!; return <span style={{ fontSize: 11, color: s === POPOUT_BLOCKED || s.startsWith("⚠") ? RED : s === "saved" || s === POPOUT_OPENED ? MINT : MUTED, marginLeft: "auto" }}>{s}</span>; })()}
         </div>
         {/* INSERT IS A TOGGLE NOW (2026-09-09). Lee: "the insert a slide, it looks like we could
             put that in like a toggle where I click it and then find the one I want to insert,
@@ -1090,50 +1197,97 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null }: {
             button… AND have a scissor icon for cutting there." Everything he does between slides
             is now done between slides, instead of in a panel somewhere else. A run of slides
             between two cuts is one Short, and it collapses. */}
-        <div className="flex flex-col" style={{ gap: 5 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
-          {activeRows.map(({ f, i }, pos) => {
-            const groupNo = activeRows.slice(0, pos).filter((r) => r.f.cutAfter).length;
-            const collapsed = collapsedGroups.has(groupNo);
-            const groupHead = pos === 0 || !!activeRows[pos - 1]?.f.cutAfter;
-            const groupRows = activeRows.filter((_, p) => activeRows.slice(0, p).filter((r) => r.f.cutAfter).length === groupNo);
-            const groupHeadId = groupRows[0]?.f.id ?? f.id;
-            const groupName = (groupRows[0]?.f.takeName ?? "").trim();
-            const groupTitle = takeLabel({ index: groupNo, name: groupName, headId: groupHeadId, frames: [] } as PlanTake);
+        <div className="sa-spine flex flex-col" style={{ gap: 5 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
+          {/* ONE RUN PER TAKE (2026-09-09), each with THE BRACKET in a left gutter — Lee's notes:
+              a left-gutter Excel bracket per split, with a film icon on it. A
+              2 px gold rule with caps spans the run; ▾/▸ folds it, 🎬 pops the 9:16 window out on
+              that split. The header band between the gold hairlines stays (the name, typed right
+              here); a folded run is one bar, and the bar is a drop target so a drag can land
+              above it without opening it. A set with no cuts is one bracket with only 🎬. */}
+          {takes.map((take) => {
+            const isCollapsed = hasCuts && collapsed.has(take.headId);
+            const firstReal = indexOf.get(take.frames[0]?.id ?? "") ?? 0;
+            const empty = emptyHeads.has(take.headId);
+            const count = take.frames.length;
             return (
-              <div key={f.id} className="flex flex-col" style={{ gap: 5 }}>
-{/* THE SPLIT'S OWN HEADER. Shown for EVERY split once there is more than one — including the
-                    first, which had no header at all and so could not be collapsed (Lee, 2026-09-09:
-                    "I need to be able to collapse the first split too. Right now, it's only letting me
-                    collapse 2nd split onward"). The label is the take's name, typed right here. */}
-                {groupHead && cutCount > 0 && (
-                  <div className="flex items-center" style={{ gap: 8, margin: "6px 0 2px" }}>
-                    <span style={{ flex: 1, height: 1, background: `${GOLD}55` }} />
-                    <button onClick={() => toggleGroup(groupNo)} style={{ ...chip(false, GOLD), fontSize: 10, padding: "2px 8px" }}
-                      title={collapsed ? "Show this video's slides" : "Collapse this video"}>
-                      {collapsed ? "▸" : "▾"} {groupRows.length}
-                    </button>
-                    {renamingHead === groupHeadId ? (
-                      <input
-                        autoFocus defaultValue={groupName}
-                        onBlur={(e) => renameTake(groupHeadId, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") { e.preventDefault(); renameTake(groupHeadId, (e.target as HTMLInputElement).value); }
-                          if (e.key === "Escape") { e.preventDefault(); setRenamingHead(null); }
-                        }}
-                        placeholder={`Split ${groupNo + 1}`}
-                        style={{ font: "inherit", fontSize: 11, fontWeight: 800, color: CREAM, background: "rgba(255,255,255,0.06)", border: `1px solid ${GOLD}88`, borderRadius: 7, padding: "2px 8px", outline: "none", minWidth: 180 }}
-                      />
-                    ) : (
-                      <button onClick={() => setRenamingHead(groupHeadId)} style={{ ...chip(false, GOLD), fontSize: 10, padding: "2px 8px" }}
-                        title="Name this video — Post shows this name">
-                        {groupTitle} ✎
-                      </button>
+              <div key={take.headId} style={{ display: "grid", gridTemplateColumns: "22px 1fr", columnGap: 4, alignItems: "stretch" }}>
+                <div style={{ position: "relative", alignSelf: isCollapsed ? "start" : "stretch", height: isCollapsed ? 24 : undefined, minHeight: 24 }}>
+                  <span aria-hidden style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 6, borderLeft: `2px solid ${GOLD}`, borderTop: `2px solid ${GOLD}`, borderBottom: `2px solid ${GOLD}`, borderRadius: "3px 0 0 3px", pointerEvents: "none", boxSizing: "border-box" }} />
+                  <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 2, marginLeft: 3, marginTop: isCollapsed ? 3 : 4 }}>
+                    {hasCuts && (
+                      <button style={gutterBtn} title={isCollapsed ? "Expand this split" : "Collapse this split"} aria-expanded={!isCollapsed} onClick={() => toggleGroup(take.headId)}>{isCollapsed ? "▸" : "▾"}</button>
                     )}
-                    <span style={{ flex: 1, height: 1, background: `${GOLD}55` }} />
+                    {!isCollapsed && (
+                      <button style={gutterBtn} title={hasCuts ? "Film this split — pops out the 9:16 window" : "Film this set"} onClick={() => filmTake(take)}>🎬</button>
+                    )}
                   </div>
-                )}
-                {!collapsed && spineRow(f, i, { number: pos + 1, thumb: stripView === "film" })}
-                {!collapsed && <GapTools onInsert={() => { setSelId(f.id); setInsertOpen(true); }} onClone={() => void cloneAfter(f, i)} onCut={() => cutAfter(f)} cut={!!f.cutAfter} />}
+                </div>
+                <div className="flex flex-col" style={{ gap: 5, minWidth: 0 }}>
+                  {isCollapsed ? (
+                    <button onClick={() => toggleGroup(take.headId)} title="Expand this split"
+                      onDragOver={(e) => { e.preventDefault(); setOver({ i: firstReal, below: false }); }}
+                      onDrop={(e) => { e.preventDefault(); drop(); }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6, textAlign: "left", width: "100%", cursor: "pointer", fontFamily: "inherit",
+                        background: PANEL, border: `1px solid ${over?.i === firstReal && !over.below ? SKY : EDGE}`, borderRadius: 7, padding: "4px 10px",
+                        fontSize: 11, fontWeight: 800, color: CREAM, boxShadow: over?.i === firstReal && !over.below ? `0 -3px 0 0 ${SKY}` : "none",
+                      }}>
+                      <span style={{ color: GOLD }}>▸</span> Split {take.index + 1}{take.name ? ` · ${take.name}` : ""} <span style={{ color: MUTED, fontWeight: 600 }}>· {count} slide{count === 1 ? "" : "s"}</span>
+                    </button>
+                  ) : (
+                    <>
+                      {/* THE SPLIT'S OWN HEADER. Shown for EVERY split once there is more than one —
+                          including the first, which had no header at all and so could not be collapsed
+                          (Lee, 2026-09-09: "I need to be able to collapse the first split too. Right
+                          now, it's only letting me collapse 2nd split onward"). The label is the take's
+                          name, typed right here. */}
+                      {hasCuts && (
+                        <div className="flex items-center" style={{ gap: 8, margin: "6px 0 2px", flexWrap: "wrap" }}>
+                          <span style={{ flex: 1, height: 1, background: `${GOLD}55`, minWidth: 12 }} />
+                          {renamingHead === take.headId ? (
+                            <input
+                              autoFocus defaultValue={take.name}
+                              onBlur={(e) => renameTake(take.headId, e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") { e.preventDefault(); renameTake(take.headId, (e.target as HTMLInputElement).value); }
+                                if (e.key === "Escape") { e.preventDefault(); setRenamingHead(null); }
+                              }}
+                              placeholder={`Split ${take.index + 1}`}
+                              style={{ font: "inherit", fontSize: 11, fontWeight: 800, color: CREAM, background: "rgba(255,255,255,0.06)", border: `1px solid ${GOLD}88`, borderRadius: 7, padding: "2px 8px", outline: "none", minWidth: 180 }}
+                            />
+                          ) : (
+                            <button onClick={() => setRenamingHead(take.headId)} style={{ ...chip(false, GOLD), fontSize: 10, padding: "2px 8px" }}
+                              title="Name this video — Post shows this name">
+                              {takeLabel(take)} ✎
+                            </button>
+                          )}
+                          <span style={{ fontSize: 10, color: MUTED }}>{count} slide{count === 1 ? "" : "s"}</span>
+                          {/* THE EMPTY RUN (plan.ts emptyTakes): a cut with no question behind it. Flagged
+                              and offered a fix; never fixed on its own — the live data is Lee's. */}
+                          {empty && (
+                            <>
+                              <span title="This run has an opener and a sign-off but no card — nothing to film" style={{ ...chip(true, AMBER), fontSize: 10, padding: "2px 8px", cursor: "default" }}>no questions in this split</span>
+                              {take.index > 0 && (
+                                <button onClick={() => uncutBefore(take)} style={{ ...chip(false, AMBER), fontSize: 10, padding: "2px 8px" }} title="Lift the cut that opens this run — the slides it added stay">remove this cut</button>
+                              )}
+                            </>
+                          )}
+                          <span style={{ flex: 1, height: 1, background: `${GOLD}55`, minWidth: 12 }} />
+                        </div>
+                      )}
+                      {take.frames.map((f) => {
+                        const i = indexOf.get(f.id) ?? -1;
+                        return (
+                          <Fragment key={f.id}>
+                            {spineRow(f, i, { number: numberOf.get(f.id), thumb: stripView === "film" })}
+                            <GapTools onInsert={() => { setSelId(f.id); setInsertOpen(true); }} onClone={() => void cloneAfter(f, i)} onCut={() => cutAfter(f)} cut={!!f.cutAfter}
+                              onOver={() => setOver({ i, below: true })} onDrop={drop} />
+                          </Fragment>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
               </div>
             );
           })}

@@ -419,3 +419,96 @@ describe("backdropFor — the cold open, then quietly through the opening summar
     expect(backdropFor(skipped, 2, isNote)).toBe("knockout");
   });
 });
+
+// ---- THE EMPTY RUN (2026-09-09) ---------------------------------------------
+import { emptyTakes } from "./plan";
+
+describe("emptyTakes — a run between cuts with no question in it", () => {
+  const ceq = (id: string, extra: Partial<BlastFrame> = {}): BlastFrame => ({ id, kind: "ceq", ceqId: `card-${id}`, ...extra });
+  test("intro + bio + outro is empty; a run with one card is not", () => {
+    const frames: BlastFrame[] = [
+      { id: "i1", kind: "intro" }, ceq("q1"), { id: "o1", kind: "outro", cutAfter: true },
+      { id: "i2", kind: "intro" }, { id: "b2", kind: "bio" }, { id: "o2", kind: "outro", cutAfter: true },
+      { id: "i3", kind: "intro" }, ceq("q2"), { id: "o3", kind: "outro" },
+    ];
+    const empty = emptyTakes(frames);
+    expect(empty.map((t) => t.index)).toEqual([1]);
+    expect(empty[0].headId).toBe("i2");
+  });
+  test("a set with no cuts and no cards is its one take; with a card it is nothing", () => {
+    const bare: BlastFrame[] = [{ id: "i", kind: "intro" }, { id: "o", kind: "outro" }];
+    expect(emptyTakes(bare).length).toBe(1);
+    expect(emptyTakes(bare)[0].headId).toBe("i");
+    expect(emptyTakes([...bare, ceq("q")]).length).toBe(0);
+  });
+  test("the live defect: the run is judged on what FILMS, so a run of skipped cards is empty once they are filtered out", () => {
+    const frames: BlastFrame[] = [{ id: "i", kind: "intro" }, ceq("q", { skipped: true }), { id: "o", kind: "outro" }];
+    expect(emptyTakes(frames).length).toBe(0);                                   // the raw list still has a card
+    expect(emptyTakes(frames.filter((f) => !f.skipped)).length).toBe(1);        // what the spine asks
+  });
+});
+
+// ---- MOVE A BLOCK (2026-09-09, the multi-select) ------------------------------
+import { moveMany } from "./plan";
+
+describe("moveMany — a picked block moves as one, in front of the frame at `to`", () => {
+  const F = (...ids: string[]): BlastFrame[] => ids.map((id) => ({ id, kind: "blank" }));
+  const ids = (fs: BlastFrame[]) => fs.map((f) => f.id);
+  const five = F("a", "b", "c", "d", "e");
+  test("a block moved up", () => {
+    expect(ids(moveMany(five, ["d", "e"], 1))).toEqual(["a", "d", "e", "b", "c"]);
+  });
+  test("a block moved down past its own tail", () => {
+    // "in front of e" — after removing a and b, e is at 2 and the block goes in before it.
+    expect(ids(moveMany(five, ["a", "b"], 4))).toEqual(["c", "d", "a", "b", "e"]);
+    expect(ids(moveMany(five, ["a", "b"], 5))).toEqual(["c", "d", "e", "a", "b"]);   // to === length appends
+  });
+  test("a non-contiguous pick becomes one contiguous block, in spine order", () => {
+    expect(ids(moveMany(five, ["e", "a", "c"], 2))).toEqual(["b", "a", "c", "e", "d"]);
+  });
+  test("ids not in the list are ignored; an empty pick is the identity", () => {
+    expect(ids(moveMany(five, ["zz", "b"], 4))).toEqual(["a", "c", "d", "b", "e"]);
+    expect(ids(moveMany(five, [], 2))).toEqual(ids(five));
+    expect(moveMany(five, [], 2)).not.toBe(five);
+  });
+  test("moving a block onto itself is the identity", () => {
+    expect(ids(moveMany(five, ["b", "c"], 1))).toEqual(ids(five));
+    expect(ids(moveMany(five, ["b", "c"], 2))).toEqual(ids(five));
+    expect(ids(moveMany(five, ["b", "c"], 3))).toEqual(ids(five));
+  });
+});
+
+// ---- PASTE (2026-09-09, Ctrl+V on the spine) -----------------------------------
+import { copyOfFrame, pasteAfter } from "./plan";
+
+describe("pasteAfter — fresh copies after a slide, with the cut and the take name left behind", () => {
+  test("copies land after the index, in order, with new ids the caller gets back", () => {
+    const frames: BlastFrame[] = [{ id: "a", kind: "blank" }, { id: "b", kind: "blank" }];
+    const src: BlastFrame[] = [{ id: "x", kind: "phrase", text: "one", prompter: ["say it"] }, { id: "y", kind: "tip", text: "two" }];
+    const { frames: next, ids } = pasteAfter(frames, src, 0);
+    expect(next.map((f) => f.id)).toEqual(["a", ids[0], ids[1], "b"]);
+    expect(ids[0]).not.toBe("x");
+    expect(next[1].text).toBe("one");
+    expect(next[1].prompter).toEqual(["say it"]);
+    expect(next[1].prompter).not.toBe(src[0].prompter);   // its own array, via copyOfFrame
+  });
+  test("a copied cut does not cut the destination, and a copied head does not rename its run", () => {
+    const src: BlastFrame[] = [{ id: "h", kind: "intro", takeName: "Liabilities" }, { id: "o", kind: "outro", cutAfter: true }];
+    const { frames: next } = pasteAfter([{ id: "a", kind: "blank" }], src, 0);
+    expect(next.some((f) => f.cutAfter)).toBe(false);
+    expect(next.some((f) => f.takeName)).toBe(false);
+    expect("cutAfter" in next[2]).toBe(false);
+  });
+  test("an index past the end appends; a negative one prepends", () => {
+    const frames: BlastFrame[] = [{ id: "a", kind: "blank" }];
+    expect(pasteAfter(frames, [{ id: "x", kind: "blank" }], 99).frames.map((f) => f.id)[1]).not.toBe("a");
+    expect(pasteAfter(frames, [{ id: "x", kind: "blank" }], -5).frames.map((f) => f.id)[1]).toBe("a");
+  });
+  test("copyOfFrame is the one copy path — a paste and a duplicate make the same shape", () => {
+    const src: BlastFrame = { id: "x", kind: "cheat", title: "t", body: "b", prompterMarks: { phrase: "p" } };
+    const c = copyOfFrame(src);
+    expect(c.id).not.toBe("x");
+    expect(c.prompterMarks).toEqual({ phrase: "p" });
+    expect(c.prompterMarks).not.toBe(src.prompterMarks);
+  });
+});
