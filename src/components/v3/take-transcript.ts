@@ -54,9 +54,28 @@ export async function transcribeTakeFile(pubKey: string, file: File, note: Trans
 
   note("Transcribing…");
   const { transcribeTake } = await import("@/lib/transcribe.functions");
-  return transcribeTake({
+  const row = await transcribeTake({
     data: { path, url: staged.publicUrl, name: `${file.name.replace(/\.\w+$/, "")}.wav`, ...(force ? { force: true } : {}) },
   });
+
+  // THE COST, into the ledger (Lee, 2026-09-07: "let's tally up cost"). lib/captions.ts prices
+  // Whisper but never logs it — "this file never knows a set" — and this is the one caller that
+  // does: the publish key's set half. Logged HERE, past the stored-row early return above, so a
+  // re-open that reads the stored words bills nothing, and only a real Whisper call is tallied.
+  // Best-effort like the caption sheet's own line: a ledger hiccup must never fail a transcript.
+  void logWhisperCost(pubKey, row.duration_s);
+  return row;
+}
+
+/** One ledger line for a Whisper run, keyed to the set (a split's "#N" is not a set id). The
+ *  same shape the caption sheet logs its model calls with (routes/v3.post.tsx). */
+async function logWhisperCost(pubKey: string, durationS: number | null): Promise<void> {
+  try {
+    const [{ logCostEvent }, { whisperCostUsd }, { getAdminWho }] = await Promise.all([
+      import("@/lib/cost-ledger.functions"), import("@/lib/captions"), import("@/components/AdminGate"),
+    ]);
+    await logCostEvent({ data: { kind: "ai", label: "whisper", usd: whisperCostUsd(durationS ?? 0), setId: pubKey.split("#")[0], who: getAdminWho() } });
+  } catch { /* the transcript is already in hand; the ledger line is the lesser thing */ }
 }
 
 /** Hand a string to the browser as a downloaded file. Used for the .srt and the .ass — both are
