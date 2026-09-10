@@ -91,6 +91,7 @@ import { NOTE_EYEBROW } from "@/components/canvas/frame-copy";
 import { renderInline } from "@/components/canvas/inline-md";
 import { getAdminWho } from "@/components/AdminGate";
 import { blastOffPath, refreshBank } from "@/components/v3/use-bank";
+import { V3_NAVY } from "@/components/v3/Shell";
 import { BankPicker } from "./BankPicker";
 import { indentBulletLine } from "./bullet-indent";
 import { BIO_CARD } from "./bio-card";
@@ -346,7 +347,6 @@ const writeRightTab = (t: RightTab): void => { try { localStorage.setItem(RIGHT_
  *  while the spine scrolls, and never taller than the viewport. */
 const panelShell: React.CSSProperties = {
   background: PANEL, border: `1px solid ${EDGE}`, borderRadius: 12, padding: "10px 12px",
-  position: "sticky", top: 12, maxHeight: "calc(100vh - 24px)", overflowY: "auto",
 };
 /** The spine's per-row verbs (duplicate · skip / remove) show on hover, or on
  *  the selected row — Lee: "icons that show up on hover on the left spine like
@@ -356,8 +356,13 @@ const SPINE_CSS = `
 .sa-spine-row:hover .sa-spine-tools,.sa-spine-row.is-on .sa-spine-tools,.sa-spine-row.is-menu .sa-spine-tools,.sa-spine-row .sa-spine-tools:focus-within{opacity:1}
 .sa-slide-menu button:hover{background:rgba(255,255,255,0.06)}
 .sa-spine-row.is-picked{outline:1px solid ${CREAM};outline-offset:-1px}
-.sa-spine.is-dragging .sa-spine-row{height:26px;overflow:hidden;padding-top:0!important;padding-bottom:0!important;box-sizing:border-box}
+.sa-spine.is-dragging .sa-spine-row:not(.sa-spine-card){height:26px;overflow:hidden;padding-top:0!important;padding-bottom:0!important;box-sizing:border-box}
+.sa-spine.is-dragging .sa-spine-card{width:30px!important;min-height:80px;overflow:hidden}
 .sa-spine.is-dragging .sa-spine-thumb{display:none}
+.sa-spine-h{scrollbar-width:thin}
+.sa-spine-card > span:first-child{position:absolute;top:5px;left:5px;z-index:1;border-right:0!important;min-width:0!important;padding:1px 5px!important;background:rgba(9,13,26,0.85);border-radius:4px}
+.sa-spine-card .sa-spine-thumb{align-self:center}
+.sa-spine-card .sa-spine-tools{position:absolute;top:4px;right:4px;z-index:1;flex-wrap:wrap;justify-content:flex-end;max-width:76px;background:rgba(9,13,26,0.85);border-radius:6px;padding:2px}
 `;
 
 // THE SKIPPED FOLDER (Lee, 2026-09-06: "once a slide is skipped, move it to bottom
@@ -420,18 +425,57 @@ function MoveSlot({ to, onPick, first, last }: { to: number; onPick: (to: number
 /** THE GAP UNDER A SLIDE (2026-09-09) — invisible until hovered, then three verbs: add a slide
  *  here, clone this one as its own editable card, or cut the video here. A marked cut stays
  *  visible, because it is structure rather than a hover affordance. */
-function GapTools({ onInsert, onClone, onCut, cut, onOver, onDrop }: {
+function GapTools({ onInsert, onClone, onCut, cut, onOver, onDrop, vertical = false, kinds }: {
   onInsert: () => void; onClone: () => void; onCut: () => void; cut: boolean;
+  /** THE STRIP (2026-09-10): the gap stands to the RIGHT of its slide, tools stacked. */
+  vertical?: boolean;
+  /** "+" opens these right here (Lee, 2026-09-10: "adding a slide underneath with the hover +
+   *  doesn't work" — it only opened the insert toggle at the top of the column). Absent, "+"
+   *  falls back to onInsert. */
+  kinds?: readonly { label: string; color: string; add: () => void }[];
   /** A DROP TARGET TOO (2026-09-09). Releasing a dragged row over the gap used to produce no
    *  drop event at all — the move was silently discarded. The gap now says "below the slide
    *  above me", the same thing the row's own lower half says. */
   onOver?: () => void; onDrop?: () => void;
 }) {
   const [hot, setHot] = useState(false);
+  const [choosing, setChoosing] = useState(false);
   const btn = (label: string, title: string, run: () => void, color: string) => (
     <button title={title} onClick={(e) => { e.stopPropagation(); run(); }}
       style={{ background: "rgba(9,13,26,0.92)", border: `1px solid ${color}`, color, borderRadius: 7, fontSize: 11, lineHeight: 1, padding: "2px 7px", cursor: "pointer" }}>{label}</button>
   );
+  const plus = () => { if (kinds?.length) setChoosing(true); else onInsert(); };
+  const chooser = choosing && kinds?.length ? (
+    <div role="menu" onMouseLeave={() => setChoosing(false)}
+      style={{ position: "absolute", top: vertical ? 0 : "100%", left: vertical ? "100%" : "50%", transform: vertical ? "none" : "translateX(-50%)", zIndex: 30, background: PANEL, border: `1px solid ${GOLD}88`, borderRadius: 9, padding: 6, display: "flex", flexDirection: "column", gap: 3, minWidth: 150, boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}>
+      <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.14em", color: MUTED, padding: "2px 6px" }}>ADD HERE</span>
+      {kinds.map((k) => (
+        <button key={k.label} role="menuitem" onClick={(e) => { e.stopPropagation(); setChoosing(false); setHot(false); k.add(); }}
+          style={{ textAlign: "left", background: "transparent", border: `1px solid ${k.color}55`, color: k.color, borderRadius: 6, fontSize: 11, fontWeight: 700, padding: "3px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>＋ {k.label}</button>
+      ))}
+    </div>
+  ) : null;
+  if (vertical) {
+    return (
+      <div onMouseEnter={() => setHot(true)} onMouseLeave={() => { setHot(false); }}
+        onDragOver={onOver ? (e) => { e.preventDefault(); onOver(); } : undefined}
+        onDrop={onDrop ? (e) => { e.preventDefault(); onDrop(); } : undefined}
+        style={{ position: "relative", alignSelf: "stretch", width: cut ? 26 : 16, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, flex: "0 0 auto" }}>
+        {cut && <span style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: 0, borderLeft: `2px dashed ${GOLD}`, pointerEvents: "none" }} />}
+        {cut && !hot && !choosing && (
+          <span style={{ position: "relative", fontSize: 9, fontWeight: 800, letterSpacing: "0.14em", color: GOLD, background: PANEL, padding: "4px 0", writingMode: "vertical-rl" }}>✂ END</span>
+        )}
+        {(hot || choosing) && (
+          <span className="flex flex-col" style={{ gap: 4, position: "relative" }}>
+            {btn("＋", "Add a slide here", plus, MUTED)}
+            {btn("⧉+", "Clone the slide before this gap as its own card — edit it without touching the original", onClone, MINT)}
+            {btn(cut ? "✂↺" : "✂", cut ? "Remove this cut (the slides it added stay)" : "Cut the video here — a sign-off goes before, the standard opener after", onCut, GOLD)}
+          </span>
+        )}
+        {chooser}
+      </div>
+    );
+  }
   return (
     <div onMouseEnter={() => setHot(true)} onMouseLeave={() => setHot(false)}
       onDragOver={onOver ? (e) => { e.preventDefault(); onOver(); } : undefined}
@@ -441,9 +485,10 @@ function GapTools({ onInsert, onClone, onCut, cut, onOver, onDrop }: {
       {cut && !hot && (
         <span style={{ position: "relative", fontSize: 9.5, fontWeight: 800, letterSpacing: "0.14em", color: GOLD, background: PANEL, padding: "0 6px" }}>✂ END OF VIDEO</span>
       )}
+      {chooser}
       {hot && (
         <span className="flex" style={{ gap: 6, position: "relative" }}>
-          {btn("＋", "Add a slide here", onInsert, MUTED)}
+          {btn("＋", "Add a slide here", plus, MUTED)}
           {btn("⧉+", "Clone the slide above as its own card — edit it without touching the original", onClone, MINT)}
           {btn(cut ? "✂ undo" : "✂", cut ? "Remove this cut (the slides it added stay)" : "Cut the video here — a sign-off goes above, the standard opener below", onCut, GOLD)}
         </span>
@@ -570,6 +615,8 @@ interface SpineRowProps {
   number?: number;
   foldered: boolean;
   thumb: boolean;
+  /** THE STRIP (2026-09-10): a vertical card — thumb on top, words under — sitting in a row. */
+  card: boolean;
   isSelected: boolean;
   isPicked: boolean;
   isMenuOpen: boolean;
@@ -623,18 +670,19 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
   const progress = useMemo(() => (p.progressX != null && p.progressY != null ? { x: p.progressX, y: p.progressY } : undefined), [p.progressX, p.progressY]);
   return (
     <div data-frame-id={f.id} draggable={draggableRow}
-      className={`sa-spine-row${p.isSelected ? " is-on" : ""}${p.isPicked ? " is-picked" : ""}${menu ? " is-menu" : ""}`}
+      className={`sa-spine-row${p.card ? " sa-spine-card" : ""}${p.isSelected ? " is-on" : ""}${p.isPicked ? " is-picked" : ""}${menu ? " is-menu" : ""}`}
       onDragStart={(e) => on.dragStart(f.id, e.dataTransfer)}
-      onDragOver={canDrop ? (e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); on.over(i, e.clientY > r.top + r.height / 2); } : undefined}
+      onDragOver={canDrop ? (e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); on.over(i, p.card ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2); } : undefined}
       onDrop={canDrop ? (e) => { e.preventDefault(); on.drop(); } : undefined}
       onDragEnd={on.dragEnd}
       onClick={(e) => on.select(f.id, e)}
       title={canDrop ? "Click to open · shift-click a range · ctrl-click to add · drag to reorder" : "Click to open"}
       style={{
-        position: "relative", display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 7,
+        position: "relative", display: "flex", alignItems: p.card ? "stretch" : "center", gap: p.card ? 4 : 8, padding: p.card ? "6px 6px 5px" : "7px 10px", borderRadius: 7,
+        ...(p.card ? { flexDirection: "column", width: 100, flex: "0 0 auto", boxSizing: "border-box" } : {}),
         background: foldered ? "rgba(9,13,26,0.35)" : PANEL,
         border: `1px solid ${p.isSelected ? GOLD : foldered ? FOLDER_EDGE : EDGE}`,
-        boxShadow: p.dropEdge === "above" ? `0 -3px 0 0 ${SKY}` : p.dropEdge === "below" ? `0 3px 0 0 ${SKY}` : "none",
+        boxShadow: p.dropEdge === "above" ? (p.card ? `-3px 0 0 0 ${SKY}` : `0 -3px 0 0 ${SKY}`) : p.dropEdge === "below" ? (p.card ? `3px 0 0 0 ${SKY}` : `0 3px 0 0 ${SKY}`) : "none",
         opacity: foldered ? 0.8 : p.isDragging ? 0.5 : 1, cursor: draggableRow ? "grab" : "pointer",
       }}>
       <span style={{ color: MUTED, fontSize: 11, fontWeight: 800, minWidth: 18, borderRight: `1px solid ${EDGE}`, paddingRight: 6, fontVariantNumeric: "tabular-nums" }}>
@@ -645,12 +693,12 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
           click and drag still own the whole area. */}
       {p.thumb && (
         <span className="sa-spine-thumb" style={{ display: "inline-flex", flex: "0 0 auto", pointerEvents: "none", borderRadius: 4, overflow: "hidden", border: `1px solid ${EDGE}`, opacity: f.skipped ? 0.45 : 1 }}>
-          <PhoneFrame frame={f} frames={p.frames} index={i} set={p.set} topicName={p.topicName} w={THUMB_W} live={false} rounded={false}
+          <PhoneFrame frame={f} frames={p.frames} index={i} set={p.set} topicName={p.topicName} w={p.card ? 86 : THUMB_W} live={false} rounded={false}
             progress={progress} layout={p.layout} backdrop={p.backdrop} />
         </span>
       )}
       <span style={kindTag(p.color)}>{p.label}</span>
-      <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{p.snippet}</span>
+      <span style={{ fontSize: p.card ? 11 : 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: p.card ? undefined : 1, textDecoration: f.skipped ? "line-through" : "none" }}>{p.snippet}</span>
       {/* SAME CARD, TWICE — say so on the row (2026-09-09). Lee duplicated Prepaid Rent
           meaning to make the copy a different question, and could not see that the two slides
           were one card until he edited one and both changed. A duplicate is a real thing he
@@ -661,7 +709,7 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
       {/* Lines are made on Rehearse & Film (2026-09-07); the count still shows here so the spine says which slides have them. */}
       {p.prompterLines > 0 && <span title={`${p.prompterLines} teleprompter line${p.prompterLines > 1 ? "s" : ""} — made on Rehearse & Film`} style={{ fontSize: 10, color: MINT, fontWeight: 800 }}>🗒{p.prompterLines}</span>}
       {p.tightened && <span title="Tighten all: a proposal is waiting on this slide — open it to use or dismiss it" style={{ fontSize: 11 }}>🪄</span>}
-      <span className="sa-spine-tools" style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: 2 }}>
+      <span className="sa-spine-tools" style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: p.card ? 0 : 2, flexWrap: p.card ? "wrap" : "nowrap" }}>
         {/* TWO KINDS OF COPY, both on the row (2026-09-09). Lee reached for ⧉ expecting the
             second one: "I need to be able to clone a CEQ and edit it independently. I tried
             and it didn't work. See how I have two Q9's… I have Prepaid Rent first, then I
@@ -749,7 +797,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
    *  leaves him at the top wondering where it went. */
   const showMoved = useCallback((id: string) => {
     setSelId(id);
-    window.setTimeout(() => document.querySelector(`[data-frame-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 80);
+    window.setTimeout(() => document.querySelector(`[data-frame-id="${CSS.escape(id)}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" }), 80);
   }, [setSelId]);
   const sel = frames.find((f) => f.id === selId) ?? frames[0] ?? null;
   const selIdx = sel ? frames.indexOf(sel) : -1;
@@ -762,7 +810,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   useEffect(() => {
     if (!initialSelectedId || scrolledTo.current === initialSelectedId || !frames.some((f) => f.id === initialSelectedId)) return;
     scrolledTo.current = initialSelectedId;
-    document.querySelector(`[data-frame-id="${CSS.escape(initialSelectedId)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    document.querySelector(`[data-frame-id="${CSS.escape(initialSelectedId)}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   }, [initialSelectedId, frames]);
 
   // Which face the right panel shows. Read lazily: the panel only renders once
@@ -813,8 +861,9 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     if (!want || focused.current === `${set.id}:${focusTake}`) return;
     focused.current = `${set.id}:${focusTake}`;
     setCollapsed(() => new Set(takes.filter((t) => t.headId !== want.headId).map((t) => t.headId)));
-    window.setTimeout(() => document.querySelector(`[data-frame-id="${CSS.escape(want.headId)}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" }), 50);
-  }, [focusTake, takes, collapsedState.setId, set.id, setCollapsed]);
+    setSelId(want.headId);
+    window.setTimeout(() => document.querySelector(`[data-frame-id="${CSS.escape(want.headId)}"]`)?.scrollIntoView({ inline: "start", block: "nearest", behavior: "smooth" }), 50);
+  }, [focusTake, takes, collapsedState.setId, set.id, setCollapsed, setSelId]);
   /** A one-line note on the spine's header row — the pop-out's fate — for a few seconds. */
   const [spineNote, setSpineNote] = useState<string | null>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1397,11 +1446,17 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
    *  row's place in the actual film order (undefined inside the folder, where a
    *  slide has no such place); `foldered` turns off drag (a skipped card's order
    *  relative to other skipped cards films nothing, so there is nothing to reorder). */
-  const spineRow = (f: BlastFrame, i: number, opts: { number?: number; foldered?: boolean; thumb?: boolean } = {}) => {
+  /** THE GAP'S "+" (2026-09-10): the quick kinds and a blank, inserted after the slide the gap
+   *  follows — not after whatever happens to be selected. */
+  const gapKinds = (f: BlastFrame) => [
+    ...QUICK.map((q) => ({ label: q.label, color: KIND_COLOR[q.kind] ?? MUTED, add: () => insertAfter(f.id, q.kind, q.patch ?? {}, true) })),
+    { label: "Blank", color: MUTED, add: () => insertAfter(f.id, "blank", {}, true) },
+  ];
+  const spineRow = (f: BlastFrame, i: number, opts: { number?: number; foldered?: boolean; thumb?: boolean; card?: boolean } = {}) => {
     const foldered = !!opts.foldered;
     const prog = progress.get(f.id);
     return (
-      <SpineRow key={f.id} frame={f} i={i} number={opts.number} foldered={foldered} thumb={!!opts.thumb}
+      <SpineRow key={f.id} frame={f} i={i} number={opts.number} foldered={foldered} thumb={!!opts.thumb} card={!!opts.card}
         isSelected={f.id === sel?.id} isPicked={pickedSet.has(f.id) && pick.ids.length > 1} isMenuOpen={menuId === f.id} isDragging={dragId === f.id}
         dropEdge={!foldered && over?.i === i && dragId !== f.id ? (over.below ? "below" : "above") : null}
         label={labelOf(f)} color={colorOf(f)} snippet={snippet(f)}
@@ -1415,9 +1470,13 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 18, alignItems: "start" }}>
-      {/* ------------------------------------------------ LEFT: the spine */}
-      <section>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* ------------------------------------------------ TOP: the spine, as a strip
+          (Lee, 2026-09-10: "the slide spine is HORIZONTAL, not vertical. There's too much
+          scrolling… slideable left to right, the hover +, split, etc. on the right side instead
+          of bottom, the slide preview and the editor/illustrator next to each other, two columns
+          centered"). Sticky, so the strip stays while the columns below scroll. */}
+      <section style={{ position: "sticky", top: 0, zIndex: 6, background: V3_NAVY, paddingBottom: 4 }}>
         <style>{SPINE_CSS}</style>
         <div className="flex items-center" style={{ gap: 8, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
           <span style={eyebrow}>Film draft</span>
@@ -1500,17 +1559,14 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
             what he is scanning for. The choice is remembered per browser. */}
         <div className="flex items-center" style={{ gap: 8, marginBottom: 5 }}>
           <span style={subhead}>Running order</span>
-          <button onClick={() => setStripView(stripView === "film" ? "list" : "film")} style={{ ...chip(stripView === "film", GOLD), marginLeft: "auto", padding: "2px 8px", fontSize: 10 }}
-            title={stripView === "film" ? "Show the running order as text rows" : "Show the running order as slides"}>
-            {stripView === "film" ? "▤ list" : "▦ slides"}
-          </button>
+          <span style={{ fontSize: 10.5, color: MUTED }}>· scroll sideways · hover the gap after a slide for ＋ ⧉+ ✂ · Ctrl+Z undoes</span>
         </div>
         {/* THE GAP BETWEEN TWO SLIDES IS A CONTROL (2026-09-09). Lee: "When I hover underneath a
             slide in the spine, just put a + there that pops up to add a new slide OR put a clone
             button… AND have a scissor icon for cutting there." Everything he does between slides
             is now done between slides, instead of in a panel somewhere else. A run of slides
             between two cuts is one Short, and it collapses. */}
-        <div className={`sa-spine flex flex-col${dragZoom ? " is-dragging" : ""}`} style={{ gap: 5 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
+        <div className={`sa-spine sa-spine-h flex${dragZoom ? " is-dragging" : ""}`} style={{ gap: 14, overflowX: "auto", alignItems: "flex-start", paddingBottom: 8 }} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); }}>
           {/* ONE RUN PER TAKE (2026-09-09), each with THE BRACKET in a left gutter — Lee's notes:
               a left-gutter Excel bracket per split, with a film icon on it. A
               2 px gold rule with caps spans the run; ▾/▸ folds it, 🎬 pops the 9:16 window out on
@@ -1523,25 +1579,21 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
             const empty = emptyHeads.has(take.headId);
             const count = take.frames.length;
             return (
-              <div key={take.headId} style={{ display: "grid", gridTemplateColumns: "22px 1fr", columnGap: 4, alignItems: "stretch" }}>
-                <div style={{ position: "relative", alignSelf: isCollapsed ? "start" : "stretch", height: isCollapsed ? 24 : undefined, minHeight: 24 }}>
-                  <span aria-hidden style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 6, borderLeft: `2px solid ${GOLD}`, borderTop: `2px solid ${GOLD}`, borderBottom: `2px solid ${GOLD}`, borderRadius: "3px 0 0 3px", pointerEvents: "none", boxSizing: "border-box" }} />
-                  <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 2, marginLeft: 3, marginTop: isCollapsed ? 3 : 4 }}>
-                    {hasCuts && (
-                      <button style={gutterBtn} title={isCollapsed ? "Expand this split" : "Collapse this split"} aria-expanded={!isCollapsed} onClick={() => toggleGroup(take.headId)}>{isCollapsed ? "▸" : "▾"}</button>
-                    )}
-                    {!isCollapsed && (
-                      <button style={gutterBtn} title={hasCuts ? "Film this split — pops out the 9:16 window" : "Film this set"} onClick={() => filmTake(take)}>🎬</button>
-                    )}
-                  </div>
+              <div key={take.headId} style={{ display: "flex", flexDirection: "column", gap: 4, flex: "0 0 auto", borderLeft: `2px solid ${GOLD}`, paddingLeft: 6 }}>
+                <div className="flex items-center" style={{ gap: 4 }}>
+                  {hasCuts && (
+                    <button style={gutterBtn} title={isCollapsed ? "Expand this split" : "Collapse this split"} aria-expanded={!isCollapsed} onClick={() => toggleGroup(take.headId)}>{isCollapsed ? "▸" : "▾"}</button>
+                  )}
+                  <button style={gutterBtn} title={hasCuts ? "Film this split — pops out the 9:16 window" : "Film this set"} onClick={() => filmTake(take)}>🎬</button>
+                  {!hasCuts && <span style={{ fontSize: 10, color: MUTED }}>{count} slides</span>}
                 </div>
-                <div className="flex flex-col" style={{ gap: 5, minWidth: 0 }}>
+                <div className="flex flex-col" style={{ gap: 4, minWidth: 0 }}>
                   {isCollapsed ? (
                     <button onClick={() => toggleGroup(take.headId)} title="Expand this split"
                       onDragOver={(e) => { e.preventDefault(); setOver({ i: firstReal, below: false }); }}
                       onDrop={(e) => { e.preventDefault(); drop(); }}
                       style={{
-                        display: "flex", alignItems: "center", gap: 6, textAlign: "left", width: "100%", cursor: "pointer", fontFamily: "inherit",
+                        display: "flex", alignItems: "center", gap: 6, textAlign: "left", minWidth: 170, cursor: "pointer", fontFamily: "inherit",
                         background: PANEL, border: `1px solid ${over?.i === firstReal && !over.below ? SKY : EDGE}`, borderRadius: 7, padding: "4px 10px",
                         fontSize: 11, fontWeight: 800, color: CREAM, boxShadow: over?.i === firstReal && !over.below ? `0 -3px 0 0 ${SKY}` : "none",
                       }}>
@@ -1555,8 +1607,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                           now, it's only letting me collapse 2nd split onward"). The label is the take's
                           name, typed right here. */}
                       {hasCuts && (
-                        <div className="flex items-center" style={{ gap: 8, margin: "6px 0 2px", flexWrap: "wrap" }}>
-                          <span style={{ flex: 1, height: 1, background: `${GOLD}55`, minWidth: 12 }} />
+                        <div className="flex items-center" style={{ gap: 8, margin: "0 0 2px", flexWrap: "nowrap" }}>
+                          <span style={{ flex: 1, height: 1, background: `${GOLD}55`, minWidth: 6 }} />
                           {renamingHead === take.headId ? (
                             <input
                               autoFocus defaultValue={take.name}
@@ -1588,16 +1640,18 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                           <span style={{ flex: 1, height: 1, background: `${GOLD}55`, minWidth: 12 }} />
                         </div>
                       )}
-                      {take.frames.map((f) => {
-                        const i = indexOf.get(f.id) ?? -1;
-                        return (
-                          <Fragment key={f.id}>
-                            {spineRow(f, i, { number: numberOf.get(f.id), thumb: stripView === "film" })}
-                            <GapTools onInsert={() => { setSelId(f.id); setInsertOpen(true); }} onClone={() => void cloneAfter(f, i)} onCut={() => cutAfter(f)} cut={!!f.cutAfter}
-                              onOver={() => setOver({ i, below: true })} onDrop={drop} />
-                          </Fragment>
-                        );
-                      })}
+                      <div className="flex" style={{ gap: 2, alignItems: "stretch" }}>
+                        {take.frames.map((f) => {
+                          const i = indexOf.get(f.id) ?? -1;
+                          return (
+                            <Fragment key={f.id}>
+                              {spineRow(f, i, { number: numberOf.get(f.id), thumb: true, card: true })}
+                              <GapTools vertical kinds={gapKinds(f)} onInsert={() => { setSelId(f.id); setInsertOpen(true); }} onClone={() => void cloneAfter(f, i)} onCut={() => cutAfter(f)} cut={!!f.cutAfter}
+                                onOver={() => setOver({ i, below: true })} onDrop={drop} />
+                            </Fragment>
+                          );
+                        })}
+                      </div>
                     </>
                   )}
                 </div>
@@ -1647,12 +1701,13 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
         </div>
       )}
 
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 18, alignItems: "start", width: "100%", maxWidth: 1180, margin: "0 auto" }}>
       {/* --------------------------------------------- MIDDLE: the slide
           IT FOLLOWS HIM DOWN (2026-09-09). Lee: "Let the slide preview follow me as I scroll
           down from the spine, so I don't have to scroll back and forth." The spine is sixty
           rows long and the preview was pinned to the top of the page, so picking slide 40 meant
           scrolling back up to see what he had picked. Sticky, under the step bar's height. */}
-      <section style={{ position: "sticky", top: 12, alignSelf: "start", maxHeight: "calc(100vh - 24px)", overflowY: "auto" }}>
+      <section style={{ alignSelf: "start" }}>
         {sel && (
           <SlidePane key={sel.id} sel={sel} idx={selIdx} count={frames.length} label={labelOf(sel)} viewSet={viewSet} topic={topic}
             progress={progress.get(sel.id)}
@@ -1663,7 +1718,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
             onGoHere={() => {
               const t = takeOf.get(sel.id)?.take;
               if (t) setCollapsed((c) => { if (!c.has(t.headId)) return c; const x = new Set(c); x.delete(t.headId); return x; });
-              window.setTimeout(() => document.querySelector(`[data-frame-id="${CSS.escape(sel.id)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
+              window.setTimeout(() => document.querySelector(`[data-frame-id="${CSS.escape(sel.id)}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" }), 60);
             }}
             onPatch={(p) => patch(sel.id, p)}
             shorten={shortenReq ? { on: shortenId === sel.id, open: openShorten } : null} />
@@ -1708,6 +1763,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
           onPatchKind={(p) => patchKind(sel.kind, p)}
           onSaved={(d, edits) => { if (sel.ceqId) setOverrides((o) => ({ ...o, [sel.ceqId!]: { ...d, edits } })); }} />
       )}
+      </div>
     </div>
   );
 }
