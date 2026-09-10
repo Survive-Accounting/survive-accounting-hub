@@ -13,11 +13,20 @@ import { useMemo, useState } from "react";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { allowedOffsets, REMINDER_DISCLOSURE, scheduleExamReminder } from "@/lib/exam-reminder.functions";
 
-/** Today in the browser's own local reckoning, YYYY-MM-DD — the min for the date input. */
-function todayISO(): string {
+/** A local-calendar date, YYYY-MM-DD, `plus` days from today. 0 = today (the input's min). */
+function localISO(plus = 0): string {
   const d = new Date();
+  d.setDate(d.getDate() + plus);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+const todayISO = () => localISO(0);
+/** THE DEFAULT EXAM DATE — two weeks out (Lee, 2026-09-10). An empty date input renders as a blank
+ *  grey box on iPhone, so the field looked like nothing to tap; a real date in it makes it read as
+ *  a field, and two weeks out keeps every reminder offset (5..1 days) on the menu. */
+const DEFAULT_EXAM_DATE_DAYS_OUT = 14;
+/** The reminder offset every visitor starts on. With the default date two weeks out this is
+ *  always legal, so the stepper opens on 5 rather than collapsing to 1. */
+const DEFAULT_OFFSET_DAYS = 5;
 
 function daysOutLocal(dateISO: string): number {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) return -1;
@@ -32,9 +41,9 @@ const pretty = (iso: string) => {
 };
 
 export function ExamReminder({ campusId, courseCode }: { campusId?: string | null; courseCode?: string | null }) {
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(() => localISO(DEFAULT_EXAM_DATE_DAYS_OUT));
   const [phone, setPhone] = useState("");
-  const [offset, setOffset] = useState(5);
+  const [offset, setOffset] = useState(DEFAULT_OFFSET_DAYS);
   const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
   const [sentOn, setSentOn] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -83,24 +92,42 @@ export function ExamReminder({ campusId, courseCode }: { campusId?: string | nul
           When&apos;s your exam?
         </h2>
         <p className="mt-1 text-[14px]" style={{ color: "var(--text-secondary)" }}>
-          I&apos;ll text you before it with everything you need.
+          I&apos;ll text you a reminder to come study with Survive.
         </p>
 
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <input
-            type="date" value={date} min={todayISO()}
-            onChange={(e) => { setDate(e.target.value); if (state === "error") setState("idle"); }}
-            aria-label="Exam date"
-            className="min-w-0 flex-1 rounded-lg px-3 text-[14px] outline-none"
-            style={{ minHeight: 44, background: "rgba(0,0,0,0.3)", border: `1px solid ${past ? "#F3C6CC" : "var(--border-default)"}`, color: "var(--brand-cream)" }}
-          />
-          <input
-            type="tel" inputMode="tel" autoComplete="tel" placeholder="your phone" value={phone}
-            onChange={(e) => { setPhone(e.target.value); if (state === "error") setState("idle"); }}
-            aria-label="Your phone number"
-            className="min-w-0 flex-1 rounded-lg px-3 text-[14px] outline-none"
-            style={{ minHeight: 44, background: "rgba(0,0,0,0.3)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
-          />
+        {/* LABELLED FIELDS (Lee, 2026-09-10). On iPhone an unlabelled, empty date input painted as a
+            faint grey box with no hint of what it was — the label above each field and the explicit
+            dark styling (color-scheme: dark, so WebKit's native date control draws light text on
+            the dark field instead of its default light chrome) make both read as fields. 16px type
+            keeps iOS from zooming the page on focus and never zooming back. */}
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <label className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="text-[12px] font-bold" style={{ color: "var(--text-muted)", letterSpacing: "0.04em" }}>Exam date</span>
+            <input
+              type="date" value={date} min={todayISO()}
+              onChange={(e) => { setDate(e.target.value); if (state === "error") setState("idle"); }}
+              aria-label="Exam date"
+              className="w-full min-w-0 rounded-lg px-3 outline-none"
+              // NATIVE APPEARANCE ON PURPOSE: `-webkit-appearance: none` on an iOS date input
+              // collapses its content box and hides the value — the very "blank field" this fixes.
+              // display:block + the explicit box keeps it the same 44px as the phone field beside it.
+              style={{
+                display: "block", boxSizing: "border-box",
+                minHeight: 44, fontSize: 16, fontFamily: "inherit", colorScheme: "dark",
+                background: "rgba(0,0,0,0.3)", border: `1px solid ${past ? "#F3C6CC" : "var(--border-default)"}`, color: "var(--brand-cream)",
+              }}
+            />
+          </label>
+          <label className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="text-[12px] font-bold" style={{ color: "var(--text-muted)", letterSpacing: "0.04em" }}>Your phone</span>
+            <input
+              type="tel" inputMode="tel" autoComplete="tel" placeholder="(555) 555-5555" value={phone}
+              onChange={(e) => { setPhone(e.target.value); if (state === "error") setState("idle"); }}
+              aria-label="Your phone number"
+              className="w-full min-w-0 rounded-lg px-3 outline-none"
+              style={{ minHeight: 44, fontSize: 16, background: "rgba(0,0,0,0.3)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
+            />
+          </label>
         </div>
         {past && <p className="mt-2 text-[12.5px]" style={{ color: "#F3C6CC" }}>That date has already passed.</p>}
 

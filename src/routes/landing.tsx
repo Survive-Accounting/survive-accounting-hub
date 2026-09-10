@@ -45,6 +45,8 @@ import { openClaimStep, SEAT_MINIMUM, SEAT_PRICE } from "@/components/site/Chapt
 import { revealInContainer, scrollToId } from "@/lib/ui-scroll";
 import { CourtesyLine } from "@/components/site/CourtesyLine";
 import { SearchPicker } from "@/components/site/SearchPicker";
+import { NotListedForm } from "@/components/site/NotListedForm";
+import { submitIntake } from "@/lib/intake.functions";
 import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
 import { useDismiss } from "@/lib/use-dismiss";
 import { fetchCourseOptions } from "@/lib/je-api";
@@ -764,9 +766,10 @@ function SchoolTicker({ size = 14, className = "mt-3 w-full max-w-md", onPick }:
 // — this is the one page on the site that sounds like a person, which is why it works. The phone
 // number appears in exactly ONE answer (the persistent Text-Lee button covers the rest).
 //
-// Callbacks come from the page so a link reuses the existing flow (the chapter finder, the syllabus
-// modal, the picker) rather than wiring a new route. When a page passes none, links fall back to a
-// real href so the FAQ still works wherever it renders.
+// The chapter-finder callback comes from the page so that link reuses the existing flow rather than
+// wiring a new route; when a page passes none, it falls back to a real href so the FAQ still works
+// wherever it renders. (2026-09-10: the syllabus link is a plain /send link and the school write-in
+// renders inline — see studentFaqs.)
 /** THE STUDENT FAQ (rebuilt 2026-09-09) — ONE FLAT LIST, not four category toggles.
  *
  *  It used to be grouped ("The basics" / "The content" / "Greek life" / "Working with me")
@@ -780,7 +783,10 @@ function SchoolTicker({ size = 14, className = "mt-3 w-full max-w-md", onPick }:
  *  Answers are trimmed to 1-3 short sentences on purpose (comp spec) — this is a landing page, not
  *  a help center. Existing flows (syllabus modal, chapter finder, school write-in, notify capture)
  *  are unchanged; only the copy around them got shorter. */
-function studentFaqs(cb: { onSyllabus?: () => void; onFindChapter?: () => void; onNotListed?: () => void }): Array<{ q: string; a: React.ReactNode }> {
+// (2026-09-10) onSyllabus / onNotListed are gone from here: the syllabus link now goes to /send and
+// the school write-in renders INLINE (FaqNotListed), so the only flow the page still hands down is
+// the chapter finder.
+function studentFaqs(cb: { onFindChapter?: () => void }): Array<{ q: string; a: React.ReactNode }> {
   return [
     // THE TOP THREE — shown by default, nothing else. Money, timing, and "will it fit my course",
     // in that order: the three things that block a decision before anything else matters.
@@ -790,80 +796,76 @@ function studentFaqs(cb: { onSyllabus?: () => void; onFindChapter?: () => void; 
     },
     {
       q: "My exam is tomorrow. Is this still worth it?",
-      a: "That's what Survive is built for. Start with the cram videos — they're two minutes or less — then hit the practice questions if you have time.",
+      a: "That's what Survive is built for. Start with the cram videos — they're three minutes or less — then hit the practice questions if you have time.",
     },
+    // MERGED (Lee, 2026-09-10): "Will this work for my course?" and the old long "What if you
+    // don't have my school?" were two answers to one worry. One question now, and the syllabus
+    // link goes to /send — the page built for exactly that — rather than the in-page drawer.
     {
       q: "Will this work for my course?",
       a: (
-        <>
-          <p>Intro accounting overlaps a lot from school to school. Pick your school if it&apos;s listed. If it isn&apos;t, send me your syllabus and I&apos;ll make sure you&apos;re covered.</p>
-          <p className="mt-2.5"><FaqLink onClick={cb.onSyllabus} href="/chapters">Send your syllabus →</FaqLink></p>
-        </>
+        <p>
+          Intro accounting overlaps a lot from school to school, so I&apos;m confident the videos and practice exams will help. If you&apos;d like,{" "}
+          <FaqLink href="/send">send me your syllabus</FaqLink> and I&apos;ll get in touch personally to make sure you&apos;re covered.
+        </p>
       ),
     },
     // EVERYTHING BELOW IS BEHIND "Show more questions" — one clean accordion list, no second
     // category layer. Order still matters (most-asked first); it just isn't labelled anymore.
     {
       q: "Will this replace my lectures?",
-      a: "No. This is exam prep. Go to class — use this when it's time to actually get ready.",
+      a: "It's built to get you ready for your exam fast. Use it alongside class and lectures make a lot more sense.",
     },
+    // A NUDGE, not a syllabus ask (Lee, 2026-09-10): the honest answer to "how do you make it" is
+    // "go look — Exam 1 is free". The link is the doors anchor every navbar already uses.
     {
       q: "How do you make your content?",
       a: (
         <>
           <p>Ten years of tutoring taught me where professors hide the tricky parts, so I teach you to recognize the type of problem instead of memorizing one version of it.</p>
-          <p className="mt-2.5"><FaqLink onClick={cb.onSyllabus} href="/chapters">Send your syllabus →</FaqLink> and I&apos;ll match my content to your course.</p>
+          <p className="mt-2.5">The fastest way to see it is to try it. Exam 1 is free — <FaqLink href="/#exam1">start cramming now →</FaqLink></p>
         </>
       ),
     },
+    // SHORT on purpose — the merged question above already says the videos will carry you. This one
+    // just opens the same tell-me-your-school write-in every school picker uses (NotListedForm).
     {
       q: "What if you don't have my school?",
-      a: (
-        <>
-          <p>Intro accounting is close to the same course almost everywhere, so these will still carry you. Tell me your school and I&apos;ll add it.</p>
-          <p className="mt-2.5">
-            <FaqLink onClick={cb.onNotListed} href="/chapters">Don&apos;t see your school? →</FaqLink>
-            <span aria-hidden style={{ opacity: 0.5 }}> · </span>
-            <FaqLink onClick={cb.onSyllabus} href="/chapters">Send your syllabus →</FaqLink>
-          </p>
-        </>
-      ),
+      a: <FaqNotListed />,
     },
     {
-      q: "I'm not in a fraternity or sorority. Can I still use this?",
-      a: "For sure — everything works the same. Chapters have a group option, but Exam 1 is free for anyone.",
+      q: "I'm not in a fraternity or sorority — can I still use this?",
+      a: "Absolutely. Everyone gets the same experience, and Exam 1 is free for anyone. Chapters just have the option to study as a group.",
     },
     {
       q: "How does this work with fraternities and sororities?",
       a: (
         <>
-          <p>Your chapter gets its own page and Exam 1 is free for every member. Chapters that want the whole semester can sponsor seats at $100 each.</p>
+          <p>Chapters that want Survive for the whole semester can sponsor seats for their members.</p>
           <p className="mt-2.5"><FaqLink onClick={cb.onFindChapter} href="/chapters">Find your chapter →</FaqLink></p>
         </>
       ),
     },
     {
-      q: "Do you do 1-on-1 tutoring?",
+      q: "Do you do one-on-one tutoring?",
       a: (
-        <>
-          <p>A little — most of my week goes to filming now, but I keep a few hours open at $120/hr.</p>
-          <FaqNotify topic="1-on-1 tutoring" cta="Contact me →" />
-        </>
+        <p>Not this fall. For fall 2026 I&apos;m focused entirely on new video content and reaching students at 200 universities. If you want to help with that, <FaqLink href="/rep/join">become a campus rep</FaqLink>.</p>
       ),
     },
     {
-      q: "Are you doing live streams?",
+      q: "Do you do live Q&A?",
       a: (
         <>
-          <p>Thinking about it — live test-prep sessions before big exams. Drop your email if you&apos;d want in.</p>
-          <FaqNotify topic="Live test-prep streams" cta="Notify me →" />
+          <p>I&apos;d love to try it! Live test-prep sessions before big exams would be a blast. Drop your email if you&apos;d want in.</p>
+          <FaqLiveQaCapture />
         </>
       ),
     },
+    // LAST ON PURPOSE (see the section header): the FAQ closes on a person, not a policy.
     {
       q: "What if I watch everything and still feel lost?",
       a: (
-        <p>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a>. I read every message myself.</p>
+        <p>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a>. I&apos;ll help you get back on track and point you to the exact videos you need. I respond to every message.</p>
       ),
     },
   ];
@@ -900,7 +902,7 @@ const GREEK_FAQS: Array<{ q: string; a: string }> = [
   },
 ];
 
-export function Faq({ greek, onSyllabus, onFindChapter, onNotListed }: { greek?: string; onSyllabus?: () => void; onFindChapter?: () => void; onNotListed?: () => void }) {
+export function Faq({ greek, onFindChapter }: { greek?: string; onFindChapter?: () => void }) {
   // THE CHAPTER FAQ — UNCHANGED (2026-09-09). Kept as its own early return, byte-for-byte the same
   // rendering the single-group case always produced, so nothing about the Greek chapter page's FAQ
   // moves, sizes, or behaves differently. Only the student branch below was touched this pass.
@@ -926,7 +928,7 @@ export function Faq({ greek, onSyllabus, onFindChapter, onNotListed }: { greek?:
   // accordions in the same flat list. See studentFaqs() for why these three lead and why the
   // answers are this short.
   const [showMore, setShowMore] = useState(false);
-  const all = studentFaqs({ onSyllabus, onFindChapter, onNotListed });
+  const all = studentFaqs({ onFindChapter });
   const HEAD_COUNT = 3;
   const visible = showMore ? all : all.slice(0, HEAD_COUNT);
   return (
@@ -982,7 +984,11 @@ function FaqCard({ f, defaultOpen = false }: { f: { q: string; a: React.ReactNod
       </button>
       {open && (
         // A DIV, not a P: answers can now hold multiple paragraphs, links and inline email captures.
-        <div id={id} className="px-4 pb-3.5 text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.72 }}>{f.a}</div>
+        // DIMMED VIA COLOUR, NOT OPACITY: opacity on the panel dimmed everything inside it, including
+        // the school write-in form (NotListedForm) that now lives in one answer — a form at 72% reads
+        // as disabled. Mixing the cream down to 72% gives the prose the same weight and leaves the
+        // form's own surfaces and the amber links at full strength.
+        <div id={id} className="px-4 pb-3.5 text-[14px] leading-relaxed" style={{ color: "color-mix(in srgb, var(--brand-cream) 72%, transparent)" }}>{f.a}</div>
       )}
     </div>
   );
@@ -997,19 +1003,39 @@ function FaqLink({ onClick, href, children }: { onClick?: () => void; href?: str
   return <a href={href ?? "#"} className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>{children}</a>;
 }
 
-/** A small inline email capture for the FAQ. The two in "Do you do live tutoring?" store under
- *  DISTINCT topics ("1-on-1 tutoring" vs "Live test-prep streams") so the two lists stay separate. */
-function FaqNotify({ topic, cta }: { topic: string; cta: string }) {
+/** THE LIVE Q&A CAPTURE (Lee, 2026-09-10) — the one inline email field left in the FAQ. Rides the
+ *  unified intake (submitIntake, kind notify_exam) rather than the old submitNotify topic list, so
+ *  the row lands where every other web capture does and the confirmation email goes out with it.
+ *  The success line is HONEST: it only says an email went out when the intake reports one did. */
+function FaqLiveQaCapture() {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
+  const [emailed, setEmailed] = useState(false);
   const ok = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
   const send = async () => {
     if (!ok || state === "busy" || state === "done") return;
     setState("busy");
-    try { await submitNotify({ data: { contact: email.trim(), topic } }); setState("done"); }
-    catch { setState("error"); }
+    try {
+      const r = await submitIntake({ data: {
+        kind: "notify_exam",
+        email: email.trim(),
+        note: "live Q&A interest",
+        sourcePath: "/",
+        source: "faq-live-qa",
+        isTest: readIsTest(),
+      } });
+      setEmailed(!!r.confirmation.email);
+      rememberStudentEmail(email.trim());
+      setState("done");
+    } catch { setState("error"); }
   };
-  if (state === "done") return <p className="mt-2 text-[13.5px] font-bold" style={{ color: "var(--accent)" }}>Got it — I&apos;ll be in touch. ✓</p>;
+  if (state === "done") {
+    return (
+      <p className="mt-2 text-[13.5px] font-bold" style={{ color: "var(--accent)" }}>
+        {emailed ? "You're in — I just sent you a confirmation email." : "You're in. I'll email you when I schedule the first one."}
+      </p>
+    );
+  }
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
       <input
@@ -1017,15 +1043,36 @@ function FaqNotify({ topic, cta }: { topic: string; cta: string }) {
         value={email}
         onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("idle"); }}
         onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
-        aria-label={cta}
-        className="min-w-0 flex-1 rounded-lg px-3 text-[14px] outline-none"
-        style={{ minHeight: 42, background: "rgba(0,0,0,0.3)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
+        aria-label="Email me about live Q&A sessions"
+        className="min-w-0 flex-1 rounded-lg px-3 outline-none"
+        // 16px explicitly — under it iOS zooms the page on focus and never zooms back.
+        style={{ minHeight: 42, fontSize: 16, background: "rgba(0,0,0,0.3)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
       />
       <button type="button" onClick={() => void send()} disabled={!ok || state === "busy"} className="rounded-lg px-4 text-[13.5px] font-black disabled:opacity-45" style={{ minHeight: 42, background: "var(--accent)", color: "#0B1220" }}>
-        {state === "busy" ? "…" : cta}
+        {state === "busy" ? "…" : "Count me in →"}
       </button>
       {state === "error" && <span className="text-[12px]" style={{ color: "#F3C6CC" }}>Try again?</span>}
     </div>
+  );
+}
+
+/** "TELL ME YOUR SCHOOL!" — the FAQ's school write-in. The link opens the SAME NotListedForm every
+ *  school picker's "Don't see your school?" opens (solo variant: no chapter field), inline under
+ *  the sentence, so the FAQ never grows a second capture that stores somewhere else. (FaqCard dims
+ *  its answer via colour rather than opacity precisely so this form renders at full strength.) */
+function FaqNotListed() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <p>
+        <FaqLink onClick={() => { setOpen(true); track("school_not_listed"); }}>Tell me your school!</FaqLink>
+      </p>
+      {open && (
+        <div className="mt-3">
+          <NotListedForm kind="school" askChapter={false} onClose={() => setOpen(false)} />
+        </div>
+      )}
+    </>
   );
 }
 

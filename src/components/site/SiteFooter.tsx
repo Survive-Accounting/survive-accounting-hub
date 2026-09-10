@@ -39,7 +39,7 @@ export function gmailComposeHref(to: string, subject?: string, body?: string): s
   return `https://mail.google.com/mail/?${p.toString()}`;
 }
 
-type Col = { title: string; links: Array<{ label: string; href?: string; onClick?: () => void; icon?: React.ReactNode; external?: boolean }> };
+type Col = { title: string; links: Array<{ label: React.ReactNode; href?: string; onClick?: () => void; icon?: React.ReactNode; external?: boolean }> };
 
 export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
   // Same-page anchors only where those sections exist; absolute everywhere else.
@@ -47,7 +47,6 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
   const [founder, setFounder] = useState(false);
   // The council pages are being rebuilt, so the four "For <council>" links are not wired to a page
   // yet — clicking one explains that rather than 404ing on an unseeded campus (p3 decision).
-  const [maint, setMaint] = useState(false);
 
   const columns: Col[] = [
     {
@@ -62,23 +61,23 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
       ],
     },
     {
-      // GREEK COUNCILS (rebuilt p3). "Find your chapter" is the one live, arbitrary-campus page
-      // (/chapters works for every seeded school). The four "For <council>" pages exist only per
-      // seeded (school, council) pair, so until there is a generic council page they open a quiet
-      // "under maintenance" note instead of a dead link.
+      // GREEK COUNCILS. "Find your chapter" is the one live, arbitrary-campus page (/chapters works
+      // for every seeded school). The four "For <council>" links REOPENED 2026-09-10 (Lee: "go
+      // ahead and reopen the four council links at the footer… I wanna go test those out") — they
+      // land on the generic council page, which finds the visitor's own council from there.
       title: "Greek Councils",
       links: [
         { label: "Find your chapter", href: "/chapters" },
-        { label: "For IFC", onClick: () => setMaint(true) },
-        { label: "For Panhellenic", onClick: () => setMaint(true) },
-        { label: "For NPHC", onClick: () => setMaint(true) },
-        { label: "For MGC", onClick: () => setMaint(true) },
+        { label: "For IFC", href: "/partners/campus-councils" },
+        { label: "For Panhellenic", href: "/partners/campus-councils" },
+        { label: "For NPHC", href: "/partners/campus-councils" },
+        { label: "For MGC", href: "/partners/campus-councils" },
       ],
     },
     {
       title: "Help",
       links: [
-        { label: `Text Lee ${PHONE}`, href: `sms:${TEL}`, icon: <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden /> },
+        { label: <>Text Lee <span style={{ whiteSpace: "nowrap" }}>{PHONE}</span></>, href: `sms:${TEL}`, icon: <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden /> },
         { label: EMAIL, href: gmailComposeHref(EMAIL), external: true, icon: <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden /> },
       ],
     },
@@ -128,8 +127,8 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
           <nav key={col.title} aria-label={col.title}>
             <p className="mb-1.5 text-[11px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>{col.title}</p>
             <ul>
-              {col.links.map((l) => (
-                <li key={l.label}>
+              {col.links.map((l, i) => (
+                <li key={`${col.title}-${i}`}>
                   {l.href ? (
                     <a
                       href={l.href}
@@ -151,32 +150,11 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
       </div>
 
       {founder && <FounderModal onClose={() => setFounder(false)} />}
-      {maint && <MaintenanceModal onClose={() => setMaint(false)} />}
     </footer>
   );
 }
 
 /** The council pages are mid-rebuild — a quiet note instead of a dead link (p3). */
-function MaintenanceModal({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  return (
-    <div className="fixed inset-0 z-[300] grid place-items-center px-4" style={{ background: "rgba(5,8,16,0.72)" }} onClick={onClose} role="dialog" aria-modal="true" aria-label="Under maintenance">
-      <div
-        className="w-full max-w-[360px] rounded-2xl p-5 text-center"
-        style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", fontFamily: BRAND_SANS }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p className="text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>Under maintenance</p>
-        <p className="mt-1.5 text-[14px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>This feature is currently under maintenance. Check back soon.</p>
-        <button onClick={onClose} className="mt-4 w-full rounded-xl text-[14px] font-black" style={{ minHeight: 46, background: "var(--accent)", color: "#0B1220" }}>Got it</button>
-      </div>
-    </div>
-  );
-}
 
 /** "HOW I BUILT THIS" (FINAL MILE H5) — the Learn-How panel: the build story, a quiet one-field
  *  capture (kept from the previous panel — same submitNotify path, its own topic), and the Ben

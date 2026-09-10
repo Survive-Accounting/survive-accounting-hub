@@ -50,9 +50,39 @@ export type LearnTheme = {
   primaryInk: string;
   /** True when the accent is the school's, not the lime fallback. */
   schoolAccent: boolean;
+  /** THE TOP BAR WEARS THE SCHOOL (Lee, 2026-09-10): c1 is the ground, c2 the rule beneath it, so
+   *  picking a school visibly changes the page — not just the accent. Ink is re-picked for
+   *  contrast; a c1 neither chalk nor black can read on keeps the Blackboard's black and wears the
+   *  school only as the rule. No school → black / border / chalk, exactly as before. */
+  topBg: string;
+  topBorder: string;
+  topInk: string;
+  topMuted: string;
 };
 
-const inkOn = (bg: string) => (contrast(bg, "#111111") >= contrast(bg, INK.text) ? "#111111" : INK.text);
+function inkOn(bg: string): string {
+  return contrast(bg, "#111111") >= contrast(bg, INK.text) ? "#111111" : INK.text;
+}
+
+/** `#RRGGBB` at an alpha — for muted text on a school-coloured ground, where INK.muted (tuned for
+ *  black) may not read. */
+export function withAlpha(hex: string, alpha: number): string {
+  const rgb = hexToRgb(hex);
+  return rgb ? `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})` : hex;
+}
+
+export type TopBar = { bg: string; border: string; ink: string; muted: string };
+
+/** The top bar's colours for a school's (c1, c2). 3:1 is the bar text has to clear on its ground
+ *  (the same WCAG line themeFor holds the accent to); below it the ground stays black. */
+export function topBarFor(c1: string | null | undefined, c2: string | null | undefined): TopBar {
+  const ground = c1 && hexToRgb(c1) ? c1 : null;
+  const rule = c2 && hexToRgb(c2) ? c2 : ground;
+  if (!ground) return { bg: INK.bg, border: INK.border, ink: INK.text, muted: INK.muted };
+  const ink = inkOn(ground);
+  if (contrast(ground, ink) < 3) return { bg: INK.bg, border: rule ?? INK.border, ink: INK.text, muted: INK.muted };
+  return { bg: ground, border: rule ?? ground, ink, muted: withAlpha(ink, 0.72) };
+}
 
 /** The theme for a school (or none). Candidates are the school's bright colour first, then its
  *  dark one; the first that clears 4.5:1 on the black wins. */
@@ -63,12 +93,17 @@ export function themeFor(school: Pick<School, "c1" | "c2"> | null | undefined): 
   // (button fills, chip highlights, the bolt) — text ON the accent is always re-picked for contrast.
   const accent = candidates.find((c) => contrast(c, INK.bg) >= 3) ?? null;
   const primary = c1 && hexToRgb(c1) ? c1 : null;
+  const top = topBarFor(c1, c2);
   return {
     accent: accent ?? INK.lime,
     accentInk: inkOn(accent ?? INK.lime),
     primary,
     primaryInk: primary ? inkOn(primary) : INK.text,
     schoolAccent: !!accent,
+    topBg: top.bg,
+    topBorder: top.border,
+    topInk: top.ink,
+    topMuted: top.muted,
   };
 }
 
@@ -85,6 +120,24 @@ export function themeStyle(t: LearnTheme): CSSProperties {
     ["--lk-acc-ink" as string]: t.accentInk,
     ["--lk-primary" as string]: t.primary ?? INK.surface,
     ["--lk-primary-ink" as string]: t.primaryInk,
+    ["--lk-top-bg" as string]: t.topBg,
+    ["--lk-top-border" as string]: t.topBorder,
+    ["--lk-top-ink" as string]: t.topInk,
+    ["--lk-top-muted" as string]: t.topMuted,
+    // THE BRIDGE (2026-09-10). Site components now hosted inside /learn — ExamReminder, the
+    // school picker's chrome (PICKER_CSS), NotListedForm — read the marketing palette by name.
+    // --bg-* live on :root, but --brand-cream / --text-muted / --accent are aliased only under
+    // html.sa-navy, which the marketing pages add in an effect and /learn never does. Mapping
+    // them here, on the room's root, paints those components in the Blackboard's own ink and
+    // accent without touching them.
+    ["--bg-overlay" as string]: INK.surface,
+    ["--bg-surface" as string]: INK.surface,
+    ["--bg-input" as string]: INK.surface2,
+    ["--border-default" as string]: INK.border,
+    ["--brand-cream" as string]: INK.text,
+    ["--text-muted" as string]: INK.muted,
+    ["--text-secondary" as string]: INK.muted,
+    ["--accent" as string]: t.accent,
   } as CSSProperties;
 }
 

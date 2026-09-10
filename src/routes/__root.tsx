@@ -23,7 +23,6 @@ import { TestModeBar } from "@/components/site/TestModeBar";
 import { IdeasDock } from "@/components/ideas/IdeasDock";
 import { ShippedDock } from "@/components/shipped/ShippedDock";
 import { CopyEdit } from "@/components/site/CopyEdit";
-import { ProductionTimer } from "@/components/v3/ProductionTimer";
 
 function NotFoundComponent() {
   return (
@@ -164,9 +163,9 @@ function RootComponent() {
       {/* ?copyedit (Lee, 2026-09-04): applies saved copy overrides on every page; with
           ?copyedit in the address and the team passcode, click any text to change it. */}
       <CopyEdit />
-      {/* THE PRODUCTION TIMER (Lee, 2026-09-05): auto-detects Talkthrough / Review / Film from
-          the URL on a Blast Off set; starts small, moves to the top right once running. */}
-      <ProductionTimer />
+      {/* THE PRODUCTION TIMER pill (Lee, 2026-09-05) is UNMOUNTED here since 2026-09-10 — Lee:
+          no admin pills anywhere a student can see. components/v3/ProductionTimer.tsx keeps the
+          component and SettingsGear (Shell.tsx's ⚙) intact; only this mount is gone. */}
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>

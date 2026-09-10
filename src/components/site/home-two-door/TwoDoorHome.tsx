@@ -38,6 +38,7 @@ import { SiteHeader, useBlackDocument, useNavyDocument } from "@/components/site
 import { Footer } from "@/components/site/SiteFooter";
 import { TestimonialsSlider } from "@/components/site/Testimonials";
 import { GreekWaitlistSheet } from "@/components/site/home-two-door/GreekWaitlistSheet";
+import { chapterShortName } from "@/components/site/ChapterShare";
 import { boltFor, Faq, PHONE, SCHOOLS, SectionDivider, SyllabusModal, TEL, type School } from "@/routes/landing";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
 import { track } from "@/lib/analytics";
@@ -335,13 +336,9 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
         </section>
 
         <SectionDivider />
-        {/* FAQ links reuse existing flows — the chapter door's picker→waitlist, the syllabus modal,
-            the school picker — rather than wiring new routes (p5). */}
-        <Faq
-          onSyllabus={() => setSyllabusOpen(true)}
-          onFindChapter={openChapter}
-          onNotListed={openSwitch}
-        />
+        {/* The FAQ's one page-handed flow is the chapter finder; its syllabus link goes to /send and
+            its school write-in renders inline (see landing.tsx studentFaqs, 2026-09-10). */}
+        <Faq onFindChapter={openChapter} />
 
         {/* THE END CAP — a student who has read the whole page is deciding. One text, on a day they
             pick, is the smallest useful thing to offer them at the bottom of it. */}
@@ -631,7 +628,22 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo,
             campuses these letters hold still, and they only start rotating once the bolt has
             settled on a school. Two doors moving at once is not twice as inviting, it is noise. */}
         <HomeDoorCard
-          icon={<GreekLettersIcon pinned={chapter?.letters ?? null} cycle={greekCycle} frozen={cycling} />}
+          icon={
+            // THE CHOSEN HOUSE LANDS IN THE DOOR (Lee, 2026-09-10). Keyed by chapter so a pick
+            // remounts it and replays the SAME arrival pop the solo bolt does when a school is
+            // chosen (sa-bolt-arrive — one keyframe set, one timing, reduced-motion safe). The
+            // letters are the roster's Greek letters when it has them; many rows do not, and an
+            // empty pin used to fall straight back to the cycling run — so the door kept scrolling
+            // past other houses after the visitor had just named theirs. The fallback is the same
+            // short name the /go chapter page's doors use (chapterShortName: nickname, else initials).
+            <span
+              key={chapter?.slug ?? "none"}
+              className={`sa-door-bolt${chapter ? " sa-door-bolt--arrive" : ""}`}
+              style={{ display: "inline-block" }}
+            >
+              <GreekLettersIcon pinned={chapter ? chapterIconLetters(chapter) : null} cycle={greekCycle} frozen={cycling} />
+            </span>
+          }
           switcher={
             known
               ? (chapter
@@ -705,6 +717,13 @@ function CampusBolt({ a, b, aFront }: { a: CampusStop; b: CampusStop; aFront: bo
   );
 }
 
+
+/** What the chapter DOOR wears once a house is chosen: its Greek letters when the roster has them,
+ *  else the same short name the /go chapter page's doors fall back to (nickname → initials → name).
+ *  Never empty — an empty pin would hand the icon back to the cycling run. */
+function chapterIconLetters(c: StoredChapter): string {
+  return (c.letters ?? "").trim() || chapterShortName(c.name, c.letters, c.nickname);
+}
 
 /** What the chapter line calls the house: its letters when we have them, else its name. */
 function chapterDisplay(c: StoredChapter): string {
@@ -928,6 +947,8 @@ ${CAMPUS_LINE_CSS}
 /* NO RESTING FADE (p9 §6). The bolt used to sit at half strength until a campus was known, which
    made the brand mark look switched-off on the very first screen a stranger sees. Fading belongs
    to the SWITCH, not to the default: with no campus it is simply the full-colour brand bolt. */
+/* SHARED WITH THE CHAPTER DOOR (2026-09-10): a chosen chapter's letters land in the right door with
+   this same arrival — one keyframe set, one timing, so the two doors answer a pick the same way. */
 .sa-door-bolt { transition: opacity 260ms ease; }
 @keyframes sa-bolt-arrive { 0% { opacity: 0.15; transform: scale(0.72); } 62% { transform: scale(1.06); } 100% { opacity: 1; transform: scale(1); } }
 .sa-door-bolt--arrive { animation: sa-bolt-arrive 320ms cubic-bezier(.2,.9,.3,1.2) both; }

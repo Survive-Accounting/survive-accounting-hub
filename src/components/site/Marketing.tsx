@@ -687,11 +687,13 @@ export function TutorCard({ onMore }: { onMore: () => void }) {
 }
 
 /** The full bio, verbatim, in a modal — a chip or "Learn more" opens it; nothing navigates away. */
-/** A THUMBNAIL WITH A CAPTION, for a modal that wants one personal aside. The
- *  thumbnail toggles a detail view the OWNER renders (see ContainedDetail) so the
- *  detail can cover the panel the aside sits in rather than the narrow column. */
-function PhotoAside({ width, open, onToggle, caption, thumbRef, children }: {
-  width: number; open: boolean; onToggle: () => void; caption: React.ReactNode;
+/** A THUMBNAIL for a modal that wants one personal aside. The thumbnail toggles a
+ *  detail view the OWNER renders (see ContainedDetail) so the detail can cover the
+ *  panel the aside sits in rather than the narrow column. NO CAPTION HERE (Lee,
+ *  2026-09-10): the one caption lives in the zoomed view, so the thumbnail reads as
+ *  a picture beside the heading rather than a captioned figure in its own column. */
+function PhotoAside({ width, open, onToggle, thumbRef, children }: {
+  width: number; open: boolean; onToggle: () => void;
   /** The owner passes a ref so focus can come back to the thumbnail when the detail closes. */
   thumbRef: React.RefObject<HTMLDivElement | null>;
   children: (onZoom: () => void) => React.ReactNode;
@@ -699,9 +701,6 @@ function PhotoAside({ width, open, onToggle, caption, thumbRef, children }: {
   return (
     <figure className="shrink-0" style={{ width }}>
       <div ref={thumbRef} aria-expanded={open}>{children(onToggle)}</div>
-      <figcaption className="mt-2 text-[11px] leading-snug" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
-        {caption}
-      </figcaption>
     </figure>
   );
 }
@@ -788,50 +787,49 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
           <span aria-hidden style={{ fontSize: 20 }}>×</span>
         </button>
 
-        {/* TWO COLUMNS on a desktop — the photo and its caption in a narrow left column, the
-            bio in the wide right one, so the picture reads as a personal aside beside the
-            text rather than a header above it. ONE column on a phone, in this same source
-            order: photo, caption, heading, checks, paragraphs, contact. */}
-        <div className="grid gap-5 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-7">
+        {/* THE HEADER ROW (Lee, 2026-09-10): photo on the LEFT, "Hey, I'm Lee." and the three
+            checks to its RIGHT, at the top. The paragraphs sit BELOW the row at full width, so the
+            prose is never squeezed into a column beside a 112px picture. A phone stacks it in
+            this same source order: photo, heading, checks, paragraphs, contact. */}
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-7">
           {/* A DIFFERENT PHOTO FROM THE CARD, on purpose: the same headshot twice in two clicks
-              reads as a stock asset. The caption is not decoration — without it this is a picture
-              of a stranger's child. */}
+              reads as a stock asset. Its caption lives in the zoomed view (ContainedDetail). */}
           <PhotoAside
             width={112}
             open={magazine}
             onToggle={() => setMagazine((o) => !o)}
             thumbRef={thumbRef}
-            caption={<>Reading my dad&apos;s <span className="italic">Journal of Accountancy</span> from 1999. Chilling with my cat, Mr. Puddles.</>}
           >
             {(onZoom) => <LeePortrait width={112} caption={false} variant="kid" onZoom={onZoom} />}
           </PhotoAside>
 
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="text-[24px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
               Hey, I&apos;m Lee.
             </h2>
             {/* THE SAME CHECK ROWS AS THE CARD, so the two surfaces read as one person rather than
                 two differently-formatted bios. Ole Miss awards the BAccy / MAccy — not BAcc/MAcc. */}
             <ul className="mt-3 flex flex-col gap-1.5 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
-              <TutorCheck><span className="font-black">BAccy · MAccy</span> — University of Mississippi</TutorCheck>
+              <TutorCheck><span className="font-black">BAccy · MAccy</span> — Ole Miss</TutorCheck>
               <TutorCheck>Tutor since 2015</TutorCheck>
               <TutorCheck>1,000+ students tutored</TutorCheck>
             </ul>
-            <P>I built Survive because accounting exams get a lot easier once you&apos;ve already seen the kinds of problems you&apos;re about to get. Every video on here is me — no team, no scripts, just what I&apos;d tell you at the whiteboard.</P>
-            {/* The music/travel line stays — it's disarming and it works. The joke lands as its own
-                short sentence rather than as a fourth item buried in the list. */}
-            <P>Outside Survive I&apos;m usually traveling, seeing live music, or playing live music. Or working on Survive.</P>
-            <P>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a> if you have a question or just want to say hi. I read every one.</P>
           </div>
+        </div>
+
+        <div className="mt-1">
+          <P>I built Survive because accounting exams get a lot easier once you&apos;ve already seen the kinds of problems you&apos;re about to get. The first time you see a problem shouldn&apos;t be when you&apos;re sitting in your exam.</P>
+          <P>Outside Survive I&apos;m usually traveling, playing drums and guitar, or building new online businesses. I also teach entrepreneurship as an adjunct at Ole Miss.</P>
+          <P>Text me at <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>(662)&nbsp;565-8818</a> if you have a question or just want to say hi. I read every one.</P>
         </div>
 
         {magazine && (
           <ContainedDetail
             src="/lee-kid-joa-detail.jpg"
             alt="The Journal of Accountancy, close up"
+            // ONE caption, only here (Lee, 2026-09-10) — the thumbnail carries none.
             lines={[
-              <>My dad&apos;s copy of the <span className="italic">Journal of Accountancy</span> — August 1999.</>,
-              <>Cover line: &ldquo;10 Commandments of Mutual Fund Investing.&rdquo;</>,
+              <>Reading my dad&apos;s <span className="italic">Journal of Accountancy</span> from 1999. Chilling with my cat.</>,
             ]}
             radius={RADIUS}
             onClose={() => setMagazine(false)}

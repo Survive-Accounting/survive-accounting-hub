@@ -8,7 +8,14 @@
 //
 // KEPT: magic-link auth, per-set progress (localStorage signed-out / student_set_progress
 // signed-in), entitlements + the honest paywall, the Greek share funnel (LearnCta's sheets,
-// useShareContext, LearnStateSwitcher), ?demo=1, and the deep links /learn?campus=<id>&set=<id>.
+// useShareContext), ?demo=1, and the deep links /learn?campus=<id>&set=<id>.
+//
+// THE PHONE PASS (Lee, 2026-09-10): no admin pills on a student page (the LearnStateSwitcher
+// mount is gone — ?test=A..F still forces a CTA state from the address, which is all it ever
+// did); ONE loading screen (LearnLoading: the brand splash IS the loading screen, skipped on a
+// repeat visit in the session); "pick school" opens LearnSchoolSheet in place and re-themes the
+// page via /learn?campus=<id>; the email gate on every topic after Easy Points (LearnHome); the
+// reminder block and a one-line footer at the bottom of the page and of the path drawer.
 //
 // Wireframes and the decisions behind this: the "Learn Dashboard Wireframes" canvas, Round 5.
 import { createFileRoute } from "@tanstack/react-router";
@@ -24,13 +31,16 @@ import type { SetStage } from "@/lib/set-flow";
 import { listOverrideCampuses, type CampusOpt } from "@/lib/campus-overrides.functions";
 import { claimMyOrders, fetchMyUnlockedTopics, getSetPlayback } from "@/lib/entitlements.functions";
 import { campusOgImageV, campusShareOg, ogMeta } from "@/lib/og";
-import { LearnIntro } from "@/components/brand/LearnIntro";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentAuth } from "@/lib/use-student-auth";
 import type { ExamTabState } from "@/components/learn/ExamRail";
 import { LearnCta, openLearnCta } from "@/components/learn/LearnCta";
 import { useShareContext } from "@/components/learn/ShareBanner";
-import { LearnStateSwitcher } from "@/components/learn/LearnStateSwitcher";
+import { LearnLoading } from "@/components/learn/LearnLoading";
+import { LearnSchoolSheet } from "@/components/learn/LearnSchoolSheet";
+import { readUnlocked } from "@/components/learn/learn-gate";
+import { ExamReminder } from "@/components/site/home-two-door/ExamReminder";
+import { rememberCampus } from "@/lib/campus-prefs";
 import { LearnTop, usePickedChapter, type TopProgress } from "@/components/learn/LearnTop";
 import { LearnRail, LearnTabs, PathList, type PathTopic, type RailKey } from "@/components/learn/LearnRail";
 import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome";
@@ -39,7 +49,7 @@ import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
 import { INK, LEARN_CSS, themeFor, themeStyle } from "@/components/learn/learn-theme";
 import { DEMO_PLAYBACK, LAST_SET_KEY, type Prog, type ProgressState } from "@/components/learn/cram-media";
 import { daysUntil, EXAM_DATE_EVENT, readExamDate } from "@/components/learn/exam-date";
-import { schoolByCampusId, schoolBySlug } from "@/lib/schools";
+import { schoolByCampusId, schoolBySlug, type School } from "@/lib/schools";
 import { isContactRef } from "@/lib/contact-ref";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
@@ -235,6 +245,25 @@ function LearnShell() {
   // THE LINK WINS. A shared /s/<campus> link carries ?g; it must beat whatever campus this browser
   // last studied (a Bama link opened by someone who once looked at Ole Miss is a Bama link).
   useEffect(() => { if (search.g) { const s = schoolBySlug(search.g); if (s?.campusId && s.campusId !== campusId) setCampusId(s.campusId); } }, [campusId, search.g]);
+  // ?campus= CHANGING UNDER A MOUNTED PAGE (2026-09-10): the in-place school picker rewrites the
+  // address without remounting, so the state seeded from search.campus above has to follow it.
+  useEffect(() => { if (search.campus && search.campus !== campusId) setCampusId(search.campus); }, [campusId, search.campus]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickSchool = (s: School) => {
+    setPickerOpen(false);
+    if (!s.campusId) return;
+    // The site-wide "last used campus" cookie/key — so the homepage agrees with the pick, the way
+    // it does when the pick is made there.
+    rememberCampus(s.id);
+    setCampusId(s.campusId);
+    // ?g (a shared link's slug) would outrank the new campus — see THE LINK WINS — so it goes;
+    // so do set/stage/topic, which belong to the old campus's tree. ref/by/test/demo ride along.
+    void navigate({ search: (p: LearnSearch) => ({ ...p, campus: s.campusId, g: undefined, set: undefined, stage: undefined, topic: undefined }), replace: true });
+  };
+  // THE EMAIL GATE (learn-gate.ts) — passed once on this device, or never shown to a signed-in
+  // student. Read in an effect: storage is client-only.
+  const [unlocked, setUnlocked] = useState(false);
+  useEffect(() => { setUnlocked(readUnlocked()); }, []);
   const campusesQ = useQuery({ queryKey: ["override-campuses"], queryFn: () => listOverrideCampuses(), staleTime: 300_000, networkMode: "always", enabled: !demo });
   const campuses: CampusOpt[] = campusesQ.data ?? [];
   const q = useQuery({ queryKey: ["student-tree", campusId], queryFn: () => fetchStudentTree({ data: { campusId: campusId ?? undefined } }), staleTime: 120_000, networkMode: "always", enabled: !demo });
@@ -333,7 +362,7 @@ function LearnShell() {
         inTopic.forEach((set, i) => {
           if (seen.has(set.id)) return; seen.add(set.id);
           const p = progress[set.id];
-          out.push({ set, topic: t, n: i + 1, of: inTopic.length, locked: set.access === "paid" && !unlockedTopics.has(t.id), done: p?.state === "complete", watched: p?.durationSec ? Math.min(1, p.positionSec / p.durationSec) : 0, playable: true });
+          out.push({ set, topic: t, n: i + 1, of: inTopic.length, locked: set.access === "paid" && !unlockedTopics.has(t.id), done: p?.state === "complete", watched: p?.durationSec ? Math.min(1, p.positionSec / p.durationSec) : 0, started: !!p && p.state !== "unstarted", playable: true });
         });
       }
     }
@@ -422,7 +451,9 @@ function LearnShell() {
   return (
     <div className="lk-root fixed inset-0 flex flex-col" style={themeStyle(theme)}>
       <style>{LEARN_CSS}</style>
-      <LearnIntro />
+      {/* ONE loading screen: the brand splash stays up while the tree loads (and for its beat on a
+          first visit), so there is never a second "loading" view behind it. */}
+      <LearnLoading loading={isLoading} />
 
       <LearnTop
         school={school} campusId={campusId} campusName={campusName}
@@ -431,6 +462,7 @@ function LearnShell() {
         sender={sender} progress={topProgress} theme={theme}
         onPickChapter={ctaMounted ? () => openLearnCta("pick") : null}
         onOpenPath={() => setPathOpen(true)}
+        onPickSchool={() => setPickerOpen(true)}
         demo={demo} narrow={isNarrow} contactRef={contactRef}
       />
 
@@ -440,7 +472,9 @@ function LearnShell() {
         {isError ? (
           <div className="grid flex-1 place-items-center p-6 text-center text-[13px]" style={{ color: INK.red }}>Something went wrong loading videos. <button type="button" className="ml-1 underline" style={{ background: "transparent", border: 0, color: INK.text, cursor: "pointer" }} onClick={() => q.refetch()}>Retry</button></div>
         ) : isLoading ? (
-          <div className="grid flex-1 place-items-center text-[13px]" style={{ color: INK.muted }}><span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading your cram videos…</span></div>
+          // Blank on purpose: LearnLoading covers this while the tree loads. A second spinner
+          // here is the flash-between-two-screens Lee asked to remove.
+          <div className="flex-1" aria-busy="true" />
         ) : sets.length === 0 ? (
           <div className="grid flex-1 place-items-center p-6 text-center"><div><p className="lk-disp" style={{ fontSize: 18 }}>Cram videos are on the way.</p><p className="mt-1 text-[13px]" style={{ color: INK.muted }}>Nothing is live for {exam?.label ?? "this exam"} yet — check back soon.</p></div></div>
         ) : inPlayer ? (
@@ -463,6 +497,8 @@ function LearnShell() {
             theme={theme} narrow={isNarrow}
             onStart={start} onOpenSet={openSet} onLocked={setPaywallTopic} rowRef={rowRef}
             you={{ email, userId, onSignIn: () => setSignInOpen(true), signOut, onShare: () => void share(), done: topProgress.done, total: topProgress.total }}
+            campusId={campusId} courseCode={school?.courseCode ?? null} demo={demo}
+            unlocked={unlocked} onUnlocked={() => setUnlocked(true)}
           />
         )}
       </div>
@@ -478,9 +514,14 @@ function LearnShell() {
             <span className="lk-disp" style={{ fontSize: 15 }}>{exam?.label ?? "Exam 1"}</span>
             <button type="button" className="ml-auto grid h-9 w-9 place-items-center rounded-full" style={{ background: INK.surface, color: INK.text, border: 0, cursor: "pointer" }} onClick={() => setPathOpen(false)} aria-label="Close"><X className="h-4 w-4" /></button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto py-2"><PathList path={path} activeSetId={search.set ?? null} onOpenSet={(id) => { setPathOpen(false); openSet(id); }} /></div>
+          <div className="min-h-0 flex-1 overflow-y-auto py-2">
+            <PathList path={path} activeSetId={search.set ?? null} onOpenSet={(id) => { setPathOpen(false); openSet(id); }} />
+            {/* The same reminder block the page ends on, at the bottom of the path (Lee, 09-10). */}
+            <ExamReminder campusId={campusId} courseCode={school?.courseCode ?? null} />
+          </div>
         </div>
       )}
+      {pickerOpen && <LearnSchoolSheet current={school} onClose={() => setPickerOpen(false)} onPick={pickSchool} />}
 
       {paywallTopic && <Paywall topic={paywallTopic} campusName={campusName} campusId={campusId} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
       {signInOpen && <SignInDialog onClose={() => setSignInOpen(false)} />}
@@ -491,7 +532,8 @@ function LearnShell() {
         </div>
       )}
       {ctaMounted && <LearnCta bare={!ctaOwnBar} campusSlug={campusSlug ?? "your-campus"} campusName={campusName ?? campusSlug ?? "your campus"} sharerBy={contactRef} sharerIsCouncil={shareCtx.isCouncil} test={search.test} />}
-      {!demo && <LearnStateSwitcher current={search.test} onSelect={(test) => void navigate({ search: (p: LearnSearch) => ({ ...p, test }), replace: true })} />}
+      {/* The admin "CTA states" pill (LearnStateSwitcher) is no longer mounted — a student page
+          shows no admin controls. ?test=A..F in the address still forces a CTA state. */}
     </div>
   );
 }

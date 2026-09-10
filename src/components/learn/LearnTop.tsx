@@ -7,6 +7,11 @@
 // the exam date and a phone number and queues a real text through scheduleExamReminder — the
 // same capture also gives the ticker its countdown. Copy never mentions links, passwords or
 // "magic" anything.
+//
+// THE BAR WEARS THE SCHOOL (Lee, 2026-09-10). Ground = c1, rule = c2, ink re-picked for contrast
+// (theme.top* from learn-theme's topBarFor) — so picking a school visibly changes the page, not
+// just the accent. "Pick school" no longer leaves for "/": it opens LearnSchoolSheet in place
+// (onPickSchool), and the school's own name is the same button once one is set.
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, Loader2, Menu, X } from "lucide-react";
@@ -21,7 +26,7 @@ import type { ExamTabState } from "@/components/learn/ExamRail";
 import { countdownLabel, daysUntil, readExamDate, writeExamDate } from "@/components/learn/exam-date";
 import { CTA_CHAPTER_EVENT } from "@/components/learn/LearnCta";
 import { allowedOffsets, REMINDER_DISCLOSURE, scheduleExamReminder } from "@/lib/exam-reminder.functions";
-import { INK, type LearnTheme } from "@/components/learn/learn-theme";
+import { INK, withAlpha, type LearnTheme } from "@/components/learn/learn-theme";
 
 export type TopProgress = { total: number; done: number; secondsLeft: number | null };
 
@@ -69,7 +74,7 @@ export function senderRole(c: ShareContact): string | null {
 
 export function LearnTop({
   school, campusId, campusName, exams, examNum, onPickExam, chapter, sender, progress, theme,
-  onPickChapter, onOpenPath, demo, narrow, contactRef,
+  onPickChapter, onOpenPath, onPickSchool, demo, narrow, contactRef,
 }: {
   school: School | null;
   campusId: string | null;
@@ -84,6 +89,8 @@ export function LearnTop({
   onPickChapter: (() => void) | null;
   /** Narrow only: opens the path sheet. */
   onOpenPath: () => void;
+  /** Opens the in-place school picker (LearnSchoolSheet) — never a navigation. */
+  onPickSchool: () => void;
   demo: boolean;
   narrow: boolean;
   /** by ?? ref — rides on the reminder link so the chain stays visible. */
@@ -125,11 +132,20 @@ export function LearnTop({
   const senderRoleText = sender ? senderRole(sender) : null;
   const ctaLabel = reminderOn && examDate ? `Reminder on · ${fmtShort(examDate)}` : narrow ? "Get reminders" : "Get study reminders";
 
+  // The bar's own ink — chalk on black until a school is picked, then whatever reads on c1.
+  const ink = theme.topInk, muted = theme.topMuted, rule = theme.topBorder;
+  const schoolButton = (size: number, weight: number) => (
+    <button type="button" onClick={onPickSchool} className="flex min-w-0 items-center gap-1 truncate" title="Change school" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", color: schoolName ? ink : "var(--lk-acc)", fontSize: size, fontWeight: weight, fontFamily: "inherit" }}>
+      <span className="truncate">{schoolName ?? (narrow ? "pick school" : "pick your school")}</span>
+      <ChevronDown className="h-3 w-3 shrink-0" style={{ color: muted }} aria-hidden />
+    </button>
+  );
+
   return (
     <>
-      <header className="flex shrink-0 items-center gap-3 px-4 sm:gap-4 sm:px-8" style={{ minHeight: narrow ? 58 : 72, background: INK.bg }}>
-        {narrow && <button type="button" onClick={onOpenPath} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ color: INK.text, background: "transparent", border: 0 }} aria-label="Your path"><Menu className="h-5 w-5" /></button>}
-        <BoltBoil height={narrow ? 30 : 40} red={theme.schoolAccent ? theme.accent : undefined} blue={theme.schoolAccent && theme.primary ? theme.primary : undefined} cream={INK.text} />
+      <header className="flex shrink-0 items-center gap-3 px-4 sm:gap-4 sm:px-8" style={{ minHeight: narrow ? 58 : 72, background: theme.topBg, borderBottom: `1px solid ${rule}`, color: ink }}>
+        {narrow && <button type="button" onClick={onOpenPath} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ color: ink, background: "transparent", border: 0 }} aria-label="Your path"><Menu className="h-5 w-5" /></button>}
+        <BoltBoil height={narrow ? 30 : 40} red={theme.schoolAccent ? theme.accent : undefined} blue={theme.schoolAccent && theme.primary ? theme.primary : undefined} cream={ink} />
         {/* BRAND MASTHEAD (2026-09-09) — "survive" + "ACCOUNTING" beneath it is the same two-line
             lockup the flyer/slide generator draws (flyer.server.ts), so entering the product from
             a marketing page or a printed flyer reads as the same brand, not a different app. The
@@ -137,33 +153,33 @@ export function LearnTop({
             using the same border-l divider language this header already used for chapter/sender
             info — reused, not invented. */}
         <div className="flex min-w-0 flex-col justify-center">
-          <div className="lk-disp truncate" style={{ fontSize: narrow ? 15 : 19, letterSpacing: "-0.01em", lineHeight: 1.1, color: INK.text }}>survive</div>
-          <div className="truncate text-[9.5px] font-bold uppercase" style={{ letterSpacing: "0.18em", color: INK.muted, lineHeight: 1.2 }}>Accounting</div>
+          <div className="lk-disp truncate" style={{ fontSize: narrow ? 15 : 19, letterSpacing: "-0.01em", lineHeight: 1.1, color: ink }}>survive</div>
+          <div className="truncate text-[9.5px] font-bold uppercase" style={{ letterSpacing: "0.18em", color: muted, lineHeight: 1.2 }}>Accounting</div>
         </div>
 
         {!narrow && (
-          <div className="flex min-w-0 flex-col border-l pl-4" style={{ borderColor: INK.border, fontSize: 12.5 }}>
-            <div className="flex min-w-0 items-center gap-1.5" style={{ color: INK.muted }}>
-              {schoolName ? <span className="truncate font-semibold" style={{ color: INK.text }}>{schoolName}</span> : <a href="/" style={{ color: "var(--lk-acc)" }}>pick your school</a>}
+          <div className="flex min-w-0 flex-col border-l pl-4" style={{ borderColor: rule, fontSize: 12.5 }}>
+            <div className="flex min-w-0 items-center gap-1.5" style={{ color: muted }}>
+              {schoolButton(12.5, 600)}
               <span aria-hidden>·</span>
               <span className="truncate">{courseCode ?? "Intro Accounting"}</span>
               <span aria-hidden>·</span>
               {availableExams.length > 1 ? (
-                <select value={examNum ?? ""} onChange={(e) => onPickExam(Number(e.target.value))} aria-label="Which exam" className="rounded-md px-1 py-0.5 font-semibold outline-none" style={{ background: "transparent", color: INK.text, border: `1px solid ${INK.border}`, fontSize: 12.5 }}>
-                  {availableExams.map((e) => <option key={e.num} value={e.num}>{e.label}</option>)}
+                <select value={examNum ?? ""} onChange={(e) => onPickExam(Number(e.target.value))} aria-label="Which exam" className="rounded-md px-1 py-0.5 font-semibold outline-none" style={{ background: "transparent", color: ink, border: `1px solid ${rule}`, fontSize: 12.5 }}>
+                  {availableExams.map((e) => <option key={e.num} value={e.num} style={{ color: INK.text, background: INK.surface }}>{e.label}</option>)}
                 </select>
               ) : (
-                <span className="font-semibold" style={{ color: INK.text }}>{examLabel}</span>
+                <span className="font-semibold" style={{ color: ink }}>{examLabel}</span>
               )}
               {demo && <span className="rounded-full px-1.5 py-px text-[9px] font-black uppercase tracking-wider" style={{ color: "#111", background: INK.green }}>Demo</span>}
             </div>
           </div>
         )}
         {narrow && (
-          <div className="flex min-w-0 items-center gap-1.5" style={{ fontSize: 11.5, color: INK.muted }}>
-            {schoolName ? <span className="truncate">{schoolName}</span> : <a href="/" style={{ color: "var(--lk-acc)" }}>pick school</a>}
+          <div className="flex min-w-0 items-center gap-1.5" style={{ fontSize: 11.5, color: muted }}>
+            {schoolButton(11.5, schoolName ? 500 : 600)}
             <span aria-hidden>·</span>
-            <span className="font-semibold" style={{ color: INK.text }}>{examLabel}</span>
+            <span className="font-semibold" style={{ color: ink }}>{examLabel}</span>
           </div>
         )}
 
@@ -175,24 +191,24 @@ export function LearnTop({
             letters resolve or when the roster has none. No claim/setup ask lives here — that
             belongs on the chapter's own /go page. */}
         {!narrow && (chapter?.name || sender) && (
-          <div className="flex min-w-0 flex-col border-l pl-4" style={{ borderColor: INK.border, fontSize: 12.5 }}>
+          <div className="flex min-w-0 flex-col border-l pl-4" style={{ borderColor: rule, fontSize: 12.5 }}>
             {chapter?.name ? (
               <div className="flex min-w-0 items-center gap-1.5 truncate">
                 {chapter.letters ? (
-                  <span className="font-black" style={{ color: INK.text, fontFamily: BRAND_SANS, letterSpacing: "0.02em", textShadow: `0 0 10px ${theme.accent}55` }}>{chapter.letters}</span>
+                  <span className="font-black" style={{ color: ink, fontFamily: BRAND_SANS, letterSpacing: "0.02em", textShadow: `0 0 10px ${theme.accent}55` }}>{chapter.letters}</span>
                 ) : (
-                  <span style={{ color: INK.muted }}>for <b style={{ color: INK.text }}>{chapter.name}</b></span>
+                  <span style={{ color: muted }}>for <b style={{ color: ink }}>{chapter.name}</b></span>
                 )}
-                {chapter.letters && schoolName && <span aria-hidden style={{ color: INK.dim }}>· {schoolName.toUpperCase()}</span>}
-                {onPickChapter && <button type="button" onClick={onPickChapter} className="ml-1 underline underline-offset-2" style={{ color: INK.dim, background: "transparent", border: 0, fontSize: 11, cursor: "pointer" }}>Not your chapter?</button>}
+                {chapter.letters && schoolName && <span aria-hidden style={{ color: muted }}>· {schoolName.toUpperCase()}</span>}
+                {onPickChapter && <button type="button" onClick={onPickChapter} className="ml-1 underline underline-offset-2" style={{ color: muted, background: "transparent", border: 0, fontSize: 11, cursor: "pointer" }}>Not your chapter?</button>}
               </div>
             ) : sender?.isCouncil && onPickChapter ? (
               <button type="button" onClick={onPickChapter} className="truncate text-left underline underline-offset-2" style={{ color: "var(--lk-acc)", background: "transparent", border: 0, cursor: "pointer", fontSize: 12.5 }}>which chapter are you in?</button>
             ) : null}
             {senderLine ? (
-              <div className="truncate" style={{ color: INK.muted }}>{senderLine}{senderRoleText && <>, <b style={{ color: INK.text }}>{senderRoleText}</b></>}</div>
+              <div className="truncate" style={{ color: muted }}>{senderLine}{senderRoleText && <>, <b style={{ color: ink }}>{senderRoleText}</b></>}</div>
             ) : sender && !sender.name && senderRoleText ? (
-              <div className="truncate" style={{ color: INK.muted }}>shared by {[sender.campusName, senderRoleText].filter(Boolean).join(" ")}</div>
+              <div className="truncate" style={{ color: muted }}>shared by {[sender.campusName, senderRoleText].filter(Boolean).join(" ")}</div>
             ) : null}
           </div>
         )}
@@ -200,12 +216,12 @@ export function LearnTop({
         <div className="min-w-0 flex-1" />
 
         {!narrow && tickerText && (
-          <button type="button" onClick={() => setSheet(true)} className="max-w-[240px] truncate rounded-full px-3.5 py-1.5 font-semibold" style={{ fontSize: 12.5, color: INK.muted, border: `1px solid ${INK.border}`, background: "transparent", cursor: "pointer" }} title="Change the date">{tickerText}</button>
+          <button type="button" onClick={() => setSheet(true)} className="max-w-[240px] truncate rounded-full px-3.5 py-1.5 font-semibold" style={{ fontSize: 12.5, color: muted, border: `1px solid ${rule}`, background: "transparent", cursor: "pointer" }} title="Change the date">{tickerText}</button>
         )}
         {!narrow && progressText && (
           <div className="flex items-center gap-2">
-            <span className="h-1.5 w-[110px] overflow-hidden rounded-full lg:w-[150px]" style={{ background: INK.border }}><span className="block h-full rounded-full" style={{ width: `${Math.round((progress.total ? progress.done / progress.total : 0) * 100)}%`, background: allDone ? INK.green : "var(--lk-acc)", transition: "width 300ms" }} /></span>
-            <span className="whitespace-nowrap font-semibold tabular-nums" style={{ fontSize: 12.5, color: allDone ? INK.green : INK.text }}>{progressText}</span>
+            <span className="h-1.5 w-[110px] overflow-hidden rounded-full lg:w-[150px]" style={{ background: withAlpha(ink, 0.2) }}><span className="block h-full rounded-full" style={{ width: `${Math.round((progress.total ? progress.done / progress.total : 0) * 100)}%`, background: allDone ? INK.green : "var(--lk-acc)", transition: "width 300ms" }} /></span>
+            <span className="whitespace-nowrap font-semibold tabular-nums" style={{ fontSize: 12.5, color: allDone ? INK.green : ink }}>{progressText}</span>
           </div>
         )}
         {SHOW_REMINDER_CTA && (

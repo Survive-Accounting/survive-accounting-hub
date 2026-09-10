@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { NotListedForm } from "@/components/site/NotListedForm";
 import { useCampus } from "@/lib/campus-context";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { ALL_SCHOOLS, boltForSlug, pinnedRank, searchSchools, type School } from "@/lib/schools";
@@ -48,11 +49,17 @@ export function SchoolPickerSheet({ onClose, onPick, title = "Which school are y
   /** Called with the chosen school. The caller sets the campus and proceeds into its flow. */
   onPick: (school: School) => void;
   title?: string;
-  /** The hero swap shows "I'm not at any of these"; the door flows do not. */
+  /** The hero swap shows "Don't see your school?"; the door flows do not. */
   showClear?: boolean;
 }) {
   const campus = useCampus();
   const [q, setQ] = useState("");
+  // THE WRITE-IN (Lee, 2026-09-10). "Don't see your school?" used to clear the campus and close
+  // the sheet — which, with no campus chosen, did nothing a visitor could see. It now opens the
+  // SAME tell-me-your-school form every other picker's escape hatch opens (NotListedForm, solo
+  // variant: no chapter field), in place of the list, inside this sheet. The campus is still
+  // cleared: a visitor who says "my school isn't here" should not keep being shown one.
+  const [notListed, setNotListed] = useState(false);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [showOther, setShowOther] = useState(false);
   // Read after mount (never during render — this sheet is reachable from a server-rendered page).
@@ -154,6 +161,13 @@ export function SchoolPickerSheet({ onClose, onPick, title = "Which school are y
           </button>
         </div>
 
+        {notListed ? (
+          // The write-in takes the list's place; its own × brings the list back.
+          <div className="sa-sp-list">
+            <NotListedForm kind="school" askChapter={false} onClose={() => setNotListed(false)} />
+          </div>
+        ) : (
+        <>
         <input
           // AUTOFOCUS ON A POINTER DEVICE ONLY. On a phone, focusing this opened the keyboard the
           // instant the sheet did, which covered most of the list the visitor came here to read —
@@ -197,11 +211,13 @@ export function SchoolPickerSheet({ onClose, onPick, title = "Which school are y
             </>
           )}
         </div>
+        </>
+        )}
 
-        {showClear && (
+        {showClear && !notListed && (
           <button
             type="button"
-            onClick={() => { campus.clearSchool(); onClose(); }}
+            onClick={() => { campus.clearSchool(); setNotListed(true); }}
             className="sa-sp-notlisted"
           >
             Don&apos;t see your school?
