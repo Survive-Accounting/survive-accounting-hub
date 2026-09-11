@@ -101,6 +101,10 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
   // the picked take's own length, read from its metadata.
   const [storedS, setStoredS] = useState<number | null>(null);
   const [fileS, setFileS] = useState<number | null>(null);
+  // TRANSCRIBE BY DEFAULT (2026-09-11): the take's length has been read (or couldn't be), so step 2
+  // may run; and the transcript's own copy button.
+  const [fileChecked, setFileChecked] = useState(false);
+  const [txCopied, setTxCopied] = useState(false);
   // SKIP CAPTIONS FOR NOW (2026-09-11). Lee: "I want to be able to skip captions for now. It's too
   // messy and we can fix later." Step 3 counts as done without a burn, and step 6 names the
   // original take.
@@ -162,8 +166,21 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
     } finally { setBusy(false); }
   }, [file, pubKey, fileS]);
 
+  // TRANSCRIBE BY DEFAULT (2026-09-11). Lee: "It's cheap enough that by default, if I upload a
+  // mp4, let's transcribe it and let me download it easily." Once per picked take, as soon as its
+  // length has been read, so a stored transcript for a different take is never reused: step 2
+  // runs on its own. A stored transcript that fits comes straight back and bills nothing.
+  const autoFor = useRef<File | null>(null);
+  useEffect(() => {
+    if (!file || !fileChecked || busy || autoFor.current === file) return;
+    autoFor.current = file;
+    void run(false);
+  }, [file, fileChecked, busy, run]);
+
   const cmd = file ? burnCommand(file.name) : "";
   const copyCmd = async () => { setCopied(await copyToClipboard(cmd)); window.setTimeout(() => setCopied(false), 1800); };
+  // THE TRANSCRIPT, one click to copy (2026-09-11).
+  const copyTranscript = async () => { setTxCopied(await copyToClipboard(text)); window.setTimeout(() => setTxCopied(false), 1800); };
 
   // THE UPLOAD. Starts the moment he picks the take and runs in the background while he does
   // step 2 — by the time the transcript is back the bytes are usually already there. Direct to
@@ -176,8 +193,8 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
     const problem = takeFileProblem(picked);
     if (problem || !picked) { setErr(problem); return; }
     setErr(null); setFile(picked);
-    setFileS(null);
-    void mediaDurationS(picked).then(setFileS);
+    setFileS(null); setFileChecked(false);
+    void mediaDurationS(picked).then((s) => { setFileS(s); setFileChecked(true); });
     setVideoUrl(null); setUpErr(null); setUpFrac(0);
     void (async () => {
       try {
@@ -275,7 +292,7 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
         {/* ── 2 ─────────────────────────────────────────────────────────────────────────────── */}
         <Step n={2} title="The transcript" hint={words ? `${words.length} words` : "what you actually said"} done={!!words?.length}>
           <div style={{ fontSize: 12.5, color: V3_MUTED, lineHeight: 1.5 }}>
-            The audio alone goes out — about 2MB a minute, well under Whisper's cap — and the words
+            It starts on its own when you pick the take. The audio alone goes out — about 2MB a minute, well under Whisper's cap — and the words
             come back timed. Everything below is written from them.
           </div>
           <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -286,6 +303,12 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
             <span style={{ fontSize: 11.5, color: V3_MUTED }}>~${whisperCostUsd(files?.seconds || 180).toFixed(3)}</span>
             {note && <span style={{ fontSize: 11.5, color: busy ? V3_GOLD : MINT }}>{note}</span>}
           </div>
+          {text && (
+            <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button type="button" onClick={() => void copyTranscript()} style={{ ...primary, color: txCopied ? MINT : V3_CREAM }}>{txCopied ? "copied" : "Copy the transcript"}</button>
+              <button type="button" onClick={() => downloadText(`${(file?.name ?? title).replace(/.w+$/, "")}.transcript.txt`, text)} style={small}>Download it (.txt)</button>
+            </div>
+          )}
           {text && (
             <textarea readOnly value={text} rows={4}
               style={{ width: "100%", boxSizing: "border-box", font: "inherit", fontSize: 12, lineHeight: 1.5, marginTop: 8, padding: "7px 10px", borderRadius: 8, border: `1px solid ${V3_EDGE}`, background: "rgba(244,239,230,0.05)", color: V3_CREAM, outline: "none", resize: "vertical" }} />
