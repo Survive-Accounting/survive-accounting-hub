@@ -117,7 +117,7 @@ export const TEMPLATES: TemplateDef[] = [
     category: "student",
     description: "The signed-in student home — course, topic and video outline.",
     routePattern: "/learn",
-    routes: ["learn.tsx"],
+    routes: ["learn.{-$campus}.{-$chapter}.tsx"],
     countKey: "static",
     trafficPaths: ["/learn"],
     testMode: true,
