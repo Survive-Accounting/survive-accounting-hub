@@ -320,8 +320,8 @@ export const syncBlastPlanToSet = createServerFn({ method: "POST" })
         // carries its look; the rest carry their own copy in the frame component.
         // The intro over the cold open's backdrop goes transparent — the
         // backdrop is its ground; alone it keeps its navy.
-        const extra = f.kind === "intro" ? { topic: f.text?.trim() || setName, tutor: "Lee Ingram", tutorLine: f.title?.trim() || undefined, domain: f.url?.trim() || undefined, banner: f.banner !== "off", transparent: filmBackdrop === "backdrop" }
-          : f.kind === "open" ? { psych: f.psych ?? 0.1, variant: f.variant ?? "zoom", banner: f.banner !== "off", tagline: f.text?.trim() || undefined, domain: f.url?.trim() || undefined }
+        const extra = f.kind === "intro" ? { topic: f.text?.trim() || setName, tutor: "Lee Ingram", tutorLine: f.title?.trim() || undefined, domain: f.url?.trim() || undefined, banner: f.banner === "on", transparent: filmBackdrop === "backdrop" }
+          : f.kind === "open" ? { psych: f.psych ?? 0.1, variant: f.variant ?? "zoom", banner: f.banner === "on", tagline: f.text?.trim() || undefined, domain: f.url?.trim() || undefined }
           : f.kind === "bolt" ? { bare: true, psych: f.psych ?? 0.1, variant: f.variant ?? "zoom", banner: false }
           : f.kind === "ad" ? { ad: f.ad ?? "greek", label: f.text, headline: f.title, lines: f.bullets, url: f.url }
           : {};

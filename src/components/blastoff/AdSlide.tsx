@@ -96,7 +96,10 @@ function Mark({ text, k }: { text: string; k: string }) {
   return <span ref={ref} onClick={onClick} style={{ display: "inline" }}><Emph text={text} range={hlx.memo(k)} /></span>;
 }
 
-export function AdSlide({ ad, w, h, live = true, copy, onEdit, hlKey }: { ad: AdKind; w: number; h: number; live?: boolean; copy?: AdCopy | null;
+export function AdSlide({ ad, w, h, live = true, copy, onEdit, hlKey, banner }: { ad: AdKind; w: number; h: number; live?: boolean; copy?: AdCopy | null;
+  /** THE CAMPUS BANNER (2026-09-11): the slide's toggle decides (the Blast Off frame passes false —
+   *  PhoneFrame draws it when the slide says "on"); absent = the ad's built-in default. */
+  banner?: boolean;
   /** The Review stage's click-to-edit — absent everywhere else. */
   onEdit?: (patch: AdCopy) => void;
   /** THE TAKE (polish pass, 2026-09-05): given, the headline and lines are highlightable
@@ -142,7 +145,7 @@ export function AdSlide({ ad, w, h, live = true, copy, onEdit, hlKey }: { ad: Ad
           <Editable value={a.url} onEdit={onEdit ? (v) => onEdit({ url: v }) : undefined} style={{ display: "inline" }} />
         </div>
       </div>}
-      {a.banner && <CampusBanner w={w} h={h} live={live} />}
+      {(banner ?? a.banner) && <CampusBanner w={w} h={h} live={live} />}
     </div>
   );
 }

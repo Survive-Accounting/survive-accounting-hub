@@ -127,7 +127,9 @@ describe("cutting from the spine", () => {
     expect(opener()[0].text).toBe("Assets");
     expect(opener()[1].text).toBe("This is a cram video—not a lecture.");
     expect(opener()[3].text).toBe("");            // the found card is his to write
-    expect(opener()[0].banner).toBe("on");        // "campus banner underneath"
+    // THE CAMPUS BANNER IS OFF UNLESS ASKED (Lee, 2026-09-11: "default to campus banner off. We're
+    // going to only use it on some promo videos") — no opener slide switches it on any more.
+    expect(opener().every((f) => f.banner === undefined)).toBe(true);
   });
 
   test("a cut puts a sign-off above it and the standard opener below", () => {

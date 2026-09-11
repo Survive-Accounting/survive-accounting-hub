@@ -133,6 +133,7 @@ import { aleCandidates, convertAleCards } from "./rubric-convert";
 // THE END-OF-TOPIC FRAMES (2026-09-11): the Editor faces read the bank the same way the slides
 // do, so what the panel says the slide will say is what it says.
 import { TOPIC_DONE_COPY, topicProgress, upNextFor } from "./end-of-topic";
+import { defaultSetLabel, examOutline, withLabel } from "./exam-outline";
 import { SURVIBES_PROPS } from "./survibes";
 import { useBank } from "@/components/v3/use-bank";
 import type { MapCard } from "@/lib/cluster-brief";
@@ -164,7 +165,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4", outline: "#86EFAC" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -1395,11 +1396,13 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
         run: () => patch(f.id, { display: isBigCallout(f) ? undefined : "big" }),
       });
     }
-    // The cold open carries the banner unless told not to; every other slide only when asked.
-    const bannerOn = f.kind === "open" ? f.banner !== "off" : f.banner === "on";
+    // THE CAMPUS BANNER IS OFF UNLESS ASKED, on every slide (Lee, 2026-09-11: "default to campus
+    // banner off. We're going to only use it on some promo videos"). The cold open and the intro
+    // used to carry it unless told not to, and this toggle couldn't turn the intro's off.
+    const bannerOn = f.banner === "on";
     items.push({
       label: `🏫 Campus banner · ${bannerOn ? "on" : "off"}`, title: "The slow Power Four banner along the lower third",
-      run: () => patch(f.id, { banner: f.kind === "open" ? (f.banner === "off" ? undefined : "off") : (f.banner === "on" ? undefined : "on") }),
+      run: () => patch(f.id, { banner: f.banner === "on" ? undefined : "on" }),
     });
     // THE CAMERA (2026-09-05): cycles the spots; "free" is placed by dragging the ring on the stage.
     items.push({ label: `📷 Camera · ${camSpotOf(f)}`, title: `Where Lee sits on this slide — ${CAM_LABEL[camSpotOf(f)]}. Click to cycle.`, run: () => patch(f.id, { cam: CAM_SPOTS[(CAM_SPOTS.indexOf(camSpotOf(f)) + 1) % CAM_SPOTS.length] }) });
@@ -1548,6 +1551,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     { label: "Survibes", color: KIND_COLOR.survibes ?? MUTED, add: () => insertAfter(f.id, "survibes", {}, true) },
     // 2026-09-11, Lee: "include a + bio slide." An extra one can be removed while another stays.
     { label: "Bio", color: SKY, add: () => insertAfter(f.id, "bio", {}, true) },
+    // 2026-09-11: the roadmap for the first video in a topic (OutlineFrame.tsx).
+    { label: "Exam outline", color: KIND_COLOR.outline ?? MUTED, add: () => insertAfter(f.id, "outline", {}, true) },
     { label: "Exhibit…", color: MUTED, add: () => { setSelId(f.id); setPicker("exhibit"); } },
   ];
   const spineRow = (f: BlastFrame, i: number, opts: { number?: number; foldered?: boolean; thumb?: boolean; card?: boolean } = {}) => {
@@ -2068,6 +2073,7 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         {/* THE END-OF-TOPIC FRAMES (2026-09-11): what the bank will put on the slide, and the one
             typed line each has. */}
         {(sel.kind === "topic_done" || sel.kind === "up_next") && <EndOfTopicEditor sel={sel} set={set} onPatch={onPatch} />}
+        {sel.kind === "outline" && <OutlineEditor sel={sel} set={set} onPatch={onPatch} />}
         {/* SURVIBES (2026-09-11): nothing to type — the flip is the slide. What the spacebar does is
             said here so it isn't a surprise on camera. */}
         {sel.kind === "survibes" && (
@@ -2124,7 +2130,7 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
           <div className="flex flex-col" style={{ gap: 8 }}>
             <div style={{ fontSize: 11.5, color: MUTED }}>Black, the glow wordmark with the live bolt, the line, the Power Four ticker. The look is fixed now — the animations live on the bolt detour, and /branding keeps the experiments.</div>
             <div>
-              <button style={chip(sel.banner !== "off", ORANGE)} title="The slow Power Four banner along the lower third" onClick={() => onPatch({ banner: sel.banner === "off" ? undefined : "off" })}>🏫 campus banner · {sel.banner === "off" ? "off" : "on"}</button>
+              <button style={chip(sel.banner === "on", ORANGE)} title="The slow Power Four banner along the lower third — off unless you turn it on" onClick={() => onPatch({ banner: sel.banner === "on" ? undefined : "on" })}>🏫 campus banner · {sel.banner === "on" ? "on" : "off"}</button>
             </div>
           </div>
         )}
@@ -2231,6 +2237,51 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         )}
       </div>
     </section>
+  );
+}
+
+// ------------------------------------------------ the exam outline's face
+
+/** The roadmap slide: what the bank puts on it, the heading, and every topic's and video's words —
+ *  Lee, 2026-09-11: "Ensure the text on this outline slide is editable too … try to initially set it
+ *  up like this for all topics/sets... I will go in and edit where needed." Each field starts as the
+ *  default (a video's question stem, a topic's name); an edit is kept on this slide; clearing one
+ *  brings the default back. */
+function OutlineEditor({ sel, set, onPatch }: { sel: BlastFrame; set: BoothSetInfo; onPatch: (p: Partial<BlastFrame>) => void }) {
+  const { topics, error } = useBank();
+  const o = topics ? examOutline(topics, set.id) : null;
+  const fallback = `What's on ${o?.exam ?? "Exam 1"}`;
+  const labels = sel.outline;
+  const put = (kind: "topics" | "sets", id: string, value: string) => onPatch({ outline: withLabel(labels, kind, id, value) });
+  return (
+    <div className="flex flex-col" style={{ gap: 10 }}>
+      <div className="flex flex-col" style={{ gap: 4 }}>
+        <span style={subhead}>The topics and videos come from the bank</span>
+        {error && <div style={{ fontSize: 12, color: RED }}>The bank didn't load: {error}</div>}
+        {!topics && !error && <div style={{ fontSize: 12, color: MUTED }}>Loading the bank…</div>}
+        {o && <div style={{ fontSize: 12.5, color: CREAM }}>{o.exam}: {o.topics.length} topics · opens on <b>{o.topics[o.hereIndex]?.name ?? "the first topic"}</b></div>}
+      </div>
+      <label style={{ fontSize: 11, color: MUTED }}>Heading (blank = "{fallback}")
+        <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder={fallback} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+      {o && (
+        <div className="flex flex-col" style={{ gap: 4 }}>
+          <span style={subhead}>What each topic and video says on this slide</span>
+          <div style={{ fontSize: 11, color: MUTED }}>Videos start as question stems. Edit any of them; clear one to bring its default back.</div>
+          {o.topics.map((t) => (
+            <div key={t.id} style={{ marginTop: 6 }}>
+              <input style={{ ...field, fontWeight: 800 }} value={labels?.topics?.[t.id] ?? t.name} title={`Topic: ${t.name}`} onChange={(e) => put("topics", t.id, e.target.value)} />
+              <div style={{ marginTop: 4, paddingLeft: 14, display: "flex", flexDirection: "column", gap: 3 }}>
+                {t.sets.map((s) => (
+                  <input key={s.id} style={{ ...field, fontSize: 12 }} value={labels?.sets?.[s.id] ?? defaultSetLabel(s.name)} title={`Video: ${s.name}`} onChange={(e) => put("sets", s.id, e.target.value)} />
+                ))}
+                {t.sets.length === 0 && <span style={{ fontSize: 11, color: MUTED }}>No videos in this topic yet.</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 11.5, color: MUTED }}>On camera, click a topic's number or the ‹ › arrows to open its videos. It opens on this video's topic, with this video marked. Clicks aren't saved.</div>
+    </div>
   );
 }
 

@@ -74,13 +74,13 @@ function reducedMotion(): boolean {
   try { return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; }
 }
 
-function Chip({ text, k }: { text: string; k: number }) {
+export function Chip({ text, k }: { text: string; k: number }) {
   return <span style={{ display: "inline-block", fontFamily: BRAND_FONT, fontWeight: 800, fontSize: 9.5 * k, lineHeight: 1, letterSpacing: "0.14em", textTransform: "uppercase", color: GOLD, border: `1px solid rgba(252,163,17,0.45)`, background: "rgba(252,163,17,0.08)", borderRadius: 5 * k, padding: `${5 * k}px ${7 * k}px` }}>{text}</span>;
 }
 
 /** The frame's shell: black, w × 16:9·w, the small wordmark top-left at the watermark's own spot
  *  (full opacity — on these slides it is the mini logo, not a watermark). */
-function Shell({ w, k, children }: { w: number; k: number; children: React.ReactNode }) {
+export function Shell({ w, k, children }: { w: number; k: number; children: React.ReactNode }) {
   const h = Math.round(w * 16 / 9);
   const wm = watermarkSpot(w);
   return (
@@ -95,7 +95,7 @@ function Shell({ w, k, children }: { w: number; k: number; children: React.React
 
 /** The fail-loud block (red), or — `quiet` — the beat while the cached bank promise resolves on
  *  a fresh mount (every thumbnail, the hover peek): muted, so it never reads as an error. */
-function Loud({ w, k, text, quiet = false }: { w: number; k: number; text: string; quiet?: boolean }) {
+export function Loud({ w, k, text, quiet = false }: { w: number; k: number; text: string; quiet?: boolean }) {
   const ink = quiet ? MUTED : BAD;
   return (
     <Shell w={w} k={k}>
@@ -105,7 +105,7 @@ function Loud({ w, k, text, quiet = false }: { w: number; k: number; text: strin
 }
 
 /** The bank, or the reason the slide can't draw yet (`quiet` while it is merely loading). */
-function useBankOrReason(): { topics: ReturnType<typeof useBank>["topics"]; reason: string | null; quiet: boolean } {
+export function useBankOrReason(): { topics: ReturnType<typeof useBank>["topics"]; reason: string | null; quiet: boolean } {
   const { topics, error } = useBank();
   if (error) return { topics: null, reason: `The bank didn't load: ${error}`, quiet: false };
   if (!topics) return { topics: null, reason: "Loading the bank…", quiet: true };

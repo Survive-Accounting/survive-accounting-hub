@@ -75,7 +75,7 @@ export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spo
   if (kind === "rubric") return { spot: "home", size: 0.28 };
   // THE END-OF-TOPIC FRAMES (2026-09-11): the corner bubble — the charge bar and the tease own
   // the column; the header block keeps clear of the corner (EndOfTopicFrames.tsx headerW).
-  if (kind === "topic_done" || kind === "up_next") return { spot: "corner" };
+  if (kind === "topic_done" || kind === "up_next" || kind === "outline") return { spot: "corner" };
   // SURVIBES (2026-09-11): the big rounded box on the LEFT (the brief: "the camera (large rounded
   // box, left)"), the struck bolt standing to its right — the `left` spot, whose bottom (.58h)
   // clears the large captions box (SURVIBES_RAIL, .60h). A prop step swaps it for a small circle

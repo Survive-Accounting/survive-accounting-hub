@@ -34,6 +34,7 @@ import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigC
 import { SlideEditContext } from "./slide-edit";
 import { RubricSlide } from "./RubricSlide";
 import { TopicDoneFrame, UpNextFrame } from "./EndOfTopicFrames";
+import { OutlineFrame } from "./OutlineFrame";
 import { SurvibesFrame } from "./SurvibesFrame";
 import { introWordmarkTop, type SlideLayout } from "./layout";
 
@@ -134,6 +135,8 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   // THE END-OF-TOPIC FRAMES (2026-09-11, EndOfTopicFrames.tsx): the whole 9:16, the words from
   // the bank through the set's id; `live` runs the charge and the Up Next cycle on film only.
   if (frame.kind === "topic_done") return <TopicDoneFrame w={fw} set={set} frame={frame} live={live} />;
+  // THE EXAM OUTLINE (2026-09-11, OutlineFrame.tsx): the roadmap, one topic open at a time.
+  if (frame.kind === "outline") return <OutlineFrame w={fw} set={set} frame={frame} live={live} />;
   if (frame.kind === "up_next") return <UpNextFrame w={fw} set={set} frame={frame} live={live} />;
   // SURVIBES (2026-09-11, SurvibesFrame.tsx): the flip runs on film only; the props follow the
   // capture's step (frame-step.ts); at rest it is the settled look, the camera alone.
@@ -172,7 +175,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // [topic name], surviveaccounting.com, campus banner underneath" — is this assembly. So the
     // deck's first filmed slide builds itself, and an intro that opens the video takes the
     // open's own topic lines (the topic above, the set below).
-    if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner !== "off"} tagline={frame.text?.trim() ?? ""} domain={frame.url?.trim() || undefined} live
+    if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner === "on"} tagline={frame.text?.trim() ?? ""} domain={frame.url?.trim() || undefined} live
       assembly={{ wordmarkSpot: watermarkSpot(fw), ...(coldOpen ? (coldOpen.held ? { key: "held", atMs: 0 } : { totalMs: coldOpen.ms, key: coldOpen.key }) : { key: "still", finished: true }) }}
       topicTop={topicName} topicBottom={set.name}
       onEdit={edit ? (p) => edit({ ...(p.tagline !== undefined ? { text: p.tagline } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
@@ -183,7 +186,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // five-piece assembly is gone from this path: it drew a different composition than the
     // Editor did (his two screenshots side by side), and staggering was the "starts and stops
     // and all kinds of mess."
-    if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} tutorLine={frame.title?.trim() || undefined} domain={frame.url?.trim() || undefined} banner={frame.banner !== "off"} wordmarkTop={introWordmarkTop(layout)} live
+    if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} tutorLine={frame.title?.trim() || undefined} domain={frame.url?.trim() || undefined} banner={frame.banner === "on"} wordmarkTop={introWordmarkTop(layout)} live
       entrance={opener && coldOpen && !coldOpen.held ? { key: coldOpen.key } : null}
       onEdit={edit ? (p) => edit({ ...(p.topic !== undefined ? { text: p.topic } : {}), ...(p.tutorLine !== undefined ? { title: p.tutorLine } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
     // THE TUTOR CARD (2026-09-03): the bio in the detour format, a bit bigger.
@@ -222,7 +225,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   // THE BOLT DETOUR (Lee, 2026-09-04): "just black backdrop and the bolt zoom
   // animation. Nothing else … a blank canvas to put things on."
   if (frame.kind === "bolt") return <BoltZoom w={fw} h={fh} mode="bolt" variant={isZoomVariant(frame.variant) ? frame.variant : "zoom"} psych={frame.psych ?? 0.1} live />;
-  if (frame.kind === "ad") return <AdSlide ad={isAdKind(frame.ad) ? frame.ad : "greek"} w={fw} h={fh} live hlKey={live ? frame.id : undefined} copy={{ label: frame.text, headline: frame.title, lines: frame.bullets, url: frame.url }}
+  if (frame.kind === "ad") return <AdSlide ad={isAdKind(frame.ad) ? frame.ad : "greek"} w={fw} h={fh} live banner={false} hlKey={live ? frame.id : undefined} copy={{ label: frame.text, headline: frame.title, lines: frame.bullets, url: frame.url }}
     onEdit={edit ? (p) => edit({ ...(p.label !== undefined ? { text: p.label } : {}), ...(p.headline !== undefined ? { title: p.headline } : {}), ...(p.lines !== undefined ? { bullets: p.lines } : {}), ...(p.url !== undefined ? { url: p.url } : {}) }) : undefined} />;
 
   if (frame.kind === "ceq") {

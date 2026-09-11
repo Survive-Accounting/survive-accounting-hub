@@ -66,6 +66,9 @@ export const BLAST_FRAME_KINDS = [
   // prompted questions that help them get the answer." A callout like the other five: the
   // heading is the question, the lines under it the prompts. Canvas kind "ask-yourself" (teal).
   "ask",
+  // 2026-09-11: THE EXAM OUTLINE (OutlineFrame.tsx, exam-outline.ts) — the roadmap for the first
+  // video in a topic: the exam's topics as a strip, one open at a time with ‹ ›, its videos listed.
+  "outline",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -139,7 +142,8 @@ export interface BlastFrame {
    *  between cuts. Post shows it instead of "Split N". */
   takeName?: string;
   /** THE CAMPUS BANNER on this slide (Lee: "let me add this banner at any time
-   *  on future slides … toggle-able on and off"). Absent = only the cold open. */
+   *  on future slides … toggle-able on and off"). OFF unless "on", on every kind — Lee,
+   *  2026-09-11: "default to campus banner off. We're going to only use it on some promo videos." */
   banner?: "on" | "off";
   /** THE TELEPROMPTER COLUMN (Lee, 2026-09-03: "a third slide to the right
    *  of the current one … the teleprompter … THESE SUGGESTED PHRASES ARE
@@ -179,6 +183,10 @@ export interface BlastFrame {
    *  "Skip to <next topic>" (Prompt 5, after site publish exists) needs to know where the tease
    *  begins; the frame that opens it carries the flag. Additive; no other value yet. */
   segment?: "skippable";
+  /** THE EXAM OUTLINE's words (2026-09-11, kind "outline"): Lee's edits, by topic id and set id —
+   *  "A lot of times I like to change the way we're describing them internally." Absent = the
+   *  defaults (a topic's name; a video's question stem, exam-outline.ts defaultSetLabel). */
+  outline?: { topics?: Record<string, string>; sets?: Record<string, string> };
 }
 
 export interface BlastPlan {
@@ -192,7 +200,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -205,7 +213,7 @@ import type { RubricSpec } from "./rubric";
 
 /** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
  *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
-export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next", "survibes"];
+export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next", "survibes", "outline"];
 export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.includes(k);
 
 /** THE FOUR CALLOUTS that can be drawn either way (2026-09-08, `BlastFrame.display`). The
@@ -287,6 +295,7 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   up_next: "Up next",
   survibes: "Survibes",
   ask: "Ask yourself",
+  outline: "Exam outline",
 };
 
 let seq = 0;
@@ -440,7 +449,7 @@ export function canRemove(frames: readonly BlastFrame[], f: BlastFrame): boolean
  *  pair, whose shell is see-through. The brand slides, the slogan, a big callout and the map draw
  *  their own. */
 export function canZoomBehind(f: BlastFrame): boolean {
-  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next";
+  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next" || f.kind === "outline";
 }
 
 /** THE STANDARD OPENER (2026-09-09), in Lee's words and in his own draft's order: "Hero camera,
@@ -454,9 +463,9 @@ export function canZoomBehind(f: BlastFrame): boolean {
  *  only Lee knows it. */
 export function standardOpener(name: string, cram: string): BlastFrame[] {
   return [
-    { id: newFrameId("intro"), kind: "intro", text: name, banner: "on" },
-    { id: newFrameId("slogan"), kind: "slogan", text: cram, banner: "on" },
-    { id: newFrameId("bio"), kind: "bio", banner: "on", cam: "corner" },
+    { id: newFrameId("intro"), kind: "intro", text: name },
+    { id: newFrameId("slogan"), kind: "slogan", text: cram },
+    { id: newFrameId("bio"), kind: "bio", cam: "corner" },
     { id: newFrameId("found"), kind: "found", text: "" },
   ];
 }

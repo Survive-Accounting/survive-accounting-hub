@@ -136,6 +136,8 @@ export function BigCallout({ w, h, label, accent, text, bullets = [], art = fals
           fontFamily: HEAD_FONT, fontWeight: 900, fontSize: size, lineHeight: 0.98, letterSpacing: "-0.015em",
           color: WHITE, textAlign: "center", maxWidth, textWrap: "balance" as never,
           textShadow: `0 ${Math.max(1, Math.round(size * 0.012))}px 0 rgba(0,0,0,0.55), 0 ${Math.round(size * 0.03)}px ${Math.round(size * 0.05)}px rgba(0,0,0,0.5), 0 ${Math.round(size * 0.09)}px ${Math.round(size * 0.2)}px rgba(0,0,0,0.4)`,
+          // LINE BREAKS (2026-09-11): a new line typed in the heading (Shift+Enter) stays a new line.
+          whiteSpace: "pre-line",
         }}>
           {/* THE MARKERS WORK HERE TOO (2026-09-09). Lee: "When I'm editing text, I have == ==
               to highlight. Be sure this applies to the big format for a callout too." The big

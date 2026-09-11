@@ -27,6 +27,8 @@ describe("blastoff frame schema", () => {
       // The equation rubric (2026-09-11) — a strip here would blank every arrow on load.
       rubric: { mode: "ale", text: "Paid $600 cash for rent", amount: 600, arrows: { A: ["down"], L: ["ne"], E: [], Rev: [], Exp: ["up"] }, show: "amounts", equityEffect: true, revExp: true },
       segment: "skippable",
+      // The exam outline's words (2026-09-11) — a strip here would lose every edit on load.
+      outline: { topics: { t1: "The easy points" }, sets: { "deck-e1s-2-1": "What type of account?" } },
     };
     const out = frameSchema.parse(full);
     expect(out).toEqual(full);
