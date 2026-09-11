@@ -121,7 +121,7 @@ const BOLT_H = { narrow: 36, wide: 44 } as const;
 export type TopYou = { email: string | null; userId: string | null; onSignIn: () => void; signOut: () => void };
 
 export function LearnTop({
-  school, campusId, campusName, exams, examNum, onPickExam, chapter, theme, onPickSchool, onShare, onReview, you, demo, narrow, arrive = 0,
+  school, campusId, campusName, exams, examNum, onPickExam, chapter, theme, onPickSchool, onShare, onReview, onPickChapter, you, demo, narrow, arrive = 0,
 }: {
   school: School | null;
   campusId: string | null;
@@ -130,7 +130,9 @@ export function LearnTop({
   examNum: number | null;
   onPickExam: (num: number) => void;
   /** The picked chapter — its letters go over the bolt. */
-  chapter: { name: string | null; letters?: string | null; members: number } | null;
+  chapter: { slug?: string | null; name: string | null; letters?: string | null; members: number } | null;
+  /** Opens the chapter picker (the menu's "Study with your chapter"). */
+  onPickChapter: () => void;
   theme: LearnTheme;
   /** Opens the in-place school picker (LearnSchoolSheet) — never a navigation. */
   onPickSchool: () => void;
@@ -216,9 +218,10 @@ export function LearnTop({
       {menuOpen && (
         <LearnMenu
           narrow={narrow} you={you} onClose={closeMenu}
-          onShare={() => { closeMenu(); void shareNow(); }}
+          campusId={campusId} campusSlug={school?.slug ?? null} courseCode={courseCode} chapterSlug={chapter?.slug ?? null} demo={demo}
           onReminders={() => { setMenuOpen(false); setReminderOpen(true); }}
           onReview={() => { setMenuOpen(false); onReview(); }}
+          onPickChapter={onPickChapter}
         />
       )}
       {reminderOpen && (

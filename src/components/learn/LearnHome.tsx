@@ -113,7 +113,7 @@
 // Every number on this page is still a sum of real runtimes and real question counts — nothing
 // invented. Where a topic has no runtime data yet, it just doesn't claim a duration (no fake
 // "~12 min"), per the "manageable, not overwhelming" rule.
-import { forwardRef, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { forwardRef, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Check, ChevronDown, Loader2, Lock } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
@@ -243,7 +243,11 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   onUnlocked: () => void;
   /** The school — the topic bolts' colours and the practice art's tint. */
   school: School | null;
-}>(function LearnHome({ sets, examLabel, tier, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school }, ref) {
+  /** The chapter the student is on — rides with every email the page collects (2026-09-11). */
+  chapterSlug?: string | null;
+  /** THE SHARE KIT (LearnShareKit) for a council or chapter chair, above the hero; null for a student. */
+  kit?: ReactNode;
+}>(function LearnHome({ sets, examLabel, tier, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school, chapterSlug = null, kit = null }, ref) {
   const byTopic = useMemo(() => {
     const m = new Map<string, HomeSet[]>();
     for (const s of sets) { const arr = m.get(s.topic.id) ?? []; arr.push(s); m.set(s.topic.id, arr); }
@@ -294,6 +298,7 @@ export const LearnHome = forwardRef<HTMLDivElement, {
       {/* THE ENTRANCE BAND — full-bleed on the hero ground, the column inside it. */}
       <div style={{ background: LK.heroBg }}>
         <div className="mx-auto w-full" style={{ maxWidth: CONTENT_MAX, padding: `${narrow ? 10 : wide ? 16 : 14}px ${pad}px 0` }}>
+          {kit}
           <LearnEntrance tier={tier} averageCaption={averageCaption} onStart={startFirst} />
         </div>
         <div aria-hidden style={{ height: narrow ? 8 : wide ? 26 : 22, background: `linear-gradient(${LK.heroBg}, ${LK.bg})` }} />
@@ -326,7 +331,7 @@ export const LearnHome = forwardRef<HTMLDivElement, {
                   onLocked={() => onLocked(topic)}
                 />
               </StudyRail>
-              {overlay && <EmailGate variant={overlay} examLabel={examLabel} topicName={topic.name} campusId={campusId} demo={demo} onUnlocked={onUnlocked} narrow={narrow} />}
+              {overlay && <EmailGate variant={overlay} examLabel={examLabel} topicName={topic.name} campusId={campusId} chapterSlug={chapterSlug} demo={demo} onUnlocked={onUnlocked} narrow={narrow} />}
             </div>
           );
           return (
@@ -430,7 +435,8 @@ type GateVariant = "unlock" | "waitlist";
  *              Easy Points, and no cross-exam tease line (redesign, 2026-09-11).
  *  Success marks the device (writeUnlocked) and un-blurs every later topic. Demo mode never
  *  writes a row (its ids are fake) but still unlocks, so the flow can be walked. */
-function EmailGate({ variant, examLabel, topicName, campusId, demo, onUnlocked, narrow }: {
+function EmailGate({ variant, examLabel, topicName, campusId, chapterSlug, demo, onUnlocked, narrow }: {
+  chapterSlug: string | null;
   variant: GateVariant; examLabel: string; topicName: string;
   campusId: string | null; demo: boolean; onUnlocked: () => void; narrow: boolean;
 }) {
@@ -444,7 +450,7 @@ function EmailGate({ variant, examLabel, topicName, campusId, demo, onUnlocked, 
     if (!EMAIL_RE.test(e)) { setState("error"); setMsg("Enter a valid email."); return; }
     setState("busy");
     try {
-      if (!demo) await submitIntake({ data: { kind: "notify_exam", email: e, topic: topicName, campusId: isUuid(campusId) ? campusId : null, sourcePath: "/learn", source: waitlist ? "learn-waitlist" : "learn-gate" } });
+      if (!demo) await submitIntake({ data: { kind: "notify_exam", email: e, topic: topicName, campusId: isUuid(campusId) ? campusId : null, chapter: chapterSlug, sourcePath: "/learn", source: waitlist ? "learn-waitlist" : "learn-gate" } });
       writeUnlocked();
       onUnlocked();
     } catch { setState("error"); setMsg("Couldn't save that — try again in a moment."); }

@@ -25,6 +25,9 @@ describe("pageShareUrl (the page they're on, cleaned, with the share UTM)", () =
       .toBe("https://surviveaccounting.com/learn/ole-miss/alpha-tau-omega?by=abc&utm_source=share&utm_medium=link&utm_campaign=learn");
     expect(pageShareUrl({ origin: "http://localhost:8097", pathname: "/learn", search: "" }))
       .toBe("http://localhost:8097/learn?utm_source=share&utm_medium=link&utm_campaign=learn");
+    // the chair's and the council's kit tags never reach a student
+    expect(pageShareUrl({ origin: "https://surviveaccounting.com", pathname: "/learn/tennessee", search: "?share=council&c=ifc" }))
+      .toBe("https://surviveaccounting.com/learn/tennessee?utm_source=share&utm_medium=link&utm_campaign=learn");
   });
 });
 
