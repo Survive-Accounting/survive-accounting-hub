@@ -21,6 +21,7 @@ import { cramCardsFromPlan, practiceIdsFromPlan, readLearnPlan } from "./learn-p
  *              none yet; `hasReview` is the flag, ids are never invented.
  *  Paid sets have ALL playback ids withheld (getSetPlayback re-checks the grant per stage). */
 import { shortsFrom, type StudentShort } from "./student-shorts";
+import { coverOf } from "./publish-cover";
 
 export interface StudentSet {
   id: string; // DeckDef.id
@@ -28,6 +29,11 @@ export interface StudentSet {
   access: "free" | "paid";
   orientation: "landscape" | "portrait"; // 16:9 lesson vs 9:16 lookback — player switches aspect
   playbackId: string | null; // CRAM video; null = live set with no published cram yet ("coming soon")
+  /** YOUR OWN THUMBNAIL (2026-09-11, publish-cover.ts): the image Lee uploaded for this video on
+   *  /v3/post, kept on set_publish_status.captions.cover. The student page shows it in place of
+   *  the frame the video host cuts (Lee: "when I upload my own thumbnail file, it loads it. It
+   *  still defaulted to choosing the frame"). Null when none was uploaded — the frame, as before. */
+  coverUrl: string | null;
   ceqCount: number; // # of CEQ question cards in the set (notes excluded) — the practice stage size
   runtimeSec: number | null; // cram runtime in seconds (blast publication, else lesson_videos.duration_sec)
   /** SHORTHAND (08-23) — the problem-type label the left-rail row should show ("Account
@@ -197,6 +203,18 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   const ensureTopic = (course: StudentCourse, t: { id: string; name: string | null; short: string | null; number: number | null }): StudentTopic => {
     let top = topics.get(t.id); if (!top) { top = { id: t.id, name: t.name ?? "Topic", shortLabel: t.short, number: t.number, sets: [] }; topics.set(t.id, top); course.topics.push(top); } return top;
   };
+  // THE COVERS (2026-09-11): one read of set_publish_status for every live set — the row's key is
+  // the set id (part 1) — and the uploaded image's address, when there is one. A failure here is
+  // said out loud: a page that silently drops every cover is exactly the bug this fixes.
+  const coverBySet = new Map<string, string>();
+  {
+    const ids = live.map((d) => d.id);
+    if (ids.length) {
+      const { data: rows, error: cErr } = await admin.from("set_publish_status").select("set_id,captions").in("set_id", ids);
+      if (cErr) throw new Error(`set_publish_status (covers): ${cErr.message}`);
+      for (const r of (rows ?? []) as { set_id: string; captions: unknown }[]) { const c = coverOf(r.captions); if (c) coverBySet.set(r.set_id, c.url); }
+    }
+  }
   for (const d of live) {
     // ALL-DRAFT SETS never reach a student (master status law): a set whose
     // every question is draft/soft-archived AND that has no published video
@@ -222,7 +240,7 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     setOrderKey.set(d.id, d.sortOrder ?? Number.MAX_SAFE_INTEGER);
     // THE SET'S POSTED PARTS (2026-09-11): part 1 replaces the set's video, and the set turns vertical.
     const shorts = shortsFrom(d.publications as never, paid);
-    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: shorts.length ? "portrait" : "landscape", playbackId: paid ? null : (shorts[0]?.playbackId ?? cramPid), ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: shorts[0]?.runtimeSec ?? cramDur, shorts, hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id) });
+    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: shorts.length ? "portrait" : "landscape", playbackId: paid ? null : (shorts[0]?.playbackId ?? cramPid), coverUrl: coverBySet.get(d.id) ?? null, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: shorts[0]?.runtimeSec ?? cramDur, shorts, hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id) });
   }
 
   for (const t of topics.values()) t.sets.sort((a, b) => (setOrderKey.get(a.id) ?? 0) - (setOrderKey.get(b.id) ?? 0) || a.name.localeCompare(b.name));

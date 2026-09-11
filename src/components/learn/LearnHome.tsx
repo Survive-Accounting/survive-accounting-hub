@@ -489,10 +489,12 @@ function PracticeAskSheet({ onWatch, onAnyway, onClose }: { onWatch: () => void;
 function Short({ s, onOpen }: { s: HomeSet; onOpen: () => void }) {
   const pid = s.set.playbackId;
   const posted = isPosted(s);
-  const hasThumb = !!pid && pid !== "__demo__" && !s.locked;
+  // THE THUMBNAIL (2026-09-11): the cover Lee uploaded for the video when there is one, else the
+  // frame the host cuts at two seconds. Never for a paid (locked) set — its face is the lock.
+  const thumb = s.locked ? null : (s.set.coverUrl ?? (pid && pid !== "__demo__" ? muxThumb(pid, 480) : null));
   return (
     <button type="button" onClick={onOpen} className="lk-short" data-on={false} data-rail="true" data-posted={posted} style={{ opacity: s.locked ? 0.7 : undefined }} title={posted ? s.set.name : `${s.set.name} — not posted yet`}>
-      {hasThumb && <img src={muxThumb(pid!, 480)} alt="" loading="lazy" />}
+      {thumb && <img src={thumb} alt="" loading="lazy" />}
       {s.locked && <Lock className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2" style={{ color: "#B5B5B5" }} />}
       {s.set.runtimeSec != null && pid && <span className="lk-short-d">{fmtRuntime(s.set.runtimeSec)}</span>}
       {s.done && <span className="absolute left-2 top-2 z-[1] grid h-6 w-6 place-items-center rounded-full" style={{ background: LK.green, color: "#111" }}><Check className="h-3.5 w-3.5" /></span>}

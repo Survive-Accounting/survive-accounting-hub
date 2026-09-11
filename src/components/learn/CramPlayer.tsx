@@ -287,7 +287,7 @@ function Video({ set, locked, demo, soundOn, onToggleSound, prog, narrow, shrink
         <div className="grid h-full w-full place-items-center text-center" style={{ background: LK.surface2 }}><div><div className="mx-auto mb-2 inline-block"><BoltBoil height={48} /></div><div className="text-[12px] font-semibold" style={{ color: LK.muted }}>This video is not posted yet.</div></div></div>
       ) : (
         <>
-          <video ref={ref} controls playsInline muted={!soundOn} preload="auto" poster={muxThumb(pid, portrait ? 480 : 960)} className="h-full w-full" style={{ objectFit: "contain", background: "#000" }}
+          <video ref={ref} controls playsInline muted={!soundOn} preload="auto" poster={set.coverUrl ?? muxThumb(pid, portrait ? 480 : 960)} className="h-full w-full" style={{ objectFit: "contain", background: "#000" }}
             onPlay={() => { setEnded(false); onStarted(); }} onPause={flush}
             onTimeUpdate={() => { const now = Date.now(); if (now - lastWrite.current > 5000) { lastWrite.current = now; flush(); } }}
             onEnded={finish} />
