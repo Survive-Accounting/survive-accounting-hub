@@ -104,6 +104,9 @@ import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, canRemove, canZoomBehind,
 // drag, copy/cut/paste, bundled ghost, zoom-out while dragging, auto-scroll). The pure parts
 // live beside the plan (spine-select.ts, spine-drag.ts); this file only wires them to rows.
 import { EMPTY_SELECTION, clickSelect, focusOnly, getClip, pickOrdered, setClip, type Selection } from "./spine-select";
+// THE SLIDE BANK (2026-09-11): Ctrl+C / Ctrl+X also shelve the slide; the shelf sits above the spine.
+import { SlideBank } from "./SlideBank";
+import { addToBank, loadBank, saveBank } from "./slide-bank";
 import { DRAG_ZOOM_AFTER_MS, autoScrollDelta, buildBundleGhost } from "./spine-drag";
 // THE FILM POP-OUT, opened from the spine (2026-09-09). The window name is what makes a second
 // click refocus the same window instead of spawning another; the features snap it to 9:16.
@@ -438,6 +441,23 @@ function MoveSlot({ to, onPick, first, last }: { to: number; onPick: (to: number
 /** THE GAP UNDER A SLIDE (2026-09-09) — invisible until hovered, then three verbs: add a slide
  *  here, clone this one as its own editable card, or cut the video here. A marked cut stays
  *  visible, because it is structure rather than a hover affordance. */
+/** THE CLONE IS WORKING (Lee, 2026-09-11: "Show loading animation when I'm cloning a set card to
+ *  edit a new one, so I know it's not stuck"). A new card is a server round trip plus a bank
+ *  refresh — a few seconds with nothing else moving — so the strip's sticky bar says so. */
+const CLONE_BUSY_CSS = `
+@keyframes sa-clone-spin { to { transform: rotate(360deg); } }
+.sa-clone-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(59,245,160,0.25); border-top-color: #3BF5A0; border-radius: 50%; animation: sa-clone-spin 700ms linear infinite; }
+@media (prefers-reduced-motion: reduce) { .sa-clone-spin { animation-duration: 2400ms; } }`;
+function CloneBusy() {
+  return (
+    <span role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: MINT, border: `1px solid ${MINT}55`, borderRadius: 999, padding: "2px 10px", background: "rgba(59,245,160,0.08)", whiteSpace: "nowrap" }}>
+      <style>{CLONE_BUSY_CSS}</style>
+      <span className="sa-clone-spin" />
+      Cloning the card… it lands right after the original
+    </span>
+  );
+}
+
 function GapTools({ onInsert, onClone, onCut, cut, onOver, onDrop, vertical = false, kinds }: {
   onInsert: () => void; onClone: () => void; onCut: () => void; cut: boolean;
   /** THE STRIP (2026-09-10): the gap stands to the RIGHT of its slide, tools stacked. */
@@ -1150,12 +1170,14 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
         if (!picked.length) return;
         e.preventDefault();
         setClip(picked);
+        bankAddRef.current(picked);
         return;
       }
       if (mod && key === "x") {
         if (!picked.length) return;
         e.preventDefault();
         setClip(picked);
+        bankAddRef.current(picked);
         let next: BlastFrame[] = [...frames];
         for (const f of [...picked].reverse()) next = dropFrame(next, f.id);
         commit(next);
@@ -1435,6 +1457,19 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   };
   const labelOf = (f: BlastFrame): string => (f.kind === "ceq" && f.ceqId && summaryLabel.get(f.ceqId)) || (f.kind === "ad" && f.ad ? AD_LABEL[f.ad] : FRAME_LABEL[f.kind]);
   const colorOf = (f: BlastFrame): string => KIND_COLOR[f.kind] ?? (isStandard(f.kind) ? SKY : f.kind === "ceq" && f.ceqId && summaryLabel.has(f.ceqId) ? MINT : MUTED);
+  // THE SLIDE BANK (2026-09-11, slide-bank.ts): what Ctrl+C / Ctrl+X shelve — the slide, what it
+  // is, and a line of its words (a set card's stem, else its heading), so the shelf reads without
+  // the set open. Through a ref, so the key handler above always calls this render's copy.
+  const bankAdd = (fs: readonly BlastFrame[]) => {
+    const adds = fs.map((f) => {
+      const words = f.kind === "ceq" ? viewSet.ceqs.find((c) => c.id === f.ceqId)?.stem ?? "" : (f.title || f.text || "");
+      return { setId: set.id, setName: set.name, label: labelOf(f), snippet: words.replace(/\s+/g, " ").trim().slice(0, 90), frame: f };
+    });
+    if (!saveBank(addToBank(loadBank(), adds))) { flashNote("⚠ this browser won't store the bank"); return; }
+    flashNote(`🗂 ${fs.length === 1 ? "1 slide" : `${fs.length} slides`} in the bank`);
+  };
+  const bankAddRef = useRef(bankAdd);
+  bankAddRef.current = bankAdd;
 
   if (!plan) return <div style={{ color: MUTED, fontSize: 13 }}>Loading the film draft…</div>;
 
@@ -1592,7 +1627,13 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
           </span>
           <span style={{ fontSize: 11.5, color: MUTED }}>{filmed} slides{skipped ? ` · ${skipped} skipped` : ""}</span>
           {knife}
+          {cloning && <CloneBusy />}
           {(spineNote ?? saving) && (() => { const s = spineNote ?? saving!; return <span style={{ fontSize: 11, color: s === POPOUT_BLOCKED || s.startsWith("⚠") ? RED : s === "saved" || s === POPOUT_OPENED ? MINT : MUTED, marginLeft: "auto" }}>{s}</span>; })()}
+          {/* THE SLIDE BANK (2026-09-11) — top right above the spine. */}
+          <span style={{ marginLeft: "auto" }}>
+            <SlideBank setId={set.id} pasteLabel={selIdx < 0 ? "Paste at the end" : `Paste after slide ${selIdx + 1}`}
+              onPaste={(it) => { const { frames: next, ids } = pasteAfter(frames, [it.frame], selIdx < 0 ? frames.length - 1 : selIdx); commit(next); setPick({ ids, anchor: ids[0] ?? null }); }} />
+          </span>
         </div>
         {/* THE INSERT TOGGLE AND ITS CHIP ROWS LEFT (Lee, 2026-09-10: "Insert a slide isn't needed.
             I will do it with the + hover icon"). Every kind they offered is in the gap's "+" now. */}
