@@ -7,7 +7,9 @@
 //
 //   <StudySection>            heading (TopicHead / TopicRow in LearnHome) + the rail
 //     <StudyRail>             the flex row: scroll-snap, hidden scrollbar, overflow-only controls
-//       {videos.map(Short)}   fixed-width 9:16 cards — 256px wide, 232px mid, min(84vw, 340px) phone
+//       {videos.map(Short)}   fixed-width 9:16 cards — clamp(216px, 17.5vw, 252px) on a desk (216 at
+//                             1024, 252 from 1440 up), clamp(200px, 27vw, 220px) on a tablet,
+//                             min(82vw, 340px) on a phone (the polish brief, 09-11: "4.5–6 cards")
 //       <PracticeCard />      the same footprint, last
 //
 // Cards never stretch to fill the width (the email: "3.5–5 cards may be visible depending on
@@ -23,8 +25,8 @@ import { LK } from "@/components/learn/learn-theme";
 import type { Tier } from "@/components/learn/use-tier";
 
 /** The card width per tier — one number for videos and Practice alike. */
-export const CARD_W: Record<Tier, string> = { narrow: "min(84vw, 340px)", mid: "232px", wide: "256px" };
-export const RAIL_GAP: Record<Tier, number> = { narrow: 12, mid: 16, wide: 18 };
+export const CARD_W: Record<Tier, string> = { narrow: "min(82vw, 340px)", mid: "clamp(200px, 27vw, 220px)", wide: "clamp(216px, 17.5vw, 252px)" };
+export const RAIL_GAP: Record<Tier, number> = { narrow: 12, mid: 18, wide: 20 };
 
 export const STUDY_RAIL_CSS = `
 .lk-rail-wrap { position: relative; min-width: 0; }
@@ -43,10 +45,11 @@ export const STUDY_RAIL_CSS = `
 .lk-rail-btn[data-side="left"] { left: 10px; }
 @media (hover: hover) { .lk-rail-btn:hover { opacity: 1; transform: translateY(-50%) scale(1.06); } }
 .lk-rail-btn:focus-visible { outline: 2px solid var(--lk-acc); outline-offset: 2px; }
-/* A CARD IN THE RAIL: fixed width, 9:16, no stretching. Hover lifts 4–6px at ~1.015 (the email). */
+/* A CARD IN THE RAIL: fixed width, 9:16, no stretching. Hover lifts 4px at 1.03, ~220 ms (the polish brief). */
 .lk-short[data-rail="true"] { width: var(--lk-card-w); height: auto; aspect-ratio: 9 / 16; padding: 12px; transition: transform 220ms cubic-bezier(.2,.7,.2,1), box-shadow 220ms cubic-bezier(.2,.7,.2,1); }
 .lk-short[data-rail="true"] .lk-short-t { font-size: 14px; }
-@media (hover: hover) { .lk-short[data-rail="true"]:hover { transform: translateY(-5px) scale(1.015); box-shadow: 0 18px 34px -14px rgba(0,0,0,.55); } }
+@media (hover: hover) { .lk-short[data-rail="true"]:hover { transform: translateY(-4px) scale(1.03); box-shadow: 0 18px 34px -14px rgba(0,0,0,.55); } }
+.lk-short[data-rail="true"]:focus-visible { transform: translateY(-4px) scale(1.03); }
 .lk-short:focus-visible { outline: 2px solid var(--lk-acc); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .lk-short[data-rail="true"], .lk-rail-btn { transition: none; } .lk-short[data-rail="true"]:hover { transform: none; } }
 `;
@@ -88,8 +91,8 @@ export function StudyRail({ tier, children, label, style, ariaHidden, bleed = 0 
       <div ref={ref} className="lk-rail" data-tier={tier} role="group" aria-label={label} style={{ gap, ["--lk-card-w" as string]: CARD_W[tier], ["--lk-rail-pad" as string]: "0px", ["--lk-rail-end" as string]: Math.max(bleed, 4) + "px" } as CSSProperties}>
         {children}
       </div>
-      {back && <div aria-hidden className="lk-rail-fade" data-side="left" style={{ width: narrow ? 28 : 56 }} />}
-      {more && <div aria-hidden className="lk-rail-fade" data-side="right" style={{ width: narrow ? 40 : 84 }} />}
+      {back && <div aria-hidden className="lk-rail-fade" data-side="left" style={{ width: narrow ? 24 : 40 }} />}
+      {more && <div aria-hidden className="lk-rail-fade" data-side="right" style={{ width: narrow ? 36 : 56 }} />}
       {!narrow && back && (
         <button type="button" className="lk-rail-btn" data-side="left" aria-label="Previous videos" onClick={() => step(-1)}><ChevronLeft className="h-5 w-5" /></button>
       )}

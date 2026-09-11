@@ -28,6 +28,11 @@ describe("a later row's own counts", () => {
   test("never advertises zero questions", () => {
     expect(topicRowDetail([gs({ ceqCount: 0 }), gs({ ceqCount: 0 })])).toBe("2 videos");
   });
+  test("honest counts (09-11): unposted videos are not counted, a topic with none says nothing, locked sets add no questions", () => {
+    expect(topicRowDetail([gs({ hasVideo: false, ceqCount: 12 }), gs({ hasVideo: false, ceqCount: 14 })])).toBeNull();
+    expect(topicRowDetail([gs({ ceqCount: 5 }), gs({ hasVideo: false, ceqCount: 9 })])).toBe("1 video · 5 practice questions");
+    expect(topicRowDetail([gs({ ceqCount: 5 }), gs({ locked: true, ceqCount: 9 })])).toBe("1 video · 5 practice questions");
+  });
 });
 
 describe("the locked pill's line", () => {
@@ -44,14 +49,15 @@ describe("the locked pill's line", () => {
 });
 
 describe("the quick round (Lee, 2026-09-11: a Practice card is access to the bank, not all of it)", () => {
-  test("at most 15 questions, 40 s each — ~10 min for a full round, less for a short one", () => {
+  test("at most 15 questions, a minute each — ~15 mins for a full round, less for a short one, never the bank", () => {
     expect(QUICK_ROUND_SIZE).toBe(15);
-    expect(SECONDS_PER_QUESTION).toBe(40);
+    expect(SECONDS_PER_QUESTION).toBe(60);
     expect(quickRoundSize(97)).toBe(15);
     expect(quickRoundSize(8)).toBe(8);
-    expect(practiceMinutes(97)).toBe(10);
-    expect(practiceMinutes(8)).toBe(5);
-    expect(practiceTimeLabel(97)).toBe("~10 min");
+    expect(practiceMinutes(97)).toBe(15);
+    expect(practiceMinutes(8)).toBe(8);
+    expect(practiceTimeLabel(97)).toBe("~15 mins to complete");
+    expect(practiceTimeLabel(1)).toBe("~1 min to complete");
     expect(practiceTimeLabel(0)).toBeNull();
   });
 });

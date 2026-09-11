@@ -3,11 +3,13 @@
 //
 //   ┌──────────────┐
 //   │              │   the cram machine (CramMachine, variant = sectionIndex % 3), centred, ~80% of
-//   │   [machine]  │   the width, balanced a little above the centre of the top ~58% of the card,
+//   │   [laptop]   │   the width, balanced a little above the centre of the top ~64% of the card,
 //   │              │   whole, never cropped, with breathing room
-//   │ Practice     │   the one word
-//   │ ~10 min      │   the RECOMMENDED ROUND's time (learn-gate's practiceTimeLabel: at most 15
-//   │            → │   questions at 40 s) — not the bank size. "97 questions" is off the card.
+//   │              │
+//   │ Practice     │   "Practice Questions" in the display face, at the FOOT of the card — where a
+//   │  Questions   │   video card's title sits — with "~15 mins to complete" under it: the
+//   │ ~15 mins to  │   RECOMMENDED ROUND's time (learn-gate's practiceTimeLabel), never the bank
+//   │  complete    │   size (the polish brief, 09-11). The arrow chip sits top-right, out of the way.
 //   └──────────────┘
 //
 // IDLE: the whole machine floats 0 → -3px → 0 over ~4.2 s, each section on its own phase
@@ -25,7 +27,7 @@ import { ChevronRight, Lock } from "lucide-react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { BOLT_LIT, BOLT_SHADE } from "@/components/brand-cards/bolt-boil";
-import { CramMachine, machineForSection } from "@/components/learn/CramMachine";
+import { CramMachine, PRACTICE_ART } from "@/components/learn/CramMachine";
 import { practiceTimeLabel } from "@/components/learn/learn-gate";
 import { LK } from "@/components/learn/learn-theme";
 import type { School } from "@/lib/schools";
@@ -33,15 +35,15 @@ import type { School } from "@/lib/schools";
 export const PRACTICE_CARD_CSS = `
 .lk-practice { position: relative; display: flex; flex-direction: column; width: var(--lk-card-w); aspect-ratio: 9 / 16; border-radius: 12px; background: var(--lk-surface); border: 1px solid var(--lk-border); box-shadow: var(--lk-shadow); color: var(--lk-text); text-align: left; cursor: pointer; padding: 0; overflow: hidden; transition: transform 220ms cubic-bezier(.2,.7,.2,1), box-shadow 220ms cubic-bezier(.2,.7,.2,1), border-color 220ms; font-family: ${BRAND_SANS}; }
 .lk-practice[data-ready="false"] { cursor: default; opacity: .6; }
-@media (hover: hover) { .lk-practice[data-ready="true"]:hover { transform: translateY(-5px) scale(1.015); box-shadow: 0 22px 40px -16px rgba(20,33,61,.35), 0 2px 6px rgba(20,33,61,.08); border-color: var(--lk-border2); } }
-.lk-practice[data-ready="true"]:focus-visible { outline: 2px solid var(--lk-acc); outline-offset: 3px; transform: translateY(-5px) scale(1.015); }
-.lk-practice-art { flex: 0 0 58%; display: flex; align-items: center; justify-content: center; padding: 10% 8% 4%; }
-.lk-practice-float { width: 82%; aspect-ratio: 1 / 1; animation: lk-practice-float 4.2s ease-in-out infinite; will-change: transform; }
+@media (hover: hover) { .lk-practice[data-ready="true"]:hover { transform: translateY(-4px) scale(1.03); box-shadow: 0 22px 40px -16px rgba(20,33,61,.35), 0 2px 6px rgba(20,33,61,.08); border-color: var(--lk-border2); } }
+.lk-practice[data-ready="true"]:focus-visible { outline: 2px solid var(--lk-acc); outline-offset: 3px; transform: translateY(-4px) scale(1.03); }
+.lk-practice-art { position: absolute; left: 0; right: 0; top: 0; height: 64%; display: flex; align-items: center; justify-content: center; padding: 9% 8% 2%; }
+.lk-practice-float { width: 86%; aspect-ratio: 1 / 1; animation: lk-practice-float 4.2s ease-in-out infinite; will-change: transform; }
 @keyframes lk-practice-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-.lk-practice-meta { flex: 1; display: flex; flex-direction: column; justify-content: flex-start; padding: 4px 14px 14px; gap: 3px; }
-.lk-practice-title { font-size: 20px; line-height: 1.1; }
-.lk-practice-time { font-size: 13px; font-weight: 600; color: var(--lk-muted); font-variant-numeric: tabular-nums; }
-.lk-practice-go { position: absolute; right: 12px; bottom: 12px; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 999px; background: var(--lk-acc); color: var(--lk-acc-ink); transition: transform 220ms cubic-bezier(.2,.7,.2,1); }
+.lk-practice-meta { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; padding: 12px; gap: 3px; }
+.lk-practice-title { font-size: 17px; line-height: 1.15; }
+.lk-practice-time { font-size: 12.5px; font-weight: 600; color: var(--lk-muted); font-variant-numeric: tabular-nums; line-height: 1.3; }
+.lk-practice-go { position: absolute; right: 10px; top: 10px; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 999px; background: var(--lk-acc); color: var(--lk-acc-ink); transition: transform 220ms cubic-bezier(.2,.7,.2,1); }
 @media (hover: hover) { .lk-practice:hover .lk-practice-go { transform: translateX(2px); } }
 @media (prefers-reduced-motion: reduce) { .lk-practice, .lk-practice-go { transition: none; } .lk-practice-float { animation: none; } .lk-practice[data-ready="true"]:hover { transform: none; } }
 `;
@@ -67,7 +69,8 @@ export function PracticeCard({ topicName, sectionIndex, school, bank, ready, loc
   onPractice: () => void;
   onLocked: () => void;
 }) {
-  const variant = machineForSection(sectionIndex);
+  // Every card shows the laptop (Lee, 2026-09-11, later); sectionIndex still phases the float.
+  const variant = PRACTICE_ART;
   const primary = school?.c1 ?? BOLT_LIT;
   const secondary = school?.c2 ?? BOLT_SHADE;
   const [run, setRun] = useState(0);
@@ -122,7 +125,7 @@ export function PracticeCard({ topicName, sectionIndex, school, bank, ready, loc
         </div>
       </div>
       <div className="lk-practice-meta">
-        <span className="lk-disp lk-practice-title">Practice</span>
+        <span className="lk-disp lk-practice-title">Practice Questions</span>
         <span className="lk-practice-time">{locked ? "In the paid set" : (time ?? "No questions yet")}</span>
       </div>
       {(ready || locked) && (
