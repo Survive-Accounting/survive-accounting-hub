@@ -6,7 +6,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { camRect } from "./capture/webcam-spots";
-import { SAFE, camDefault, captionRailRect, cardPlacement, isColumnKind } from "./layout";
+import { SAFE, camDefault, cardPlacement, isColumnKind } from "./layout";
 import { PHONE_W } from "./PhoneFrame";
 import { RUBRIC_GEOM, rubricBlockH } from "./RubricFrame";
 import { RUBRIC_SLIDE, rubricCardW } from "./RubricSlide";
@@ -45,14 +45,13 @@ describe("the rubric frame", () => {
       expect(bottom / H).toBeLessThan(SAFE.bottom);
     }
     expect(isColumnKind("rubric")).toBe(true);
-    expect(captionRailRect(PHONE_W, H, false, "rubric")).toEqual({ x: 0, y: 0, w: 0, h: 0 });
     for (const layout of ["pass1", "pass2"] as const) {
       expect(cardPlacement(layout, "rubric").align).toBe("top");
-      expect(camDefault(layout, "rubric")).toEqual({ spot: "home", size: 0.28 });
+      expect(camDefault(layout, "rubric")).toEqual({ spot: "home", size: 0.32 });
     }
     // The circle clears the top row (the only part the camera is told to keep off) and sits left
     // of the Rev/Exp column, whose left edge is the safe column's left plus E's x.
-    const ring = camRect("home", PHONE_W, H, 0.28);
+    const ring = camRect("home", PHONE_W, H, 0.32);
     const rowBottom = top + CARD_EST.revExp + 8 + HEAD.revExp + 6 + RUBRIC_GEOM.top.h;
     expect(ring.y).toBeGreaterThan(rowBottom);
     expect(ring.x + ring.w).toBeLessThan(PHONE_W * SAFE.left + RUBRIC_GEOM.x.E);

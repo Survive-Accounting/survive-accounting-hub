@@ -21,8 +21,9 @@
 // GEOMETRY. Phone units for the 306-wide stage, times k = w / 306, the way RubricFrame does
 // it. The camera is the CORNER bubble (layout.camDefault) — top-right, .73w–.95w, down to
 // ~.235h — so the header block (chip + title) keeps to a 195-unit column that clears it, and
-// only the bar and the card below it take the safe column's full width. Both stacks end above
-// the caption rail (.61h); end-of-topic-frames.test.ts pins the numbers.
+// only the bar and the card below it take the safe column's full width. Both stacks end inside the
+// safe area (.78h — no caption rail since 2026-09-12, so the type and the bar grew and the Up Next
+// rubric draws full size); end-of-topic-frames.test.ts pins the numbers.
 //
 // MOTION. The charge bar's newest segment fills (and zaps) and the Up Next rubric cycles ONLY
 // on the film surface (`live`); the Editor stage, the thumbnails and the next-slide preview
@@ -56,11 +57,11 @@ export const END_OF_TOPIC_GEOM = {
   left: 15, top: 65, w: 242,
   /** The chip + title column that stays clear of the corner camera (.73w = 223 units). */
   headerW: 195,
-  chipH: 20, titleSize: 22, subtitleSize: 12,
-  barH: 14, barGap: 4, noteSize: 11,
-  card: { pad: 12, radius: 12, headingSize: 19, lineSize: 11.5, ctaSize: 14, ctaPad: 9 },
-  /** Up Next: the rubric block is drawn at this fraction of the stage's k so it ends above the rail. */
-  rubricScale: 0.9,
+  chipH: 20, titleSize: 25, subtitleSize: 13,
+  barH: 18, barGap: 4, noteSize: 12,
+  card: { pad: 14, radius: 12, headingSize: 22, lineSize: 12.5, ctaSize: 16, ctaPad: 10 },
+  /** Up Next: the rubric block's scale — full size since the caption rail went (2026-09-12). */
+  rubricScale: 1,
 } as const;
 
 const CHARGE_CSS = `

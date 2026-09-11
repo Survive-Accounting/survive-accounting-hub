@@ -1,10 +1,11 @@
 // THE END-OF-TOPIC FRAMES' GEOMETRY, pinned: the header block clears the corner camera, the
-// Up Next rubric ends above the caption rail, both kinds are full-frame with the corner bubble.
+// Up Next rubric is full size and ends inside the safe area (2026-09-12: no caption rail any
+// more), both kinds are full-frame with the corner bubble.
 import { describe, expect, test } from "bun:test";
 
 import { camRect } from "./capture/webcam-spots";
 import { END_OF_TOPIC_GEOM } from "./EndOfTopicFrames";
-import { CAPTION_RAIL, camDefault } from "./layout";
+import { SAFE, camDefault } from "./layout";
 import { isFullFrame, isInsert } from "./plan";
 import { RUBRIC_GEOM } from "./RubricFrame";
 
@@ -24,12 +25,13 @@ describe("the end-of-topic frames", () => {
     expect(END_OF_TOPIC_GEOM.left + END_OF_TOPIC_GEOM.headerW).toBeLessThan(ring.x);
   });
 
-  test("Up Next's rubric ends above the caption rail", () => {
+  test("Up Next's rubric draws full size and ends inside the safe area", () => {
     const H = 544;
     const G = END_OF_TOPIC_GEOM;
-    // chip, title (one line), subtitle, the gap, then the block at rubricScale
+    expect(G.rubricScale).toBe(1);
+    // chip, title (one line), subtitle, the gap, then the block
     const header = G.chipH + 7 + G.titleSize * 1.05 + 3 + G.subtitleSize * 1.2 + 12;
     const bottom = G.top + header + RUBRIC_GEOM.h * G.rubricScale;
-    expect(bottom / H).toBeLessThan(CAPTION_RAIL.top);
+    expect(bottom / H).toBeLessThan(SAFE.bottom);
   });
 });

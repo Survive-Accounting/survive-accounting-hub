@@ -81,7 +81,7 @@ import { previewIndex, signalRoll, useCapturePrompterSyncFrame, usePopoutTake, u
 import { fmtClock, historyLabel, initialRounds, opensReview, prompterEditable, reduceRounds, roundLabel, roundMode, roundSegments, showsPrompterInRound } from "./capture/rehearsal-rounds";
 import { useTeleprompterPopout } from "./capture/teleprompter-popout";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
-import { camDefault, layoutOf, type RailStatus } from "./layout";
+import { camDefault, layoutOf } from "./layout";
 import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
 // THE RUBRIC's reveal (2026-09-11): the same spacebar walk as a map's shots — the step lives
 // here, the block reads it through its own context (RubricFrame.tsx).
@@ -430,7 +430,6 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   useEffect(() => { setHero(false); }, [frameId]);
   // THE CAPTION RAIL CHECK: the phone reports whether the card or the camera sits on the
   // fixed rail; the chrome bar says so before the take, not after the burn.
-  const [railStatus, setRailStatus] = useState<RailStatus>("clear");
   // ` also puts the map's arrows back the way the map has them (the take's overrides go).
   const resetTake = useCallback(() => { setEmph(null); setResolved(new Set()); setSpots(NO_SPOTS); clearAllTextHls(); setHero(false); setArrowState({ id: "", over: {} }); }, [clearAllTextHls]);
 
@@ -694,7 +693,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
           <SlideEditContext.Provider value={popout.isPopout && chrome ? patchCurrentFrame : null}>
           <ClusterFilmContext.Provider value={clusterFilm}>
           <FrameStepContext.Provider value={rubricFilm}>
-            <PhoneFrame frame={shownFrame ?? frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture popout={popout.isPopout} stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? stepCam ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} onRailStatus={setRailStatus} coldOpen={coldOpen}
+            <PhoneFrame frame={shownFrame ?? frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture popout={popout.isPopout} stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? stepCam ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} coldOpen={coldOpen}
               progress={questionProgress(frames, ceqById).get(frame.id)} />
           </FrameStepContext.Provider>
           </ClusterFilmContext.Provider>
@@ -823,10 +822,6 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
           )}
           {survibes && !preview && !popout.isPopout && <SurvibesClock key={frameId ?? "sv"} />}
           {qaLayout &&<span title="localStorage sa-layout-qa is set on this browser — the take films THIS pass, not the set's" style={{ color: "#FF7A59", fontWeight: 800 }}>layout override: {qaLayout}</span>}
-          <span title="The fixed caption rail (layout.ts CAPTION_RAIL): where the burned captions will land on this slide"
-            style={{ color: railStatus === "clear" ? MUTED : GOLD, fontWeight: railStatus === "clear" ? 500 : 800 }}>
-            {railStatus === "clear" ? "captions clear" : railStatus === "card" ? "captions: ON THE CARD" : railStatus === "illustration" ? "captions: ON THE PICTURE" : "captions: under the camera"}
-          </span>
           {/* The long hotkey sentence that used to sit here is the "?" card now (capture/
               HotkeysModal.tsx) — Lee: "put that all behind a modal link. It's a lot of text in
               bottom left." B's camera state stays visible since it changes per take. */}

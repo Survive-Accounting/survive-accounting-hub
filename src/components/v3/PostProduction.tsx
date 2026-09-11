@@ -16,21 +16,21 @@
 // the renderer can reach them. Direct to storage with a signed upload: a 400MB file never
 // passes through Vercel.
 //
-// A BROWSER CANNOT RE-ENCODE a 300MB video, and Lee posts from a laptop with no repo, no ffmpeg
-// and no font — so the burn runs on the Fly worker (sa-render-worker), which already has ffmpeg
-// and already re-encodes his video. All the intelligence still happens here: the cards, the
-// karaoke timings and the rail geometry are written into the .ass by lib/captions.ts, the same
-// file the CLI uses, so the server burn and the local one produce the same picture. Step 3 keeps
-// the .srt and the ffmpeg command folded away underneath as the fallback.
+// NO BURN STEP SINCE 2026-09-12. There used to be one between the transcript and the copy: the
+// .ass went up beside the take and the Fly worker burned it in. Lee, asked whether captions were
+// worth the eighth of the frame they took: "I think if we remove captions, it creates more space
+// in the frame for us to teach from. Probably worth more than captions… Yes remove." So the
+// slides took that space back (blastoff/layout.ts) and this panel offers the .srt under the
+// transcript instead — the platforms read it as a caption track, and it costs no frame space.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ThumbnailStudio } from "@/components/brand-kit/ThumbnailStudio";
 import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 import { downloadText, mediaDurationS, storedTranscript, transcribeTakeFile } from "@/components/v3/take-transcript";
 import { clock, transcriptFitsFile } from "@/lib/take-match";
-import { assName, burnCommand, burnedName, shortCaptionFiles, srtName, transcriptFromWords, whisperCostUsd, type Word } from "@/lib/short-captions";
+import { shortCaptionFiles, srtName, transcriptFromWords, whisperCostUsd, type Word } from "@/lib/short-captions";
 // Imported up front (2026-09-11), not on demand: a deploy mid-session 404'd the lazy chunk.
-import { burnCaptions, downloadUrlAs, uploadAss, uploadCover, uploadTake, type BurnProgress } from "@/components/v3/take-burn";
+import { uploadCover, uploadTake } from "@/components/v3/take-burn";
 import { setPublishCover, type SetPublishStatus } from "@/lib/publish-queue.functions";
 import { resolveSitePost, startSitePost } from "@/lib/site-publish.functions";
 import { splitOfPubKey } from "@/lib/short-publication";
@@ -39,10 +39,6 @@ import { takeFileProblem } from "@/lib/take-frame";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
 const MINT = "#3BF5A0";
-
-/** Where Rubik Black has to be for libass to find it. The CLI downloads its own copy; on a
- *  laptop with no repo, installing the font for the user is the one-time step. */
-const FONT_URL = "https://github.com/googlefonts/rubik/raw/main/fonts/ttf/Rubik-Black.ttf";
 
 const small: React.CSSProperties = { font: "inherit", fontSize: 11.5, fontWeight: 700, padding: "5px 11px", borderRadius: 8, border: `1px solid ${V3_EDGE}`, background: "transparent", color: V3_CREAM, cursor: "pointer", whiteSpace: "nowrap" };
 const primary: React.CSSProperties = { ...small, fontSize: 12.5, padding: "7px 14px", border: `1.5px solid ${V3_GOLD}`, background: "rgba(252,163,17,0.12)" };
@@ -107,7 +103,6 @@ export function PostProduction({ pubKey, title, topicName, coverSeed, onTranscri
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   // THE STORED TRANSCRIPT MUST FIT THE FILE (2026-09-11, lib/take-match.ts): the row's length and
   // the picked take's own length, read from its metadata.
   const [storedS, setStoredS] = useState<number | null>(null);
@@ -116,16 +111,11 @@ export function PostProduction({ pubKey, title, topicName, coverSeed, onTranscri
   // may run; and the transcript's own copy button.
   const [fileChecked, setFileChecked] = useState(false);
   const [txCopied, setTxCopied] = useState(false);
-  // SKIP CAPTIONS FOR NOW (2026-09-11). Lee: "I want to be able to skip captions for now. It's too
-  // messy and we can fix later." Step 3 counts as done without a burn, and step 6 names the
-  // original take.
-  const [capSkipped, setCapSkipped] = useState(false);
   // YOUR OWN THUMBNAIL (2026-09-11, lib/publish-cover.ts): uploaded, kept on this video's row.
   const [coverBusy, setCoverBusy] = useState(false);
   const [coverErr, setCoverErr] = useState<string | null>(null);
-  // POST TO THE SITE (2026-09-11, site-publish.functions.ts): the take step 1 uploaded (or the
-  // captioned one, when step 3 made it) goes to the video host as a public video, then onto the
-  // set for students.
+  // POST TO THE SITE (2026-09-11, site-publish.functions.ts): the take step 1 uploaded goes to the
+  // video host as a public video, then onto the set for students.
   const [siteBusy, setSiteBusy] = useState(false);
   const [siteNote, setSiteNote] = useState<string | null>(null);
   const [siteErr, setSiteErr] = useState<string | null>(null);
@@ -200,8 +190,6 @@ export function PostProduction({ pubKey, title, topicName, coverSeed, onTranscri
     void run(false);
   }, [file, fileChecked, busy, run]);
 
-  const cmd = file ? burnCommand(file.name) : "";
-  const copyCmd = async () => { setCopied(await copyToClipboard(cmd)); window.setTimeout(() => setCopied(false), 1800); };
   // THE TRANSCRIPT, one click to copy (2026-09-11).
   const copyTranscript = async () => { setTxCopied(await copyToClipboard(text)); window.setTimeout(() => setTxCopied(false), 1800); };
 
@@ -230,26 +218,8 @@ export function PostProduction({ pubKey, title, topicName, coverSeed, onTranscri
     })();
   };
 
-  // THE BURN, on the Fly worker — because he posts from a laptop with no ffmpeg.
-  const [burning, setBurning] = useState<BurnProgress | null>(null);
-  const [burnUrl, setBurnUrl] = useState<string | null>(null);
-  const [burnErr, setBurnErr] = useState<string | null>(null);
-
-  const burn = useCallback(async () => {
-    if (!file || !files || !videoUrl) return;
-    setBurning({ phase: "uploading", frac: null, note: "Sending the subtitles…" });
-    setBurnErr(null); setBurnUrl(null);
-    try {
-      const assUrl = await uploadAss(file.name, files.ass);
-      setBurnUrl(await burnCaptions(videoUrl, assUrl, setBurning));
-    } catch (e) {
-      setBurnErr(e instanceof Error ? e.message : String(e));
-      setBurning(null);
-    }
-  }, [file, files, videoUrl]);
-
   const postToSite = async () => {
-    const source = burnUrl ?? videoUrl;
+    const source = videoUrl;
     if (!source) return;
     setSiteBusy(true); setSiteErr(null); setSiteLink(null);
     try {
@@ -279,13 +249,6 @@ export function PostProduction({ pubKey, title, topicName, coverSeed, onTranscri
       }
     } catch (e) { setSiteErr(e instanceof Error ? e.message : String(e)); setSiteNote(null); }
     finally { setSiteBusy(false); }
-  };
-
-  const saveBurned = async () => {
-    if (!burnUrl || !file) return;
-    try {
-      await downloadUrlAs(burnUrl, burnedName(file.name));
-    } catch (e) { setBurnErr(e instanceof Error ? e.message : String(e)); }
   };
 
   // ESCAPE CLOSES — the same capture-phase handler the caption sheet has (routes/v3.post.tsx),
@@ -363,6 +326,11 @@ export function PostProduction({ pubKey, title, topicName, coverSeed, onTranscri
             <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <button type="button" onClick={() => void copyTranscript()} style={{ ...primary, color: txCopied ? MINT : V3_CREAM }}>{txCopied ? "copied" : "Copy the transcript"}</button>
               <button type="button" onClick={() => downloadText(`${(file?.name ?? title).replace(/.w+$/, "")}.transcript.txt`, text)} style={small}>Download it (.txt)</button>
+              {/* THE CAPTION TRACK (2026-09-12): nothing is burned into the picture any more, but
+                  YouTube and the rest read this file and lay their own captions over the video —
+                  the viewer turns them on, and they cost the slide no room. */}
+              {files && file && <button type="button" onClick={() => downloadText(srtName(file.name), files.srt, "application/x-subrip")} style={small}
+                title="A caption track to upload beside the video — YouTube reads it natively. Nothing is burned into the picture.">Save the captions (.srt)</button>}
             </div>
           )}
           {text && (
@@ -372,70 +340,7 @@ export function PostProduction({ pubKey, title, topicName, coverSeed, onTranscri
         </Step>
 
         {/* ── 3 ─────────────────────────────────────────────────────────────────────────────── */}
-        <Step n={3} title="Burn the captions in" hint={capSkipped ? "skipped, posting without captions" : burnUrl ? "ready to download" : files ? `${files.cards} captions from ${clock(files.seconds)}` : "needs the transcript"} done={!!burnUrl || capSkipped}>
-          <div style={{ marginBottom: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <button type="button" onClick={() => setCapSkipped((v) => !v)} style={{ ...small, color: capSkipped ? MINT : V3_CREAM }}
-              title="Post the original take without burned-in captions for now">{capSkipped ? "✓ Skipping captions (undo)" : "Skip captions for now"}</button>
-            {capSkipped && <span style={{ fontSize: 11.5, color: V3_MUTED }}>Post your original file as it is.</span>}
-          </div>
-          {!files || !file ? (
-            <div style={{ fontSize: 12.5, color: V3_MUTED }}>Do steps 1 and 2 first.</div>
-          ) : (
-            <>
-              <div style={{ fontSize: 12.5, color: V3_MUTED, lineHeight: 1.5 }}>
-                Rubik Black, the spoken word in gold, sitting in the same rail Review reserves. The
-                render happens on our own server — nothing to install here — and hands back{" "}
-                <b style={{ color: V3_CREAM }}>{burnedName(file.name)}</b> with your original untouched.
-              </div>
-
-              <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  disabled={!videoUrl || (!!burning && !burnUrl)}
-                  onClick={() => void burn()}
-                  style={{ ...primary, opacity: !videoUrl || (!!burning && !burnUrl) ? 0.5 : 1 }}
-                >
-                  {burning && !burnUrl ? "Burning…" : burnUrl ? "Burn it again" : "Burn the captions in"}
-                </button>
-                {burnUrl && (
-                  <button type="button" onClick={() => void saveBurned()} style={{ ...primary, border: `1.5px solid ${MINT}`, background: "rgba(59,245,160,0.12)", color: V3_CREAM }}>
-                    Download {burnedName(file.name)}
-                  </button>
-                )}
-                {!videoUrl && !upErr && <span style={{ fontSize: 11.5, color: V3_MUTED }}>waiting for the upload to finish…</span>}
-                {burning && !burnUrl && <span style={{ fontSize: 11.5, color: V3_GOLD }}>{burning.note}</span>}
-                {burnErr && <span style={{ fontSize: 12, color: "#FF8B7E" }}>{burnErr}</span>}
-              </div>
-              <div style={{ marginTop: 6, fontSize: 11, color: V3_MUTED }}>
-                A three-minute short takes a few minutes; the renderer sleeps when idle, so the
-                first few seconds are it waking up.
-              </div>
-
-              {/* THE SIDECAR, and the command — for the times the renderer is down, or he wants the
-                  plain caption track on YouTube instead of pixels. Folded away by default: this is
-                  the fallback, not the path. */}
-              <details style={{ marginTop: 12 }}>
-                <summary style={{ cursor: "pointer", fontSize: 11.5, color: V3_MUTED }}>Or do it yourself — the .srt, or ffmpeg on this machine</summary>
-                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button type="button" onClick={() => downloadText(srtName(file.name), files.srt, "application/x-subrip")} style={small} title="YouTube reads this as a caption track on upload — no burning">Save the .srt</button>
-                  <button type="button" onClick={() => downloadText(assName(file.name), files.ass)} style={small}>Save the .ass</button>
-                </div>
-                <div style={{ marginTop: 8, fontSize: 11, color: V3_MUTED }}>With both files beside the take, in that folder:</div>
-                <pre style={{ margin: "5px 0 0", padding: "9px 11px", borderRadius: 8, border: `1px solid ${V3_EDGE}`, background: "rgba(244,239,230,0.05)", color: V3_CREAM, fontSize: 11, lineHeight: 1.5, overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{cmd}</pre>
-                <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <button type="button" onClick={() => void copyCmd()} style={{ ...small, color: copied ? MINT : V3_CREAM }}>{copied ? "copied" : "Copy the command"}</button>
-                  <span style={{ fontSize: 11, color: V3_MUTED }}>
-                    Needs <code style={{ color: V3_CREAM }}>winget install Gyan.FFmpeg</code> and{" "}
-                    <a href={FONT_URL} style={{ color: V3_GOLD }}>Rubik Black</a> installed.
-                  </span>
-                </div>
-              </details>
-            </>
-          )}
-        </Step>
-
-        {/* ── 4 ─────────────────────────────────────────────────────────────────────────────── */}
-        <Step n={4} title="The copy" hint={copyDone ? "saved on the row" : "title, description, hashtags"} done={copyDone}>
+        <Step n={3} title="The copy" hint={copyDone ? "saved on the row" : "title, description, hashtags"} done={copyDone}>
           <div style={{ fontSize: 12.5, color: V3_MUTED, lineHeight: 1.5 }}>
             {text
               ? "Written from the transcript — what you said on camera outranks everything else. Talk over it if you want to steer the angle."
@@ -444,8 +349,8 @@ export function PostProduction({ pubKey, title, topicName, coverSeed, onTranscri
           <button type="button" onClick={onOpenCopy} style={{ ...primary, marginTop: 8 }}>Write the copy</button>
         </Step>
 
-        {/* ── 5 ─────────────────────────────────────────────────────────────────────────────── */}
-        <Step n={5} title="The cover" hint={cover ? "your own thumbnail is saved" : "your own image, or make one: the social cover and the site thumbnail"} done={!!cover}>
+        {/* ── 4 ─────────────────────────────────────────────────────────────────────────────── */}
+        <Step n={4} title="The cover" hint={cover ? "your own thumbnail is saved" : "your own image, or make one: the social cover and the site thumbnail"} done={!!cover}>
           {/* YOUR OWN THUMBNAIL (2026-09-11): an image he made himself, kept on this video's row. */}
           <div style={{ marginBottom: 12, paddingBottom: 10, borderBottom: `1px solid ${V3_EDGE}` }}>
             <div style={{ fontSize: 12.5, color: V3_CREAM, fontWeight: 700 }}>Your own thumbnail</div>
@@ -466,25 +371,25 @@ export function PostProduction({ pubKey, title, topicName, coverSeed, onTranscri
           </div>
           {/* THE THUMBNAIL SYSTEM (2026-09-11) — the same studio as /branding/thumbnails, handed
               this take: its frame picker is the SAME door as step 1's (a take chosen here starts
-              the upload too — it used to be plain setFile, and Burn waited on an upload that had
-              never started), and "Use on the cover" drops the still straight into the art. */}
+              the upload too), and "Use on the cover" drops the still straight into the art. */}
           <ThumbnailStudio compact context={{ title, topicName, setId: coverSeed?.setId, part: coverSeed?.part, exam: 1 }} takeFile={file} onTakeFile={pick} />
         </Step>
 
-        {/* ── 6 ─────────────────────────────────────────────────────────────────────────────── */}
-        <Step n={6} title="Post it" hint="by hand, then tick it off">
+        {/* ── 5 ─────────────────────────────────────────────────────────────────────────────── */}
+        <Step n={5} title="Post it" hint="by hand, then tick it off">
           <div style={{ fontSize: 12.5, color: V3_MUTED, lineHeight: 1.6 }}>
-            Upload <b style={{ color: V3_CREAM }}>{file ? (burnUrl ? burnedName(file.name) : file.name) : "the take"}</b>{burnUrl ? " — the captioned one step 3 gave you —" : " — your original take —"} to YouTube, Instagram and
-            TikTok yourself, pasting the copy from step 4 and the cover from step 5. Then close this
-            and tick each destination on the row — that's what the queue counts.
+            Upload <b style={{ color: V3_CREAM }}>{file ? file.name : "the take"}</b> — your take as it came out of OBS — to YouTube, Instagram and
+            TikTok yourself, pasting the copy from step 3 and the cover from step 4. Add the .srt
+            from step 2 wherever a caption track is offered. Then close this and tick each
+            destination on the row — that's what the queue counts.
           </div>
         </Step>
 
-        {/* ── 7 ── POST TO THE SITE (2026-09-11). Lee: "I don't see anywhere where I could just
+        {/* ── 6 ── POST TO THE SITE (2026-09-11). Lee: "I don't see anywhere where I could just
             upload a file and have it post." One press: the video host, then the set, then the row. */}
-        <Step n={7} title="Post it to the site" hint={siteLink || sitePosted?.postedAt ? "on the site" : "students see it on /learn"} done={!!siteLink || !!sitePosted?.postedAt}>
+        <Step n={6} title="Post it to the site" hint={siteLink || sitePosted?.postedAt ? "on the site" : "students see it on /learn"} done={!!siteLink || !!sitePosted?.postedAt}>
           <div style={{ fontSize: 12.5, color: V3_MUTED, lineHeight: 1.6 }}>
-            One click: {burnUrl ? "the captioned video" : "your original video"} goes to our video host and becomes this set's video on the site{takeIndex > 0 ? ` (part ${takeIndex + 1})` : ""}. Pressing again replaces it.
+            One click: your video goes to our video host and becomes this set's video on the site{takeIndex > 0 ? ` (part ${takeIndex + 1})` : ""}. Pressing again replaces it.
           </div>
           <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <button type="button" disabled={!videoUrl || siteBusy} onClick={() => void postToSite()} style={{ ...primary, opacity: !videoUrl || siteBusy ? 0.5 : 1 }}>

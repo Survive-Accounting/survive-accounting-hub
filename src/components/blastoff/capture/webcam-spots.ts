@@ -61,9 +61,11 @@ export function camRect(spot: Exclude<CamSpot, "off">, w: number, h: number, siz
     case "hero": { const cw = r(w * (size ?? 0.62)); const ch = r(cw * 1.2); return { x: r((w - cw) / 2), y: r(h * 0.11), w: cw, h: ch, shape: "portrait" }; }
     // TOP (pass 2): a big circle, centred, under the status bar — above the wordmark on the intro.
     case "top": { const d = r(w * (size ?? 0.34)); return { x: r((w - d) / 2), y: r(h * 0.105), w: d, h: d, shape: "circle" }; }
-    // LEFT (2026-09-11, Survibes): a big rounded box on the left. .51w wide, 1.28 tall-to-wide,
-    // from .215h — its bottom is .58h, above the large captions box (layout.SURVIBES_RAIL).
-    case "left": { const cw = r(w * (size ?? 0.51)); const ch = r(cw * 1.28); return { x: r(w * 0.067), y: r(h * 0.215), w: cw, h: ch, shape: "portrait" }; }
+    // LEFT (2026-09-11, Survibes): a big rounded box on the left. .51w wide, from .215h, and
+    // TALLER SINCE 2026-09-12 (1.75 tall-to-wide, was 1.28): its bottom was held at .58h to leave
+    // room for a large captions box under it, and captions are retired, so it takes that room —
+    // bottom ≈ .717h, inside the safe area. Still left of the struck bolt (.59w).
+    case "left": { const cw = r(w * (size ?? 0.51)); const ch = r(cw * 1.75); return { x: r(w * 0.067), y: r(h * 0.215), w: cw, h: ch, shape: "portrait" }; }
     case "free": { const d = r(w * (size ?? 0.26)); const p = pos ?? { x: 0.05, y: 0.55 }; return { x: r(p.x * w), y: r(p.y * h), w: d, h: d, shape: "circle" }; }
   }
 }

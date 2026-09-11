@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { CAPTION_RAIL } from "@/components/blastoff/layout";
-import { bigCalloutBand, bigCalloutSize } from "./BigCallout";
+import { CONTENT_BOTTOM } from "@/components/blastoff/layout";
+import { BIG_CALLOUT_CAP, bigCalloutBand, bigCalloutSize } from "./BigCallout";
 
 const H = 1920;
 
@@ -12,7 +12,7 @@ describe("the big callout's type scale", () => {
     const short = bigCalloutSize(H, "Debits go left.");
     const long = bigCalloutSize(H, "Ask what the company received and then what it gave up, every single time.");
     expect(short).toBeGreaterThan(long);
-    expect(short).toBe(Math.round(H * 0.096));       // the cap — the whole point of the mode
+    expect(short).toBe(Math.round(H * BIG_CALLOUT_CAP.plain));       // the cap — the whole point of the mode
   });
 
   test("bullets and a picture each take room away from the heading", () => {
@@ -29,7 +29,7 @@ describe("the big callout's type scale", () => {
     const huge = "x".repeat(4000);
     for (const opts of [{}, { bullets: 9 }, { art: true }, { bullets: 9, art: true }]) {
       expect(bigCalloutSize(H, huge, opts)).toBeGreaterThanOrEqual(Math.round(H * 0.03));
-      expect(bigCalloutSize(H, huge, opts)).toBeLessThanOrEqual(Math.round(H * 0.096));
+      expect(bigCalloutSize(H, huge, opts)).toBeLessThanOrEqual(Math.round(H * BIG_CALLOUT_CAP.plain));
       expect(bigCalloutSize(H, "", opts)).toBeGreaterThan(0);
     }
     expect(Number.isFinite(bigCalloutSize(H, "   "))).toBe(true);
@@ -38,13 +38,19 @@ describe("the big callout's type scale", () => {
   test("it scales with the frame, so the pop-out and the Review stage agree", () => {
     expect(bigCalloutSize(960, "Debits go left.")).toBe(Math.round(bigCalloutSize(1920, "Debits go left.") / 2));
   });
+
+  // 2026-09-12: captions are gone, so the words go bigger than they did when a rail sat under them.
+  test("the type is bigger than it was under the old caption rail", () => {
+    expect(BIG_CALLOUT_CAP.plain).toBeGreaterThan(0.096);
+  });
 });
 
 describe("the band the words live in", () => {
-  test("stops above the burned-caption rail, with and without a picture", () => {
+  test("runs down to the content floor now, with and without a picture", () => {
     for (const art of [false, true]) {
       const b = bigCalloutBand(art);
-      expect(b.bottom).toBeLessThan(CAPTION_RAIL.top);
+      expect(b.bottom).toBeLessThanOrEqual(CONTENT_BOTTOM);
+      expect(b.bottom).toBeGreaterThan(0.735);          // past where the old caption rail ended
       expect(b.top).toBeLessThan(b.bottom);
     }
   });

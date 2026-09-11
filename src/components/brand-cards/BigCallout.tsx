@@ -21,7 +21,7 @@
 // the burned-caption rail; no wordmark (PhoneFrame owns the corner mark — and unlike the brand
 // cards this slide KEEPS it, because a cheat code is content in the middle of a rip, not a
 // brand card standing in for the logo).
-import { CAPTION_RAIL, SAFE } from "@/components/blastoff/layout";
+import { CONTENT_BOTTOM, SAFE } from "@/components/blastoff/layout";
 
 import { renderInline } from "@/components/canvas/inline-md";
 
@@ -55,11 +55,16 @@ const BIG_CSS = `
  *  it, a picture above it, and simply having more words. Pure and clamped — never past the cap,
  *  never under the floor, so no combination of inputs can produce type that overflows the band
  *  or type too small to read at phone size. */
+/** THE HEADING'S CAP per configuration, as a fraction of the frame's height. Every one of them
+ *  went up on 2026-09-12: the band used to stop at the caption rail (.61h) and now runs to the
+ *  content floor, so the same words can be set bigger. */
+export const BIG_CALLOUT_CAP = { plain: 0.108, bullets: 0.08, bullets3: 0.066, art: 0.058 } as const;
+
 export function bigCalloutSize(h: number, text: string, opts: { bullets?: number; art?: boolean } = {}): number {
   const bullets = Math.max(0, opts.bullets ?? 0);
   const art = !!opts.art;
   // The cap: how big the shortest heading is allowed to go in this configuration.
-  const cap = art ? 0.052 : bullets >= 3 ? 0.058 : bullets > 0 ? 0.072 : 0.096;
+  const cap = art ? BIG_CALLOUT_CAP.art : bullets >= 3 ? BIG_CALLOUT_CAP.bullets3 : bullets > 0 ? BIG_CALLOUT_CAP.bullets : BIG_CALLOUT_CAP.plain;
   const floor = art ? 0.03 : 0.032;
   // 28 characters is about the longest line that still reads as ONE statement on a phone; past
   // that the heading is a sentence and steps down toward the floor.
@@ -69,10 +74,10 @@ export function bigCalloutSize(h: number, text: string, opts: { bullets?: number
 }
 
 /** The band the words live in, as fractions of the height — the counterpart of
- *  SloganCard.sloganBand, and it defers to the same caption rail. With a picture the words take
- *  the strip beneath it; without one they own the frame and sit optically above centre. */
+ *  SloganCard.sloganBand, and both run to the content floor since 2026-09-12. With a picture the
+ *  words take the strip beneath it; without one they own the frame and sit optically above centre. */
 export function bigCalloutBand(art: boolean): { top: number; bottom: number } {
-  return { top: art ? 0.43 : 0.18, bottom: CAPTION_RAIL.top - 0.01 };
+  return { top: art ? 0.43 : 0.18, bottom: CONTENT_BOTTOM - 0.02 };
 }
 
 export function BigCallout({ w, h, label, accent, text, bullets = [], art = false, live = true, style }: {

@@ -22,12 +22,12 @@ import { COLD_OPEN_CLASS, pieceClass } from "@/components/brand-cards/cold-open"
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 
 import { WebcamFrame } from "./capture/Webcam";
-import { camRect, isCamSpot, watermarkSpot, wordmarkHero, type Box, type CamSpot } from "./capture/webcam-spots";
+import { isCamSpot, watermarkSpot, wordmarkHero, type Box, type CamSpot } from "./capture/webcam-spots";
 import { FrameView } from "./frame-view";
 import { IllustrationLayer, PlacedIllustration } from "./IllustrationLayer";
 import { CardNote, NOTE_DIM_CSS } from "./CardNote";
 import { canIllustrate, isPlaced } from "./illustration";
-import { SAFE, camDefault, captionRailClear, captionRailRect, cardPlacement, isColumnKind, type RailStatus, type SlideLayout } from "./layout";
+import { SAFE, camDefault, cardPlacement, isColumnKind, type SlideLayout } from "./layout";
 import { backdropFor, canZoomBehind, framesFullFrame, isBigCallout, isFullFrame, type BackdropMode, type BlastFrame } from "./plan";
 import type { CardOverride } from "./SetCard";
 import { SlideEditContext } from "./slide-edit";
@@ -106,7 +106,7 @@ export function watermarkOn(frame: BlastFrame, _backdrop: ReturnType<typeof back
 // keystroke in the editor re-rendered all of them. React.memo with the default shallow compare —
 // the spine's row passes stable props (see ReviewDeck's SpineRow); every other caller is one
 // phone and behaves exactly as before. The display name stays "PhoneFrame".
-export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, popout = false, stageStyle, camSpot, cardOverride: gripOverride, layout = "pass1", hero: heroProp, onHero, onRailStatus, coldOpen, backdrop: backdropGiven }: {
+export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, topicName, progress, w = PHONE_W, live = true, safe = false, dim = false, rounded = true, style, capture = false, popout = false, stageStyle, camSpot, cardOverride: gripOverride, layout = "pass1", hero: heroProp, onHero, coldOpen, backdrop: backdropGiven }: {
   frame: BlastFrame;
   /** The whole running order — the backdrop rule looks at the neighbours. */
   frames: readonly BlastFrame[];
@@ -145,9 +145,6 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
    *  the next slide and B→off can end it); uncontrolled everywhere else. */
   hero?: boolean;
   onHero?: (on: boolean) => void;
-  /** THE CAPTION RAIL CHECK (2026-09-05): on the capture, told whether the card or the camera
-   *  sits on the fixed caption rail — the /film chrome shows it. */
-  onRailStatus?: (s: RailStatus) => void;
   /** THE ASSEMBLY COLD OPEN (2026-09-08, brand-cards/cold-open.ts). On an `open` frame the
    *  slide builds itself over `ms` and the wordmark lands last in the watermark corner; `key`
    *  restarts it (a new countdown, or walking back onto the slide). BlastOffCapture is the only
@@ -245,14 +242,8 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
     const b = el.getBoundingClientRect();
     setMarkBox({ w: b.width, h: b.height });
   }, [w, frame.id, moment]);
-  // THE RAIL: reserved on the Review stage (drawn with the safe zones), checked on the take.
-  // Nothing is ever drawn on the capture — OBS must not see a guide.
-  const rail = captionRailRect(w, h, cam === "off", frame.kind);
-  useEffect(() => {
-    if (!capture || !onRailStatus) return;
-    const camBox = cam === "off" ? null : camRect(cam, w, h, camSize, frame.camPos);
-    onRailStatus(captionRailClear(rail, cardBox, camBox, artBox));
-  }, [capture, onRailStatus, rail.x, rail.y, rail.w, rail.h, w, h, cam, camSize, frame.camPos, cardBox, artBox]);
+  // NO CAPTION RAIL SINCE 2026-09-12 (layout.ts's own note): nothing is reserved, nothing is
+  // drawn, and the /film chrome has no collision readout to feed.
   // ONE COPY of the watermark corner (webcam-spots.watermarkSpot): the assembly cold open flies
   // its wordmark into exactly this left/top/size, so slide one's landing and slide two's
   // watermark are the same mark in the same place — no jump, no second fade-in.
@@ -403,11 +394,6 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
           <div key={coldOpen?.key} className={`${COLD_OPEN_CLASS} ${pieceClass("camera")}`} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>{webcam}</div>
         );
       })()}
-      {safe && !moment && rail.h > 0 && (
-        <div style={{ position: "absolute", left: rail.x, top: rail.y, width: rail.w, height: rail.h, border: "1px dashed rgba(252,163,17,0.55)", borderRadius: 6, pointerEvents: "none" }}>
-          <span style={{ ...tag, left: 6, top: 4, color: "rgba(252,163,17,0.8)" }}>captions</span>
-        </div>
-      )}
       {safe && (
         <>
           <div style={{ ...band, top: 0, height: "9%", borderBottom: "1px dashed" }}><span style={{ ...tag, left: 8, bottom: 4 }}>status bar</span></div>

@@ -44,7 +44,8 @@ export interface ExamOutline {
 export interface OutlineLabels { topics?: Record<string, string>; sets?: Record<string, string> }
 
 /** How many of a topic's videos the slide lists before "+ N more" — what fits above the captions. */
-export const OUTLINE_MAX_LINES = 7;
+// TEN SINCE 2026-09-12: the slide runs to the bottom of the safe area now that captions are gone.
+export const OUTLINE_MAX_LINES = 10;
 
 /** Lee's five, word for word ("What type of account?" …), matched on the set's name. */
 const STEM_DEFAULTS: readonly (readonly [RegExp, string])[] = [

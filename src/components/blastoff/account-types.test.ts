@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 
 import { DEFAULT_LISTS, TYPE_INFO, TYPE_KEYS, TYPE_LISTS, TYPE_TABS, listOf, sectionsFor, typesView, withList, withWord, wordOf } from "./account-types";
 import { camRect } from "./capture/webcam-spots";
-import { SAFE, camDefault, captionRailRect, cardPlacement, isColumnKind } from "./layout";
+import { SAFE, camDefault, cardPlacement, isColumnKind } from "./layout";
 import { PHONE_W } from "./PhoneFrame";
 import { TYPES_GEOM } from "./TypesFrame";
 
@@ -68,6 +68,5 @@ describe("the types of accounts slide", () => {
     // The tabs start under the corner circle.
     expect(top + (16 + 50 + 6)).toBeGreaterThan(corner.y + corner.h);
     expect(isColumnKind("types")).toBe(true);
-    expect(captionRailRect(PHONE_W, H, false, "types").h).toBe(0);
   });
 });

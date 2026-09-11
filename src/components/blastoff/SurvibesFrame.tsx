@@ -4,8 +4,8 @@
 // opens on the normal SurviveWordmark, large and centred; at ~0.7 s a white-blue flash, a big
 // split red/blue bolt strikes in from above, the "ve" flips on its X axis and returns as "bes",
 // the background lights red-left / blue-right with faint scanlines; then the wordmark glides to
-// the top and the camera (the big rounded box on the left — the `left` spot) and a LARGE captions box (the rail's own
-// survibes branch — layout.captionRailRect) take the frame. Props via the spacebar: a step pops
+// the top and the camera (the big rounded box on the left — the `left` spot, which runs down to
+// the content floor since captions were retired) takes the frame. Props via the spacebar: a step pops
 // a card over the top area (first: Luca Pacioli) while the wordmark shrinks to the corner and
 // the camera to a small circle under the card (BlastOffCapture's step camera, SURVIBES_PROP_CAM).
 //
@@ -16,8 +16,7 @@
 // THE CLOCK runs on the film surface only (`live`), from the moment the slide arrives, on the
 // mockup's milliseconds (survibes.ts). Everywhere else — the Editor stage, the thumbnails, the
 // next-slide preview — and under prefers-reduced-motion it is the settled look, the camera
-// alone. Captions are not drawn here: the burn puts them in the box later; the Review stage's
-// dashed reservation shows the box.
+// alone.
 //
 // THE CAMERA ARRIVES WITH THE SETTLE. It is PhoneFrame's, not this frame's, so BlastOffCapture
 // holds it off for the first SURVIBES_T.camIn ms (the settle plus the 700 ms glide) — otherwise

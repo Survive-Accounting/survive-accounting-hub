@@ -15,14 +15,27 @@
 // rail on the right 16 % from 30 % to 80 %. The content column is what is
 // left: x 5–84 %, y 10–78 %.
 //
-// PASS 2 puts every card at the TOP of that column (eye lands there first,
-// captions live below), makes the card narrower and its type bigger so it
-// reads portrait rather than landscape, and gives the camera the bottom-left
-// of the column at a size that reads on a phone. On the intro the camera sits
-// above the wordmark; on the open it stays off. Nothing here moves outside
-// the column.
+// PASS 2 puts every card at the TOP of that column (eye lands there first),
+// makes the card narrower and its type bigger so it reads portrait rather than
+// landscape, and gives the camera the bottom-left of the column at a size that
+// reads on a phone. On the intro the camera sits above the wordmark; on the
+// open it stays off. Nothing here moves outside the column.
+//
+// NO CAPTION RAIL, SINCE 2026-09-12. A fixed band at .61h–.735h used to be held
+// empty on every slide for burned-in captions. Lee, on videos now under a
+// minute: "Should we just eliminate these? I think if we remove captions, it
+// creates more space in the frame for us to teach from. Probably worth more
+// than captions." Then: "Yes remove. And ensure that we're making more use of
+// that space now. Update all slides to resize if they can and be better."
+//
+// So the content floor is simply SAFE.bottom, and what sat above the old rail
+// grew into it: the camera, the picture band (IllustrationLayer), the slogan
+// and big-callout bands, the end-of-topic and outline shells, Survibes' camera
+// box, and the rubric. The burn's own geometry moved to lib/captions.ts, which
+// still writes .ass / .srt for the offline CLI — a caption track costs no frame
+// space, a burned-in one costs an eighth of the frame.
 import type { BlastFrame } from "./plan";
-import { overlaps, type Box, type CamSpot } from "./capture/webcam-spots";
+import type { CamSpot } from "./capture/webcam-spots";
 
 export const LAYOUTS = ["pass1", "pass2"] as const;
 export type SlideLayout = (typeof LAYOUTS)[number];
@@ -40,6 +53,11 @@ export function layoutOf(plan: { layout?: string } | null | undefined): SlideLay
 /** The Shorts safe column, as fractions of the frame. */
 export const SAFE = { top: 0.10, bottom: 0.78, left: 0.05, right: 0.84 } as const;
 
+/** THE CONTENT FLOOR (2026-09-12) — how far down a slide may draw. It is the safe column's own
+ *  bottom now that nothing is reserved for captions; every band that used to stop at the caption
+ *  rail (.61h) reads this instead. */
+export const CONTENT_BOTTOM = SAFE.bottom;
+
 export interface CardPlacement {
   /** "top" = the card's top edge sits at SAFE.top (+ a breath); "centre" = the old deal. */
   align: "top" | "centre";
@@ -50,16 +68,16 @@ export interface CardPlacement {
 
 /** Where a card kind sits in a layout. */
 export function cardPlacement(layout: SlideLayout, kind: BlastFrame["kind"]): CardPlacement {
-  // THE RUBRIC (2026-09-11) sits at the top of the safe column in BOTH templates — it is a
-  // fixed block sized from the phone (RubricFrame.tsx), not a flow card, and centred it would
-  // land on the caption rail.
-  if (kind === "rubric" || kind === "types") return { align: "top" };
+  // THE COLUMN KINDS (the rubric 2026-09-11, Types of accounts 2026-09-11) sit at the top of the
+  // safe column in BOTH templates — they are fixed blocks sized from the phone, not flow cards.
+  if (isColumnKind(kind)) return { align: "top" };
   if (layout === "pass1") return { align: "centre" };
-  // Narrower and bigger: 470 flow units at ×1.24 is the same width as 560 at
-  // ×1.04 but every line is a fifth larger, so four choices stack tall.
-  if (kind === "ceq") return { align: "top", cardW: 470, scaleMul: 1.24 };
-  if (kind === "bio") return { align: "top", cardW: 520, scaleMul: 1.08 };
-  return { align: "top", cardW: 480, scaleMul: 1.22 };           // the detours
+  // Narrower and bigger: the drawn width is the same 560 × 1.04 it has always been — past that a
+  // card runs under the like/share icons — but the type inside it grew 8 % when the captions went
+  // (2026-09-12), so every line reads bigger in the same box.
+  if (kind === "ceq") return { align: "top", cardW: 435, scaleMul: 1.34 };
+  if (kind === "bio") return { align: "top", cardW: 480, scaleMul: 1.17 };
+  return { align: "top", cardW: 445, scaleMul: 1.32 };           // the detours
 }
 
 /** The camera's default spot and size in a layout (absent frame.cam). */
@@ -69,10 +87,10 @@ export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spo
   // THE MAP (2026-09-07): the small corner circle in both templates — a field wants the camera
   // out of the way (webcam-spots.defaultCamFor says the same).
   if (kind === "cluster") return { spot: "corner" };
-  // THE RUBRIC (2026-09-11): content, camera small — the plain home circle at .28w in both
-  // templates. The block ends well above the circle (RubricFrame.tsx's geometry, pinned in
-  // rubric-frame.test.ts).
-  if (kind === "rubric") return { spot: "home", size: 0.28 };
+  // THE RUBRIC (2026-09-11): content, camera small — the plain home circle in both templates. The
+  // block's top row ends well above the circle, which sits in the L's crook (RubricFrame.tsx's
+  // geometry, pinned in rubric-frame.test.ts).
+  if (kind === "rubric") return { spot: "home", size: 0.32 };
   // THE END-OF-TOPIC FRAMES (2026-09-11): the corner bubble — the charge bar and the tease own
   // the column; the header block keeps clear of the corner (EndOfTopicFrames.tsx headerW).
   if (kind === "topic_done" || kind === "up_next" || kind === "outline") return { spot: "corner" };
@@ -80,105 +98,34 @@ export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spo
   // bottom of the safe area, and the header keeps left of the corner (TypesFrame.tsx headerW).
   if (kind === "types") return { spot: "corner" };
   // SURVIBES (2026-09-11): the big rounded box on the LEFT (the brief: "the camera (large rounded
-  // box, left)"), the struck bolt standing to its right — the `left` spot, whose bottom (.58h)
-  // clears the large captions box (SURVIBES_RAIL, .60h). A prop step swaps it for a small circle
-  // under the prop card (BlastOffCapture, survibes.SURVIBES_PROP_CAM).
+  // box, left)"), the struck bolt standing to its right — the `left` spot, which runs down to the
+  // content floor since the captions box under it went (2026-09-12). A prop step swaps it for a
+  // small circle under the prop card (BlastOffCapture, survibes.SURVIBES_PROP_CAM).
   if (kind === "survibes") return { spot: "left" };
   // MEMORIZE THIS / DEEPER IDEA (Deep Question since 2026-09-06; kind "tip") / BIO (Lee, fast
-  // track 2026-09-05: "enlarge the camera frame
-  // … large enough to be viewable on a phone without blocking any text"). Bigger than every
-  // other card slide's home camera, in both templates. avoidCard (webcam-spots.ts) still
-  // shrinks it toward its own bottom-left corner if a tall card reaches into it, so it can
-  // never cover the stem or the bullets; CAPTION_RAIL.left below grew to match so the bigger
-  // circle never reaches the caption text either.
-  if (kind === "phrase" || kind === "tip" || kind === "tricky" || kind === "found" || kind === "ask" || kind === "bio") return { spot: "home", size: 0.34 };
-  if (layout === "pass1") return { spot: kind === "intro" ? "corner" : "home" };
+  // track 2026-09-05: "enlarge the camera frame … large enough to be viewable on a phone without
+  // blocking any text"). Bigger than every other card slide's home camera, in both templates, and
+  // bigger again since the captions went (2026-09-12) — nothing sits beside it to keep clear of
+  // now. avoidCard (webcam-spots.ts) still shrinks it toward its own bottom-left corner if a tall
+  // card reaches into it, so it can never cover the stem or the bullets.
+  if (kind === "phrase" || kind === "tip" || kind === "tricky" || kind === "found" || kind === "ask" || kind === "bio") return { spot: "home", size: 0.38 };
+  if (layout === "pass1") return { spot: kind === "intro" ? "corner" : "home", ...(kind === "intro" ? {} : { size: 0.32 }) };
   // Pass 2 (polish pass, 2026-09-05). THE INTRO IS RECTANGULAR — the talking-head portrait —
   // but at .48w, not the hero spot's .62w default: at .62w its bottom lands at .529h, under
   // the pass-2 wordmark block (introWordmarkTop .44h); at .48w the bottom is .434h and clears
-  // it by ~1 % h. layout.test.ts pins that invariant. THE HOME CIRCLE is .28w, ~7 % under the
-  // .30 it was (Lee: "test reducing its default size approximately 5–10 %").
+  // it by ~1 % h. layout.test.ts pins that invariant.
   if (kind === "intro") return { spot: "hero", size: 0.48 };
-  return { spot: "home", size: 0.28 };
+  // THE HOME CIRCLE: .32w since the captions went (2026-09-12) — it used to be held at .28w so the
+  // caption text beside it had a column to live in.
+  return { spot: "home", size: 0.32 };
 }
 
-/** THE FIXED CAPTION RAIL (polish pass, 2026-09-05). Captions have ONE place on every slide,
- *  whatever the camera is doing (Lee: "The camera intentionally moves/swims around the
- *  composition between slides. Captions need their own fixed visual position."). Lower-middle
- *  of the canvas — not flush to the bottom edge (the platform's caption/title chrome lives
- *  there), never inside the card, never attached to the camera.
- *
- *  Read by three things, which is the point: the post-burn (lib/captions.ts, the ASS margins
- *  and type size), the Review stage's dashed reservation, and the /film chrome's collision
- *  readout. Change a number here and all three follow.
- *
- *    top / bottom   .61h – .735h. The text's bottom edge sits at .735h: above the campus banner
- *                   (.745h–.791h) and the SAFE.bottom .78h caption zone. Below the hero
- *                   wordmark's bottom edge (.585h — webcam-spots.wordmarkHero) so the two can
- *                   never collide.
- *    left           .41w (fast track, 2026-09-05): clears the bigger .34w memorize-this /
- *                   deeper-idea / bio home camera (.05w + .34w) plus a breath — was .35w,
- *                   sized to the plain .28w home camera every other card slide still uses;
- *                   this wider bound clears both.
- *    wideLeft       .07w when the slide has no camera.
- *    right          .84w = SAFE.right, inside the like/share rail.
- *    size           4.0 % of the height (77 px at 1920) — phone-readable; two lines at most.
- *    spoken         a SOFT gold for the word being said, not the full brand gold — the
- *                   emphasis is a lift in brightness, not a colour change (Lee: restrained). */
-export const CAPTION_RAIL = {
-  top: 0.61, bottom: 0.735, left: 0.41, wideLeft: 0.07, right: 0.84,
-  size: 0.04, lineHeight: 1.12, maxLines: 2,
-  ink: "#FFFFFF", spoken: "#FFD98A", stroke: "#0B1220", strokeW: 0.005,
-} as const;
-
-/** THE LARGE CAPTIONS BOX (Survibes, 2026-09-11): the full safe width under the camera, taller
- *  and bigger type (~29 px on the mockup's 640-tall phone → 4.5 % of the height) — the brief's
- *  "a LARGE captions box (full safe width under the camera, ~29px captions — branch
- *  captionRailRect on this kind)". Top .60h: under the left camera's bottom (.58h);
- *  bottom .78h = SAFE.bottom. The burn (lib/captions.ts) still reads CAPTION_RAIL for every
- *  split — a Survibes split wants these margins there too; that is a per-split follow-up. */
-export const SURVIBES_RAIL = { top: 0.60, bottom: 0.78, left: SAFE.left, right: SAFE.right, size: 0.045, maxLines: 3 } as const;
-
-/** The rail in px on a phone w × h; `wide` when the slide films with no camera; `kind` lets a
- *  frame kind choose its own box (Survibes takes the large one). */
 /** THE COLUMN KINDS (2026-09-11): slides laid out as one fixed column in phone units, flush to the
- *  safe column's left edge rather than centred, running down to its bottom — so NO CAPTION RAIL on
- *  them (an empty rail: no guide on Review, never a collision on film). Lee, on the rubric: "needs
- *  to make better use of our available space. It's too tucked into the top right corner." On
- *  captions: "if we remove captions, it creates more space in the frame for us to teach from."
- *  The burn (lib/captions.ts) still reads CAPTION_RAIL; captions are skipped in post today. */
+ *  safe column's left edge rather than centred, running down toward the content floor. Lee, on the
+ *  rubric: "needs to make better use of our available space. It's too tucked into the top right
+ *  corner." */
 export const COLUMN_KINDS: readonly BlastFrame["kind"][] = ["rubric", "types"];
 export function isColumnKind(kind: BlastFrame["kind"] | undefined): boolean { return !!kind && COLUMN_KINDS.includes(kind); }
-
-export function captionRailRect(w: number, h: number, wide = false, kind?: BlastFrame["kind"]): Box {
-  if (isColumnKind(kind)) return { x: 0, y: 0, w: 0, h: 0 };
-  if (kind === "survibes") {
-    const R = SURVIBES_RAIL;
-    return { x: Math.round(w * R.left), y: Math.round(h * R.top), w: Math.round(w * (R.right - R.left)), h: Math.round(h * (R.bottom - R.top)) };
-  }
-  const left = wide ? CAPTION_RAIL.wideLeft : CAPTION_RAIL.left;
-  return { x: Math.round(w * left), y: Math.round(h * CAPTION_RAIL.top), w: Math.round(w * (CAPTION_RAIL.right - left)), h: Math.round(h * (CAPTION_RAIL.bottom - CAPTION_RAIL.top)) };
-}
-
-/** Characters that fit on one rail line at `fontPx` — Rubik 900's average advance is ≈0.56em.
- *  Clamped so a huge or tiny frame still produces 3–7-word cards. */
-export function captionLineChars(railWpx: number, fontPx: number): number {
-  return Math.max(8, Math.min(22, Math.floor(railWpx / (fontPx * 0.56))));
-}
-
-export type RailStatus = "clear" | "card" | "illustration" | "camera";
-
-/** Does anything sit on the rail? `art` first — it's the one Lee is most likely to have just
- *  dragged there on purpose (2026-09-05: the readout used to call this "ON THE CARD" even when
- *  the actual culprit was a placed illustration, since the card box handed in was already a
- *  card+picture union) — then the card, then the camera. */
-export function captionRailClear(rail: Box, card: Box | null, cam: Box | null, art: Box | null = null): RailStatus {
-  if (rail.w <= 0 || rail.h <= 0) return "clear";   // a column kind has no rail to sit on
-  if (art && overlaps(rail, art)) return "illustration";
-  if (card && overlaps(rail, card)) return "card";
-  if (cam && overlaps(rail, cam)) return "camera";
-  return "clear";
-}
 
 /** The intro's wordmark block sits lower in pass 2 to leave the camera the top. */
 export function introWordmarkTop(layout: SlideLayout): number {

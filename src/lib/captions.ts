@@ -16,8 +16,31 @@
 // takes a take file and no set id, and the ledger keys spend to a set. When the CLI learns
 // which set a take belongs to, it logs `kind: "whisper", label: "captions"` with this figure.
 
-// Relative on purpose: the Bun CLI (scripts/captions.ts) imports this file outside Vite's alias.
-import { CAPTION_RAIL, captionLineChars } from "../components/blastoff/layout";
+// THE BAND IS THIS FILE'S OWN, SINCE 2026-09-12. It used to be blastoff/layout.ts CAPTION_RAIL,
+// read at once by the slides (which held it empty), the /film chrome and this writer. Burned-in
+// captions are retired from the app — Lee: "if we remove captions, it creates more space in the
+// frame for us to teach from … Yes remove" — so no slide reserves anything any more and the
+// numbers live here, beside the only things that still use them: the offline CLI
+// (scripts/captions.ts) and the .srt sidecar the post panel offers.
+
+/** WHERE A BURNED CAPTION SITS on a 9:16 short, as fractions of the frame. The rail's old numbers,
+ *  unchanged, so a file burned by the CLI looks exactly as it always did:
+ *    top / bottom   .61h – .735h — above the campus banner and the platform's caption zone.
+ *    left           .41w, clearing the home camera; wideLeft .07w with no camera.
+ *    right          .84w, inside the like/share rail.
+ *    size           4.0 % of the height; two lines at most.
+ *    spoken         a SOFT gold for the word being said (Lee: restrained). */
+export const CAPTION_BAND = {
+  top: 0.61, bottom: 0.735, left: 0.41, wideLeft: 0.07, right: 0.84,
+  size: 0.04, lineHeight: 1.12, maxLines: 2,
+  ink: "#FFFFFF", spoken: "#FFD98A", stroke: "#0B1220", strokeW: 0.005,
+} as const;
+
+/** Characters that fit on one line at `fontPx` — Rubik 900's average advance is ≈0.56em.
+ *  Clamped so a huge or tiny frame still produces 3–7-word cards. */
+export function captionLineChars(bandWpx: number, fontPx: number): number {
+  return Math.max(8, Math.min(22, Math.floor(bandWpx / (fontPx * 0.56))));
+}
 
 export interface Word { t: string; s: number; e: number }
 
@@ -115,11 +138,9 @@ export interface CaptionStyle {
   strokeW: number;
 }
 
-/** The Shorts layout = THE FIXED CAPTION RAIL (blastoff/layout.ts CAPTION_RAIL), so the
- *  burned captions land exactly where the Review stage reserved them and the /film chrome
- *  checked them. `cam: "none"` frees the whole width. Nothing here is a number of its own. */
+/** The Shorts layout — CAPTION_BAND above. `cam: "none"` frees the whole width. */
 export function shortsStyle(w: number, h: number, cam: "home" | "none" = "home"): CaptionStyle {
-  const R = CAPTION_RAIL;
+  const R = CAPTION_BAND;
   return { w, h, font: "Rubik", size: R.size, left: cam === "home" ? R.left : R.wideLeft, right: 1 - R.right, bottom: R.bottom, ink: R.ink, spoken: R.spoken, stroke: R.stroke, strokeW: R.strokeW };
 }
 

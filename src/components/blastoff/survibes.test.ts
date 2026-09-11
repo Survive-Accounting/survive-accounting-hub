@@ -1,8 +1,8 @@
-// Survibes' clock and queue, pinned to the mockup's milliseconds; the large captions box branch
-// of the rail; the countdown label.
+// Survibes' clock and queue, pinned to the mockup's milliseconds; the big left camera, which took
+// the captions box's room when captions were retired (2026-09-12); the countdown label.
 import { describe, expect, test } from "bun:test";
 
-import { CAPTION_RAIL, SAFE, SURVIBES_RAIL, camDefault, captionRailRect } from "./layout";
+import { SAFE, camDefault } from "./layout";
 import { isFullFrame, isInsert } from "./plan";
 import { SETTLED_LOOK, SURVIBES_T, SURVIBES_COUNTDOWN_S, SURVIBES_PROPS, SURVIBES_PROP_CAM, clockLabel, lookAt, propAt, survibesSteps } from "./survibes";
 import { camRect } from "./capture/webcam-spots";
@@ -33,28 +33,20 @@ describe("survibes", () => {
     expect(propAt(undefined)).toBeNull();
   });
 
-  test("a full-frame insert with the big left camera; the large captions box is the rail on this kind", () => {
+  test("a full-frame insert whose big left camera now takes the room the captions box had", () => {
     expect(isFullFrame("survibes")).toBe(true);
     expect(isInsert("survibes")).toBe(true);
     expect(camDefault("pass1", "survibes")).toEqual({ spot: "left" });
     const W = 1080, H = 1920;
-    // the left box ends above the large captions box and left of the bolt (.59w)
     const cam = camRect("left", W, H);
-    expect(cam.y + cam.h).toBeLessThan(H * SURVIBES_RAIL.top);
+    // It runs down to the safe area's floor — it used to stop at .60h for a captions box — and
+    // still stays left of the bolt (.59w).
+    expect(cam.y + cam.h).toBeLessThanOrEqual(H * SAFE.bottom);
+    expect(cam.y + cam.h).toBeGreaterThan(H * 0.6);
     expect(cam.x + cam.w).toBeLessThan(W * 0.59);
-    // the prop step's small circle sits above the large captions box too
+    // the prop step's small circle still sits inside the safe area
     const small = camRect("free", W, H, undefined, SURVIBES_PROP_CAM);
-    expect(small.y + small.h).toBeLessThanOrEqual(H * SURVIBES_RAIL.top);
-    const normal = captionRailRect(W, H, false);
-    const big = captionRailRect(W, H, false, "survibes");
-    expect(big.w).toBeGreaterThan(normal.w);
-    expect(big.h).toBeGreaterThan(normal.h);
-    expect(big.x).toBe(Math.round(W * SAFE.left));
-    expect(big.x + big.w).toBe(Math.round(W * SAFE.right));
-    expect(SURVIBES_RAIL.size).toBeGreaterThan(CAPTION_RAIL.size);
-    // every other kind is untouched
-    expect(captionRailRect(W, H, false, "ceq")).toEqual(normal);
-    expect(captionRailRect(W, H, true, "phrase")).toEqual(captionRailRect(W, H, true));
+    expect(small.y + small.h).toBeLessThanOrEqual(H * SAFE.bottom);
   });
 
   test("the countdown label", () => {

@@ -1,5 +1,11 @@
 # Captions — bake Shorts captions onto a take
 
+> **Retired from the app, 2026-09-12.** Lee, on videos now under a minute: "if we remove captions,
+> it creates more space in the frame for us to teach from … Yes remove." No slide reserves a
+> caption band any more, /film has no caption readout, and /v3/post has no burn step — it offers
+> the .srt instead, which the platforms read as a caption track and which costs no frame space.
+> This CLI still works exactly as described below, and src/lib/captions.ts keeps the band's geometry.
+
 Our own caption tool (2026-09-05), instead of the Descript round trip: the same words every time, in the house style, in one command.
 
 ## One-time setup (this PC)

@@ -21,13 +21,15 @@ import { RasterBoil } from "@/components/brand-cards/RasterBoil";
 import { BOIL_SECONDS } from "@/components/brand-cards/raster-boil";
 
 import { defaultPlacement, type FrameIllustration, type IllustrationPlacement } from "./illustration";
-import { CAPTION_RAIL, SAFE } from "./layout";
+import { CONTENT_BOTTOM, SAFE } from "./layout";
 
-/** The band's size under a card: the safe column's width, a fixed share of the frame's height
- *  that stays clear of the rail on a pass-2 card. The picture is square (1024×1024), contained. */
+/** The band's size under a card: a share of the safe column's width, bounded by the room between
+ *  a pass-2 card and the content floor. The picture is square (1024×1024), contained.
+ *  WIDER SINCE 2026-09-12 (.78 of the column, was .62): the caption rail under it is gone, so the
+ *  picture is no longer squeezed into the strip above it. */
 export function bandSize(w: number, h: number): { bw: number; bh: number; marginTop: number } {
-  const bw = Math.round(w * (SAFE.right - SAFE.left) * 0.62);
-  const bh = Math.min(bw, Math.round(h * (CAPTION_RAIL.top - 0.02 - 0.36)));
+  const bw = Math.round(w * (SAFE.right - SAFE.left) * 0.78);
+  const bh = Math.min(bw, Math.round(h * (CONTENT_BOTTOM - 0.02 - 0.36)));
   return { bw, bh, marginTop: Math.round(h * 0.018) };
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { camRect, wordmarkHero } from "./capture/webcam-spots";
-import { CAPTION_RAIL, SAFE, camDefault, captionLineChars, captionRailClear, captionRailRect, cardPlacement, introWordmarkTop, isLayout } from "./layout";
+import { CONTENT_BOTTOM, SAFE, camDefault, cardPlacement, introWordmarkTop, isColumnKind, isLayout } from "./layout";
 
 describe("the slide templates", () => {
   test("pass 1 is the old deal; pass 2 puts cards at the top, narrower and bigger", () => {
@@ -10,11 +10,13 @@ describe("the slide templates", () => {
     expect(p2.align).toBe("top");
     expect(p2.cardW!).toBeLessThan(560);
     expect(p2.scaleMul!).toBeGreaterThan(1);
-    // the same width on the phone as before (560 × 1.04), so it never leaves the column
-    expect(p2.cardW! * p2.scaleMul!).toBeCloseTo(560 * 1.04, 0);
+    // THE WIDTH IS THE PHONE'S, NOT THE TYPE'S (2026-09-12): captions are gone, so the type grew
+    // — but the card's width on the phone did not, because past this it runs under the
+    // like/share icons. Same drawn width as before (560 × 1.04), bigger letters inside it.
+    expect(Math.abs(p2.cardW! * p2.scaleMul! - 560 * 1.04)).toBeLessThan(3);
   });
-  test("the camera: bigger in pass 2, a rectangular intro above the wordmark, off on the brand slides", () => {
-    expect(camDefault("pass2", "ceq")).toEqual({ spot: "home", size: 0.28 });
+  test("the camera is bigger now the captions are gone", () => {
+    expect(camDefault("pass2", "ceq")).toEqual({ spot: "home", size: 0.32 });
     expect(camDefault("pass2", "intro")).toEqual({ spot: "hero", size: 0.48 });
     // THE INVARIANT: the intro camera's bottom edge sits above the pass-2 wordmark block.
     const W = 1080, H = 1920;
@@ -26,16 +28,17 @@ describe("the slide templates", () => {
   });
   test("memorize this / deeper idea / bio get a bigger home camera than every other card slide, in both templates", () => {
     for (const k of ["phrase", "tip", "bio"] as const) {
-      expect(camDefault("pass1", k)).toEqual({ spot: "home", size: 0.34 });
-      expect(camDefault("pass2", k)).toEqual({ spot: "home", size: 0.34 });
+      expect(camDefault("pass1", k)).toEqual({ spot: "home", size: 0.38 });
+      expect(camDefault("pass2", k)).toEqual({ spot: "home", size: 0.38 });
     }
     expect(camDefault("pass2", "phrase").size!).toBeGreaterThan(camDefault("pass2", "ceq").size!);
-    // THE INVARIANT: even at this bigger size the camera still clears the fixed caption rail.
+    // THE INVARIANT: even at this bigger size the camera stays inside the safe area — it sits on
+    // the floor of it (camRect's home spot is measured up from .8h).
     const W = 1080, H = 1920;
     const cam = camRect("home", W, H, camDefault("pass2", "tip").size);
-    const rail = captionRailRect(W, H);
-    expect(rail.x).toBeGreaterThanOrEqual(cam.x + cam.w);
-    expect(captionRailClear(rail, null, cam)).toBe("clear");
+    expect(cam.x).toBeGreaterThanOrEqual(W * SAFE.left - 1);
+    expect(cam.y + cam.h).toBeLessThanOrEqual(H * 0.8);
+    expect(cam.x + cam.w).toBeLessThanOrEqual(W * SAFE.right);
   });
   test("the intro's wordmark drops in pass 2 to leave the camera the top; the column is inside the safe zones", () => {
     expect(introWordmarkTop("pass2")).toBeGreaterThan(introWordmarkTop("pass1"));
@@ -45,30 +48,21 @@ describe("the slide templates", () => {
     expect(isLayout("pass2")).toBe(true);
     expect(isLayout("pass9")).toBe(false);
   });
-  test("the caption rail: fixed, right of the home camera, under the hero wordmark, above the caption zone", () => {
+
+  // 2026-09-12, Lee: "Yes remove [the captions]. And ensure that we're making more use of that
+  // space now." The fixed caption rail used to take .61h–.735h out of the middle of every slide.
+  test("the content floor is the safe area's own bottom — nothing is reserved above it any more", () => {
+    expect(CONTENT_BOTTOM).toBe(SAFE.bottom);
+    expect(CONTENT_BOTTOM).toBeGreaterThan(0.735);              // past where the old rail ended
     const W = 1080, H = 1920;
-    const home = camDefault("pass2", "ceq");
-    const cam = camRect("home", W, H, home.size);
-    const rail = captionRailRect(W, H);
-    expect(rail.x).toBeGreaterThanOrEqual(cam.x + cam.w);                 // right of the home camera
-    expect(rail.y).toBeGreaterThanOrEqual(wordmarkHero(W, H).bottom);     // under the hero wordmark
-    expect(rail.y + rail.h).toBeLessThanOrEqual(H * SAFE.bottom);        // above the platform caption zone
-    expect(rail.x + rail.w).toBeLessThanOrEqual(W * SAFE.right);         // inside the like/share rail
-    expect(captionRailRect(W, H, true).x).toBeLessThan(rail.x);          // no camera: wider
-    expect(CAPTION_RAIL.maxLines).toBe(2);
-    // ~3–7 words per card at this size
-    const chars = captionLineChars(rail.w, H * CAPTION_RAIL.size);
-    expect(chars).toBeGreaterThanOrEqual(10);
-    expect(chars).toBeLessThanOrEqual(16);
-    // the readout
-    expect(captionRailClear(rail, null, cam)).toBe("clear");
-    expect(captionRailClear(rail, { x: 0, y: rail.y - 50, w: W, h: 100 }, null)).toBe("card");
-    expect(captionRailClear(rail, null, { ...cam, x: rail.x + 10 })).toBe("camera");
-    // a placed illustration dragged onto the rail reads "illustration", not "card" — even
-    // when the card+picture union handed in as `card` also overlaps (PhoneFrame's cardBox is
-    // that union; art must win so the readout names the actual culprit)
-    const onRail = { x: 0, y: rail.y - 50, w: W, h: 100 };
-    expect(captionRailClear(rail, null, null, onRail)).toBe("illustration");
-    expect(captionRailClear(rail, onRail, null, onRail)).toBe("illustration");
+    // The hero wordmark and the home camera both still live inside the area.
+    expect(wordmarkHero(W, H).bottom).toBeLessThan(H * CONTENT_BOTTOM);
+    expect(camRect("home", W, H, 0.32).y + camRect("home", W, H, 0.32).h).toBeLessThanOrEqual(H * 0.8);
+  });
+  test("the column kinds are still flush to the safe column's left edge", () => {
+    expect(isColumnKind("rubric")).toBe(true);
+    expect(isColumnKind("types")).toBe(true);
+    expect(isColumnKind("ceq")).toBe(false);
+    expect(isColumnKind(undefined)).toBe(false);
   });
 });

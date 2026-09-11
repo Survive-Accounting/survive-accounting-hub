@@ -15,14 +15,14 @@
 //  · NO WORDMARK. PhoneFrame owns the corner watermark; a second mark here would be two logos.
 //  · prefers-reduced-motion: no travel.
 //
-// WHERE THE TYPE STOPS. The burned captions have one fixed band on every slide
-// (blastoff/layout.ts CAPTION_RAIL) and the slogan has to stay off it, so the words end just
-// above it — and with a picture, they sit in the band between the picture and the rail.
-// That band is imported rather than copied: "Change a number here and all three follow" is the
-// whole point of that module, and a 0.61 typed into a brand card would drift out of it the
-// first time the rail moves. (This is the only place brand-cards reaches into blastoff/, and
-// layout.ts is pure geometry — no React, no cycle back.)
-import { CAPTION_RAIL, SAFE } from "@/components/blastoff/layout";
+// WHERE THE TYPE STOPS. The words run down to the content floor (blastoff/layout.ts
+// CONTENT_BOTTOM = the safe area's bottom) — with a picture, to the strip beneath it. Until
+// 2026-09-12 they stopped a third of the way up that, above a band held empty for burned-in
+// captions; captions are retired, so the slogan took the room. The floor is imported rather than
+// copied, so a number typed into a brand card can never drift from the slide layout. (This is the
+// only place brand-cards reaches into blastoff/, and layout.ts is pure geometry — no React, no
+// cycle back.)
+import { CONTENT_BOTTOM, SAFE } from "@/components/blastoff/layout";
 import { renderInline } from "@/components/canvas/inline-md";
 
 import { BoltBoil } from "./bolt-boil";
@@ -52,13 +52,13 @@ const SLOGAN_CSS = `
 
 /** THE WORDS' BAND, as fractions of the height. Without a picture the words own the frame and
  *  sit optically above centre (a block from .20 h to .60 h reads as centred at this size, where
- *  a true centre reads low); with one they take the strip between the picture and the caption
- *  rail — .43 h to .60 h, which holds three lines at the picture-sized type (sloganSize's `art`
+ *  a true centre reads low); with one they take the strip under the picture — .43 h to .76 h,
+ *  which holds three lines at the picture-sized type (sloganSize's `art`
  *  cap) with room to spare. The picture itself is NOT drawn here — PhoneFrame mounts it as its
  *  own layer at illustration.ts `defaultPlacement("slogan")`, whose bottom edge lands at ≈ .41 h
  *  — which is why this band is a fixed number rather than a measurement. */
 export function sloganBand(art: boolean): { top: number; bottom: number } {
-  return { top: art ? 0.43 : 0.2, bottom: CAPTION_RAIL.top - 0.01 };
+  return { top: art ? 0.43 : 0.2, bottom: CONTENT_BOTTOM - 0.02 };
 }
 
 export function SloganCard({ w, h, text, art = false, live = true, style }: {

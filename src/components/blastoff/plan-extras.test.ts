@@ -44,6 +44,7 @@ describe("the extras", () => {
     expect(calloutMeta("ask-yourself").label).toBe("ASK YOURSELF");
     expect(PHRASE_SLIDE_KINDS.some((k) => k.kind === "ask")).toBe(true);
     expect(canIllustrate("ask")).toBe(true);
-    expect(camDefault("pass2", "ask")).toEqual({ spot: "home", size: 0.34 });
+    // .38 since 2026-09-12: the callout kinds' home camera grew when the caption rail went.
+    expect(camDefault("pass2", "ask")).toEqual({ spot: "home", size: 0.38 });
   });
 });
