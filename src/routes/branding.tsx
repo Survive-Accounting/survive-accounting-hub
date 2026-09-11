@@ -11,6 +11,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { AdminGate } from "@/components/AdminGate";
+import { BrandingNav } from "@/components/brand-kit/BrandingNav";
 import { AdSlide } from "@/components/blastoff/AdSlide";
 import { AD_KINDS } from "@/components/blastoff/plan";
 import { BoltZoom, CampusBanner } from "@/components/brand-cards/BoltZoom";
@@ -42,6 +43,7 @@ function Branding() {
   const [live, setLive] = useState(true);
   return (
     <div style={{ minHeight: "100vh", background: "#070B14", color: CREAM, fontFamily: "'Rubik', system-ui, sans-serif", padding: "28px 32px 80px" }}>
+      <BrandingNav current="/branding" />
       <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap", marginBottom: 6 }}>
         <h1 style={{ fontSize: 22, fontWeight: 900, margin: 0 }}>Branding</h1>
         <span style={{ fontSize: 12.5, color: MUTED }}>the slides as they ship, the bolt detour in every animation, and the experiments we set aside</span>

@@ -109,6 +109,8 @@ import { Route as GoDemoRouteImport } from './routes/go.demo'
 import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
+import { Route as BrandingThumbnailsRouteImport } from './routes/branding_.thumbnails'
+import { Route as BrandingSocialRouteImport } from './routes/branding_.social'
 import { Route as ApiPracticePackRouteImport } from './routes/api.practice-pack'
 import { Route as ApiBackfillRouteImport } from './routes/api.backfill'
 import { Route as AdminSiteQaRouteImport } from './routes/admin.site-qa'
@@ -704,6 +706,16 @@ const CSlugRoute = CSlugRouteImport.update({
   path: '/c/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BrandingThumbnailsRoute = BrandingThumbnailsRouteImport.update({
+  id: '/branding_/thumbnails',
+  path: '/branding/thumbnails',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BrandingSocialRoute = BrandingSocialRouteImport.update({
+  id: '/branding_/social',
+  path: '/branding/social',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPracticePackRoute = ApiPracticePackRouteImport.update({
   id: '/api/practice-pack',
   path: '/api/practice-pack',
@@ -1226,6 +1238,8 @@ export interface FileRoutesByFullPath {
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
   '/api/practice-pack': typeof ApiPracticePackRoute
+  '/branding/social': typeof BrandingSocialRoute
+  '/branding/thumbnails': typeof BrandingThumbnailsRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -1415,6 +1429,8 @@ export interface FileRoutesByTo {
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
   '/api/practice-pack': typeof ApiPracticePackRoute
+  '/branding/social': typeof BrandingSocialRoute
+  '/branding/thumbnails': typeof BrandingThumbnailsRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -1607,6 +1623,8 @@ export interface FileRoutesById {
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
   '/api/practice-pack': typeof ApiPracticePackRoute
+  '/branding_/social': typeof BrandingSocialRoute
+  '/branding_/thumbnails': typeof BrandingThumbnailsRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters_/dashboard': typeof ChaptersDashboardRoute
@@ -1801,6 +1819,8 @@ export interface FileRouteTypes {
     | '/admin/site-qa'
     | '/api/backfill'
     | '/api/practice-pack'
+    | '/branding/social'
+    | '/branding/thumbnails'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -1990,6 +2010,8 @@ export interface FileRouteTypes {
     | '/admin/site-qa'
     | '/api/backfill'
     | '/api/practice-pack'
+    | '/branding/social'
+    | '/branding/thumbnails'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -2181,6 +2203,8 @@ export interface FileRouteTypes {
     | '/admin/site-qa'
     | '/api/backfill'
     | '/api/practice-pack'
+    | '/branding_/social'
+    | '/branding_/thumbnails'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters_/dashboard'
@@ -2374,6 +2398,8 @@ export interface RootRouteChildren {
   AdminSiteQaRoute: typeof AdminSiteQaRoute
   ApiBackfillRoute: typeof ApiBackfillRoute
   ApiPracticePackRoute: typeof ApiPracticePackRoute
+  BrandingSocialRoute: typeof BrandingSocialRoute
+  BrandingThumbnailsRoute: typeof BrandingThumbnailsRoute
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   GoDemoRoute: typeof GoDemoRouteWithChildren
@@ -3150,6 +3176,20 @@ declare module '@tanstack/react-router' {
       path: '/c/$slug'
       fullPath: '/c/$slug'
       preLoaderRoute: typeof CSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/branding_/thumbnails': {
+      id: '/branding_/thumbnails'
+      path: '/branding/thumbnails'
+      fullPath: '/branding/thumbnails'
+      preLoaderRoute: typeof BrandingThumbnailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/branding_/social': {
+      id: '/branding_/social'
+      path: '/branding/social'
+      fullPath: '/branding/social'
+      preLoaderRoute: typeof BrandingSocialRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/practice-pack': {
@@ -4057,6 +4097,8 @@ const rootRouteChildren: RootRouteChildren = {
   AdminSiteQaRoute: AdminSiteQaRoute,
   ApiBackfillRoute: ApiBackfillRoute,
   ApiPracticePackRoute: ApiPracticePackRoute,
+  BrandingSocialRoute: BrandingSocialRoute,
+  BrandingThumbnailsRoute: BrandingThumbnailsRoute,
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,
   GoDemoRoute: GoDemoRouteWithChildren,

@@ -23,12 +23,15 @@ import { V3_CREAM, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 
 const MINT = "#3BF5A0";
 
-export function TakeFrame({ name, file, onFile }: {
+export function TakeFrame({ name, file, onFile, onUse }: {
   name: string;
   /** THE TAKE, picked once for the whole post-production panel — the transcript and the cover
    *  come from the same file, so asking for it twice would be the opposite of streamlined. */
   file: File | null;
   onFile: (f: File) => void;
+  /** THE COVER'S FRAME (2026-09-11): hands the still straight to the thumbnail studio, at the
+   *  take's own size, instead of only saving it to disk. */
+  onUse?: (still: { src: string; w: number; h: number; t: number }) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [url, setUrl] = useState<string | null>(null);
@@ -102,6 +105,19 @@ export function TakeFrame({ name, file, onFile }: {
     } finally { setSaving(false); }
   };
 
+  const [usedAt, setUsedAt] = useState<number | null>(null);
+  const use = () => {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth || !onUse) { setErr("The take hasn't loaded a picture yet."); return; }
+    const c = document.createElement("canvas");
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    const ctx = c.getContext("2d");
+    if (!ctx) { setErr("This browser wouldn't give us a canvas."); return; }
+    ctx.drawImage(v, 0, 0, c.width, c.height);
+    onUse({ src: c.toDataURL("image/jpeg", 0.92), w: c.width, h: c.height, t: v.currentTime });
+    setUsedAt(v.currentTime); setErr(null);
+  };
+
   const small: React.CSSProperties = { font: "inherit", fontSize: 11.5, fontWeight: 700, padding: "4px 10px", borderRadius: 8, border: `1px solid ${V3_EDGE}`, background: "transparent", color: V3_CREAM, cursor: "pointer", whiteSpace: "nowrap" };
   const chip = (on: boolean): React.CSSProperties => ({ ...small, borderColor: on ? `${V3_GOLD}aa` : V3_EDGE, color: on ? V3_GOLD : V3_MUTED, background: on ? "rgba(252,163,17,0.10)" : "transparent" });
 
@@ -173,6 +189,13 @@ export function TakeFrame({ name, file, onFile }: {
                   style={{ ...small, fontSize: 12.5, padding: "7px 14px", border: `1.5px solid ${MINT}`, background: "rgba(59,245,160,0.12)", color: V3_CREAM, opacity: saving ? 0.6 : 1 }}>
                   {saving ? "Saving…" : "Save this frame"}
                 </button>
+                {onUse && (
+                  <button type="button" onClick={use}
+                    style={{ ...small, fontSize: 12.5, padding: "7px 14px", border: `1.5px solid ${V3_GOLD}`, background: "rgba(252,163,17,0.12)", color: V3_CREAM }}>
+                    Use on the cover
+                  </button>
+                )}
+                {onUse && usedAt != null && <span style={{ fontSize: 11.5, color: MINT }}>on the cover · {formatTime(usedAt)}</span>}
                 <span style={{ fontSize: 11.5, color: V3_MUTED }}>
                   Saved at the take's own size{size ? ` (${size.w}×${size.h})` : ""}.
                 </span>

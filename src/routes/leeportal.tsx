@@ -58,6 +58,8 @@ const SIDES: PortalSide[] = [
       { label: "Callout Demo", href: "/callout-demo", note: "Callout styles on film." },
       { label: "Illustration Bank", href: "/admin/illustrations", note: "Every set's pictures — off-style / stale — regenerate in the current house style, one at a time." },
       { label: "Illustration Styles", href: "/admin/illustrations/styles", note: "The style registry as data — edit the suffix and palette, bump a version, test a draft on the phone stage." },
+      { label: "Thumbnails", href: "/branding/thumbnails", note: "Site thumbnails + social covers, one system — four variants, any campus, PNG/WebP export." },
+      { label: "Social Kit", href: "/branding/social", note: "The master avatar, the YouTube banner, the cover template, the campus bolt check." },
     ],
   },
   {

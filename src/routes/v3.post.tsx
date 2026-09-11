@@ -40,7 +40,8 @@ import { subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkt
 import { blastOffPath, useBank } from "@/components/v3/use-bank";
 import { V3Shell, V3Note, V3_CREAM, V3_MUTED, V3_GOLD, V3_EDGE, V3_DISPLAY } from "@/components/v3/Shell";
 import { StageChip, stepLabel } from "@/components/v3/StageChip";
-import { ThumbSheet } from "@/components/v3/ThumbSheet";
+import { CoverSheet } from "@/components/brand-kit/CoverSheet";
+import { cramNumbers } from "@/lib/brand-kit/thumbnail";
 import { PostProduction } from "@/components/v3/PostProduction";
 import { DEST_UPLOAD_URL, looksLikeUrl, shouldAutoTick } from "@/components/v3/post-links";
 import { isFilmedUnconfirmed, matchesFilter, stageOf, stageRank, talkStageOf, STAGE_SKY, type StageFilter, type StageInfo } from "@/components/v3/set-stage";
@@ -142,6 +143,12 @@ function PostQueue() {
       key: i === 0 ? s.id : `${s.id}#${i + 1}`,
     }));
   })) ?? [], [topics, takesBySet]);
+  // THE COVER'S SERIES LABEL: a cram video's place on the path ("EXAM 1 · 03"), else its topic.
+  const cramNo = useMemo(() => cramNumbers(flat), [flat]);
+  const coverPart = (r: { key: string; topic: BoothTopic }): string => {
+    const n = cramNo.get(r.key);
+    return n ? String(n) : r.topic.name;
+  };
   const statusFor = (setId: string): SetPublishStatus => status?.[setId] ?? EMPTY;
   // THE CRAM PATH FIRST (Lee, 2026-09-10): an offshoot's or pitch's post-production stays shut
   // until every cram video in its topic is confirmed filmed. Same helper the map uses.
@@ -338,7 +345,7 @@ function PostQueue() {
           pubKey={producingRow.key}
           title={takeTitle(producingRow.take.name, producingRow.takeIndex, producingRow.takeCount) || producingRow.set.name}
           topicName={producingRow.topic.name}
-          defaultHookLine={firstStemOf(producingRow.set, producingRow.take.ceqIds)}
+          coverSeed={{ setId: producingRow.set.id, part: coverPart(producingRow) }}
           onTranscript={(t) => setTranscripts((prev) => (prev[producingRow.key] === t ? prev : { ...prev, [producingRow.key]: t }))}
           onOpenCopy={() => setCaptioning(producingRow.key)}
           onClose={() => setProducing(null)}
@@ -355,11 +362,11 @@ function PostQueue() {
       )}
 
       {thumbRow && (
-        <ThumbSheet
+        <CoverSheet
           setId={thumbRow.set.id}
-          setName={takeTitle(thumbRow.take.name, thumbRow.takeIndex, thumbRow.takeCount) || thumbRow.set.name}
+          title={thumbRow.take.name.trim() || thumbRow.set.name}
           topicName={thumbRow.topic.name}
-          defaultLine={firstStemOf(thumbRow.set, thumbRow.take.ceqIds)}
+          part={coverPart(thumbRow)}
           onClose={() => setThumbing(null)}
         />
       )}
@@ -377,14 +384,6 @@ function takeTitle(name: string, index: number, count: number): string {
 /** The four link fields, read off the row — what the inputs show when nobody is typing. */
 function urlsOf(status: SetPublishStatus): Record<PublishDestination, string> {
   return { site: status.site.url ?? "", youtube: status.youtube.url ?? "", instagram: status.instagram.url ?? "", tiktok: status.tiktok.url ?? "" };
-}
-
-/** The first question this video covers — the thumbnail's default hook. Falls back to the set's
- *  first card when a split carries no cards of its own (a pure brand run). */
-function firstStemOf(set: BoothSetInfo, ceqIds: readonly string[]): string {
-  const live = set.ceqs.filter((c) => !c.draft && !c.noteOnly);
-  const mine = ceqIds.length ? live.filter((c) => ceqIds.includes(c.id)) : live;
-  return (mine[0] ?? live[0])?.stem ?? "";
 }
 
 function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards, status, info, gate, onToggle, onFilmed, onSaveUrl, onCaption, onThumb, onProduce }: {
@@ -533,7 +532,7 @@ function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards,
       {/* THE COVER — the first thing anyone sees of the short, rendered from the set's own question. */}
       <button
         type="button" onClick={onThumb}
-        title={status.cover ? `Your own thumbnail is saved: ${status.cover.name} (post-production, step 5). Open to make a drawn one instead.` : "Make the cover image: the hook, the topic and the bolt, as a PNG to save"}
+        title={status.cover ? `Your own thumbnail is saved: ${status.cover.name} (post-production, step 5). Open to make one here instead.` : "The social cover and the site thumbnail — one system, any campus"}
         style={{
           border: `1px solid ${status.cover ? `${V3_GOLD}88` : V3_EDGE}`, background: status.cover ? "rgba(252,163,17,0.10)" : "transparent", color: status.cover ? V3_GOLD : V3_MUTED,
           borderRadius: 8, padding: "5px 10px", fontSize: 11.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
