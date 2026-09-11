@@ -359,6 +359,45 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
 /** The exec's sheet: the same claim form as before, unchanged, plus the two things that used to
  *  sit in public — the price and the dashboard reassurance — now shown only to the person they
  *  are for, after they have said they are an exec by opening this. */
+/** THE CLAIM SHEET ALONE (2026-09-11). The chair page (/go, see ChairPromo) has no share-kit
+ *  section — its doors do that job — but its quiet "Claim your exec dashboard" line still opens
+ *  the same sheet. Listens for OPEN_CLAIM_EVENT / openClaimStep(), and honours the ?claim=1 and
+ *  #claim deep links that go out in exec emails. Reports claim-state changes up so the line can
+ *  read "request received" after a submit. */
+export function ClaimSheetHost({ chapterName, schoolSlug, chapterSlug, letters, nickname, claimStatus, onChange }: {
+  chapterName: string;
+  schoolSlug: string;
+  chapterSlug: string;
+  letters?: string | null;
+  nickname?: string | null;
+  claimStatus: ClaimState;
+  onChange?: (claim: ClaimState) => void;
+}) {
+  const [claim, setClaim] = useState<ClaimState>(claimStatus);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(OPEN_CLAIM_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_CLAIM_EVENT, onOpen);
+  }, []);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("claim") === "1" || window.location.hash === "#claim") setOpen(true);
+  }, []);
+  if (!open) return null;
+  return (
+    <ClaimSheet
+      chapterName={chapterName}
+      shortName={chapterShortName(chapterName, letters, nickname)}
+      schoolSlug={schoolSlug}
+      chapterSlug={chapterSlug}
+      claim={claim}
+      onPending={() => { setClaim("pending"); onChange?.("pending"); }}
+      onClose={() => setOpen(false)}
+    />
+  );
+}
+
 function ClaimSheet({ chapterName, shortName, schoolSlug, chapterSlug, claim, onPending, onClose }: {
   chapterName: string;
   /** The chapter as students say it ("ADPi") — what the benefit lines address. */

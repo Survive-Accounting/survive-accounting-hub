@@ -201,6 +201,7 @@ import { Route as V3TopicSetBlastOffResultsRouteImport } from './routes/v3.$topi
 import { Route as V3TopicSetBlastOffImproveRouteImport } from './routes/v3.$topic.$set.blast-off.improve'
 import { Route as V3TopicSetBlastOffFilmRouteImport } from './routes/v3.$topic.$set.blast-off.film'
 import { Route as V3TopicSetBlastOffArrangeRouteImport } from './routes/v3.$topic.$set.blast-off.arrange'
+import { Route as ApiSlideSchoolCouncilCouncilRouteImport } from './routes/api.slide.$school.council.$council'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -1190,6 +1191,12 @@ const V3TopicSetBlastOffArrangeRoute =
     path: '/v3/$topic/$set/blast-off/arrange',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiSlideSchoolCouncilCouncilRoute =
+  ApiSlideSchoolCouncilCouncilRouteImport.update({
+    id: '/api/slide/$school/council/$council',
+    path: '/api/slide/$school/council/$council',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -1377,6 +1384,7 @@ export interface FileRoutesByFullPath {
   '/rep/review/$partnerId/$decision': typeof RepReviewPartnerIdDecisionRoute
   '/admin/growth/coldoutreach/': typeof AdminGrowthColdoutreachIndexRoute
   '/v3/$topic/$set/': typeof V3TopicSetIndexRoute
+  '/api/slide/$school/council/$council': typeof ApiSlideSchoolCouncilCouncilRoute
   '/v3/$topic/$set/blast-off/arrange': typeof V3TopicSetBlastOffArrangeRoute
   '/v3/$topic/$set/blast-off/film': typeof V3TopicSetBlastOffFilmRoute
   '/v3/$topic/$set/blast-off/improve': typeof V3TopicSetBlastOffImproveRoute
@@ -1567,6 +1575,7 @@ export interface FileRoutesByTo {
   '/rep/review/$partnerId/$decision': typeof RepReviewPartnerIdDecisionRoute
   '/admin/growth/coldoutreach': typeof AdminGrowthColdoutreachIndexRoute
   '/v3/$topic/$set': typeof V3TopicSetIndexRoute
+  '/api/slide/$school/council/$council': typeof ApiSlideSchoolCouncilCouncilRoute
   '/v3/$topic/$set/blast-off/arrange': typeof V3TopicSetBlastOffArrangeRoute
   '/v3/$topic/$set/blast-off/film': typeof V3TopicSetBlastOffFilmRoute
   '/v3/$topic/$set/blast-off/improve': typeof V3TopicSetBlastOffImproveRoute
@@ -1762,6 +1771,7 @@ export interface FileRoutesById {
   '/rep_/review/$partnerId/$decision': typeof RepReviewPartnerIdDecisionRoute
   '/admin/growth/coldoutreach/': typeof AdminGrowthColdoutreachIndexRoute
   '/v3/$topic/$set/': typeof V3TopicSetIndexRoute
+  '/api/slide/$school/council/$council': typeof ApiSlideSchoolCouncilCouncilRoute
   '/v3/$topic/$set/blast-off/arrange': typeof V3TopicSetBlastOffArrangeRoute
   '/v3/$topic/$set/blast-off/film': typeof V3TopicSetBlastOffFilmRoute
   '/v3/$topic/$set/blast-off/improve': typeof V3TopicSetBlastOffImproveRoute
@@ -1958,6 +1968,7 @@ export interface FileRouteTypes {
     | '/rep/review/$partnerId/$decision'
     | '/admin/growth/coldoutreach/'
     | '/v3/$topic/$set/'
+    | '/api/slide/$school/council/$council'
     | '/v3/$topic/$set/blast-off/arrange'
     | '/v3/$topic/$set/blast-off/film'
     | '/v3/$topic/$set/blast-off/improve'
@@ -2148,6 +2159,7 @@ export interface FileRouteTypes {
     | '/rep/review/$partnerId/$decision'
     | '/admin/growth/coldoutreach'
     | '/v3/$topic/$set'
+    | '/api/slide/$school/council/$council'
     | '/v3/$topic/$set/blast-off/arrange'
     | '/v3/$topic/$set/blast-off/film'
     | '/v3/$topic/$set/blast-off/improve'
@@ -2342,6 +2354,7 @@ export interface FileRouteTypes {
     | '/rep_/review/$partnerId/$decision'
     | '/admin/growth/coldoutreach/'
     | '/v3/$topic/$set/'
+    | '/api/slide/$school/council/$council'
     | '/v3/$topic/$set/blast-off/arrange'
     | '/v3/$topic/$set/blast-off/film'
     | '/v3/$topic/$set/blast-off/improve'
@@ -2467,6 +2480,7 @@ export interface RootRouteChildren {
   PartnersCouncilSchoolCouncilRoute: typeof PartnersCouncilSchoolCouncilRoute
   RepReviewPartnerIdDecisionRoute: typeof RepReviewPartnerIdDecisionRoute
   V3TopicSetIndexRoute: typeof V3TopicSetIndexRoute
+  ApiSlideSchoolCouncilCouncilRoute: typeof ApiSlideSchoolCouncilCouncilRoute
   V3TopicSetBlastOffArrangeRoute: typeof V3TopicSetBlastOffArrangeRoute
   V3TopicSetBlastOffFilmRoute: typeof V3TopicSetBlastOffFilmRoute
   V3TopicSetBlastOffImproveRoute: typeof V3TopicSetBlastOffImproveRoute
@@ -3822,6 +3836,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof V3TopicSetBlastOffArrangeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/slide/$school/council/$council': {
+      id: '/api/slide/$school/council/$council'
+      path: '/api/slide/$school/council/$council'
+      fullPath: '/api/slide/$school/council/$council'
+      preLoaderRoute: typeof ApiSlideSchoolCouncilCouncilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -4167,6 +4188,7 @@ const rootRouteChildren: RootRouteChildren = {
   PartnersCouncilSchoolCouncilRoute: PartnersCouncilSchoolCouncilRoute,
   RepReviewPartnerIdDecisionRoute: RepReviewPartnerIdDecisionRoute,
   V3TopicSetIndexRoute: V3TopicSetIndexRoute,
+  ApiSlideSchoolCouncilCouncilRoute: ApiSlideSchoolCouncilCouncilRoute,
   V3TopicSetBlastOffArrangeRoute: V3TopicSetBlastOffArrangeRoute,
   V3TopicSetBlastOffFilmRoute: V3TopicSetBlastOffFilmRoute,
   V3TopicSetBlastOffImproveRoute: V3TopicSetBlastOffImproveRoute,

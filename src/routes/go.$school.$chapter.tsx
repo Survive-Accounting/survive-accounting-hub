@@ -1,98 +1,86 @@
-// /go/<school>/<chapter> — THE canonical Greek chapter page. Replaces /c/<slug>, which is now a
-// 301 into here (see c.$slug.tsx).
+// /go/<school>/<chapter> — THE CHAPTER CHAIR'S PAGE (rebuilt 2026-09-11).
 //
-// Two things changed from /c/:
+// Lee: "The /go/ page is strictly for promotion to the IFC or chapter scholarship chairs." This is
+// what a DM to a scholarship chair links to. It is NOT the student page any more — that is
+// /learn/<school>/<chapter> — and it has no sign-up form, no gate, no player: one headline, two
+// doors (see what members get / share with members), three value cards, and one quiet line to
+// claim the exec dashboard. The body is ChairPromo; this file resolves the chapter and keeps the
+// plumbing the old page had that still matters (the ref chain, the visit log, the claim sheet).
 //
-//   1. Every chapter is public from day one. /c/ could only exist once an exec signed up, so 1,107
-//      real chapters were unreachable. These pages resolve straight off the GreekIntel roster, so a
-//      chapter has a URL before anyone claims it — which is what makes outreach possible at all.
+// A FLYER SCAN STILL LANDS A STUDENT ON THEIR PAGE. Every flyer and slide printed before today
+// carries /go/…?s=flyer or ?via=slide. Those are members, not chairs, so beforeLoad forwards the
+// stamped visit to the chapter's /learn page (after logging it, so exec dashboards keep counting
+// flyer visits). New artwork encodes /learn directly (flyer.server.ts).
 //
-//   2. The URL says which school. /c/olemiss-ato was one flat namespace where 'ato' at sixteen
-//      different campuses had to fight over one slug; (school, chapter) is unique per campus.
-//
-// Never gates and never 404s: an unknown school or chapter falls through to the plain landing page
-// rather than a dead end, because these URLs go on printed flyers and QR codes that outlive typos.
-//
-// ── THE OLD-PAGE FLASH, AND WHY IT IS A LOADER NOW ────────────────────────────────────────────
-//
-// This route used to fetch the chapter with a client-side useQuery. That meant `ch` was null for
-// the server render AND the first client paint, so the page fell back to the GENERIC student hero
-// ("Cram what's on your exam.") and swapped to the chapter version a moment later. It was not a
-// hydration mismatch or a cache artifact — the server was genuinely sending the wrong page. Proof
-// from production HTML before this change: "On-demand tutoring videos" appeared twice while
-// "Alpha Chi Omega", "ACCY 201" and the chapter headline appeared zero times.
-//
-// A loader fixes it at the source: the data is fetched during SSR, so the FIRST meaningful paint
-// is already this chapter's page. No timeout, and no skeleton needed in the common case.
-//
-// The same bug had a second half. CampusProvider was handed the school slug from the QUERY RESULT,
-// so campus was UNKNOWN during that window and the hero cycled other schools' colourways before
-// locking. The slug is in the URL and available synchronously — it is passed from params now, so
-// campus context is correct on the very first render even if the chapter lookup were slow.
-import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
+// THE /go NAMESPACE IS campuses.slug (university-of-tennessee-knoxville); /learn's is School.id
+// (tennessee). schoolBySlug bridges them — an unknown slug falls back to itself, which /learn's
+// schoolByAny also accepts.
+import { createFileRoute, notFound, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
-import { ALL_SCHOOLS, schoolBySlug } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug, canonicalSchoolName, schoolBySlug } from "@/lib/schools";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
-import { ChapterMemberGate } from "@/components/site/chapter/ChapterMemberGate";
 import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
-import { boltForSlug } from "@/lib/schools";
-import { deviceAnonId } from "@/lib/device-id";
-import { useChapterMember } from "@/lib/use-chapter-member";
-import { ChapterStickyCta } from "@/components/site/ChapterStickyCta";
-import { MARKETING_HERO_ID } from "@/components/site/Marketing";
-import { ChapterAccess } from "@/components/site/ChapterAccess";
-import { getGoChapter, goPath, listGoSchools, tagChapterMember, logGreekEvent } from "@/lib/greek-go.functions";
+import { ClaimSheetHost, openClaimStep } from "@/components/site/ChapterAccess";
+import { ChairPromo, type ChairClaim } from "@/components/site/ChairPromo";
+import { getGoChapter, goPath, logGreekEvent } from "@/lib/greek-go.functions";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
-import { readCampusPrefs } from "@/lib/campus-prefs.functions";
-import { chapterShortName, chapterUrl } from "@/components/site/ChapterShare";
-import { ChapterDoors, SHARE_ANCHOR } from "@/components/site/chapter/ChapterDoors";
-import { scrollToId } from "@/lib/ui-scroll";
-import { canonicalSchoolName } from "@/lib/schools";
+import { chapterShortName } from "@/components/site/ChapterShare";
 import { chapterOgImage, chapterShareOg, HOME_OG, ogMeta } from "@/lib/og";
-import { LandingPage } from "./landing";
 
-/** Where both hero buttons scroll to. Ids live here so the hero and the sections agree. */
-export const EXAM_ANCHOR = "exam1";
-export const ACCESS_ANCHOR = SHARE_ANCHOR;
+/** The share stamp on the current URL, or null. Reads `via` first, then the legacy `s=flyer`
+ *  that every already-printed flyer QR carries. */
+export const SHARE_VIA = ["link", "groupme", "text", "flyer", "slide", "campaign"] as const;
+export type ShareStamp = (typeof SHARE_VIA)[number];
+export function readVia(search: string): ShareStamp | null {
+  const q = new URLSearchParams(search);
+  const v = q.get("via");
+  if (SHARE_VIA.includes(v as ShareStamp)) return v as ShareStamp;
+  // Legacy: every flyer already printed and pinned up in a chapter house carries ?s=flyer.
+  return q.get("s") === "flyer" ? "flyer" : null;
+}
+
+/** The stamps that mean "a member scanned something" — forwarded to the student page. */
+const MEMBER_STAMPS: ReadonlySet<ShareStamp> = new Set<ShareStamp>(["flyer", "slide"]);
 
 export const Route = createFileRoute("/go/$school/$chapter")({
-  // The course code is fetched HERE too, not left to a client query. Without it the headline
-  // server-renders as "Intro Accounting is where..." and gains "(ACCY 201)" a moment later —
-  // a smaller version of the very flash this loader exists to remove.
+  // A SCANNED FLYER OR SLIDE goes to the student page, not the chair's. The search object here
+  // is the raw parsed query (this route validates none of it).
+  beforeLoad: ({ params, search }) => {
+    const q = search as Record<string, unknown>;
+    const via: ShareStamp | null = typeof q.via === "string" && SHARE_VIA.includes(q.via as ShareStamp) ? (q.via as ShareStamp)
+      : q.s === "flyer" ? "flyer" : null;
+    if (!via || !MEMBER_STAMPS.has(via)) return;
+    void logGreekEvent({ data: { kind: "visit", schoolSlug: params.school, chapterSlug: params.chapter, via } }).catch(() => {});
+    throw redirect({
+      to: "/learn/{-$campus}/{-$chapter}",
+      params: { campus: schoolBySlug(params.school)?.id ?? params.school, chapter: params.chapter },
+      replace: true,
+    });
+  },
+  // The course code is fetched HERE too, not left to a client query, so the headline never
+  // server-renders as "intro accounting" and gains "ACCT 200" a moment later.
   loader: async ({ params }) => {
-    const [chapter, prefs] = await Promise.all([
-      getGoChapter({ data: { schoolSlug: params.school, chapterSlug: params.chapter } }),
-      readCampusPrefs().catch(() => ({ campus: null, profSkip: null })),
-    ]);
+    const chapter = await getGoChapter({ data: { schoolSlug: params.school, chapterSlug: params.chapter } });
     // A REAL 404, not a 200 that happens to say "not found": notFound() renders
     // notFoundComponent below AND sets the status, so crawlers and link checkers see a typo as
     // a typo. The component still offers the recovery path (finder + portal link).
     if (!chapter) throw notFound();
     const codes = await listCampusIntroCodes({ data: { ids: [chapter.campusId] } }).catch(() => []);
-    return { chapter, code: codes[0]?.code ?? null, profSkip: prefs.profSkip };
+    return { chapter, code: codes[0]?.code ?? null };
   },
-  // Indexable, unlike /c/ (which was noindex because each link belonged to one private chapter).
-  // These are public chapter pages and searching "<chapter> <school> accounting" should find them.
-  // The full og/twitter set matters MORE here than anywhere: these links live in GroupMe and
-  // iMessage, where the card IS the first impression. Tokens come from the same loader the page
-  // body renders from — shorthand via chapterShortName (nickname → letters → derivation), campus
-  // via the canonical school table, course code degrading to "Intro Accounting" exactly like the
-  // hero headline does. An unresolvable chapter falls back to the HOME card.
+  // The full og/twitter set matters MORE here than anywhere: these links live in DMs, where the
+  // card IS the first impression. Tokens come from the same loader the page body renders from.
   head: ({ loaderData, params }) => {
     const data = loaderData as { chapter: Awaited<ReturnType<typeof getGoChapter>>; code: string | null } | undefined;
     const ch = data?.chapter;
     if (!ch) return { meta: ogMeta({ ...HOME_OG, path: goPath(params.school, params.chapter) }) };
     const short = chapterShortName(ch.chapterName, ch.letters, ch.nickname);
-    const campus = canonicalSchoolName(ch.schoolSlug, ch.schoolName);
-    const course = data?.code ?? "Intro Accounting";
     return {
       meta: ogMeta({
-        // THE TITLE STANDS ALONE. It renders as real text at full size and is often all that
-        // shows beside the image in a DM, so it leads with what is free and for whom.
         ...chapterShareOg(data?.code ?? null, short),
         path: goPath(ch.schoolSlug, ch.chapterSlug),
         image: chapterOgImage(ch.schoolSlug, ch.chapterSlug),
@@ -108,42 +96,16 @@ function GoNotFoundRoute() {
   return <GoNotFound schoolSlug={school} />;
 }
 
-/** The share stamp on the current URL, or null. Reads `via` first, then the legacy `s=flyer`
- *  that every already-printed flyer QR carries. */
-export const SHARE_VIA = ["link", "groupme", "text", "flyer", "slide", "campaign"] as const;
-export type ShareStamp = (typeof SHARE_VIA)[number];
-export function readVia(search: string): ShareStamp | null {
-  const q = new URLSearchParams(search);
-  const v = q.get("via");
-  if (SHARE_VIA.includes(v as ShareStamp)) return v as ShareStamp;
-  // Legacy: every flyer already printed and pinned up carries ?s=flyer.
-  return q.get("s") === "flyer" ? "flyer" : null;
-}
-
 function GoChapterPage() {
   const { school, chapter } = Route.useParams();
-  const { chapter: ch, code, profSkip } = Route.useLoaderData();
-  const { signedIn } = useChapterMember(school, chapter);
-  const bolt = boltForSlug(school);
+  const { chapter: ch, code } = Route.useLoaderData();
 
-  // ── HOP 3 OF THE REF CHAIN, WHICH WAS DROPPING IT (2026-08-31) ────────────────────────────
-  // /s/<campus> and /s/<campus>/<chapter> both mounted this; the /go page — the one every share
-  // link actually points AT — did not. So a tagged link travelled the whole way here and then
-  // the ref was read by nothing: no contact_ref_visit row, and no sa_cref cookie, so the tag was
-  // also gone for anything the member did next. surfaceForPath already classifies /go/x/y as
-  // "chapter", so this needed no server change at all — only the mount.
+  // HOP 3 OF THE REF CHAIN: a tagged link travels here; the ref is read and cookied so it
+  // survives whatever the visitor does next.
   useRecordRefVisit(ch?.campusId ?? null);
 
-  // Whether this member has already joined on this device. Read once on the client: the gate
-  // must not flash at someone who signed up ten seconds ago and scrolled back up.
-  const [joined, setJoined] = useState(false);
-  useEffect(() => {
-    try { setJoined(localStorage.getItem(`sa-joined:${school}/${chapter}`) === "1"); } catch { /* private mode */ }
-  }, [school, chapter]);
-
-  // VISIT TRACKING. An exec should be able to see interest BEFORE anyone signs up — a chapter
-  // that shared the link and got 40 visits and 3 accounts is a different conversation from one
-  // that got 2 visits. Once per session, not per render: this is a log, not a pageview firehose.
+  // VISIT TRACKING. An exec sees interest before anyone signs up. Once per session, not per
+  // render: this is a log, not a pageview firehose.
   useEffect(() => {
     if (!ch) return;
     const key = `sa-visit:${school}/${chapter}`;
@@ -151,142 +113,54 @@ function GoChapterPage() {
       if (sessionStorage.getItem(key)) return;
       sessionStorage.setItem(key, "1");
     } catch { /* private mode — log it and move on */ }
-    // WHERE THIS VISIT CAME FROM. `via` is the current stamp (share kit + new flyers); `s=flyer`
-    // is read as a legacy alias so the flyers already printed and pinned up in chapter houses
-    // keep attributing. Anything unrecognised is dropped rather than logged as junk.
     void logGreekEvent({ data: { kind: "visit", schoolSlug: school, chapterSlug: chapter, via: readVia(window.location.search) } }).catch(() => {});
   }, [ch, school, chapter]);
 
-  // Fire-and-forget member attribution. Saying "start Exam 1" on this chapter's own URL is the
-  // attribution; nothing is awaited, so a failed tag can never stand between a student and the
-  // free exam they came for.
-  //
-  // deviceId is what makes this idempotent. Without it every tap inserted a row — five members
-  // for one person in nine seconds, live. See the de-dup ladder in tagChapterMember.
-  const tagMember = () => {
-    void tagChapterMember({
-      data: { schoolSlug: school, chapterSlug: chapter, source: "link", deviceId: deviceAnonId() },
-    }).catch(() => {});
+  // THE CLAIM STATE lives here so the quiet top line and the sheet agree after a submit.
+  const [claim, setClaim] = useState<ChairClaim>(ch?.claimStatus ?? "unclaimed");
+
+  // Every share action the chair takes is logged under the same kinds the old kit used, so the
+  // exec dashboard's numbers carry on unchanged.
+  const onAction = (action: "open_learn" | "copy_link" | "copy_groupme" | "flyer" | "slide") => {
+    const ev = action === "copy_link" ? { kind: "copy_link" as const, via: "link" as const }
+      : action === "copy_groupme" ? { kind: "copy_message" as const, via: "groupme" as const }
+      : action === "flyer" ? { kind: "flyer_download" as const, via: "flyer" as const }
+      : action === "slide" ? { kind: "flyer_download" as const, via: "slide" as const }
+      : null;
+    if (!ev) return;
+    void logGreekEvent({ data: { ...ev, schoolSlug: school, chapterSlug: chapter } }).catch(() => {});
   };
 
-  // ── "STRAIGHT INTO EXAM 1" — where that actually goes ─────────────────────────────────────
-  // There is no player on this page. `hidePlayer` is set on every chapter page (2a410e66) and
-  // un-setting it would be reverting somebody else's decision, not a cleanup. The real Exam 1
-  // player lives on the CAMPUS page, which is ungated and already knows the course.
-  //
-  // The sa_cref cookie was written on arrival (useRecordRefVisit above), so the ref survives this
-  // hop even though the URL does not carry it — which is the whole reason the cookie exists.
-  const nav = useNavigate();
-  const startExam = () => {
-    tagMember();
-    void nav({ to: "/$school", params: { school }, hash: EXAM_ANCHOR });
-  };
-
-  // THE RIGHT DOOR. On a phone the fastest share is no UI at all: hand the native sheet the
-  // chapter link and let them pick GroupMe/Messages themselves. The kit still renders below for
-  // everything the sheet can't do (the flyer, the GroupMe wording), and desktop just scrolls to
-  // it. A cancelled share is not an error — the section is already on screen either way.
-  const openShare = () => {
-    const url = chapterUrl(school, chapter, "link");
-    const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function"
-      && typeof window !== "undefined" && window.matchMedia?.("(max-width: 639px)").matches;
-    if (canShare) {
-      void navigator.share({ title: "Survive Accounting", url }).catch(() => {});
-      void logGreekEvent({ data: { kind: "copy_link", schoolSlug: school, chapterSlug: chapter, via: "link" } }).catch(() => {});
-    }
-    scrollToId(SHARE_ANCHOR);
-  };
-
-  // AN UNKNOWN CHAPTER IS SAID OUT LOUD (see notFoundComponent). These URLs go out in outreach; a
-  // typo used to render the generic homepage with no explanation, which to the exec who received
-  // it looked like the product did not know their chapter. The loader throws notFound(), so this
-  // branch only guards the type.
-  // (Placed after every hook so the hook order never depends on data.)
+  // The loader throws notFound(), so this branch only guards the type.
   if (!ch) return <GoNotFound schoolSlug={school} />;
 
+  const letters = (ch.letters ?? "").trim() || chapterShortName(ch.chapterName, ch.letters, ch.nickname);
   return (
     <>
-      <LandingPage
-        initialCampusId={ch?.campusId ?? undefined}
-        // FROM PARAMS, NOT FROM THE FETCHED CHAPTER — see the note at the top of this file.
-        campusSlug={school}
-        initialCourseCode={code}
-        profSkipFor={profSkip}
-        goChapter={{ schoolSlug: school, chapterSlug: chapter }}
-        // The chapter navbar variant — same-page anchors + the exec CTA. Passed from here (not
-        // derived inside landing.tsx) because this route owns both anchor ids.
-        // GREEK MARKETING CONTEXT — data, not a hero element. The shared MarketingHero renders
-        // the eyebrow + letters CTAs from this; claim state comes straight from getGoChapter.
-        greek={ch ? {
-          orgName: ch.chapterName,
-          letters: (ch.letters ?? "").trim() || chapterShortName(ch.chapterName, ch.letters, ch.nickname),
-          claimed: ch.claimStatus === "claimed",
-          accessAnchor: ACCESS_ANCHOR,
-        } : undefined}
-        hidePlayer
-        onStartExam={tagMember}
-        // THE TWO DOORS replace the hero CTA row + big bolt (2026-08-28). Left door = the same
-        // action the old "Start Exam 1 Free" had (attribution + scroll to the player).
-        greekDoors={({ onStart }) => (
-          <ChapterDoors
-            code={code}
-            letters={(ch.letters ?? "").trim() || chapterShortName(ch.chapterName, ch.letters, ch.nickname)}
-            sponsored={ch.sponsored}
-            bolt={bolt}
-            onStartExam={onStart}
-            onShare={openShare}
-          />
-        )}
-        chapterAccess={ch ? (
-          <ChapterAccess
-            id={ACCESS_ANCHOR}
-            chapterName={ch.chapterName}
-            schoolSlug={ch.schoolSlug}
-            chapterSlug={ch.chapterSlug}
-            letters={ch.letters}
-            nickname={ch.nickname}
-            claimStatus={ch.claimStatus}
-          />
-        ) : undefined}
-        // THE MEMBER GATE, in its own slot. It used to ride in on `videoGate`, which renders
-        // INSIDE ExamPlayer — and this page passes hidePlayer, so since 2a410e66 it has rendered
-        // nowhere at all and the page has had zero inputs.
-        //
-        // `signedIn === null` means the session is still being read; showing the gate then would
-        // flash a form at someone who already has an account. `joined` covers the far more common
-        // case: no account, but they filled this in an hour ago and came back.
-        chapterGate={ch ? (
-          <ChapterMemberGate
-            id={EXAM_ANCHOR}
-            schoolSlug={school}
-            chapterSlug={chapter}
-            chapterName={ch.chapterName}
-            letters={(ch.letters ?? "").trim() || chapterShortName(ch.chapterName, ch.letters, ch.nickname)}
-            schoolName={ch.schoolName}
-            code={code}
-            bolt={bolt}
-            onJoined={() => {
-              try { localStorage.setItem(`sa-joined:${school}/${chapter}`, "1"); } catch { /* private mode */ }
-            }}
-            initialDone={joined || signedIn === true}
-            onStartExam={startExam}
-          />
-        ) : undefined}
-        greekOrg={ch ? ch.chapterName : undefined}
+      <ChairPromo
+        kind="chapter"
+        schoolSlug={school}
+        schoolId={schoolBySlug(school)?.id ?? school}
+        schoolName={canonicalSchoolName(ch.schoolSlug, ch.schoolName)}
+        slug={chapter}
+        name={ch.chapterName}
+        letters={letters}
+        shortName={chapterShortName(ch.chapterName, ch.letters, ch.nickname)}
+        code={code}
+        bolt={boltForSlug(school)}
+        claim={claim}
+        onClaim={openClaimStep}
+        onAction={onAction}
       />
-      {/* Self-report stays at the foot: it is a STUDENT correction ("I'm in a different house"),
-          worth offering but never worth interrupting the reason they came. It is also the ONLY
-          chapter-discovery control left on a chapter page — the picker's "Change school" is gone,
-          because a visitor on FarmHouse · Oklahoma is already somewhere specific. */}
-      {ch && <SelfReport current={ch.chapterName} />}
-      {ch && (
-        <>
-          {/* Spacer so the fixed bar can never sit on top of the page's last content (the
-              self-report link) when scrolled to the bottom. Same breakpoint as the bar. */}
-          <div aria-hidden className="h-16 md:hidden" />
-          <ChapterStickyCta heroId={MARKETING_HERO_ID} examAnchor={EXAM_ANCHOR} accessAnchor={ACCESS_ANCHOR} onStartExam={tagMember} />
-        </>
-      )}
+      <ClaimSheetHost
+        chapterName={ch.chapterName}
+        schoolSlug={ch.schoolSlug}
+        chapterSlug={ch.chapterSlug}
+        letters={ch.letters}
+        nickname={ch.nickname}
+        claimStatus={ch.claimStatus}
+        onChange={setClaim}
+      />
     </>
   );
 }
@@ -327,55 +201,6 @@ function GoNotFound({ schoolSlug }: { schoolSlug: string }) {
           </a>
         </section>
       </main>
-    </div>
-  );
-}
-
-/** SELF-REPORT — "I'm actually in a different chapter."
- *
- *  Chapter links get forwarded. A student who lands here from a friend in another house is
- *  currently credited to whichever chapter's flyer they happened to scan, which quietly makes every
- *  chapter's member count wrong. This lets them say so, and writes the attribution with source
- *  "self_report" so a banked member from a forwarded link is distinguishable from one who came
- *  through the chapter's own URL.
- *
- *  Deliberately at the FOOT of the page and deliberately closed: the student came to study, and a
- *  question about their social life is not worth interrupting that for. */
-function SelfReport({ current }: { current: string }) {
-  const [open, setOpen] = useState(false);
-  const [done, setDone] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [schools, setSchools] = useState<Array<{ slug: string; name: string }>>([]);
-
-  // Loaded on demand — this is a foot-of-page escape hatch almost nobody opens, and it should not
-  // cost every visitor a request.
-  const openIt = () => {
-    setOpen(true);
-    if (!schools.length) void listGoSchools().then(setSchools).catch(() => {});
-  };
-
-  const pick = async (schoolSlug: string, chapterSlug: string, chapterName: string) => {
-    setBusy(true);
-    try {
-      await tagChapterMember({ data: { schoolSlug, chapterSlug, source: "self_report" } });
-      setDone(chapterName);
-    } finally { setBusy(false); }
-  };
-
-  return (
-    <div className="mx-auto max-w-[640px] px-5 pb-14 text-center" style={{ fontFamily: BRAND_SANS }}>
-      {done ? (
-        <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>Got it — you&apos;re counted with {done}. ⚡</p>
-      ) : open ? (
-        <div className="mx-auto max-w-sm rounded-xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
-          <p className="mb-3 text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Which chapter are you actually in?</p>
-          <ChapterFinder schools={schools} onPick={(s, c, n) => void pick(s, c, n)} cta="That&apos;s mine" busy={busy} />
-        </div>
-      ) : (
-        <button onClick={openIt} className="text-[12.5px] underline underline-offset-4" style={{ color: "var(--text-muted)", minHeight: 44, paddingBlock: 6 }}>
-          Not in {current}? Tell me which chapter you&apos;re in →
-        </button>
-      )}
     </div>
   );
 }

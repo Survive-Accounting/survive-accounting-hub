@@ -42,7 +42,20 @@ export type FlyerInput = {
    *  sa_ref cookie and 302s to the same /go page). The rep's NAME never appears on the flyer —
    *  chapter branding stays, attribution stays invisible. */
   refCode?: string;
+  /** An explicit QR destination (the council slide points at the campus /learn page with the
+   *  council preset). Wins over the chapter/campus default; rep attribution still wins over it. */
+  targetUrl?: string;
 };
+
+/** WHERE A SCAN LANDS (2026-09-11): the student's page. /go/<school>/<chapter> is the CHAIR's
+ *  page now (see ChairPromo) — a member scanning a flyer in the house must land on the chapter's
+ *  /learn page, letters over the bolt, Exam 1 playing. The /learn namespace is School.id
+ *  ("tennessee"), not campuses.slug; both resolve there, but the short one is what goes on paper.
+ *  Old printed flyers still say /go/…?s=flyer — that route forwards them (see go.$school.$chapter). */
+function learnTarget(i: FlyerInput, via: "flyer" | "slide"): string {
+  const id = schoolBySlug(i.schoolSlug)?.id ?? i.schoolSlug;
+  return `https://surviveaccounting.com/learn/${id}/${i.chapterSlug}?via=${via}`;
+}
 
 /** Per the template: 300 for ≤8 chars, 240 for 9–10, 200 for 11+. Missouri's ACCTCY 2026 is 11. */
 export function courseFontSize(code: string): number {
@@ -58,12 +71,11 @@ export function flyerTarget(i: FlyerInput): string {
   // A rep-attributed flyer scans to the tracked short link — the redirect lands on the same /go
   // (or campus) page, so the student sees nothing different; only the cookie does.
   if (i.refCode) return `https://surviveaccounting.com/r/${i.refCode}`;
+  if (i.targetUrl) return i.targetUrl;
+  // Flyers printed before 2026-09-11 carry /go/…?s=flyer; the /go route forwards that stamp to
+  // /learn, so nothing already pinned up in a house is orphaned.
   return i.chapterSlug
-    // ?s=flyer IS the flyer's attribution stamp and always has been — the /go page reads it as
-    // the "flyer" share source alongside ?via=link / ?via=groupme (see readVia there). Deliberately
-    // NOT renamed to via=: every flyer already printed and pinned up in a chapter house carries
-    // this exact param, and a rename would silently orphan all of them.
-    ? `https://surviveaccounting.com/go/${i.schoolSlug}/${i.chapterSlug}?s=flyer`
+    ? learnTarget(i, "flyer")
     : `https://surviveaccounting.com/${i.schoolSlug}?s=flyer`;
 }
 
@@ -72,8 +84,9 @@ export function flyerTarget(i: FlyerInput): string {
  *  that produces one. Rep attribution still wins, exactly as on the flyer. */
 export function slideTarget(i: FlyerInput): string {
   if (i.refCode) return `https://surviveaccounting.com/r/${i.refCode}`;
+  if (i.targetUrl) return i.targetUrl;
   return i.chapterSlug
-    ? `https://surviveaccounting.com/go/${i.schoolSlug}/${i.chapterSlug}?via=slide`
+    ? learnTarget(i, "slide")
     : `https://surviveaccounting.com/${i.schoolSlug}?via=slide`;
 }
 

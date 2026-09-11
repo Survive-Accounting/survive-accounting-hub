@@ -68,10 +68,12 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
       title: "Greek Councils",
       links: [
         { label: "Find your chapter", href: "/chapters" },
-        { label: "For IFC", href: "/partners/campus-councils" },
-        { label: "For Panhellenic", href: "/partners/campus-councils" },
-        { label: "For NPHC", href: "/partners/campus-councils" },
-        { label: "For MGC", href: "/partners/campus-councils" },
+        // Each presets its council: the finder asks for the school and lands on that council's
+        // /go page — the share links (Lee, 2026-09-11).
+        { label: "For IFC", href: "/partners/campus-councils?council=ifc" },
+        { label: "For Panhellenic", href: "/partners/campus-councils?council=panhellenic" },
+        { label: "For NPHC", href: "/partners/campus-councils?council=nphc" },
+        { label: "For MGC", href: "/partners/campus-councils?council=mgc" },
       ],
     },
     {
