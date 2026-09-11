@@ -98,6 +98,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "theme-color", content: "#0D1730" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
       { name: "author", content: "Survive Accounting" },
+      // META DOMAIN VERIFICATION (Lee, 2026-09-11): Business settings → Brand safety → Domains →
+      // surviveaccounting.com, "Meta-tag verification". Must stay on the home page's <head>.
+      { name: "facebook-domain-verification", content: "pm9n25k7dkslfddnq1if1cvktqq98s" },
       // SITE-WIDE DEFAULT CARD — the HOME copy + the generated og-card.png (scripts/og-cards.mjs
       // draws it from the SAME bolt geometry and lockup maths the site renders, so the share
       // preview cannot drift from the logo). Routes with their own identity override this whole
