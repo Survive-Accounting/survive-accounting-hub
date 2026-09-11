@@ -3,7 +3,7 @@
 // and anything marked data-kit-guide stays in the editor.
 import { forwardRef } from "react";
 
-import { KitBolt, KitBoltCentered, KitWordmark, wordmarkWidth } from "@/components/brand-kit/KitMarks";
+import { KitBolt, KitBoltCentered, KitWordmark } from "@/components/brand-kit/KitMarks";
 import { measureText } from "@/lib/brand-kit/measure";
 import { AVATAR, avatarClearance, BANNER, BANNER_COPY, BANNER_SAFE, BANNER_TYPE, BANNER_VIEWS, bannerStack, bannerTrail, type Rect } from "@/lib/brand-kit/social";
 import { colorwayFor, KIT } from "@/lib/brand-kit/tokens";
@@ -27,21 +27,13 @@ export const AvatarArt = forwardRef<SVGSVGElement, { fill: number; width?: numbe
 
 const VIEW_COLOR = { desktop: "#7DD3FC", tablet: "#C4B5FD", mobile: "#3BF5A0", tv: "#9AA3B8" } as const;
 
-/** 2560×1440 — the lockup, the line, the free-exam line, and a faint campus trail at the edges.
+/** 2560×1440 — the wordmark, the line, the free-exam line, and a faint campus trail at the edges.
  *  `crop` shows only that rect (the device previews); the export is always the whole banner. */
 export const BannerArt = forwardRef<SVGSVGElement, { width?: number; guides?: boolean; crop?: Rect }>(function BannerArt({ width, guides = false, crop }, ref) {
   const vb = crop ?? { x: 0, y: 0, w: BANNER.w, h: BANNER.h };
   const T = BANNER_TYPE;
   const st = bannerStack();
   const cx = BANNER.w / 2;
-
-  // SURVIVE ACCOUNTING — the lockup (BrandLogo "lockup"): the wordmark over ACCOUNTING, spaced
-  // wide, between two hairlines in the bolt's lit colour.
-  const wmW = wordmarkWidth(T.wordmark);
-  const accW = measureText("ACCOUNTING", T.accounting, 900, KIT.display, T.accountingTracking);
-  const ruleGap = 22;
-  const ruleW = Math.max(40, (wmW - accW - ruleGap * 2) / 2);
-  const ruleY = st.accountingBaseline - T.accounting * 0.36 - 2;
 
   // EXAM 1 IS FREE → SURVIVEACCOUNTING.COM — the outro's red pill, then the address.
   const pillW = measureText(BANNER_COPY.cta, T.cta, 800, KIT.sans, T.ctaTracking) + 52;
@@ -61,11 +53,8 @@ export const BannerArt = forwardRef<SVGSVGElement, { width?: number; guides?: bo
         return <KitBolt key={b.id} x={b.box.x} y={b.box.y} h={b.h} c1={cw.c1} c2={cw.c2} opacity={b.opacity} />;
       })}
 
+      {/* The wordmark alone — surviveaccounting.com below says the rest. */}
       <KitWordmark x={cx} baseline={st.wordmarkBaseline} size={T.wordmark} anchor="middle" />
-      <rect x={cx - accW / 2 - ruleGap - ruleW} y={ruleY} width={ruleW} height={4} rx={2} fill={KIT.boltLit} />
-      <text x={cx + (T.accounting * T.accountingTracking) / 2} y={st.accountingBaseline} textAnchor="middle" fill={KIT.cream}
-        style={{ fontFamily: KIT.display, fontWeight: 900, fontSize: T.accounting, letterSpacing: T.accounting * T.accountingTracking }}>ACCOUNTING</text>
-      <rect x={cx + accW / 2 + ruleGap} y={ruleY} width={ruleW} height={4} rx={2} fill={KIT.boltLit} />
 
       {BANNER_COPY.tagline.map((line, i) => (
         <text key={line} x={cx} y={st.taglineBaselines[i]} textAnchor="middle" fill={KIT.cream} style={sansStyle(T.tagline)}>{line}</text>

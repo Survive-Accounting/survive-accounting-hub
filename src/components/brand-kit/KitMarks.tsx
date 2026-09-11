@@ -35,10 +35,6 @@ function wordmarkMetrics(size: number) {
   return wordmarkLayout(size, m("surv"), m("ve"));
 }
 
-export function wordmarkWidth(size: number): number {
-  return wordmarkMetrics(size).width;
-}
-
 /** "surv[bolt]ve". `x` is the left edge — or the centre, with anchor "middle"; `baseline` is the
  *  type's baseline. The letters are cream; the bolt takes the campus colours. */
 export function KitWordmark({ x, baseline, size, ink = KIT.cream, c1 = KIT.boltLit, c2 = KIT.boltShade, keyline = KIT.keyline, anchor = "start" }: {

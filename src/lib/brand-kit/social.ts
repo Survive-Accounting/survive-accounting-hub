@@ -66,13 +66,14 @@ export const BANNER_COPY = {
   url: "SURVIVEACCOUNTING.COM",
 } as const;
 
-/** The type sizes of the centred stack, in banner pixels. */
+/** The type sizes of the centred stack, in banner pixels. No "ACCOUNTING" under the wordmark
+ *  (Lee, 2026-09-11: "Just let surviveaccounting.com do that lifting. It's redundant otherwise.")
+ *  — the room it left went to the wordmark. */
 export const BANNER_TYPE = {
-  wordmark: 128,
-  accounting: 30, accountingTracking: 0.34,
+  wordmark: 144,
   tagline: 42, taglineLeading: 1.16,
   cta: 25, ctaTracking: 0.12, ctaPillH: 50,
-  gaps: [18, 24, 22] as const,
+  gaps: [28, 24] as const,
 } as const;
 
 /** Where each line of the stack sits, centred in the safe area. Font-metric shares are Rubik's and
@@ -81,17 +82,15 @@ export function bannerStack() {
   const T = BANNER_TYPE;
   const wmTop = -T.wordmark * (0.8 - 0.13); // the bolt's top above the baseline (WORDMARK boltScale − drop)
   const wmBottom = T.wordmark * 0.13;
-  const accCap = T.accounting * 0.7;
   const tagCap = T.tagline * 0.72;
   const tagDesc = T.tagline * 0.22;
-  const height = (wmBottom - wmTop) + T.gaps[0] + accCap + T.gaps[1] + tagCap + T.tagline * T.taglineLeading + tagDesc + T.gaps[2] + T.ctaPillH;
+  const height = (wmBottom - wmTop) + T.gaps[0] + tagCap + T.tagline * T.taglineLeading + tagDesc + T.gaps[1] + T.ctaPillH;
   const top = BANNER_SAFE.y + (BANNER_SAFE.h - height) / 2;
   const wordmarkBaseline = top - wmTop;
-  const accountingBaseline = wordmarkBaseline + wmBottom + T.gaps[0] + accCap;
-  const tagline1 = accountingBaseline + T.gaps[1] + tagCap;
+  const tagline1 = wordmarkBaseline + wmBottom + T.gaps[0] + tagCap;
   const tagline2 = tagline1 + T.tagline * T.taglineLeading;
-  const ctaTop = tagline2 + tagDesc + T.gaps[2];
-  return { top, bottom: ctaTop + T.ctaPillH, height, wordmarkBaseline, accountingBaseline, taglineBaselines: [tagline1, tagline2] as const, ctaTop };
+  const ctaTop = tagline2 + tagDesc + T.gaps[1];
+  return { top, bottom: ctaTop + T.ctaPillH, height, wordmarkBaseline, taglineBaselines: [tagline1, tagline2] as const, ctaTop };
 }
 
 /** THE FAINT TRAIL behind the banner: six campus colourways, three a side, fading outward, every
