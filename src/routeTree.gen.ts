@@ -105,6 +105,7 @@ import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
 import { Route as OfferMckenzieRouteImport } from './routes/offer.mckenzie'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as LabBoltRouteImport } from './routes/lab.bolt'
+import { Route as LCodeRouteImport } from './routes/l.$code'
 import { Route as JeSplatRouteImport } from './routes/je.$'
 import { Route as GoDemoRouteImport } from './routes/go.demo'
 import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
@@ -690,6 +691,11 @@ const LabBoltRoute = LabBoltRouteImport.update({
   path: '/lab/bolt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LCodeRoute = LCodeRouteImport.update({
+  id: '/l/$code',
+  path: '/l/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JeSplatRoute = JeSplatRouteImport.update({
   id: '/$',
   path: '/$',
@@ -1271,6 +1277,7 @@ export interface FileRoutesByFullPath {
   '/chapters/dashboard': typeof ChaptersDashboardRoute
   '/go/demo': typeof GoDemoRouteWithChildren
   '/je/$': typeof JeSplatRoute
+  '/l/$code': typeof LCodeRoute
   '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/offer/mckenzie': typeof OfferMckenzieRoute
@@ -1466,6 +1473,7 @@ export interface FileRoutesByTo {
   '/chapters/dashboard': typeof ChaptersDashboardRoute
   '/go/demo': typeof GoDemoRouteWithChildren
   '/je/$': typeof JeSplatRoute
+  '/l/$code': typeof LCodeRoute
   '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/offer/mckenzie': typeof OfferMckenzieRoute
@@ -1664,6 +1672,7 @@ export interface FileRoutesById {
   '/chapters_/dashboard': typeof ChaptersDashboardRoute
   '/go/demo': typeof GoDemoRouteWithChildren
   '/je/$': typeof JeSplatRoute
+  '/l/$code': typeof LCodeRoute
   '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/offer/mckenzie': typeof OfferMckenzieRoute
@@ -1864,6 +1873,7 @@ export interface FileRouteTypes {
     | '/chapters/dashboard'
     | '/go/demo'
     | '/je/$'
+    | '/l/$code'
     | '/lab/bolt'
     | '/o/$shortRef'
     | '/offer/mckenzie'
@@ -2059,6 +2069,7 @@ export interface FileRouteTypes {
     | '/chapters/dashboard'
     | '/go/demo'
     | '/je/$'
+    | '/l/$code'
     | '/lab/bolt'
     | '/o/$shortRef'
     | '/offer/mckenzie'
@@ -2256,6 +2267,7 @@ export interface FileRouteTypes {
     | '/chapters_/dashboard'
     | '/go/demo'
     | '/je/$'
+    | '/l/$code'
     | '/lab/bolt'
     | '/o/$shortRef'
     | '/offer/mckenzie'
@@ -2453,6 +2465,7 @@ export interface RootRouteChildren {
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   GoDemoRoute: typeof GoDemoRouteWithChildren
+  LCodeRoute: typeof LCodeRoute
   LabBoltRoute: typeof LabBoltRoute
   OShortRefRoute: typeof OShortRefRoute
   OfferMckenzieRoute: typeof OfferMckenzieRoute
@@ -3200,6 +3213,13 @@ declare module '@tanstack/react-router' {
       path: '/lab/bolt'
       fullPath: '/lab/bolt'
       preLoaderRoute: typeof LabBoltRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/l/$code': {
+      id: '/l/$code'
+      path: '/l/$code'
+      fullPath: '/l/$code'
+      preLoaderRoute: typeof LCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/je/$': {
@@ -4185,6 +4205,7 @@ const rootRouteChildren: RootRouteChildren = {
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,
   GoDemoRoute: GoDemoRouteWithChildren,
+  LCodeRoute: LCodeRoute,
   LabBoltRoute: LabBoltRoute,
   OShortRefRoute: OShortRefRoute,
   OfferMckenzieRoute: OfferMckenzieRoute,

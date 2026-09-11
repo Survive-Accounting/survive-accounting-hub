@@ -351,6 +351,8 @@ export interface PlanEntry extends PlanItem {
   firstName: string | null;
   chapterSlug: string | null;
   campusHasChapters: boolean;
+  /** growth_contact_qc.contact_id — the short /l/<code> link. */
+  contactCode: string | null;
 }
 export interface ConsolePlan {
   date: string;
@@ -377,7 +379,7 @@ export const dmConsolePlan = createServerFn({ method: "GET" })
     if (!ids.length) return { date: now.toISOString().slice(0, 10), entries: [], totals: { unsent: 0, followUpsDue: 0, sentToday: 0 } };
 
     const [{ data: qc }, { data: dms }, { data: chapters }] = await Promise.all([
-      db.from("growth_contact_qc").select("id,campus_id,entity_type,entity_id,council_type,name,role,instagram,ig_role_account,contact_type,org_type,org_name,first_name").in("campus_id", ids).limit(20000),
+      db.from("growth_contact_qc").select("id,contact_id,campus_id,entity_type,entity_id,council_type,name,role,instagram,ig_role_account,contact_type,org_type,org_name,first_name").in("campus_id", ids).limit(20000),
       db.from("growth_ig_dm").select("contact_qc_id,sent_at,replied_at,thread").in("campus_id", ids).limit(20000),
       db.from("campus_greek_chapters").select("id,campus_id,slug,greek_org_id,nickname,letters,chapter_size").in("campus_id", ids).is("archived_at", null).limit(20000),
     ]);
@@ -421,6 +423,7 @@ export const dmConsolePlan = createServerFn({ method: "GET" })
         chapterName: ch ? (orgName.get(ch.greek_org_id) ?? ch.nickname ?? null) : (c.org_name as string | null) ?? (c.council_type ? (COUNCIL_LABEL[c.council_type] ?? null) : null),
         councilKey: c.council_type ?? null, orgType, orgName: (c.org_name as string | null) ?? null, firstName: (c.first_name as string | null) ?? null,
         chapterSlug, campusHasChapters: (siteChapters.get(c.campus_id)?.length ?? 0) > 0,
+        contactCode: (c.contact_id as string | null) ?? null,
       });
     }
 
@@ -430,6 +433,7 @@ export const dmConsolePlan = createServerFn({ method: "GET" })
       return {
         ...i, campusId: m.campusId, campusLabel: labelOf.get(i.campusSlug) ?? i.campusSlug, name: m.name, handle: m.handle, role: m.role, chapterName: m.chapterName, isOrg: m.isOrg,
         councilKey: m.councilKey, orgType: m.orgType, orgName: m.orgName, firstName: m.firstName, chapterSlug: m.chapterSlug, campusHasChapters: m.campusHasChapters,
+        contactCode: m.contactCode,
       };
     });
 

@@ -475,6 +475,7 @@ export const TEMPLATES: TemplateDef[] = [
       "admin.growth.dm.tsx",
       "admin.growth.links.tsx",
       "links.tsx",
+      "l.$code.tsx",
       "va.$token.tsx",
       "admin.growth.campaigns.tsx",
       "admin.growth.greek.tsx",

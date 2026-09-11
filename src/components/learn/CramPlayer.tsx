@@ -256,6 +256,8 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
   const [err, setErr] = useState(false);
   const [ended, setEnded] = useState(false);
   const [playing, setPlaying] = useState(false);
+  // TRUE until the stream can play, and again whenever it stalls — drives the loading wheel.
+  const [buffering, setBuffering] = useState(true);
   const [pct, setPct] = useState(0);
   const [fetched, setFetched] = useState<string | null>(null);
   const pid = part.playbackId ?? set.playbackId ?? fetched;
@@ -331,9 +333,18 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
           <div role="button" tabIndex={0} aria-label={playing ? "Pause" : "Play"} onClick={toggle} onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(); } }} className="absolute inset-0" style={{ cursor: "pointer", outline: "none" }}>
             <video ref={ref} playsInline muted={!soundOn} preload="auto" poster={poster} className="h-full w-full" style={{ objectFit: "contain", background: "#000", pointerEvents: "none" }}
               onPlay={() => { setEnded(false); setPlaying(true); onStarted(); }} onPause={() => { setPlaying(false); flush(); }}
+              onWaiting={() => setBuffering(true)} onStalled={() => setBuffering(true)} onPlaying={() => setBuffering(false)} onCanPlay={() => setBuffering(false)}
               onTimeUpdate={() => { const v = ref.current; if (v?.duration) setPct(v.currentTime / v.duration); const now = Date.now(); if (now - lastWrite.current > 5000) { lastWrite.current = now; flush(); } }}
               onEnded={finish} onError={() => setErr(true)} />
-            {!playing && !ended && (
+            {/* THE LOADING WHEEL (Lee, 2026-09-11: "ensure there's a loading animation … since it
+                feels like it's a bit stuck otherwise") — while the stream is buffering, in place
+                of the play glyph. */}
+            {buffering && !ended && !err && (
+              <span aria-hidden className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full" style={{ width: 76, height: 76, background: "rgba(0,0,0,0.55)", border: "2px solid rgba(255,255,255,0.35)", color: "#fff" }}>
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </span>
+            )}
+            {!playing && !ended && !buffering && (
               <span aria-hidden className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full" style={{ width: 76, height: 76, background: "rgba(0,0,0,0.55)", border: "2px solid rgba(255,255,255,0.85)", color: "#fff" }}>
                 <Play className="h-8 w-8" style={{ marginLeft: 4 }} fill="currentColor" />
               </span>

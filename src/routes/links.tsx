@@ -3,7 +3,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/links")({
-  beforeLoad: () => { throw redirect({ to: "/admin/growth/links", replace: true }); },
+  // ?day=2026-09-12 (the hand-off email's link) and any other search travel through.
+  beforeLoad: ({ search }) => { throw redirect({ to: "/admin/growth/links", search: search as Record<string, string>, replace: true }); },
   head: () => ({ meta: [{ name: "robots", content: "noindex, nofollow" }] }),
   component: () => null,
 });

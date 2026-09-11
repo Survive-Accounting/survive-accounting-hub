@@ -139,6 +139,8 @@ export function withContactRef(path: string, contactId: string | null | undefine
   if (!contactId) return path;
   return `${path}${path.includes("?") ? "&" : "?"}${CONTACT_REF_PARAM}=${encodeURIComponent(contactId)}`;
 }
+/** THE SHORT LINK a DM carries: /l/<12-hex contact_id> → 302 to the contact's page with ?ref=. */
+export const shortPath = (code: string): string => `/l/${code}`;
 export const bareUrl = (path: string): string => `${OUTREACH_HOST}${path}`;
 export const fullUrl = (path: string): string => `https://${OUTREACH_HOST}${path}`;
 
@@ -191,7 +193,7 @@ export function contactDm(c: DmContext): string {
 
 // ── grouping the contacts table into orgs ──────────────────────────────────────────────────────
 
-const orgKeyOf = (kind: OrgKind, group: string, name: string): string => `${kind}~${group}~${norm(name)}`;
+export const orgKeyOf = (kind: OrgKind, group: string, name: string): string => `${kind}~${group}~${norm(name)}`;
 
 /** The council label a contact belongs to, from its `council` column or a legacy council_type. */
 export function groupOf(c: Pick<LinkContact, "council" | "orgType">): string {

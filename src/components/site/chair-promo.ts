@@ -33,15 +33,20 @@ export function chairForLine(name: string, schoolName: string): string {
 /** THE STUDENT LINK the chair hands out — /learn, never /go. A chapter link opens the chapter's
  *  own page (letters over the bolt, every email carries the chapter); a council link opens the
  *  campus page with the chapter bar preset to that council so each member picks their house. */
-export function chairShareUrl(kind: ChairKind, schoolId: string, slug: string): string {
-  return kind === "council"
+export function chairShareUrl(kind: ChairKind, schoolId: string, slug: string, ref?: string | null): string {
+  const base = kind === "council"
     ? `${SHARE_ORIGIN}/learn/${schoolId}?c=${encodeURIComponent(slug)}`
     : buildShareUrl({ campus: schoolId, chapter: slug });
+  // THE REF TRAVELS (Lee, 2026-09-11: "the links that they then share are also the same, passed
+  // down the line, and … trackable"): the chair arrived on a DM link with ?ref=<contact>; what
+  // they hand their members carries the same ref, so every /learn visit down the line attributes
+  // to that chair on the DM console.
+  return ref ? `${base}${base.includes("?") ? "&" : "?"}ref=${encodeURIComponent(ref)}` : base;
 }
 
 /** The same destination, relative — what the left door opens in a new tab. */
-export function chairLearnPath(kind: ChairKind, schoolId: string, slug: string): string {
-  return chairShareUrl(kind, schoolId, slug).slice(SHARE_ORIGIN.length);
+export function chairLearnPath(kind: ChairKind, schoolId: string, slug: string, ref?: string | null): string {
+  return chairShareUrl(kind, schoolId, slug, ref).slice(SHARE_ORIGIN.length);
 }
 
 /** The GroupMe post — the /learn bar's wording, so a chair and a member post the same thing. */

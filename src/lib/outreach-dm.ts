@@ -4,10 +4,12 @@
 // Pure and client-safe.
 import type { IgContact } from "@/lib/growth-ig-dm.functions";
 import type { PlanEntry } from "@/lib/king-dm.functions";
-import { bareUrl, COUNCIL_LABEL, contactDm, firstNameOf, linkFor, withContactRef, type LinkOrg } from "@/lib/outreach-links";
+import { bareUrl, COUNCIL_LABEL, contactDm, firstNameOf, linkFor, shortPath, withContactRef, type LinkOrg } from "@/lib/outreach-links";
 
 type Who = {
   contactId: string;
+  /** The 12-hex contact_id → the short /l/<code> link; null → the long link with ?ref=. */
+  contactCode: string | null;
   councilKey: string | null;
   orgType: string | null;
   orgName: string | null;
@@ -28,7 +30,7 @@ function orgOf(w: Who): Pick<LinkOrg, "kind" | "group" | "name" | "onSite" | "sl
 
 export function dmForWho(w: Who, ctx: { campusLabel: string; courseCode: string | null; slug: string; campusHasChapters: boolean }): string {
   const org = orgOf(w);
-  const link = withContactRef(linkFor(ctx.slug, org, ctx.campusHasChapters).path, w.contactId);
+  const link = w.contactCode ? shortPath(w.contactCode) : withContactRef(linkFor(ctx.slug, org, ctx.campusHasChapters).path, w.contactId);
   return contactDm({
     campusLabel: ctx.campusLabel, courseCode: ctx.courseCode, org,
     firstName: w.isOrg ? "" : (w.firstName || firstNameOf(w.name)), isOrg: w.isOrg,
@@ -37,7 +39,7 @@ export function dmForWho(w: Who, ctx: { campusLabel: string; courseCode: string 
 }
 
 export const dmForPlanEntry = (e: PlanEntry, ctx: { campusLabel: string; courseCode: string | null; slug: string }): string =>
-  dmForWho({ contactId: e.contactId, councilKey: e.councilKey, orgType: e.orgType, orgName: e.orgName, firstName: e.firstName, name: e.name, isOrg: e.isOrg, chapterSlug: e.chapterSlug }, { ...ctx, campusHasChapters: e.campusHasChapters });
+  dmForWho({ contactId: e.contactId, contactCode: e.contactCode, councilKey: e.councilKey, orgType: e.orgType, orgName: e.orgName, firstName: e.firstName, name: e.name, isOrg: e.isOrg, chapterSlug: e.chapterSlug }, { ...ctx, campusHasChapters: e.campusHasChapters });
 
 export const dmForIgContact = (c: IgContact, ctx: { councilKey: string; campusLabel: string; courseCode: string | null; slug: string; campusHasChapters: boolean }): string =>
-  dmForWho({ contactId: c.contactId, councilKey: ctx.councilKey, orgType: c.orgType, orgName: c.orgName, firstName: c.firstName, name: c.name, isOrg: c.isOrg, chapterSlug: c.chapterSlug }, ctx);
+  dmForWho({ contactId: c.contactId, contactCode: c.contactCode, councilKey: ctx.councilKey, orgType: c.orgType, orgName: c.orgName, firstName: c.firstName, name: c.name, isOrg: c.isOrg, chapterSlug: c.chapterSlug }, ctx);

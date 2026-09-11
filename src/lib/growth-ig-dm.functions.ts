@@ -46,6 +46,8 @@ export interface IgContact {
   orgName: string | null;
   firstName: string | null;
   chapterSlug: string | null;
+  /** growth_contact_qc.contact_id — the short /l/<code> link. */
+  contactCode: string | null;
 }
 export interface IgCouncil {
   key: string;
@@ -94,7 +96,7 @@ export const growthIgCampus = createServerFn({ method: "GET" })
       db.from("campuses").select("id,name,display_name,slug,color_primary,color_secondary,course_family_codes_json").eq("id", campusId).maybeSingle(),
       db.from("campus_spirit").select("primary_hex,secondary_hex,mascot").eq("campus_id", campusId).maybeSingle(),
       db.from("course_intel_campus_status").select("course_code").eq("campus_id", campusId).limit(1),
-      db.from("growth_contact_qc").select("id,council_type,entity_type,entity_id,contact_type,name,role,instagram,ig_role_account,org_type,org_name,first_name").eq("campus_id", campusId).limit(4000),
+      db.from("growth_contact_qc").select("id,contact_id,council_type,entity_type,entity_id,contact_type,name,role,instagram,ig_role_account,org_type,org_name,first_name").eq("campus_id", campusId).limit(4000),
       db.from("growth_ig_dm").select("contact_qc_id,sent_at,replied_at,thread").eq("campus_id", campusId).limit(4000),
       db.from("contact_ref_visit").select("contact_id,surface,is_bot").eq("campus_id", campusId).limit(20000),
       db.from("growth_business_clubs").select("id,name").eq("campus_id", campusId).limit(200),
@@ -141,6 +143,7 @@ export const growthIgCampus = createServerFn({ method: "GET" })
         sentAt: dm?.sent_at ?? null, repliedAt: dm?.replied_at ?? null, thread: dm?.thread ?? [],
         clicks: clicks.get(c.id) ?? 0, chapterOpens: chapterOpens.get(c.id) ?? 0,
         orgType, orgName: (c.org_name as string | null) ?? null, firstName: (c.first_name as string | null) ?? null, chapterSlug,
+        contactCode: (c.contact_id as string | null) ?? null,
       };
       if (c.entity_type === "council" && c.council_type) {
         const label = COUNCIL_ORDER.find((x) => x.key === c.council_type)?.label ?? c.council_type.toUpperCase();

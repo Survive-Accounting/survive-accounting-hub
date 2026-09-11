@@ -12,7 +12,7 @@ import { z } from "zod";
 
 import { contactId as stableContactId } from "@/lib/growth-contacts-schema";
 import type { LinkCampus, LinkContact, SiteChapter } from "@/lib/outreach-links";
-import { cleanHandle } from "@/lib/outreach-links";
+import { cleanHandle, groupOf, linkFor, matchChapter, withContactRef } from "@/lib/outreach-links";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped-table convention
 type DB = { from: (t: string) => any };
@@ -63,6 +63,15 @@ export const outreachLinksCampus = createServerFn({ method: "GET" })
     const sentBy = new Map<string, string | null>(((dms ?? []) as any[]).map((d) => [d.contact_qc_id, d.sent_at ?? null]));
     const clicks = new Map<string, number>();
     for (const v of (visits ?? []) as any[]) { if (v.is_bot || !v.contact_id) continue; clicks.set(v.contact_id, (clicks.get(v.contact_id) ?? 0) + 1); }
+
+    // THE SHORT CODE for rows that predate the 25-column import (no contact_id): minted from the
+    // same fields the importer hashes, written back once, so /l/<code> works for every contact.
+    const missing = ((qc ?? []) as any[]).filter((c) => !c.contact_id);
+    for (const c of missing) {
+      const code = stableContactId({ school: campus.name as string, council: (c.council as string | null) ?? COUNCIL_TYPE_LABEL[(c.council_type as string | null) ?? ""] ?? "", org_name: (c.org_name as string | null) ?? "", full_name: (c.full_name as string | null) ?? (c.name as string | null) ?? "", personal_ig: cleanHandle(c.personal_ig), org_ig: cleanHandle(c.org_ig) || cleanHandle(c.instagram), email: ((c.email as string | null) ?? "").toLowerCase() });
+      const { error } = await db.from("growth_contact_qc").update({ contact_id: code }).eq("id", c.id).is("contact_id", null);
+      if (!error) c.contact_id = code;
+    }
 
     const contacts: LinkContact[] = ((qc ?? []) as any[])
       .filter((c) => c.outreach_eligible !== false)
@@ -220,4 +229,40 @@ export const outreachRetireContact = createServerFn({ method: "POST" })
     const { db } = await adminCtx();
     await db.from("growth_contact_qc").update({ outreach_eligible: false, updated_at: new Date().toISOString() }).eq("id", data.id);
     return { ok: true };
+  });
+
+/** /l/<code> → the contact's page with ?ref=. Public (no admin gate): a DM recipient hits this.
+ *  Looks the contact up by the 12-hex contact_id (or, as a fallback, the row uuid). */
+export const resolveDmLink = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ code: z.string().trim().min(6).max(40).regex(/^[0-9a-f-]+$/i) }).parse(d))
+  .handler(async ({ data }): Promise<{ href: string } | null> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as DB;
+    const code = data.code.toLowerCase();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(code);
+    const { data: c } = await db.from("growth_contact_qc")
+      .select("id,campus_id,council,council_type,org_type,org_name,entity_type,entity_id")
+      .eq(isUuid ? "id" : "contact_id", code).maybeSingle();
+    if (!c?.id || !c.campus_id) return null;
+    const { data: campus } = await db.from("campuses").select("id,slug").eq("id", c.campus_id).maybeSingle();
+    if (!campus?.slug) return null;
+    const { data: chRows } = await db.from("campus_greek_chapters").select("id,slug,greek_org_id,nickname,letters").eq("campus_id", campus.id).is("archived_at", null).not("slug", "is", null).limit(600);
+    const chapters = (chRows ?? []) as any[];
+    const orgIds = Array.from(new Set(chapters.map((x) => x.greek_org_id).filter(Boolean)));
+    const { data: orgs } = orgIds.length ? await db.from("greek_orgs").select("id,name").in("id", orgIds) : { data: [] };
+    const orgName = new Map<string, string>(((orgs ?? []) as any[]).map((o) => [o.id, o.name]));
+    const site = chapters.map((x) => ({ slug: x.slug as string, name: (orgName.get(x.greek_org_id) ?? x.nickname ?? x.slug) as string, council: null, nickname: (x.nickname as string | null) ?? null, letters: (x.letters as string | null) ?? null }));
+    const orgType = ((c.org_type as string | null) || (c.entity_type === "council" ? "council" : c.entity_type === "club" ? "club" : c.entity_type === "chapter" ? "chapter" : "")) as "council" | "office" | "chapter" | "club" | "";
+    const council = (c.council as string | null) || COUNCIL_TYPE_LABEL[(c.council_type as string | null) ?? ""] || "";
+    const group = groupOf({ council, orgType });
+    let org: { kind: "council" | "office" | "chapter" | "club"; slug: string; onSite: boolean; group: string };
+    if (orgType === "chapter") {
+      const byId = c.entity_type === "chapter" && c.entity_id ? chapters.find((x) => x.id === c.entity_id) : null;
+      const hit = byId ? { slug: byId.slug as string } : matchChapter((c.org_name as string | null) ?? "", site);
+      org = { kind: "chapter", slug: hit?.slug ?? "", onSite: !!hit, group };
+    } else if (orgType === "office") org = { kind: "office", slug: "", onSite: true, group: "FSL Office" };
+    else if (orgType === "club") org = { kind: "club", slug: "", onSite: false, group: "Campus Club" };
+    else org = { kind: "council", slug: ({ IFC: "ifc", Panhellenic: "panhellenic", NPHC: "nphc", MGC: "mgc" } as Record<string, string>)[group] ?? "", onSite: true, group };
+    const path = withContactRef(linkFor(campus.slug as string, org, site.length > 0).path, c.id as string);
+    return { href: path };
   });

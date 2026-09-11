@@ -125,6 +125,10 @@ function GoChapterPage() {
     adEvent("chapter_page_view", { campus: school, chapter, course: code ?? undefined, source: readVia(window.location.search) ?? undefined });
   }, [ch, school, chapter, code]);
 
+  // THE DM CONTACT this visitor is (read after mount — the URL and cookie are client-side).
+  const [contactRef, setContactRef] = useState<string | null>(null);
+  useEffect(() => { setContactRef(currentContactRef()); }, []);
+
   // THE CLAIM STATE lives here so the quiet top line and the sheet agree after a submit.
   const [claim, setClaim] = useState<ChairClaim>(ch?.claimStatus ?? "unclaimed");
 
@@ -165,6 +169,7 @@ function GoChapterPage() {
         claim={claim}
         onClaim={openClaimStep}
         onAction={onAction}
+        contactRef={contactRef}
       />
       <ClaimSheetHost
         chapterName={ch.chapterName}

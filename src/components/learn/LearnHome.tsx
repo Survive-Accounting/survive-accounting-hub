@@ -319,10 +319,6 @@ export const LearnHome = forwardRef<HTMLDivElement, {
           const first = i === 0;
           const expanded = first || !!open[id];
           const posted = ts.filter(isPosted).length;
-          // ONLY WHAT IS POSTED (Lee, 2026-09-11, later: "for the empty video placeholders not yet
-          // done in easy points, just remove those for now. Only show videos that are posted").
-          // A topic with nothing posted is not on the page at all — no "Coming soon" row.
-          if (posted === 0) return null;
           // A LATER TOPIC behind the gate blurs under one box: the unlock ask when it has posted
           // videos, the waitlist ask when it has none. The first topic never blurs and never
           // carries the waitlist box — its unposted videos are simply grey (redesign, 2026-09-11).
@@ -335,7 +331,10 @@ export const LearnHome = forwardRef<HTMLDivElement, {
           const row = (
             <div className="relative">
               <StudyRail tier={tier} label={`${topic.name} videos`} bleed={pad} style={dimmed} ariaHidden={!!overlay}>
-                {ts.flatMap((s) => cardsOf(s, progress).filter((c) => s.locked || !!c.playbackId).map((c) => <Short key={c.key} s={s} card={c} onOpen={() => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id, false, c.part))} />))}
+                {/* ONLY WHAT IS POSTED on an open row (Lee, 2026-09-11: "the empty easy points
+                    placeholders" go; the later topics keep their waitlist / unlock gate, and the
+                    grey placeholders behind that blur are what the gate sits on). */}
+                {ts.flatMap((s) => cardsOf(s, progress).filter((c) => !!overlay || s.locked || !!c.playbackId).map((c) => <Short key={c.key} s={s} card={c} onOpen={() => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id, false, c.part))} />))}
                 {/* PRACTICE IS OFF THE PAGE FOR NOW (Lee, 2026-09-11, later: "just don't show
                     practice yet. It's only videos for now until we refine that"). The card, the
                     drawer and the round stay built; SHOW_PRACTICE brings them back. */}
@@ -534,6 +533,9 @@ function cardsOf(s: HomeSet, progress: Record<string, Prog>): Card[] {
  *  reduced motion. */
 function HoverPreview({ pid }: { pid: string }) {
   const ref = useRef<HTMLVideoElement>(null);
+  // A loading wheel until the first frame plays (Lee, 2026-09-11: "Show loading animation so
+  // it's clear the video would be coming").
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     const v = ref.current; if (!v) return;
     let hls: { destroy: () => void } | null = null; let cancelled = false;
@@ -546,7 +548,16 @@ function HoverPreview({ pid }: { pid: string }) {
     }).catch(() => { /* the thumbnail stays */ });
     return () => { cancelled = true; hls?.destroy(); };
   }, [pid]);
-  return <video ref={ref} muted playsInline loop preload="none" aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#000" }} />;
+  return (
+    <>
+      <video ref={ref} muted playsInline loop preload="none" aria-hidden onPlaying={() => setReady(true)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#000", opacity: ready ? 1 : 0, transition: "opacity 160ms" }} />
+      {!ready && (
+        <span aria-hidden className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full" style={{ width: 44, height: 44, background: "rgba(0,0,0,0.5)", color: "#fff" }}>
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </span>
+      )}
+    </>
+  );
 }
 
 function Short({ s, card, onOpen }: { s: HomeSet; card: Card; onOpen: () => void }) {

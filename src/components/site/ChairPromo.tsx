@@ -40,7 +40,7 @@ export type ChairClaim = "unclaimed" | "pending" | "claimed";
 const REVIEWS_ID = "reviews";
 const VALUE_ID = "what-they-get";
 
-export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name, letters, shortName, code, bolt, claim, onClaim, onAction }: {
+export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name, letters, shortName, code, bolt, claim, onClaim, onAction, contactRef }: {
   kind: ChairKind;
   /** campuses.slug — the /go and /api namespace. */
   schoolSlug: string;
@@ -62,10 +62,12 @@ export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name,
   onClaim?: () => void;
   /** Best-effort analytics hook; never awaited. */
   onAction?: (action: "open_learn" | "copy_link" | "copy_groupme" | "flyer" | "slide") => void;
+  /** The DM contact this chair arrived as (?ref= / the sa_cref cookie) — rides on every link they share. */
+  contactRef?: string | null;
 }) {
   useNavyDocument();
-  const learnPath = chairLearnPath(kind, schoolId, slug);
-  const shareUrl = chairShareUrl(kind, schoolId, slug);
+  const learnPath = chairLearnPath(kind, schoolId, slug, contactRef);
+  const shareUrl = chairShareUrl(kind, schoolId, slug, contactRef);
   const groupMe = chairGroupMe(kind, code, shareUrl, shortName);
   const art = chairArtwork(kind, schoolSlug, slug);
   const members = kind === "council" ? "chapters" : "members";

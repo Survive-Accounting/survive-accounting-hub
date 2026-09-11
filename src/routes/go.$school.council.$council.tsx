@@ -15,7 +15,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { frameThemeVars } from "@/components/frames/frame-theme";
 import { useNavyDocument } from "@/components/site/SiteHeader";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { CouncilForwardKit } from "@/components/site/CouncilForwardKit";
@@ -72,6 +72,8 @@ function CouncilRoute() {
   const s = schoolBySlug(school);
   // A council chair's click on their DM link (?ref=) counts on the DM console, like a chapter's.
   useRecordRefVisit(s?.campusId ?? null);
+  const [contactRef, setContactRef] = useState<string | null>(null);
+  useEffect(() => { setContactRef(currentContactRef()); }, []);
   if (page) return <CouncilPage page={page} />;
   if (!partner) return <CouncilNotFound />;
   return (
@@ -88,6 +90,7 @@ function CouncilRoute() {
       bolt={boltForSlug(school)}
       // The first share action on this council's page emails Lee; the DM link's ref says who.
       onAction={(action) => void notifyChairAction({ data: { kind: "council", schoolSlug: school, slug: council, name: partner.councilFull, action, ref: currentContactRef() } }).catch(() => {})}
+      contactRef={contactRef}
     />
   );
 }
