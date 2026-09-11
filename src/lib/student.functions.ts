@@ -20,7 +20,7 @@ import { cramCardsFromPlan, practiceIdsFromPlan, readLearnPlan } from "./learn-p
  *   - REVIEW = the set's shipped `lookback` publication. OPTIONAL by design — most sets have
  *              none yet; `hasReview` is the flag, ids are never invented.
  *  Paid sets have ALL playback ids withheld (getSetPlayback re-checks the grant per stage). */
-import { shortsFrom, type StudentShort } from "./student-shorts";
+import { partKey, shortsFrom, type StudentShort } from "./student-shorts";
 import { coverOf } from "./publish-cover";
 
 export interface StudentSet {
@@ -206,14 +206,12 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   // THE COVERS (2026-09-11): one read of set_publish_status for every live set — the row's key is
   // the set id (part 1) — and the uploaded image's address, when there is one. A failure here is
   // said out loud: a page that silently drops every cover is exactly the bug this fixes.
+  // Keyed by publish key: "<setId>" (part 1) and "<setId>#N" (part N) — every part can have its own.
   const coverBySet = new Map<string, string>();
   {
-    const ids = live.map((d) => d.id);
-    if (ids.length) {
-      const { data: rows, error: cErr } = await admin.from("set_publish_status").select("set_id,captions").in("set_id", ids);
-      if (cErr) throw new Error(`set_publish_status (covers): ${cErr.message}`);
-      for (const r of (rows ?? []) as { set_id: string; captions: unknown }[]) { const c = coverOf(r.captions); if (c) coverBySet.set(r.set_id, c.url); }
-    }
+    const { data: rows, error: cErr } = await admin.from("set_publish_status").select("set_id,captions");
+    if (cErr) throw new Error(`set_publish_status (covers): ${cErr.message}`);
+    for (const r of (rows ?? []) as { set_id: string; captions: unknown }[]) { const c = coverOf(r.captions); if (c) coverBySet.set(r.set_id, c.url); }
   }
   for (const d of live) {
     // ALL-DRAFT SETS never reach a student (master status law): a set whose
@@ -239,7 +237,7 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     const cramDur = pubDur(blast) ?? ((d.lessonId ? dur.get(d.lessonId) : undefined) ?? null);
     setOrderKey.set(d.id, d.sortOrder ?? Number.MAX_SAFE_INTEGER);
     // THE SET'S POSTED PARTS (2026-09-11): part 1 replaces the set's video, and the set turns vertical.
-    const shorts = shortsFrom(d.publications as never, paid);
+    const shorts = shortsFrom(d.publications as never, paid).map((sh) => ({ ...sh, coverUrl: coverBySet.get(partKey(d.id, sh.takeIndex)) ?? null }));
     topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: shorts.length ? "portrait" : "landscape", playbackId: paid ? null : (shorts[0]?.playbackId ?? cramPid), coverUrl: coverBySet.get(d.id) ?? null, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: shorts[0]?.runtimeSec ?? cramDur, shorts, hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id) });
   }
 

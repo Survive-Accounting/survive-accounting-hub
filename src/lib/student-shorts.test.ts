@@ -25,7 +25,7 @@ describe("a set's parts for students", () => {
   });
 
   test("paid sets list their parts with every id withheld", () => {
-    expect(shortsFrom([part(0, "Assets", "p1")], true)).toEqual([{ takeIndex: 0, name: "Assets", playbackId: null, runtimeSec: 60 }]);
+    expect(shortsFrom([part(0, "Assets", "p1")], true)).toEqual([{ takeIndex: 0, name: "Assets", playbackId: null, runtimeSec: 60, coverUrl: null }]);
   });
 
   test("a set with no posted parts has none", () => {
