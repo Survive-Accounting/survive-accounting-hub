@@ -80,7 +80,7 @@ import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome
 import { LearnTextLee } from "@/components/learn/LearnTextLee";
 import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
 import { ReviewSheet } from "@/components/learn/ReviewSheet";
-import { LearnShareKit } from "@/components/learn/LearnShareKit";
+import { LearnChapterBar, readChapterBarHidden } from "@/components/learn/LearnChapterBar";
 import { pageShareUrl } from "@/lib/share-url";
 import { CramPlayer, type PlayerItem, type PlayerPart } from "@/components/learn/CramPlayer";
 import { partKey, setIdOfKey } from "@/lib/student-shorts";
@@ -107,7 +107,8 @@ type LearnSearch = {
   /** ?looks=1 — mount the floating look picker (LearnLookPicker). */
   looks?: true;
   /** THE SHARE KIT (2026-09-11): ?share=council (+ ?c=<council slug>) for a council chair, ?share=chair
-   *  for a chapter's chair — LearnShareKit above the hero. Never copied onward (share-url strips both). */
+   *  for a chapter's chair. Since the same night both are the one LearnChapterBar every visitor sees
+   *  above the hero; ?c= presets its council. Never copied onward (share-url strips both). */
   share?: "council" | "chair";
   c?: string;
 };
@@ -345,6 +346,14 @@ function LearnShell() {
   const campusName = school?.name ?? campuses.find((c) => c.id === campusId)?.name ?? null;
   const look: Look = search.look ?? DEFAULT_LOOK;
   const theme = useMemo(() => themeFor(school, look), [school, look]);
+  // THE CHAPTER BAR (2026-09-11): hidden on this device only by its own "Not in a chapter?" link,
+  // and never when a chapter or a council is in the address. Read in an effect (storage).
+  const [barHidden, setBarHidden] = useState(false);
+  useEffect(() => { setBarHidden(readChapterBarHidden()); }, []);
+  const pickChapter = useCallback((slug: string) => {
+    if (school?.slug) { try { localStorage.setItem(chapterPickKey(school.slug), slug); } catch { /* ignore */ } window.dispatchEvent(new CustomEvent(CTA_CHAPTER_EVENT)); }
+    void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: school?.id ?? params.campus, chapter: slug }, search: (p: LearnSearch) => ({ ...p, share: undefined }), replace: true });
+  }, [navigate, school, params.campus]);
   const pickLook = useCallback((next: Look) => {
     void navigate({ search: (p: LearnSearch) => ({ ...p, look: next === DEFAULT_LOOK ? undefined : next }), replace: true });
   }, [navigate]);
@@ -483,7 +492,7 @@ function LearnShell() {
   // when the page opens with no video in the address and no share kit, the last video this
   // browser watched (or the first playable one) opens, muted — the sound pill is one tap.
   useEffect(() => {
-    if (isLoading || inPlayer || search.set || search.share || demo || playerItems.length === 0) return;
+    if (isLoading || inPlayer || search.set || search.share || search.c || demo || playerItems.length === 0) return;
     let seen = false; try { seen = sessionStorage.getItem("sa-cram-auto") === "1"; } catch { /* ignore */ }
     if (seen) return;
     try { sessionStorage.setItem("sa-cram-auto", "1"); } catch { /* ignore */ }
@@ -592,12 +601,12 @@ function LearnShell() {
             school={school}
             progress={progress}
             chapterSlug={chapter.slug}
-            kit={search.share && school ? (
-              <LearnShareKit
-                mode={search.share} councilSlug={search.c ?? null} school={school}
+            kit={school && !demo && (!barHidden || !!chapter.slug || !!search.c) ? (
+              <LearnChapterBar
+                school={school} councilSlug={search.c ?? null}
                 chapter={chapter.slug ? { slug: chapter.slug, name: chapter.name, letters: chapter.letters } : null}
                 contactRef={search.by ?? search.ref ?? null} narrow={isNarrow}
-                onClose={() => void navigate({ search: (p: LearnSearch) => ({ ...p, share: undefined, c: undefined }), replace: true })}
+                onPick={pickChapter} onHide={() => setBarHidden(true)}
               />
             ) : null}
           />
@@ -609,7 +618,7 @@ function LearnShell() {
           "treat these more like embeds that you can then full screen vs. opening that player … In
           mobile, obviously we want the video to play on full phone screen"). */}
       {inPlayer && !isLoading && (
-        <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: isNarrow ? "#000" : "rgba(13,23,48,0.78)", paddingTop: isNarrow ? 0 : 60 }} onClick={(e) => { if (!isNarrow && e.target === e.currentTarget) exitPlayer(); }}>
+        <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: isNarrow ? "#000" : "rgba(13,23,48,0.84)", backdropFilter: isNarrow ? undefined : "blur(18px)", WebkitBackdropFilter: isNarrow ? undefined : "blur(18px)", paddingTop: isNarrow ? 0 : 60 }} onClick={(e) => { if (!isNarrow && e.target === e.currentTarget) exitPlayer(); }}>
           <CramPlayer
             items={playerItems} index={playerIndex}
             onIndex={(i) => { const it = playerItems[i]; if (it) { setPractice(false); void navigate({ search: (p: LearnSearch) => ({ ...p, set: it.set.id, part: it.part.index > 0 ? it.part.index + 1 : undefined, stage: undefined }), replace: true }); } }}
@@ -617,7 +626,7 @@ function LearnShell() {
             demo={demo} narrow={isNarrow} theme={theme}
             practice={practice} onPractice={setPractice}
             campusName={campusName} campusSlug={campusSlug} contactRef={contactRef}
-            onShare={() => void share()} onLocked={setPaywallTopic} onExit={exitPlayer}
+            onShare={share} onLocked={setPaywallTopic} onExit={exitPlayer}
             demoQuestions={DEMO_QUESTIONS}
           />
         </div>

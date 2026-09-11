@@ -11,7 +11,7 @@
 // beside the column; it files a `question` intake with the set and the timestamp. On a phone the
 // video is the screen, actions sit bottom-right, practice and ask are sheets.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Check, ChevronLeft, Loader2, Lock, Maximize2, Play, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowUp, Check, ChevronLeft, Loader2, Lock, Maximize2, Play, Volume2, VolumeX, X } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { PracticeStage } from "@/components/site/PracticeStage";
@@ -19,7 +19,6 @@ import { CramCardsPanel } from "@/components/learn/CramCards";
 import { submitIntake } from "@/lib/intake.functions";
 import type { PracticeQuestion, StudentSet, StudentTopic } from "@/lib/student.functions";
 import { LK, type LearnTheme } from "@/components/learn/learn-theme";
-import { RailIcon } from "@/components/learn/LearnRail";
 import { DEMO_PLAYBACK, muxThumb, SOUND_KEY, type Prog } from "@/components/learn/cram-media";
 import { QUICK_ROUND_SIZE } from "@/components/learn/learn-gate";
 
@@ -55,7 +54,7 @@ export function CramPlayer({
   campusName: string | null;
   campusSlug: string | null;
   contactRef: string | null;
-  onShare: () => void;
+  onShare: () => void | Promise<boolean>;
   onLocked: (topic: StudentTopic) => void;
   demoQuestions?: PracticeQuestion[];
 }) {
@@ -67,6 +66,9 @@ export function CramPlayer({
   const [cards, setCards] = useState(false);
   const [shareCard, setShareCard] = useState(true);
   useEffect(() => { try { setShareCard(sessionStorage.getItem(SHARE_DISMISS) !== "1"); } catch { /* ignore */ } }, []);
+  // "Know someone in this class?" (Lee, 2026-09-11): only from the THIRD video on, one button.
+  const [shareCopied, setShareCopied] = useState(false);
+  const copyShare = async () => { const ok = await onShare(); if (ok !== false) { setShareCopied(true); window.setTimeout(() => setShareCopied(false), 2200); } };
   const hasPrev = index > 0, hasNext = index < items.length - 1;
   // THE NEXT TOPIC (2026-09-11): the first item after this one in a different topic — what the
   // practice drawer's "Next topic →" opens. -1 on the last topic, where it becomes "Back to the
@@ -93,9 +95,7 @@ export function CramPlayer({
 
   if (!item) return null;
   const { set, topic, n, of, locked, part } = item;
-  const done = progress[part.key]?.state === "complete";
   const toggleSound = () => setSoundOn((v) => { writeSound(!v); return !v; });
-  const gotIt = () => { onComplete(part.key); if (hasNext) window.setTimeout(() => go(1), 250); };
   // The caption: a multi-part set counts its parts ("Assets · 1 of 5"); a single video counts sets.
   const cap = part.of > 1 ? { n: part.index + 1, of: part.of, name: part.name || set.name } : { n, of, name: set.name };
 
@@ -108,21 +108,6 @@ export function CramPlayer({
       onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask}
       caption={{ topic: topic.name, n: cap.n, of: cap.of, name: cap.name }}
     />
-  );
-
-  const actions = (
-    <div className="flex flex-col items-center" style={{ gap: narrow ? 12 : 14 }}>
-      <button type="button" className="lk-act" data-on={cards} onClick={() => { setCards((v) => !v); onPractice(false); setAsk(false); }} title="The cram cards from this video — cheat codes, memorize-this, deeper ideas">
-        <span className="lk-act-b">🗂</span>Cards
-      </button>
-      <button type="button" className="lk-act" data-on={practice} onClick={() => { if (set.ceqCount > 0) { onPractice(!practice); setAsk(false); setCards(false); } }} disabled={set.ceqCount === 0} style={{ opacity: set.ceqCount ? 1 : 0.4 }} title={set.ceqCount ? `${set.ceqCount} practice questions` : "No questions for this set yet"}>
-        <span className="lk-act-b">{set.ceqCount ? `${set.ceqCount} Qs` : "—"}</span>Practice
-      </button>
-      <button type="button" className="lk-act" disabled style={{ opacity: 0.4 }} title="Study tools — coming"><span className="lk-act-b"><RailIcon k="tools" /></span>Tools</button>
-      <button type="button" className="lk-act" data-on={ask} onClick={() => { setAsk((v) => !v); if (!ask) onPractice(false); }}><span className="lk-act-b">?</span>Ask Lee</button>
-      <button type="button" className="lk-act" onClick={onShare}><span className="lk-act-b"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" /><path d="M12 3v13M7 8l5-5 5 5" /></svg></span>Share</button>
-      <button type="button" className="lk-act" data-on={done} onClick={gotIt} title={done ? "Crammed" : "Mark it crammed and move on"}><span className="lk-act-b"><Check className="h-4 w-4" /></span>{done ? "Crammed" : "Got it"}</button>
-    </div>
   );
 
   const askCard = ask && (
@@ -182,9 +167,8 @@ export function CramPlayer({
             <div className="min-w-0 flex-1 pb-1">
               <div className="text-[10px] font-extrabold uppercase" style={{ letterSpacing: "0.14em", color: theme.accent }}>{topic.name} · {cap.n} of {cap.of}</div>
               <div className="lk-disp" style={{ fontSize: 19, lineHeight: 1.1, marginTop: 4 }}>{cap.name}</div>
-              <div className="mt-1.5 text-[11px]" style={{ color: LK.muted }}>swipe up for the next one</div>
+              {hasNext && <div className="lk-swipe mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: "rgba(255,255,255,0.14)", color: "#F2EFE6" }}><ArrowUp className="lk-swipe-arrow h-3.5 w-3.5" /> Swipe up for the next video</div>}
             </div>
-            <div className="pointer-events-auto">{actions}</div>
           </div>
         )}
         {cardsPanel}
@@ -194,29 +178,26 @@ export function CramPlayer({
     );
   }
 
+  // THE SIMPLE PLAYER (Lee, 2026-09-11: "remove the side HUB for now … Just simple player for
+  // now"): the stage, "All videos", and — from the third video on — one small card. A click on
+  // anything that is not the stage closes it (the lightbox's own rule).
   return (
-    <div className="relative flex min-h-0 flex-1 items-end justify-center" style={{ gap: 16, padding: "8px 32px 20px" }}>
+    <div className="relative flex min-h-0 flex-1 items-end justify-center" style={{ gap: 16, padding: "8px 32px 20px" }} onClick={(e) => { if (e.target === e.currentTarget) onExit(); }}>
       <button type="button" onClick={onExit} className="lk-btn lk-btn-ghost absolute left-8 top-3" style={{ padding: "7px 12px 7px 8px", fontSize: 11 }}><ChevronLeft className="h-4 w-4" /> All videos</button>
-      {/* left: a dismissible share card, idle only */}
-      {!practice && !cards && !ask && shareCard && (
-        <div className="lk-card lk-in absolute bottom-6 left-8 flex w-[280px] flex-col gap-2 p-4">
+      {!practice && !cards && !ask && shareCard && index >= 2 && (
+        <div className="lk-card lk-in absolute bottom-6 left-8 flex w-[260px] flex-col gap-2 p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="text-[13.5px] font-bold leading-snug">Know someone in this class?</div>
-            <button type="button" onClick={() => { setShareCard(false); try { sessionStorage.setItem(SHARE_DISMISS, "1"); } catch { /* ignore */ } }} className="grid h-6 w-6 shrink-0 place-items-center rounded-full" style={{ background: LK.border, color: LK.muted, border: 0, cursor: "pointer" }} aria-label="Dismiss"><X className="h-3 w-3" /></button>
+            <button type="button" onClick={() => { setShareCard(false); try { sessionStorage.setItem(SHARE_DISMISS, "1"); } catch { /* ignore */ } }} className="grid h-6 w-6 shrink-0 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }} aria-label="Dismiss"><X className="h-3 w-3" /></button>
           </div>
-          <div className="text-[12.5px] leading-relaxed" style={{ color: LK.muted }}>Send them this. Exam 1 is free for them too, and free for your whole fraternity or sorority.</div>
-          <button type="button" onClick={onShare} className="lk-btn lk-btn-ghost self-start" style={{ padding: "7px 12px", fontSize: 11 }}>Share with a friend</button>
+          <div className="text-[12.5px] leading-relaxed" style={{ color: LK.muted }}>Send them this. Exam 1 is free for them, too.</div>
+          <button type="button" onClick={() => void copyShare()} className="lk-btn lk-btn-acc self-start" style={{ padding: "7px 12px", fontSize: 11 }}>{shareCopied ? <><Check className="h-3.5 w-3.5" /> Copied</> : "Copy share link"}</button>
         </div>
       )}
       {video}
-      {actions}
       {cardsPanel}
       {practicePanel}
       {askCard}
-      <div className="absolute right-8 top-1/2 flex -translate-y-1/2 flex-col gap-2.5">
-        <button type="button" className="lk-act" onClick={() => go(-1)} disabled={!hasPrev} style={{ opacity: hasPrev ? 1 : 0.3 }} aria-label="Previous"><span className="lk-act-b"><ArrowUp className="h-4 w-4" /></span></button>
-        <button type="button" className="lk-act" onClick={() => go(1)} disabled={!hasNext} style={{ opacity: hasNext ? 1 : 0.3 }} aria-label="Next"><span className="lk-act-b"><ArrowDown className="h-4 w-4" /></span></button>
-      </div>
     </div>
   );
 }
@@ -258,14 +239,15 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
     const src = `https://stream.mux.com/${pid}.m3u8`;
     let hls: { destroy: () => void } | null = null;
     let cancelled = false;
-    if (v.canPlayType("application/vnd.apple.mpegurl")) { v.src = src; }
-    else {
-      void import("hls.js").then(({ default: Hls }) => {
-        if (cancelled || !ref.current) return;
-        if (Hls.isSupported()) { const h = new Hls(); h.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) setErr(true); }); h.loadSource(src); h.attachMedia(ref.current); hls = h; }
-        else ref.current.src = src;
-      }).catch(() => setErr(true));
-    }
+    // hls.js FIRST (Lee, 2026-09-11: "Videos still aren't playing"). Chrome answers "maybe" to
+    // canPlayType("application/vnd.apple.mpegurl") and then cannot play the raw .m3u8 (media
+    // error 4). Native HLS is only for the browsers hls.js cannot run in — iOS Safari.
+    void import("hls.js").then(({ default: Hls }) => {
+      if (cancelled || !ref.current) return;
+      if (Hls.isSupported()) { const h = new Hls(); h.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) setErr(true); }); h.loadSource(src); h.attachMedia(ref.current); hls = h; }
+      else if (ref.current.canPlayType("application/vnd.apple.mpegurl")) ref.current.src = src;
+      else setErr(true);
+    }).catch(() => setErr(true));
     return () => { cancelled = true; hls?.destroy(); };
   }, [pid, isDemo, locked]);
   const startAt = prog?.state === "in_progress" ? prog.positionSec : 0;
@@ -313,7 +295,7 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
             <video ref={ref} playsInline muted={!soundOn} preload="auto" poster={poster} className="h-full w-full" style={{ objectFit: "contain", background: "#000", pointerEvents: "none" }}
               onPlay={() => { setEnded(false); setPlaying(true); onStarted(); }} onPause={() => { setPlaying(false); flush(); }}
               onTimeUpdate={() => { const v = ref.current; if (v?.duration) setPct(v.currentTime / v.duration); const now = Date.now(); if (now - lastWrite.current > 5000) { lastWrite.current = now; flush(); } }}
-              onEnded={finish} />
+              onEnded={finish} onError={() => setErr(true)} />
             {!playing && !ended && (
               <span aria-hidden className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full" style={{ width: 76, height: 76, background: "rgba(0,0,0,0.55)", border: "2px solid rgba(255,255,255,0.85)", color: "#fff" }}>
                 <Play className="h-8 w-8" style={{ marginLeft: 4 }} fill="currentColor" />
