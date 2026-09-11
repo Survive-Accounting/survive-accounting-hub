@@ -24,13 +24,19 @@ import { getCouncilPage, type CouncilPage } from "@/lib/greek-councils.functions
 import { getCouncilPartner } from "@/lib/partners.functions";
 import type { CouncilPartner } from "@/lib/partners";
 import { boltForSlug, schoolBySlug } from "@/lib/schools";
+import { isContactRef } from "@/lib/contact-ref";
+import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { ogMeta } from "@/lib/og";
 
 export const Route = createFileRoute("/go/$school/council/$council")({
   // `k` is OPTIONAL in the type, not merely undefined-able: the public promo is navigated to with
   // no search at all (the council finder, the footer), and a required key would make every such
   // navigate() a type error.
-  validateSearch: (s: Record<string, unknown>): { k?: string } => (typeof s.k === "string" ? { k: s.k } : {}),
+  validateSearch: (s: Record<string, unknown>): { k?: string; ref?: string } => ({
+    ...(typeof s.k === "string" ? { k: s.k } : {}),
+    // ?ref=<contact uuid> — the DM console's click attribution; read by useRecordRefVisit below.
+    ...(typeof s.ref === "string" && isContactRef(s.ref) ? { ref: s.ref } : {}),
+  }),
   loaderDeps: ({ search }) => ({ k: search.k }),
   loader: async ({ params, deps }): Promise<{ page: CouncilPage | null; partner: CouncilPartner | null }> => {
     const page = deps.k
@@ -61,9 +67,11 @@ export const Route = createFileRoute("/go/$school/council/$council")({
 function CouncilRoute() {
   const { page, partner } = Route.useLoaderData();
   const { school, council } = Route.useParams();
+  const s = schoolBySlug(school);
+  // A council chair's click on their DM link (?ref=) counts on the DM console, like a chapter's.
+  useRecordRefVisit(s?.campusId ?? null);
   if (page) return <CouncilPage page={page} />;
   if (!partner) return <CouncilNotFound />;
-  const s = schoolBySlug(school);
   return (
     <ChairPromo
       kind="council"

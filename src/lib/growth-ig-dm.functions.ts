@@ -41,6 +41,11 @@ export interface IgContact {
   thread: ThreadMsg[];
   clicks: number;
   chapterOpens: number;
+  // WHO THE CONTACT IS (2026-09-11) — see lib/outreach-links. orgType council|office|chapter|club.
+  orgType: string | null;
+  orgName: string | null;
+  firstName: string | null;
+  chapterSlug: string | null;
 }
 export interface IgCouncil {
   key: string;
@@ -58,6 +63,8 @@ export interface IgCampus {
   mascot: string | null;
   councils: IgCouncil[];
   metrics: { dmsSent: number; replied: number; clicks: number; chapterOpens: number; contacts: number };
+  /** Chapters on the site at this campus — 0 sends every DM link to the campus page. */
+  siteChapters: number;
 }
 
 const COUNCIL_ORDER = [
@@ -87,12 +94,20 @@ export const growthIgCampus = createServerFn({ method: "GET" })
       db.from("campuses").select("id,name,display_name,slug,color_primary,color_secondary,course_family_codes_json").eq("id", campusId).maybeSingle(),
       db.from("campus_spirit").select("primary_hex,secondary_hex,mascot").eq("campus_id", campusId).maybeSingle(),
       db.from("course_intel_campus_status").select("course_code").eq("campus_id", campusId).limit(1),
-      db.from("growth_contact_qc").select("id,council_type,entity_type,entity_id,contact_type,name,role,instagram,ig_role_account").eq("campus_id", campusId).limit(4000),
+      db.from("growth_contact_qc").select("id,council_type,entity_type,entity_id,contact_type,name,role,instagram,ig_role_account,org_type,org_name,first_name").eq("campus_id", campusId).limit(4000),
       db.from("growth_ig_dm").select("contact_qc_id,sent_at,replied_at,thread").eq("campus_id", campusId).limit(4000),
       db.from("contact_ref_visit").select("contact_id,surface,is_bot").eq("campus_id", campusId).limit(20000),
       db.from("growth_business_clubs").select("id,name").eq("campus_id", campusId).limit(200),
     ]);
     if (!campus?.id) return null;
+    // The site's chapters, so a chapter contact's DM can carry the chapter's own page.
+    const { data: chRows } = await db.from("campus_greek_chapters").select("id,slug,greek_org_id,nickname,letters").eq("campus_id", campusId).is("archived_at", null).not("slug", "is", null).limit(600);
+    const chOrgIds = Array.from(new Set(((chRows ?? []) as any[]).map((c) => c.greek_org_id).filter(Boolean)));
+    const { data: chOrgs } = chOrgIds.length ? await db.from("greek_orgs").select("id,name").in("id", chOrgIds) : { data: [] };
+    const chOrgName = new Map<string, string>(((chOrgs ?? []) as any[]).map((o) => [o.id, o.name]));
+    const siteChapters = ((chRows ?? []) as any[]).map((c) => ({ slug: c.slug as string, name: (chOrgName.get(c.greek_org_id) ?? c.nickname ?? c.slug) as string, council: null, nickname: (c.nickname as string | null) ?? null, letters: (c.letters as string | null) ?? null }));
+    const chapterSlugById = new Map<string, string>(((chRows ?? []) as any[]).map((c) => [c.id, c.slug]));
+    const { matchChapter } = await import("@/lib/outreach-links");
 
     const dmBy = new Map<string, { sent_at: string | null; replied_at: string | null; thread: ThreadMsg[] }>();
     for (const d of (dms ?? []) as any[]) dmBy.set(d.contact_qc_id, { sent_at: d.sent_at, replied_at: d.replied_at, thread: Array.isArray(d.thread) ? d.thread : [] });
@@ -118,10 +133,14 @@ export const growthIgCampus = createServerFn({ method: "GET" })
       const isOrg = !!c.ig_role_account || (c.contact_type === "organization_general") || !(c.name && String(c.name).trim());
       const { slot, label: roleLabel } = slotOf(c.role, isOrg);
       const dm = dmBy.get(c.id);
+      const orgType = (c.org_type as string | null) ?? (c.entity_type === "council" ? "council" : c.entity_type === "club" ? "club" : c.entity_type === "chapter" ? "chapter" : null);
+      const chapterSlug = (c.entity_type === "chapter" && c.entity_id ? chapterSlugById.get(c.entity_id) : null)
+        ?? (orgType === "chapter" && c.org_name ? matchChapter(c.org_name, siteChapters)?.slug ?? null : null);
       const contact: IgContact = {
         contactId: c.id, slot, roleLabel, name: c.name ?? null, handle, isOrg,
         sentAt: dm?.sent_at ?? null, repliedAt: dm?.replied_at ?? null, thread: dm?.thread ?? [],
         clicks: clicks.get(c.id) ?? 0, chapterOpens: chapterOpens.get(c.id) ?? 0,
+        orgType, orgName: (c.org_name as string | null) ?? null, firstName: (c.first_name as string | null) ?? null, chapterSlug,
       };
       if (c.entity_type === "council" && c.council_type) {
         const label = COUNCIL_ORDER.find((x) => x.key === c.council_type)?.label ?? c.council_type.toUpperCase();
@@ -171,6 +190,7 @@ export const growthIgCampus = createServerFn({ method: "GET" })
         chapterOpens: all.reduce((n, c) => n + c.chapterOpens, 0),
         contacts: all.length,
       },
+      siteChapters: siteChapters.length,
     };
   });
 

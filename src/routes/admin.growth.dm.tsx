@@ -25,7 +25,7 @@ import { DmBoard } from "@/components/growth/DmBoard";
 import { MiniBolt } from "@/components/growth/v2";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { renderQueryState } from "@/components/growth/QueryState";
-import { buildDmMessage } from "@/lib/dm-template";
+import { dmForPlanEntry } from "@/lib/outreach-dm";
 import { growthIgMarkSent } from "@/lib/growth-ig-dm.functions";
 import { dmConsoleBoard, dmConsolePlan, type ConsoleCampus, type PlanEntry } from "@/lib/king-dm.functions";
 import { DEFAULT_DAILY_TARGET } from "@/lib/king-dm";
@@ -221,7 +221,9 @@ function PlanRow({ e }: { e: PlanEntry }) {
   });
 
   const copy = async () => {
-    const msg = buildDmMessage({ councilKey: "ifc", courseCode, slug, contactId: e.contactId });
+    // WHO THEY ARE decides the link and the ask (2026-09-11) — a Panhellenic chair no longer reads
+    // "across your fraternities", and a chapter chair gets their chapter's page.
+    const msg = dmForPlanEntry(e, { campusLabel: schoolBySlug(e.campusSlug)?.name ?? e.campusLabel, courseCode, slug });
     try {
       await navigator.clipboard.writeText(msg);
       setCopied(true); setTimeout(() => setCopied(false), 1500);
@@ -243,8 +245,8 @@ function PlanRow({ e }: { e: PlanEntry }) {
         </div>
         <div className="text-[10.5px] text-muted-foreground">{e.campusLabel} · @{e.handle}</div>
       </div>
-      <a href={`https://instagram.com/${e.handle}`} target="_blank" rel="noreferrer" className="rounded-lg border border-border px-2 py-1 text-[11px] hover:bg-muted" title="Open the profile">
-        <ExternalLink className="size-3.5" />
+      <a href={`https://ig.me/m/${e.handle}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11px] font-medium hover:bg-muted" title="Opens the Instagram DM thread">
+        <ExternalLink className="size-3.5" /> Open DM
       </a>
       <button onClick={() => void copy()} className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11px] font-medium hover:bg-muted">
         {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />} Copy DM

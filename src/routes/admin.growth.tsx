@@ -13,6 +13,7 @@ import {
   Building2,
   GraduationCap,
   Landmark,
+  Link as LinkIcon,
   Network,
   Radar,
   Rocket,
@@ -47,6 +48,8 @@ export const Route = createFileRoute("/admin/growth")({
 const TABS = [
   // First, because it is the one page King works from every day.
   { to: "/admin/growth/dm", label: "DM Console", icon: MessageSquare },
+  // The per-contact link + DM lookup Lee works from for manual outreach (2026-09-11). Also /links.
+  { to: "/admin/growth/links", label: "Links", icon: LinkIcon },
   { to: "/admin/growth/coldoutreach", label: "Cold Outreach", icon: Send },
   { to: "/admin/growth", label: "Campuses", icon: Building2, exact: true },
   { to: "/admin/growth/campaigns", label: "Campaigns", icon: Rocket },

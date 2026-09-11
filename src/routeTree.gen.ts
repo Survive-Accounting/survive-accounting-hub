@@ -28,6 +28,7 @@ import { Route as OutreachRouteImport } from './routes/outreach'
 import { Route as OrderRouteImport } from './routes/order'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as LogoLabRouteImport } from './routes/logo-lab'
+import { Route as LinksRouteImport } from './routes/links'
 import { Route as LeeportalRouteImport } from './routes/leeportal'
 import { Route as LandingRouteImport } from './routes/landing'
 import { Route as JeRouteImport } from './routes/je'
@@ -166,6 +167,7 @@ import { Route as AdminGrowthV2RouteImport } from './routes/admin.growth.v2'
 import { Route as AdminGrowthResultsRouteImport } from './routes/admin.growth.results'
 import { Route as AdminGrowthPrebuildRouteImport } from './routes/admin.growth.prebuild'
 import { Route as AdminGrowthOrgsRouteImport } from './routes/admin.growth.orgs'
+import { Route as AdminGrowthLinksRouteImport } from './routes/admin.growth.links'
 import { Route as AdminGrowthKingRouteImport } from './routes/admin.growth.king'
 import { Route as AdminGrowthIntelligenceRouteImport } from './routes/admin.growth.intelligence'
 import { Route as AdminGrowthGreekRouteImport } from './routes/admin.growth.greek'
@@ -296,6 +298,11 @@ const OnboardRoute = OnboardRouteImport.update({
 const LogoLabRoute = LogoLabRouteImport.update({
   id: '/logo-lab',
   path: '/logo-lab',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LinksRoute = LinksRouteImport.update({
+  id: '/links',
+  path: '/links',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LeeportalRoute = LeeportalRouteImport.update({
@@ -999,6 +1006,11 @@ const AdminGrowthOrgsRoute = AdminGrowthOrgsRouteImport.update({
   path: '/orgs',
   getParentRoute: () => AdminGrowthRoute,
 } as any)
+const AdminGrowthLinksRoute = AdminGrowthLinksRouteImport.update({
+  id: '/links',
+  path: '/links',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
 const AdminGrowthKingRoute = AdminGrowthKingRouteImport.update({
   id: '/king',
   path: '/king',
@@ -1217,6 +1229,7 @@ export interface FileRoutesByFullPath {
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
   '/leeportal': typeof LeeportalRoute
+  '/links': typeof LinksRoute
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
@@ -1321,6 +1334,7 @@ export interface FileRoutesByFullPath {
   '/admin/growth/greek': typeof AdminGrowthGreekRoute
   '/admin/growth/intelligence': typeof AdminGrowthIntelligenceRoute
   '/admin/growth/king': typeof AdminGrowthKingRoute
+  '/admin/growth/links': typeof AdminGrowthLinksRoute
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
   '/admin/growth/prebuild': typeof AdminGrowthPrebuildRoute
   '/admin/growth/results': typeof AdminGrowthResultsRoute
@@ -1412,6 +1426,7 @@ export interface FileRoutesByTo {
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
   '/leeportal': typeof LeeportalRoute
+  '/links': typeof LinksRoute
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
@@ -1512,6 +1527,7 @@ export interface FileRoutesByTo {
   '/admin/growth/greek': typeof AdminGrowthGreekRoute
   '/admin/growth/intelligence': typeof AdminGrowthIntelligenceRoute
   '/admin/growth/king': typeof AdminGrowthKingRoute
+  '/admin/growth/links': typeof AdminGrowthLinksRoute
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
   '/admin/growth/prebuild': typeof AdminGrowthPrebuildRoute
   '/admin/growth/results': typeof AdminGrowthResultsRoute
@@ -1604,6 +1620,7 @@ export interface FileRoutesById {
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
   '/leeportal': typeof LeeportalRoute
+  '/links': typeof LinksRoute
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
@@ -1708,6 +1725,7 @@ export interface FileRoutesById {
   '/admin/growth/greek': typeof AdminGrowthGreekRoute
   '/admin/growth/intelligence': typeof AdminGrowthIntelligenceRoute
   '/admin/growth/king': typeof AdminGrowthKingRoute
+  '/admin/growth/links': typeof AdminGrowthLinksRoute
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
   '/admin/growth/prebuild': typeof AdminGrowthPrebuildRoute
   '/admin/growth/results': typeof AdminGrowthResultsRoute
@@ -1801,6 +1819,7 @@ export interface FileRouteTypes {
     | '/je'
     | '/landing'
     | '/leeportal'
+    | '/links'
     | '/logo-lab'
     | '/onboard'
     | '/order'
@@ -1905,6 +1924,7 @@ export interface FileRouteTypes {
     | '/admin/growth/greek'
     | '/admin/growth/intelligence'
     | '/admin/growth/king'
+    | '/admin/growth/links'
     | '/admin/growth/orgs'
     | '/admin/growth/prebuild'
     | '/admin/growth/results'
@@ -1996,6 +2016,7 @@ export interface FileRouteTypes {
     | '/je'
     | '/landing'
     | '/leeportal'
+    | '/links'
     | '/logo-lab'
     | '/onboard'
     | '/order'
@@ -2096,6 +2117,7 @@ export interface FileRouteTypes {
     | '/admin/growth/greek'
     | '/admin/growth/intelligence'
     | '/admin/growth/king'
+    | '/admin/growth/links'
     | '/admin/growth/orgs'
     | '/admin/growth/prebuild'
     | '/admin/growth/results'
@@ -2187,6 +2209,7 @@ export interface FileRouteTypes {
     | '/je'
     | '/landing'
     | '/leeportal'
+    | '/links'
     | '/logo-lab'
     | '/onboard'
     | '/order'
@@ -2291,6 +2314,7 @@ export interface FileRouteTypes {
     | '/admin/growth/greek'
     | '/admin/growth/intelligence'
     | '/admin/growth/king'
+    | '/admin/growth/links'
     | '/admin/growth/orgs'
     | '/admin/growth/prebuild'
     | '/admin/growth/results'
@@ -2383,6 +2407,7 @@ export interface RootRouteChildren {
   JeRoute: typeof JeRouteWithChildren
   LandingRoute: typeof LandingRoute
   LeeportalRoute: typeof LeeportalRoute
+  LinksRoute: typeof LinksRoute
   LogoLabRoute: typeof LogoLabRoute
   OnboardRoute: typeof OnboardRoute
   OrderRoute: typeof OrderRouteWithChildren
@@ -2623,6 +2648,13 @@ declare module '@tanstack/react-router' {
       path: '/logo-lab'
       fullPath: '/logo-lab'
       preLoaderRoute: typeof LogoLabRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/links': {
+      id: '/links'
+      path: '/links'
+      fullPath: '/links'
+      preLoaderRoute: typeof LinksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/leeportal': {
@@ -3591,6 +3623,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGrowthOrgsRouteImport
       parentRoute: typeof AdminGrowthRoute
     }
+    '/admin/growth/links': {
+      id: '/admin/growth/links'
+      path: '/links'
+      fullPath: '/admin/growth/links'
+      preLoaderRoute: typeof AdminGrowthLinksRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
     '/admin/growth/king': {
       id: '/admin/growth/king'
       path: '/king'
@@ -4006,6 +4045,7 @@ interface AdminGrowthRouteChildren {
   AdminGrowthGreekRoute: typeof AdminGrowthGreekRoute
   AdminGrowthIntelligenceRoute: typeof AdminGrowthIntelligenceRoute
   AdminGrowthKingRoute: typeof AdminGrowthKingRoute
+  AdminGrowthLinksRoute: typeof AdminGrowthLinksRoute
   AdminGrowthOrgsRoute: typeof AdminGrowthOrgsRoute
   AdminGrowthPrebuildRoute: typeof AdminGrowthPrebuildRoute
   AdminGrowthResultsRoute: typeof AdminGrowthResultsRoute
@@ -4026,6 +4066,7 @@ const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
   AdminGrowthGreekRoute: AdminGrowthGreekRoute,
   AdminGrowthIntelligenceRoute: AdminGrowthIntelligenceRoute,
   AdminGrowthKingRoute: AdminGrowthKingRoute,
+  AdminGrowthLinksRoute: AdminGrowthLinksRoute,
   AdminGrowthOrgsRoute: AdminGrowthOrgsRoute,
   AdminGrowthPrebuildRoute: AdminGrowthPrebuildRoute,
   AdminGrowthResultsRoute: AdminGrowthResultsRoute,
@@ -4090,6 +4131,7 @@ const rootRouteChildren: RootRouteChildren = {
   JeRoute: JeRouteWithChildren,
   LandingRoute: LandingRoute,
   LeeportalRoute: LeeportalRoute,
+  LinksRoute: LinksRoute,
   LogoLabRoute: LogoLabRoute,
   OnboardRoute: OnboardRoute,
   OrderRoute: OrderRouteWithChildren,

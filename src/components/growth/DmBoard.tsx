@@ -15,6 +15,7 @@ import { ContactsCsvBar } from "@/components/growth/ContactsCsvBar";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { schoolByCampusId, boltForSlug } from "@/lib/schools";
 import { buildDmMessage } from "@/lib/dm-template";
+import { dmForIgContact } from "@/lib/outreach-dm";
 import {
   growthIgCampus, growthIgMarkSent, growthIgAddMessage, growthIgPopMessage,
   type IgCampus, type IgContact, type ThreadMsg,
@@ -93,7 +94,7 @@ export function DmBoard({ campusId, campusName, onClose }: { campusId: string; c
                   </div>
                   <div className="divide-y divide-border/60">
                     {council.contacts.map((ct) => (
-                      <ContactRow key={ct.contactId} contact={ct} councilKey={council.key} slug={slug} courseCode={courseCode} campusId={campusId} />
+                      <ContactRow key={ct.contactId} contact={ct} councilKey={council.key} slug={slug} campusLabel={school?.name ?? c.name} siteChapters={c.siteChapters} courseCode={courseCode} campusId={campusId} />
                     ))}
                   </div>
                 </div>
@@ -117,8 +118,12 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
   );
 }
 
-export function ContactRow({ contact, councilKey, slug, courseCode, campusId }: {
+export function ContactRow({ contact, councilKey, slug, courseCode, campusId, campusLabel, siteChapters }: {
   contact: IgContact; councilKey: string; slug: string; courseCode: string | null; campusId: string;
+  /** "Ole Miss" — the chapter DM names the campus. Falls back to the campus row's name. */
+  campusLabel?: string;
+  /** Chapters on the site at this campus (IgCampus.siteChapters); 0 → every link is the campus page. */
+  siteChapters?: number;
 }) {
   const qc = useQueryClient();
   const [openThread, setOpenThread] = useState(false);
@@ -147,7 +152,8 @@ export function ContactRow({ contact, councilKey, slug, courseCode, campusId }: 
 
   const copyDm = () => {
     if (!slug) { toast.error("This campus isn't in the school list yet — link can't be built."); return; }
-    const msg = buildDmMessage({ councilKey, courseCode, slug, contactId: contact.contactId });
+    // WHO THEY ARE decides the link and the ask (2026-09-11, lib/outreach-links).
+    const msg = dmForIgContact(contact, { councilKey, campusLabel: campusLabel ?? slug, courseCode, slug, campusHasChapters: (siteChapters ?? 1) > 0 });
     navigator.clipboard.writeText(msg).then(
       () => toast.success("DM copied", { description: contact.sentAt ? undefined : "Paste in Instagram, then tick sent." }),
       () => toast.error("Couldn't copy"),
@@ -162,6 +168,7 @@ export function ContactRow({ contact, councilKey, slug, courseCode, campusId }: 
         <span className={cn("rounded px-1.5 py-0.5 text-[8.5px] font-semibold uppercase", contact.isOrg ? "bg-muted text-muted-foreground" : "bg-primary/15 text-primary")}>{contact.roleLabel}</span>
         {label && <span className="text-[12px] font-medium">{label}</span>}
         <a href={`https://instagram.com/${contact.handle}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-[11px] text-pink-400 hover:underline">@{contact.handle} <ExternalLink className="size-2.5" /></a>
+        <a href={`https://ig.me/m/${contact.handle}`} target="_blank" rel="noreferrer" title="Opens the Instagram DM thread" className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-[10.5px] font-medium hover:bg-muted"><ExternalLink className="size-3" /> Open DM</a>
 
         <div className="ml-auto flex items-center gap-1.5">
           <button onClick={copyDm} className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-[10.5px] font-medium hover:bg-muted"><Copy className="size-3" /> Copy DM</button>

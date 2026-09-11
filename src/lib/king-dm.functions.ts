@@ -342,6 +342,15 @@ export interface PlanEntry extends PlanItem {
   role: string | null;
   chapterName: string | null;
   isOrg: boolean;
+  // WHO THE CONTACT IS (2026-09-11) — what picks their link and their ask (lib/outreach-links).
+  // councilKey: ifc | panhellenic | nphc | mgc | fsl | wib | null. orgType: council | office |
+  // chapter | club | null. chapterSlug: the site chapter their org resolves to, when it does.
+  councilKey: string | null;
+  orgType: string | null;
+  orgName: string | null;
+  firstName: string | null;
+  chapterSlug: string | null;
+  campusHasChapters: boolean;
 }
 export interface ConsolePlan {
   date: string;
@@ -368,15 +377,25 @@ export const dmConsolePlan = createServerFn({ method: "GET" })
     if (!ids.length) return { date: now.toISOString().slice(0, 10), entries: [], totals: { unsent: 0, followUpsDue: 0, sentToday: 0 } };
 
     const [{ data: qc }, { data: dms }, { data: chapters }] = await Promise.all([
-      db.from("growth_contact_qc").select("id,campus_id,entity_type,entity_id,council_type,name,role,instagram,ig_role_account,contact_type").in("campus_id", ids).limit(20000),
+      db.from("growth_contact_qc").select("id,campus_id,entity_type,entity_id,council_type,name,role,instagram,ig_role_account,contact_type,org_type,org_name,first_name").in("campus_id", ids).limit(20000),
       db.from("growth_ig_dm").select("contact_qc_id,sent_at,replied_at,thread").in("campus_id", ids).limit(20000),
-      db.from("campus_greek_chapters").select("id,greek_org_id,nickname,chapter_size").in("campus_id", ids).is("archived_at", null).limit(20000),
+      db.from("campus_greek_chapters").select("id,campus_id,slug,greek_org_id,nickname,letters,chapter_size").in("campus_id", ids).is("archived_at", null).limit(20000),
     ]);
     const orgIds = Array.from(new Set(((chapters ?? []) as any[]).map((c) => c.greek_org_id).filter(Boolean)));
     const { data: orgs } = orgIds.length ? await db.from("greek_orgs").select("id,name").in("id", orgIds) : { data: [] };
     const orgName = new Map<string, string>(((orgs ?? []) as any[]).map((o) => [o.id, o.name]));
     const chapterById = new Map<string, any>(((chapters ?? []) as any[]).map((c) => [c.id, c]));
     const dmBy = new Map<string, any>(((dms ?? []) as any[]).map((d) => [d.contact_qc_id, d]));
+    // The site chapter a contact's org name refers to (by name, nickname or letters), per campus —
+    // for rows the importer wrote, which carry org_name rather than entity_id.
+    const { matchChapter } = await import("@/lib/outreach-links");
+    const siteChapters = new Map<string, Array<{ slug: string; name: string; council: string | null; nickname: string | null; letters: string | null }>>();
+    for (const ch of (chapters ?? []) as any[]) {
+      if (!ch.slug) continue;
+      const list = siteChapters.get(ch.campus_id) ?? [];
+      list.push({ slug: ch.slug, name: orgName.get(ch.greek_org_id) ?? ch.nickname ?? ch.slug, council: null, nickname: ch.nickname ?? null, letters: ch.letters ?? null });
+      siteChapters.set(ch.campus_id, list);
+    }
 
     const meta = new Map<string, any>();
     const plannable: PlannableContact[] = [];
@@ -395,16 +414,23 @@ export const dmConsolePlan = createServerFn({ method: "GET" })
         outboundCount: Math.max(dm?.sent_at ? 1 : 0, thread.filter((m: any) => m?.who === "us").length),
       });
       const isOrg = !!c.ig_role_account || c.contact_type === "organization_general" || !(c.name && String(c.name).trim());
+      const orgType = (c.org_type as string | null) ?? (c.entity_type === "council" ? "council" : c.entity_type === "club" ? "club" : c.entity_type === "chapter" ? "chapter" : null);
+      const chapterSlug: string | null = ch?.slug ?? (orgType === "chapter" && c.org_name ? (matchChapter(c.org_name, siteChapters.get(c.campus_id) ?? [])?.slug ?? null) : null);
       meta.set(c.id, {
         campusId: c.campus_id, name: c.name ?? null, handle, role: c.role ?? null, isOrg,
-        chapterName: ch ? (orgName.get(ch.greek_org_id) ?? ch.nickname ?? null) : c.council_type ? (COUNCIL_LABEL[c.council_type] ?? null) : null,
+        chapterName: ch ? (orgName.get(ch.greek_org_id) ?? ch.nickname ?? null) : (c.org_name as string | null) ?? (c.council_type ? (COUNCIL_LABEL[c.council_type] ?? null) : null),
+        councilKey: c.council_type ?? null, orgType, orgName: (c.org_name as string | null) ?? null, firstName: (c.first_name as string | null) ?? null,
+        chapterSlug, campusHasChapters: (siteChapters.get(c.campus_id)?.length ?? 0) > 0,
       });
     }
 
     const items = planForDay(plannable, { now, dailyTarget: data.dailyTarget, campusOrder: ACTIVE_SLUGS });
     const entries: PlanEntry[] = items.map((i) => {
       const m = meta.get(i.contactId);
-      return { ...i, campusId: m.campusId, campusLabel: labelOf.get(i.campusSlug) ?? i.campusSlug, name: m.name, handle: m.handle, role: m.role, chapterName: m.chapterName, isOrg: m.isOrg };
+      return {
+        ...i, campusId: m.campusId, campusLabel: labelOf.get(i.campusSlug) ?? i.campusSlug, name: m.name, handle: m.handle, role: m.role, chapterName: m.chapterName, isOrg: m.isOrg,
+        councilKey: m.councilKey, orgType: m.orgType, orgName: m.orgName, firstName: m.firstName, chapterSlug: m.chapterSlug, campusHasChapters: m.campusHasChapters,
+      };
     });
 
     const midnight = new Date(now); midnight.setHours(0, 0, 0, 0);

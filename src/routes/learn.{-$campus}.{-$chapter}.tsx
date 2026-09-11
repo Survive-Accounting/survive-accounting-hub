@@ -90,6 +90,7 @@ import { useTier } from "@/components/learn/use-tier";
 import { DEMO_PLAYBACK, LAST_SET_KEY, type Prog, type ProgressState } from "@/components/learn/cram-media";
 import { daysUntil, EXAM_DATE_EVENT, readExamDate } from "@/components/learn/exam-date";
 import { schoolByAny, schoolByCampusId, schoolBySlug, type School } from "@/lib/schools";
+import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { isContactRef } from "@/lib/contact-ref";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { track } from "@/lib/analytics";
@@ -340,6 +341,11 @@ function LearnShell() {
   const [pickedExam, setExamNum] = useState<number | null>(null);
 
   const school = pathSchool ?? schoolBySlug(search.g) ?? schoolByCampusId(campusId);
+  // THE DM LINK IS COUNTED HERE (2026-09-11): surviveaccounting.com/s/<campus>?ref=<contact> lands
+  // on this page, and until now nothing on it recorded the ref — every "Link clicks" number on the
+  // DM console came only from forwarded council/chapter hops. Records once per mount, only when a
+  // ref is on the URL or already cookied; never breaks the page.
+  useRecordRefVisit(school?.campusId ?? null);
   const campusSlug = school?.slug ?? search.g ?? null;
   // THE CHAPTER IN THE PATH: /learn/ole-miss/alpha-tau-omega picks that chapter the way the CTA
   // picker does — the same storage key, the same event — so the letters go over the bolt.
@@ -511,20 +517,19 @@ function LearnShell() {
   };
   const exitPlayer = () => { setPractice(false); void navigate({ search: (p: LearnSearch) => ({ ...p, set: undefined, part: undefined, stage: undefined }) }); };
   useEffect(() => { if (inPlayer && search.set) { try { localStorage.setItem(LAST_SET_KEY, partKey(search.set, (search.part ?? 1) - 1)); } catch { /* ignore */ } } }, [inPlayer, search.set, search.part]);
-  // AUTOPLAY ON ARRIVAL (Lee, 2026-09-11: "on first visit the first video starts autoplaying on
-  // mute. If a user returns, it will autoplay the one they left off"): once per browser session,
-  // when the page opens with no video in the address and no share kit, the last video this
-  // browser watched (or the first playable one) opens, muted — the sound pill is one tap.
+  // NO AUTO-OPEN ON ARRIVAL (Lee, 2026-09-11, later: "You show up to the page, it's the full
+  // page, then you click start cramming to go from there"). The player opens only from a click;
+  // the address stays /learn/<school> until it does. The hover previews on the cards stay.
+  //
+  // PULL-TO-REFRESH OFF while the phone player is open: a swipe down there means "previous
+  // video" (the player handles it), and the browser must not reload the page underneath it.
   useEffect(() => {
-    if (isLoading || inPlayer || search.set || search.share || search.c || demo || playerItems.length === 0) return;
-    let seen = false; try { seen = sessionStorage.getItem("sa-cram-auto") === "1"; } catch { /* ignore */ }
-    if (seen) return;
-    try { sessionStorage.setItem("sa-cram-auto", "1"); } catch { /* ignore */ }
-    let last: string | null = null; try { last = localStorage.getItem(LAST_SET_KEY); } catch { /* ignore */ }
-    const target = (last && playerItems.find((i) => i.part.key === last && !i.locked && !!i.part.playbackId)) ?? playerItems.find((i) => !i.locked && !!i.part.playbackId);
-    if (target) void navigate({ search: (p: LearnSearch) => ({ ...p, set: target.set.id, part: target.part.index > 0 ? target.part.index + 1 : undefined }), replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, playerItems.length]);
+    if (!inPlayer || !isNarrow) return;
+    const el = document.documentElement;
+    const prev = el.style.overscrollBehaviorY;
+    el.style.overscrollBehaviorY = "none";
+    return () => { el.style.overscrollBehaviorY = prev; };
+  }, [inPlayer, isNarrow]);
 
   // THE PLAN — remembered per browser.
   const [plan, setPlanState] = useState<Plan>({ practice: false, review: false });
@@ -647,7 +652,7 @@ function LearnShell() {
           "treat these more like embeds that you can then full screen vs. opening that player … In
           mobile, obviously we want the video to play on full phone screen"). */}
       {inPlayer && !isLoading && (
-        <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: isNarrow ? "#000" : "rgba(13,23,48,0.84)", backdropFilter: isNarrow ? undefined : "blur(18px)", WebkitBackdropFilter: isNarrow ? undefined : "blur(18px)", paddingTop: isNarrow ? 0 : 60 }} onClick={(e) => { if (!isNarrow && e.target === e.currentTarget) exitPlayer(); }}>
+        <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: isNarrow ? "#000" : "rgba(13,23,48,0.84)", backdropFilter: isNarrow ? undefined : "blur(18px)", WebkitBackdropFilter: isNarrow ? undefined : "blur(18px)", overscrollBehavior: "none" }} onClick={(e) => { if (!isNarrow && e.target === e.currentTarget) exitPlayer(); }}>
           <CramPlayer
             items={playerItems} index={playerIndex}
             onIndex={(i) => { const it = playerItems[i]; if (it) { setPractice(false); void navigate({ search: (p: LearnSearch) => ({ ...p, set: it.set.id, part: it.part.index > 0 ? it.part.index + 1 : undefined, stage: undefined }), replace: true }); } }}
