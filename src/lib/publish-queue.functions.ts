@@ -10,6 +10,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { normalizeCaptions, type PublishCaptions } from "./caption-brief";
+import { coverOf, keepCover, withCover, type PublishCover } from "./publish-cover";
 import { isMissingSchema } from "./pg-errors";
 
 const isMissingTable = (e: { code?: string; message: string }) => isMissingSchema(e, /set_publish_status/i);
@@ -34,6 +35,9 @@ export type SetPublishStatus = Record<PublishDestination, DestinationStatus> & {
    *  caption / hashtags Lee talked and saved on /v3/post. Null = never written. The shape is
    *  caption-brief.ts's; a stored row is defended the same way a model answer is. */
   captions: PublishCaptions | null;
+  /** YOUR OWN THUMBNAIL (2026-09-11, publish-cover.ts): the image Lee uploaded for this video,
+   *  kept beside the copy in the same captions bag. Null = none. */
+  cover: PublishCover | null;
 };
 
 function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
@@ -48,6 +52,7 @@ function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
     // Same story as filmed_at: a DB that hasn't run 20260907_0600 has no such key — "no
     // captions yet", never broken. A row someone hand-edited into a shape we don't know → null.
     captions: normalizeCaptions(r.captions),
+    cover: coverOf(r.captions),
   };
 }
 
@@ -151,14 +156,44 @@ export const setPublishCaptions = createServerFn({ method: "POST" })
     const captions = data.captions ? normalizeCaptions(data.captions) : null;
     try {
       const db = await publishDb();
+      // KEEP A SAVED THUMBNAIL (2026-09-11, publish-cover.ts): it lives in this same bag, so the
+      // copy is written over whatever is stored with the cover carried across.
+      const { data: prev } = await db.from("set_publish_status").select("captions").eq("set_id", data.setId).maybeSingle();
       const { data: row, error } = await db.from("set_publish_status")
-        .upsert({ set_id: data.setId, captions, updated_at: new Date().toISOString() }, { onConflict: "set_id" })
+        .upsert({ set_id: data.setId, captions: keepCover(prev?.captions, captions as unknown as Record<string, unknown> | null), updated_at: new Date().toISOString() }, { onConflict: "set_id" })
         .select("*").single();
       if (error) {
         if (isMissingTable(error)) return { ok: false, error: "Run migration/supabase-migrations/20260906_0200_set_publish_status.sql first." };
         if (isMissingSchema(error, /captions/i)) return { ok: false, error: "Run migration/supabase-migrations/20260907_0600_set_publish_captions.sql first (adds captions)." };
         return { ok: false, error: error.message };
       }
+      return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };
+    } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+  });
+
+/** YOUR OWN THUMBNAIL (2026-09-11, publish-cover.ts) — save (or clear, with null) the image Lee
+ *  uploaded for this video. It sits in the captions bag beside the copy, and the copy stays. */
+export const setPublishCover = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    setId: z.string().min(1).max(160),
+    cover: z.object({ url: z.string().url().max(800), name: z.string().max(200) }).nullable(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; status?: SetPublishStatus }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    try {
+      const db = await publishDb();
+      const { data: prev, error: readErr } = await db.from("set_publish_status").select("captions").eq("set_id", data.setId).maybeSingle();
+      if (readErr) {
+        if (isMissingTable(readErr)) return { ok: false, error: "Run migration/supabase-migrations/20260906_0200_set_publish_status.sql first." };
+        if (isMissingSchema(readErr, /captions/i)) return { ok: false, error: "Run migration/supabase-migrations/20260907_0600_set_publish_captions.sql first (adds captions)." };
+        return { ok: false, error: readErr.message };
+      }
+      const cover: PublishCover | null = data.cover ? { url: data.cover.url, name: data.cover.name, uploadedAt: new Date().toISOString() } : null;
+      const { data: row, error } = await db.from("set_publish_status")
+        .upsert({ set_id: data.setId, captions: withCover(prev?.captions, cover), updated_at: new Date().toISOString() }, { onConflict: "set_id" })
+        .select("*").single();
+      if (error) return { ok: false, error: error.message };
       return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };
     } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
   });

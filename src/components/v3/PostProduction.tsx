@@ -30,7 +30,9 @@ import { downloadText, mediaDurationS, storedTranscript, transcribeTakeFile } fr
 import { clock, transcriptFitsFile } from "@/lib/take-match";
 import { assName, burnCommand, burnedName, shortCaptionFiles, srtName, transcriptFromWords, whisperCostUsd, type Word } from "@/lib/short-captions";
 // Imported up front (2026-09-11), not on demand: a deploy mid-session 404'd the lazy chunk.
-import { burnCaptions, downloadUrlAs, uploadAss, uploadTake, type BurnProgress } from "@/components/v3/take-burn";
+import { burnCaptions, downloadUrlAs, uploadAss, uploadCover, uploadTake, type BurnProgress } from "@/components/v3/take-burn";
+import { setPublishCover, type SetPublishStatus } from "@/lib/publish-queue.functions";
+import type { PublishCover } from "@/lib/publish-cover";
 import { takeFileProblem } from "@/lib/take-frame";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
@@ -65,7 +67,7 @@ function Step({ n, title, hint, done, children }: {
   );
 }
 
-export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTranscript, onOpenCopy, onClose, hidden = false, copyDone = false }: {
+export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTranscript, onOpenCopy, onClose, hidden = false, copyDone = false, cover = null, onCoverSaved }: {
   /** The publish key for THIS video — the set's id, or "<setId>#N" for a split. */
   pubKey: string;
   /** What this video is called: the set's name, or the split's. */
@@ -85,6 +87,9 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
   hidden?: boolean;
   /** Step 4 is done when the captions are saved on the row — the route knows, this doesn't. */
   copyDone?: boolean;
+  /** YOUR OWN THUMBNAIL (2026-09-11): the image saved on this video's row, and the row after a save. */
+  cover?: PublishCover | null;
+  onCoverSaved?: (s: SetPublishStatus) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [words, setWords] = useState<Word[] | null>(null);
@@ -96,6 +101,29 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
   // the picked take's own length, read from its metadata.
   const [storedS, setStoredS] = useState<number | null>(null);
   const [fileS, setFileS] = useState<number | null>(null);
+  // SKIP CAPTIONS FOR NOW (2026-09-11). Lee: "I want to be able to skip captions for now. It's too
+  // messy and we can fix later." Step 3 counts as done without a burn, and step 6 names the
+  // original take.
+  const [capSkipped, setCapSkipped] = useState(false);
+  // YOUR OWN THUMBNAIL (2026-09-11, lib/publish-cover.ts): uploaded, kept on this video's row.
+  const [coverBusy, setCoverBusy] = useState(false);
+  const [coverErr, setCoverErr] = useState<string | null>(null);
+  const saveCover = async (img: File | null) => {
+    setCoverBusy(true); setCoverErr(null);
+    try {
+      const next = img ? { url: await uploadCover(img), name: img.name } : null;
+      const r = await setPublishCover({ data: { setId: pubKey, cover: next } });
+      if (!r.ok || !r.status) throw new Error(r.error || "The thumbnail didn't save on the row.");
+      onCoverSaved?.(r.status);
+    } catch (e) { setCoverErr(e instanceof Error ? e.message : String(e)); }
+    finally { setCoverBusy(false); }
+  };
+  const pickCover = (img: File | null) => {
+    if (!img) return;
+    if (!/^image\//.test(img.type)) { setCoverErr("That isn't an image. Pick a PNG or a JPG."); return; }
+    if (img.size > 10 * 1048576) { setCoverErr("That image is over 10MB. Export a smaller one."); return; }
+    void saveCover(img);
+  };
 
   // A transcript already run for this video comes straight back — it is stored by publish key,
   // so re-opening the panel is free and never re-bills.
@@ -265,7 +293,12 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
         </Step>
 
         {/* ── 3 ─────────────────────────────────────────────────────────────────────────────── */}
-        <Step n={3} title="Burn the captions in" hint={burnUrl ? "ready to download" : files ? `${files.cards} captions from ${clock(files.seconds)}` : "needs the transcript"} done={!!burnUrl}>
+        <Step n={3} title="Burn the captions in" hint={capSkipped ? "skipped, posting without captions" : burnUrl ? "ready to download" : files ? `${files.cards} captions from ${clock(files.seconds)}` : "needs the transcript"} done={!!burnUrl || capSkipped}>
+          <div style={{ marginBottom: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <button type="button" onClick={() => setCapSkipped((v) => !v)} style={{ ...small, color: capSkipped ? MINT : V3_CREAM }}
+              title="Post the original take without burned-in captions for now">{capSkipped ? "✓ Skipping captions (undo)" : "Skip captions for now"}</button>
+            {capSkipped && <span style={{ fontSize: 11.5, color: V3_MUTED }}>Post your original file as it is.</span>}
+          </div>
           {!files || !file ? (
             <div style={{ fontSize: 12.5, color: V3_MUTED }}>Do steps 1 and 2 first.</div>
           ) : (
@@ -333,10 +366,28 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
         </Step>
 
         {/* ── 5 ─────────────────────────────────────────────────────────────────────────────── */}
-        <Step n={5} title="The cover" hint="a frame of the take, or the card">
+        <Step n={5} title="The cover" hint={cover ? "your own thumbnail is saved" : "your own image, a frame of the take, or the card"} done={!!cover}>
           {/* The picker inside the frame picker is the SAME door as step 1's: a take chosen here
               starts the upload too. It used to be plain setFile, so a take picked at step 5 never
               went up and Burn waited on an upload that had never started. */}
+          {/* YOUR OWN THUMBNAIL (2026-09-11): an image he made himself, kept on this video's row. */}
+          <div style={{ marginBottom: 12, paddingBottom: 10, borderBottom: `1px solid ${V3_EDGE}` }}>
+            <div style={{ fontSize: 12.5, color: V3_CREAM, fontWeight: 700 }}>Your own thumbnail</div>
+            <div style={{ marginTop: 6, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              {cover && (
+                <a href={cover.url} target="_blank" rel="noreferrer" title="Open it full size">
+                  <img src={cover.url} alt={`Thumbnail: ${cover.name}`} style={{ width: 54, height: 96, objectFit: "cover", borderRadius: 6, border: `1px solid ${V3_EDGE}`, display: "block" }} />
+                </a>
+              )}
+              <label style={{ ...small, display: "inline-block", color: V3_GOLD, opacity: coverBusy ? 0.5 : 1 }}>
+                {coverBusy ? "Saving…" : cover ? "Replace it" : "Upload an image"}
+                <input type="file" accept="image/png,image/jpeg,image/webp" disabled={coverBusy} onChange={(e) => { pickCover(e.target.files?.[0] ?? null); e.target.value = ""; }} style={{ display: "none" }} />
+              </label>
+              {cover && !coverBusy && <button type="button" onClick={() => void saveCover(null)} style={small}>Remove</button>}
+              {cover && <span style={{ fontSize: 11.5, color: MINT }}>saved with this video · {cover.name}</span>}
+              {coverErr && <span style={{ fontSize: 11.5, color: "#FF8B7E" }}>{coverErr}</span>}
+            </div>
+          </div>
           <TakeFrame name={title} file={file} onFile={pick} />
           <div style={{ marginTop: 10, fontSize: 11.5, color: V3_MUTED }}>
             Prefer the drawn card? Its hook is{" "}
@@ -347,7 +398,7 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
         {/* ── 6 ─────────────────────────────────────────────────────────────────────────────── */}
         <Step n={6} title="Post it" hint="by hand, then tick it off">
           <div style={{ fontSize: 12.5, color: V3_MUTED, lineHeight: 1.6 }}>
-            Upload <b style={{ color: V3_CREAM }}>{file ? burnedName(file.name) : "the captioned file"}</b> — the one step 3 gave you — to YouTube, Instagram and
+            Upload <b style={{ color: V3_CREAM }}>{file ? (burnUrl ? burnedName(file.name) : file.name) : "the take"}</b>{burnUrl ? " — the captioned one step 3 gave you —" : " — your original take —"} to YouTube, Instagram and
             TikTok yourself, pasting the copy from step 4 and the cover from step 5. Then close this
             and tick each destination on the row — that's what the queue counts.
           </div>

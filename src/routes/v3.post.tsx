@@ -81,7 +81,7 @@ const MINT = "#3BF5A0";
 const EMPTY: SetPublishStatus = {
   site: { postedAt: null, url: null }, youtube: { postedAt: null, url: null },
   instagram: { postedAt: null, url: null }, tiktok: { postedAt: null, url: null },
-  filmedAt: null, captions: null,
+  filmedAt: null, captions: null, cover: null,
 };
 
 const FILTERS: { id: StageFilter; label: string }[] = [
@@ -344,6 +344,8 @@ function PostQueue() {
           onClose={() => setProducing(null)}
           hidden={!!captioningRow}
           copyDone={hasCaptions(statusFor(producingRow.key).captions)}
+          cover={statusFor(producingRow.key).cover}
+          onCoverSaved={(s) => setStatus((prev) => ({ ...(prev ?? {}), [producingRow.key]: s }))}
         />
       )}
 
@@ -526,13 +528,13 @@ function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards,
       {/* THE COVER — the first thing anyone sees of the short, rendered from the set's own question. */}
       <button
         type="button" onClick={onThumb}
-        title="Make the cover image: the hook, the topic and the bolt, as a PNG to save"
+        title={status.cover ? `Your own thumbnail is saved: ${status.cover.name} (post-production, step 5). Open to make a drawn one instead.` : "Make the cover image: the hook, the topic and the bolt, as a PNG to save"}
         style={{
-          border: `1px solid ${V3_EDGE}`, background: "transparent", color: V3_MUTED,
+          border: `1px solid ${status.cover ? `${V3_GOLD}88` : V3_EDGE}`, background: status.cover ? "rgba(252,163,17,0.10)" : "transparent", color: status.cover ? V3_GOLD : V3_MUTED,
           borderRadius: 8, padding: "5px 10px", fontSize: 11.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
         }}
       >
-        🖼 Thumbnail
+        🖼 {status.cover ? "Thumbnail ✓" : "Thumbnail"}
       </button>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
