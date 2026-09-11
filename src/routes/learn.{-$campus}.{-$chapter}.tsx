@@ -34,6 +34,15 @@
 // (LearnHome); Text Lee floats bottom-right on every tier (LearnTextLee). Black stays the palette;
 // ?look=navy still renders the side-by-side.
 //
+// PRETTY URLS (Lee, 2026-09-11, later: "the URL's for each campus should be prettier for /learn.
+// If there's a campus AND if there's a greek chapter"). The route is /learn/{-$campus}/{-$chapter}
+// — TanStack's optional path params — so /learn, /learn/ole-miss and /learn/ole-miss/alpha-tau-
+// omega are ONE route and one file. $campus is the school's short public id (schoolByAny also
+// takes the long slug); $chapter is the chapter's slug, which is written to the same localStorage
+// key the CTA picker uses (chapterPickKey) so the Greek letters go up over the bolt. The old
+// ?campus=<uuid> and ?g=<slug> still resolve (links in the wild); /s/<campus> now redirects to the
+// pretty form. The school picker navigates to /learn/<id>.
+//
 // THE LOOK CANDIDATES (Lee, 2026-09-11: "give me a bunch of possible options to try with ?look=.
 // I want to pick only the best one"). Eight looks in learn-theme's LOOKS — black, navy, cream,
 // paper, chalk, charcoal, split, mono — behind ?look=<name>; ?looks=1 mounts LearnLookPicker,
@@ -59,26 +68,26 @@ import { campusOgImageV, campusShareOg, ogMeta } from "@/lib/og";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentAuth } from "@/lib/use-student-auth";
 import type { ExamTabState } from "@/components/learn/ExamRail";
-import { LearnCta, openLearnCta } from "@/components/learn/LearnCta";
+import { CTA_CHAPTER_EVENT, LearnCta, openLearnCta } from "@/components/learn/LearnCta";
 import { useShareContext } from "@/components/learn/ShareBanner";
 import { LearnLoading } from "@/components/learn/LearnLoading";
 import { LearnSchoolSheet } from "@/components/learn/LearnSchoolSheet";
 import { readUnlocked } from "@/components/learn/learn-gate";
 import { rememberCampus } from "@/lib/campus-prefs";
-import { LearnTop, usePickedChapter } from "@/components/learn/LearnTop";
+import { chapterPickKey, LearnTop, usePickedChapter } from "@/components/learn/LearnTop";
 import type { RailKey } from "@/components/learn/LearnRail";
 import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome";
 import { LearnTextLee } from "@/components/learn/LearnTextLee";
 import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
 import { ReviewSheet } from "@/components/learn/ReviewSheet";
-import { buildShareUrl, shareCaption } from "@/lib/share-url";
+import { pageShareUrl } from "@/lib/share-url";
 import { CramPlayer, type PlayerItem } from "@/components/learn/CramPlayer";
 import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
 import { DEFAULT_LOOK, isLook, LK, LEARN_CSS, themeFor, themeStyle, type Look } from "@/components/learn/learn-theme";
 import { useTier } from "@/components/learn/use-tier";
 import { DEMO_PLAYBACK, LAST_SET_KEY, type Prog, type ProgressState } from "@/components/learn/cram-media";
 import { daysUntil, EXAM_DATE_EVENT, readExamDate } from "@/components/learn/exam-date";
-import { schoolByCampusId, schoolBySlug, type School } from "@/lib/schools";
+import { schoolByAny, schoolByCampusId, schoolBySlug, type School } from "@/lib/schools";
 import { isContactRef } from "@/lib/contact-ref";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
@@ -95,7 +104,7 @@ type LearnSearch = {
   looks?: true;
 };
 
-export const Route = createFileRoute("/learn")({
+export const Route = createFileRoute("/learn/{-$campus}/{-$chapter}")({
   validateSearch: (s: Record<string, unknown>): LearnSearch => ({
     campus: typeof s.campus === "string" && s.campus ? s.campus : undefined,
     topic: typeof s.topic === "string" && s.topic ? s.topic : undefined,
@@ -116,20 +125,20 @@ export const Route = createFileRoute("/learn")({
   // chat. Resolved in a loader because head() has no access to search; the lookup is a synchronous
   // map hit against the static school table, so this adds no request work.
   loaderDeps: ({ search }: { search: LearnSearch }) => ({ campus: search.campus, g: search.g }),
-  loader: ({ deps }: { deps: { campus?: string; g?: string } }) => ({
-    // campus is an id (the /s/ hop's deep link); g is the slug it also carries. Either resolves.
-    ogSchool: schoolByCampusId(deps.campus) ?? schoolBySlug(deps.g) ?? null,
+  loader: ({ deps, params }: { deps: { campus?: string; g?: string }; params: { campus?: string; chapter?: string } }) => ({
+    // The pretty path's id first; then campus (a uuid, the old deep link) and g (its slug). Any resolves.
+    ogSchool: schoolByAny(params.campus) ?? schoolByCampusId(deps.campus) ?? schoolBySlug(deps.g) ?? null,
   }),
   // noindex STAYS either way: a deep-linked study surface has no business in search results, and
   // noindex governs indexing, not the preview a chat app builds.
   head: ({ loaderData }) => {
-    const school = (loaderData as { ogSchool?: { slug: string; name: string; courseCode: string | null } | null } | undefined)?.ogSchool ?? null;
+    const school = (loaderData as { ogSchool?: { id: string; slug: string; name: string; courseCode: string | null } | null } | undefined)?.ogSchool ?? null;
     return {
       meta: [
         ...(school
           ? ogMeta({
               ...campusShareOg(school.courseCode, school.name),
-              path: `/s/${school.slug}`,
+              path: `/learn/${school.id}`,
               image: campusOgImageV(school.slug),
             })
           : [{ title: "⚡ Learn — Survive Accounting" }]),
@@ -270,13 +279,16 @@ const SHOW_ASKS_BAR = false;
 function LearnShell() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  const params = Route.useParams();
+  /** The school the pretty path names — /learn/ole-miss — by id or slug. */
+  const pathSchool = schoolByAny(params.campus) ?? null;
   const demo = !!search.demo;
   const shareCtx = useShareContext({ by: search.by, ref: search.ref, test: search.test });
   const [campusId, setCampusId] = useState<string | null>(() => { if (search.campus) return search.campus; try { return localStorage.getItem("sa-learn-campus"); } catch { return null; } });
   useEffect(() => { try { if (campusId) localStorage.setItem("sa-learn-campus", campusId); else localStorage.removeItem("sa-learn-campus"); } catch { /* ignore */ } }, [campusId]);
   // THE LINK WINS. A shared /s/<campus> link carries ?g; it must beat whatever campus this browser
   // last studied (a Bama link opened by someone who once looked at Ole Miss is a Bama link).
-  useEffect(() => { if (search.g) { const s = schoolBySlug(search.g); if (s?.campusId && s.campusId !== campusId) setCampusId(s.campusId); } }, [campusId, search.g]);
+  useEffect(() => { const s = pathSchool ?? schoolBySlug(search.g); if (s?.campusId && s.campusId !== campusId) setCampusId(s.campusId); }, [campusId, search.g, pathSchool]);
   // ?campus= CHANGING UNDER A MOUNTED PAGE (2026-09-10): the in-place school picker rewrites the
   // address without remounting, so the state seeded from search.campus above has to follow it.
   useEffect(() => { if (search.campus && search.campus !== campusId) setCampusId(search.campus); }, [campusId, search.campus]);
@@ -290,7 +302,7 @@ function LearnShell() {
     setCampusId(s.campusId);
     // ?g (a shared link's slug) would outrank the new campus — see THE LINK WINS — so it goes;
     // so do set/stage/topic, which belong to the old campus's tree. ref/by/test/demo ride along.
-    void navigate({ search: (p: LearnSearch) => ({ ...p, campus: s.campusId, g: undefined, set: undefined, stage: undefined, topic: undefined }), replace: true });
+    void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: s.id, chapter: undefined }, search: (p: LearnSearch) => ({ ...p, campus: undefined, g: undefined, set: undefined, stage: undefined, topic: undefined }), replace: true });
   };
   // THE EMAIL GATE (learn-gate.ts) — passed once on this device, or never shown to a signed-in
   // student. Read in an effect: storage is client-only.
@@ -308,8 +320,17 @@ function LearnShell() {
   const isNarrow = tier === "narrow";
   const [pickedExam, setExamNum] = useState<number | null>(null);
 
-  const school = schoolBySlug(search.g) ?? schoolByCampusId(campusId);
-  const campusSlug = search.g ?? school?.slug ?? null;
+  const school = pathSchool ?? schoolBySlug(search.g) ?? schoolByCampusId(campusId);
+  const campusSlug = school?.slug ?? search.g ?? null;
+  // THE CHAPTER IN THE PATH: /learn/ole-miss/alpha-tau-omega picks that chapter the way the CTA
+  // picker does — the same storage key, the same event — so the letters go over the bolt.
+  useEffect(() => {
+    if (!params.chapter || !campusSlug) return;
+    try { localStorage.setItem(chapterPickKey(campusSlug), params.chapter); } catch { /* storage may be off */ }
+    window.dispatchEvent(new CustomEvent(CTA_CHAPTER_EVENT));
+  }, [params.chapter, campusSlug]);
+  /** The drop-in landed: LearnTop's bolt pops to catch it. */
+  const [arrive, setArrive] = useState(0);
   const campusName = school?.name ?? campuses.find((c) => c.id === campusId)?.name ?? null;
   const look: Look = search.look ?? DEFAULT_LOOK;
   const theme = useMemo(() => themeFor(school, look), [school, look]);
@@ -452,15 +473,17 @@ function LearnShell() {
   // otherwise — copied to the clipboard with a "Link copied" toast (and the campus · course line
   // under it); on a phone the native share sheet when the browser has one, the copy as fallback.
   // The Greek share sheet is still reachable from LearnCta's own flows; the bar's Share is a copy.
-  const share = async () => {
-    const url = buildShareUrl({ campusSlug, chapterSlug: chapter.slug, contactRef: search.by ?? search.ref ?? null });
-    const sub = shareCaption({ campusName, courseCode: school?.courseCode ?? null, examLabel: exam?.label ?? null }) ?? undefined;
+  // THE SHARE (Lee, 2026-09-11, later): "it just copies the link to the page they're on … simple
+  // Link copied! text in the button and that's it". The page's own URL — pretty, cleaned of its
+  // state, stamped with the share UTM (lib/share-url's pageShareUrl) — to the clipboard; the
+  // button says "Link copied!" (LearnTop). On a phone the native share sheet when there is one.
+  const share = async (): Promise<boolean> => {
+    const url = pageShareUrl(window.location);
     if (isNarrow && typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try { await navigator.share({ title: "Survive", text: sub ? `Cram what's on your exam. ${sub}` : "Cram what's on your exam.", url }); return; }
-      catch (e) { if (e instanceof Error && e.name === "AbortError") return; /* else fall through to copy */ }
+      try { await navigator.share({ title: "Survive", url }); return true; }
+      catch (e) { if (e instanceof Error && e.name === "AbortError") return false; /* else fall through to copy */ }
     }
-    const ok = await copyToClipboard(url);
-    setNote(ok ? { text: "Link copied", sub } : { text: `Couldn't copy — the link is ${url.replace(/^https:\/\//, "")}` });
+    return copyToClipboard(url);
   };
 
   // THE ROWS' SCROLL TARGETS (the rail that used them is unmounted; the first row still registers
@@ -480,7 +503,7 @@ function LearnShell() {
       <style>{LEARN_CSS}</style>
       {/* ONE loading screen: the brand splash stays up while the tree loads (and for its beat on a
           first visit), so there is never a second "loading" view behind it. */}
-      <LearnLoading loading={isLoading} school={school} />
+      <LearnLoading loading={isLoading} school={school} onArrive={() => setArrive((n) => n + 1)} />
 
       <LearnTop
         school={school} campusId={campusId} campusName={campusName}
@@ -488,7 +511,7 @@ function LearnShell() {
         chapter={chapter.slug ? { name: chapter.name, letters: chapter.letters, members: chapter.members } : null}
         theme={theme}
         onPickSchool={() => setPickerOpen(true)}
-        onShare={() => void share()}
+        onShare={share} arrive={arrive}
         onReview={() => setReviewOpen(true)}
         you={{ email, userId, onSignIn: () => setSignInOpen(true), signOut }}
         demo={demo} narrow={isNarrow}

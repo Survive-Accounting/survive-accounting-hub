@@ -35,14 +35,11 @@ export const Route = createFileRoute("/s/$campus/")({
   beforeLoad: ({ params, search }) => {
     const school = schoolBySlug(params.campus);
     if (!school) throw notFound();
+    // The pretty form (2026-09-11): /learn/<school id>. ref / by ride along; the campus is the path.
     throw redirect({
-      to: "/learn",
+      to: "/learn/{-$campus}/{-$chapter}",
+      params: { campus: school.id, chapter: undefined },
       search: {
-        // /learn keys campus context off the campus ID (the same deep-link it already accepts).
-        campus: school.campusId,
-        // g=<slug> tells the CTA bar this arrival came through the Greek share funnel, so it can
-        // scope its copy to this campus even before a chapter is picked.
-        g: school.slug,
         ...(search.ref ? { ref: search.ref } : {}),
         ...(search.by ? { by: search.by } : {}),
       },
