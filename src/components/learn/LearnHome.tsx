@@ -64,6 +64,24 @@
 //     the not-yet cards are greyed and the SAME "Get notified" box sits once under the row, not
 //     over the posted ones.
 //
+// THE REDESIGN (Lee, 2026-09-11 — docs/LEARN-REDESIGN-PROPOSAL-2026-09-11.md, built as written):
+//   · ONE COLUMN. No rail, no bottom tabs — the navbar (LearnTop) carries the bolt, the campus,
+//     the exam pills and a hamburger; this page is the hero and the rows, nothing else. The
+//     bottom reminder block and the footer are gone (reminders live in the hamburger).
+//   · THE HERO IS CENTRED (LearnEntrance): the display line, the sub line, one "Get started"
+//     button with the real average video length as its caption. No meta row, no "See what's on
+//     the exam".
+//   · FIRST ROW: "Start Here: Easy Points · 5 videos" — no "Exam 1", no Free chip (the exam pill
+//     already says it). LATER ROWS: the name and the topic's OWN counts, "5 videos · 34 practice
+//     questions" (learn-gate's topicRowDetail). No cross-exam totals anywhere — the tease line
+//     under the waitlist box is gone.
+//   · THE WAITLIST BOX appears ONLY inside a later topic once it is opened. It never renders under
+//     Easy Points: unposted videos there are simply grey.
+//   · PRACTICE CARD ART (PracticeArt.tsx): one nuts-and-bolts illustration, re-tinted per school,
+//     above "Practice · N questions". A placeholder until the Recraft asset exists.
+//   · DIMENSION: every card carries learn-theme's CARD_SHADOW; on a phone each topic section gets
+//     28px of vertical padding and a hairline top border so topics read as blocks.
+//
 // Every number on this page is still a sum of real runtimes and real question counts — nothing
 // invented. Where a topic has no runtime data yet, it just doesn't claim a duration (no fake
 // "~12 min"), per the "manageable, not overwhelming" rule.
@@ -72,12 +90,12 @@ import { Check, ChevronDown, ChevronRight, Loader2, Lock } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { BRAND_SANS } from "@/components/canvas/brand";
-import { ExamReminder } from "@/components/site/home-two-door/ExamReminder";
 import { CONTENT_MAX, LK, SIDE_PAD, type LearnTheme } from "@/components/learn/learn-theme";
 import { fmtRuntime, muxThumb } from "@/components/learn/cram-media";
-import { averageVideoLabel, EMAIL_RE, emailGateNeeded, examTease, isUuid, practiceGateNeeded, questionCount, readStartPulsed, topicDetail, waitlistNeeded, writeStartPulsed, writeUnlocked, type GateSet } from "@/components/learn/learn-gate";
+import { averageVideoCaption, EMAIL_RE, emailGateNeeded, isUuid, practiceGateNeeded, questionCount, readStartPulsed, topicRowDetail, waitlistNeeded, writeStartPulsed, writeUnlocked, type GateSet } from "@/components/learn/learn-gate";
 import { LearnEntrance } from "@/components/learn/LearnEntrance";
 import type { RailKey } from "@/components/learn/LearnRail";
+import { PracticeArt } from "@/components/learn/PracticeArt";
 import type { Tier } from "@/components/learn/use-tier";
 import { submitIntake } from "@/lib/intake.functions";
 import type { School } from "@/lib/schools";
@@ -146,28 +164,23 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   onPlan: (p: Plan) => void;
   daysOut: number | null;
   examLabel: string;
-  comingExams: string[];
   theme: LearnTheme;
   tier: Tier;
   onStart: () => void;
   onOpenSet: (setId: string, practice?: boolean) => void;
   onLocked: (topic: StudentTopic) => void;
   rowRef: (key: RailKey) => (el: HTMLElement | null) => void;
-  you: { email: string | null; userId: string | null; onSignIn: () => void; signOut: () => void; onShare: () => void; done: number; total: number };
-  /** For the reminder block and the email gate's context. */
+  /** Signed in — the email gate never asks (we already have the address). */
+  signedIn: boolean;
+  /** The email gate's context. */
   campusId: string | null;
-  courseCode: string | null;
   demo: boolean;
   /** The email gate has been passed on this device (learn-gate.ts UNLOCK_KEY). */
   unlocked: boolean;
   onUnlocked: () => void;
-  /** THE ENTRANCE'S IDENTITY: the school (bolt colours, name, course), a fallback campus name,
-   *  the picked chapter's letters, and the picker. */
+  /** The school — the topic bolts' colours and the practice art's tint. */
   school: School | null;
-  campusName: string | null;
-  chapterLetters: string | null;
-  onPickSchool: () => void;
-}>(function LearnHome({ sets, examLabel, theme, tier, onOpenSet, onLocked, rowRef, you, campusId, courseCode, demo, unlocked, onUnlocked, school, campusName, chapterLetters, onPickSchool }, ref) {
+}>(function LearnHome({ sets, examLabel, tier, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school }, ref) {
   const byTopic = useMemo(() => {
     const m = new Map<string, HomeSet[]>();
     for (const s of sets) { const arr = m.get(s.topic.id) ?? []; arr.push(s); m.set(s.topic.id, arr); }
@@ -176,8 +189,7 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   const narrow = tier === "narrow";
   const wide = tier === "wide";
   const pad = SIDE_PAD[tier];
-  const signedIn = !!you.userId;
-  const averageLabel = useMemo(() => averageVideoLabel(sets.map((s) => s.set)), [sets]);
+  const averageCaption = useMemo(() => averageVideoCaption(sets.map((s) => s.set)), [sets]);
 
   // Later topics start collapsed; a tap opens one. (Easy Points is always open.)
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -189,9 +201,8 @@ export const LearnHome = forwardRef<HTMLDivElement, {
     onOpenSet(practiceId, true);
   };
 
-  // THE ENTRANCE'S TWO ACTIONS. Start opens the first playable video of the first topic; with
-  // none playable it does what "See what's on the exam" does — scrolls to the first row and
-  // outlines it for a second, so the click always lands somewhere visible.
+  // GET STARTED. Opens the first playable video of the first topic; with none playable it scrolls
+  // to the first row and outlines it for a second, so the click always lands somewhere visible.
   const firstRow = useRef<HTMLElement | null>(null);
   const [outlined, setOutlined] = useState(false);
   useEffect(() => { if (!outlined) return; const t = window.setTimeout(() => setOutlined(false), 1000); return () => window.clearTimeout(t); }, [outlined]);
@@ -215,38 +226,26 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   }, [tier]);
 
   // THE ONE EMAIL. Both boxes — unlock and waitlist — capture the same address; once it is in
-  // (this visit: `joined`; any visit: `unlocked`; or the student is signed in) nothing asks again.
-  const askEmail = !signedIn && !unlocked;
-  const [joined, setJoined] = useState(false);
-  const unlockedNow = () => { setJoined(true); onUnlocked(); };
-  const tease = useMemo(() => examTease(byTopic.length, sets.map((s) => s.set)), [byTopic.length, sets]);
-
+  // (any visit: `unlocked`; or the student is signed in) nothing asks again.
   const cols = GRID_COLS[tier];
   const frames = Math.max(0, cols - 1);
 
   return (
     <div ref={ref} className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin", overflowX: "hidden" }}>
-      <div className="mx-auto flex w-full flex-col" style={{ maxWidth: CONTENT_MAX, padding: `${narrow ? 14 : wide ? 24 : 20}px ${pad}px 48px`, gap: narrow ? 26 : wide ? 40 : 34 }}>
-        <LearnEntrance
-          tier={tier} theme={theme} school={school} campusName={campusName} chapterLetters={chapterLetters}
-          examLabel={examLabel} firstTopicName={firstTopic?.topic.name ?? null} videoCount={firstTopic?.sets.length ?? 0}
-          averageLabel={averageLabel} onStart={startFirst} onSeeExam={seeExam} onPickSchool={onPickSchool}
-        />
+      <div className="mx-auto flex w-full flex-col" style={{ maxWidth: CONTENT_MAX, padding: `${narrow ? 10 : wide ? 24 : 20}px ${pad}px 96px`, gap: narrow ? 0 : wide ? 40 : 34 }}>
+        <LearnEntrance tier={tier} averageCaption={averageCaption} onStart={startFirst} />
 
         {/* CRAM ROWS — one per topic, the primary structure of the page. First topic, first short
-            sit right under the entrance — no control panel between the student and the video. */}
+            sit right under the hero — no control panel between the student and the video. */}
         {byTopic.map(({ id, topic, sets: ts }, i) => {
           const first = i === 0;
           const expanded = first || !!open[id];
           const posted = ts.filter(isPosted).length;
-          const unposted = ts.length - posted;
           // A LATER TOPIC behind the gate blurs under one box: the unlock ask when it has posted
-          // videos, the waitlist ask when it has none. The first topic never blurs.
+          // videos, the waitlist ask when it has none. The first topic never blurs and never
+          // carries the waitlist box — its unposted videos are simply grey (redesign, 2026-09-11).
           const gated = emailGateNeeded(i, signedIn, unlocked);
           const overlay: GateVariant | null = gated ? (waitlistNeeded(posted, signedIn, unlocked) ? "waitlist" : "unlock") : null;
-          // A PARTIAL OPEN TOPIC (the first, since later ones are either gated or past the ask)
-          // carries the waitlist box once under the row, or the "on the list" line after a submit.
-          const under = first && unposted > 0 && (askEmail || joined);
           const dimmed: CSSProperties = { filter: overlay ? "blur(6px)" : undefined, pointerEvents: overlay ? "none" : undefined };
           const row = (
             <div className="relative">
@@ -258,7 +257,7 @@ export const LearnHome = forwardRef<HTMLDivElement, {
               {narrow ? (
                 <div className="flex items-stretch" style={{ gap: GRID_GAP.narrow, ...dimmed }} aria-hidden={!!overlay || undefined}>
                   <CramStrip sets={ts} narrow onOpen={(s) => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id))} />
-                  <PracticeFrame topic={topic} sets={ts} narrow onPractice={(setId) => tryPractice(ts, setId)} onLocked={onLocked} />
+                  <PracticeFrame topic={topic} sets={ts} school={school} narrow onPractice={(setId) => tryPractice(ts, setId)} onLocked={onLocked} />
                 </div>
               ) : (
                 <div className="lk-grid" data-tier={tier} style={dimmed} aria-hidden={!!overlay || undefined}>
@@ -270,17 +269,17 @@ export const LearnHome = forwardRef<HTMLDivElement, {
                     </div>
                   )}
                   <div style={{ gridColumnStart: cols }}>
-                    <PracticeFrame topic={topic} sets={ts} narrow={false} fluid onPractice={(setId) => tryPractice(ts, setId)} onLocked={onLocked} />
+                    <PracticeFrame topic={topic} sets={ts} school={school} narrow={false} fluid onPractice={(setId) => tryPractice(ts, setId)} onLocked={onLocked} />
                   </div>
                 </div>
               )}
-              {overlay && <EmailGate variant={overlay} examLabel={examLabel} topicName={topic.name} tease={tease} campusId={campusId} demo={demo} onUnlocked={unlockedNow} narrow={narrow} />}
+              {overlay && <EmailGate variant={overlay} examLabel={examLabel} topicName={topic.name} campusId={campusId} demo={demo} onUnlocked={onUnlocked} narrow={narrow} />}
             </div>
           );
           return (
-            <section key={id} id={topicSectionId(id)} ref={first ? firstRowRef : undefined} className={`flex flex-col gap-3${first && outlined ? " lk-outlined" : ""}${first && pulse ? " lk-start-pulse" : ""}`} style={{ scrollMarginTop: 16 }}>
+            <section key={id} id={topicSectionId(id)} ref={first ? firstRowRef : undefined} data-tier={tier} className={`lk-topic-sec flex flex-col gap-3${first && outlined ? " lk-outlined" : ""}${first && pulse ? " lk-start-pulse" : ""}`} style={{ scrollMarginTop: 16 }}>
               {first ? (
-                <TopicHead topic={topic} sets={ts} school={school} examLabel={examLabel} tier={tier} />
+                <TopicHead topic={topic} sets={ts} school={school} tier={tier} />
               ) : (
                 <TopicRow topic={topic} sets={ts} school={school} tier={tier} expanded={expanded} onToggle={() => setOpen((m) => ({ ...m, [id]: !expanded }))} />
               )}
@@ -289,39 +288,9 @@ export const LearnHome = forwardRef<HTMLDivElement, {
                 <span aria-hidden className="text-[12px] font-extrabold" style={{ color: LK.acc, letterSpacing: "0.04em", marginBottom: -4, fontFamily: BRAND_SANS }}>start here ↓</span>
               )}
               {expanded && row}
-              {expanded && under && (
-                joined ? (
-                  <p className="text-[13px] font-semibold" style={{ color: LK.muted, margin: 0, fontFamily: BRAND_SANS }}>You're on the list. We'll email you when these drop.</p>
-                ) : (
-                  <EmailGate variant="waitlist" inline examLabel={examLabel} topicName={topic.name} tease={tease} campusId={campusId} demo={demo} onUnlocked={unlockedNow} narrow={narrow} />
-                )
-              )}
             </section>
           );
         })}
-
-        {/* THE END OF THE PAGE: when's the exam (the homepage's own block, mounted as-is), then one
-            line of footer — the "You" row folded into it. A 720px column on wide. */}
-        <footer ref={rowRef("you")} className="mx-auto flex w-full flex-col gap-2" style={{ maxWidth: wide ? 720 : undefined }}>
-          <ExamReminder campusId={campusId} courseCode={courseCode} />
-          <nav aria-label="Page" className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px]" style={{ color: LK.muted, borderTop: `1px solid ${LK.border}`, paddingTop: 14, fontFamily: BRAND_SANS }}>
-            <a href="/" style={FOOT_LINK}>Home</a>
-            <Dot />
-            {you.userId ? (
-              <>
-                <span className="max-w-[200px] truncate" style={{ color: LK.text }} title={you.email ?? undefined}>{you.email}</span>
-                <Dot />
-                <button type="button" onClick={you.signOut} style={FOOT_BTN}>Sign out</button>
-              </>
-            ) : (
-              <button type="button" onClick={you.onSignIn} style={FOOT_BTN}>Sign in</button>
-            )}
-            <Dot />
-            <button type="button" onClick={you.onShare} style={FOOT_BTN}>Share with a friend</button>
-            <Dot />
-            <a href="/#reviews" style={FOOT_LINK}>Leave a review</a>
-          </nav>
-        </footer>
       </div>
 
       {practiceAsk && (
@@ -335,10 +304,6 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   );
 });
 
-const FOOT_LINK = { color: LK.text, textDecoration: "none", fontWeight: 600, minHeight: 44, display: "inline-flex", alignItems: "center" } as const;
-const FOOT_BTN = { ...FOOT_LINK, background: "transparent", border: 0, padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: "inherit" } as const;
-function Dot() { return <span aria-hidden style={{ color: LK.dim }}>·</span>; }
-
 /** THE REAL BOLT beside a topic name — the same BoltBoil the entrance, the top bar and the home
  *  page draw, in the campus's colours. Its boil is paused until the heading row is hovered
  *  (.lk-topic-bolt in learn-theme.ts); the calmer 1.2 s cycle the navbar uses. */
@@ -350,12 +315,12 @@ function TopicBolt({ height, school }: { height: number; school: School | null }
   );
 }
 
-/** "[bolt] Start Here: Easy Points · Exam 1 [Free] — 5 videos · ~12 min". The count is always
- *  real; the duration only appears when every video in the topic has a real runtime — never a
- *  made-up number. The first topic only — it is always open, so it is a heading, not a control.
- *  "Start Here:" is the heading's own answer to "where do I begin?" (Lee, 2026-09-10). */
-function TopicHead({ topic, sets, school, examLabel, tier }: { topic: StudentTopic; sets: HomeSet[]; school: School | null; examLabel: string; tier: Tier }) {
-  const detail = topicDetail(sets.map(gateSetOf));
+/** "[bolt] Start Here: Easy Points · 5 videos" (redesign, 2026-09-11: no "Exam 1", no Free chip —
+ *  the exam pill already says it). The count is the topic's real set count. The first topic only
+ *  — it is always open, so it is a heading, not a control. "Start Here:" is the heading's own
+ *  answer to "where do I begin?" (Lee, 2026-09-10). */
+function TopicHead({ topic, sets, school, tier }: { topic: StudentTopic; sets: HomeSet[]; school: School | null; tier: Tier }) {
+  const n = sets.length;
   const posted = sets.some(isPosted);
   const size = tier === "wide" ? 26 : tier === "mid" ? 22 : 19;
   return (
@@ -364,19 +329,18 @@ function TopicHead({ topic, sets, school, examLabel, tier }: { topic: StudentTop
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
         <span className="lk-disp lk-topic-name" style={{ fontSize: size, lineHeight: 1.1 }}>Start Here: {topic.name}</span>
         <span aria-hidden className="text-[13px]" style={{ color: LK.dim }}>·</span>
-        <span className="text-[14px]" style={{ color: LK.muted }}>{examLabel}</span>
-        <span className="self-center rounded-full px-1.5 py-px text-[9.5px] font-black uppercase tracking-wider" style={{ background: LK.acc, color: LK.accInk }}>Free</span>
-        <span className="text-[14px] tabular-nums" style={{ color: LK.muted }}>{detail}</span>
+        <span className="text-[14px] tabular-nums" style={{ color: LK.muted }}>{n} video{n === 1 ? "" : "s"}</span>
       </div>
     </div>
   );
 }
 
-/** A LATER TOPIC, collapsed: a full-width row — bolt, name, count at the right, chevron — that
- *  lifts on hover. A target, not a text line. Expanded, the same row stays as the heading and the
- *  grid opens beneath it. Nothing posted yet: the bolt is grey and the name muted. */
+/** A LATER TOPIC, collapsed: a full-width row — bolt, name, its own counts ("5 videos · 34
+ *  practice questions") at the right, chevron — that lifts on hover. A target, not a text line.
+ *  Expanded, the same row stays as the heading and the grid opens beneath it. Nothing posted yet:
+ *  the bolt is grey and the name muted. */
 function TopicRow({ topic, sets, school, tier, expanded, onToggle }: { topic: StudentTopic; sets: HomeSet[]; school: School | null; tier: Tier; expanded: boolean; onToggle: () => void }) {
-  const detail = topicDetail(sets.map(gateSetOf));
+  const detail = topicRowDetail(sets.map(gateSetOf));
   const posted = sets.some(isPosted);
   const size = tier === "wide" ? 22 : tier === "mid" ? 20 : 18;
   const narrow = tier === "narrow";
@@ -401,12 +365,12 @@ type GateVariant = "unlock" | "waitlist";
  *    unlock    "Unlock the rest of Exam 1 — free" / Unlock — a topic that HAS posted videos,
  *              floating over its blurred row (source learn-gate).
  *    waitlist  "Get notified when these drop." / Join the waitlist — nothing posted yet, over the
- *              blurred grey row, or `inline` once under a partial row (source learn-waitlist),
- *              with the whole exam's real counts as a tease line under the box.
+ *              blurred grey row of an OPENED LATER topic (source learn-waitlist). Never under
+ *              Easy Points, and no cross-exam tease line (redesign, 2026-09-11).
  *  Success marks the device (writeUnlocked) and un-blurs every later topic. Demo mode never
  *  writes a row (its ids are fake) but still unlocks, so the flow can be walked. */
-function EmailGate({ variant, inline, examLabel, topicName, tease, campusId, demo, onUnlocked, narrow }: {
-  variant: GateVariant; inline?: boolean; examLabel: string; topicName: string; tease: string;
+function EmailGate({ variant, examLabel, topicName, campusId, demo, onUnlocked, narrow }: {
+  variant: GateVariant; examLabel: string; topicName: string;
   campusId: string | null; demo: boolean; onUnlocked: () => void; narrow: boolean;
 }) {
   const [email, setEmail] = useState("");
@@ -424,9 +388,9 @@ function EmailGate({ variant, inline, examLabel, topicName, tease, campusId, dem
       onUnlocked();
     } catch { setState("error"); setMsg("Couldn't save that — try again in a moment."); }
   };
-  const box = (
-    <div className="flex w-full flex-col items-center" style={{ maxWidth: narrow ? 320 : 440, gap: 10 }}>
-      <div className="lk-card lk-in w-full" style={{ padding: narrow ? 16 : 22, boxShadow: inline ? undefined : "0 18px 50px -14px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }}>
+  return (
+    <div className="absolute inset-0 grid place-items-center p-2">
+      <div className="lk-card lk-in w-full" style={{ maxWidth: narrow ? 320 : 440, padding: narrow ? 16 : 22, boxShadow: "0 18px 50px -14px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }}>
         <p className="lk-disp" style={{ fontSize: narrow ? 16 : 20, lineHeight: 1.2 }}>{waitlist ? "Get notified when these drop." : `Unlock the rest of ${examLabel} — free`}</p>
         <input type="email" inputMode="email" autoComplete="email" placeholder="you@school.edu" className="lk-field mt-3" value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} aria-label="Your email" />
         {state === "error" && <p className="mt-1.5 text-[12px]" style={{ color: LK.red }}>{msg}</p>}
@@ -434,15 +398,8 @@ function EmailGate({ variant, inline, examLabel, topicName, tease, campusId, dem
           {state === "busy" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {waitlist ? "Join the waitlist" : "Unlock"}
         </button>
       </div>
-      {/* THE TEASE — the whole exam's real counts, under the box. Sits on the room's ground so it
-          reads over a blurred row. */}
-      {waitlist && (
-        <p className="rounded-full text-[12.5px] font-semibold tabular-nums" style={{ margin: 0, padding: "4px 12px", color: LK.muted, background: LK.bg, fontFamily: BRAND_SANS }}>{tease}</p>
-      )}
     </div>
   );
-  if (inline) return <div className="flex justify-center" style={{ marginTop: 4 }}>{box}</div>;
-  return <div className="absolute inset-0 grid place-items-center p-2">{box}</div>;
 }
 
 /** THE SOFT GATE — one small sheet, one big button, one quiet way past it. */
@@ -510,10 +467,11 @@ function CramStrip({ sets, narrow, columns, gap: gapProp, onOpen }: { sets: Home
 }
 
 /** PRACTICE, PINNED FAR RIGHT — the fifth frame. The one place practice is offered for a topic:
- *  after its videos, not after every single one. "Practice" and the real question count, nothing
- *  else (Lee, 2026-09-10). Dimmed until the topic has questions to practice. */
-function PracticeFrame({ topic, sets, narrow, fluid, onPractice, onLocked }: {
-  topic: StudentTopic; sets: HomeSet[]; narrow: boolean; fluid?: boolean;
+ *  after its videos, not after every single one. The nuts-and-bolts art (PracticeArt, tinted for
+ *  the school) above "Practice" and the real question count, nothing else. Dimmed until the topic
+ *  has questions to practice. */
+function PracticeFrame({ topic, sets, school, narrow, fluid, onPractice, onLocked }: {
+  topic: StudentTopic; sets: HomeSet[]; school: School | null; narrow: boolean; fluid?: boolean;
   onPractice: (setId: string) => void;
   onLocked: (topic: StudentTopic) => void;
 }) {
@@ -531,6 +489,9 @@ function PracticeFrame({ topic, sets, narrow, fluid, onPractice, onLocked }: {
       style={{ ...size, padding: fluid ? 16 : 12, cursor: ready ? "pointer" : "default", opacity: ready ? 1 : 0.55, fontFamily: BRAND_SANS, color: LK.text, borderColor: ready ? LK.border2 : undefined }}
       title={ready ? `Practice ${topic.name}` : "Practice comes once this topic has questions"}
     >
+      <div className="flex flex-col items-center" style={{ paddingTop: narrow ? 4 : 8 }}>
+        <PracticeArt school={school} size={narrow ? 72 : fluid ? 112 : 96} />
+      </div>
       <div>
         <div className="lk-disp" style={{ fontSize: narrow ? 15 : fluid ? 20 : 17 }}>Practice</div>
         <div className="mt-1 text-[12px] font-semibold sm:text-[13px]" style={{ color: LK.muted }}>{n > 0 ? `${n} question${n === 1 ? "" : "s"}` : "No questions yet"}</div>

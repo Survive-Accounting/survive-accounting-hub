@@ -125,6 +125,30 @@ export function averageVideoLabel(sets: readonly Pick<GateSet, "runtimeSec">[]):
   return `~${n} min`;
 }
 
+/** "~2.4 min per video" — the Get started caption (redesign, 2026-09-11), or null when nothing has
+ *  a runtime: the caption is then simply absent, never a placeholder number. */
+export function averageVideoCaption(sets: readonly Pick<GateSet, "runtimeSec">[]): string | null {
+  const label = averageVideoLabel(sets);
+  return label ? `${label} per video` : null;
+}
+
+/** A LATER ROW'S OWN COUNTS (redesign, 2026-09-11): "5 videos · 34 practice questions" — the
+ *  topic's set count and its ceqCount sum, nothing from any other topic or exam. Zero questions
+ *  reads as the videos alone (a row never advertises "0 practice questions"). */
+export function topicRowDetail(sets: readonly Pick<GateSet, "ceqCount">[]): string {
+  const n = sets.length;
+  const q = questionCount(sets);
+  const videos = `${n} video${n === 1 ? "" : "s"}`;
+  return q > 0 ? `${videos} · ${q} practice question${q === 1 ? "" : "s"}` : videos;
+}
+
+/** THE LOCKED PILL'S LINE (redesign, 2026-09-11, the price copy as drafted): tapping Exam 2 or
+ *  Exam 3 opens the waitlist sheet with this. Real prices only — Exam 1 free, later exams $50. */
+export const LATER_EXAM_PRICE_USD = 50;
+export function examWaitlistLine(exam: number): string {
+  return `Exam 1 is free. Exam ${exam} is $${LATER_EXAM_PRICE_USD}. Join the waitlist and I'll tell you the day it opens.`;
+}
+
 /** submitIntake's campusId is a uuid or null — a demo id or a stale non-uuid value must not fail
  *  the whole capture over a field that is only context. */
 export function isUuid(v: string | null | undefined): v is string {

@@ -24,6 +24,16 @@
 // screen is a moment (LearnLoading: strike, settle, wipe). ?look=navy renders the room in the home
 // page's palette for a side-by-side (learn-theme's themeFor(school, look)); default stays black.
 //
+// THE REDESIGN (Lee, 2026-09-11 — docs/LEARN-REDESIGN-PROPOSAL-2026-09-11.md, built as written).
+// ONE COLUMN: the rail, the bottom tabs and the narrow "Your path" drawer are no longer mounted on
+// any tier (LearnRail.tsx stays in the tree; nothing renders it). The navbar (LearnTop) carries the
+// big campus bolt with the chapter's letters over it, "survive", the campus over "ACCY 201 ·
+// Exam 1", the exam pills (Exam 2/3 locked → the $50 waitlist sheet), Leave a review · Share ·
+// a hamburger (share, reminders, home, sign in/out, Greek chapter, rep program). The hero is
+// centred with one "Get started" (LearnEntrance); the rows carry their own counts only
+// (LearnHome); Text Lee floats bottom-right on every tier (LearnTextLee). Black stays the palette;
+// ?look=navy still renders the side-by-side.
+//
 // Wireframes and the decisions behind this: the "Learn Dashboard Wireframes" canvas, Round 5.
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -46,11 +56,11 @@ import { useShareContext } from "@/components/learn/ShareBanner";
 import { LearnLoading } from "@/components/learn/LearnLoading";
 import { LearnSchoolSheet } from "@/components/learn/LearnSchoolSheet";
 import { readUnlocked } from "@/components/learn/learn-gate";
-import { ExamReminder } from "@/components/site/home-two-door/ExamReminder";
 import { rememberCampus } from "@/lib/campus-prefs";
-import { LearnTop, usePickedChapter, type TopProgress } from "@/components/learn/LearnTop";
-import { LearnRail, LearnTabs, PathList, type PathTopic, type RailKey } from "@/components/learn/LearnRail";
+import { LearnTop, usePickedChapter } from "@/components/learn/LearnTop";
+import type { RailKey } from "@/components/learn/LearnRail";
 import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome";
+import { LearnTextLee } from "@/components/learn/LearnTextLee";
 import { CramPlayer, type PlayerItem } from "@/components/learn/CramPlayer";
 import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
 import { isLook, LK, LEARN_CSS, themeFor, themeStyle, type Look } from "@/components/learn/learn-theme";
@@ -282,8 +292,6 @@ function LearnShell() {
   const [paywallTopic, setPaywallTopic] = useState<StudentTopic | null>(null);
   const tier = useTier();
   const isNarrow = tier === "narrow";
-  const [pathOpen, setPathOpen] = useState(false);
-  const [railOpen, setRailOpen] = useState(false);
   const [pickedExam, setExamNum] = useState<number | null>(null);
 
   const school = schoolBySlug(search.g) ?? schoolByCampusId(campusId);
@@ -359,7 +367,6 @@ function LearnShell() {
   }, [courses]);
   const examNum = pickedExam ?? examTabs.find((e) => e.available)?.num ?? null;
   const exam = examTabs.find((e) => e.num === examNum) ?? null;
-  const comingExams = examTabs.filter((e) => !e.available).map((e) => e.label);
 
   // ── THE SETS of the picked exam, in path order ──────────────────────────────────────────────
   const sets = useMemo<HomeSet[]>(() => {
@@ -379,14 +386,6 @@ function LearnShell() {
     return out;
   }, [courses, examNum, unlockedTopics, progress]);
   const topics = useMemo(() => Array.from(new Map(sets.map((s) => [s.topic.id, s.topic])).values()), [sets]);
-  const path = useMemo<PathTopic[]>(() => {
-    const out: PathTopic[] = [];
-    for (const c of courses) for (const u of c.units) {
-      if (examNumOf(u.name) !== examNum) continue;
-      for (const t of u.topics) out.push({ topic: t, sets: t.sets.map((s) => ({ set: s, done: progress[s.id]?.state === "complete", playable: !!s.playbackId, locked: s.access === "paid" && !unlockedTopics.has(t.id) })), done: t.sets.filter((s) => progress[s.id]?.state === "complete").length });
-    }
-    return out;
-  }, [courses, examNum, progress, unlockedTopics]);
 
   // The player walks every set with a cram video (locked ones show the paywall face).
   const playerItems = useMemo<PlayerItem[]>(() => sets.filter((s) => !!s.set.playbackId || s.locked).map((s) => ({ set: s.set, topic: s.topic, n: s.n, of: s.of, locked: s.locked })), [sets]);
@@ -401,12 +400,6 @@ function LearnShell() {
   };
   const exitPlayer = () => { setPractice(false); void navigate({ search: (p: LearnSearch) => ({ ...p, set: undefined, stage: undefined }) }); };
   useEffect(() => { if (inPlayer && search.set) { try { localStorage.setItem(LAST_SET_KEY, search.set); } catch { /* ignore */ } } }, [inPlayer, search.set]);
-
-  const topProgress = useMemo<TopProgress>(() => {
-    const open = sets.filter((s) => !s.locked && !!s.set.playbackId);
-    const left = open.filter((s) => !s.done);
-    return { total: open.length, done: open.length - left.length, secondsLeft: left.every((s) => s.set.runtimeSec != null) ? left.reduce((a, s) => a + (s.set.runtimeSec ?? 0), 0) : null };
-  }, [sets]);
 
   // THE PLAN — remembered per browser.
   const [plan, setPlanState] = useState<Plan>({ practice: false, review: false });
@@ -423,7 +416,6 @@ function LearnShell() {
 
   // WHO-BLOCK + share
   const chapter = usePickedChapter(campusSlug, !demo);
-  const sender = search.by || (search.test ?? "").toLowerCase() === "banner" ? shareCtx.contact : null;
   const ctaMounted = !demo && (!!campusSlug || !!search.test);
   // STUDY SHELL SIMPLIFICATION (2026-09-09) — LearnCta's own persistent bar (state C "Set up
   // <chapter>", D "<chapter> · N members · Join") is a scholarship-chair claim/setup ask, which
@@ -440,21 +432,15 @@ function LearnShell() {
     setNote(ok ? "Link copied — send it to anyone who needs it." : "Couldn't copy — the link is surviveaccounting.com/learn");
   };
 
-  // RAIL → rows
+  // THE ROWS' SCROLL TARGETS (the rail that used them is unmounted; the first row still registers
+  // itself as "cram" so Get started can land on it).
   const homeRef = useRef<HTMLDivElement>(null);
   const rowEls = useRef<Partial<Record<RailKey, HTMLElement>>>({});
   const rowRef = useCallback((key: RailKey) => (el: HTMLElement | null) => { if (el) rowEls.current[key] = el; }, []);
-  const [rail, setRail] = useState<RailKey>("cram");
   const [chip, setChip] = useState<string | null>(null);
-  const pickRail = (k: RailKey) => {
-    setRail(k);
-    if (inPlayer) { exitPlayer(); window.setTimeout(() => rowEls.current[k]?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); return; }
-    if (k === "cram") homeRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-    else rowEls.current[k]?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
   const start = () => { const first = sets.find((s) => !!s.set.playbackId && !s.locked && !s.done) ?? sets.find((s) => !!s.set.playbackId && !s.locked); if (first) openSet(first.set.id); };
 
-  useEffect(() => { const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setPaywallTopic(null); setPathOpen(false); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
+  useEffect(() => { const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setPaywallTopic(null); }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
 
   const contactRef = search.by ?? search.ref ?? null;
 
@@ -469,16 +455,15 @@ function LearnShell() {
         school={school} campusId={campusId} campusName={campusName}
         exams={examTabs} examNum={examNum} onPickExam={setExamNum}
         chapter={chapter.slug ? { name: chapter.name, letters: chapter.letters, members: chapter.members } : null}
-        sender={sender} progress={topProgress} theme={theme}
-        onPickChapter={ctaMounted ? () => openLearnCta("pick") : null}
-        onOpenPath={() => setPathOpen(true)}
+        theme={theme}
         onPickSchool={() => setPickerOpen(true)}
-        demo={demo} narrow={isNarrow} contactRef={contactRef}
+        onShare={() => void share()}
+        you={{ email, userId, onSignIn: () => setSignInOpen(true), signOut }}
+        demo={demo} narrow={isNarrow}
       />
 
+      {/* ONE COLUMN — no rail on any tier (redesign, 2026-09-11). */}
       <div className="flex min-h-0 flex-1">
-        {!isNarrow && <LearnRail active={inPlayer ? "cram" : rail} onPick={pickRail} expanded={railOpen} onToggle={() => setRailOpen((v) => !v)} path={path} activeSetId={search.set ?? null} onOpenSet={(id) => openSet(id)} />}
-
         {isError ? (
           <div className="grid flex-1 place-items-center p-6 text-center text-[13px]" style={{ color: LK.red }}>Something went wrong loading videos. <button type="button" className="ml-1 underline" style={{ background: "transparent", border: 0, color: LK.text, cursor: "pointer" }} onClick={() => q.refetch()}>Retry</button></div>
         ) : isLoading ? (
@@ -503,13 +488,13 @@ function LearnShell() {
             ref={homeRef}
             sets={sets} topics={topics}
             chip={chip} onChip={setChip}
-            plan={plan} onPlan={setPlan} daysOut={daysOut} examLabel={exam?.label ?? "Exam 1"} comingExams={comingExams}
+            plan={plan} onPlan={setPlan} daysOut={daysOut} examLabel={exam?.label ?? "Exam 1"}
             theme={theme} tier={tier}
             onStart={start} onOpenSet={openSet} onLocked={setPaywallTopic} rowRef={rowRef}
-            you={{ email, userId, onSignIn: () => setSignInOpen(true), signOut, onShare: () => void share(), done: topProgress.done, total: topProgress.total }}
-            campusId={campusId} courseCode={school?.courseCode ?? null} demo={demo}
+            signedIn={!!userId}
+            campusId={campusId} demo={demo}
             unlocked={unlocked} onUnlocked={() => setUnlocked(true)}
-            school={school} campusName={campusName} chapterLetters={chapter.slug ? chapter.letters : null} onPickSchool={() => setPickerOpen(true)}
+            school={school}
           />
         )}
       </div>
@@ -517,21 +502,10 @@ function LearnShell() {
       {SHOW_ASKS_BAR && !inPlayer && !isLoading && !isError && sets.length > 0 && (
         <LearnAsksBar theme={theme} campusName={campusName} campusId={campusId} campusSlug={campusSlug} courseCode={school?.courseCode ?? null} greekEnabled={ctaMounted && !ctaOwnBar} council={shareCtx.isCouncil} onGreek={() => openLearnCta("pick")} narrow={isNarrow} demo={demo} />
       )}
-      {isNarrow && !inPlayer && <LearnTabs active={rail} onPick={pickRail} />}
+      {/* TEXT LEE, floating bottom-right on every tier of the home (not over the player's own
+          action column). */}
+      {!inPlayer && !isLoading && <LearnTextLee narrow={isNarrow} />}
 
-      {isNarrow && pathOpen && (
-        <div className="fixed inset-0 z-[95] flex flex-col" style={{ background: LK.bg }}>
-          <div className="flex h-12 shrink-0 items-center gap-2 px-3" style={{ borderBottom: `1px solid ${LK.border}` }}>
-            <span className="lk-disp" style={{ fontSize: 15 }}>{exam?.label ?? "Exam 1"}</span>
-            <button type="button" className="ml-auto grid h-9 w-9 place-items-center rounded-full" style={{ background: LK.surface, color: LK.text, border: 0, cursor: "pointer" }} onClick={() => setPathOpen(false)} aria-label="Close"><X className="h-4 w-4" /></button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto py-2">
-            <PathList path={path} activeSetId={search.set ?? null} onOpenSet={(id) => { setPathOpen(false); openSet(id); }} />
-            {/* The same reminder block the page ends on, at the bottom of the path (Lee, 09-10). */}
-            <ExamReminder campusId={campusId} courseCode={school?.courseCode ?? null} />
-          </div>
-        </div>
-      )}
       {pickerOpen && <LearnSchoolSheet current={school} onClose={() => setPickerOpen(false)} onPick={pickSchool} />}
 
       {paywallTopic && <Paywall topic={paywallTopic} campusName={campusName} campusId={campusId} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}

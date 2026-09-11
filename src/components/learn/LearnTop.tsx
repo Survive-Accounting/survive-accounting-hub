@@ -1,42 +1,55 @@
-// THE FROZEN TOP (learn v3, 09-03) — brand, who you are, and ONE call to action.
+// THE NAVBAR (redesign, 2026-09-11 — docs/LEARN-REDESIGN-PROPOSAL-2026-09-11.md §1).
 //
-//   [bolt]  SURVIVE · ACCY 201      for Phi Delta Sigma · sent by Luke Habeeb, IFC Scholarship Chair
-//           Ole Miss · Exam 1 ▾                                 [Exam 1 · 13 days out] [Get study reminders]
+//   [BIG bolt]  survive │ Ole Miss                  Leave a review   [Share]  [≡]
+//     ΑΤΟ               │ ACCY 201 · Exam 1
+//   [Exam 1] [Exam 2 🔒] [Exam 3 🔒]
 //
-// No Share up here (sharing lives where sharing happens) and no mailbox. The one button asks for
-// the exam date and a phone number and queues a real text through scheduleExamReminder — the
-// same capture also gives the ticker its countdown. Copy never mentions links, passwords or
-// "magic" anything.
+// LEFT: the campus bolt, big (44px tall on wide / 36 on narrow, BoltBoil in the school's colours),
+// and when the share funnel knows the student's chapter its Greek letters sit centred over the
+// bolt in cream — the bolt boils, the letters hold still (a static, pointer-events:none overlay,
+// the same letters the home page's doors draw). Then the wordmark, which reads "survive" only, and
+// a two-line block: the campus name (or "Pick your school", which opens the picker sheet in place)
+// over "ACCY 201 · Exam 1". "Ole Miss · ACCY 201 · Exam 1" has left the bar; there is no rail.
 //
-// THE BAR WEARS THE SCHOOL (Lee, 2026-09-10). Ground = c1, rule = c2, ink re-picked for contrast
-// (theme.top* from learn-theme's topBarFor) — so picking a school visibly changes the page, not
-// just the accent. "Pick school" no longer leaves for "/": it opens LearnSchoolSheet in place
-// (onPickSchool), and the school's own name is the same button once one is set.
-import { useEffect, useMemo, useState } from "react";
+// EXAM PILLS under the bolt: Exam 1 is the live pill. Exam 2 and Exam 3 wear a drawn lock and
+// open the waitlist sheet — "Exam 1 is free. Exam 2 is $50. Join the waitlist and I'll tell you
+// the day it opens." (learn-gate's examWaitlistLine) — which submits through the unified intake
+// (kind notify_exam, exam 2|3, source learn-exam-waitlist). An exam that has videos is live.
+//
+// RIGHT: "Leave a review" (a link to /#reviews) · Share (the page's share) · the hamburger, which
+// holds everything else, in this order: Share this · Set up exam reminders (the home page's
+// ExamReminder, in a modal) · Home · Sign in / Sign out (with the email when signed in) · Set up
+// your Greek chapter (/chapters) · Join the campus rep program (/rep/join). On a phone the review
+// link does not fit the bar, so it closes the sheet's list instead of disappearing.
+//
+// THE BAR STILL WEARS THE SCHOOL (2026-09-10): ground = c1, rule = c2, ink re-picked for contrast
+// (theme.top* from learn-theme's topBarFor). The old ticker, progress meter, sender line and the
+// bar's own reminder sheet are gone from the bar (ReminderSheet stays below, unmounted, for the
+// day reminders are advertised inside the player). Copy rule: no "run" / "blast" / "pledge", no
+// emoji — every glyph in the bar is drawn.
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, Loader2, Menu, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, X } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
-import { BRAND_SANS } from "@/components/canvas/brand";
+import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { councilTypeLabel, type ShareContact } from "@/lib/engaged-contacts.functions";
 import { getGoChapter } from "@/lib/greek-go.functions";
 import { chapterShortName } from "@/components/site/ChapterShare";
+import { ExamReminder } from "@/components/site/home-two-door/ExamReminder";
 import type { School } from "@/lib/schools";
 import type { ExamTabState } from "@/components/learn/ExamRail";
-import { countdownLabel, daysUntil, readExamDate, writeExamDate } from "@/components/learn/exam-date";
+import { daysUntil, writeExamDate } from "@/components/learn/exam-date";
 import { CTA_CHAPTER_EVENT } from "@/components/learn/LearnCta";
+import { EMAIL_RE, examWaitlistLine, isUuid } from "@/components/learn/learn-gate";
 import { allowedOffsets, REMINDER_DISCLOSURE, scheduleExamReminder } from "@/lib/exam-reminder.functions";
-import { LK, withAlpha, type LearnTheme } from "@/components/learn/learn-theme";
+import { submitIntake } from "@/lib/intake.functions";
+import { useDismiss } from "@/lib/use-dismiss";
+import { LK, type LearnTheme } from "@/components/learn/learn-theme";
 
 export type TopProgress = { total: number; done: number; secondsLeft: number | null };
 
 const pickKey = (campusSlug: string) => `sa-cta-chapter-${campusSlug}`;
-const REMINDER_KEY = "sa-reminder-set";
-// STUDY SHELL SIMPLIFICATION (2026-09-09) — the header's "Get study reminders" CTA is hidden from
-// the ordinary student view for this pass (section 1 of the cleanup spec). ReminderSheet and
-// scheduleExamReminder are completely untouched underneath; only this header button is off. Flip
-// back to true to restore it once the product decides where reminders fit again.
-const SHOW_REMINDER_CTA = false;
 
 /** The CTA bar's picked chapter, read from ITS localStorage key so the two never disagree.
  *  `letters` rides along for the header's Greek identity treatment — same field, same fallback
@@ -72,9 +85,16 @@ export function senderRole(c: ShareContact): string | null {
   return role.toLowerCase().includes(council.toLowerCase()) ? role : `${council} ${role}`;
 }
 
+/** The pills the bar always shows, live or locked. The Final (4) joins only once it has videos. */
+const PILL_EXAMS = [1, 2, 3] as const;
+
+/** The bolt's height per tier — the one big thing in the bar. */
+const BOLT_H = { narrow: 36, wide: 44 } as const;
+
+export type TopYou = { email: string | null; userId: string | null; onSignIn: () => void; signOut: () => void };
+
 export function LearnTop({
-  school, campusId, campusName, exams, examNum, onPickExam, chapter, sender, progress, theme,
-  onPickChapter, onOpenPath, onPickSchool, demo, narrow, contactRef,
+  school, campusId, campusName, exams, examNum, onPickExam, chapter, theme, onPickSchool, onShare, you, demo, narrow,
 }: {
   school: School | null;
   campusId: string | null;
@@ -82,171 +102,221 @@ export function LearnTop({
   exams: ExamTabState[];
   examNum: number | null;
   onPickExam: (num: number) => void;
+  /** The picked chapter — its letters go over the bolt. */
   chapter: { name: string | null; letters?: string | null; members: number } | null;
-  sender: ShareContact | null;
-  progress: TopProgress;
   theme: LearnTheme;
-  onPickChapter: (() => void) | null;
-  /** Narrow only: opens the path sheet. */
-  onOpenPath: () => void;
   /** Opens the in-place school picker (LearnSchoolSheet) — never a navigation. */
   onPickSchool: () => void;
+  /** The page's share — the Greek share sheet when mounted, else copy the link. */
+  onShare: () => void;
+  /** Sign in / sign out for the hamburger. */
+  you: TopYou;
   demo: boolean;
   narrow: boolean;
-  /** by ?? ref — rides on the reminder link so the chain stays visible. */
-  contactRef: string | null;
 }) {
   const exam = exams.find((e) => e.num === examNum) ?? null;
   const examLabel = exam?.label ?? "Exam 1";
   const courseCode = school?.courseCode ?? null;
   const schoolName = school?.name ?? campusName;
-  const availableExams = exams.filter((e) => e.available);
+  const finalExam = exams.find((e) => e.num === 4 && e.available) ?? null;
+  const pills = [...PILL_EXAMS.map((n) => exams.find((e) => e.num === n) ?? { num: n, label: `Exam ${n}`, available: false, videoCount: 0 }), ...(finalExam ? [finalExam] : [])];
 
-  const [examDate, setExamDate] = useState<string | null>(null);
-  const [reminderOn, setReminderOn] = useState(false);
-  const [sheet, setSheet] = useState(false);
-  useEffect(() => {
-    if (examNum == null) return;
-    setExamDate(readExamDate(examNum));
-    try { setReminderOn(localStorage.getItem(`${REMINDER_KEY}-${examNum}`) === "1"); } catch { /* ignore */ }
-  }, [examNum]);
-
-  const ticker = useMemo(() => {
-    const out: string[] = [];
-    if (examDate) out.push(countdownLabel(examLabel, daysUntil(examDate)));
-    if (chapter?.name && chapter.members > 0) out.push(`${chapter.members} ${chapter.name} member${chapter.members === 1 ? "" : "s"} on Survive`);
-    return out;
-  }, [examDate, examLabel, chapter?.name, chapter?.members]);
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    if (ticker.length < 2) return;
-    const iv = window.setInterval(() => setTick((n) => n + 1), 8000);
-    return () => window.clearInterval(iv);
-  }, [ticker.length]);
-  const tickerText = ticker.length ? ticker[tick % ticker.length] : null;
-
-  const allDone = progress.total > 0 && progress.done === progress.total;
-  const progressText = progress.total === 0 ? null : allDone ? `${examLabel} crammed` : progress.secondsLeft != null ? `${Math.max(1, Math.ceil(progress.secondsLeft / 60))} min left` : `${progress.done} of ${progress.total}`;
-
-  const senderLine = sender?.name ? `sent by ${sender.name}` : null;
-  const senderRoleText = sender ? senderRole(sender) : null;
-  const ctaLabel = reminderOn && examDate ? `Reminder on · ${fmtShort(examDate)}` : narrow ? "Get reminders" : "Get study reminders";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const [waitlistExam, setWaitlistExam] = useState<number | null>(null);
+  const letters = chapter?.letters?.trim() || null;
 
   // The bar's own ink — chalk on black until a school is picked, then whatever reads on c1.
   const ink = theme.topInk, muted = theme.topMuted, rule = theme.topBorder;
-  const schoolButton = (size: number, weight: number) => (
-    <button type="button" onClick={onPickSchool} className="flex min-w-0 items-center gap-1 truncate" title="Change school" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", color: schoolName ? ink : "var(--lk-acc)", fontSize: size, fontWeight: weight, fontFamily: "inherit" }}>
-      <span className="truncate">{schoolName ?? (narrow ? "pick school" : "pick your school")}</span>
-      <ChevronDown className="h-3 w-3 shrink-0" style={{ color: muted }} aria-hidden />
-    </button>
-  );
+  const boltH = narrow ? BOLT_H.narrow : BOLT_H.wide;
+  // 375px has to hold the bolt, "survive", "Pick your school", Share and the hamburger: tight
+  // gutters on a phone so the school's name is read, not truncated.
+  const pad = narrow ? 12 : 32;
+  const iconBtn = { background: "transparent", border: 0, color: ink, cursor: "pointer", padding: 0 } as const;
 
   return (
     <>
-      <header className="flex shrink-0 items-center gap-3 px-4 sm:gap-4 sm:px-8" style={{ minHeight: narrow ? 58 : 72, background: theme.topBg, borderBottom: `1px solid ${rule}`, color: ink }}>
-        {narrow && <button type="button" onClick={onOpenPath} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ color: ink, background: "transparent", border: 0 }} aria-label="Your path"><Menu className="h-5 w-5" /></button>}
-        <BoltBoil height={narrow ? 30 : 40} red={theme.schoolAccent ? theme.accent : undefined} blue={theme.schoolAccent && theme.primary ? theme.primary : undefined} cream={ink} />
-        {/* BRAND MASTHEAD (2026-09-09) — "survive" + "ACCOUNTING" beneath it is the same two-line
-            lockup the flyer/slide generator draws (flyer.server.ts), so entering the product from
-            a marketing page or a printed flyer reads as the same brand, not a different app. The
-            personalized "school · course · exam" line moved to its own segment to the right,
-            using the same border-l divider language this header already used for chapter/sender
-            info — reused, not invented. */}
-        <div className="flex min-w-0 flex-col justify-center">
-          <div className="lk-disp truncate" style={{ fontSize: narrow ? 15 : 19, letterSpacing: "-0.01em", lineHeight: 1.1, color: ink }}>survive</div>
-          <div className="truncate text-[9.5px] font-bold uppercase" style={{ letterSpacing: "0.18em", color: muted, lineHeight: 1.2 }}>Accounting</div>
-        </div>
-
-        {!narrow && (
-          <div className="flex min-w-0 flex-col border-l pl-4" style={{ borderColor: rule, fontSize: 12.5 }}>
-            <div className="flex min-w-0 items-center gap-1.5" style={{ color: muted }}>
-              {schoolButton(12.5, 600)}
-              <span aria-hidden>·</span>
-              <span className="truncate">{courseCode ?? "Intro Accounting"}</span>
-              <span aria-hidden>·</span>
-              {availableExams.length > 1 ? (
-                <select value={examNum ?? ""} onChange={(e) => onPickExam(Number(e.target.value))} aria-label="Which exam" className="rounded-md px-1 py-0.5 font-semibold outline-none" style={{ background: "transparent", color: ink, border: `1px solid ${rule}`, fontSize: 12.5 }}>
-                  {availableExams.map((e) => <option key={e.num} value={e.num} style={{ color: LK.text, background: LK.surface }}>{e.label}</option>)}
-                </select>
-              ) : (
-                <span className="font-semibold" style={{ color: ink }}>{examLabel}</span>
-              )}
+      <header className="flex shrink-0 flex-col" style={{ background: theme.topBg, borderBottom: `1px solid ${rule}`, color: ink, padding: `${narrow ? 8 : 12}px ${pad}px ${narrow ? 10 : 12}px`, gap: narrow ? 8 : 10, fontFamily: BRAND_SANS }}>
+        <div className="flex items-center" style={{ gap: narrow ? 8 : 14, minHeight: boltH }}>
+          {/* THE BIG BOLT, with the chapter's letters held still over it. */}
+          <span className="relative inline-block shrink-0" style={{ lineHeight: 0 }} title={letters ? `${letters} · ${schoolName ?? "your campus"}` : undefined}>
+            <BoltBoil height={boltH} red={school?.c1 ?? undefined} blue={school?.c2 ?? undefined} cream={ink} boilSeconds={1.2} />
+            {letters && (
+              <span aria-hidden className="absolute inset-0 grid place-items-center" style={{ pointerEvents: "none", color: "#F5EFE6", fontFamily: BRAND_DISPLAY, fontWeight: 800, fontSize: Math.round(boltH * 0.3), letterSpacing: "0.02em", lineHeight: 1, textShadow: "0 1px 2px rgba(0,0,0,0.85), 0 0 6px rgba(0,0,0,0.6)", whiteSpace: "nowrap" }}>{letters}</span>
+            )}
+          </span>
+          {/* THE WORDMARK — "survive" only. */}
+          <span className="lk-disp shrink-0" style={{ fontSize: narrow ? 15 : 21, letterSpacing: "-0.01em", lineHeight: 1, color: ink }}>survive</span>
+          {/* THE TWO-LINE BLOCK: campus over course · exam. */}
+          <div className="flex min-w-0 flex-col justify-center border-l" style={{ borderColor: rule, paddingLeft: narrow ? 10 : 14, gap: 1 }}>
+            <button type="button" onClick={onPickSchool} className="flex min-w-0 items-center gap-1 text-left" title="Change school" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", color: schoolName ? ink : LK.acc, fontSize: narrow ? 13.5 : 15, fontWeight: 800, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 22 : 24 }}>
+              <span className="truncate">{schoolName ?? "Pick your school"}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: muted }} aria-hidden />
+            </button>
+            <div className="flex min-w-0 items-center gap-1.5 truncate" style={{ fontSize: narrow ? 11.5 : 12.5, color: muted, fontWeight: 600, lineHeight: 1.2 }}>
+              {courseCode && <><span className="truncate">{courseCode}</span><span aria-hidden>·</span></>}
+              <span style={{ color: ink }}>{examLabel}</span>
               {demo && <span className="rounded-full px-1.5 py-px text-[9px] font-black uppercase tracking-wider" style={{ color: "#111", background: LK.green }}>Demo</span>}
             </div>
           </div>
-        )}
-        {narrow && (
-          <div className="flex min-w-0 items-center gap-1.5" style={{ fontSize: 11.5, color: muted }}>
-            {schoolButton(11.5, schoolName ? 500 : 600)}
-            <span aria-hidden>·</span>
-            <span className="font-semibold" style={{ color: ink }}>{examLabel}</span>
-          </div>
-        )}
 
-        {/* CHAPTER / REFERRAL IDENTITY (2026-09-09) — subtle metadata, never a CTA. Real Greek
-            letters, when the roster has them, get the same strong cream treatment with a soft
-            glow the public Greek marketing pages use for chapter letters — a small, tasteful
-            text-shadow here rather than importing that page's full animated SVG mark, which is
-            sized for a hero card, not a 72px header. Falls back to the chapter's plain name while
-            letters resolve or when the roster has none. No claim/setup ask lives here — that
-            belongs on the chapter's own /go page. */}
-        {!narrow && (chapter?.name || sender) && (
-          <div className="flex min-w-0 flex-col border-l pl-4" style={{ borderColor: rule, fontSize: 12.5 }}>
-            {chapter?.name ? (
-              <div className="flex min-w-0 items-center gap-1.5 truncate">
-                {chapter.letters ? (
-                  <span className="font-black" style={{ color: ink, fontFamily: BRAND_SANS, letterSpacing: "0.02em", textShadow: `0 0 10px ${theme.accent}55` }}>{chapter.letters}</span>
-                ) : (
-                  <span style={{ color: muted }}>for <b style={{ color: ink }}>{chapter.name}</b></span>
-                )}
-                {chapter.letters && schoolName && <span aria-hidden style={{ color: muted }}>· {schoolName.toUpperCase()}</span>}
-                {onPickChapter && <button type="button" onClick={onPickChapter} className="ml-1 underline underline-offset-2" style={{ color: muted, background: "transparent", border: 0, fontSize: 11, cursor: "pointer" }}>Not your chapter?</button>}
-              </div>
-            ) : sender?.isCouncil && onPickChapter ? (
-              <button type="button" onClick={onPickChapter} className="truncate text-left underline underline-offset-2" style={{ color: "var(--lk-acc)", background: "transparent", border: 0, cursor: "pointer", fontSize: 12.5 }}>which chapter are you in?</button>
-            ) : null}
-            {senderLine ? (
-              <div className="truncate" style={{ color: muted }}>{senderLine}{senderRoleText && <>, <b style={{ color: ink }}>{senderRoleText}</b></>}</div>
-            ) : sender && !sender.name && senderRoleText ? (
-              <div className="truncate" style={{ color: muted }}>shared by {[sender.campusName, senderRoleText].filter(Boolean).join(" ")}</div>
-            ) : null}
-          </div>
-        )}
+          <div className="min-w-0 flex-1" />
 
-        <div className="min-w-0 flex-1" />
+          {/* RIGHT: review · share · the hamburger. */}
+          {!narrow && (
+            <a href="/#reviews" className="shrink-0" style={{ color: ink, fontSize: 13.5, fontWeight: 700, textDecoration: "none", opacity: 0.9, minHeight: 36, display: "inline-flex", alignItems: "center" }}>Leave a review</a>
+          )}
+          {narrow ? (
+            <button type="button" onClick={onShare} aria-label="Share" className="grid shrink-0 place-items-center rounded-full" style={{ ...iconBtn, width: 40, height: 40 }}><ShareGlyph /></button>
+          ) : (
+            <button type="button" onClick={onShare} className="inline-flex shrink-0 items-center gap-2 rounded-full" style={{ minHeight: 38, padding: "0 16px", border: `1px solid ${rule}`, background: "transparent", color: ink, cursor: "pointer", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit" }}><ShareGlyph /> Share</button>
+          )}
+          <button type="button" onClick={() => setMenuOpen(true)} aria-label="Menu" aria-expanded={menuOpen} className="grid shrink-0 place-items-center rounded-full" style={{ ...iconBtn, width: narrow ? 40 : 44, height: narrow ? 40 : 44 }}><HamburgerGlyph /></button>
+        </div>
 
-        {!narrow && tickerText && (
-          <button type="button" onClick={() => setSheet(true)} className="max-w-[240px] truncate rounded-full px-3.5 py-1.5 font-semibold" style={{ fontSize: 12.5, color: muted, border: `1px solid ${rule}`, background: "transparent", cursor: "pointer" }} title="Change the date">{tickerText}</button>
-        )}
-        {!narrow && progressText && (
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-[110px] overflow-hidden rounded-full lg:w-[150px]" style={{ background: withAlpha(ink, 0.2) }}><span className="block h-full rounded-full" style={{ width: `${Math.round((progress.total ? progress.done / progress.total : 0) * 100)}%`, background: allDone ? LK.green : "var(--lk-acc)", transition: "width 300ms" }} /></span>
-            <span className="whitespace-nowrap font-semibold tabular-nums" style={{ fontSize: 12.5, color: allDone ? LK.green : ink }}>{progressText}</span>
-          </div>
-        )}
-        {SHOW_REMINDER_CTA && (
-          <button type="button" onClick={() => setSheet(true)} className={`lk-btn ${reminderOn ? "lk-btn-ghost" : "lk-btn-acc"}`} style={{ fontSize: narrow ? 10.5 : 12, padding: narrow ? "8px 12px" : undefined }}>
-            {reminderOn && <Check className="h-3.5 w-3.5" />} {ctaLabel}
-          </button>
-        )}
+        {/* THE EXAM PILLS, under the bolt. */}
+        <div className="flex flex-wrap items-center" style={{ gap: 6 }} role="tablist" aria-label="Which exam">
+          {pills.map((p) => {
+            const locked = !p.available;
+            const on = !locked && p.num === examNum;
+            return (
+              <button key={p.num} type="button" role="tab" aria-selected={on} className="lk-pill" data-on={on} data-locked={locked} onClick={() => (locked ? setWaitlistExam(p.num) : onPickExam(p.num))} title={locked ? `${p.label} is not open yet` : p.label}>
+                {p.label}{locked && <LockGlyph />}
+              </button>
+            );
+          })}
+        </div>
       </header>
 
-      {sheet && (
-        <ReminderSheet
-          examNum={examNum ?? 1} examLabel={examLabel} initialDate={examDate} campusId={campusId} courseCode={courseCode} contactRef={contactRef} demo={demo}
-          onClose={() => setSheet(false)}
-          onSaved={(date, scheduled) => { if (examNum != null) { writeExamDate(examNum, date); setExamDate(date); if (scheduled) { setReminderOn(true); try { localStorage.setItem(`${REMINDER_KEY}-${examNum}`, "1"); } catch { /* ignore */ } } } }}
+      {menuOpen && (
+        <MenuSheet
+          narrow={narrow} you={you} onClose={() => setMenuOpen(false)}
+          onShare={() => { setMenuOpen(false); onShare(); }}
+          onReminders={() => { setMenuOpen(false); setReminderOpen(true); }}
         />
+      )}
+      {reminderOpen && (
+        <ReminderModal campusId={campusId} courseCode={courseCode} onClose={() => setReminderOpen(false)} />
+      )}
+      {waitlistExam != null && (
+        <ExamWaitlistSheet exam={waitlistExam} campusId={campusId} courseCode={courseCode} demo={demo} narrow={narrow} onClose={() => setWaitlistExam(null)} />
       )}
     </>
   );
 }
 
-const fmtShort = (iso: string) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric" }); };
+/** ≡ — three drawn lines. */
+function HamburgerGlyph() {
+  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden><path d="M4 7h16M4 12h16M4 17h16" /></svg>;
+}
+/** A drawn padlock for the locked pills — never the emoji. */
+function LockGlyph() {
+  return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>;
+}
+/** The share arrow. */
+function ShareGlyph() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v13" /></svg>;
+}
 
-/** One card, two fields: the date and a number. Date alone still saves (powers the ticker);
+/** The chrome every sheet shares: backdrop, bottom on a phone / centred elsewhere, one way out. */
+function Sheet({ label, narrow, onClose, children, maxWidth = 420 }: { label: string; narrow: boolean; onClose: () => void; children: ReactNode; maxWidth?: number }) {
+  const ref = useDismiss<HTMLDivElement>(onClose);
+  return (
+    <div className="fixed inset-0 z-[110] flex justify-center" style={{ background: "rgba(0,0,0,0.7)", alignItems: narrow ? "flex-end" : "center", padding: narrow ? 0 : 16 }}>
+      <div ref={ref} role="dialog" aria-label={label} className={`lk-sheet lk-in ${narrow ? "rounded-t-2xl" : "rounded-2xl"}`} style={{ maxWidth: narrow ? undefined : maxWidth, padding: 16, paddingBottom: narrow ? "max(16px, env(safe-area-inset-bottom, 0px))" : 16 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** THE HAMBURGER'S SHEET — the list, in the proposal's order. */
+function MenuSheet({ narrow, you, onClose, onShare, onReminders }: { narrow: boolean; you: TopYou; onClose: () => void; onShare: () => void; onReminders: () => void }) {
+  return (
+    <Sheet label="Menu" narrow={narrow} onClose={onClose} maxWidth={360}>
+      <div className="mb-1 flex items-center justify-between" style={{ padding: "0 4px 0 16px" }}>
+        <span className="lk-disp" style={{ fontSize: 17 }}>survive</span>
+        <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }}><X className="h-4 w-4" /></button>
+      </div>
+      <nav className="flex flex-col" style={{ gap: 2 }}>
+        <button type="button" className="lk-menu-item" onClick={onShare}>Share this</button>
+        <button type="button" className="lk-menu-item" onClick={onReminders}>Set up exam reminders</button>
+        <a href="/" className="lk-menu-item">Home</a>
+        {you.userId ? (
+          <button type="button" className="lk-menu-item" onClick={() => { onClose(); you.signOut(); }}>
+            <span className="flex min-w-0 flex-col" style={{ gap: 1 }}>
+              <span>Sign out</span>
+              {you.email && <span className="truncate" style={{ fontSize: 12, fontWeight: 500, color: LK.muted }}>{you.email}</span>}
+            </span>
+          </button>
+        ) : (
+          <button type="button" className="lk-menu-item" onClick={() => { onClose(); you.onSignIn(); }}>Sign in</button>
+        )}
+        <a href="/chapters" className="lk-menu-item">Set up your Greek chapter</a>
+        <a href="/rep/join" className="lk-menu-item">Join the campus rep program</a>
+        {narrow && <a href="/#reviews" className="lk-menu-item">Leave a review</a>}
+      </nav>
+    </Sheet>
+  );
+}
+
+/** "Set up exam reminders" — the home page's ExamReminder, as a modal. */
+function ReminderModal({ campusId, courseCode, onClose }: { campusId: string | null; courseCode: string | null; onClose: () => void }) {
+  const ref = useDismiss<HTMLDivElement>(onClose);
+  return (
+    <div className="fixed inset-0 z-[110] grid place-items-center overflow-y-auto p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
+      <div ref={ref} role="dialog" aria-label="Exam reminders" className="lk-sheet lk-in relative rounded-2xl" style={{ maxWidth: 560, padding: "8px 0 4px" }}>
+        <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 z-[1] grid h-9 w-9 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }}><X className="h-4 w-4" /></button>
+        <ExamReminder campusId={campusId} courseCode={courseCode} />
+      </div>
+    </div>
+  );
+}
+
+/** THE LOCKED PILL'S SHEET — the price line as drafted, one email, "Join the waitlist". Submits
+ *  through the unified intake (kind notify_exam, the exam number, source learn-exam-waitlist).
+ *  Demo mode never writes a row but still shows the done state, so the flow can be walked. */
+function ExamWaitlistSheet({ exam, campusId, courseCode, demo, narrow, onClose }: { exam: number; campusId: string | null; courseCode: string | null; demo: boolean; narrow: boolean; onClose: () => void }) {
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<"open" | "busy" | "done" | "error">("open");
+  const [msg, setMsg] = useState("");
+  const submit = async () => {
+    const e = email.trim();
+    if (state === "busy") return;
+    if (!EMAIL_RE.test(e)) { setState("error"); setMsg("Enter a valid email."); return; }
+    setState("busy");
+    try {
+      if (!demo) await submitIntake({ data: { kind: "notify_exam", email: e, exam, courseCode, campusId: isUuid(campusId) ? campusId : null, sourcePath: "/learn", source: "learn-exam-waitlist" } });
+      setState("done");
+    } catch { setState("error"); setMsg("Couldn't save that — try again in a moment."); }
+  };
+  return (
+    <Sheet label={`Exam ${exam} waitlist`} narrow={narrow} onClose={onClose}>
+      <div className="mb-2 flex items-center justify-between">
+        <span className="lk-disp" style={{ fontSize: 20 }}>Exam {exam}</span>
+        <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }}><X className="h-4 w-4" /></button>
+      </div>
+      {state === "done" ? (
+        <p className="flex items-center gap-2 text-[14px] font-bold" style={{ margin: 0 }}><Check className="h-4 w-4" style={{ color: LK.green }} /> You're on the list. I'll email you the day Exam {exam} opens.</p>
+      ) : (
+        <>
+          <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.5, color: LK.muted }}>{examWaitlistLine(exam)}</p>
+          <input type="email" inputMode="email" autoComplete="email" placeholder="you@school.edu" className="lk-field mt-3" value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} aria-label="Your email" autoFocus={!narrow} />
+          {state === "error" && <p className="mt-1.5 text-[12px]" style={{ color: LK.red }}>{msg}</p>}
+          <button type="button" onClick={() => void submit()} disabled={state === "busy"} className="lk-btn lk-btn-acc mt-2 w-full disabled:opacity-50" style={{ minHeight: 46 }}>
+            {state === "busy" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Join the waitlist
+          </button>
+        </>
+      )}
+    </Sheet>
+  );
+}
+
+/** THE BAR'S OLD REMINDER SHEET — unmounted since the redesign (the hamburger opens the home
+ *  page's ExamReminder instead). Kept for the day reminders are advertised inside the player:
+ *  one card, two fields, the date and a number. Date alone still saves (powers a countdown);
  *  date + number queues the text. Nothing about links or passwords, ever. */
-function ReminderSheet({ examNum, examLabel, initialDate, campusId, courseCode, contactRef, demo, onClose, onSaved }: {
+export function ReminderSheet({ examNum, examLabel, initialDate, campusId, courseCode, contactRef, demo, onClose, onSaved }: {
   examNum: number; examLabel: string; initialDate: string | null; campusId: string | null; courseCode: string | null; contactRef: string | null; demo: boolean;
   onClose: () => void; onSaved: (date: string, scheduled: boolean) => void;
 }) {
@@ -266,7 +336,7 @@ function ReminderSheet({ examNum, examLabel, initialDate, campusId, courseCode, 
     if (!dateOk || busy) return;
     setBusy(true); setErr(null);
     try {
-      if (!phoneOk) { onSaved(date, false); setDone("Date saved. Add a number any time and I'll text you before it."); return; }
+      if (!phoneOk) { onSaved(date, false); writeExamDate(examNum, date); setDone("Date saved. Add a number any time and I'll text you before it."); return; }
       if (demo) { onSaved(date, true); setDone("Demo — nothing was sent."); return; }
       const r = await scheduleExamReminder({ data: { phone: phone.trim(), examDate: date, offsetDays: offset, campusId, courseCode, ref: contactRef } });
       if (r.ok) { onSaved(date, true); setDone(r.immediate ? "Your exam is basically here — texting you now." : `Set. One text on ${new Date(r.sendOnISO).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}.`); }

@@ -1,0 +1,77 @@
+// THE /learn REDESIGN (2026-09-11) — the pure decisions behind the page, pinned: the hero's
+// caption, a later row's own counts, the locked pill's price line, the practice art's tint and
+// the Text Lee card's copy. Pixels are not tested here; the rules that produce the words are.
+import { describe, expect, test } from "bun:test";
+
+import { averageVideoCaption, examWaitlistLine, LATER_EXAM_PRICE_USD, topicRowDetail, type GateSet } from "./learn-gate";
+import { hueShift, practiceFill, practiceTint } from "./PracticeArt";
+import { LEE_PHONE, LEE_TEL, TEXT_LEE_LINES } from "./LearnTextLee";
+import { CARD_SHADOW, DISPLAY, SANS } from "./learn-theme";
+import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
+
+function gs(o: Partial<GateSet> = {}): GateSet {
+  return { hasVideo: true, locked: false, started: false, runtimeSec: 100, ceqCount: 5, ...o };
+}
+
+describe("the hero's caption", () => {
+  test("is the real average with 'per video' — and absent when nothing has a runtime", () => {
+    expect(averageVideoCaption([gs({ runtimeSec: 120 }), gs({ runtimeSec: 180 })])).toBe("~2.5 min per video");
+    expect(averageVideoCaption([gs({ runtimeSec: null })])).toBeNull();
+    expect(averageVideoCaption([])).toBeNull();
+  });
+});
+
+describe("a later row's own counts", () => {
+  test("videos and the topic's practice questions, singulars included", () => {
+    expect(topicRowDetail([gs({ ceqCount: 12 }), gs({ ceqCount: 9 }), gs({ ceqCount: 4 })])).toBe("3 videos · 25 practice questions");
+    expect(topicRowDetail([gs({ ceqCount: 1 })])).toBe("1 video · 1 practice question");
+  });
+  test("never advertises zero questions", () => {
+    expect(topicRowDetail([gs({ ceqCount: 0 }), gs({ ceqCount: 0 })])).toBe("2 videos");
+  });
+});
+
+describe("the locked pill's line", () => {
+  test("is the price copy as drafted, per exam", () => {
+    expect(LATER_EXAM_PRICE_USD).toBe(50);
+    expect(examWaitlistLine(2)).toBe("Exam 1 is free. Exam 2 is $50. Join the waitlist and I'll tell you the day it opens.");
+    expect(examWaitlistLine(3)).toBe("Exam 1 is free. Exam 3 is $50. Join the waitlist and I'll tell you the day it opens.");
+  });
+});
+
+describe("the practice art's tint", () => {
+  test("is c2 when the school has one", () => {
+    expect(practiceTint({ c1: "#9E1B32", c2: "#F1F2F3" })).toBe("#F1F2F3");
+    expect(practiceFill({ c1: "#9E1B32", c2: "#F1F2F3" })).toBe("#9E1B32");
+  });
+  test("is c1 turned round the hue wheel when there is no c2 — a different colour, same lightness", () => {
+    const t = practiceTint({ c1: "#9E1B32", c2: null });
+    expect(t).not.toBe("#9E1B32");
+    expect(t).toMatch(/^#[0-9A-F]{6}$/);
+    expect(hueShift("#9E1B32", 0)).toBe("#9E1B32");
+    expect(hueShift("#FF0000", 120)).toBe("#00FF00");
+    expect(hueShift("#FF0000", 240)).toBe("#0000FF");
+  });
+  test("is the brand cream with no school", () => {
+    expect(practiceTint(null)).toBe("#F5EFE6");
+    expect(practiceFill(null)).toBe("#F5EFE6");
+  });
+});
+
+describe("Text Lee", () => {
+  test("the number, and the three lines as drafted", () => {
+    expect(LEE_TEL).toBe("+16625658818");
+    expect(LEE_PHONE).toBe("(662) 565-8818");
+    expect([...TEXT_LEE_LINES]).toEqual(["I love hearing from students.", "Ask anything, or just introduce yourself.", "I do my best to answer every single one."]);
+  });
+});
+
+describe("the home page's tokens", () => {
+  test("the display and sans faces are the brand's, not /learn's own copies", () => {
+    expect(DISPLAY).toBe(BRAND_DISPLAY);
+    expect(SANS).toBe(BRAND_SANS);
+  });
+  test("the card shadow is the one the proposal drafted", () => {
+    expect(CARD_SHADOW).toBe("0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06)");
+  });
+});

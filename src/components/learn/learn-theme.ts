@@ -14,6 +14,7 @@
 // against whichever ground is live, and the no-school accent is gold on navy, lime on black.
 // Components paint through LK (CSS variables), never INK's hex, so one switch re-themes the room.
 import type { CSSProperties } from "react";
+import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import type { School } from "@/lib/schools";
 
 export type Palette = {
@@ -206,9 +207,15 @@ export function themeStyle(t: LearnTheme): CSSProperties {
   } as CSSProperties;
 }
 
-/** Shared type ramp. Rubik 900 for display, Inter for everything else (the brand pair). */
-export const DISPLAY = "'Rubik', system-ui, -apple-system, sans-serif";
-export const SANS = "'Inter', system-ui, -apple-system, sans-serif";
+/** Shared type ramp — THE HOME PAGE'S TOKENS (redesign, 2026-09-11: "fonts and buttons come from
+ *  the home page's tokens, not /learn's own"). Rubik 900 for display, Inter for everything else,
+ *  read from canvas/brand rather than re-typed here, so the two surfaces cannot drift. */
+export const DISPLAY = BRAND_DISPLAY;
+export const SANS = BRAND_SANS;
+
+/** THE CARD'S DIMENSION (redesign, 2026-09-11): a real drop shadow and a one-pixel top highlight so
+ *  every card on the page sits in front of the room instead of being drawn on it. */
+export const CARD_SHADOW = "0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06)";
 
 /** THE CONTENT COLUMN (desktop pass, 2026-09-10): centred, capped at 1280, side padding per tier.
  *  One number every row, the entrance and the footer share, so nothing on the page can drift. */
@@ -226,7 +233,23 @@ export const LEARN_CSS = `
 .lk-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; padding: 9px 16px; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; border: 0; cursor: pointer; white-space: nowrap; font-family: ${SANS}; }
 .lk-btn-acc { background: var(--lk-acc); color: var(--lk-acc-ink); }
 .lk-btn-ghost { background: var(--lk-border); color: var(--lk-text); }
-.lk-card { border-radius: 12px; background: var(--lk-surface); border: 1px solid var(--lk-border); }
+/* THE HOME PAGE'S CTA (redesign, 2026-09-11): the door button's geometry — 54px, radius 12, 15.5px
+   at weight 900, no uppercase — filled with the room's accent (the school's colour, or the
+   fallback). The same object as home-two-door/DoorCard's DOOR_BTN, one fill. */
+.lk-btn-cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 54px; padding: 0 28px; border-radius: 12px; font-size: 15.5px; font-weight: 900; font-family: ${SANS}; letter-spacing: 0; text-transform: none; border: 0; cursor: pointer; white-space: nowrap; background: var(--lk-acc); color: var(--lk-acc-ink); transition: transform 120ms ease; }
+@media (hover: hover) { .lk-btn-cta:hover { transform: scale(1.02); } }
+.lk-btn-cta:focus-visible { outline: 2px solid var(--lk-text); outline-offset: 2px; }
+.lk-card { border-radius: 12px; background: var(--lk-surface); border: 1px solid var(--lk-border); box-shadow: ${CARD_SHADOW}; }
+/* TOPICS AS BLOCKS ON A PHONE (redesign, 2026-09-11): 28px of air and a hairline over each topic. */
+.lk-topic-sec[data-tier="narrow"] { padding: 28px 0; border-top: 1px solid var(--lk-border); }
+/* THE EXAM PILLS under the bolt: Exam 1 live, the rest locked (a drawn lock, never an emoji). */
+.lk-pill { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 11px; border-radius: 999px; font-size: 12px; font-weight: 800; font-family: ${SANS}; border: 1px solid var(--lk-top-border); background: transparent; color: var(--lk-top-ink); cursor: pointer; white-space: nowrap; }
+.lk-pill[data-on="true"] { background: var(--lk-top-ink); color: var(--lk-top-bg); border-color: var(--lk-top-ink); }
+.lk-pill[data-locked="true"] { opacity: 0.72; }
+/* THE SHEETS (hamburger, exam waitlist, Text Lee): one surface, bottom on a phone, centred elsewhere. */
+.lk-sheet { width: 100%; background: var(--lk-surface); border: 1px solid var(--lk-border); color: var(--lk-text); box-shadow: ${CARD_SHADOW}; font-family: ${SANS}; }
+.lk-menu-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 0 16px; border: 0; background: transparent; color: var(--lk-text); font-family: ${SANS}; font-size: 14.5px; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer; border-radius: 10px; }
+@media (hover: hover) { .lk-menu-item:hover { background: var(--lk-border); } }
 .lk-rail-item { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 64px; padding: 10px 0; border-radius: 10px; font-size: 11px; font-weight: 600; color: var(--lk-muted); background: transparent; border: 0; cursor: pointer; font-family: ${SANS}; }
 .lk-rail-item[data-on="true"] { background: var(--lk-surface); color: var(--lk-text); }
 .lk-rail-item:hover { color: var(--lk-text); }
@@ -255,7 +278,7 @@ export const LEARN_CSS = `
 .lk-topic-row { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 14px 18px; border-radius: 14px; background: var(--lk-surface); border: 1px solid var(--lk-border); color: var(--lk-text); text-align: left; cursor: pointer; font-family: inherit; transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease; }
 @media (hover: hover) { .lk-topic-row:hover { transform: translateY(-2px); border-color: var(--lk-border2); box-shadow: 0 12px 28px -14px rgba(0,0,0,0.7); } }
 .lk-topic-row[aria-expanded="true"] { border-color: var(--lk-acc); }
-/* "See what's on the exam" lands here: the first row outlines for a second. */
+/* "Get started" with nothing playable yet lands here: the first row outlines for a second. */
 @keyframes lk-outline { 0% { box-shadow: 0 0 0 0 var(--lk-acc); } 30% { box-shadow: 0 0 0 3px var(--lk-acc); } 100% { box-shadow: 0 0 0 0 transparent; } }
 .lk-outlined { animation: lk-outline 1000ms ease-out; border-radius: 16px; }
 /* THE START CUE (Lee, 2026-09-10: "make it unmistakable where to start"): the first row's frame
