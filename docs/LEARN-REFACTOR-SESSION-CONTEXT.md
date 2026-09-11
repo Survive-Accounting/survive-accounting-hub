@@ -409,3 +409,65 @@ IDs/classes the eventual animation will expect.
   dies of heap OOM after hours — restart it, don't debug it.
 - Launch is tomorrow (Fri 2026-09-11): Exam 1 / Easy Points free. Don't break the email gate,
   the waitlist intake, the school picker, or the player routes to make the page prettier.
+
+---------------------------------------------------------------------------------------------
+
+## E. The `?look=` candidates — build ALL of these first, Lee picks ONE
+
+Lee (2026-09-11, after the email): "give me a bunch of possible options to try with ?look=.
+I want to pick only the best one." So: before any shell work, extend `Look`/`LOOKS`/`isLook`
+in `learn-theme.ts` with the palettes below, keep `themeFor`'s contrast checks running against
+each ground, and add a small floating "Look" picker (bottom-left, only when `?looks=1` is in
+the URL) that rewrites `?look=` so he can flip through them on one page with a school picked.
+Every look keeps: the school ONLY in the bolt, active states, the hairline under the bar,
+buttons and hover glows; green only for success; the Survive shell identical at every campus.
+Fill each palette's full ladder (`surface2`, `border2`, `dim`) by the same one-hue stepping
+`styles.css` uses ("three steps of ONE navy"); the values here are the anchors.
+
+| look | canvas | surface (cards) | text | muted | border | navbar | fallback accent | why it might win |
+|---|---|---|---|---|---|---|---|---|
+| `black` (exists) | `#0A0A0A` | as today | chalk | as today | as today | wears the school today → make it `#0A0A0A` | lime | Lee's 09-10 pick; Reels-native; video thumbnails disappear into it |
+| `navy` (exists) | `#0D1730` | `#162443` | `#F7F0E6` | `#AAB4C8` | `#34486D` | `#14213D` | `#FFA611` | matches the home page exactly; one brand, one door |
+| `cream` (the email) | `#F5F1E8` | `#FBF9F4` | `#14213D` | `#6E6B63` | `#E4DDD0` | `#14213D` | `var(--brand-red)` | warm, premium, "a study tool not a feed"; video cards stay near-black so the shorts pop |
+| `paper` | `#FAFAF7` | `#FFFFFF` | `#0F172A` | `#64748B` | `#E5E7EB` | `#14213D` | `var(--brand-red)` | the quiet Linear/Notion look; maximum thumbnail contrast; least "designed" |
+| `chalk` | `#111827` | `#1A2233` | `#F2EDE3` | `#A7B0C0` | `#2B3548` | `#0B1220` | `#FFA611` | between black and navy: dark enough for video, blue enough to feel like Survive |
+| `charcoal` | `#1C1B1A` | `#262422` | `#F2EDE3` | `#A9A39A` | `#33302C` | `#14213D` | `var(--brand-red)` | warm dark: cream text on brown-black reads like the cream look at night |
+| `split` | navbar + hero on `#14213D`, rows on `#F5F1E8` | `#FBF9F4` | navy on cream / cream on navy | `#6E6B63` | `#E4DDD0` | `#14213D` | `var(--brand-red)` | Netflix-style: dark brand up top fading into a cream study canvas; the fold IS the design |
+| `mono` | `#F7F7F5` | `#FFFFFF` | `#0B0B0B` | `#6B6B6B` | `#E6E6E3` | `#0B0B0B` | the school's `c1` | no navy at all — black, white, and the campus colour as the ONLY colour; the boldest, most "skinned" |
+
+Build order: `cream`, `paper`, `chalk`, `charcoal`, `split`, `mono` (black and navy exist).
+Screenshot each at 1440 and 390 with Ole Miss picked and with no school, send the grid to Lee,
+and STOP for his pick. Do not build the shell on a guess.
+
+---------------------------------------------------------------------------------------------
+
+## F. The brief: the best student shell we can build
+
+Lee: "Make sure it studies /learn, our strategy docs, etc. I want it to build the best
+student shell possible for us." So before Part E, read — in this order — and write a
+one-page plan (`docs/LEARN-SHELL-PLAN-<date>.md`) that says what the shell IS before saying
+what it looks like:
+
+1. `docs/SURVIVE_STRATEGY_CULTURE_2026-09.md` — Human First / Feed the Machine / Use Your
+   Words; who the student is; why Greek chapters and campus reps matter to the page.
+2. `docs/SESSION-CONTEXT.md` — multi-session rules, migration naming, what a green build proves.
+3. `docs/LEARN-REDESIGN-PROPOSAL-2026-09-11.md` — the proposal Lee approved this afternoon
+   (what's built) and his six answers.
+4. `docs/DESIGN-CRAM-MAP.md` and `docs/DESIGN-SITE-PUBLISH.md` — cram path vs offshoots
+   ("Take it to an A"), how splits will reach students.
+5. `docs/SHORTS-POLISH-AUDIT.md`, `docs/BRAND-ANIMATION.md` — what the videos look like and
+   what brand motion already exists (BoltBoil, BoltZoom; the globe was REMOVED, don't revive).
+6. `docs/GREEK-PHASE-1.md`, `GREEK-PHASE-2A.md`, `GREEK-PHASE-2B.md`, `docs/REP-MESSAGING-AUDIT.md`
+   — the share flow (`/s/[campus]` → /learn), chapter letters, rep program copy.
+7. Code: `src/routes/landing.tsx` (the home page's voice and tokens), `src/components/learn/*`
+   (all of it, including `learn-modes.ts` and `CramPlayer.tsx`), `src/components/brand-cards/
+   bolt-boil.tsx`, `src/lib/schools.ts` (`c1`/`c2`), `src/components/home/ChapterDoors.tsx`.
+8. Memory the earlier sessions kept: no emoji/cringe; contained detail views, never
+   full-screen; campuses keep two school colours on the bolt; exact spec copy, no fake numbers.
+
+The plan should answer, in Lee's words where possible: what a student does in the first 10
+seconds (pick school → pick exam → watch → practice, §15); what the page is for AFTER Exam 1
+(Exam 2/3 waitlist, reminders, reviews, GroupMe — §4 of the proposal); what never changes per
+campus and what always does; what "Like Reels for exam prep." means at 390px versus 1440px;
+and which of the email's sixteen sections are day-one versus post-launch. Then Part C's
+questions, then Part E's looks, then the shell — in slices, each pushed to main.
