@@ -16,6 +16,14 @@
 //
 // One caveat worth knowing: the worker scales to zero and boots on the first request, so the
 // first poll of a cold job can sit at "queued" for a few seconds longer than feels right.
+// LOADED UP FRONT (2026-09-11). Lee, posting his first five: "19MB upload failed - failed to
+// fetch dynamically imported module https://surviveaccounting.com/assets/take-burn-DTxPtzup.js".
+// The post page loaded this file on demand, and this file loaded its helpers on demand, so a
+// deploy while the page was open left the old hashed chunks 404ing and the upload died before a
+// byte moved. They are all small, so they ship with the page now and a deploy can't strand them.
+import { putSignedUpload } from "@/components/canvas/ceq-takes";
+import { createPipelineTestStagingUpload } from "@/lib/publish.functions";
+import { resolveWorkerRender, startCaptionBurn } from "@/lib/render-worker.functions";
 import { assName, burnedName } from "@/lib/short-captions";
 
 /** Progress in the two phases that take real time, so a bar can be honest about which. */
@@ -30,8 +38,6 @@ export interface BurnProgress {
  *  storage: `createPipelineTestStagingUpload` hands back a signed token and no bytes ever touch
  *  a server function. */
 async function stage(file: File, ext: string, folder: string, onFrac?: (f: number) => void): Promise<string> {
-  const { createPipelineTestStagingUpload } = await import("@/lib/publish.functions");
-  const { putSignedUpload } = await import("@/components/canvas/ceq-takes");
   const slot = await createPipelineTestStagingUpload({ data: { ext, folder } });
   const err = await putSignedUpload(slot.path, slot.token, file, onFrac);
   if (err) throw new Error(err);
@@ -64,7 +70,6 @@ export async function burnCaptions(
   onProgress: (p: BurnProgress) => void,
   signal?: AbortSignal,
 ): Promise<string> {
-  const { startCaptionBurn, resolveWorkerRender } = await import("@/lib/render-worker.functions");
   onProgress({ phase: "queued", frac: null, note: "Handing it to the renderer…" });
   const job = await startCaptionBurn({ data: { videoUrl, assUrl } });
 

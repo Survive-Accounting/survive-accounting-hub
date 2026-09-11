@@ -28,7 +28,8 @@ import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v
 import { TakeFrame } from "@/components/v3/TakeFrame";
 import { downloadText, storedTranscript, transcribeTakeFile } from "@/components/v3/take-transcript";
 import { assName, burnCommand, burnedName, shortCaptionFiles, srtName, transcriptFromWords, whisperCostUsd, type Word } from "@/lib/short-captions";
-import type { BurnProgress } from "@/components/v3/take-burn";
+// Imported up front (2026-09-11), not on demand: a deploy mid-session 404'd the lazy chunk.
+import { burnCaptions, downloadUrlAs, uploadAss, uploadTake, type BurnProgress } from "@/components/v3/take-burn";
 import { takeFileProblem } from "@/lib/take-frame";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
@@ -135,7 +136,6 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
     setVideoUrl(null); setUpErr(null); setUpFrac(0);
     void (async () => {
       try {
-        const { uploadTake } = await import("@/components/v3/take-burn");
         setVideoUrl(await uploadTake(picked, setUpFrac));
         setUpFrac(1);
       } catch (e) {
@@ -155,7 +155,6 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
     setBurning({ phase: "uploading", frac: null, note: "Sending the subtitles…" });
     setBurnErr(null); setBurnUrl(null);
     try {
-      const { uploadAss, burnCaptions } = await import("@/components/v3/take-burn");
       const assUrl = await uploadAss(file.name, files.ass);
       setBurnUrl(await burnCaptions(videoUrl, assUrl, setBurning));
     } catch (e) {
@@ -167,7 +166,6 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
   const saveBurned = async () => {
     if (!burnUrl || !file) return;
     try {
-      const { downloadUrlAs } = await import("@/components/v3/take-burn");
       await downloadUrlAs(burnUrl, burnedName(file.name));
     } catch (e) { setBurnErr(e instanceof Error ? e.message : String(e)); }
   };
