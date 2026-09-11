@@ -22,6 +22,9 @@ export interface ShortPub {
   takeName?: unknown;
   meta?: { title?: unknown };
   render?: { muxPlaybackId?: string | null; durationS?: number | null };
+  /** The cover kept ON the publication (2026-09-11): a posted video's thumbnail travels with the
+   *  video, not with a seat number that a later split can move. */
+  coverUrl?: unknown;
 }
 
 export interface StudentShort {
@@ -62,7 +65,7 @@ export function shortsFrom(pubs: readonly ShortPub[] | undefined, paid: boolean)
       name: nameOf(p),
       playbackId: paid ? null : pid,
       runtimeSec: p.render?.durationS != null ? Math.round(p.render.durationS) : null,
-      coverUrl: null,
+      coverUrl: typeof p.coverUrl === "string" && /^https?:\/\//i.test(p.coverUrl) ? p.coverUrl : null,
     });
   }
   return out.sort((a, b) => a.takeIndex - b.takeIndex);

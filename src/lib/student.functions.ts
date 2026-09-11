@@ -237,7 +237,11 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     const cramDur = pubDur(blast) ?? ((d.lessonId ? dur.get(d.lessonId) : undefined) ?? null);
     setOrderKey.set(d.id, d.sortOrder ?? Number.MAX_SAFE_INTEGER);
     // THE SET'S POSTED PARTS (2026-09-11): part 1 replaces the set's video, and the set turns vertical.
-    const shorts = shortsFrom(d.publications as never, paid).map((sh) => ({ ...sh, coverUrl: coverBySet.get(partKey(d.id, sh.takeIndex)) ?? null }));
+    // THE COVER ON THE VIDEO FIRST (2026-09-11: covers followed the splits when Lee re-cut a
+    // posted set — Liabilities' row moved to #4 while its posted video stayed #2 — so two videos
+    // lost their thumbnail and two wore the wrong one). A posted publication carries its own
+    // coverUrl now; the seat-keyed row is only the fallback for videos posted before this.
+    const shorts = shortsFrom(d.publications as never, paid).map((sh) => ({ ...sh, coverUrl: sh.coverUrl ?? coverBySet.get(partKey(d.id, sh.takeIndex)) ?? null }));
     topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: shorts.length ? "portrait" : "landscape", playbackId: paid ? null : (shorts[0]?.playbackId ?? cramPid), coverUrl: coverBySet.get(d.id) ?? null, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: shorts[0]?.runtimeSec ?? cramDur, shorts, hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id) });
   }
 

@@ -194,6 +194,13 @@ export const setPublishCover = createServerFn({ method: "POST" })
         .upsert({ set_id: data.setId, captions: withCover(prev?.captions, cover), updated_at: new Date().toISOString() }, { onConflict: "set_id" })
         .select("*").single();
       if (error) return { ok: false, error: error.message };
+      // AND ONTO THE POSTED VIDEO (2026-09-11): the publication with this key, when the video is
+      // already posted, keeps the cover itself — a later split moves the row, never the video.
+      // Best-effort: a set not yet posted has no publication to carry it, and the row is enough.
+      try {
+        const { setPublicationCover } = await import("@/lib/site-publish.functions");
+        await setPublicationCover(data.setId, cover?.url ?? null);
+      } catch (e) { console.warn("publication cover write failed (row saved):", e instanceof Error ? e.message : e); }
       return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };
     } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
   });
