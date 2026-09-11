@@ -111,6 +111,8 @@ export const frameSchema = z.object({
   camSize: z.number().min(0.05).max(1).optional(),
   illustration: illustrationSchema.nullable().optional(),
   rubric: rubricSchema.optional(),
+  // 2026-09-11: the Up Next frame opens a skippable segment (plan.ts `segment`).
+  segment: z.enum(["skippable"]).optional(),
 });
 
 export type FrameRow = z.infer<typeof frameSchema>;

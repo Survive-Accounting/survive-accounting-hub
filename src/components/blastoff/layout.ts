@@ -73,6 +73,9 @@ export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spo
   // templates. The block ends well above the circle (RubricFrame.tsx's geometry, pinned in
   // rubric-frame.test.ts).
   if (kind === "rubric") return { spot: "home", size: 0.28 };
+  // THE END-OF-TOPIC FRAMES (2026-09-11): the corner bubble — the charge bar and the tease own
+  // the column; the header block keeps clear of the corner (EndOfTopicFrames.tsx headerW).
+  if (kind === "topic_done" || kind === "up_next") return { spot: "corner" };
   // MEMORIZE THIS / DEEPER IDEA (Deep Question since 2026-09-06; kind "tip") / BIO (Lee, fast
   // track 2026-09-05: "enlarge the camera frame
   // … large enough to be viewable on a phone without blocking any text"). Bigger than every

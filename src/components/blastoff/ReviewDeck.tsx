@@ -128,6 +128,10 @@ import { emptyCluster } from "./cluster/cluster-spec";
 // THE EQUATION RUBRIC (2026-09-11): the pure rules (rubric.ts) behind the Editor's boxes,
 // presets and toggles; the block itself is RubricFrame.tsx, drawn on the stage like any slide.
 import { RUBRIC_KEYS, RUBRIC_MODE_LABEL, RUBRIC_PRESETS, applyPreset, cycleKey, emptyRubric, type RubricKey } from "./rubric";
+// THE END-OF-TOPIC FRAMES (2026-09-11): the Editor faces read the bank the same way the slides
+// do, so what the panel says the slide will say is what it says.
+import { TOPIC_DONE_COPY, topicProgress, upNextFor } from "./end-of-topic";
+import { useBank } from "@/components/v3/use-bank";
 import type { MapCard } from "@/lib/cluster-brief";
 
 /** What the AI board hands the deck: "＋ slide" on an idea card. */
@@ -155,7 +159,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -1533,6 +1537,9 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     { label: "Map", color: KIND_COLOR.cluster ?? MUTED, add: () => insertAfter(f.id, "cluster", { cluster: emptyCluster("New map") }, true) },
     // A fresh rubric object per insert (emptyRubric() is called at click time, never shared).
     { label: "Rubric", color: KIND_COLOR.rubric ?? MUTED, add: () => insertAfter(f.id, "rubric", { rubric: emptyRubric() }, true) },
+    // THE END-OF-TOPIC PAIR (2026-09-11). Up Next opens the skippable segment as it lands.
+    { label: "Topic complete", color: KIND_COLOR.topic_done ?? MUTED, add: () => insertAfter(f.id, "topic_done", {}, true) },
+    { label: "Up next", color: KIND_COLOR.up_next ?? MUTED, add: () => insertAfter(f.id, "up_next", { segment: "skippable" }, true) },
     { label: "Exhibit…", color: MUTED, add: () => { setSelId(f.id); setPicker("exhibit"); } },
   ];
   const spineRow = (f: BlastFrame, i: number, opts: { number?: number; foldered?: boolean; thumb?: boolean; card?: boolean } = {}) => {
@@ -2035,6 +2042,9 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         {/* THE EQUATION RUBRIC (2026-09-11) — the boxes (click to cycle), the transaction, the
             amount, arrows or amounts, the equity effect, and Lee's eight presets. */}
         {sel.kind === "rubric" && <RubricEditor sel={sel} onPatch={onPatch} />}
+        {/* THE END-OF-TOPIC FRAMES (2026-09-11): what the bank will put on the slide, and the one
+            typed line each has. */}
+        {(sel.kind === "topic_done" || sel.kind === "up_next") && <EndOfTopicEditor sel={sel} set={set} onPatch={onPatch} />}
         {/* THE SLOGAN SLIDE (2026-09-08) — the words and nothing else. The picture, when the
             slide wants one, is the Illustrator's face; the chips are the three Lee actually
             says, straight from brand-cards/slogans.ts so the slide and the spoken line can
@@ -2183,6 +2193,37 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         )}
       </div>
     </section>
+  );
+}
+
+// ------------------------------------------------ the end-of-topic faces
+
+/** Topic Complete / Up Next: the bank's answer (read-only — the slide never types these) and
+ *  the one line Lee can change. */
+function EndOfTopicEditor({ sel, set, onPatch }: { sel: BlastFrame; set: BoothSetInfo; onPatch: (p: Partial<BlastFrame>) => void }) {
+  const { topics, error } = useBank();
+  const prog = topics ? topicProgress(topics, set.id) : null;
+  const next = topics ? upNextFor(topics, set.id) : null;
+  const done = sel.kind === "topic_done";
+  return (
+    <div className="flex flex-col" style={{ gap: 10 }}>
+      <div className="flex flex-col" style={{ gap: 4 }}>
+        <span style={subhead}>From the bank — never typed</span>
+        {error && <div style={{ fontSize: 12, color: RED }}>The bank didn't load: {error}</div>}
+        {!topics && !error && <div style={{ fontSize: 12, color: MUTED }}>Loading the bank…</div>}
+        {topics && done && (prog
+          ? <div style={{ fontSize: 12.5, color: CREAM }}>Topic <b>{prog.topic.name}</b> · {TOPIC_DONE_COPY.note(prog.done, prog.total)}</div>
+          : <div style={{ fontSize: 12, color: RED }}>This set isn't on an exam topic — the slide shows a red block.</div>)}
+        {topics && !done && (next
+          ? <div style={{ fontSize: 12.5, color: CREAM }}>Next topic <b>{next.topic.name}</b> · first set: {next.set.name}</div>
+          : <div style={{ fontSize: 12, color: RED }}>This is the last set in the bank — nothing to tease; the slide shows a red block.</div>)}
+      </div>
+      <label style={{ fontSize: 11, color: MUTED }}>{done ? `The line under "${TOPIC_DONE_COPY.heading}" (blank = the mockup's)` : "Subtitle under the topic (blank = the next set's name)"}
+        <textarea rows={2} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder={done ? TOPIC_DONE_COPY.line : next?.set.name ?? ""} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+      {done
+        ? <div style={{ fontSize: 11.5, color: MUTED }}>One bar segment per exam topic; the finished ones fill amber→red and the newest charges on camera. The red pill says "{TOPIC_DONE_COPY.cta}".</div>
+        : <div style={{ fontSize: 11.5, color: MUTED }}>The rubric cycles borrow → supplies → services on account → rent every ~3 s on camera. This slide opens a skippable segment{sel.segment === "skippable" ? "" : " — but the flag is missing on this one"}.</div>}
+    </div>
   );
 }
 

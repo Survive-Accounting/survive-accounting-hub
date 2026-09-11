@@ -26,6 +26,7 @@ describe("blastoff frame schema", () => {
       },
       // The equation rubric (2026-09-11) — a strip here would blank every arrow on load.
       rubric: { mode: "ale", text: "Paid $600 cash for rent", amount: 600, arrows: { A: ["down"], L: [], E: [], Rev: [], Exp: ["up"] }, show: "amounts", equityEffect: true },
+      segment: "skippable",
     };
     const out = frameSchema.parse(full);
     expect(out).toEqual(full);

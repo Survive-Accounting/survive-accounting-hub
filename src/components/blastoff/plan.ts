@@ -54,6 +54,10 @@ export const BLAST_FRAME_KINDS = [
   // cram path)." Its data rides on the frame as `rubric`; the spacebar reveals its arrows box
   // by box on the film surface.
   "rubric",
+  // 2026-09-11: THE END-OF-TOPIC FRAMES (EndOfTopicFrames.tsx, end-of-topic.ts). Topic Complete
+  // — the charge bar and the "go practice" card — and Up Next — the next topic teased with the
+  // rubric cycling. Both full-frame, both say what the bank says, never what was typed.
+  "topic_done", "up_next",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -163,6 +167,10 @@ export interface BlastFrame {
    *  arrows per box, arrows-or-amounts, the equity-effect toggle (rubric.ts RubricSpec). A
    *  rubric frame without one is drawn as a loud red "no data" block, never a blank. */
   rubric?: RubricSpec;
+  /** A SKIPPABLE SEGMENT STARTS HERE (2026-09-11, the Up Next frame). The student player's
+   *  "Skip to <next topic>" (Prompt 5, after site publish exists) needs to know where the tease
+   *  begins; the frame that opens it carries the flag. Additive; no other value yet. */
+  segment?: "skippable";
 }
 
 export interface BlastPlan {
@@ -176,7 +184,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -189,7 +197,7 @@ import type { RubricSpec } from "./rubric";
 
 /** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
  *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
-export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan"];
+export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next"];
 export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.includes(k);
 
 /** THE FOUR CALLOUTS that can be drawn either way (2026-09-08, `BlastFrame.display`). The
@@ -265,6 +273,8 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   cluster: "Map",
   slogan: "Slogan",
   rubric: "Rubric",
+  topic_done: "Topic complete",
+  up_next: "Up next",
 };
 
 let seq = 0;

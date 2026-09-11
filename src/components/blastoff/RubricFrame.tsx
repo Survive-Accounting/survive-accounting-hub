@@ -71,12 +71,15 @@ const POP_CSS = `
 .sa-rubric-pop { animation: sa-rubric-pop 420ms cubic-bezier(0.3, 1.6, 0.5, 1) both; }
 @media (prefers-reduced-motion: reduce) { .sa-rubric-pop { animation: none; } }`;
 
-export function RubricFrame({ spec, k, live = false, onCycle }: {
+export function RubricFrame({ spec, k, live = false, onCycle, popKey }: {
   spec: RubricSpec | undefined;
   /** The phone's width / 306. */
   k: number;
   /** The film surface — the reveal follows RubricFilmContext and a revealed group pops. */
   live?: boolean;
+  /** POP EVERYTHING AGAIN when this changes (the Up Next demo's cycle, 2026-09-11) — a block
+   *  at rest whose arrows should still arrive with the pop each time the transaction changes. */
+  popKey?: string;
   /** The Review stage's click-to-cycle; absent everywhere else. */
   onCycle?: (key: RubricKey) => void;
 }) {
@@ -94,7 +97,7 @@ export function RubricFrame({ spec, k, live = false, onCycle }: {
   // The balance line belongs to the last reveal: at rest, or once every box is on.
   const balShown = step === undefined || step >= rubricSteps(spec) - 1;
 
-  const cell: CellCtx = { k, spec, shown, step, live, amounts, eq, onCycle };
+  const cell: CellCtx = { k, spec, shown, step, live, amounts, eq, onCycle, popKey };
   const connX = (G.x.E + G.sub.w / 2 - 1) * k;
   const revTop = G.top.h + G.sub.gap;
   const expTop = revTop + G.sub.h + G.sub.gap + 1;
@@ -125,17 +128,17 @@ export function RubricFrame({ spec, k, live = false, onCycle }: {
  *  re-render would remount the arrows and replay the pop). */
 interface CellCtx {
   k: number; spec: RubricSpec; shown: Set<RubricKey>; step: number | undefined; live: boolean; amounts: boolean;
-  eq: { arrows: RubricArrow[]; ghost: boolean }; onCycle?: (key: RubricKey) => void;
+  eq: { arrows: RubricArrow[]; ghost: boolean }; onCycle?: (key: RubricKey) => void; popKey?: string;
 }
 
 function RubricArrows({ ctx, keyName, sub }: { ctx: CellCtx; keyName: RubricKey; sub: boolean }) {
-  const { k, spec, shown, step, live, amounts, eq } = ctx;
+  const { k, spec, shown, step, live, amounts, eq, popKey } = ctx;
   const { list, ghost } = keyName === "E" ? { list: eq.arrows, ghost: eq.ghost } : { list: spec.arrows[keyName], ghost: false };
   if (!shown.has(keyName) || !list.length) return <div style={{ minHeight: (sub ? 22 : 26) * k }} />;
   const stack = amounts && list.length > 1 && !sub;
   // Re-keyed on the step so the pop plays exactly when this group is revealed on film.
   return (
-    <div key={step === undefined ? "rest" : `s${step}`} className={live && step !== undefined ? "sa-rubric-pop" : undefined}
+    <div key={popKey ?? (step === undefined ? "rest" : `s${step}`)} className={live && (step !== undefined || popKey) ? "sa-rubric-pop" : undefined}
       style={{ display: "flex", flexDirection: stack ? "column" : "row", gap: stack ? 0 : 1 * k, alignItems: "center", minHeight: stack ? 0 : (sub ? 22 : 26) * k, opacity: ghost ? 0.42 : 1 }}>
       {list.map((d) => (
         <span key={d} style={{ display: "inline-flex", alignItems: "baseline", gap: 3 * k, fontFamily: DISPLAY_FONT, fontWeight: 700, lineHeight: 1, fontSize: (stack ? 19 : sub ? 22 : 26) * k, color: d === "up" ? GOLD : SKY }}>

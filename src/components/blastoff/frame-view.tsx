@@ -33,6 +33,7 @@ import { OUTRO_CTA_KEY, SurviveOutro } from "./SurviveOutro";
 import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
 import { RubricFrame } from "./RubricFrame";
+import { TopicDoneFrame, UpNextFrame } from "./EndOfTopicFrames";
 import { cycleKey } from "./rubric";
 import { introWordmarkTop, type SlideLayout } from "./layout";
 
@@ -129,6 +130,11 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     return <RubricFrame spec={frame.rubric} k={scale} live={live}
       onCycle={edit && !live && frame.rubric ? (key) => edit({ rubric: { ...frame.rubric!, arrows: cycleKey(frame.rubric!.arrows, key) } }) : undefined} />;
   }
+
+  // THE END-OF-TOPIC FRAMES (2026-09-11, EndOfTopicFrames.tsx): the whole 9:16, the words from
+  // the bank through the set's id; `live` runs the charge and the Up Next cycle on film only.
+  if (frame.kind === "topic_done") return <TopicDoneFrame w={fw} set={set} frame={frame} live={live} />;
+  if (frame.kind === "up_next") return <UpNextFrame w={fw} set={set} frame={frame} live={live} />;
 
   // THE STANDARD SPINE renders as the vertical 9:16 frame it actually is —
   // these are brand cards, not CEQ cards, and showing them in the silver card
