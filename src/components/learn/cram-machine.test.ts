@@ -3,24 +3,28 @@
 // the paper; the variant rotates by section, never at random.
 import { describe, expect, test } from "bun:test";
 
-import { BOLT_PLACEMENTS, boltMatrix, MACHINE_VARIANTS, MACHINES, machineForSection, partOf } from "./CramMachine";
-import { COMPACT_MACHINE, CONVEYOR_MACHINE, OPEN_MACHINE } from "./cram-machine-data";
+import { BOLT_PLACEMENTS, boltMatrix, MACHINE_VARIANTS, MACHINES, machineForSection, partOf, PRACTICE_ART, ROTATION } from "./CramMachine";
+import { COMPACT_MACHINE, CONVEYOR_MACHINE, LAPTOP_MACHINE, OPEN_MACHINE } from "./cram-machine-data";
 import { BOLT_VIEWBOX } from "@/components/canvas/brand";
 
-const ORANGES = new Set(["#F17338", "#EB7437", "#E76F32"]);
+const ORANGES = new Set(["#F17338", "#EB7437", "#E76F32", "#DF723D"]);
 
 describe("the three machines", () => {
-  test("the three files became open / compact / conveyor, 2048² each, nothing redrawn", () => {
+  test("the four files became open / compact / conveyor / laptop, nothing redrawn", () => {
     expect(OPEN_MACHINE.paths.length).toBe(87);
     expect(COMPACT_MACHINE.paths.length).toBe(61);
     expect(CONVEYOR_MACHINE.paths.length).toBe(87);
-    for (const v of MACHINE_VARIANTS) expect(MACHINES[v].data.viewBox).toBe("0 0 2048 2048");
+    expect(LAPTOP_MACHINE.paths.length).toBe(137);
+    for (const v of ROTATION) expect(MACHINES[v].data.viewBox).toBe("0 0 2048 2048");
+    expect(MACHINES.laptop.data.viewBox).toBe("0 0 4096 4096");
+    expect(PRACTICE_ART).toBe("laptop");
   });
   test("every path is in at most one part; the parts named in the brief exist", () => {
     for (const v of MACHINE_VARIANTS) {
       const seen = new Set<number>();
       for (const idx of Object.values(MACHINES[v].parts)) for (const i of idx) { expect(seen.has(i)).toBe(false); seen.add(i); expect(i).toBeLessThan(MACHINES[v].data.paths.length); }
-      for (const part of ["stamp-head", "abacus-beads", "power-line", "finished-paper", "success-mark", "placeholder", "output-tray", "input-tray"] as const) expect((MACHINES[v].parts[part] ?? []).length).toBeGreaterThan(0);
+      const need = v === "laptop" ? (["lid", "keys", "power-line", "power-node", "sparks", "success-mark", "placeholder"] as const) : (["stamp-head", "abacus-beads", "power-line", "finished-paper", "success-mark", "placeholder", "output-tray", "input-tray"] as const);
+      for (const part of need) expect((MACHINES[v].parts[part] ?? []).length).toBeGreaterThan(0);
       expect(partOf(v, 0)).toBe("machine-body");
     }
   });
@@ -28,19 +32,21 @@ describe("the three machines", () => {
     for (const v of MACHINE_VARIANTS) {
       MACHINES[v].data.paths.forEach((p, i) => {
         if (!ORANGES.has(p.fill.toUpperCase())) return;
-        expect(["power-line", "power-node", "placeholder"]).toContain(partOf(v, i));
+        expect(["power-line", "power-node", "placeholder", "accent", "sparks"]).toContain(partOf(v, i));
       });
       // and the success mark stays the illustration's green
-      for (const i of MACHINES[v].parts["success-mark"] ?? []) expect(MACHINES[v].data.paths[i].fill).toMatch(/^#(7AB37B|2D8668|3F9074|409562)$/);
+      for (const i of MACHINES[v].parts["success-mark"] ?? []) expect(MACHINES[v].data.paths[i].fill).toMatch(/^#(7AB37B|2D8668|3F9074|409562|7C9781)$/);
     }
   });
-  test("the placeholder is the one orange rectangle on the paper, and it is never drawn", () => {
-    for (const v of MACHINE_VARIANTS) {
+  test("the placeholder is the one orange rectangle on the paper (the laptop's: the two-path slot on its screen), never drawn", () => {
+    for (const v of ROTATION) {
       const ph = MACHINES[v].parts.placeholder!;
       expect(ph.length).toBe(1);
       expect(ORANGES.has(MACHINES[v].data.paths[ph[0]].fill.toUpperCase())).toBe(true);
       expect(partOf(v, ph[0])).toBe("placeholder");
     }
+    expect(MACHINES.laptop.parts.placeholder).toEqual([132, 133]);
+    expect(partOf("laptop", 133)).toBe("placeholder");
   });
 });
 
@@ -77,8 +83,9 @@ describe("the bolt on the paper", () => {
 });
 
 describe("which machine a section gets", () => {
-  test("sectionIndex % 3, deterministic", () => {
+  test("the rotation is sectionIndex % 3 over the three cram machines, deterministic", () => {
     expect([0, 1, 2, 3, 4, 5].map(machineForSection)).toEqual(["open", "compact", "conveyor", "open", "compact", "conveyor"]);
     expect(machineForSection(7)).toBe(machineForSection(7));
+    expect(ROTATION).not.toContain("laptop");
   });
 });

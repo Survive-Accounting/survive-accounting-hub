@@ -43,23 +43,42 @@
 //
 // PERF: one <svg> per card, ~90 paths; memoised on (variant, colours, run, powered); no filters
 // (the shadow is geometry, the gloss is a clipped rect); only wrapper-level transforms animate.
+//
+// THE LAPTOP (Lee, 2026-09-11, later that night: "This is new SVG to use as animated illustration
+// on the practice. Have it have gentle hover / floating... and the bolt is on the screen. Bolt
+// needs to be the actual Survive logo and campus colors. On hover, the bolt does it's boiling
+// animation and it does something cool with the vector file we created... where the laptop has
+// some movement"). A fourth machine, "image (2).svg" (4096²): a cream laptop, navy keys, an orange
+// trackpad outline, an orange lid edge, an orange knob at the hinge with two sparks, and on the
+// screen a green check beside a tall rounded rectangle — the bolt's slot. PRACTICE_ART = "laptop":
+// every Practice card shows it; the three cram machines stay in the tree behind
+// machineForSection for the day Lee wants the rotation back. Its parts: lid (bezel + screen),
+// keys, trackpad + base edge (accent), power-line (the lid's orange edge), power-node (the hinge
+// knob), sparks, success-mark (the check), placeholder (the slot). Its motion is in the CSS below.
 import { memo, useId, type CSSProperties } from "react";
 
+import { DEFAULT_BOLT_SPEC } from "@/components/brand-cards/bolt-boil";
 import { BOLT_OUTER, BOLT_RIGHT, BOLT_VIEWBOX } from "@/components/canvas/brand";
-import { COMPACT_MACHINE, CONVEYOR_MACHINE, OPEN_MACHINE, type MachineData } from "@/components/learn/cram-machine-data";
+import { COMPACT_MACHINE, CONVEYOR_MACHINE, LAPTOP_MACHINE, OPEN_MACHINE, type MachineData } from "@/components/learn/cram-machine-data";
 
-export type MachineVariant = "open" | "compact" | "conveyor";
-export const MACHINE_VARIANTS: readonly MachineVariant[] = ["open", "compact", "conveyor"];
+export type MachineVariant = "open" | "compact" | "conveyor" | "laptop";
+export const MACHINE_VARIANTS: readonly MachineVariant[] = ["open", "compact", "conveyor", "laptop"];
+/** The three cram machines, the rotation machineForSection walks. */
+export const ROTATION: readonly MachineVariant[] = ["open", "compact", "conveyor"];
+/** What every Practice card shows today (Lee, 2026-09-11, later): the laptop. */
+export const PRACTICE_ART: MachineVariant = "laptop";
 
-/** Which machine a section shows: `sectionIndex % 3`, deterministic — never random per render
- *  (Lee: "This prevents the card art from changing when React rerenders"). */
+/** Which cram machine a section would show in rotation: `sectionIndex % 3`, deterministic — never
+ *  random per render (Lee: "This prevents the card art from changing when React rerenders"). */
 export function machineForSection(sectionIndex: number): MachineVariant {
-  return MACHINE_VARIANTS[((sectionIndex % 3) + 3) % 3];
+  return ROTATION[((sectionIndex % 3) + 3) % 3];
 }
 
 export type MachinePart =
   | "stamp-head" | "stamp-base" | "abacus-frame" | "abacus-beads" | "power-line" | "power-node"
-  | "input-tray" | "incoming-paper" | "output-tray" | "finished-paper" | "success-mark" | "placeholder";
+  | "input-tray" | "incoming-paper" | "output-tray" | "finished-paper" | "success-mark" | "placeholder"
+  // the laptop's
+  | "lid" | "keys" | "accent" | "sparks";
 
 type Pt = [number, number];
 /** The orange rectangle's corners in the SVG's units: t = top, r = right, l = left. */
@@ -73,6 +92,10 @@ export type MachineSpec = {
   node: { cx: number; cy: number; r: number };
   /** The power line's bounding box, for the current sweep, and which way the current runs. */
   power: { x: number; y: number; w: number; h: number; dir: "left" | "up" };
+  /** How much of the slot the bolt leaves clear (default BOLT_MARGIN). */
+  boltMargin?: number;
+  /** The laptop's screen path — a copy of it is the campus glow that warms on hover. */
+  screen?: number;
 };
 
 function range(a: number, b: number): number[] { const out: number[] = []; for (let i = a; i <= b; i++) out.push(i); return out; }
@@ -136,13 +159,32 @@ export const MACHINES: Record<MachineVariant, MachineSpec> = {
     node: { cx: 1000, cy: 1633, r: 44 },
     power: { x: 910, y: 600, w: 355, h: 1085, dir: "up" },
   },
+  laptop: {
+    data: LAPTOP_MACHINE,
+    parts: {
+      lid: [119, 126, 127, 128, 129, 130, 131],
+      "power-line": [120],
+      "power-node": [123, 124, 125],
+      sparks: [135, 136],
+      accent: [5, 117],
+      keys: range(12, 116),
+      "success-mark": [134],
+      placeholder: [132, 133],
+    },
+    // The slot on the screen: its top-left, top-right and bottom-left corners (the screen's plane).
+    paper: { t: [2306.9, 1233.2], r: [2586.9, 1408.1], l: [2301.3, 1908.6] },
+    boltMargin: 0.1,
+    screen: 131,
+    node: { cx: 3350, cy: 2812, r: 120 },
+    power: { x: 2140, y: 760, w: 1260, h: 765, dir: "left" },
+  },
 };
 
 /** Recraft's oranges — the power line and node, and the placeholder. Painted campus primary. */
 const ORANGES = new Set(["#F17338", "#EB7437", "#E76F32"]);
 
 /** index → part, built once per machine. */
-const PART_OF: Record<MachineVariant, Map<number, MachinePart>> = { open: new Map(), compact: new Map(), conveyor: new Map() };
+const PART_OF: Record<MachineVariant, Map<number, MachinePart>> = { open: new Map(), compact: new Map(), conveyor: new Map(), laptop: new Map() };
 for (const v of MACHINE_VARIANTS) {
   const spec = MACHINES[v];
   for (const [part, idx] of Object.entries(spec.parts) as [MachinePart, number[]][]) {
@@ -158,38 +200,35 @@ export function partOf(variant: MachineVariant, index: number): MachinePart | "m
 // ── THE BOLT'S PLACEMENT ──────────────────────────────────────────────────────────────────────
 const VB = BOLT_VIEWBOX.split(" ").map(Number);
 const BOLT_BOX = { x: VB[0], y: VB[1], w: VB[2], h: VB[3] };
-/** How much of the rectangle the bolt leaves clear on each side. */
+/** How much of the rectangle the bolt leaves clear on each side (a machine may set its own). */
 const BOLT_MARGIN = 0.14;
 
 /** The affine matrix that lays the bolt's viewBox flat on the paper: bolt-x along top→right,
  *  bolt-y along top→left (the sheet's two in-plane axes), one uniform scale that fits inside the
- *  rectangle with BOLT_MARGIN, centred on it. matrix(a b c d e f) for <g transform>. */
-export function boltMatrix(p: PaperCorners): [number, number, number, number, number, number] {
+ *  rectangle with the margin, centred on it. matrix(a b c d e f) for <g transform>. */
+export function boltMatrix(p: PaperCorners, margin: number = BOLT_MARGIN): [number, number, number, number, number, number] {
   const u: Pt = [p.r[0] - p.t[0], p.r[1] - p.t[1]];
   const v: Pt = [p.l[0] - p.t[0], p.l[1] - p.t[1]];
   const lu = Math.hypot(u[0], u[1]), lv = Math.hypot(v[0], v[1]);
-  const s = Math.min((lu * (1 - 2 * BOLT_MARGIN)) / BOLT_BOX.w, (lv * (1 - 2 * BOLT_MARGIN)) / BOLT_BOX.h);
+  const s = Math.min((lu * (1 - 2 * margin)) / BOLT_BOX.w, (lv * (1 - 2 * margin)) / BOLT_BOX.h);
   const a = (s * u[0]) / lu, b = (s * u[1]) / lu, c = (s * v[0]) / lv, d = (s * v[1]) / lv;
   const cx = p.t[0] + u[0] / 2 + v[0] / 2, cy = p.t[1] + u[1] / 2 + v[1] / 2;
   const bx = BOLT_BOX.x + BOLT_BOX.w / 2, by = BOLT_BOX.y + BOLT_BOX.h / 2;
   return [a, b, c, d, cx - a * bx - c * by, cy - b * bx - d * by];
 }
-export const BOLT_PLACEMENTS: Record<MachineVariant, string> = {
-  open: `matrix(${boltMatrix(MACHINES.open.paper).map((n) => n.toFixed(4)).join(" ")})`,
-  compact: `matrix(${boltMatrix(MACHINES.compact.paper).map((n) => n.toFixed(4)).join(" ")})`,
-  conveyor: `matrix(${boltMatrix(MACHINES.conveyor.paper).map((n) => n.toFixed(4)).join(" ")})`,
-};
+function matrixOf(v: MachineVariant): string { return `matrix(${boltMatrix(MACHINES[v].paper, MACHINES[v].boltMargin).map((n) => n.toFixed(4)).join(" ")})`; }
+export const BOLT_PLACEMENTS: Record<MachineVariant, string> = { open: matrixOf("open"), compact: matrixOf("compact"), conveyor: matrixOf("conveyor"), laptop: matrixOf("laptop") };
 
 // ── THE MOTION ────────────────────────────────────────────────────────────────────────────────
 export const CRAM_MACHINE_CSS = `
 .cm { display: block; width: 100%; height: 100%; overflow: visible; transition: transform 220ms cubic-bezier(.2,.7,.2,1); transform-origin: 50% 60%; }
 .cm[data-lift="true"] { transform: scale(1.03); }
-.cm [data-part="power-line"] { fill: var(--campus-primary); transition: opacity 200ms; }
+.cm [data-part="power-line"], .cm [data-part="accent"] { fill: var(--campus-primary); transition: opacity 200ms; }
 .cm [data-part="power-node"] { fill: var(--campus-primary); }
 .cm .cm-node { fill: var(--campus-primary); opacity: 0; transform-box: fill-box; transform-origin: center; }
 .cm .cm-current { opacity: 0; transform-box: fill-box; }
 .cm .cm-bolt { opacity: 0; transform-box: fill-box; transform-origin: center; }
-.cm[data-powered="true"] .cm-bolt { opacity: 1; }
+.cm[data-powered="true"] .cm-bolt, .cm[data-variant="laptop"] .cm-bolt { opacity: 1; }
 .cm .cm-gloss { opacity: 0; transform-box: fill-box; }
 @keyframes cm-node { 0% { opacity: 0; transform: scale(.6); } 60% { opacity: .95; transform: scale(1.15); } 100% { opacity: .85; transform: scale(1); } }
 @keyframes cm-current-left { 0% { opacity: 0; transform: translateX(60%); } 15% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; transform: translateX(-60%); } }
@@ -203,15 +242,40 @@ export const CRAM_MACHINE_CSS = `
 .cm[data-run] .cm-current[data-dir="left"] { animation: cm-current-left 500ms cubic-bezier(.4,0,.2,1) 150ms both; }
 .cm[data-run] .cm-current[data-dir="up"] { animation: cm-current-up 500ms cubic-bezier(.4,0,.2,1) 150ms both; }
 .cm[data-run] [data-part="abacus-beads"] { animation: cm-beads 400ms cubic-bezier(.4,0,.2,1) 450ms both; }
-.cm[data-run] [data-part="finished-paper"], .cm[data-run] [data-part="success-mark"], .cm[data-run] .cm-bolt-wrap { animation: cm-paper 350ms cubic-bezier(.4,0,.2,1) 750ms both; }
+.cm[data-run] [data-part="finished-paper"], .cm[data-run] [data-part="success-mark"], .cm[data-run]:not([data-variant="laptop"]) .cm-bolt-wrap { animation: cm-paper 350ms cubic-bezier(.4,0,.2,1) 750ms both; }
 .cm[data-run] [data-part="stamp-head"] { animation: cm-stamp 320ms cubic-bezier(.5,0,.3,1) 950ms both; }
-.cm[data-run] .cm-bolt { animation: cm-bolt-in 320ms cubic-bezier(.2,.8,.2,1.2) 1150ms both; }
+.cm[data-run]:not([data-variant="laptop"]) .cm-bolt { animation: cm-bolt-in 320ms cubic-bezier(.2,.8,.2,1.2) 1150ms both; }
 .cm[data-run] .cm-gloss { animation: cm-gloss 320ms ease-in-out 1400ms both; }
+/* THE LAPTOP (Lee, 2026-09-11, later: "gentle hover / floating … the bolt does its boiling
+   animation and … the laptop has some movement"). The bolt is ALWAYS on the screen — static frame
+   0 at rest — and boils (the four BoltBoil frames, 0.6 s a cycle) while the card is hovered or
+   focused. On hover the lid tilts back 2.5° around the hinge (every lid path rotates about the
+   same user-space point, so the lid moves as one), the screen warms with a campus glow, and on a
+   run the keys ripple twice, the current sweeps the lid's edge and the hinge sparks flare. */
+.cm[data-variant="laptop"] [data-part="lid"], .cm[data-variant="laptop"] [data-part="power-line"], .cm[data-variant="laptop"] [data-part="success-mark"], .cm[data-variant="laptop"] .cm-bolt-wrap { transform-box: view-box; transform-origin: 2470px 2178px; transition: transform 460ms cubic-bezier(.2,.7,.2,1); }
+.cm[data-variant="laptop"][data-lift="true"] [data-part="lid"], .cm[data-variant="laptop"][data-lift="true"] [data-part="power-line"], .cm[data-variant="laptop"][data-lift="true"] [data-part="success-mark"], .cm[data-variant="laptop"][data-lift="true"] .cm-bolt-wrap { transform: rotate(-2.5deg); }
+.cm .cm-screen-glow { fill: var(--campus-primary); opacity: 0; transition: opacity 420ms ease; }
+.cm[data-lift="true"] .cm-screen-glow { opacity: .1; }
+.cm .cm-boil-f { opacity: 0; }
+.cm .cm-boil-f[data-i="0"] { opacity: 1; }
+@keyframes cm-boil { 0%, 24.99% { opacity: 1; } 25%, 100% { opacity: 0; } }
+.cm[data-lift="true"] .cm-boil-f { animation: cm-boil 0.6s linear infinite; animation-delay: calc(var(--i) * -0.15s); opacity: 0; }
+.cm [data-part="sparks"] { opacity: .35; transition: opacity 300ms; }
+@keyframes cm-spark { 0%, 100% { opacity: .35; } 15%, 45% { opacity: 1; } 30% { opacity: .2; } 70% { opacity: 1; } }
+.cm[data-run] [data-part="sparks"] { animation: cm-spark 700ms ease-in-out 150ms both; }
+@keyframes cm-keys { 0%, 100% { transform: translate(0, 0); } 35% { transform: translate(0, 12px); } }
+.cm[data-run] [data-part="keys"]:nth-of-type(odd) { animation: cm-keys 320ms cubic-bezier(.4,0,.2,1) 300ms both; }
+.cm[data-run] [data-part="keys"]:nth-of-type(even) { animation: cm-keys 320ms cubic-bezier(.4,0,.2,1) 520ms both; }
+@keyframes cm-pad { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+.cm[data-run] [data-part="accent"] { animation: cm-pad 600ms ease-in-out 250ms both; }
 @media (prefers-reduced-motion: reduce) {
   .cm, .cm[data-run] * { animation: none !important; transition: none !important; }
   .cm[data-lift="true"] { transform: none; }
+  .cm[data-variant="laptop"][data-lift="true"] [data-part="lid"], .cm[data-variant="laptop"][data-lift="true"] [data-part="power-line"], .cm[data-variant="laptop"][data-lift="true"] [data-part="success-mark"], .cm[data-variant="laptop"][data-lift="true"] .cm-bolt-wrap { transform: none; }
   .cm .cm-bolt { opacity: 1; }
   .cm .cm-current, .cm .cm-gloss { opacity: 0; }
+  .cm[data-lift="true"] .cm-boil-f { animation: none !important; opacity: 0; }
+  .cm[data-lift="true"] .cm-boil-f[data-i="0"] { opacity: 1; }
 }
 `;
 
@@ -224,7 +288,7 @@ export type CramMachineProps = {
   run: number;
   /** After a run (or under reduced motion): the bolt rests on the paper. */
   powered: boolean;
-  /** Hover / focus: the whole machine scales up a hair. */
+  /** Hover / focus: the whole machine scales up a hair (and the laptop's bolt boils). */
   lift: boolean;
   className?: string;
   style?: CSSProperties;
@@ -233,22 +297,38 @@ export type CramMachineProps = {
 function CramMachineImpl({ variant, primary, secondary, run, powered, lift, className, style }: CramMachineProps) {
   const spec = MACHINES[variant];
   const uid = useId().replace(/:/g, "");
-  // Gradient ids are prefixed per instance so three machines on one page never collide.
+  // Gradient ids are prefixed per instance so machines on one page never collide.
   const defs = spec.data.defs.replace(/id="([^"]+)"/g, `id="${uid}-$1"`);
   const fillFor = (fill: string) => (fill.startsWith("url(#") ? `url(#${uid}-${fill.slice(5, -1)})` : fill);
   const powerIds = (spec.parts["power-line"] ?? []).map((i) => `${uid}-p${i}`);
   const vars = { ["--campus-primary" as string]: primary, ["--campus-secondary" as string]: secondary } as CSSProperties;
   const placeholderAt = spec.parts.placeholder?.[0] ?? -1;
+  const laptop = variant === "laptop";
+  const keyline = laptop ? 6 : 7;
   const bolt = (
     // The placement matrix is a presentation ATTRIBUTE on the outer group and nothing animates
     // that group; the pop (a CSS transform) plays on the inner group, whose fill-box origin is
     // the bolt's own centre — a CSS transform would otherwise replace the matrix, not compose.
     <g key={`bolt-${run}`} className="cm-bolt-wrap">
+      {laptop && spec.screen != null && <path className="cm-screen-glow" d={spec.data.paths[spec.screen].d} />}
       <g transform={BOLT_PLACEMENTS[variant]}>
         <g className="cm-bolt">
           <path d={BOLT_OUTER} fill="#000" opacity="0.22" transform="translate(2.5 3.5)" />
-          <path d={BOLT_OUTER} fill={primary} stroke="#FFFFFF" strokeWidth="7" strokeLinejoin="round" paintOrder="stroke" />
-          <path d={BOLT_RIGHT} fill={secondary} />
+          {laptop ? (
+            // THE BOIL: the four BoltBoil frames stacked; frame 0 shows at rest, the CSS cycles
+            // them while the card is lifted (hover / focus).
+            DEFAULT_BOLT_SPEC.frames.map((f, i) => (
+              <g key={i} className="cm-boil-f" data-i={i} style={{ ["--i" as string]: i } as CSSProperties}>
+                <path d={f.outer} fill={primary} stroke="#FFFFFF" strokeWidth={f.sw} strokeLinejoin="round" strokeLinecap="round" paintOrder="stroke" />
+                <path d={f.seam} fill={secondary} />
+              </g>
+            ))
+          ) : (
+            <>
+              <path d={BOLT_OUTER} fill={primary} stroke="#FFFFFF" strokeWidth={keyline} strokeLinejoin="round" paintOrder="stroke" />
+              <path d={BOLT_RIGHT} fill={secondary} />
+            </>
+          )}
           <clipPath id={`${uid}-bolt-clip`}><path d={BOLT_OUTER} /></clipPath>
           <g clipPath={`url(#${uid}-bolt-clip)`}>
             <rect className="cm-gloss" x={BOLT_BOX.x - 20} y={BOLT_BOX.y - 20} width={BOLT_BOX.w + 40} height={BOLT_BOX.h + 40} fill={`url(#${uid}-gloss)`} />
@@ -270,7 +350,7 @@ function CramMachineImpl({ variant, primary, secondary, run, powered, lift, clas
       focusable="false"
     >
       <defs>
-        <g dangerouslySetInnerHTML={{ __html: defs }} />
+        {defs && <g dangerouslySetInnerHTML={{ __html: defs }} />}
         <linearGradient id={`${uid}-gloss`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0.35" stopColor="#FFFFFF" stopOpacity="0" />
           <stop offset="0.5" stopColor="#FFFFFF" stopOpacity="0.75" />
@@ -287,7 +367,7 @@ function CramMachineImpl({ variant, primary, secondary, run, powered, lift, clas
         {spec.data.paths.map((p, i) => {
           const part = partOf(variant, i);
           if (part === "placeholder") return null;
-          const campus = ORANGES.has(p.fill.toUpperCase()) && (part === "power-line" || part === "power-node");
+          const campus = ORANGES.has(p.fill.toUpperCase()) && (part === "power-line" || part === "power-node" || part === "accent" || part === "sparks");
           return (
             <path
               key={i}
