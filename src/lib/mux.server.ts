@@ -46,15 +46,18 @@ async function muxFetch(path: string, init?: RequestInit): Promise<any> {
 }
 
 /**
- * Create a Mux asset from a URL input, signed playback, with auto-generated
- * English subtitles and a 1080p max resolution tier.
+ * Create a Mux asset from a URL input, with a 1080p max resolution tier. Signed playback and
+ * auto-generated English subtitles by default. POST TO THE SITE (2026-09-11,
+ * site-publish.functions.ts) asks for public playback, because the student player streams
+ * unsigned HLS, and no generated subtitles.
  */
-export async function createAssetFromUrl(url: string): Promise<MuxAsset> {
+export async function createAssetFromUrl(url: string, opts: { playbackPolicy?: "public" | "signed"; generatedSubtitles?: boolean; passthrough?: string } = {}): Promise<MuxAsset> {
   const body = {
-    input: [{ url, generated_subtitles: [{ language_code: "en", name: "English" }] }],
-    playback_policy: ["signed"],
+    input: [{ url, ...(opts.generatedSubtitles === false ? {} : { generated_subtitles: [{ language_code: "en", name: "English" }] }) }],
+    playback_policy: [opts.playbackPolicy ?? "signed"],
     max_resolution_tier: "1080p",
     video_quality: "basic",
+    ...(opts.passthrough ? { passthrough: opts.passthrough } : {}),
   };
   const json = await muxFetch("/video/v1/assets", { method: "POST", body: JSON.stringify(body) });
   return json.data as MuxAsset;

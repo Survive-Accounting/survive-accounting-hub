@@ -32,6 +32,8 @@ import { assName, burnCommand, burnedName, shortCaptionFiles, srtName, transcrip
 // Imported up front (2026-09-11), not on demand: a deploy mid-session 404'd the lazy chunk.
 import { burnCaptions, downloadUrlAs, uploadAss, uploadCover, uploadTake, type BurnProgress } from "@/components/v3/take-burn";
 import { setPublishCover, type SetPublishStatus } from "@/lib/publish-queue.functions";
+import { resolveSitePost, startSitePost } from "@/lib/site-publish.functions";
+import { splitOfPubKey } from "@/lib/short-publication";
 import type { PublishCover } from "@/lib/publish-cover";
 import { takeFileProblem } from "@/lib/take-frame";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
@@ -67,7 +69,7 @@ function Step({ n, title, hint, done, children }: {
   );
 }
 
-export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTranscript, onOpenCopy, onClose, hidden = false, copyDone = false, cover = null, onCoverSaved }: {
+export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTranscript, onOpenCopy, onClose, hidden = false, copyDone = false, cover = null, onCoverSaved, setId: setIdProp, takeIndex: takeIndexProp, takeName = "", sitePosted = null, onSitePosted }: {
   /** The publish key for THIS video — the set's id, or "<setId>#N" for a split. */
   pubKey: string;
   /** What this video is called: the set's name, or the split's. */
@@ -90,6 +92,14 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
   /** YOUR OWN THUMBNAIL (2026-09-11): the image saved on this video's row, and the row after a save. */
   cover?: PublishCover | null;
   onCoverSaved?: (s: SetPublishStatus) => void;
+  /** POST TO THE SITE (2026-09-11): which set this video belongs to, which part it is (0-based),
+   *  the part's name, the row's site tick, and the row after a post. */
+  /** Absent (the /v3 map opens this panel with the key only) = read from the publish key. */
+  setId?: string;
+  takeIndex?: number;
+  takeName?: string;
+  sitePosted?: { postedAt: string | null; url: string | null } | null;
+  onSitePosted?: (s: SetPublishStatus) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [words, setWords] = useState<Word[] | null>(null);
@@ -112,6 +122,18 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
   // YOUR OWN THUMBNAIL (2026-09-11, lib/publish-cover.ts): uploaded, kept on this video's row.
   const [coverBusy, setCoverBusy] = useState(false);
   const [coverErr, setCoverErr] = useState<string | null>(null);
+  // POST TO THE SITE (2026-09-11, site-publish.functions.ts): the take step 1 uploaded (or the
+  // captioned one, when step 3 made it) goes to the video host as a public video, then onto the
+  // set for students.
+  const [siteBusy, setSiteBusy] = useState(false);
+  const [siteNote, setSiteNote] = useState<string | null>(null);
+  const [siteErr, setSiteErr] = useState<string | null>(null);
+  const [siteLink, setSiteLink] = useState<string | null>(null);
+  // The set and the part: the route's, else what the publish key names ("<setId>" is part 1,
+  // "<setId>#N" is part N).
+  const keyed = splitOfPubKey(pubKey);
+  const setId = setIdProp ?? keyed.setId;
+  const takeIndex = takeIndexProp ?? keyed.takeIndex;
   const saveCover = async (img: File | null) => {
     setCoverBusy(true); setCoverErr(null);
     try {
@@ -224,6 +246,39 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
       setBurning(null);
     }
   }, [file, files, videoUrl]);
+
+  const postToSite = async () => {
+    const source = burnUrl ?? videoUrl;
+    if (!source) return;
+    setSiteBusy(true); setSiteErr(null); setSiteLink(null);
+    try {
+      setSiteNote("Sending it to the video host…");
+      const { assetId } = await startSitePost({ data: { videoUrl: source, pubKey } });
+      const deadline = Date.now() + 15 * 60 * 1000;
+      let misses = 0;
+      for (;;) {
+        await new Promise((r) => window.setTimeout(r, 4000));
+        if (Date.now() > deadline) throw new Error("The video host is taking longer than fifteen minutes. Press Post again later.");
+        let r;
+        try { r = await resolveSitePost({ data: { assetId, setId, pubKey, takeIndex, takeName, title, videoUrl: source } }); misses = 0; }
+        catch (e) {
+          misses += 1;
+          if (misses >= 4) throw e;
+          setSiteNote("The site is slow to answer. Checking again…");
+          continue;
+        }
+        if (r.state === "error") throw new Error(r.error);
+        if (r.state === "posted") {
+          setSiteLink(r.link);
+          setSiteNote(r.statusError ? `On the site. The row's tick didn't save: ${r.statusError}` : "On the site.");
+          if (r.status) onSitePosted?.(r.status);
+          return;
+        }
+        setSiteNote("The video host is processing it…");
+      }
+    } catch (e) { setSiteErr(e instanceof Error ? e.message : String(e)); setSiteNote(null); }
+    finally { setSiteBusy(false); }
+  };
 
   const saveBurned = async () => {
     if (!burnUrl || !file) return;
@@ -425,6 +480,24 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
             TikTok yourself, pasting the copy from step 4 and the cover from step 5. Then close this
             and tick each destination on the row — that's what the queue counts.
           </div>
+        </Step>
+
+        {/* ── 7 ── POST TO THE SITE (2026-09-11). Lee: "I don't see anywhere where I could just
+            upload a file and have it post." One press: the video host, then the set, then the row. */}
+        <Step n={7} title="Post it to the site" hint={siteLink || sitePosted?.postedAt ? "on the site" : "students see it on /learn"} done={!!siteLink || !!sitePosted?.postedAt}>
+          <div style={{ fontSize: 12.5, color: V3_MUTED, lineHeight: 1.6 }}>
+            One click: {burnUrl ? "the captioned video" : "your original video"} goes to our video host and becomes this set's video on the site{takeIndex > 0 ? ` (part ${takeIndex + 1})` : ""}. Pressing again replaces it.
+          </div>
+          <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <button type="button" disabled={!videoUrl || siteBusy} onClick={() => void postToSite()} style={{ ...primary, opacity: !videoUrl || siteBusy ? 0.5 : 1 }}>
+              {siteBusy ? "Posting…" : siteLink || sitePosted?.postedAt ? "Post it again (replaces it)" : "Post to the site"}
+            </button>
+            {!videoUrl && <span style={{ fontSize: 11.5, color: V3_MUTED }}>waiting for step 1's upload…</span>}
+            {siteNote && <span style={{ fontSize: 11.5, color: siteBusy ? V3_GOLD : MINT }}>{siteNote}</span>}
+            {(siteLink ?? sitePosted?.url) && <a href={(siteLink ?? sitePosted?.url) as string} target="_blank" rel="noreferrer" style={{ fontSize: 11.5, color: V3_GOLD }}>open it ↗</a>}
+            {siteErr && <span style={{ fontSize: 12, color: "#FF8B7E" }}>{siteErr}</span>}
+          </div>
+          {takeIndex > 0 && <div style={{ marginTop: 6, fontSize: 11, color: V3_MUTED }}>Students see part 1 of a set today. The other parts play once the student player learns to play parts in order.</div>}
         </Step>
       </div>
     </div>

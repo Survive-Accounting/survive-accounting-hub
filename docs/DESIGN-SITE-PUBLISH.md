@@ -690,3 +690,28 @@ Never weaken one to go green (CLAUDE.md:9).
    name?
 3. Re-publish leaves the old Mux asset. Fine for now, or does he want the old id recorded on the
    row (`previous_mux_asset_id`) so a cleanup can find it?
+
+---
+
+## 13. Status, 2026-09-11 — Lee's post-button bypass
+
+Built without S0/S1 (no `short_jobs` table, no migration). Lee asked for a way to "just upload a
+file and have it post", chose a post button, and said a new vertical video may replace a set's old
+one.
+
+- **Server:** `src/lib/site-publish.functions.ts`. `startSitePost` hands the canvas-media take to
+  Mux as a public asset; `resolveSitePost` polls, then writes the publication onto the deck
+  (replace by id, compare-and-set on `canvas_scenes.updated_at`) and stamps the row's site tick and
+  link. `mux.server.ts createAssetFromUrl` gained `{ playbackPolicy, generatedSubtitles,
+  passthrough }`; the default is unchanged, so `attachOneTakeBlast` is untouched.
+- **Pure:** `src/lib/short-publication.ts` (§4.2) and `src/lib/student-shorts.ts` (§4.4), both
+  tested.
+- **Student tree:** `StudentSet.shorts?` (optional). When a set has posted parts, `playbackId` is
+  part 1, `orientation` is `"portrait"` and `runtimeSec` is part 1's.
+- **UI:** PostProduction step 7, "Post it to the site".
+- **Not built: S5, the player walking parts.** It lives in CramPlayer and the learn route, the
+  /learn session's files. A set with several posted parts plays part 1 only until the player reads
+  `set.shorts`. `getSetPlayback` (paid sets) still returns the first shipped blast, which may be
+  any part. LearnHome thumbnails assume a fixed aspect; check a portrait set.
+- **Unverified against Mux:** the building PC has no `MUX_*` keys, so Lee's first press is the
+  first real run.

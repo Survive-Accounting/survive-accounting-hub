@@ -20,6 +20,8 @@ import { cramCardsFromPlan, practiceIdsFromPlan, readLearnPlan } from "./learn-p
  *   - REVIEW = the set's shipped `lookback` publication. OPTIONAL by design — most sets have
  *              none yet; `hasReview` is the flag, ids are never invented.
  *  Paid sets have ALL playback ids withheld (getSetPlayback re-checks the grant per stage). */
+import { shortsFrom, type StudentShort } from "./student-shorts";
+
 export interface StudentSet {
   id: string; // DeckDef.id
   name: string;
@@ -40,6 +42,12 @@ export interface StudentSet {
    *  redacted SERVER-SIDE into ░ blocks before this ever leaves the server (the hidden words never
    *  reach an unentitled client). Free sets carry the full stem. Null = set has no CEQ yet. */
   firstStem: string | null;
+  /** THE SET'S POSTED PARTS (2026-09-11, student-shorts.ts): the Blast Off videos Lee posted from
+   *  /v3/post, in part order. When there are any, part 1 is the set's video (playbackId) and the
+   *  set plays in 9:16 — Lee: a new vertical video may replace the old one. The player walking
+   *  every part is the /learn side's (docs/DESIGN-SITE-PUBLISH.md §4.5). Optional, so nothing that
+   *  builds a set by hand has to change. */
+  shorts?: StudentShort[];
 }
 export interface StudentTopic { id: string; name: string; shortLabel: string | null; number: number | null; sets: StudentSet[] }
 export interface StudentUnit { id: string; name: string; topics: StudentTopic[] }
@@ -212,7 +220,9 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     const cramPid = blast?.render?.muxPlaybackId ?? ((d.lessonId && pb.get(d.lessonId)) || null);
     const cramDur = pubDur(blast) ?? ((d.lessonId ? dur.get(d.lessonId) : undefined) ?? null);
     setOrderKey.set(d.id, d.sortOrder ?? Number.MAX_SAFE_INTEGER);
-    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : cramPid, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: cramDur, hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id) });
+    // THE SET'S POSTED PARTS (2026-09-11): part 1 replaces the set's video, and the set turns vertical.
+    const shorts = shortsFrom(d.publications as never, paid);
+    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: shorts.length ? "portrait" : "landscape", playbackId: paid ? null : (shorts[0]?.playbackId ?? cramPid), ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: shorts[0]?.runtimeSec ?? cramDur, shorts, hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id) });
   }
 
   for (const t of topics.values()) t.sets.sort((a, b) => (setOrderKey.get(a.id) ?? 0) - (setOrderKey.get(b.id) ?? 0) || a.name.localeCompare(b.name));

@@ -346,6 +346,11 @@ function PostQueue() {
           copyDone={hasCaptions(statusFor(producingRow.key).captions)}
           cover={statusFor(producingRow.key).cover}
           onCoverSaved={(s) => setStatus((prev) => ({ ...(prev ?? {}), [producingRow.key]: s }))}
+          setId={producingRow.set.id}
+          takeIndex={producingRow.takeIndex}
+          takeName={producingRow.take.name ?? ""}
+          sitePosted={statusFor(producingRow.key).site}
+          onSitePosted={(s) => setStatus((prev) => ({ ...(prev ?? {}), [producingRow.key]: s }))}
         />
       )}
 

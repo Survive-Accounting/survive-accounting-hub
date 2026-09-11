@@ -40,7 +40,7 @@ export type SetPublishStatus = Record<PublishDestination, DestinationStatus> & {
   cover: PublishCover | null;
 };
 
-function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
+export function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
   return {
     site: { postedAt: (r.site_posted_at as string | null) ?? null, url: (r.site_url as string | null) ?? null },
     youtube: { postedAt: (r.youtube_posted_at as string | null) ?? null, url: (r.youtube_url as string | null) ?? null },
