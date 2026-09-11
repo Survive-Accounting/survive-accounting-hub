@@ -1,17 +1,17 @@
-// /go/<school>/council/<council>?k=<token> — the private council page.
+// /go/<school>/council/<council> — THE COUNCIL CHAIR'S PAGE (2026-09-11), and with ?k=<token>
+// the private council leaderboard it has been since 08-28.
 //
-// UNLISTED, NOT SECURE, AND THAT IS THE DESIGN. The token stops the page being stumbled upon or
-// indexed; it is not auth, because the one thing this page must do is survive being forwarded. A
-// council academics chair will send it to their VP, and a login would kill the forward that the
-// whole page exists to cause.
+// WITHOUT A TOKEN it is the DM destination for an IFC / Panhellenic / NPHC / MGC academics chair
+// (Lee: "For IFC / For Panhellenic etc. need to ask for the school/campus and then take them to
+// the share links"): ChairPromo — one headline, "See what chapters get" / "Share with chapters",
+// the council meeting slide. No sign-up, no leaderboard, nothing private.
 //
-// A bad or missing token renders a friendly pointer to the public portal — never an error, and
-// never a hint about which part was wrong.
+// WITH A TOKEN it is the unlisted leaderboard page. UNLISTED, NOT SECURE, AND THAT IS THE DESIGN:
+// the token stops the page being stumbled upon or indexed; it is not auth, because the one thing
+// this page must do is survive being forwarded. A bad token simply renders the public promo.
 //
 // NO GRADES. EVER. The leaderboard shows signups and nothing else: no GPA, no scores, no
-// performance measure, per chapter or aggregated. A page that ranked chapters by grades would be
-// the single fastest way to make Greek life stop trusting us, and the data to build one is not
-// collected in the first place.
+// performance measure, per chapter or aggregated.
 import { createFileRoute } from "@tanstack/react-router";
 import { frameThemeVars } from "@/components/frames/frame-theme";
 import { useNavyDocument } from "@/components/site/SiteHeader";
@@ -19,31 +19,71 @@ import { useState } from "react";
 
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { CouncilForwardKit } from "@/components/site/CouncilForwardKit";
+import { ChairPromo } from "@/components/site/ChairPromo";
 import { getCouncilPage, type CouncilPage } from "@/lib/greek-councils.functions";
-import { boltForSlug } from "@/lib/schools";
+import { getCouncilPartner } from "@/lib/partners.functions";
+import type { CouncilPartner } from "@/lib/partners";
+import { boltForSlug, schoolBySlug } from "@/lib/schools";
+import { ogMeta } from "@/lib/og";
 
 export const Route = createFileRoute("/go/$school/council/$council")({
-  validateSearch: (s: Record<string, unknown>) => ({ k: typeof s.k === "string" ? s.k : undefined }),
+  // `k` is OPTIONAL in the type, not merely undefined-able: the public promo is navigated to with
+  // no search at all (the council finder, the footer), and a required key would make every such
+  // navigate() a type error.
+  validateSearch: (s: Record<string, unknown>): { k?: string } => (typeof s.k === "string" ? { k: s.k } : {}),
   loaderDeps: ({ search }) => ({ k: search.k }),
-  loader: ({ params, deps }) =>
-    getCouncilPage({ data: { schoolSlug: params.school, councilSlug: params.council, token: deps.k } }),
-  head: () => ({
-    meta: [
-      { title: "Council — Survive Accounting" },
-      // UNLISTED. Also excluded from the sitemap, which lists public routes only.
-      { name: "robots", content: "noindex, nofollow" },
-    ],
-  }),
-  component: CouncilPage,
+  loader: async ({ params, deps }): Promise<{ page: CouncilPage | null; partner: CouncilPartner | null }> => {
+    const page = deps.k
+      ? await getCouncilPage({ data: { schoolSlug: params.school, councilSlug: params.council, token: deps.k } })
+      : null;
+    if (page) return { page, partner: null };
+    const partner = await getCouncilPartner({ data: { schoolSlug: params.school, councilSlug: params.council } });
+    return { page: null, partner };
+  },
+  head: ({ loaderData, params }) => {
+    const d = loaderData as { partner: CouncilPartner | null } | undefined;
+    const p = d?.partner;
+    return {
+      meta: [
+        ...ogMeta({
+          title: p ? `Free ${p.courseCode ?? "intro accounting"} exam prep for every ${p.councilName} chapter at ${p.schoolName}.` : "Survive Accounting for your council",
+          description: "Cram videos and practice exams for the members taking it. Exam 1 is free for every chapter.",
+          path: `/go/${params.school}/council/${params.council}`,
+        }),
+        // UNLISTED. A DM destination; also excluded from the sitemap, which lists public routes only.
+        { name: "robots", content: "noindex, nofollow" },
+      ],
+    };
+  },
+  component: CouncilRoute,
 });
 
-function CouncilPage() {
+function CouncilRoute() {
+  const { page, partner } = Route.useLoaderData();
+  const { school, council } = Route.useParams();
+  if (page) return <CouncilPage page={page} />;
+  if (!partner) return <CouncilNotFound />;
+  const s = schoolBySlug(school);
+  return (
+    <ChairPromo
+      kind="council"
+      schoolSlug={school}
+      schoolId={s?.id ?? school}
+      schoolName={partner.schoolName}
+      slug={council}
+      name={partner.councilFull}
+      letters={partner.councilName}
+      shortName={partner.councilName}
+      code={partner.courseCode}
+      bolt={boltForSlug(school)}
+    />
+  );
+}
+
+function CouncilPage({ page }: { page: CouncilPage }) {
   useNavyDocument();
-  const page = Route.useLoaderData();
   const { k } = Route.useSearch();
   const { school } = Route.useParams();
-
-  if (!page) return <NotForYou />;
 
   const bolt = boltForSlug(school);
   return (
@@ -135,7 +175,7 @@ function Leaderboard({ page, token }: { page: CouncilPage; token?: string }) {
               <>
                 <span className="text-right text-[14px] font-black" style={{ color: "var(--text-muted)" }}>—</span>
                 <span className="text-right">
-                  <button type="button" onClick={() => void copyLink(c.chapterSlug)} className="rounded-lg px-2 py-1 text-[11.5px] font-bold" style={{ background: "rgba(252,163,17,0.14)", color: "var(--accent)", minHeight: 32 }}>
+                  <button type="button" onClick={() => void copyLink(c.chapterSlug)} className="rounded-lg px-2 py-1 text-[11.5px] font-bold" style={{ background: "rgba(252,163,17,0.14)", color: "var(--accent)" }}>
                     {copied === c.chapterSlug ? "Copied ⚡" : "Send them the link"}
                   </button>
                 </span>
@@ -153,18 +193,18 @@ function Leaderboard({ page, token }: { page: CouncilPage; token?: string }) {
   );
 }
 
-/** Wrong or missing token. Friendly, and deliberately uninformative about why. */
-function NotForYou() {
+/** Unknown school or council, or a council with no chapters at that school. Recoverable: the
+ *  finder on /partners/campus-councils lands on the right page. */
+function CouncilNotFound() {
   return (
     <div className="grid min-h-screen place-items-center px-5" style={{ ...frameThemeVars(), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_SANS }}>
       <div className="w-full max-w-sm text-center">
-        <p className="text-[19px] font-black" style={{ fontFamily: BRAND_DISPLAY }}>This link isn&apos;t active.</p>
+        <p className="text-[19px] font-black" style={{ fontFamily: BRAND_DISPLAY }}>We couldn&apos;t find that council.</p>
         <p className="mx-auto mt-3 max-w-[36ch] text-[14px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-          Council pages are shared directly with council exec. If you&apos;re looking for your chapter,
-          you can find it here.
+          Pick your school and council and we&apos;ll take you to the right page.
         </p>
-        <a href="/chapters" className="mt-5 inline-flex items-center rounded-xl px-6 text-[15px] font-black" style={{ minHeight: 50, background: "var(--accent)", color: "#0B1220" }}>
-          Find your chapter ⚡
+        <a href="/partners/campus-councils" className="mt-5 inline-flex items-center rounded-xl px-6 text-[15px] font-black" style={{ minHeight: 50, background: "var(--accent)", color: "#0B1220" }}>
+          Find my council
         </a>
       </div>
     </div>

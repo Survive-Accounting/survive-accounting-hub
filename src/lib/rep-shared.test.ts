@@ -126,9 +126,9 @@ describe("flyer attribution", () => {
     expect(flyerTarget({ ...base, chapterSlug: "phi-delta-theta", chapterName: "Phi Delta Theta", refCode: "abc1234" }))
       .toBe("https://surviveaccounting.com/r/abc1234");
   });
-  it("without a ref the QR stays the plain /go (chapter) or campus URL", () => {
+  it("without a ref the QR lands on the chapter's /learn page (2026-09-11 — /go is the chair's page) or the campus URL", () => {
     expect(flyerTarget({ ...base, chapterSlug: "phi-delta-theta" }))
-      .toBe("https://surviveaccounting.com/go/auburn/phi-delta-theta?s=flyer");
+      .toBe("https://surviveaccounting.com/learn/auburn/phi-delta-theta?via=flyer");
     expect(flyerTarget(base)).toBe("https://surviveaccounting.com/auburn?s=flyer");
   });
   it("the flyer input has no rep-name field — attribution is QR-only by construction", () => {

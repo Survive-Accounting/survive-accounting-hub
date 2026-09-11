@@ -30,6 +30,9 @@ const ORIGIN = "https://surviveaccounting.com";
 const SHOWCASE = ["ole-miss", "alabama", "texas-am", "lsu", "georgia"];
 
 export const Route = createFileRoute("/partners/campus-councils")({
+  // ?council=ifc — the footer's "For IFC" / "For Panhellenic" / … links preset the council, so
+  // the page only has to ask for the school (Lee, 2026-09-11).
+  validateSearch: (s: Record<string, unknown>) => ({ council: typeof s.council === "string" && COUNCILS.some((c) => c.slug === s.council) ? s.council : undefined }),
   head: () => ({
     meta: [
       ...ogMeta({
@@ -49,10 +52,14 @@ export const Route = createFileRoute("/partners/campus-councils")({
 
 function CampusCouncilsPage() {
   const nav = useNavigate();
+  const preset = Route.useSearch().council;
   const [school, setSchool] = useState("");
-  const [council, setCouncil] = useState("");
+  const [council, setCouncil] = useState(preset ?? "");
   const [notListed, setNotListed] = useState(false);
-  const go = () => { if (school && council) void nav({ to: "/partners/council/$school/$council", params: { school, council } }); };
+  // THE COUNCIL'S /go PAGE (Lee, 2026-09-11): "For IFC / For Panhellenic etc. need to ask for the
+  // school/campus and then take them to the share links." That page is ChairPromo — the doors,
+  // the share kit, the meeting slide — and it works without a token.
+  const go = () => { if (school && council) void nav({ to: "/go/$school/council/$council", params: { school, council } }); };
 
   // Preview switcher from the showcase schools, resolved off the school table so the code and href
   // are the real ones. Falls back gracefully if a slug is not in the table.
@@ -88,7 +95,7 @@ function CampusCouncilsPage() {
             value={school || null}
             placeholder="Pick your campus"
             searchPlaceholder={`Search ${ALL_SCHOOLS.length} schools…`}
-            onPick={(v) => setSchool(v)}
+            onPick={(v) => { setSchool(v); if (council) void nav({ to: "/go/$school/council/$council", params: { school: v, council } }); }}
             footer={<PickerNotListed label="Don't see your school?" onClick={() => setNotListed(true)} />}
           />
           <SearchPicker
@@ -96,7 +103,7 @@ function CampusCouncilsPage() {
             value={council || null}
             placeholder="Pick your council"
             searchPlaceholder="IFC, Panhellenic, NPHC, MGC"
-            onPick={(v) => { setCouncil(v); if (school) void nav({ to: "/partners/council/$school/$council", params: { school, council: v } }); }}
+            onPick={(v) => { setCouncil(v); if (school) void nav({ to: "/go/$school/council/$council", params: { school, council: v } }); }}
           />
           <button
             type="button" onClick={go} disabled={!school || !council}

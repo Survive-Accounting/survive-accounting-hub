@@ -363,6 +363,47 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
 /** The exec's sheet: the same claim form as before, unchanged, plus the two things that used to
  *  sit in public — the price and the dashboard reassurance — now shown only to the person they
  *  are for, after they have said they are an exec by opening this. */
+/** THE CLAIM SHEET ALONE (2026-09-11). The chair page (/go, see ChairPromo) has no share-kit
+ *  section — its doors do that job — but its quiet "Claim your exec dashboard" line still opens
+ *  the same sheet. Listens for OPEN_CLAIM_EVENT / openClaimStep(), and honours the ?claim=1 and
+ *  #claim deep links that go out in exec emails. Reports claim-state changes up so the line can
+ *  read "request received" after a submit. */
+export function ClaimSheetHost({ chapterName, schoolSlug, chapterSlug, letters, nickname, claimStatus, onChange }: {
+  chapterName: string;
+  schoolSlug: string;
+  chapterSlug: string;
+  letters?: string | null;
+  nickname?: string | null;
+  claimStatus: ClaimState;
+  onChange?: (claim: ClaimState) => void;
+}) {
+  const [claim, setClaim] = useState<ClaimState>(claimStatus);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(OPEN_CLAIM_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_CLAIM_EVENT, onOpen);
+  }, []);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("claim") === "1" || window.location.hash === "#claim") setOpen(true);
+  }, []);
+  // The claim sheet opening IS claim_start (lib/analytics → the ad tags), however it was opened.
+  useEffect(() => { if (open) track("chapter_claim_started", { campus_slug: schoolSlug, chapter_slug: chapterSlug }); }, [open, schoolSlug, chapterSlug]);
+  if (!open) return null;
+  return (
+    <ClaimSheet
+      chapterName={chapterName}
+      shortName={chapterShortName(chapterName, letters, nickname)}
+      schoolSlug={schoolSlug}
+      chapterSlug={chapterSlug}
+      claim={claim}
+      onPending={() => { setClaim("pending"); onChange?.("pending"); }}
+      onClose={() => setOpen(false)}
+    />
+  );
+}
+
 function ClaimSheet({ chapterName, shortName, schoolSlug, chapterSlug, claim, onPending, onClose }: {
   chapterName: string;
   /** The chapter as students say it ("ADPi") — what the benefit lines address. */
@@ -385,13 +426,13 @@ function ClaimSheet({ chapterName, shortName, schoolSlug, chapterSlug, claim, on
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Get your academic exec dashboard"
+        aria-label={`Get ${shortName}'s dashboard`}
         className="w-full max-w-[420px] rounded-t-2xl p-5 sm:rounded-2xl"
         style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))", fontFamily: BRAND_SANS }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-3">
-          <h3 className="pr-2 text-[17px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Get your academic exec dashboard</h3>
+          <h3 className="pr-2 text-[18px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Get {shortName}&apos;s dashboard</h3>
           <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)", background: "none", border: 0, cursor: "pointer" }}>×</button>
         </div>
 
@@ -414,10 +455,11 @@ function ClaimSheet({ chapterName, shortName, schoolSlug, chapterSlug, claim, on
           <>
             {!submitted && (
               <>
-                <p className="mb-3 text-[13px] leading-snug" style={{ color: "var(--text-muted)" }}>
-                  See {shortName}&apos;s usage and manage access for Exams 2, 3 &amp; the Final.{" "}
-                  <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Setting it up is free</span>{" "}
-                  — Exam 1 stays free for every member either way.
+                {/* TWO LINES, THEN THE FIELDS (Lee, 2026-09-11: "make this modal feel like a fast
+                    unlock, not a questionnaire"). */}
+                <p className="mb-3 text-[13.5px] leading-snug" style={{ color: "var(--text-muted)" }}>
+                  See usage, manage access, and unlock chapter options.{" "}
+                  <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Exam 1 is free for every member either way.</span>
                 </p>
               </>
             )}
