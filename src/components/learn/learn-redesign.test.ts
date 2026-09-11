@@ -22,16 +22,17 @@ describe("the hero's caption", () => {
 
 describe("a later row's own counts", () => {
   test("videos and the topic's practice questions, singulars included", () => {
-    expect(topicRowDetail([gs({ ceqCount: 12 }), gs({ ceqCount: 9 }), gs({ ceqCount: 4 })])).toBe("3 videos · 25 practice questions");
-    expect(topicRowDetail([gs({ ceqCount: 1 })])).toBe("1 video · 1 practice question");
+    // Practice is off the page (2026-09-11, later): the row counts videos only.
+    expect(topicRowDetail([gs({ ceqCount: 12 }), gs({ ceqCount: 9 }), gs({ ceqCount: 4 })])).toBe("3 videos");
+    expect(topicRowDetail([gs({ ceqCount: 1 })])).toBe("1 video");
   });
   test("never advertises zero questions", () => {
     expect(topicRowDetail([gs({ ceqCount: 0 }), gs({ ceqCount: 0 })])).toBe("2 videos");
   });
   test("honest counts (09-11): unposted videos are not counted, a topic with none says nothing, locked sets add no questions", () => {
     expect(topicRowDetail([gs({ hasVideo: false, ceqCount: 12 }), gs({ hasVideo: false, ceqCount: 14 })])).toBeNull();
-    expect(topicRowDetail([gs({ ceqCount: 5 }), gs({ hasVideo: false, ceqCount: 9 })])).toBe("1 video · 5 practice questions");
-    expect(topicRowDetail([gs({ ceqCount: 5 }), gs({ locked: true, ceqCount: 9 })])).toBe("1 video · 5 practice questions");
+    expect(topicRowDetail([gs({ ceqCount: 5 }), gs({ hasVideo: false, ceqCount: 9 })])).toBe("1 video");
+    expect(topicRowDetail([gs({ ceqCount: 5 }), gs({ locked: true, ceqCount: 9 })])).toBe("1 video");
   });
 });
 

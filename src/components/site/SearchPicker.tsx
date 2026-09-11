@@ -256,7 +256,7 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
                     >
                       <span className="flex min-w-0 items-center gap-2.5">
                         {it.icon}
-                        <span className="truncate text-[14.5px] font-bold">{it.label}</span>
+                        <span className="truncate text-[16px] font-bold">{it.label}</span>
                       </span>
                       {it.meta && <span className="shrink-0 text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>{it.meta}</span>}
                     </button>

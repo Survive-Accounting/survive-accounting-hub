@@ -141,9 +141,9 @@ export function topicRowDetail(sets: readonly Pick<GateSet, "hasVideo" | "locked
   // playable video says nothing here — the row wears its "Coming soon" tag instead.
   const n = sets.filter((s) => s.hasVideo && !s.locked).length;
   if (n === 0) return null;
-  const q = questionCount(sets.filter((s) => s.hasVideo && !s.locked));
-  const videos = `${n} video${n === 1 ? "" : "s"}`;
-  return q > 0 ? `${videos} · ${q} practice question${q === 1 ? "" : "s"}` : videos;
+  // VIDEOS ONLY (Lee, 2026-09-11, later: practice is off the page until it is refined) — the
+  // question count is not advertised while nothing on the page opens it.
+  return `${n} video${n === 1 ? "" : "s"}`;
 }
 
 /** THE LOCKED PILL'S LINE (redesign, 2026-09-11, the price copy as drafted): tapping Exam 2 or

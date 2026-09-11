@@ -253,7 +253,7 @@ export const PICKER_CSS = `
 .sa-sp-row--on { background: rgba(245,239,230,0.08); box-shadow: inset 3px 0 0 0 var(--accent); }
 .sa-sp-bolt { display: grid; place-items: center; width: 22px; height: 22px; }
 .sa-sp-name {
-  min-width: 0; font-size: 15px; font-weight: 700;
+  min-width: 0; font-size: 16.5px; font-weight: 700;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .sa-sp-code { font-size: 12.5px; font-weight: 700; color: var(--text-muted); white-space: nowrap; }

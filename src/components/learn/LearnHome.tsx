@@ -145,6 +145,9 @@ export type HomeSet = {
 };
 
 export type Plan = { practice: boolean; review: boolean };
+
+/** Practice on the rails — OFF until the practice experience is refined (Lee, 2026-09-11). */
+const SHOW_PRACTICE = false;
 export type PlanTimes = { cramSec: number; cramCount: number; avgCramSec: number | null; practiceSec: number; practiceCount: number; problemsCount: number; reviewSec: number; reviewCount: number };
 
 export function planTimes(sets: HomeSet[]): PlanTimes {
@@ -316,6 +319,10 @@ export const LearnHome = forwardRef<HTMLDivElement, {
           const first = i === 0;
           const expanded = first || !!open[id];
           const posted = ts.filter(isPosted).length;
+          // ONLY WHAT IS POSTED (Lee, 2026-09-11, later: "for the empty video placeholders not yet
+          // done in easy points, just remove those for now. Only show videos that are posted").
+          // A topic with nothing posted is not on the page at all — no "Coming soon" row.
+          if (posted === 0) return null;
           // A LATER TOPIC behind the gate blurs under one box: the unlock ask when it has posted
           // videos, the waitlist ask when it has none. The first topic never blurs and never
           // carries the waitlist box — its unposted videos are simply grey (redesign, 2026-09-11).
@@ -328,13 +335,18 @@ export const LearnHome = forwardRef<HTMLDivElement, {
           const row = (
             <div className="relative">
               <StudyRail tier={tier} label={`${topic.name} videos`} bleed={pad} style={dimmed} ariaHidden={!!overlay}>
-                {ts.flatMap((s) => cardsOf(s, progress).map((c) => <Short key={c.key} s={s} card={c} onOpen={() => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id, false, c.part))} />))}
-                <PracticeCard
-                  topicName={topic.name} sectionIndex={i} school={school}
-                  bank={questionCount(ts.map(gateSetOf))} ready={!!practiceable} locked={practiceLocked}
-                  onPractice={() => { if (practiceable) tryPractice(ts, practiceable.set.id); }}
-                  onLocked={() => onLocked(topic)}
-                />
+                {ts.flatMap((s) => cardsOf(s, progress).filter((c) => s.locked || !!c.playbackId).map((c) => <Short key={c.key} s={s} card={c} onOpen={() => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id, false, c.part))} />))}
+                {/* PRACTICE IS OFF THE PAGE FOR NOW (Lee, 2026-09-11, later: "just don't show
+                    practice yet. It's only videos for now until we refine that"). The card, the
+                    drawer and the round stay built; SHOW_PRACTICE brings them back. */}
+                {SHOW_PRACTICE && (
+                  <PracticeCard
+                    topicName={topic.name} sectionIndex={i} school={school}
+                    bank={questionCount(ts.map(gateSetOf))} ready={!!practiceable} locked={practiceLocked}
+                    onPractice={() => { if (practiceable) tryPractice(ts, practiceable.set.id); }}
+                    onLocked={() => onLocked(topic)}
+                  />
+                )}
               </StudyRail>
               {overlay && <EmailGate variant={overlay} examLabel={examLabel} topicName={topic.name} campusId={campusId} chapterSlug={chapterSlug} demo={demo} onUnlocked={onUnlocked} narrow={narrow} />}
             </div>

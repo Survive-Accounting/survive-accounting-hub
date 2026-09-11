@@ -40,6 +40,8 @@ export const STUDY_RAIL_CSS = `
 .lk-rail-fade { pointer-events: none; position: absolute; top: 0; bottom: 6px; width: 72px; transition: opacity 160ms; }
 .lk-rail-fade[data-side="right"] { right: 0; background: linear-gradient(to right, transparent, var(--lk-bg)); }
 .lk-rail-fade[data-side="left"] { left: 0; background: linear-gradient(to left, transparent, var(--lk-bg)); }
+/* Touch screens slide the rail with a thumb; the fade read as a white shadow chasing it (King, 2026-09-11). */
+@media (hover: none) { .lk-rail-fade { display: none; } }
 .lk-rail-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; background: var(--lk-surface); color: var(--lk-text); border: 1px solid var(--lk-border); box-shadow: var(--lk-shadow); cursor: pointer; opacity: .92; transition: opacity 160ms, transform 160ms; }
 .lk-rail-btn[data-side="right"] { right: 10px; }
 .lk-rail-btn[data-side="left"] { left: 10px; }

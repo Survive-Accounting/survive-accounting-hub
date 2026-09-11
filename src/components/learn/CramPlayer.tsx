@@ -88,6 +88,18 @@ export function CramPlayer({
     return () => window.removeEventListener("keydown", on);
   }, [go]);
 
+  // scroll wheel (desktop): one notch past the threshold moves one video, then a short lockout
+  // so a single flick never skips two (Lee, 2026-09-11, later: "scrollable vs. swipeable on a
+  // desktop").
+  const wheelLock = useRef(0);
+  const onWheel = (e: React.WheelEvent) => {
+    if (Math.abs(e.deltaY) < 24) return;
+    const now = Date.now();
+    if (now < wheelLock.current) return;
+    wheelLock.current = now + 650;
+    go(e.deltaY > 0 ? 1 : -1);
+  };
+
   // swipe (phone)
   const touchY = useRef<number | null>(null);
   const onTouchStart = (e: React.TouchEvent) => { touchY.current = e.touches[0].clientY; };
@@ -161,7 +173,7 @@ export function CramPlayer({
     return (
       <div className="relative flex min-h-0 flex-1 flex-col" style={{ background: "#000" }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <div className={practice || cards || ask ? "shrink-0" : "min-h-0 flex-1"} style={practice || cards || ask ? { height: 220 } : undefined}>{video}</div>
-        <button type="button" onClick={onExit} className="absolute left-3 top-3 z-[2] grid h-9 w-9 place-items-center rounded-full" style={{ background: "rgba(28,28,28,0.85)", color: LK.text, border: 0, cursor: "pointer" }} aria-label="Back"><ChevronLeft className="h-5 w-5" /></button>
+        <button type="button" onClick={onExit} className="absolute left-3 top-3 z-[2] inline-flex h-9 items-center gap-1 rounded-full pl-2 pr-3.5 text-[12.5px] font-extrabold" style={{ background: "rgba(0,0,0,0.72)", color: "#FFFFFF", border: "1px solid rgba(255,255,255,0.4)", cursor: "pointer", backdropFilter: "blur(6px)" }} aria-label="Back to all videos"><ChevronLeft className="h-4 w-4" /> All videos</button>
         {!practice && !cards && !ask && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 p-4" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0))" }}>
             <div className="min-w-0 flex-1 pb-1">
@@ -182,8 +194,8 @@ export function CramPlayer({
   // now"): the stage, "All videos", and — from the third video on — one small card. A click on
   // anything that is not the stage closes it (the lightbox's own rule).
   return (
-    <div className="relative flex min-h-0 flex-1 items-end justify-center" style={{ gap: 16, padding: "8px 32px 20px" }} onClick={(e) => { if (e.target === e.currentTarget) onExit(); }}>
-      <button type="button" onClick={onExit} className="lk-btn lk-btn-ghost absolute left-8 top-3" style={{ padding: "7px 12px 7px 8px", fontSize: 11 }}><ChevronLeft className="h-4 w-4" /> All videos</button>
+    <div className="relative flex min-h-0 flex-1 items-center justify-center" style={{ gap: 16, padding: "16px 32px" }} onClick={(e) => { if (e.target === e.currentTarget) onExit(); }} onWheel={onWheel}>
+      <button type="button" onClick={onExit} className="lk-btn lk-btn-ghost absolute left-8 top-5" style={{ padding: "8px 14px 8px 10px", fontSize: 12 }}><ChevronLeft className="h-4 w-4" /> All videos</button>
       {!practice && !cards && !ask && shareCard && index >= 2 && (
         <div className="lk-card lk-in absolute bottom-6 left-8 flex w-[260px] flex-col gap-2 p-4">
           <div className="flex items-start justify-between gap-2">
@@ -271,8 +283,10 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
 
   // Desktop: the Shorts proportion, sized to whatever height the viewport actually has (the top
   // bar takes ~72px, the padding ~30) — a 746px video on a 720px laptop must shrink, not clip.
-  const h = narrow ? "100%" : shrink ? "min(533px, calc(100dvh - 110px))" : "min(746px, calc(100dvh - 110px))";
-  const w = narrow ? "100%" : shrink ? "calc(min(533px, calc(100dvh - 110px)) * 9 / 16)" : "calc(min(746px, calc(100dvh - 110px)) * 9 / 16)";
+  // Centered and as large as the viewport allows (King, 2026-09-11: "displayed larger and
+  // centered in the middle of the screen by default").
+  const h = narrow ? "100%" : shrink ? "min(533px, calc(100dvh - 48px))" : "min(900px, calc(100dvh - 48px))";
+  const w = narrow ? "100%" : shrink ? "calc(min(533px, calc(100dvh - 48px)) * 9 / 16)" : "calc(min(900px, calc(100dvh - 48px)) * 9 / 16)";
   const pill = { background: "rgba(28,28,28,0.85)", color: "#F2EFE6", border: "1px solid rgba(255,255,255,0.18)", cursor: "pointer" } as const;
   return (
     <div ref={box} className="relative overflow-hidden" style={{ width: w, height: h, borderRadius: narrow ? 0 : 16, background: "#000", flexShrink: 0, transition: "width 160ms ease, height 160ms ease" }}>
