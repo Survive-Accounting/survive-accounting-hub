@@ -8,16 +8,17 @@
 // emit /go/ only, via goPath(). This route exists purely so links already in the wild keep working.
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
+import { carryParams, withCarried } from "@/lib/carry-params";
 import { resolveLegacyChapterSlug } from "@/lib/greek-go.functions";
 
 export const Route = createFileRoute("/c/$slug")({
-  beforeLoad: async ({ params }) => {
+  beforeLoad: async ({ params, location }) => {
     // Resolved server-side so the 301 is issued on the first response — a client-side redirect
     // would render a flash of the wrong page and would not teach anything the new URL.
     const to = await resolveLegacyChapterSlug({ data: { slug: params.slug } }).catch(() => null);
     // An unresolvable slug (revoked chapter, typo, a 0111 row that never got linked to a roster
     // chapter) goes to the landing page rather than a 404 — the student still gets the free player,
     // which is the thing the link promised.
-    throw redirect({ href: to ?? "/", statusCode: 301 });
+    throw redirect({ href: withCarried(to ?? "/", carryParams(location.search as Record<string, unknown>)), statusCode: 301 });
   },
 });

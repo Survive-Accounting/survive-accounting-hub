@@ -20,7 +20,7 @@
 // tag from the address so the chair can see the page as a student will. No grades, no counts a
 // student cannot see; nothing here is a second copy of the old /s/<campus>/council page — it is
 // the same three actions, on the student page.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronRight, Copy, X } from "lucide-react";
 
@@ -33,6 +33,8 @@ import { listGoChapters, type GoChapterListItem } from "@/lib/greek-go.functions
 import { councilChapterLinksPost } from "@/lib/partners";
 import type { School } from "@/lib/schools";
 import { buildShareUrl } from "@/lib/share-url";
+import { track } from "@/lib/analytics";
+import { adEvent } from "@/lib/retargeting";
 
 export type ShareKitMode = "council" | "chair";
 
@@ -45,6 +47,7 @@ export function LearnShareKit({ mode, councilSlug, school, chapter, contactRef, 
   narrow: boolean;
   onClose: () => void;
 }) {
+  useEffect(() => { adEvent("share_view", { campus: school.slug, chapter: chapter?.slug ?? undefined, source: mode }); }, [school.slug, chapter?.slug, mode]);
   return (
     <section aria-label={mode === "council" ? "Share with your chapters" : "Share with your chapter"} className="lk-card" style={{ padding: narrow ? 16 : 20, marginBottom: narrow ? 14 : 18, fontFamily: BRAND_SANS, position: "relative" }}>
       <button type="button" onClick={onClose} aria-label="Hide the share tools" title="See the page as a student" className="absolute grid h-8 w-8 place-items-center rounded-full" style={{ right: 12, top: 12, background: LK.border, color: LK.text, border: 0, cursor: "pointer" }}><X className="h-4 w-4" /></button>
@@ -55,7 +58,12 @@ export function LearnShareKit({ mode, councilSlug, school, chapter, contactRef, 
 
 function useCopy(): [string | null, (key: string, text: string) => Promise<void>] {
   const [copied, setCopied] = useState<string | null>(null);
-  const copy = async (key: string, text: string) => { const ok = await copyToClipboard(text); setCopied(ok ? key : `!${key}`); window.setTimeout(() => setCopied(null), 2000); };
+  const copy = async (key: string, text: string) => {
+    const ok = await copyToClipboard(text);
+    setCopied(ok ? key : `!${key}`);
+    if (ok) track("share_link_copied", { source: `learn-share-kit-${key}`.slice(0, 80) });
+    window.setTimeout(() => setCopied(null), 2000);
+  };
   return [copied, copy];
 }
 

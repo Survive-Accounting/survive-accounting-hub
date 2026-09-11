@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { initAnalytics, capturePageview } from "@/lib/analytics";
+import { adPageview } from "@/lib/retargeting";
 import { initSentry, setSentryRoute, captureError } from "@/lib/sentry";
 // NOTE: this is a TanStack Start (React) app, NOT Next.js — use the "/react"
 // entrypoints, not "@vercel/analytics/next".
@@ -147,6 +148,10 @@ function RootComponent() {
   // init resolves then captures the first pageview, and each route change after.
   useEffect(() => { void initAnalytics().then(() => capturePageview(window.location.pathname)); }, []);
   useEffect(() => { capturePageview(pathname); }, [pathname]);
+  // RETARGETING (2026-09-11): Google / Meta / TikTok page views. No-op unless a tag ID is set;
+  // never on internal pages, admin devices, test sessions or Global Privacy Control
+  // (lib/retargeting.ts).
+  useEffect(() => { adPageview(pathname); }, [pathname]);
   // Sentry (error monitoring). No-op unless VITE_PUBLIC_SENTRY_DSN is set. Tag
   // the route so errors group per page (feeds /admin/site-qa error attribution).
   useEffect(() => { void initSentry().then(() => setSentryRoute(window.location.pathname)); }, []);

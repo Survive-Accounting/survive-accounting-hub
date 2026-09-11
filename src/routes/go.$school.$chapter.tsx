@@ -46,6 +46,8 @@ import { ChapterStickyCta } from "@/components/site/ChapterStickyCta";
 import { MARKETING_HERO_ID } from "@/components/site/Marketing";
 import { ChapterAccess } from "@/components/site/ChapterAccess";
 import { getGoChapter, goPath, listGoSchools, tagChapterMember, logGreekEvent } from "@/lib/greek-go.functions";
+import { track } from "@/lib/analytics";
+import { adEvent } from "@/lib/retargeting";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { readCampusPrefs } from "@/lib/campus-prefs.functions";
 import { chapterShortName, chapterUrl } from "@/components/site/ChapterShare";
@@ -155,7 +157,9 @@ function GoChapterPage() {
     // is read as a legacy alias so the flyers already printed and pinned up in chapter houses
     // keep attributing. Anything unrecognised is dropped rather than logged as junk.
     void logGreekEvent({ data: { kind: "visit", schoolSlug: school, chapterSlug: chapter, via: readVia(window.location.search) } }).catch(() => {});
-  }, [ch, school, chapter]);
+    // RETARGETING (2026-09-11): the chapter page is the audience a chapter-targeted ad re-finds.
+    adEvent("chapter_page_view", { campus: school, chapter, course: code ?? undefined, source: readVia(window.location.search) ?? undefined });
+  }, [ch, school, chapter, code]);
 
   // Fire-and-forget member attribution. Saying "start Exam 1" on this chapter's own URL is the
   // attribution; nothing is awaited, so a failed tag can never stand between a student and the
@@ -193,6 +197,7 @@ function GoChapterPage() {
     if (canShare) {
       void navigator.share({ title: "Survive Accounting", url }).catch(() => {});
       void logGreekEvent({ data: { kind: "copy_link", schoolSlug: school, chapterSlug: chapter, via: "link" } }).catch(() => {});
+      track("share_link_copied", { campus_slug: school, chapter_slug: chapter, source: "go-native-share" });
     }
     scrollToId(SHARE_ANCHOR);
   };

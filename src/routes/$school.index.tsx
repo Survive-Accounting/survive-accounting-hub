@@ -22,17 +22,19 @@ import { readCampusPrefs } from "@/lib/campus-prefs.functions";
 import { campusOgImageV, campusShareOg, ogMeta } from "@/lib/og";
 import { schoolBySlug } from "@/lib/schools";
 import { TEST_CAMPUS_SLUG } from "@/lib/test-mode";
+import { carryParams, withCarried } from "@/lib/carry-params";
 import { TwoDoorHome } from "@/components/site/home-two-door/TwoDoorHome";
 
 const ORIGIN = "https://surviveaccounting.com";
 
 export const Route = createFileRoute("/$school/")({
-  beforeLoad: ({ params }) => {
+  beforeLoad: ({ params, location }) => {
     // THE TEST FIXTURE IS REACHABLE BY DIRECT URL ONLY. schoolBySlug reads the static picker list,
     // which the fixture is deliberately absent from — it must never appear in a picker, a ticker
     // or the sitemap — but the page itself has to work, because testers walk the real campus page.
     if (params.school === TEST_CAMPUS_SLUG) return;
-    if (!schoolBySlug(params.school)) throw redirect({ to: "/", replace: true });
+    // An unknown slug bounces home — carrying an ad's utm_* / click id (lib/carry-params).
+    if (!schoolBySlug(params.school)) throw redirect({ href: withCarried("/", carryParams(location.search as Record<string, unknown>)), replace: true });
   },
   loader: async ({ params }) => {
     const [page, prefs] = await Promise.all([

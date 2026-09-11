@@ -22,6 +22,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { CLAIM_POSITIONS, notifyChapterClaim, submitChapterClaim } from "@/lib/greek-claims.functions";
+import { track } from "@/lib/analytics";
 
 const fmtPhone = (v: string) => {
   if (v.trim().startsWith("+")) return "+" + v.replace(/\D/g, "").slice(0, 15);
@@ -222,6 +223,8 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
       if (r.ok) {
         // The claim is saved; that is the whole of what the exec is waiting for. Confirm NOW.
         setDone(true); onDone?.();
+        // claim_complete (via lib/analytics → the ad tags): campus + chapter, never the exec's details.
+        track("chapter_claimed", { campus_slug: schoolSlug, chapter_slug: chapterSlug });
         // The notifications are finished off behind the confirmation. On Vercel the platform has
         // already taken them (notifyPending is false) and this does nothing; on a runtime with no
         // work-after-response we ask for them here. Deliberately not awaited and deliberately not

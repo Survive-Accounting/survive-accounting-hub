@@ -8,13 +8,16 @@
 // beforeLoad, which bounces home.
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
+import { carryParams, withCarried } from "@/lib/carry-params";
 import { schoolByAny } from "@/lib/schools";
 
 export const Route = createFileRoute("/go/$school/")({
-  beforeLoad: ({ params }) => {
+  beforeLoad: ({ params, location }) => {
     // Accept either slug space (campus slug OR picker id) and land on the canonical slug;
-    // an unknown value still redirects to /$school, whose own beforeLoad bounces home.
+    // an unknown value still redirects to /$school, whose own beforeLoad bounces home. An ad's
+    // utm_* / click id ride along (lib/carry-params).
     const school = schoolByAny(params.school);
-    throw redirect({ to: "/$school", params: { school: school?.slug ?? params.school }, replace: true });
+    const to = `/${encodeURIComponent(school?.slug ?? params.school)}`;
+    throw redirect({ href: withCarried(to, carryParams(location.search as Record<string, unknown>)), replace: true });
   },
 });

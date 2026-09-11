@@ -17,6 +17,8 @@
 
 import type { PostHog } from "posthog-js";
 
+import { forwardProductEvent } from "@/lib/retargeting";
+
 /** The Survive event taxonomy. Keep this small and coherent — add a property
  *  before you add an event. */
 export const SA_EVENTS = [
@@ -170,6 +172,14 @@ export async function initAnalytics(): Promise<void> {
 
 /** Record a product event. No-op when disabled. */
 export function track(event: SaEvent, props?: SaProps): void {
+  // RETARGETING (2026-09-11): the product events that ARE funnel moments (claim started/done,
+  // share copied, exam finished) also go to the ad tags — lib/retargeting-core.ts
+  // FROM_PRODUCT_EVENT. A no-op unless a tag ID is set, and independent of PostHog being on.
+  try {
+    forwardProductEvent(event, props);
+  } catch {
+    /* never throw from analytics */
+  }
   try {
     ph?.capture(event, props);
   } catch {

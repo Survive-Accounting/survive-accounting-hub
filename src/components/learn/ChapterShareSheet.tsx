@@ -18,6 +18,8 @@ import { nbspCode } from "@/lib/course-code";
 import { submitIntake } from "@/lib/intake.functions";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { schoolBySlug } from "@/lib/schools";
+import { track } from "@/lib/analytics";
+import { adEvent } from "@/lib/retargeting";
 
 const ORIGIN = "surviveaccounting.com";
 const AMBER = NEON.yellow;
@@ -74,6 +76,7 @@ export function ChapterShareSheet({
     setShared(true); // the ask appears after any copy attempt, even a blocked one
     setCopied(ok ? what : null);
     setCopyFailed(!ok);
+    if (ok && !testing) track("share_link_copied", { campus_slug: campusSlug, source: `learn-share-sheet-${what}` });
     if (ok) window.setTimeout(() => setCopied((c) => (c === what ? null : c)), 2400);
   };
 
@@ -164,6 +167,8 @@ function ShareAsk({
             note: `${name.trim() || "A member"} is interested in ${chapterName} sponsoring Exams 2/3/Final.`,
             source: "learn-cta-ask", skipConfirmation: true,
           } }).catch(() => {});
+          // RETARGETING (2026-09-11): campus only — never the name or email in that row.
+          adEvent("sponsorship_interest", { campus, source: "learn-share-sheet" });
         }
         // Exam 2 news / general updates — a lighter capture, deduped by the intake layer.
         if (exam2 || updates) {

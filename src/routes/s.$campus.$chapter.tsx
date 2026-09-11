@@ -15,7 +15,7 @@
 // component and would serve either path unchanged.
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { chapterOgImage, chapterShareOg, ogMeta } from "@/lib/og";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { ShareButton, ShareFootnote, ShareHeading, ShareScreen } from "@/components/site/share/ShareScreen";
@@ -28,6 +28,8 @@ import { currentContactRef, withRef } from "@/lib/contact-ref";
 import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { nbspCode } from "@/lib/course-code";
 import { LEE_SIGNOFF } from "@/lib/partners";
+import { track } from "@/lib/analytics";
+import { adEvent } from "@/lib/retargeting";
 
 const ORIGIN = "https://surviveaccounting.com";
 
@@ -86,6 +88,7 @@ function ChapterSharePage() {
   const [copied, setCopied] = useState<"link" | "message" | null>(null);
 
   useRecordRefVisit(d.campusId);
+  useEffect(() => { adEvent("share_view", { campus: d.schoolSlug, chapter: d.chapterSlug, course: d.code ?? undefined }); }, [d.schoolSlug, d.chapterSlug, d.code]);
   const ref = typeof window === "undefined" ? null : currentContactRef();
 
   // THE LINK THEY HAND OUT CARRIES THE TAG THAT BROUGHT THEM. This is the whole mechanism by
@@ -110,6 +113,7 @@ function ChapterSharePage() {
     // Only ever confirm a copy that actually happened — see copyToClipboard.
     if (!(await copyToClipboard(text))) return;
     setCopied(what);
+    track("share_link_copied", { campus_slug: d.schoolSlug, chapter_slug: d.chapterSlug, source: `s-chapter-${what}` });
     window.setTimeout(() => setCopied((c) => (c === what ? null : c)), 2400);
   };
 

@@ -91,6 +91,10 @@ import { daysUntil, EXAM_DATE_EVENT, readExamDate } from "@/components/learn/exa
 import { schoolByAny, schoolByCampusId, schoolBySlug, type School } from "@/lib/schools";
 import { isContactRef } from "@/lib/contact-ref";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
+import { track } from "@/lib/analytics";
+import { carryParams, type CarryParams } from "@/lib/carry-params";
+import { adEvent } from "@/lib/retargeting";
+import type { AdParams } from "@/lib/retargeting-core";
 
 type LearnSearch = {
   campus?: string; topic?: string; set?: string; stage?: SetStage; demo?: boolean;
@@ -107,10 +111,13 @@ type LearnSearch = {
    *  for a chapter's chair — LearnShareKit above the hero. Never copied onward (share-url strips both). */
   share?: "council" | "chair";
   c?: string;
-};
+  // ATTRIBUTION (2026-09-11, lib/carry-params): an ad's utm_* and click id ride in the address so
+  // the ad tags can read them on the first load — validated search used to drop them.
+} & CarryParams;
 
 export const Route = createFileRoute("/learn/{-$campus}/{-$chapter}")({
   validateSearch: (s: Record<string, unknown>): LearnSearch => ({
+    ...carryParams(s),
     campus: typeof s.campus === "string" && s.campus ? s.campus : undefined,
     topic: typeof s.topic === "string" && s.topic ? s.topic : undefined,
     // ?set=<id> opens the player on that set; ?stage=practice opens its practice drawer.
@@ -388,8 +395,22 @@ function LearnShell() {
       const m = { ...prev, [setId]: p }; persist(m, setId); return m;
     });
   }, [persist]);
-  const onStarted = useCallback((id: string) => markProgress(id, "in_progress"), [markProgress]);
-  const onComplete = useCallback((id: string) => markProgress(id, "complete"), [markProgress]);
+  // RETARGETING (2026-09-11): a video's FIRST start (video_start), and the finish that completes the
+  // exam's whole path (path_complete). Refs, because campus / chapter / exam and the path's sets are
+  // worked out further down this component.
+  const adCtx = useRef<AdParams>({});
+  const pathSetIds = useRef<string[]>([]);
+  const onStarted = useCallback((id: string) => {
+    const cur = progress[id];
+    if (!demo && (!cur || cur.state === "unstarted")) adEvent("video_start", { ...adCtx.current, video: id });
+    markProgress(id, "in_progress");
+  }, [markProgress, progress, demo]);
+  const onComplete = useCallback((id: string) => {
+    const ids = pathSetIds.current;
+    const finishing = progress[id]?.state !== "complete" && ids.includes(id) && ids.every((s) => s === id || progress[s]?.state === "complete");
+    if (!demo && finishing) adEvent("path_complete", adCtx.current);
+    markProgress(id, "complete");
+  }, [markProgress, progress, demo]);
 
   // ENTITLEMENTS
   const unlockedQ = useQuery({ queryKey: ["my-unlocked-topics", userId], queryFn: () => fetchMyUnlockedTopics(), enabled: !!userId && !demo, networkMode: "always" });
@@ -465,6 +486,8 @@ function LearnShell() {
 
   // WHO-BLOCK + share
   const chapter = usePickedChapter(campusSlug, !demo);
+  adCtx.current = { campus: campusSlug ?? undefined, chapter: chapter.slug ?? undefined, exam: examNum ?? undefined };
+  pathSetIds.current = sets.filter((s) => !!s.set.playbackId && !s.locked).map((s) => s.set.id);
   const ctaMounted = !demo && (!!campusSlug || !!search.test);
   // STUDY SHELL SIMPLIFICATION (2026-09-09) — LearnCta's own persistent bar (state C "Set up
   // <chapter>", D "<chapter> · N members · Join") is a scholarship-chair claim/setup ask, which
@@ -486,11 +509,14 @@ function LearnShell() {
   // button says "Link copied!" (LearnTop). On a phone the native share sheet when there is one.
   const share = async (): Promise<boolean> => {
     const url = pageShareUrl(window.location);
+    let ok = false;
     if (isNarrow && typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try { await navigator.share({ title: "Survive", url }); return true; }
+      try { await navigator.share({ title: "Survive", url }); ok = true; }
       catch (e) { if (e instanceof Error && e.name === "AbortError") return false; /* else fall through to copy */ }
     }
-    return copyToClipboard(url);
+    if (!ok) ok = await copyToClipboard(url);
+    if (ok) track("share_link_copied", { campus_slug: campusSlug ?? undefined, chapter_slug: chapter.slug ?? undefined, exam: examNum != null ? `exam_${examNum}` : undefined, source: "learn-share" });
+    return ok;
   };
 
   // THE ROWS' SCROLL TARGETS (the rail that used them is unmounted; the first row still registers

@@ -15,11 +15,14 @@
 //                            location — DMs, tests): campus + chapter → /learn/<id>/<chapter>,
 //                            campus → /learn/<id>, nothing → the site; + ?by= for a forwarder.
 // Course and exam do NOT travel: no route reads them, /learn picks the exam from what is live.
+import { CLICK_ID_KEYS } from "@/lib/carry-params";
 import { withRef } from "@/lib/contact-ref";
 
 export const SHARE_ORIGIN = "https://surviveaccounting.com";
-/** Search keys that are the page's own state, never the link's. */
-const VOLATILE = ["set", "stage", "topic", "look", "looks", "test", "demo", "share", "c"] as const;
+/** Search keys that are the page's own state, never the link's — and an ad's click id / creative
+ *  tags (lib/carry-params, 2026-09-11): they belong to the click that brought THIS student, and a
+ *  shared link carrying them would credit that ad with every friend who opens it. */
+const VOLATILE = ["set", "stage", "topic", "look", "looks", "test", "demo", "share", "c", ...CLICK_ID_KEYS, "utm_content", "utm_term"] as const;
 export const SHARE_UTM = { utm_source: "share", utm_medium: "link", utm_campaign: "learn" } as const;
 
 export type ShareContext = {

@@ -64,6 +64,7 @@ import { useDismiss } from "@/lib/use-dismiss";
 import { LK, type LearnTheme } from "@/components/learn/learn-theme";
 import { LEARN_MENU_CSS, LearnMenu } from "@/components/learn/LearnMenu";
 import { NAV_BOLT_ID } from "@/components/learn/LearnLoading";
+import { adEvent } from "@/lib/retargeting";
 
 export type TopProgress = { total: number; done: number; secondsLeft: number | null };
 
@@ -193,7 +194,13 @@ export function LearnTop({
             </button>
             <div className="flex min-w-0 items-center gap-1.5 truncate" style={{ fontSize: narrow ? 11.5 : 12.5, color: muted, fontWeight: 600, lineHeight: 1.2 }}>
               {courseCode && <><span className="truncate">{courseCode}</span><span aria-hidden>·</span></>}
-              <ExamMenu exams={menuExams} examNum={examNum} examLabel={examLabel} ink={ink} muted={muted} onPick={onPickExam} onLocked={setWaitlistExam} />
+              <ExamMenu exams={menuExams} examNum={examNum} examLabel={examLabel} ink={ink} muted={muted} onPick={onPickExam}
+                onLocked={(n) => {
+                  setWaitlistExam(n);
+                  // RETARGETING (2026-09-11): a student reaching for a locked exam — the spec's
+                  // highest-value signal (exam2_lock; `exam` says which one).
+                  if (!demo) adEvent("exam2_lock", { campus: school?.slug ?? undefined, chapter: chapter?.slug ?? undefined, course: courseCode ?? undefined, exam: n });
+                }} />
               {demo && <span className="rounded-full px-1.5 py-px text-[9px] font-black uppercase tracking-wider" style={{ color: "#111", background: LK.green }}>Demo</span>}
             </div>
           </div>

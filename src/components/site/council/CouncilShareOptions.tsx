@@ -104,7 +104,7 @@ export function ShareOption({ tone = "quiet", icon, title, sub, badge, onClick, 
  *  change nothing on screen, so the exec tapped, saw nothing, and either tapped again or walked
  *  away believing she had the message. On failure this reveals the text instead, selectable, and
  *  says why. */
-export function useCopyRow(text: string): {
+export function useCopyRow(text: string, onCopied?: () => void): {
   copied: boolean;
   failed: boolean;
   copy: () => Promise<void>;
@@ -117,6 +117,7 @@ export function useCopyRow(text: string): {
     if (!ok) { setFailed(true); setCopied(false); return; }
     setFailed(false);
     setCopied(true);
+    onCopied?.();
     window.setTimeout(() => setCopied(false), 2600);
   };
 

@@ -34,6 +34,7 @@ import { nbspCode } from "@/lib/course-code";
 import { currentContactRef } from "@/lib/contact-ref";
 import { joinChapterAsMember } from "@/lib/greek-go.functions";
 import { deviceAnonId } from "@/lib/device-id";
+import { adEvent } from "@/lib/retargeting";
 
 export function ChapterMemberGate({ id, schoolSlug, chapterSlug, chapterName, letters, schoolName, code, bolt, onJoined, onStartExam, initialDone = false }: {
   /** The anchor. This section IS `#exam1`. */
@@ -88,6 +89,10 @@ export function ChapterMemberGate({ id, schoolSlug, chapterSlug, chapterName, le
       if (!r.ok) { setState("error"); setErr("I couldn't find that chapter — text Lee and he'll sort it."); return; }
       setState("done");
       onJoined?.();
+      // RETARGETING (2026-09-11): this form IS the chapter page's email gate; the sponsor box is
+      // its own, stronger signal. Campus + chapter only — never the name or email just typed.
+      adEvent("gate_submit", { campus: schoolSlug, chapter: chapterSlug, source: "go-member-gate" });
+      if (wantsSponsor) adEvent("sponsorship_interest", { campus: schoolSlug, chapter: chapterSlug, source: "go-member-gate" });
     } catch {
       setState("error");
       setErr("Couldn't reach the server — try again in a moment.");

@@ -8,7 +8,7 @@
 // STATIC SEGMENT, DYNAMIC SIBLING: this route and /s/$campus/$chapter share a level. TanStack
 // matches the static "council" first, so a chapter can never be slugged into shadowing it.
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { ShareFootnote, ShareHeading, ShareScreen } from "@/components/site/share/ShareScreen";
@@ -21,6 +21,8 @@ import { boltForSlug, schoolBySlug } from "@/lib/schools";
 import { LEE_PHONE_DISPLAY, LEE_SMS_HREF, councilChapterLinksPost, councilPortalPost } from "@/lib/partners";
 import { currentContactRef, withRef } from "@/lib/contact-ref";
 import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
+import { track } from "@/lib/analytics";
+import { adEvent } from "@/lib/retargeting";
 
 const ORIGIN = "https://surviveaccounting.com";
 
@@ -57,6 +59,7 @@ function CouncilSharePage() {
   const bolt = boltForSlug(slug);
 
   useRecordRefVisit(campusId);
+  useEffect(() => { adEvent("share_view", { campus: slug, source: council?.slug ?? "council" }); }, [slug, council?.slug]);
   const ref = typeof window === "undefined" ? null : currentContactRef();
 
   const q = useQuery({
@@ -98,8 +101,8 @@ function CouncilSharePage() {
     [code, chapters, slug, ref],
   );
 
-  const portal = useCopyRow(portalMessage);
-  const bulk = useCopyRow(bulkMessage);
+  const portal = useCopyRow(portalMessage, () => track("share_link_copied", { campus_slug: slug, source: "council-portal" }));
+  const bulk = useCopyRow(bulkMessage, () => track("share_link_copied", { campus_slug: slug, source: "council-bulk" }));
 
   // Whichever message was last acted on — shown so she can see exactly what she is about to
   // paste, and shown even when the copy FAILED so she can select it by hand instead of walking

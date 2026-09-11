@@ -128,6 +128,7 @@ import { PRACTICE_CARD_CSS, PracticeCard } from "@/components/learn/PracticeCard
 import { STUDY_RAIL_CSS, StudyRail } from "@/components/learn/StudyRail";
 import type { Tier } from "@/components/learn/use-tier";
 import { submitIntake } from "@/lib/intake.functions";
+import { adEvent } from "@/lib/retargeting";
 import type { School } from "@/lib/schools";
 import type { StudentSet, StudentTopic } from "@/lib/student.functions";
 import { useDismiss } from "@/lib/use-dismiss";
@@ -425,6 +426,8 @@ function TopicRow({ topic, sets, school, tier, expanded, onToggle }: { topic: St
 }
 
 type GateVariant = "unlock" | "waitlist";
+/** gate_view once per page load per wording — every blurred later topic draws its own box. */
+const gateSeen = new Set<GateVariant>();
 
 /** THE EMAIL BOX, two wordings, one capture. Not a paywall: Exam 1 is free, this asks for the
  *  one thing that lets us send the rest. Submits through the unified intake (kind notify_exam):
@@ -444,6 +447,13 @@ function EmailGate({ variant, examLabel, topicName, campusId, chapterSlug, demo,
   const [state, setState] = useState<"open" | "busy" | "error">("open");
   const [msg, setMsg] = useState("");
   const waitlist = variant === "waitlist";
+  // RETARGETING (2026-09-11): the gate seen and the gate passed. Campus id + chapter + exam only —
+  // never the address typed into it.
+  useEffect(() => {
+    if (demo || gateSeen.has(variant)) return;
+    gateSeen.add(variant);
+    adEvent("gate_view", { campus: campusId ?? undefined, chapter: chapterSlug ?? undefined, exam: examLabel, source: variant });
+  }, [demo, variant, campusId, chapterSlug, examLabel]);
   const submit = async () => {
     const e = email.trim();
     if (state === "busy") return;
@@ -451,6 +461,7 @@ function EmailGate({ variant, examLabel, topicName, campusId, chapterSlug, demo,
     setState("busy");
     try {
       if (!demo) await submitIntake({ data: { kind: "notify_exam", email: e, topic: topicName, campusId: isUuid(campusId) ? campusId : null, chapter: chapterSlug, sourcePath: "/learn", source: waitlist ? "learn-waitlist" : "learn-gate" } });
+      if (!demo) adEvent("gate_submit", { campus: campusId ?? undefined, chapter: chapterSlug ?? undefined, exam: examLabel, source: waitlist ? "learn-waitlist" : "learn-gate" });
       writeUnlocked();
       onUnlocked();
     } catch { setState("error"); setMsg("Couldn't save that — try again in a moment."); }

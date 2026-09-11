@@ -28,6 +28,7 @@ import { ChapterShareSheet } from "@/components/learn/ChapterShareSheet";
 import { getGoChapter, listGoChapters, tagChapterMember } from "@/lib/greek-go.functions";
 import { deviceAnonId } from "@/lib/device-id";
 import { schoolBySlug } from "@/lib/schools";
+import { track } from "@/lib/analytics";
 
 const AMBER = NEON.yellow;
 
@@ -108,6 +109,8 @@ export function LearnCta({
   }, [campusSlug, testing]);
 
   const chapterSlug = fixture?.chapter || picked;
+  // The set-up (claim) sheet opening on /learn is claim_start (lib/analytics → the ad tags).
+  useEffect(() => { if (view === "setup" && chapterSlug && !testing) track("chapter_claim_started", { campus_slug: campusSlug, chapter_slug: chapterSlug, source: "learn" }); }, [view, chapterSlug, campusSlug, testing]);
 
   useEffect(() => {
     const on = (e: Event) => {

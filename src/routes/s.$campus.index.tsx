@@ -19,15 +19,18 @@ import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 
 import { schoolBySlug } from "@/lib/schools";
 import { isContactRef } from "@/lib/contact-ref";
+import { carryParams, type CarryParams } from "@/lib/carry-params";
 
 export const Route = createFileRoute("/s/$campus/")({
   // ref = the recipient we DM'd; by = a human who forwarded it. Both are contact UUIDs; anything
   // that is not a UUID is dropped rather than carried (a short code is a rep code, not a contact —
   // carrying it here would risk the rep-commission collision the sa_cref/sa_ref split prevents).
-  validateSearch: (s: Record<string, unknown>): { ref?: string; by?: string } => {
+  // Plus an ad's utm_* and click id (lib/carry-params) — this is a redirect, so anything it drops
+  // is gone before any ad tag can read it.
+  validateSearch: (s: Record<string, unknown>): { ref?: string; by?: string } & CarryParams => {
     const ref = typeof s.ref === "string" && isContactRef(s.ref) ? s.ref : undefined;
     const by = typeof s.by === "string" && isContactRef(s.by) ? s.by : undefined;
-    return { ...(ref ? { ref } : {}), ...(by ? { by } : {}) };
+    return { ...carryParams(s), ...(ref ? { ref } : {}), ...(by ? { by } : {}) };
   },
   // Resolve the campus and hand off to the product. An unknown slug is said out loud rather than
   // redirected — these URLs go out in DMs and a typo should be findable, not bounced to a generic
@@ -40,6 +43,7 @@ export const Route = createFileRoute("/s/$campus/")({
       to: "/learn/{-$campus}/{-$chapter}",
       params: { campus: school.id, chapter: undefined },
       search: {
+        ...carryParams(search),
         ...(search.ref ? { ref: search.ref } : {}),
         ...(search.by ? { by: search.by } : {}),
       },

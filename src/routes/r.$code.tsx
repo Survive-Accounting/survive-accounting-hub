@@ -40,7 +40,10 @@ async function handle({
       return Response.redirect(new URL(HOME, origin).toString(), 302);
     }
 
-    const target = decorateDestination(link, origin);
+    // An ad's click id on the /r/ URL itself rides through (lib/carry-params); the link's OWN
+    // utm_* stay authoritative, so incoming utm_* are not carried.
+    const { carryParams, CLICK_ID_KEYS, withCarried } = await import("@/lib/carry-params");
+    const target = withCarried(decorateDestination(link, origin), carryParams(new URL(request.url).searchParams, CLICK_ID_KEYS));
     const existingAnon = readAnonCookie(request);
     const { anonId, setCookies } = buildAttributionCookies(link.code, existingAnon, now);
 

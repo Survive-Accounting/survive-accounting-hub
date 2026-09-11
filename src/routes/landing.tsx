@@ -71,6 +71,7 @@ import { readStoredCampus, rememberCampus, rememberProfSkip, SKIPPED, NOT_LISTED
 import { Footer } from "@/components/site/SiteFooter";
 import { TestimonialsSlider } from "@/components/site/Testimonials";
 import { contactKind, LAUNCH_LINE, LAUNCH_WINDOW } from "@/lib/launch";
+import { carryParams, withCarried } from "@/lib/carry-params";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
 
 // PROMOTED TO "/" on 2026-08-13. This path 301s to the homepage so every link, QR and bookmark
@@ -78,7 +79,8 @@ import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } f
 // The PAGE still lives in this module: index.tsx imports LandingPage, and /chapters, /c/$slug and
 // /expand import CampusSelector / Footer / SCHOOLS from here.
 export const Route = createFileRoute("/landing")({
-  beforeLoad: () => { throw redirect({ to: "/", statusCode: 301 }); },
+  // An ad's utm_* / click id ride along (lib/carry-params).
+  beforeLoad: ({ location }) => { throw redirect({ href: withCarried("/", carryParams(location.search as Record<string, unknown>)), statusCode: 301 }); },
 });
 
 // The exam section's anchor. Shared so a campus-page navigation lands at the player rather

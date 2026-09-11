@@ -36,6 +36,7 @@ import { ChapterAccessForm } from "@/components/site/ChapterAccessForm";
 import { chapterShortName, chapterTextMessage, chapterUrl, groupMeMessage, type ShareVia } from "@/components/site/ChapterShare";
 import { SlideBlock } from "@/components/site/SlideBlock";
 import { logGreekEvent } from "@/lib/greek-go.functions";
+import { track } from "@/lib/analytics";
 import { scrollToId } from "@/lib/ui-scroll";
 
 /** Per-member, per-semester. One place, quoted by the claim flow and the FAQ alike. */
@@ -71,6 +72,8 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letter
     window.addEventListener(OPEN_CLAIM_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_CLAIM_EVENT, onOpen);
   }, []);
+  // The claim sheet opening IS claim_start, however it was opened (button, nudge, event, deep link).
+  useEffect(() => { if (claimOpen) track("chapter_claim_started", { campus_slug: schoolSlug, chapter_slug: chapterSlug }); }, [claimOpen, schoolSlug, chapterSlug]);
 
   // ── K4.2 — THE DEEP LINK ────────────────────────────────────────────────────────────────────
   // ?claim=1 (what goes in an email to an exec) and #claim (the anchor alias) both land on the
@@ -234,6 +237,7 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
       await navigator.clipboard.writeText(text);
       setCopied(via);
       onShared();
+      track("share_link_copied", { campus_slug: schoolSlug, chapter_slug: chapterSlug, source: via });
       void logGreekEvent({ data: { kind: via === "link" ? "copy_link" : "copy_message", schoolSlug, chapterSlug, via } }).catch(() => {});
       window.setTimeout(() => setCopied((c) => (c === via ? null : c)), 2200);
     } catch { /* clipboard blocked in some in-app browsers — the visible URL below still works */ }

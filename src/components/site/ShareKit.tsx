@@ -15,6 +15,7 @@ import { useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { logShareEvent } from "@/lib/chapter-seats.functions";
+import { track } from "@/lib/analytics";
 import {
   CHAPTER_PRESALE_TIMING_COPY, PRESALE_DISCLOSURE, SEAT_PACKS, money, purchasableTerms, termId,
 } from "@/lib/terms";
@@ -41,6 +42,7 @@ export function ChapterShareKit({ chapterId, chapterName, courseCode, chapterUrl
       await navigator.clipboard.writeText(text);
       setCopied(label); setTimeout(() => setCopied(null), 1800);
       log(kind);
+      if (!isTest) track("share_link_copied", { chapter_id: chapterId, source: kind });
     } catch { /* clipboard blocked — the text is on screen to select */ }
   };
 
