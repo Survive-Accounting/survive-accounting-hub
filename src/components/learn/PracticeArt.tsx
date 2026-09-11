@@ -12,8 +12,11 @@
 // THE TINT is the school's, through two CSS variables set inline: --lk-art-stroke is c2 (the colour
 // the page already uses for the topic glow) or, when a school has no c2, c1 turned 40° round the
 // hue wheel so the art still differs from the bar it sits under; --lk-art-fill is c1. No school:
-// the brand cream. Fill, stroke and filter TRANSITION over .6 s, so clicking through schools in the
-// picker animates the art instead of snapping it.
+// the room's own text colour (var(--lk-text) — the brand cream on the Blackboard, navy on a cream
+// look; 2026-09-11, the ?look= candidates: the cream tint vanished on a white card). practiceTint /
+// practiceFill still answer the brand cream for no school, for the callers that need a hex. Fill,
+// stroke and filter TRANSITION over .6 s, so clicking through schools in the picker animates the
+// art instead of snapping it.
 //
 // Placeholder until the Recraft illustration exists — subject `practice-card` in
 // /admin/illustrations; swap the SVG for the asset URL here. (Nothing in this file calls Recraft.)
@@ -129,7 +132,8 @@ const ART_CSS = `
 
 /** The art, `size` px square, tinted for `school`. Decorative — hidden from assistive tech. */
 export function PracticeArt({ school, size = 120 }: { school: School | null; size?: number }) {
-  const vars = { ["--lk-art-stroke" as string]: practiceTint(school), ["--lk-art-fill" as string]: practiceFill(school), width: size, height: size } as CSSProperties;
+  const known = !!(school?.c1 || school?.c2);
+  const vars = { ["--lk-art-stroke" as string]: known ? practiceTint(school) : "var(--lk-text)", ["--lk-art-fill" as string]: known ? practiceFill(school) : "var(--lk-text)", width: size, height: size } as CSSProperties;
   return (
     <span aria-hidden className="lk-art" style={vars}>
       <style>{ART_CSS}</style>

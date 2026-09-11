@@ -77,6 +77,10 @@
 //     under the waitlist box is gone.
 //   · THE WAITLIST BOX appears ONLY inside a later topic once it is opened. It never renders under
 //     Easy Points: unposted videos there are simply grey.
+//   · THE ENTRANCE BAND (2026-09-11, the ?look= candidates): the hero sits on its own full-bleed
+//     band painted --lk-hero-bg, which is the canvas in every look but "split" (navy over cream —
+//     "the fold IS the design"). The band's foot fades hero → canvas over the old row gap, so the
+//     seven looks that do not split render exactly as before.
 //   · PRACTICE CARD ART (PracticeArt.tsx): one nuts-and-bolts illustration, re-tinted per school,
 //     above "Practice · N questions". A placeholder until the Recraft asset exists.
 //   · DIMENSION: every card carries learn-theme's CARD_SHADOW; on a phone each topic section gets
@@ -232,8 +236,14 @@ export const LearnHome = forwardRef<HTMLDivElement, {
 
   return (
     <div ref={ref} className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin", overflowX: "hidden" }}>
-      <div className="mx-auto flex w-full flex-col" style={{ maxWidth: CONTENT_MAX, padding: `${narrow ? 10 : wide ? 24 : 20}px ${pad}px 96px`, gap: narrow ? 0 : wide ? 40 : 34 }}>
-        <LearnEntrance tier={tier} averageCaption={averageCaption} onStart={startFirst} />
+      {/* THE ENTRANCE BAND — full-bleed on the hero ground, the column inside it. */}
+      <div style={{ background: LK.heroBg }}>
+        <div className="mx-auto w-full" style={{ maxWidth: CONTENT_MAX, padding: `${narrow ? 10 : wide ? 24 : 20}px ${pad}px 0` }}>
+          <LearnEntrance tier={tier} averageCaption={averageCaption} onStart={startFirst} />
+        </div>
+        <div aria-hidden style={{ height: narrow ? 12 : wide ? 40 : 34, background: `linear-gradient(${LK.heroBg}, ${LK.bg})` }} />
+      </div>
+      <div className="mx-auto flex w-full flex-col" style={{ maxWidth: CONTENT_MAX, padding: `0 ${pad}px 96px`, gap: narrow ? 0 : wide ? 40 : 34 }}>
 
         {/* CRAM ROWS — one per topic, the primary structure of the page. First topic, first short
             sit right under the hero — no control panel between the student and the video. */}

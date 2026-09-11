@@ -3,7 +3,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { averageVideoLabel, averageVideoMinutes, emailGateNeeded, examTease, isUuid, practiceGateNeeded, questionCount, topicDetail, waitlistNeeded, type GateSet } from "./learn-gate";
-import { contrast, INK, NAVY, themeFor, topBarFor } from "./learn-theme";
+import { CHALK, CHARCOAL, CREAM, INK, LOOKS, LOOK_NOTES, LOOK_ORDER, MONO, NAVY, PAPER, SPLIT, contrast, isLook, themeFor, topBarFor } from "./learn-theme";
 import { GENERATED_SCHOOLS } from "@/lib/schools.generated";
 
 function gs(o: Partial<GateSet> = {}): GateSet {
@@ -98,17 +98,12 @@ describe("the navy look (the home page's palette)", () => {
     const navy = themeFor(null, "navy");
     expect(navy.look).toBe("navy");
     expect(navy.palette.bg).toBe(NAVY.bg);
-    expect(navy.topBg).toBe(NAVY.bg);
-    expect(navy.topInk).toBe(NAVY.text);
+    expect(navy.topBg).toBe(NAVY.nav.bg);
+    expect(navy.topInk).toBe(NAVY.nav.text);
   });
   test("no school → gold on navy, lime on black", () => {
     expect(themeFor(null, "navy").accent).toBe(NAVY.fallbackAccent);
     expect(themeFor(null, "black").accent).toBe(INK.lime);
-  });
-  test("the school-coloured top bar still works in navy", () => {
-    const t = themeFor({ c1: "#9E1B32", c2: "#F1F2F3" }, "navy"); // Alabama
-    expect(t.topBg).toBe("#9E1B32");
-    expect(contrast(t.topBg, t.topInk)).toBeGreaterThanOrEqual(3);
   });
   test("every generated school's accent clears 3:1 on the navy ground, or falls back", () => {
     for (const s of GENERATED_SCHOOLS) {
@@ -116,6 +111,58 @@ describe("the navy look (the home page's palette)", () => {
       expect(contrast(t.accent, NAVY.bg)).toBeGreaterThanOrEqual(3);
       expect(contrast(t.topBg, t.topInk)).toBeGreaterThanOrEqual(3);
     }
+  });
+});
+
+describe("the eight looks (Lee, 2026-09-11: 'give me a bunch of possible options to try with ?look=')", () => {
+  test("black and navy first, then Part E's build order; every name is a look", () => {
+    expect([...LOOK_ORDER]).toEqual(["black", "navy", "cream", "paper", "chalk", "charcoal", "split", "mono"]);
+    for (const k of LOOK_ORDER) { expect(isLook(k)).toBe(true); expect(LOOKS[k]).toBeDefined(); expect(LOOK_NOTES[k].length).toBeGreaterThan(10); }
+    expect(isLook("orange")).toBe(false);
+    expect(isLook("toString")).toBe(false);
+  });
+  test("the anchors are Part E's: canvas, surface, text, navbar", () => {
+    expect(CREAM.bg).toBe("#F5F1E8"); expect(CREAM.surface).toBe("#FBF9F4"); expect(CREAM.text).toBe("#14213D"); expect(CREAM.nav.bg).toBe("#14213D");
+    expect(PAPER.bg).toBe("#FAFAF7"); expect(PAPER.surface).toBe("#FFFFFF"); expect(PAPER.nav.bg).toBe("#14213D");
+    expect(CHALK.bg).toBe("#111827"); expect(CHALK.nav.bg).toBe("#0B1220");
+    expect(CHARCOAL.bg).toBe("#1C1B1A"); expect(CHARCOAL.nav.bg).toBe("#14213D");
+    expect(SPLIT.bg).toBe("#F5F1E8"); expect(SPLIT.hero?.bg).toBe("#14213D"); expect(SPLIT.nav.bg).toBe("#14213D");
+    expect(MONO.bg).toBe("#F7F7F5"); expect(MONO.nav.bg).toBe("#0B0B0B"); expect(MONO.accentFirst).toBe("c1");
+    expect(INK.nav.bg).toBe("#0A0A0A");
+  });
+  test("every look reads: text 4.5:1 on canvas and surface, muted 3:1, bar ink 4.5:1, fallback accent 3:1", () => {
+    for (const k of LOOK_ORDER) {
+      const p = LOOKS[k];
+      expect(contrast(p.text, p.bg)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(p.text, p.surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(p.muted, p.bg)).toBeGreaterThanOrEqual(3);
+      expect(contrast(p.nav.text, p.nav.bg)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(p.nav.muted, p.nav.bg)).toBeGreaterThanOrEqual(3);
+      expect(contrast(p.fallbackAccent, p.bg)).toBeGreaterThanOrEqual(3);
+      expect(contrast(p.green, p.bg)).toBeGreaterThanOrEqual(3);
+      if (p.hero) { expect(contrast(p.hero.text, p.hero.bg)).toBeGreaterThanOrEqual(4.5); expect(contrast(p.hero.muted, p.hero.bg)).toBeGreaterThanOrEqual(3); }
+    }
+  });
+  test("every generated school, every look: the accent clears 3:1 on the canvas, ink clears 3:1 on the accent, the bar's ink reads", () => {
+    for (const k of LOOK_ORDER) for (const s of GENERATED_SCHOOLS) {
+      const t = themeFor(s, k);
+      expect(contrast(t.accent, t.palette.bg)).toBeGreaterThanOrEqual(3);
+      expect(contrast(t.accent, t.accentInk)).toBeGreaterThanOrEqual(3);
+      expect(contrast(t.topBg, t.topInk)).toBeGreaterThanOrEqual(4.5);
+      expect(t.topBg).toBe(t.palette.nav.bg);
+    }
+  });
+  test("light is the canvas's luminance: cream, paper, split, mono are light; the rest are dark", () => {
+    expect(LOOK_ORDER.filter((k) => themeFor(null, k).light)).toEqual(["cream", "paper", "split", "mono"]);
+  });
+  test("on cream a red accent gets cream letters, not black ones", () => {
+    const t = themeFor(null, "cream");
+    expect(t.accent).toBe("#CE1126");
+    expect(t.accentInk).toBe(CREAM.bg);
+  });
+  test("mono tries the school's primary first; with no school the accent is the ink", () => {
+    expect(themeFor({ c1: "#9E1B32", c2: "#F1F2F3" }, "mono").accent).toBe("#9E1B32");
+    expect(themeFor(null, "mono").accent).toBe(MONO.text);
   });
 });
 
@@ -128,27 +175,31 @@ describe("uuid guard for the intake campusId", () => {
   });
 });
 
-describe("school-coloured top bar", () => {
-  test("no school → the Blackboard's own black, border and chalk", () => {
-    expect(topBarFor(null, null)).toEqual({ bg: INK.bg, border: INK.border, ink: INK.text, muted: INK.muted });
-    expect(themeFor(null).topBg).toBe(INK.bg);
+describe("the shell's top bar (2026-09-11: the navbar no longer wears the school)", () => {
+  test("no school → the look's own bar, its accent as the hairline", () => {
+    expect(topBarFor(null, null)).toEqual({ bg: INK.nav.bg, border: INK.fallbackAccent, rule: INK.nav.border, ink: INK.nav.text, muted: INK.nav.muted });
+    expect(themeFor(null).topBg).toBe(INK.nav.bg);
+    expect(themeFor(null).topBorder).toBe(INK.lime);
   });
-  test("a school's c1 becomes the ground and c2 the rule, with readable ink", () => {
+  test("a school's c1 is the hairline when it shows on the bar; the ground and ink stay the bar's", () => {
     const bar = topBarFor("#9E1B32", "#F1F2F3"); // Alabama
-    expect(bar.bg).toBe("#9E1B32");
-    expect(bar.border).toBe("#F1F2F3");
-    expect(bar.ink).toBe(INK.text);
-    expect(contrast(bar.bg, bar.ink)).toBeGreaterThanOrEqual(3);
+    expect(bar.bg).toBe(INK.nav.bg);
+    expect(bar.border).toBe("#9E1B32");
+    expect(bar.ink).toBe(INK.nav.text);
+    expect(contrast(bar.bg, bar.ink)).toBeGreaterThanOrEqual(4.5);
   });
-  test("a light c1 gets black ink", () => {
-    const bar = topBarFor("#F1F2F3", "#9E1B32");
-    expect(bar.ink).toBe("#111111");
-    expect(contrast(bar.bg, bar.ink)).toBeGreaterThanOrEqual(3);
+  test("a c1 that vanishes on the bar hands the hairline to c2", () => {
+    const bar = topBarFor("#14213D", "#CE1126", CREAM); // navy on the navy bar
+    expect(bar.border).toBe("#CE1126");
   });
-  test("every generated school's bar clears 3:1 for its ink", () => {
-    for (const s of GENERATED_SCHOOLS) {
-      const bar = topBarFor(s.c1, s.c2);
-      expect(contrast(bar.bg, bar.ink)).toBeGreaterThanOrEqual(3);
+  test("neither school colour visible, nor the accent → the palette's own fallback accent", () => {
+    const t = themeFor({ c1: "#14213D", c2: "#1A2A4A" }, "cream"); // two navies on the navy bar
+    expect(t.topBorder).toBe(CREAM.fallbackAccent);
+  });
+  test("every generated school's hairline is visible on every look's bar", () => {
+    for (const k of LOOK_ORDER) for (const s of GENERATED_SCHOOLS) {
+      const t = themeFor(s, k);
+      expect(contrast(t.topBorder, t.topBg)).toBeGreaterThanOrEqual(1.6);
     }
   });
 });

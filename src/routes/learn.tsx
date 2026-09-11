@@ -34,6 +34,13 @@
 // (LearnHome); Text Lee floats bottom-right on every tier (LearnTextLee). Black stays the palette;
 // ?look=navy still renders the side-by-side.
 //
+// THE LOOK CANDIDATES (Lee, 2026-09-11: "give me a bunch of possible options to try with ?look=.
+// I want to pick only the best one"). Eight looks in learn-theme's LOOKS — black, navy, cream,
+// paper, chalk, charcoal, split, mono — behind ?look=<name>; ?looks=1 mounts LearnLookPicker,
+// a floating bottom-left strip that rewrites ?look= so every look can be flipped through on one
+// page with a school picked. Default stays black until Lee picks. In every look the navbar is the
+// shell's own ground and the campus shows only in the bolt, the hairline and the accent.
+//
 // Wireframes and the decisions behind this: the "Learn Dashboard Wireframes" canvas, Round 5.
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -61,6 +68,7 @@ import { LearnTop, usePickedChapter } from "@/components/learn/LearnTop";
 import type { RailKey } from "@/components/learn/LearnRail";
 import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome";
 import { LearnTextLee } from "@/components/learn/LearnTextLee";
+import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
 import { CramPlayer, type PlayerItem } from "@/components/learn/CramPlayer";
 import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
 import { isLook, LK, LEARN_CSS, themeFor, themeStyle, type Look } from "@/components/learn/learn-theme";
@@ -78,8 +86,10 @@ type LearnSearch = {
   // shows the "sent by" line). g = the campus slug the /s/<campus> hop resolved. test = force a
   // CTA state (A–F) or the banner, client-side, no DB.
   ref?: string; by?: string; g?: string; test?: string;
-  /** ?look=navy — the home page's palette instead of the Blackboard (learn-theme.ts). */
+  /** ?look=<name> — one of learn-theme's LOOKS instead of the Blackboard. */
   look?: Look;
+  /** ?looks=1 — mount the floating look picker (LearnLookPicker). */
+  looks?: true;
 };
 
 export const Route = createFileRoute("/learn")({
@@ -95,6 +105,7 @@ export const Route = createFileRoute("/learn")({
     g: typeof s.g === "string" && s.g ? s.g : undefined,
     test: typeof s.test === "string" && s.test ? s.test : undefined,
     look: isLook(s.look) && s.look !== "black" ? s.look : undefined,
+    looks: s.looks === true || s.looks === 1 || s.looks === "1" || s.looks === "true" ? true : undefined,
   }),
   // A SHARED /s/<campus> LINK LANDS HERE. That route is a redirect, so the preview a chat app
   // builds comes from THIS page's tags — and with only a title it previewed as the generic site
@@ -299,6 +310,9 @@ function LearnShell() {
   const campusName = school?.name ?? campuses.find((c) => c.id === campusId)?.name ?? null;
   const look: Look = search.look ?? "black";
   const theme = useMemo(() => themeFor(school, look), [school, look]);
+  const pickLook = useCallback((next: Look) => {
+    void navigate({ search: (p: LearnSearch) => ({ ...p, look: next === "black" ? undefined : next }), replace: true });
+  }, [navigate]);
 
   // AUTH + PROGRESS — unchanged model: localStorage signed-out / student_set_progress signed-in.
   const { userId, email, signOut } = useStudentAuth();
@@ -507,6 +521,7 @@ function LearnShell() {
       {!inPlayer && !isLoading && <LearnTextLee narrow={isNarrow} />}
 
       {pickerOpen && <LearnSchoolSheet current={school} onClose={() => setPickerOpen(false)} onPick={pickSchool} />}
+      {search.looks && <LearnLookPicker look={look} onPick={pickLook} />}
 
       {paywallTopic && <Paywall topic={paywallTopic} campusName={campusName} campusId={campusId} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
       {signInOpen && <SignInDialog onClose={() => setSignInOpen(false)} />}

@@ -22,8 +22,12 @@
 // your Greek chapter (/chapters) · Join the campus rep program (/rep/join). On a phone the review
 // link does not fit the bar, so it closes the sheet's list instead of disappearing.
 //
-// THE BAR STILL WEARS THE SCHOOL (2026-09-10): ground = c1, rule = c2, ink re-picked for contrast
-// (theme.top* from learn-theme's topBarFor). The old ticker, progress meter, sender line and the
+// THE BAR IS THE SHELL'S (2026-09-11, the design email: "The NAVBAR should always remain Survive
+// navy … Add a very thin campus-colored line along the bottom of the navbar"). Ground and ink are
+// the look's own `nav` (learn-theme's topBarFor); the campus is the 2px hairline under the bar
+// (theme.topBorder — c1 if it shows on the bar, else c2, else the accent) and the bolt. Dividers
+// inside the bar use the bar's own rule (theme.topRule). Until 09-11 the bar wore c1 as its ground
+// and c2 as its rule; the email reversed it. The old ticker, progress meter, sender line and the
 // bar's own reminder sheet are gone from the bar (ReminderSheet stays below, unmounted, for the
 // day reminders are advertised inside the player). Copy rule: no "run" / "blast" / "pledge", no
 // emoji — every glyph in the bar is drawn.
@@ -127,7 +131,7 @@ export function LearnTop({
   const letters = chapter?.letters?.trim() || null;
 
   // The bar's own ink — chalk on black until a school is picked, then whatever reads on c1.
-  const ink = theme.topInk, muted = theme.topMuted, rule = theme.topBorder;
+  const ink = theme.topInk, muted = theme.topMuted, rule = theme.topRule, hairline = theme.topBorder;
   const boltH = narrow ? BOLT_H.narrow : BOLT_H.wide;
   // 375px has to hold the bolt, "survive", "Pick your school", Share and the hamburger: tight
   // gutters on a phone so the school's name is read, not truncated.
@@ -136,7 +140,7 @@ export function LearnTop({
 
   return (
     <>
-      <header className="flex shrink-0 flex-col" style={{ background: theme.topBg, borderBottom: `1px solid ${rule}`, color: ink, padding: `${narrow ? 8 : 12}px ${pad}px ${narrow ? 10 : 12}px`, gap: narrow ? 8 : 10, fontFamily: BRAND_SANS }}>
+      <header className="flex shrink-0 flex-col" style={{ background: theme.topBg, borderBottom: `2px solid ${hairline}`, color: ink, padding: `${narrow ? 8 : 12}px ${pad}px ${narrow ? 10 : 12}px`, gap: narrow ? 8 : 10, fontFamily: BRAND_SANS }}>
         <div className="flex items-center" style={{ gap: narrow ? 8 : 14, minHeight: boltH }}>
           {/* THE BIG BOLT, with the chapter's letters held still over it. */}
           <span className="relative inline-block shrink-0" style={{ lineHeight: 0 }} title={letters ? `${letters} · ${schoolName ?? "your campus"}` : undefined}>

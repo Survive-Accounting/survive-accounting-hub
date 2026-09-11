@@ -12,6 +12,10 @@
 // absent until a runtime exists — a real number or none. "See what's on the exam" is gone, and so
 // is the meta row: the navbar (LearnTop) carries the bolt, the campus, the course and the exam.
 //
+// THE HERO GROUND (2026-09-11): the entrance paints with --lk-hero-* — the canvas's own values in
+// every look but "split", where LearnHome puts this section on a full-bleed navy band above the
+// cream rows. Same JSX, one more set of variables.
+//
 // The display face and the button are the home page's tokens (learn-theme: DISPLAY = BRAND_DISPLAY,
 // .lk-btn-cta = the door button's geometry). Copy rule: no "run" / "blast" / "pledge", no emoji.
 import { LK, SANS } from "@/components/learn/learn-theme";
@@ -28,18 +32,18 @@ export function LearnEntrance({ tier, averageCaption, onStart }: {
   const displaySize = narrow ? 30 : wide ? 48 : 38;
   return (
     <section aria-label="Welcome" className="flex flex-col items-center text-center" style={{ gap: narrow ? 10 : 14, paddingTop: narrow ? 18 : wide ? 44 : 30, paddingBottom: narrow ? 6 : wide ? 16 : 8 }}>
-      <h1 className="lk-disp" style={{ margin: 0, fontSize: displaySize, lineHeight: 1.05, letterSpacing: "-0.015em", color: LK.text, textWrap: "balance", maxWidth: 720 }}>
+      <h1 className="lk-disp" style={{ margin: 0, fontSize: displaySize, lineHeight: 1.05, letterSpacing: "-0.015em", color: LK.heroText, textWrap: "balance", maxWidth: 720 }}>
         Like <span style={{ color: LK.acc }}>Reels</span> for exam prep.
       </h1>
-      <p style={{ margin: 0, fontSize: narrow ? 15 : 18, lineHeight: 1.45, color: LK.muted, fontFamily: SANS, maxWidth: 560, textWrap: "balance" }}>
+      <p style={{ margin: 0, fontSize: narrow ? 15 : 18, lineHeight: 1.45, color: LK.heroMuted, fontFamily: SANS, maxWidth: 560, textWrap: "balance" }}>
         Cram what's on your exam. Skip everything else.
       </p>
       <div className="flex flex-col items-center" style={{ gap: 8, marginTop: narrow ? 6 : 10 }}>
-        <button type="button" onClick={onStart} className="lk-btn-cta" style={{ minWidth: narrow ? 220 : 240, boxShadow: "0 12px 30px -10px rgba(0,0,0,0.8)" }}>
+        <button type="button" onClick={onStart} className="lk-btn-cta" style={{ minWidth: narrow ? 220 : 240, boxShadow: LK.shadow }}>
           Get started
         </button>
         {averageCaption && (
-          <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 600, color: LK.muted, fontFamily: SANS }}>{averageCaption}</span>
+          <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 600, color: LK.heroMuted, fontFamily: SANS }}>{averageCaption}</span>
         )}
       </div>
     </section>

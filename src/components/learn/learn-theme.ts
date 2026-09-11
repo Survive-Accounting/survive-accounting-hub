@@ -13,9 +13,23 @@
 // room in the marketing branding for a live side-by-side. The contrast rules are the same, run
 // against whichever ground is live, and the no-school accent is gold on navy, lime on black.
 // Components paint through LK (CSS variables), never INK's hex, so one switch re-themes the room.
+//
+// EIGHT LOOKS, ONE SHELL (Lee, 2026-09-11, after the design email: "give me a bunch of possible
+// options to try with ?look=. I want to pick only the best one"). Six palettes join black and navy
+// — cream (the email's), paper, chalk, charcoal, split, mono — each a full ladder stepped from its
+// own anchors (docs/LEARN-REFACTOR-SESSION-CONTEXT.md Part E). What every look shares, by the
+// email's rule: THE NAVBAR NO LONGER WEARS THE SCHOOL. Each palette carries its own `nav` ground
+// (Survive navy, or the room's own dark), and the campus shows ONLY in the bolt, a thin
+// campus-coloured hairline under the bar, the accent (buttons, the active pill, hover glows) and
+// the topic bolts. Green is success only. `hero` lets one look (split) put the entrance on a
+// different ground from the rows; `shadow` is tuned per ground so a card sits in front of a cream
+// room as well as a black one. Default stays black until Lee picks; ?looks=1 mounts a picker.
 import type { CSSProperties } from "react";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import type { School } from "@/lib/schools";
+
+export type Nav = { bg: string; text: string; muted: string; border: string };
+export type Hero = { bg: string; text: string; muted: string };
 
 export type Palette = {
   bg: string; surface: string; surface2: string; border: string; border2: string;
@@ -23,9 +37,28 @@ export type Palette = {
   /** The accent when no school colour reads on `bg`. */
   fallbackAccent: string;
   green: string; red: string;
+  /** THE SHELL'S BAR (2026-09-11): the navbar's own ground and ink — never the school's. */
+  nav: Nav;
+  /** The entrance's ground when it differs from the canvas (split); absent → the canvas. */
+  hero?: Hero;
+  /** A card's drop shadow, tuned to the ground — heavy on dark, soft on light. */
+  shadow: string;
+  /** Which school colour the accent tries first: c2 (the bright one, today's rule) or c1 (mono). */
+  accentFirst: "c1" | "c2";
 };
 
-/** The Blackboard. `lime` stays as the old name of the fallback accent — v3.learn reads it. */
+/** Survive navy as a navbar — the home page's --brand-navy with its own text / border ladder. */
+const NAVY_NAV: Nav = { bg: "#14213D", text: "#F7F0E6", muted: "#AAB4C8", border: "#34486D" };
+/** A card's dimension on a dark room (the redesign's shadow) and on a light one. */
+const DARK_SHADOW = "0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06)";
+const LIGHT_SHADOW = "0 10px 30px rgba(20,33,61,.10), 0 1px 2px rgba(20,33,61,.08), inset 0 1px 0 rgba(255,255,255,.7)";
+/** Success on a light ground — the mint that reads on black does not read on cream. */
+const GREEN_ON_LIGHT = "#1F9D57";
+/** The home page's --brand-red (styles.css :root), as a hex the contrast maths can read. */
+const BRAND_RED = "#CE1126";
+
+/** The Blackboard. `lime` stays as the old name of the fallback accent — v3.learn reads it.
+ *  The bar is a shade under the canvas (#0A0A0A) so it reads as a bar, not the school's ground. */
 export const INK = {
   bg: "#111111",
   surface: "#1C1C1C",
@@ -39,11 +72,14 @@ export const INK = {
   fallbackAccent: "#E8FF47",
   green: "#4EE8B4",
   red: "#FF5C6C",
+  nav: { bg: "#0A0A0A", text: "#F2EFE6", muted: "#A9A69B", border: "#2A2A2A" },
+  shadow: DARK_SHADOW,
+  accentFirst: "c2",
 } as const satisfies Palette & { lime: string };
 
 /** The home page's palette, by the same names. Values are styles.css :root — read, not invented:
  *  --bg-page, --bg-surface, --bg-input, --border-default, --text-primary, --text-secondary,
- *  --text-tertiary, --accent-primary. */
+ *  --text-tertiary, --accent-primary. The bar is --brand-navy. */
 export const NAVY = {
   bg: "#0D1730",
   surface: "#162443",
@@ -56,11 +92,133 @@ export const NAVY = {
   fallbackAccent: "#FFA611",
   green: "#4EE8B4",
   red: "#FF5C6C",
+  nav: NAVY_NAV,
+  shadow: DARK_SHADOW,
+  accentFirst: "c2",
 } as const satisfies Palette;
 
-export type Look = "black" | "navy";
-export const LOOKS: Record<Look, Palette> = { black: INK, navy: NAVY };
-export function isLook(v: unknown): v is Look { return v === "black" || v === "navy"; }
+/** THE EMAIL'S LOOK (2026-09-10, 11:19 PM): "a warm cream canvas rather than pure black or pure
+ *  white … Keep your navy from the homepage as the permanent navigation color." Cards a lighter
+ *  cream; ink is the brand navy; the fallback accent is the brand red. Video cards stay near-black
+ *  (.lk-short), so the shorts pop off the cream. */
+export const CREAM = {
+  bg: "#F5F1E8",
+  surface: "#FBF9F4",
+  surface2: "#EFEAE0",
+  border: "#E4DDD0",
+  border2: "#D3CABA",
+  text: "#14213D",
+  muted: "#6E6B63",
+  dim: "#9A968C",
+  fallbackAccent: BRAND_RED,
+  green: GREEN_ON_LIGHT,
+  red: BRAND_RED,
+  nav: NAVY_NAV,
+  shadow: LIGHT_SHADOW,
+  accentFirst: "c2",
+} as const satisfies Palette;
+
+/** PAPER — the quiet Linear / Notion look: near-white, white cards, slate ink. Maximum thumbnail
+ *  contrast; the least "designed" of the eight. */
+export const PAPER = {
+  bg: "#FAFAF7",
+  surface: "#FFFFFF",
+  surface2: "#F3F3EF",
+  border: "#E5E7EB",
+  border2: "#D1D5DB",
+  text: "#0F172A",
+  muted: "#64748B",
+  dim: "#94A3B8",
+  fallbackAccent: BRAND_RED,
+  green: GREEN_ON_LIGHT,
+  red: BRAND_RED,
+  nav: NAVY_NAV,
+  shadow: LIGHT_SHADOW,
+  accentFirst: "c2",
+} as const satisfies Palette;
+
+/** CHALK — between black and navy: dark enough for video, blue enough to feel like Survive. The
+ *  bar is a deeper step of the same blue-black. */
+export const CHALK = {
+  bg: "#111827",
+  surface: "#1A2233",
+  surface2: "#151C2B",
+  border: "#2B3548",
+  border2: "#3B475E",
+  text: "#F2EDE3",
+  muted: "#A7B0C0",
+  dim: "#7A8497",
+  fallbackAccent: "#FFA611",
+  green: "#4EE8B4",
+  red: "#FF5C6C",
+  nav: { bg: "#0B1220", text: "#F2EDE3", muted: "#A7B0C0", border: "#22304A" },
+  shadow: DARK_SHADOW,
+  accentFirst: "c2",
+} as const satisfies Palette;
+
+/** CHARCOAL — warm dark: cream text on brown-black reads like the cream look at night. Survive
+ *  navy stays the bar, so the shell is the same object over a warmer room. The brand red is too
+ *  dark to clear 3:1 on this ground, so the fallback is the room's own lifted red. */
+export const CHARCOAL = {
+  bg: "#1C1B1A",
+  surface: "#262422",
+  surface2: "#211F1D",
+  border: "#33302C",
+  border2: "#45413C",
+  text: "#F2EDE3",
+  muted: "#A9A39A",
+  dim: "#7C776F",
+  fallbackAccent: "#FF5C6C",
+  green: "#4EE8B4",
+  red: "#FF5C6C",
+  nav: NAVY_NAV,
+  shadow: DARK_SHADOW,
+  accentFirst: "c2",
+} as const satisfies Palette;
+
+/** SPLIT — Netflix-style: navbar AND hero on Survive navy, the rows on the cream canvas. The fold
+ *  is the design: the dark brand up top gives way to a cream study surface under the first row. */
+export const SPLIT = {
+  ...CREAM,
+  hero: { bg: "#14213D", text: "#F7F0E6", muted: "#AAB4C8" },
+} as const satisfies Palette;
+
+/** MONO — no navy at all: black bar, white-ish canvas, and the campus's c1 as the ONLY colour on
+ *  the page (accentFirst c1; with no school the accent is the ink itself). The boldest, the most
+ *  "skinned" of the eight. */
+export const MONO = {
+  bg: "#F7F7F5",
+  surface: "#FFFFFF",
+  surface2: "#F0F0ED",
+  border: "#E6E6E3",
+  border2: "#D4D4D0",
+  text: "#0B0B0B",
+  muted: "#6B6B6B",
+  dim: "#9A9A9A",
+  fallbackAccent: "#0B0B0B",
+  green: GREEN_ON_LIGHT,
+  red: BRAND_RED,
+  nav: { bg: "#0B0B0B", text: "#FFFFFF", muted: "#A3A3A3", border: "#262626" },
+  shadow: LIGHT_SHADOW,
+  accentFirst: "c1",
+} as const satisfies Palette;
+
+export type Look = "black" | "navy" | "cream" | "paper" | "chalk" | "charcoal" | "split" | "mono";
+export const LOOKS: Record<Look, Palette> = { black: INK, navy: NAVY, cream: CREAM, paper: PAPER, chalk: CHALK, charcoal: CHARCOAL, split: SPLIT, mono: MONO };
+/** The picker's order — the two that exist, then Part E's build order. */
+export const LOOK_ORDER: readonly Look[] = ["black", "navy", "cream", "paper", "chalk", "charcoal", "split", "mono"];
+/** One line per look — why it might win (Part E's last column), shown under the picker. */
+export const LOOK_NOTES: Record<Look, string> = {
+  black: "Lee's 09-10 pick; Reels-native; video thumbnails disappear into it",
+  navy: "matches the home page exactly; one brand, one door",
+  cream: "warm, premium, a study tool not a feed; the shorts stay near-black and pop",
+  paper: "the quiet Linear / Notion look; maximum thumbnail contrast; least designed",
+  chalk: "between black and navy: dark enough for video, blue enough to feel like Survive",
+  charcoal: "warm dark: cream text on brown-black reads like the cream look at night",
+  split: "dark brand up top fading into a cream study canvas; the fold is the design",
+  mono: "no navy: black, white, and the campus colour as the only colour; the boldest",
+};
+export function isLook(v: unknown): v is Look { return typeof v === "string" && Object.prototype.hasOwnProperty.call(LOOKS, v); }
 
 /** What components paint with: the room's CSS variables, one per palette key, so the same JSX
  *  renders either look. Use these, not INK.*, anywhere a colour is painted. */
@@ -77,6 +235,13 @@ export const LK = {
   accInk: "var(--lk-acc-ink)",
   green: "var(--lk-green)",
   red: "var(--lk-red)",
+  /** THE SHELL (2026-09-11): the entrance's ground / ink (= the canvas's unless the look splits),
+   *  the bar's own rule for dividers inside it, and the card shadow tuned to the ground. */
+  heroBg: "var(--lk-hero-bg)",
+  heroText: "var(--lk-hero-text)",
+  heroMuted: "var(--lk-hero-muted)",
+  topRule: "var(--lk-top-rule)",
+  shadow: "var(--lk-shadow)",
 } as const;
 
 function hexToRgb(hex: string): [number, number, number] | null {
@@ -109,61 +274,75 @@ export type LearnTheme = {
   primaryInk: string;
   /** True when the accent is the school's, not the lime fallback. */
   schoolAccent: boolean;
-  /** THE TOP BAR WEARS THE SCHOOL (Lee, 2026-09-10): c1 is the ground, c2 the rule beneath it, so
-   *  picking a school visibly changes the page — not just the accent. Ink is re-picked for
-   *  contrast; a c1 neither chalk nor black can read on keeps the Blackboard's black and wears the
-   *  school only as the rule. No school → black / border / chalk, exactly as before. */
+  /** True on a light canvas (cream, paper, split, mono) — inputs and masks pick their scheme. */
+  light: boolean;
+  /** THE BAR IS THE SHELL'S (2026-09-11, the design email: "The NAVBAR should always remain
+   *  Survive navy … Add a very thin campus-colored line along the bottom of the navbar"). The
+   *  ground and ink are the palette's own `nav`; the campus shows as `topBorder`, the hairline —
+   *  the first of the school's colours that is visible against the bar, else the accent. `topRule`
+   *  is the bar's own quiet divider, for the lines INSIDE it. (Until 09-11 the bar wore c1 as its
+   *  ground and c2 as its rule — topBarFor's history; the email reversed it.) */
   topBg: string;
   topBorder: string;
+  topRule: string;
   topInk: string;
   topMuted: string;
 };
 
-function inkOn(bg: string, chalk: string = INK.text): string {
-  return contrast(bg, "#111111") >= contrast(bg, chalk) ? "#111111" : chalk;
+/** The ink that reads best ON a colour — the palette's text or its canvas, whichever clears more.
+ *  On a dark room that is chalk-or-black (as before); on cream it is navy-or-cream, so a red button
+ *  gets cream letters, not black ones. */
+function inkOn(bg: string, p: Palette): string {
+  return contrast(bg, p.bg) > contrast(bg, p.text) ? p.bg : p.text;
 }
 
-/** `#RRGGBB` at an alpha — for muted text on a school-coloured ground, where INK.muted (tuned for
- *  black) may not read. */
+/** `#RRGGBB` at an alpha — for muted text on a coloured ground where the palette's muted (tuned
+ *  for its own canvas) may not read. */
 export function withAlpha(hex: string, alpha: number): string {
   const rgb = hexToRgb(hex);
   return rgb ? `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})` : hex;
 }
 
-export type TopBar = { bg: string; border: string; ink: string; muted: string };
+export type TopBar = { bg: string; border: string; rule: string; ink: string; muted: string };
 
-/** The top bar's colours for a school's (c1, c2). 3:1 is the bar text has to clear on its ground
- *  (the same WCAG line themeFor holds the accent to); below it the ground stays the room's. */
-export function topBarFor(c1: string | null | undefined, c2: string | null | undefined, p: Palette = INK): TopBar {
-  const ground = c1 && hexToRgb(c1) ? c1 : null;
-  const rule = c2 && hexToRgb(c2) ? c2 : ground;
-  if (!ground) return { bg: p.bg, border: p.border, ink: p.text, muted: p.muted };
-  const ink = inkOn(ground, p.text);
-  if (contrast(ground, ink) < 3) return { bg: p.bg, border: rule ?? p.border, ink: p.text, muted: p.muted };
-  return { bg: ground, border: rule ?? ground, ink, muted: withAlpha(ink, 0.72) };
+/** How visible the hairline has to be against the bar to count as the campus's line. Well under
+ *  the 3:1 text bar: a 2px line only has to be seen, not read. */
+const HAIRLINE_MIN = 1.6;
+
+/** The top bar's colours for a school's (c1, c2) in a palette: the palette's own bar, with the
+ *  campus as the hairline beneath it — c1 first (the primary), then c2, whichever shows against
+ *  the bar; no school, or neither visible → `fallback` (the room's accent), then the palette's own
+ *  fallback accent, then the bar's ink — so there is always a visible line, never an invisible one. */
+export function topBarFor(c1: string | null | undefined, c2: string | null | undefined, p: Palette = INK, fallback: string = p.fallbackAccent): TopBar {
+  const line = [c1, c2, fallback, p.fallbackAccent, p.nav.text].find((c): c is string => !!c && !!hexToRgb(c) && contrast(c, p.nav.bg) >= HAIRLINE_MIN) ?? p.nav.text;
+  return { bg: p.nav.bg, border: line, rule: p.nav.border, ink: p.nav.text, muted: p.nav.muted };
 }
 
 /** The theme for a school (or none) in a look (default: the Blackboard). Candidates are the
- *  school's bright colour first, then its dark one; the first that clears 3:1 on the ground wins. */
+ *  school's bright colour first, then its dark one (mono: the dark one first); the first that
+ *  clears 3:1 on the ground wins. */
 export function themeFor(school: Pick<School, "c1" | "c2"> | null | undefined, look: Look = "black"): LearnTheme {
   const p = LOOKS[look];
   const c1 = school?.c1 ?? null, c2 = school?.c2 ?? null;
-  const candidates = [c2, c1].filter((c): c is string => !!c && !!hexToRgb(c));
+  const ordered = p.accentFirst === "c1" ? [c1, c2] : [c2, c1];
+  const candidates = ordered.filter((c): c is string => !!c && !!hexToRgb(c));
   // 3:1 is the WCAG bar for UI components and large text, which is exactly what the accent paints
   // (button fills, chip highlights, the bolt) — text ON the accent is always re-picked for contrast.
   const accent = candidates.find((c) => contrast(c, p.bg) >= 3) ?? null;
   const primary = c1 && hexToRgb(c1) ? c1 : null;
-  const top = topBarFor(c1, c2, p);
+  const top = topBarFor(c1, c2, p, accent ?? p.fallbackAccent);
   return {
     look,
     palette: p,
     accent: accent ?? p.fallbackAccent,
-    accentInk: inkOn(accent ?? p.fallbackAccent, p.text),
+    accentInk: inkOn(accent ?? p.fallbackAccent, p),
     primary,
-    primaryInk: primary ? inkOn(primary, p.text) : p.text,
+    primaryInk: primary ? inkOn(primary, p) : p.text,
     schoolAccent: !!accent,
+    light: relLuminance(p.bg) > 0.5,
     topBg: top.bg,
     topBorder: top.border,
+    topRule: top.rule,
     topInk: top.ink,
     topMuted: top.muted,
   };
@@ -188,8 +367,14 @@ export function themeStyle(t: LearnTheme): CSSProperties {
     ["--lk-primary-ink" as string]: t.primaryInk,
     ["--lk-top-bg" as string]: t.topBg,
     ["--lk-top-border" as string]: t.topBorder,
+    ["--lk-top-rule" as string]: t.topRule,
     ["--lk-top-ink" as string]: t.topInk,
     ["--lk-top-muted" as string]: t.topMuted,
+    ["--lk-hero-bg" as string]: p.hero?.bg ?? p.bg,
+    ["--lk-hero-text" as string]: p.hero?.text ?? p.text,
+    ["--lk-hero-muted" as string]: p.hero?.muted ?? p.muted,
+    ["--lk-shadow" as string]: p.shadow,
+    ["--lk-scheme" as string]: t.light ? "light" : "dark",
     // THE BRIDGE (2026-09-10). Site components now hosted inside /learn — ExamReminder, the
     // school picker's chrome (PICKER_CSS), NotListedForm — read the marketing palette by name.
     // --bg-* live on :root, but --brand-cream / --text-muted / --accent are aliased only under
@@ -214,8 +399,9 @@ export const DISPLAY = BRAND_DISPLAY;
 export const SANS = BRAND_SANS;
 
 /** THE CARD'S DIMENSION (redesign, 2026-09-11): a real drop shadow and a one-pixel top highlight so
- *  every card on the page sits in front of the room instead of being drawn on it. */
-export const CARD_SHADOW = "0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06)";
+ *  every card on the page sits in front of the room instead of being drawn on it. This is the dark
+ *  room's value; a light look carries its own in `palette.shadow`, and the CSS reads --lk-shadow. */
+export const CARD_SHADOW = DARK_SHADOW;
 
 /** THE CONTENT COLUMN (desktop pass, 2026-09-10): centred, capped at 1280, side padding per tier.
  *  One number every row, the entrance and the footer share, so nothing on the page can drift. */
@@ -223,7 +409,7 @@ export const CONTENT_MAX = 1280;
 export const SIDE_PAD = { narrow: 16, mid: 24, wide: 32 } as const;
 
 export const LEARN_CSS = `
-.lk-root { background: var(--lk-bg); color: var(--lk-text); font-family: ${SANS}; }
+.lk-root { background: var(--lk-bg); color: var(--lk-text); font-family: ${SANS}; color-scheme: var(--lk-scheme); }
 .lk-disp { font-family: ${DISPLAY}; font-weight: 900; }
 .lk-scroll-x { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .lk-scroll-x::-webkit-scrollbar { display: none; }
@@ -239,15 +425,15 @@ export const LEARN_CSS = `
 .lk-btn-cta { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 54px; padding: 0 28px; border-radius: 12px; font-size: 15.5px; font-weight: 900; font-family: ${SANS}; letter-spacing: 0; text-transform: none; border: 0; cursor: pointer; white-space: nowrap; background: var(--lk-acc); color: var(--lk-acc-ink); transition: transform 120ms ease; }
 @media (hover: hover) { .lk-btn-cta:hover { transform: scale(1.02); } }
 .lk-btn-cta:focus-visible { outline: 2px solid var(--lk-text); outline-offset: 2px; }
-.lk-card { border-radius: 12px; background: var(--lk-surface); border: 1px solid var(--lk-border); box-shadow: ${CARD_SHADOW}; }
+.lk-card { border-radius: 12px; background: var(--lk-surface); border: 1px solid var(--lk-border); box-shadow: var(--lk-shadow); }
 /* TOPICS AS BLOCKS ON A PHONE (redesign, 2026-09-11): 28px of air and a hairline over each topic. */
 .lk-topic-sec[data-tier="narrow"] { padding: 28px 0; border-top: 1px solid var(--lk-border); }
 /* THE EXAM PILLS under the bolt: Exam 1 live, the rest locked (a drawn lock, never an emoji). */
-.lk-pill { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 11px; border-radius: 999px; font-size: 12px; font-weight: 800; font-family: ${SANS}; border: 1px solid var(--lk-top-border); background: transparent; color: var(--lk-top-ink); cursor: pointer; white-space: nowrap; }
+.lk-pill { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 11px; border-radius: 999px; font-size: 12px; font-weight: 800; font-family: ${SANS}; border: 1px solid var(--lk-top-rule); background: transparent; color: var(--lk-top-ink); cursor: pointer; white-space: nowrap; }
 .lk-pill[data-on="true"] { background: var(--lk-top-ink); color: var(--lk-top-bg); border-color: var(--lk-top-ink); }
 .lk-pill[data-locked="true"] { opacity: 0.72; }
 /* THE SHEETS (hamburger, exam waitlist, Text Lee): one surface, bottom on a phone, centred elsewhere. */
-.lk-sheet { width: 100%; background: var(--lk-surface); border: 1px solid var(--lk-border); color: var(--lk-text); box-shadow: ${CARD_SHADOW}; font-family: ${SANS}; }
+.lk-sheet { width: 100%; background: var(--lk-surface); border: 1px solid var(--lk-border); color: var(--lk-text); box-shadow: var(--lk-shadow); font-family: ${SANS}; }
 .lk-menu-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 0 16px; border: 0; background: transparent; color: var(--lk-text); font-family: ${SANS}; font-size: 14.5px; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer; border-radius: 10px; }
 @media (hover: hover) { .lk-menu-item:hover { background: var(--lk-border); } }
 .lk-rail-item { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 64px; padding: 10px 0; border-radius: 10px; font-size: 11px; font-weight: 600; color: var(--lk-muted); background: transparent; border: 0; cursor: pointer; font-family: ${SANS}; }
