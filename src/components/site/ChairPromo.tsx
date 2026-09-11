@@ -5,16 +5,18 @@
 // the DM destination — what Lee sends a chair — so it does three things and nothing else:
 //
 //   1. Says what it is for them, in one line: "Boost ΑΤΩ's GPA in ACCT 200."
-//   2. LEFT DOOR  — "See what members get →" opens the students' /learn page in a new tab, so the
+//   2. LEFT DOOR  — "See what members get" opens the students' /learn page in a new tab, so the
 //      chair can look without leaving this page.
 //   3. RIGHT DOOR — "Share with members" FLIPS into the share kit: copy the link, copy the
 //      GroupMe post, the flyer for the house, the meeting slide (councils: slide only).
 //
-// No sign-up form. The exec dashboard claim is one quiet link in the top line (chapters only),
-// which opens the existing claim sheet in place. Same doors as the homepage (DoorCard), same
-// value cards, same navy — a chair who has seen the site recognises it.
+// IT MIRRORS THE HOME PAGE (Lee, 2026-09-11: "the /go/ chapter chair and council chair pages
+// need to mirror the home page a bit more"): the same trust chips under the subhead, the same
+// "Exam 1 is free" line under the doors, the same reviews + Meet-your-tutor band, then the three
+// value cards in the chair's words. No sign-up form. The exec dashboard claim is one quiet link
+// in the top line (chapters only), which opens the claim sheet in place.
 import { useEffect, useState } from "react";
-import { Check, ExternalLink, FileText, Link2, MessageSquare, Presentation, Undo2 } from "lucide-react";
+import { Check, FileText, Link2, MessageSquare, Presentation, Undo2 } from "lucide-react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
@@ -25,12 +27,18 @@ import {
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { GreekLettersIcon, SOLO_ICON_H } from "@/components/site/home-two-door/HomeFold";
 import { FlyerMark } from "@/components/site/chapter/ChapterDoors";
+import { MARKETING_CSS, SocialProofSection, TrustChips, TutorBioModal, TutorCard } from "@/components/site/Marketing";
+import { TestimonialsSlider } from "@/components/site/Testimonials";
+import { scrollToId } from "@/lib/ui-scroll";
 import { LEE_PHONE_DISPLAY, LEE_SMS_HREF } from "@/lib/partners";
 import {
   type ChairKind, chairArtwork, chairForLine, chairGroupMe, chairHeadline, chairLearnPath, chairShareUrl, chairSubhead, chairValueCards,
 } from "@/components/site/chair-promo";
 
 export type ChairClaim = "unclaimed" | "pending" | "claimed";
+
+const REVIEWS_ID = "reviews";
+const VALUE_ID = "what-they-get";
 
 export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name, letters, shortName, code, bolt, claim, onClaim, onAction }: {
   kind: ChairKind;
@@ -61,14 +69,17 @@ export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name,
   const groupMe = chairGroupMe(kind, code, shareUrl, shortName);
   const art = chairArtwork(kind, schoolSlug, slug);
   const members = kind === "council" ? "chapters" : "members";
+  const [bioOpen, setBioOpen] = useState(false);
+  // "Like Reels for exam prep." — the word wears the accent, exactly as on the home page.
+  const [subLead, subRest] = chairSubhead(kind).split("Reels");
 
   return (
     <div style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), ...DOOR_CTA_VARS, background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_SANS, minHeight: "100vh", position: "relative", overflowX: "clip" }}>
-      <style>{DOOR_CARD_CSS + FLIP_CSS}</style>
+      <style>{MARKETING_CSS + DOOR_CARD_CSS + FLIP_CSS}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.3} animate /></div>
       <SiteHeader />
 
-      <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px 56px", width: "100%" }}>
+      <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px 64px", width: "100%" }}>
         {/* THE TOP LINE — who this is for, and (chapters) the one quiet way to the exec dashboard. */}
         <p className="pt-7 text-center text-[13px] sm:pt-9" style={{ color: "var(--text-muted)" }}>
           <span className="font-bold" style={{ color: "var(--brand-cream)" }}>{chairForLine(name, schoolName)}</span>
@@ -84,17 +95,20 @@ export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name,
           )}
         </p>
 
-        {/* THE HERO — one line, the course code's only appearance. */}
+        {/* THE HERO — one line, the course code's only appearance; then the home page's chips. */}
         <header className="mx-auto mt-4 max-w-[760px] text-center">
           <h1 className="sa-door-support text-[30px] font-black leading-[1.1] sm:text-[42px]" style={{ fontFamily: BRAND_DISPLAY, letterSpacing: "-0.015em" }}>
             {chairHeadline(kind, letters, code)}
           </h1>
-          <p className="mx-auto mt-3 max-w-[48ch] text-[15.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
-            {chairSubhead(kind)}
+          <p className="sa-door-support mx-auto mt-3 max-w-[52ch] text-[15.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
+            {subLead}<span className="font-bold" style={{ color: "var(--accent)" }}>Reels</span>{subRest}
           </p>
+          <div className="sa-chair-chips">
+            <TrustChips onBio={() => setBioOpen(true)} onReviews={() => scrollToId(REVIEWS_ID)} onPlayer={() => scrollToId(VALUE_ID)} thirdDesktopOnly />
+          </div>
         </header>
 
-        <div className="mt-9">
+        <div className="mt-8">
           <DoorRow label={`See it or share it with your ${members}`}>
             {/* LEFT DOOR — look first. A new tab, so this page (and the share kit) stays put. */}
             <DoorCard
@@ -102,12 +116,12 @@ export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name,
               title={`What ${members} get`}
               button={
                 <a href={learnPath} target="_blank" rel="noreferrer" onClick={() => onAction?.("open_learn")} className={`${DOOR_BTN_CLASS} inline-flex items-center justify-center gap-2`} style={SOLO_BTN}>
-                  See what {members} get <ExternalLink className="h-4 w-4" aria-hidden />
+                  See what {members} get →
                 </a>
               }
               support={
                 <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch", color: "var(--text-muted)" }}>
-                  The exact page your {members} land on. Opens in a new tab.
+                  The exact page your {members} land on.
                 </span>
               }
             />
@@ -116,7 +130,6 @@ export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name,
             <FlipDoor
               kind={kind}
               letters={letters}
-              members={members}
               shareUrl={shareUrl}
               groupMe={groupMe}
               art={art}
@@ -125,8 +138,21 @@ export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name,
           </DoorRow>
         </div>
 
-        {/* THE VALUE CARDS — the homepage's three, in the chair's words. */}
-        <section aria-label={`What ${members} get`} className="mx-auto mt-10 grid w-full max-w-[880px] gap-4 sm:grid-cols-3 sm:gap-5">
+        {/* UNDER THE DOORS — the home page's "Exam 1 is free." line, with the one way to reach Lee. */}
+        <p className="mt-6 text-center text-[13.5px]" style={{ color: "var(--text-muted)" }}>
+          <span className="font-black" style={{ color: "var(--brand-cream)" }}>Exam 1 is free.</span>{" "}
+          Questions?{" "}
+          <a href={LEE_SMS_HREF} className="font-bold underline underline-offset-4" style={{ color: "var(--brand-cream)" }}>Text Lee {LEE_PHONE_DISPLAY}</a>
+        </p>
+
+        {/* PROOF BEFORE THE FEATURE LIST — the same band, in the same place, as the home page. */}
+        <div id={REVIEWS_ID} className="sa-anchor" />
+        <div className="pt-12 sm:pt-14">
+          <SocialProofSection testimonials={<TestimonialsSlider />} tutor={<TutorCard onMore={() => setBioOpen(true)} />} />
+        </div>
+
+        {/* THE VALUE CARDS — the home page's three, in the chair's words. */}
+        <section id={VALUE_ID} aria-label={`What ${members} get`} className="sa-anchor mx-auto mt-12 grid w-full max-w-[880px] gap-4 sm:grid-cols-3 sm:gap-5">
           {chairValueCards(kind).map((c) => (
             <div key={c.title} className="rounded-2xl px-5 py-6 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
               <h2 className="text-[14px] font-black uppercase" style={{ fontFamily: BRAND_DISPLAY, letterSpacing: "0.06em", color: "var(--brand-cream)" }}>{c.title}</h2>
@@ -134,12 +160,9 @@ export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name,
             </div>
           ))}
         </section>
-
-        <p className="mt-10 text-center text-[13px]" style={{ color: "var(--text-muted)" }}>
-          Questions, or a syllabus to send?{" "}
-          <a href={LEE_SMS_HREF} className="font-bold underline underline-offset-4" style={{ color: "var(--brand-cream)" }}>Text Lee {LEE_PHONE_DISPLAY}</a>
-        </p>
       </main>
+
+      {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
     </div>
   );
 }
@@ -149,10 +172,9 @@ export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name,
 /** THE FLIP. Front: the door as it sits next to its sibling (same DoorCard, same grammar). Back:
  *  the share kit, on the same frame. The wrapper keeps the front face in flow so the row's
  *  height comes from the same place as the left door's; the back face sits on top of it. */
-function FlipDoor({ kind, letters, members, shareUrl, groupMe, art, onAction }: {
+function FlipDoor({ kind, letters, shareUrl, groupMe, art, onAction }: {
   kind: ChairKind;
   letters: string;
-  members: string;
   shareUrl: string;
   groupMe: string;
   art: ReturnType<typeof chairArtwork>;
@@ -241,6 +263,7 @@ function CopyAction({ icon, label, text, disabled, onCopied }: { icon: React.Rea
 }
 
 const FLIP_CSS = `
+.sa-chair-chips .sa-proof-row { justify-content: center; }
 .sa-flip { perspective: 1400px; }
 .sa-flip-inner { position: relative; transform-style: preserve-3d; transition: transform 520ms cubic-bezier(.2,.7,.2,1); }
 .sa-flip.is-flipped .sa-flip-inner { transform: rotateY(180deg); }

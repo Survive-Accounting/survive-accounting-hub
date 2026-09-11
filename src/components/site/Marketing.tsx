@@ -260,11 +260,11 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
 // ── TRUST CHIPS ───────────────────────────────────────────────────────────────────────────────
 /** Three small credibility chips, whole-chip clickable — no visible "→ Reviews" explainers.
  *  They are trust badges, not CTAs: quiet by default, a shade brighter on hover, clear focus. */
-export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; onReviews: () => void; /** Omit to drop the third chip. The two-door home does: above the fold every extra row costs the first card its place on a 390px screen, and "Built for exam week" is the one claim the two doors underneath already make. Pages with room keep all three. */ onPlayer?: () => void }) {
-  const CHIPS: Array<{ label: string; onClick: () => void }> = [
+export function TrustChips({ onBio, onReviews, onPlayer, thirdDesktopOnly = false }: { onBio: () => void; onReviews: () => void; /** THE THIRD CHIP ON DESKTOP ONLY (Lee, 2026-09-11: "we trimmed to two on mobile, but desktop needs to add back Built for exam week") — the phone keeps the two-chip row that fits above the fold. */ thirdDesktopOnly?: boolean; /** Omit to drop the third chip. The two-door home does: above the fold every extra row costs the first card its place on a 390px screen, and "Built for exam week" is the one claim the two doors underneath already make. Pages with room keep all three. */ onPlayer?: () => void }) {
+  const CHIPS: Array<{ label: string; onClick: () => void; desktopOnly?: boolean }> = [
     { label: "Created by a pro tutor", onClick: onBio },
     { label: "1,000+ students helped", onClick: onReviews },
-    ...(onPlayer ? [{ label: "Built for exam week", onClick: onPlayer }] : []),
+    ...(onPlayer ? [{ label: "Built for exam week", onClick: onPlayer, desktopOnly: thirdDesktopOnly }] : []),
   ];
   // A PROOF STRIP, NOT A THIRD ROW OF BUTTONS. One hierarchy step below both hero CTAs: smaller
   // type, thinner border, muted fill, no lift, default cursor. They stay activatable (each one
@@ -277,6 +277,7 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
           key={c.label}
           type="button"
           onClick={c.onClick}
+          data-desktop-only={c.desktopOnly ? "1" : undefined}
           className="sa-trust-chip relative rounded-full text-[13px] font-semibold focus-visible:ring-2"
           style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)", height: 33, paddingInline: 11, whiteSpace: "nowrap" }}
         >
@@ -318,6 +319,7 @@ ${CAMPUS_LINE_CSS}
    is a bare half-step of contrast so the badge is not dead to the pointer, nothing more. */
 .sa-trust-chip { display: inline-flex; align-items: center; gap: 5px; cursor: default; transition: color 140ms, border-color 140ms; }
 .sa-trust-chip:hover { color: var(--brand-cream); border-color: var(--border-default); }
+@media (max-width: 639px) { .sa-trust-chip[data-desktop-only="1"] { display: none; } }
 .sa-trust-chip:focus-visible { color: var(--brand-cream); outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Touch target stays 44px tall while the pill reads 33px — the badges are still real controls. */
 .sa-trust-chip::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }

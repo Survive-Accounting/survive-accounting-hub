@@ -17,7 +17,6 @@
 // "outside" taps are part of normally using the section — a document-wide dismiss listener was
 // silently wiping four typed fields. The × button is the one deliberate way out. (The role
 // dropdown below does close on outside click, because closing a popup loses nothing.)
-import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
@@ -47,12 +46,11 @@ const FIELD: React.CSSProperties = {
   outline: "none",
 };
 
+// Sentence case, not caps (Lee, 2026-09-11: "too much all-caps makes it feel more bureaucratic").
 const LABEL: React.CSSProperties = {
   display: "block",
-  fontSize: 12,
-  fontWeight: 800,
-  letterSpacing: "0.06em",
-  textTransform: "uppercase",
+  fontSize: 13,
+  fontWeight: 700,
   color: "var(--text-secondary, #AAB4C8)",
   marginBottom: 6,
 };
@@ -191,9 +189,8 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
   const [position, setPosition] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  // K3 — the one willingness question. Required: it is the single field that decides whether this
-  // is a lead Lee calls tonight or one he emails next week. Stored, never shown back as a score.
-  const [intent, setIntent] = useState<"" | "committed" | "curious" | "exploring">("");
+  // THE WILLINGNESS QUESTION IS GONE (Lee, 2026-09-11: "the biggest unnecessary friction point").
+  // Lee calls every claimant from his own mobile, so nothing here needs to sort hot from cold.
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -204,7 +201,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
   // reader instead of silently swapping the subtree.
   const doneRef = useRef<HTMLDivElement | null>(null);
 
-  const ok = name.trim().length > 1 && position && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()) && phone.replace(/\D/g, "").length >= 10 && !!intent;
+  const ok = name.trim().length > 1 && position && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()) && phone.replace(/\D/g, "").length >= 10;
 
   useEffect(() => {
     if (!done) return;
@@ -218,7 +215,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
     if (!ok || busy) return;
     setBusy(true); setErr(null);
     try {
-      const r = await submitChapterClaim({ data: { schoolSlug, chapterSlug, name: name.trim(), position, email: email.trim(), phone: phone.trim(), intent: intent as "committed" | "curious" | "exploring" } });
+      const r = await submitChapterClaim({ data: { schoolSlug, chapterSlug, name: name.trim(), position, email: email.trim(), phone: phone.trim() } });
       if (r.ok) {
         // The claim is saved; that is the whole of what the exec is waiting for. Confirm NOW.
         setDone(true); onDone?.();
@@ -242,36 +239,22 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
         className="mx-auto max-w-sm rounded-2xl px-5 py-6 text-center outline-none"
         style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.35)", fontFamily: BRAND_SANS }}
       >
-        <p className="text-[17px] font-black" style={{ color: "var(--brand-cream)" }}>
-          {intent === "committed" ? `Let's set up ${who}'s seats.` : "You've got the dashboard ✓"}
+        <p className="text-[17px] font-black" style={{ color: "var(--brand-cream)" }}>You&apos;ve got the dashboard ✓</p>
+        {/* Says what happens next. Lee calls every claimant himself, from his own mobile. */}
+        <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
+          Lee will text you shortly to get {who} set up.
         </p>
-        {/* Says what happens next and by when. "We'll be in touch" is what a form says when nobody
-            is actually going to read it. */}
-        {intent === "committed" ? (
-          /* The page promised an hour, and the hot-lead alert in runClaimIntake is what makes
-             that true — it goes to Lee's phone the moment this submits. */
-          <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
-            Lee will text you within the hour.
-          </p>
-        ) : (
-          <>
-            <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
-              We&apos;ll email you as the house signs up.
-            </p>
-            <p className="mx-auto mt-1.5 max-w-[34ch] text-[13px] leading-relaxed" style={{ color: "var(--text-secondary, #AAB4C8)" }}>
-              I&apos;ll verify your chapter role within one business day.
-            </p>
-          </>
-        )}
-        {/* Somewhere to GO. Without this the exec is left at a dead end inside a collapsed
-            accordion with the rest of the page above them. */}
-        <a
-          href="#exam1"
+        <p className="mx-auto mt-1.5 max-w-[34ch] text-[13px] leading-relaxed" style={{ color: "var(--text-secondary, #AAB4C8)" }}>
+          We&apos;ll email you as the house signs up.
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
           className="mt-4 inline-flex items-center rounded-xl px-4 text-[13.5px] font-black"
-          style={{ minHeight: 44, background: "rgba(255,255,255,0.08)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
+          style={{ minHeight: 44, background: "rgba(255,255,255,0.08)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", cursor: "pointer" }}
         >
-          Back to Exam 1 →
-        </a>
+          Done
+        </button>
       </div>
     );
   }
@@ -290,7 +273,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
             <span aria-hidden style={{ fontSize: 18 }}>×</span>
           </button>
 
-          <p className="mb-4 pr-10 text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Set up {chapterName}&apos;s dashboard</p>
+          <p className="mb-4 pr-10 text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Get {who}&apos;s dashboard</p>
         </>
       )}
 
@@ -309,7 +292,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
         </div>
 
         <div>
-          <label style={LABEL} htmlFor={`${uid}-role`}>Your chapter role</label>
+          <label style={LABEL} htmlFor={`${uid}-role`}>Your role</label>
           <RoleSelect id={`${uid}-role`} value={position} onChange={setPosition} />
         </div>
 
@@ -332,53 +315,9 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
         </div>
       </div>
 
-      {/* THE SMS DISCLOSURE, in its shortest compliant form. Lee asked for it to become an
-          "SMS policy" link, and it nearly is: one quiet line plus "Message terms" behind a
-          toggle. It cannot become ONLY a link — A2P 10DLC requires the consent essentials
-          (what you get, rates, STOP) to be visible AT the point of capture, and hiding all of it
-          is what makes a submitted number an unconsented one. This is the compact variant the
-          notify modal already uses, so the two forms now disclose identically. */}
-      <SmsConsentNote compact />
-
-      {/* K3 — ONE willingness question, required, immediately before the button. Deliberately
-          the last thing they answer: by here they have already decided to claim, so this reads as
-          "how fast do you want to move", not as a qualifying gate on the way in. */}
-      <fieldset className="mt-4" style={{ border: 0, padding: 0, margin: "16px 0 0" }}>
-        <legend className="mb-2 text-[12px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.1em" }}>
-          Where&rsquo;s {who} at?
-        </legend>
-        <div className="flex flex-col gap-1.5">
-          {([
-            ["committed", "We're ready to sponsor seats"],
-            ["curious", "Tell me more first"],
-            ["exploring", "Just exploring for now"],
-          ] as const).map(([value, label]) => {
-            const on = intent === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setIntent(value)}
-                aria-pressed={on}
-                className="flex w-full items-center gap-2.5 rounded-xl px-3 text-left text-[13.5px] font-bold focus-visible:ring-2"
-                style={{
-                  minHeight: 46,
-                  background: on ? "rgba(252,163,17,0.10)" : "var(--bg-input, rgba(0,0,0,0.32))",
-                  border: `1px solid ${on ? "var(--accent)" : "var(--border-default)"}`,
-                  color: "var(--brand-cream)", cursor: "pointer",
-                }}
-              >
-                <span
-                  aria-hidden
-                  className="inline-block shrink-0 rounded-full"
-                  style={{ width: 14, height: 14, border: `2px solid ${on ? "var(--accent)" : "var(--text-muted)"}`, background: on ? "var(--accent)" : "transparent" }}
-                />
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
+      {/* NO SMS DISCLOSURE, NO "WHERE'S THE CHAPTER AT?" (Lee, 2026-09-11). The number is for
+          Lee's own phone — he calls, nothing automated texts it — and the willingness question
+          was the biggest friction point in a form that should feel like a fast unlock. */}
 
       {err && <p className="mt-3 text-[12.5px]" role="alert" style={{ color: "#F3C6CC" }}>{err}</p>}
 
@@ -392,7 +331,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
         className="mt-4 w-full rounded-xl text-[14px] font-black leading-tight transition-opacity disabled:opacity-40"
         style={{ minHeight: 52, background: "var(--accent)", color: "#0B1220" }}
       >
-        {busy ? "Sending request…" : "Get your academic exec dashboard →"}
+        {busy ? "Opening…" : "Open dashboard →"}
       </button>
     </div>
   );

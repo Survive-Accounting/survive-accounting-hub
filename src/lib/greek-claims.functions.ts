@@ -67,7 +67,9 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
     phone: z.string().trim().min(7).max(20),
     // K3 — WHERE THE CHAPTER SAID IT WAS AT, in its own words. Lead scoring, never shown back to
     // the exec as a score. "committed" routes to the hot path, where Lee is alerted to close it.
-    intent: z.enum(["committed", "curious", "exploring"]),
+    // OPTIONAL since 2026-09-11: the claim form no longer asks (Lee calls every claimant). A
+    // claim without it simply skips the hot-lead SMS; the standard claim notification still goes.
+    intent: z.enum(["committed", "curious", "exploring"]).optional(),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string; claimId?: string; notifyPending?: boolean }> => {
     const db = await admin();
@@ -114,7 +116,7 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
       ...(sourcing ? { sourcing_partner_id: sourcing.partnerId, sourcing_assignment_id: sourcing.assignmentId } : {}),
     };
     let { data: inserted, error } = await db.from("greek_chapter_claims")
-      .insert({ ...baseRow, intent: data.intent }).select("id").single();
+      .insert({ ...baseRow, intent: data.intent ?? null }).select("id").single();
     if (error) {
       console.warn(`[claim] insert with intent failed (${error.message}) — retrying without it. If this says "intent" does not exist, migration 20260829_0900 has not been applied.`);
       ({ data: inserted, error } = await db.from("greek_chapter_claims").insert(baseRow).select("id").single());

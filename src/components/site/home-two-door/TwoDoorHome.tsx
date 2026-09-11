@@ -256,7 +256,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
             above the doors. Centered under the centered hero (p6 §3) — TrustChips left-aligns at
             lg by default, which read as off-axis here. */}
         <div className="sa-home-chips mb-7 sm:mb-8">
-          <TrustChips onBio={() => setBioOpen(true)} onReviews={() => scrollToId("reviews")} />
+          <TrustChips onBio={() => setBioOpen(true)} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} thirdDesktopOnly />
         </div>
 
         {/* Legacy compatibility: every other page's navbar still links "/#exam1". */}

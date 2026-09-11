@@ -14,9 +14,10 @@ describe("chairHeadline", () => {
   test("no verified code degrades honestly — never a placeholder", () => {
     expect(chairHeadline("chapter", "ΑΤΩ", null)).toBe("Boost ΑΤΩ's GPA in intro accounting.");
   });
-  test("the code appears once — the subhead never repeats it", () => {
+  test("the subhead is Lee's line, and never repeats the code", () => {
+    expect(chairSubhead("chapter")).toBe("Like Reels for exam prep. Members get cram videos and practice exams proven to boost scores quickly.");
+    expect(chairSubhead("council")).toBe("Like Reels for exam prep. Every chapter's members get cram videos and practice exams proven to boost scores quickly.");
     expect(chairSubhead("chapter")).not.toMatch(/ACCT/);
-    expect(chairSubhead("council")).toMatch(/every member/);
   });
 });
 
@@ -75,7 +76,7 @@ describe("value cards", () => {
     expect(c).toEqual([
       "Fast explanations for the problems your members actually need to know.",
       "Exam-style questions that teach your members to recognize the pattern before test day.",
-      "Matched to your members' course. If anything's missing, send the syllabus.",
+      "Matched to your members' course. If anything's missing, they can request it.",
     ]);
     expect(chairValueCards("council")[0].copy).toBe("Fast explanations for the problems everyone actually needs to know.");
   });

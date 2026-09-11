@@ -18,11 +18,11 @@ export function chairHeadline(kind: ChairKind, letters: string, code: string | n
   return `Boost ${who} GPA in ${code ? nbspCode(code) : "intro accounting"}.`;
 }
 
-/** The line under the headline. No course code here — the headline spent it. */
+/** The line under the headline (Lee's wording, 2026-09-11). "Reels" is what the home page
+ *  highlights, and ChairPromo renders it the same way. No course code here — the headline spent it. */
 export function chairSubhead(kind: ChairKind): string {
-  return kind === "council"
-    ? "Free cram videos and practice exams for every member taking it. Exam 1 is completely free."
-    : "Free cram videos and practice exams for the members taking it. Exam 1 is completely free.";
+  const who = kind === "council" ? "Every chapter's members" : "Members";
+  return `Like Reels for exam prep. ${who} get cram videos and practice exams proven to boost scores quickly.`;
 }
 
 /** The quiet line at the top — "For Alpha Tau Omega · Tennessee". */
@@ -69,6 +69,6 @@ export function chairValueCards(kind: ChairKind): Array<{ title: string; copy: s
   return [
     { title: "2-minute cram videos", copy: `Fast explanations for the problems ${m} actually ${needs} to know.` },
     { title: "Practice exams", copy: `Exam-style questions that teach ${m} to recognize the pattern before test day.` },
-    { title: "Built for the course", copy: `Matched to ${mp} course. If anything's missing, send the syllabus.` },
+    { title: "Built for the course", copy: `Matched to ${mp} course. If anything's missing, they can request it.` },
   ];
 }
