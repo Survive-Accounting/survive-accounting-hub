@@ -80,9 +80,10 @@ import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome
 import { LearnTextLee } from "@/components/learn/LearnTextLee";
 import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
 import { ReviewSheet } from "@/components/learn/ReviewSheet";
-import { LearnShareKit } from "@/components/learn/LearnShareKit";
+import { LearnChapterBar, readChapterBarHidden } from "@/components/learn/LearnChapterBar";
 import { pageShareUrl } from "@/lib/share-url";
-import { CramPlayer, type PlayerItem } from "@/components/learn/CramPlayer";
+import { CramPlayer, type PlayerItem, type PlayerPart } from "@/components/learn/CramPlayer";
+import { partKey, setIdOfKey } from "@/lib/student-shorts";
 import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
 import { DEFAULT_LOOK, isLook, LK, LEARN_CSS, themeFor, themeStyle, type Look } from "@/components/learn/learn-theme";
 import { useTier } from "@/components/learn/use-tier";
@@ -105,10 +106,13 @@ type LearnSearch = {
   ref?: string; by?: string; g?: string; test?: string;
   /** ?look=<name> — one of learn-theme's LOOKS instead of the Blackboard. */
   look?: Look;
+  /** ?part=N (1-based) — which part of the set the player is on (2026-09-11). */
+  part?: number;
   /** ?looks=1 — mount the floating look picker (LearnLookPicker). */
   looks?: true;
   /** THE SHARE KIT (2026-09-11): ?share=council (+ ?c=<council slug>) for a council chair, ?share=chair
-   *  for a chapter's chair — LearnShareKit above the hero. Never copied onward (share-url strips both). */
+   *  for a chapter's chair. Since the same night both are the one LearnChapterBar every visitor sees
+   *  above the hero; ?c= presets its council. Never copied onward (share-url strips both). */
   share?: "council" | "chair";
   c?: string;
   // ATTRIBUTION (2026-09-11, lib/carry-params): an ad's utm_* and click id ride in the address so
@@ -122,6 +126,7 @@ export const Route = createFileRoute("/learn/{-$campus}/{-$chapter}")({
     topic: typeof s.topic === "string" && s.topic ? s.topic : undefined,
     // ?set=<id> opens the player on that set; ?stage=practice opens its practice drawer.
     set: typeof s.set === "string" && s.set ? s.set : undefined,
+    part: (() => { const n = typeof s.part === "number" ? s.part : typeof s.part === "string" ? Number(s.part) : NaN; return Number.isInteger(n) && n >= 2 && n <= 99 ? n : undefined; })(),
     stage: s.stage === "cram" || s.stage === "practice" || s.stage === "review" ? s.stage : undefined,
     demo: s.demo === true || s.demo === 1 || s.demo === "1" || s.demo === "true" ? true : undefined,
     ref: typeof s.ref === "string" && isContactRef(s.ref) ? s.ref : undefined,
@@ -177,7 +182,7 @@ const DEMO_QUESTIONS: PracticeQuestion[] = [
   ] },
 ];
 function demoTree(): StudentCourse[] {
-  const set = (id: string, name: string, o: Partial<StudentSet> = {}): StudentSet => ({ id: `demo-${id}`, name, access: "free", orientation: "portrait", playbackId: DEMO_PLAYBACK, ceqCount: 0, runtimeSec: null, hasReview: false, reviewPlaybackId: null, reviewRuntimeSec: null, firstStem: null, shortLabel: null, ...o });
+  const set = (id: string, name: string, o: Partial<StudentSet> = {}): StudentSet => ({ id: `demo-${id}`, name, coverUrl: null, access: "free", orientation: "portrait", playbackId: DEMO_PLAYBACK, ceqCount: 0, runtimeSec: null, hasReview: false, reviewPlaybackId: null, reviewRuntimeSec: null, firstStem: null, shortLabel: null, ...o });
   return [{
     id: "demo-intro1", name: "Intro 1", family: "intro",
     units: [
@@ -348,6 +353,14 @@ function LearnShell() {
   const campusName = school?.name ?? campuses.find((c) => c.id === campusId)?.name ?? null;
   const look: Look = search.look ?? DEFAULT_LOOK;
   const theme = useMemo(() => themeFor(school, look), [school, look]);
+  // THE CHAPTER BAR (2026-09-11): hidden on this device only by its own "Not in a chapter?" link,
+  // and never when a chapter or a council is in the address. Read in an effect (storage).
+  const [barHidden, setBarHidden] = useState(false);
+  useEffect(() => { setBarHidden(readChapterBarHidden()); }, []);
+  const pickChapter = useCallback((slug: string) => {
+    if (school?.slug) { try { localStorage.setItem(chapterPickKey(school.slug), slug); } catch { /* ignore */ } window.dispatchEvent(new CustomEvent(CTA_CHAPTER_EVENT)); }
+    void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: school?.id ?? params.campus, chapter: slug }, search: (p: LearnSearch) => ({ ...p, share: undefined }), replace: true });
+  }, [navigate, school, params.campus]);
   const pickLook = useCallback((next: Look) => {
     void navigate({ search: (p: LearnSearch) => ({ ...p, look: next === DEFAULT_LOOK ? undefined : next }), replace: true });
   }, [navigate]);
@@ -395,21 +408,34 @@ function LearnShell() {
       const m = { ...prev, [setId]: p }; persist(m, setId); return m;
     });
   }, [persist]);
-  // RETARGETING (2026-09-11): a video's FIRST start (video_start), and the finish that completes the
+  // PART PROGRESS (2026-09-11): the player reports by part key ("<setId>#N"); the set itself is
+  // started with its first part and complete when its last part is, so the rail's per-part checks
+  // and the set-level gates (practice's "watch first") both stay honest.
+  const partsOfRef = useRef<Map<string, string[]>>(new Map());
+  // RETARGETING (2026-09-11): a part's FIRST start (video_start), and the finish that completes the
   // exam's whole path (path_complete). Refs, because campus / chapter / exam and the path's sets are
   // worked out further down this component.
   const adCtx = useRef<AdParams>({});
   const pathSetIds = useRef<string[]>([]);
-  const onStarted = useCallback((id: string) => {
-    const cur = progress[id];
-    if (!demo && (!cur || cur.state === "unstarted")) adEvent("video_start", { ...adCtx.current, video: id });
-    markProgress(id, "in_progress");
+  const onStarted = useCallback((key: string) => {
+    const cur = progress[key];
+    if (!demo && (!cur || cur.state === "unstarted")) adEvent("video_start", { ...adCtx.current, video: key });
+    markProgress(key, "in_progress");
+    const sid = setIdOfKey(key);
+    if (sid !== key) markProgress(sid, "in_progress");
   }, [markProgress, progress, demo]);
-  const onComplete = useCallback((id: string) => {
+  const onComplete = useCallback((key: string) => {
+    const sid = setIdOfKey(key);
+    const keys = partsOfRef.current.get(sid) ?? [];
+    // This finish completes the set, the set wasn't complete before, and it was the path's last open set.
+    const setDone = sid === key || keys.every((k) => k === key || progress[k]?.state === "complete");
     const ids = pathSetIds.current;
-    const finishing = progress[id]?.state !== "complete" && ids.includes(id) && ids.every((s) => s === id || progress[s]?.state === "complete");
-    if (!demo && finishing) adEvent("path_complete", adCtx.current);
-    markProgress(id, "complete");
+    if (!demo && setDone && progress[sid]?.state !== "complete" && ids.includes(sid) && ids.every((s) => s === sid || progress[s]?.state === "complete")) {
+      adEvent("path_complete", adCtx.current);
+    }
+    markProgress(key, "complete");
+    if (sid === key) return;
+    setProgress((prev) => { if (keys.every((k) => k === key || prev[k]?.state === "complete")) window.setTimeout(() => markProgress(sid, "complete"), 0); return prev; });
   }, [markProgress, progress, demo]);
 
   // ENTITLEMENTS
@@ -458,18 +484,47 @@ function LearnShell() {
   const topics = useMemo(() => Array.from(new Map(sets.map((s) => [s.topic.id, s.topic])).values()), [sets]);
 
   // The player walks every set with a cram video (locked ones show the paywall face).
-  const playerItems = useMemo<PlayerItem[]>(() => sets.filter((s) => !!s.set.playbackId || s.locked).map((s) => ({ set: s.set, topic: s.topic, n: s.n, of: s.of, locked: s.locked })), [sets]);
-  const playerIndex = search.set ? playerItems.findIndex((i) => i.set.id === search.set) : -1;
+  // EVERY PART IS AN ITEM (2026-09-11): a set posted as five splits walks as five videos.
+  const playerItems = useMemo<PlayerItem[]>(() => {
+    const out: PlayerItem[] = [];
+    const parts = new Map<string, string[]>();
+    for (const s of sets) {
+      if (!s.set.playbackId && !s.locked) continue;
+      const shorts = s.set.shorts?.length ? s.set.shorts : null;
+      const list: PlayerPart[] = shorts
+        ? shorts.map((sh, i) => ({ index: i, of: shorts.length, name: sh.name, playbackId: sh.playbackId, coverUrl: sh.coverUrl, key: partKey(s.set.id, i) }))
+        : [{ index: 0, of: 1, name: s.set.name, playbackId: s.set.playbackId, coverUrl: s.set.coverUrl, key: s.set.id }];
+      parts.set(s.set.id, list.map((p) => p.key));
+      for (const part of list) out.push({ set: s.set, topic: s.topic, n: s.n, of: s.of, locked: s.locked, part });
+    }
+    partsOfRef.current = parts;
+    return out;
+  }, [sets]);
+  const playerIndex = search.set ? playerItems.findIndex((i) => i.set.id === search.set && i.part.index === (search.part ?? 1) - 1) : -1;
   const inPlayer = playerIndex >= 0;
   const [practice, setPractice] = useState(false);
   useEffect(() => { if (search.stage === "practice" && inPlayer) setPractice(true); }, [search.stage, inPlayer]);
-  const openSet = (setId: string, withPractice = false) => {
+  const openSet = (setId: string, withPractice = false, part = 1) => {
     setPractice(withPractice);
-    try { localStorage.setItem(LAST_SET_KEY, setId); } catch { /* ignore */ }
-    void navigate({ search: (p: LearnSearch) => ({ ...p, set: setId, stage: withPractice ? "practice" : undefined }), replace: inPlayer });
+    try { localStorage.setItem(LAST_SET_KEY, partKey(setId, part - 1)); } catch { /* ignore */ }
+    void navigate({ search: (p: LearnSearch) => ({ ...p, set: setId, part: part > 1 ? part : undefined, stage: withPractice ? "practice" : undefined }), replace: inPlayer });
   };
-  const exitPlayer = () => { setPractice(false); void navigate({ search: (p: LearnSearch) => ({ ...p, set: undefined, stage: undefined }) }); };
-  useEffect(() => { if (inPlayer && search.set) { try { localStorage.setItem(LAST_SET_KEY, search.set); } catch { /* ignore */ } } }, [inPlayer, search.set]);
+  const exitPlayer = () => { setPractice(false); void navigate({ search: (p: LearnSearch) => ({ ...p, set: undefined, part: undefined, stage: undefined }) }); };
+  useEffect(() => { if (inPlayer && search.set) { try { localStorage.setItem(LAST_SET_KEY, partKey(search.set, (search.part ?? 1) - 1)); } catch { /* ignore */ } } }, [inPlayer, search.set, search.part]);
+  // AUTOPLAY ON ARRIVAL (Lee, 2026-09-11: "on first visit the first video starts autoplaying on
+  // mute. If a user returns, it will autoplay the one they left off"): once per browser session,
+  // when the page opens with no video in the address and no share kit, the last video this
+  // browser watched (or the first playable one) opens, muted — the sound pill is one tap.
+  useEffect(() => {
+    if (isLoading || inPlayer || search.set || search.share || search.c || demo || playerItems.length === 0) return;
+    let seen = false; try { seen = sessionStorage.getItem("sa-cram-auto") === "1"; } catch { /* ignore */ }
+    if (seen) return;
+    try { sessionStorage.setItem("sa-cram-auto", "1"); } catch { /* ignore */ }
+    let last: string | null = null; try { last = localStorage.getItem(LAST_SET_KEY); } catch { /* ignore */ }
+    const target = (last && playerItems.find((i) => i.part.key === last && !i.locked && !!i.part.playbackId)) ?? playerItems.find((i) => !i.locked && !!i.part.playbackId);
+    if (target) void navigate({ search: (p: LearnSearch) => ({ ...p, set: target.set.id, part: target.part.index > 0 ? target.part.index + 1 : undefined }), replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, playerItems.length]);
 
   // THE PLAN — remembered per browser.
   const [plan, setPlanState] = useState<Plan>({ practice: false, review: false });
@@ -527,7 +582,7 @@ function LearnShell() {
   const [chip, setChip] = useState<string | null>(null);
   const start = () => { const first = sets.find((s) => !!s.set.playbackId && !s.locked && !s.done) ?? sets.find((s) => !!s.set.playbackId && !s.locked); if (first) openSet(first.set.id); };
 
-  useEffect(() => { const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setPaywallTopic(null); }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
+  useEffect(() => { const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setPaywallTopic(null); if (inPlayer && !practice) exitPlayer(); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); });
 
   const contactRef = search.by ?? search.ref ?? null;
 
@@ -561,17 +616,6 @@ function LearnShell() {
           <div className="flex-1" aria-busy="true" />
         ) : sets.length === 0 ? (
           <div className="grid flex-1 place-items-center p-6 text-center"><div><p className="lk-disp" style={{ fontSize: 18 }}>Cram videos are on the way.</p><p className="mt-1 text-[13px]" style={{ color: LK.muted }}>Nothing is live for {exam?.label ?? "this exam"} yet — check back soon.</p></div></div>
-        ) : inPlayer ? (
-          <CramPlayer
-            items={playerItems} index={playerIndex}
-            onIndex={(i) => { const it = playerItems[i]; if (it) { setPractice(false); void navigate({ search: (p: LearnSearch) => ({ ...p, set: it.set.id, stage: undefined }), replace: true }); } }}
-            progress={progress} onStarted={onStarted} onComplete={onComplete} onPosition={markPosition} resolvePlayback={resolvePlayback}
-            demo={demo} narrow={isNarrow} theme={theme}
-            practice={practice} onPractice={setPractice}
-            campusName={campusName} campusSlug={campusSlug} contactRef={contactRef}
-            onShare={() => void share()} onLocked={setPaywallTopic} onExit={exitPlayer}
-            demoQuestions={DEMO_QUESTIONS}
-          />
         ) : (
           <LearnHome
             ref={homeRef}
@@ -584,19 +628,38 @@ function LearnShell() {
             campusId={campusId} demo={demo}
             unlocked={unlocked} onUnlocked={() => setUnlocked(true)}
             school={school}
+            progress={progress}
             chapterSlug={chapter.slug}
-            kit={search.share && school ? (
-              <LearnShareKit
-                mode={search.share} councilSlug={search.c ?? null} school={school}
+            kit={school && !demo && (!barHidden || !!chapter.slug || !!search.c) ? (
+              <LearnChapterBar
+                school={school} councilSlug={search.c ?? null}
                 chapter={chapter.slug ? { slug: chapter.slug, name: chapter.name, letters: chapter.letters } : null}
                 contactRef={search.by ?? search.ref ?? null} narrow={isNarrow}
-                onClose={() => void navigate({ search: (p: LearnSearch) => ({ ...p, share: undefined, c: undefined }), replace: true })}
+                onPick={pickChapter} onHide={() => setBarHidden(true)}
               />
             ) : null}
           />
         )}
       </div>
 
+      {/* THE PLAYER (2026-09-11): a lightbox OVER the page on a desk — the rail keeps its place
+          behind it, Escape or the backdrop closes it — and the full phone screen on a phone (Lee:
+          "treat these more like embeds that you can then full screen vs. opening that player … In
+          mobile, obviously we want the video to play on full phone screen"). */}
+      {inPlayer && !isLoading && (
+        <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: isNarrow ? "#000" : "rgba(13,23,48,0.84)", backdropFilter: isNarrow ? undefined : "blur(18px)", WebkitBackdropFilter: isNarrow ? undefined : "blur(18px)", paddingTop: isNarrow ? 0 : 60 }} onClick={(e) => { if (!isNarrow && e.target === e.currentTarget) exitPlayer(); }}>
+          <CramPlayer
+            items={playerItems} index={playerIndex}
+            onIndex={(i) => { const it = playerItems[i]; if (it) { setPractice(false); void navigate({ search: (p: LearnSearch) => ({ ...p, set: it.set.id, part: it.part.index > 0 ? it.part.index + 1 : undefined, stage: undefined }), replace: true }); } }}
+            progress={progress} onStarted={onStarted} onComplete={onComplete} onPosition={markPosition} resolvePlayback={resolvePlayback}
+            demo={demo} narrow={isNarrow} theme={theme}
+            practice={practice} onPractice={setPractice}
+            campusName={campusName} campusSlug={campusSlug} contactRef={contactRef}
+            onShare={share} onLocked={setPaywallTopic} onExit={exitPlayer}
+            demoQuestions={DEMO_QUESTIONS}
+          />
+        </div>
+      )}
       {SHOW_ASKS_BAR && !inPlayer && !isLoading && !isError && sets.length > 0 && (
         <LearnAsksBar theme={theme} campusName={campusName} campusId={campusId} campusSlug={campusSlug} courseCode={school?.courseCode ?? null} greekEnabled={ctaMounted && !ctaOwnBar} council={shareCtx.isCouncil} onGreek={() => openLearnCta("pick")} narrow={isNarrow} demo={demo} />
       )}

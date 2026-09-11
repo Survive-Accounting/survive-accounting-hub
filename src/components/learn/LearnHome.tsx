@@ -114,6 +114,8 @@
 // invented. Where a topic has no runtime data yet, it just doesn't claim a duration (no fake
 // "~12 min"), per the "manageable, not overwhelming" rule.
 import { forwardRef, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { partKey } from "@/lib/student-shorts";
+import type { Prog } from "@/components/learn/cram-media";
 import { Check, ChevronDown, Loader2, Lock } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
@@ -231,7 +233,7 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   theme: LearnTheme;
   tier: Tier;
   onStart: () => void;
-  onOpenSet: (setId: string, practice?: boolean) => void;
+  onOpenSet: (setId: string, practice?: boolean, part?: number) => void;
   onLocked: (topic: StudentTopic) => void;
   rowRef: (key: RailKey) => (el: HTMLElement | null) => void;
   /** Signed in — the email gate never asks (we already have the address). */
@@ -244,11 +246,13 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   onUnlocked: () => void;
   /** The school — the topic bolts' colours and the practice art's tint. */
   school: School | null;
+  /** Every video's progress by key — the set's, or a part's ("<setId>#N") — for the checks. */
+  progress?: Record<string, Prog>;
   /** The chapter the student is on — rides with every email the page collects (2026-09-11). */
   chapterSlug?: string | null;
   /** THE SHARE KIT (LearnShareKit) for a council or chapter chair, above the hero; null for a student. */
   kit?: ReactNode;
-}>(function LearnHome({ sets, examLabel, tier, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school, chapterSlug = null, kit = null }, ref) {
+}>(function LearnHome({ sets, examLabel, tier, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school, progress = {}, chapterSlug = null, kit = null }, ref) {
   const byTopic = useMemo(() => {
     const m = new Map<string, HomeSet[]>();
     for (const s of sets) { const arr = m.get(s.topic.id) ?? []; arr.push(s); m.set(s.topic.id, arr); }
@@ -324,7 +328,7 @@ export const LearnHome = forwardRef<HTMLDivElement, {
           const row = (
             <div className="relative">
               <StudyRail tier={tier} label={`${topic.name} videos`} bleed={pad} style={dimmed} ariaHidden={!!overlay}>
-                {ts.map((s) => <Short key={s.set.id} s={s} onOpen={() => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id))} />)}
+                {ts.flatMap((s) => cardsOf(s, progress).map((c) => <Short key={c.key} s={s} card={c} onOpen={() => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id, false, c.part))} />))}
                 <PracticeCard
                   topicName={topic.name} sectionIndex={i} school={school}
                   bank={questionCount(ts.map(gateSetOf))} ready={!!practiceable} locked={practiceLocked}
@@ -379,8 +383,9 @@ function TopicBolt({ height, school }: { height: number; school: School | null }
  *  count is the topic's real set count. The first topic only — it is always open, so it is a
  *  heading, not a control. */
 function TopicHead({ topic, sets, school, tier, examLabel }: { topic: StudentTopic; sets: HomeSet[]; school: School | null; tier: Tier; examLabel: string }) {
-  // Only what is live counts (the polish brief, 09-11): posted, playable videos.
-  const n = sets.filter((s) => !!s.set.playbackId && !s.locked).length;
+  // Only what is live counts (the polish brief, 09-11): posted, playable videos — every part of a
+  // set filmed as splits is a video.
+  const n = sets.filter((s) => !!s.set.playbackId && !s.locked).reduce((a, s) => a + Math.max(1, (s.set.shorts ?? []).length), 0);
   const posted = sets.some(isPosted);
   const size = tier === "wide" ? 26 : tier === "mid" ? 22 : 19;
   return (
@@ -497,18 +502,61 @@ function PracticeAskSheet({ onWatch, onAnyway, onClose }: { onWatch: () => void;
 /** ONE FRAME. A card whose video is not posted yet stays in the row, black-and-white and dimmed
  *  (.lk-short[data-posted="false"]) — it still opens (the player says so, and the set's practice
  *  is there when it has questions), it just does not pretend to be a video. */
-function Short({ s, onOpen }: { s: HomeSet; onOpen: () => void }) {
-  const pid = s.set.playbackId;
+/** ONE CARD PER VIDEO (2026-09-11): a set posted as five splits is five cards — Assets,
+ *  Liabilities, Equity, Revenues, Expenses — each with its own cover, runtime, check and progress
+ *  (Lee: "I've posted all 5 videos but only seeing first one"). A set with no parts is one card. */
+type Card = { key: string; part: number; name: string; playbackId: string | null; coverUrl: string | null; runtimeSec: number | null; done: boolean; watched: number };
+function cardsOf(s: HomeSet, progress: Record<string, Prog>): Card[] {
+  const ofKey = (key: string, fallbackDone: boolean, fallbackWatched: number) => { const p = progress[key]; return p ? { done: p.state === "complete", watched: p.durationSec ? Math.min(1, p.positionSec / p.durationSec) : 0 } : { done: fallbackDone, watched: fallbackWatched }; };
+  const parts = s.set.shorts ?? [];
+  if (parts.length > 1) {
+    return parts.map((sh, i) => { const key = partKey(s.set.id, i); return { key, part: i + 1, name: sh.name || `${s.set.name} · ${i + 1}`, playbackId: sh.playbackId, coverUrl: sh.coverUrl ?? (i === 0 ? s.set.coverUrl : null), runtimeSec: sh.runtimeSec, ...ofKey(key, false, 0) }; });
+  }
+  return [{ key: s.set.id, part: 1, name: s.set.name, playbackId: s.set.playbackId, coverUrl: s.set.coverUrl, runtimeSec: s.set.runtimeSec, done: s.done, watched: s.watched }];
+}
+
+/** HOVER PREVIEW (Lee, 2026-09-11: "Set up autoplay on the videos when hovering"): after a
+ *  short hover on a desk the card plays its video muted, in place of the thumbnail, through the
+ *  same hls.js path the player uses; leaving the card tears it down. One card at a time by
+ *  construction (each card owns its own element), nothing on a phone (no hover), nothing under
+ *  reduced motion. */
+function HoverPreview({ pid }: { pid: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = ref.current; if (!v) return;
+    let hls: { destroy: () => void } | null = null; let cancelled = false;
+    const src = `https://stream.mux.com/${pid}.m3u8`;
+    void import("hls.js").then(({ default: Hls }) => {
+      if (cancelled || !ref.current) return;
+      if (Hls.isSupported()) { const h = new Hls({ capLevelToPlayerSize: true, startLevel: 0 }); h.loadSource(src); h.attachMedia(ref.current); hls = h; }
+      else if (ref.current.canPlayType("application/vnd.apple.mpegurl")) ref.current.src = src;
+      ref.current?.play().catch(() => { /* the thumbnail stays */ });
+    }).catch(() => { /* the thumbnail stays */ });
+    return () => { cancelled = true; hls?.destroy(); };
+  }, [pid]);
+  return <video ref={ref} muted playsInline loop preload="none" aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#000" }} />;
+}
+
+function Short({ s, card, onOpen }: { s: HomeSet; card: Card; onOpen: () => void }) {
+  const pid = card.playbackId;
   const posted = isPosted(s);
-  const hasThumb = !!pid && pid !== "__demo__" && !s.locked;
+  // THE THUMBNAIL (2026-09-11): the cover Lee uploaded for the video when there is one, else the
+  // frame the host cuts at two seconds. Never for a paid (locked) set — its face is the lock.
+  const thumb = s.locked ? null : (card.coverUrl ?? (pid && pid !== "__demo__" ? muxThumb(pid, 480) : null));
+  const [preview, setPreview] = useState(false);
+  const hoverT = useRef<number | null>(null);
+  const canPreview = !!pid && pid !== "__demo__" && !s.locked;
+  const enter = () => { if (!canPreview || !window.matchMedia?.("(hover: hover)").matches || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return; hoverT.current = window.setTimeout(() => setPreview(true), 350); };
+  const leave = () => { if (hoverT.current) window.clearTimeout(hoverT.current); hoverT.current = null; setPreview(false); };
   return (
-    <button type="button" onClick={onOpen} className="lk-short" data-on={false} data-rail="true" data-posted={posted} style={{ opacity: s.locked ? 0.7 : undefined }} title={posted ? s.set.name : `${s.set.name} — not posted yet`}>
-      {hasThumb && <img src={muxThumb(pid!, 480)} alt="" loading="lazy" />}
+    <button type="button" onClick={onOpen} onMouseEnter={enter} onMouseLeave={leave} onBlur={leave} className="lk-short" data-on={false} data-rail="true" data-posted={posted} style={{ opacity: s.locked ? 0.7 : undefined }} title={posted ? card.name : `${card.name} — not posted yet`}>
+      {thumb && <img src={thumb} alt="" loading="lazy" />}
+      {preview && pid && <HoverPreview pid={pid} />}
       {s.locked && <Lock className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2" style={{ color: "#B5B5B5" }} />}
-      {s.set.runtimeSec != null && pid && <span className="lk-short-d">{fmtRuntime(s.set.runtimeSec)}</span>}
-      {s.done && <span className="absolute left-2 top-2 z-[1] grid h-6 w-6 place-items-center rounded-full" style={{ background: LK.green, color: "#111" }}><Check className="h-3.5 w-3.5" /></span>}
-      {!s.done && s.watched > 0 && <span className="absolute inset-x-0 bottom-0 z-[1] h-[3px]" style={{ background: "rgba(255,255,255,0.2)" }}><span className="block h-full" style={{ width: `${Math.round(s.watched * 100)}%`, background: LK.acc }} /></span>}
-      <span className="lk-short-t" style={{ zIndex: 1 }}>{s.set.name}</span>
+      {card.runtimeSec != null && pid && <span className="lk-short-d">{fmtRuntime(card.runtimeSec)}</span>}
+      {card.done && <span className="absolute left-2 top-2 z-[1] grid h-6 w-6 place-items-center rounded-full" title="Crammed" style={{ background: LK.green, color: "#111" }}><Check className="h-3.5 w-3.5" /></span>}
+      {!card.done && card.watched > 0 && <span className="absolute inset-x-0 bottom-0 z-[1] h-[3px]" style={{ background: "rgba(255,255,255,0.2)" }}><span className="block h-full" style={{ width: `${Math.round(card.watched * 100)}%`, background: LK.acc }} /></span>}
+      <span className="lk-short-t" style={{ zIndex: 1 }}>{card.name}</span>
     </button>
   );
 }

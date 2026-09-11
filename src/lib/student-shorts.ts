@@ -32,7 +32,17 @@ export interface StudentShort {
   /** Null for paid sets, like every playback id in the tree. */
   playbackId: string | null;
   runtimeSec: number | null;
+  /** The cover Lee uploaded for THIS part on /v3/post (publish-cover.ts), or null. */
+  coverUrl: string | null;
 }
+
+/** THE PART'S KEY — the publish key /v3/post writes ("<setId>" is part 1, "<setId>#N" is part N)
+ *  and the key the student's progress is kept under, so a set with five parts has five checks. */
+export function partKey(setId: string, takeIndex: number): string {
+  return takeIndex <= 0 ? setId : `${setId}#${takeIndex + 1}`;
+}
+/** Back from a key to the set. */
+export function setIdOfKey(key: string): string { return key.split("#")[0]; }
 
 function nameOf(p: ShortPub): string {
   if (typeof p.takeName === "string" && p.takeName.trim()) return p.takeName.trim();
@@ -52,6 +62,7 @@ export function shortsFrom(pubs: readonly ShortPub[] | undefined, paid: boolean)
       name: nameOf(p),
       playbackId: paid ? null : pid,
       runtimeSec: p.render?.durationS != null ? Math.round(p.render.durationS) : null,
+      coverUrl: null,
     });
   }
   return out.sort((a, b) => a.takeIndex - b.takeIndex);

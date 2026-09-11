@@ -442,6 +442,9 @@ export const LEARN_CSS = `
 .lk-rail-item { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 64px; padding: 10px 0; border-radius: 10px; font-size: 11px; font-weight: 600; color: var(--lk-muted); background: transparent; border: 0; cursor: pointer; font-family: ${SANS}; }
 .lk-rail-item[data-on="true"] { background: var(--lk-surface); color: var(--lk-text); }
 .lk-rail-item:hover { color: var(--lk-text); }
+@keyframes lk-swipe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.lk-swipe .lk-swipe-arrow { animation: lk-swipe 1.1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .lk-swipe .lk-swipe-arrow { animation: none; } }
 .lk-act { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--lk-text); background: transparent; border: 0; cursor: pointer; font-family: ${SANS}; }
 .lk-act .lk-act-b { width: 48px; height: 48px; border-radius: 999px; background: var(--lk-surface); border: 1px solid var(--lk-border); display: grid; place-items: center; font-size: 11px; font-weight: 800; transition: background 120ms, transform 120ms; }
 .lk-act:hover .lk-act-b { background: var(--lk-border); transform: scale(1.04); }

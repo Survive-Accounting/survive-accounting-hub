@@ -35,6 +35,7 @@ import {
   TrustChips, TutorBioModal, TutorCard,
 } from "@/components/site/Marketing";
 import { LearnTextLee } from "@/components/learn/LearnTextLee";
+import { useNavigate } from "@tanstack/react-router";
 import { SiteHeader, useBlackDocument, useNavyDocument } from "@/components/site/SiteHeader";
 import { Footer } from "@/components/site/SiteFooter";
 import { TestimonialsSlider } from "@/components/site/Testimonials";
@@ -177,23 +178,37 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   // NEVER ASK FOR WHAT IS ALREADY KNOWN (p11 §3). A student whose school the page has been naming
   // in the headline all the way down should not be made to find it in a list again — the switcher
   // lines in the cards are how you change it. Only an unknown school gets the picker first.
+  // THE DOORS GO TO /learn (Lee, 2026-09-11): the solo door to the campus's page, the chapter
+  // door to the chapter's page (/learn/<school>/<chapter>) — the letters go over the bolt there
+  // and every email that page collects carries the chapter. An unknown school still gets the
+  // picker first; the chapter door then asks for the chapter.
+  const navigate = useNavigate();
+  const goLearn = (schoolId: string, chapterSlug?: string | null) => {
+    void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: schoolId, chapter: chapterSlug ?? undefined } });
+  };
   const openSolo = () => {
     track("homepage_study_solo_clicked", { ...ctx(), returning, preview: !!previewSoloHref });
     if (previewSoloHref) return;
-    if (campus.known) setWaitlistOpen(true);
+    if (campus.school) goLearn(campus.school.id);
     else setPickerFor("solo");
   };
-  // The Greek sheet collects school → chapter → email itself, seeded with the campus we already
-  // resolved, so gating it behind a second school picker asked the same question twice.
-  const openChapter = () => { track("homepage_chapter_clicked", ctx()); setFinderOpen(true); };
+  // After the chapter sheet picks, does the door go somewhere (true) or just rebrand (false)?
+  const chapterGo = useRef(false);
+  const openChapter = () => {
+    track("homepage_chapter_clicked", ctx());
+    if (!campus.school) { setPickerFor("chapter"); return; }
+    if (chapter) { goLearn(campus.school.id, chapter.slug); return; }
+    chapterGo.current = true;
+    setChapterPickerOpen(true);
+  };
   const openScope = () => { track("homepage_course_scope_opened", ctx()); setScopeOpen(true); };
   const openSwitch = () => { track("homepage_school_switch_opened", ctx()); setPickerFor("switch"); };
   // The chapter switcher REBRANDS IN PLACE — it never navigates. The door button is still the only
   // thing that goes anywhere (p11 §1/§2).
-  const openChapterPicker = () => { track("homepage_chapter_switch_opened", ctx()); setChapterPickerOpen(true); };
+  const openChapterPicker = () => { track("homepage_chapter_switch_opened", ctx()); chapterGo.current = false; setChapterPickerOpen(true); };
   // The SECOND Exam-1 door, at the foot of the feature list — a reader who scrolled the whole
   // list can convert without scrolling back up. Same waitlist the solo door opens.
-  const openExam1Free = () => { track("homepage_secondary_cta_clicked", ctx()); setWaitlistOpen(true); };
+  const openExam1Free = () => { track("homepage_secondary_cta_clicked", ctx()); if (campus.school) goLearn(campus.school.id); else setPickerFor("solo"); };
 
   // A school was chosen in the picker: remember it (the page repaints for that campus), then
   // continue into whichever flow opened the picker. State updates batch, so the flow's modal
@@ -201,8 +216,8 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   const onPickSchool = (school: PickerSchool) => {
     const mode = pickerFor;
     campus.setSessionSchool(school.id);
-    if (mode === "solo") { setPickerFor(null); setWaitlistOpen(true); }
-    else if (mode === "chapter") { setPickerFor(null); setFinderOpen(true); }
+    if (mode === "solo") { setPickerFor(null); goLearn(school.id); }
+    else if (mode === "chapter") { setPickerFor(null); chapterGo.current = true; setChapterPickerOpen(true); }
     else if (mode === "switch") {
       // The rebrand flourish — switch mode only (the "flip through schools for fun" case; the door
       // flows open a modal instead). Skipped under reduced motion, where the page just swaps.
@@ -390,6 +405,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
             const picked = { schoolSlug: campus.school!.slug, slug: c.slug, name: c.name, letters: c.letters, nickname: c.nickname };
             rememberChapter(picked);
             setChapter(picked);
+            if (chapterGo.current) { chapterGo.current = false; goLearn(campus.school!.id, c.slug); }
             setChapterPickerOpen(false);
             setPulse("chapter");
             track("homepage_chapter_selected", { ...ctx(), chapter_slug: c.slug });
