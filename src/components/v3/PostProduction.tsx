@@ -26,9 +26,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ThumbnailStudio } from "@/components/brand-kit/ThumbnailStudio";
 import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
-import { downloadText, storedTranscript, transcribeTakeFile } from "@/components/v3/take-transcript";
+import { downloadText, mediaDurationS, storedTranscript, transcribeTakeFile } from "@/components/v3/take-transcript";
+import { clock, transcriptFitsFile } from "@/lib/take-match";
 import { assName, burnCommand, burnedName, shortCaptionFiles, srtName, transcriptFromWords, whisperCostUsd, type Word } from "@/lib/short-captions";
-import type { BurnProgress } from "@/components/v3/take-burn";
+// Imported up front (2026-09-11), not on demand: a deploy mid-session 404'd the lazy chunk.
+import { burnCaptions, downloadUrlAs, uploadAss, uploadTake, type BurnProgress } from "@/components/v3/take-burn";
 import { takeFileProblem } from "@/lib/take-frame";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
@@ -91,16 +93,29 @@ export function PostProduction({ pubKey, title, topicName, cover, onTranscript, 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // THE STORED TRANSCRIPT MUST FIT THE FILE (2026-09-11, lib/take-match.ts): the row's length and
+  // the picked take's own length, read from its metadata.
+  const [storedS, setStoredS] = useState<number | null>(null);
+  const [fileS, setFileS] = useState<number | null>(null);
 
   // A transcript already run for this video comes straight back — it is stored by publish key,
   // so re-opening the panel is free and never re-bills.
   useEffect(() => {
     let alive = true;
     storedTranscript(pubKey)
-      .then((row) => { if (alive && row?.words?.length) { setWords(row.words); setNote("Transcribed earlier — reusing it."); } })
+      .then((row) => { if (alive && row?.words?.length) { setWords(row.words); setStoredS(row.duration_s ?? null); setNote(`Transcribed earlier${row.duration_s ? ` (${clock(row.duration_s)})` : ""} — reusing it.`); } })
       .catch(() => { /* no row, or the table isn't there — step 2 will say so when he asks */ });
     return () => { alive = false; };
   }, [pubKey]);
+
+  // A take that doesn't fit the stored words is a different take: drop them, and step 2 transcribes
+  // this one (transcribeTakeFile overwrites the row).
+  useEffect(() => {
+    if (fileS == null || storedS == null || transcriptFitsFile(storedS, fileS)) return;
+    setWords(null);
+    setStoredS(null);
+    setNote(`The stored transcript is ${clock(storedS)} but this take is ${clock(fileS)} — get the transcript for this one.`);
+  }, [fileS, storedS]);
 
   const text = useMemo(() => (words ? transcriptFromWords(words) : ""), [words]);
   useEffect(() => { if (text) onTranscript(text); }, [text, onTranscript]);
@@ -110,14 +125,15 @@ export function PostProduction({ pubKey, title, topicName, cover, onTranscript, 
     if (!file) { setErr("Pick the take first."); return; }
     setBusy(true); setErr(null);
     try {
-      const row = await transcribeTakeFile(pubKey, file, setNote, force);
+      const row = await transcribeTakeFile(pubKey, file, setNote, force, fileS);
       setWords(row.words ?? []);
+      setStoredS(row.duration_s ?? null);
       setNote(`${(row.words ?? []).length} words${row.duration_s ? ` from ${Math.round(row.duration_s)}s` : ""}.`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
       setNote(null);
     } finally { setBusy(false); }
-  }, [file, pubKey]);
+  }, [file, pubKey, fileS]);
 
   const cmd = file ? burnCommand(file.name) : "";
   const copyCmd = async () => { setCopied(await copyToClipboard(cmd)); window.setTimeout(() => setCopied(false), 1800); };
@@ -133,10 +149,11 @@ export function PostProduction({ pubKey, title, topicName, cover, onTranscript, 
     const problem = takeFileProblem(picked);
     if (problem || !picked) { setErr(problem); return; }
     setErr(null); setFile(picked);
+    setFileS(null);
+    void mediaDurationS(picked).then(setFileS);
     setVideoUrl(null); setUpErr(null); setUpFrac(0);
     void (async () => {
       try {
-        const { uploadTake } = await import("@/components/v3/take-burn");
         setVideoUrl(await uploadTake(picked, setUpFrac));
         setUpFrac(1);
       } catch (e) {
@@ -156,7 +173,6 @@ export function PostProduction({ pubKey, title, topicName, cover, onTranscript, 
     setBurning({ phase: "uploading", frac: null, note: "Sending the subtitles…" });
     setBurnErr(null); setBurnUrl(null);
     try {
-      const { uploadAss, burnCaptions } = await import("@/components/v3/take-burn");
       const assUrl = await uploadAss(file.name, files.ass);
       setBurnUrl(await burnCaptions(videoUrl, assUrl, setBurning));
     } catch (e) {
@@ -168,7 +184,6 @@ export function PostProduction({ pubKey, title, topicName, cover, onTranscript, 
   const saveBurned = async () => {
     if (!burnUrl || !file) return;
     try {
-      const { downloadUrlAs } = await import("@/components/v3/take-burn");
       await downloadUrlAs(burnUrl, burnedName(file.name));
     } catch (e) { setBurnErr(e instanceof Error ? e.message : String(e)); }
   };
@@ -251,7 +266,7 @@ export function PostProduction({ pubKey, title, topicName, cover, onTranscript, 
         </Step>
 
         {/* ── 3 ─────────────────────────────────────────────────────────────────────────────── */}
-        <Step n={3} title="Burn the captions in" hint={burnUrl ? "ready to download" : files ? `${files.cards} cards` : "needs the transcript"} done={!!burnUrl}>
+        <Step n={3} title="Burn the captions in" hint={burnUrl ? "ready to download" : files ? `${files.cards} captions from ${clock(files.seconds)}` : "needs the transcript"} done={!!burnUrl}>
           {!files || !file ? (
             <div style={{ fontSize: 12.5, color: V3_MUTED }}>Do steps 1 and 2 first.</div>
           ) : (

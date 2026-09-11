@@ -22,11 +22,12 @@
 // never open the campus picker. Keyboard: Enter / Space open, ↑ ↓ move, Enter picks, Escape closes.
 // The pill row that sat under the bolt until 09-11 is gone; the bar is one line again.
 //
-// RIGHT: "Leave a review" (a link to /#reviews) · Share (the page's share) · the hamburger, which
-// holds everything else, in this order: Share this · Set up exam reminders (the home page's
-// ExamReminder, in a modal) · Home · Sign in / Sign out (with the email when signed in) · Set up
-// your Greek chapter (/chapters) · Join the campus rep program (/rep/join). On a phone the review
-// link does not fit the bar, so it closes the sheet's list instead of disappearing.
+// RIGHT (the polish pass, 2026-09-11): "Leave a review" opens ReviewSheet (it used to link to the
+// home page's testimonials) · Share copies the smart link with a link icon (learn.tsx's share,
+// lib/share-url's buildShareUrl) · the hamburger opens LearnMenu, a right-side sheet — Home · Set
+// up exam reminders · Share this · Leave a review, then Account (a quiet Sign out), then the two
+// program cards (Greek Chapter Program, Campus Rep Program). On a phone the review button does not
+// fit the bar; the menu carries it. Focus returns to the hamburger when the menu closes.
 //
 // THE BAR IS THE SHELL'S (2026-09-11, the design email: "The NAVBAR should always remain Survive
 // navy … Add a very thin campus-colored line along the bottom of the navbar"). Ground and ink are
@@ -39,7 +40,7 @@
 // emoji — every glyph in the bar is drawn.
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, Loader2, X } from "lucide-react";
+import { Check, ChevronDown, Link2, Loader2, X } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -56,6 +57,7 @@ import { allowedOffsets, REMINDER_DISCLOSURE, scheduleExamReminder } from "@/lib
 import { submitIntake } from "@/lib/intake.functions";
 import { useDismiss } from "@/lib/use-dismiss";
 import { LK, type LearnTheme } from "@/components/learn/learn-theme";
+import { LEARN_MENU_CSS, LearnMenu } from "@/components/learn/LearnMenu";
 
 export type TopProgress = { total: number; done: number; secondsLeft: number | null };
 
@@ -104,7 +106,7 @@ const BOLT_H = { narrow: 36, wide: 44 } as const;
 export type TopYou = { email: string | null; userId: string | null; onSignIn: () => void; signOut: () => void };
 
 export function LearnTop({
-  school, campusId, campusName, exams, examNum, onPickExam, chapter, theme, onPickSchool, onShare, you, demo, narrow,
+  school, campusId, campusName, exams, examNum, onPickExam, chapter, theme, onPickSchool, onShare, onReview, you, demo, narrow,
 }: {
   school: School | null;
   campusId: string | null;
@@ -117,8 +119,10 @@ export function LearnTop({
   theme: LearnTheme;
   /** Opens the in-place school picker (LearnSchoolSheet) — never a navigation. */
   onPickSchool: () => void;
-  /** The page's share — the Greek share sheet when mounted, else copy the link. */
+  /** The page's share — copies the smart link (learn.tsx). */
   onShare: () => void;
+  /** Opens the review sheet (learn.tsx mounts ReviewSheet). */
+  onReview: () => void;
   /** Sign in / sign out for the hamburger. */
   you: TopYou;
   demo: boolean;
@@ -131,6 +135,8 @@ export function LearnTop({
   const menuExams = MENU_EXAMS.map((n) => exams.find((e) => e.num === n) ?? { num: n, label: n === 4 ? "Final" : `Exam ${n}`, available: false, videoCount: 0 });
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuBtn = useRef<HTMLButtonElement | null>(null);
+  const closeMenu = () => { setMenuOpen(false); menuBtn.current?.focus(); };
   const [reminderOpen, setReminderOpen] = useState(false);
   const [waitlistExam, setWaitlistExam] = useState<number | null>(null);
   const letters = chapter?.letters?.trim() || null;
@@ -173,23 +179,25 @@ export function LearnTop({
 
           {/* RIGHT: review · share · the hamburger. */}
           {!narrow && (
-            <a href="/#reviews" className="shrink-0" style={{ color: ink, fontSize: 13.5, fontWeight: 700, textDecoration: "none", opacity: 0.9, minHeight: 36, display: "inline-flex", alignItems: "center" }}>Leave a review</a>
+            <button type="button" onClick={onReview} className="shrink-0" style={{ background: "transparent", border: 0, padding: "0 4px", color: ink, fontSize: 13.5, fontWeight: 700, opacity: 0.9, minHeight: 36, display: "inline-flex", alignItems: "center", cursor: "pointer", fontFamily: "inherit" }}>Leave a review</button>
           )}
           {narrow ? (
-            <button type="button" onClick={onShare} aria-label="Share" className="grid shrink-0 place-items-center rounded-full" style={{ ...iconBtn, width: 40, height: 40 }}><ShareGlyph /></button>
+            <button type="button" onClick={onShare} aria-label="Share — copy the link" title="Copy link" className="grid shrink-0 place-items-center rounded-full" style={{ ...iconBtn, width: 40, height: 40 }}><Link2 className="h-[18px] w-[18px]" aria-hidden /></button>
           ) : (
-            <button type="button" onClick={onShare} className="inline-flex shrink-0 items-center gap-2 rounded-full" style={{ minHeight: 38, padding: "0 16px", border: `1px solid ${rule}`, background: "transparent", color: ink, cursor: "pointer", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit" }}><ShareGlyph /> Share</button>
+            <button type="button" onClick={onShare} title="Copy link" className="inline-flex shrink-0 items-center gap-2 rounded-full" style={{ minHeight: 38, padding: "0 16px", border: `1px solid ${rule}`, background: "transparent", color: ink, cursor: "pointer", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit" }}><Link2 className="h-4 w-4" aria-hidden /> Share</button>
           )}
-          <button type="button" onClick={() => setMenuOpen(true)} aria-label="Menu" aria-expanded={menuOpen} className="grid shrink-0 place-items-center rounded-full" style={{ ...iconBtn, width: narrow ? 40 : 44, height: narrow ? 40 : 44 }}><HamburgerGlyph /></button>
+          <button ref={menuBtn} type="button" onClick={() => setMenuOpen(true)} aria-label="Menu" aria-haspopup="dialog" aria-expanded={menuOpen} className="grid shrink-0 place-items-center rounded-full" style={{ ...iconBtn, width: narrow ? 40 : 44, height: narrow ? 40 : 44 }}><HamburgerGlyph /></button>
         </div>
 
       </header>
 
+      <style>{LEARN_MENU_CSS}</style>
       {menuOpen && (
-        <MenuSheet
-          narrow={narrow} you={you} onClose={() => setMenuOpen(false)}
-          onShare={() => { setMenuOpen(false); onShare(); }}
+        <LearnMenu
+          narrow={narrow} you={you} onClose={closeMenu}
+          onShare={() => { closeMenu(); onShare(); }}
           onReminders={() => { setMenuOpen(false); setReminderOpen(true); }}
+          onReview={() => { setMenuOpen(false); onReview(); }}
         />
       )}
       {reminderOpen && (
@@ -204,14 +212,26 @@ export function LearnTop({
 
 /** THE EXAM MENU — "Exam 1 ▾" as a button, a listbox beneath it. A live exam picks; a locked one
  *  (drawn lock) opens the waitlist sheet. Focus lands on the current exam when the list opens and
- *  returns to the button when it closes; ↑ ↓ wrap; Escape and a click outside close it. */
+ *  returns to the button when it closes; ↑ ↓ wrap; Escape and a click outside close it.
+ *  THE LIST IS FIXED-POSITIONED from the button's rect (re-measured on resize), not absolute: the
+ *  course line it sits in truncates (overflow hidden), and an absolute list was clipped to a
+ *  sliver over the bar — the bug Lee saw on 09-11 ("not opening/behaving correctly"). */
 function ExamMenu({ exams, examNum, examLabel, ink, muted, onPick, onLocked }: {
   exams: ExamTabState[]; examNum: number | null; examLabel: string; ink: string; muted: string;
   onPick: (num: number) => void; onLocked: (num: number) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const id = useId();
   const listId = `lk-exam-menu-${id}`;
+  // Where the list goes: under the button's left edge, 8px down, never past the viewport's right.
+  const measure = () => { const r = btn.current?.getBoundingClientRect(); if (!r) return; setPos({ left: Math.min(r.left, Math.max(8, window.innerWidth - 196 - 8)), top: r.bottom + 8 }); };
+  useEffect(() => {
+    if (!open) return;
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [open]);
   const btn = useRef<HTMLButtonElement | null>(null);
   const list = useRef<HTMLDivElement | null>(null);
   const close = () => { setOpen(false); btn.current?.focus(); };
@@ -235,7 +255,7 @@ function ExamMenu({ exams, examNum, examLabel, ink, muted, onPick, onLocked }: {
         <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: muted, transform: open ? "rotate(180deg)" : "none", transition: "transform 160ms" }} aria-hidden />
       </button>
       {open && (
-        <div ref={list} id={listId} role="listbox" aria-label="Which exam" onKeyDown={onListKey} className="lk-sheet lk-in absolute left-0 z-[105] flex flex-col rounded-xl" style={{ top: "calc(100% + 8px)", minWidth: 188, padding: 6, gap: 2 }}>
+        <div ref={list} id={listId} role="listbox" aria-label="Which exam" onKeyDown={onListKey} className="lk-sheet lk-in flex flex-col rounded-xl" style={{ position: "fixed", left: pos?.left ?? 0, top: pos?.top ?? 0, visibility: pos ? "visible" : "hidden", zIndex: 105, width: 196, padding: 6, gap: 2 }}>
           {exams.map((x) => {
             const locked = !x.available;
             const on = !locked && x.num === examNum;
@@ -260,11 +280,6 @@ function HamburgerGlyph() {
 function LockGlyph() {
   return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>;
 }
-/** The share arrow. */
-function ShareGlyph() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v13" /></svg>;
-}
-
 /** The chrome every sheet shares: backdrop, bottom on a phone / centred elsewhere, one way out. */
 function Sheet({ label, narrow, onClose, children, maxWidth = 420 }: { label: string; narrow: boolean; onClose: () => void; children: ReactNode; maxWidth?: number }) {
   const ref = useDismiss<HTMLDivElement>(onClose);
@@ -274,36 +289,6 @@ function Sheet({ label, narrow, onClose, children, maxWidth = 420 }: { label: st
         {children}
       </div>
     </div>
-  );
-}
-
-/** THE HAMBURGER'S SHEET — the list, in the proposal's order. */
-function MenuSheet({ narrow, you, onClose, onShare, onReminders }: { narrow: boolean; you: TopYou; onClose: () => void; onShare: () => void; onReminders: () => void }) {
-  return (
-    <Sheet label="Menu" narrow={narrow} onClose={onClose} maxWidth={360}>
-      <div className="mb-1 flex items-center justify-between" style={{ padding: "0 4px 0 16px" }}>
-        <span className="lk-disp" style={{ fontSize: 17 }}>survive</span>
-        <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }}><X className="h-4 w-4" /></button>
-      </div>
-      <nav className="flex flex-col" style={{ gap: 2 }}>
-        <button type="button" className="lk-menu-item" onClick={onShare}>Share this</button>
-        <button type="button" className="lk-menu-item" onClick={onReminders}>Set up exam reminders</button>
-        <a href="/" className="lk-menu-item">Home</a>
-        {you.userId ? (
-          <button type="button" className="lk-menu-item" onClick={() => { onClose(); you.signOut(); }}>
-            <span className="flex min-w-0 flex-col" style={{ gap: 1 }}>
-              <span>Sign out</span>
-              {you.email && <span className="truncate" style={{ fontSize: 12, fontWeight: 500, color: LK.muted }}>{you.email}</span>}
-            </span>
-          </button>
-        ) : (
-          <button type="button" className="lk-menu-item" onClick={() => { onClose(); you.onSignIn(); }}>Sign in</button>
-        )}
-        <a href="/chapters" className="lk-menu-item">Set up your Greek chapter</a>
-        <a href="/rep/join" className="lk-menu-item">Join the campus rep program</a>
-        {narrow && <a href="/#reviews" className="lk-menu-item">Leave a review</a>}
-      </nav>
-    </Sheet>
   );
 }
 

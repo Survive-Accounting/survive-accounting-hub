@@ -101,6 +101,12 @@
 //     scrolls into view (useReveal — one IntersectionObserver, unobserved after it fires), delayed
 //     40 ms per section. Nothing ever fades OUT. No IntersectionObserver, or reduced motion → the
 //     sections are simply there.
+//   · THE POLISH PASS (Lee, 2026-09-11): the hero is a contained panel (LearnEntrance) with less
+//     air above and below it, so Easy Points starts ~40px higher on a desk; the CTA reads "Start
+//     cramming for free" and, with nothing playable, scrolls to Easy Points and FOCUSES its first
+//     card; a later topic's row shows only what is live ("2 videos", questions only when practice
+//     is open) and wears a small "Coming soon" tag when nothing in it is posted — never "2 videos ·
+//     26 practice questions" for material a student cannot open (learn-gate's topicRowDetail).
 //   · DIMENSION: every card carries learn-theme's CARD_SHADOW; on a phone each topic section gets
 //     28px of vertical padding and a hairline top border so topics read as blocks.
 //
@@ -172,6 +178,11 @@ function glowFor(school: School | null): string { return school?.c2 ?? GLOW_BLUE
 const START_PULSE_DELAY_MS = 1200;
 const START_PULSE_MS = 2100;
 
+/** COMING SOON — the tag a later topic wears when nothing in it is posted (the polish brief, 09-11:
+ *  "The waitlist state itself is enough"). Small caps, quiet; never a count beside it. */
+const SOON_CSS = `
+.lk-soon { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--lk-border2); color: var(--lk-muted); font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+`;
 /** THE ENTRANCE: hidden until seen, then a short rise. Sections start visible where there is no
  *  observer to reveal them (SSR without JS, an old browser) — data-reveal is only set client-side. */
 const REVEAL_CSS = `
@@ -181,7 +192,7 @@ const REVEAL_CSS = `
 @media (prefers-reduced-motion: reduce) { .lk-reveal[data-reveal="wait"] { opacity: 1; transform: none; } .lk-reveal[data-reveal="in"] { animation: none; } }
 `;
 /** The rails' and cards' CSS, injected once with the home. ONE string — never two text children. */
-const ROW_CSS = STUDY_RAIL_CSS + PRACTICE_CARD_CSS + CRAM_MACHINE_CSS + REVEAL_CSS;
+const ROW_CSS = STUDY_RAIL_CSS + PRACTICE_CARD_CSS + CRAM_MACHINE_CSS + REVEAL_CSS + SOON_CSS;
 
 /** One observer for every section that wants an entrance: "wait" until 12% of it is in view,
  *  then "in" once, for good. Sections without the observer keep no data-reveal at all. The
@@ -263,7 +274,16 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   const firstRow = useRef<HTMLElement | null>(null);
   const [outlined, setOutlined] = useState(false);
   useEffect(() => { if (!outlined) return; const t = window.setTimeout(() => setOutlined(false), 1000); return () => window.clearTimeout(t); }, [outlined]);
-  const seeExam = () => { firstRow.current?.scrollIntoView({ behavior: "smooth", block: "start" }); setOutlined(true); };
+  // THE CTA'S LANDING (the polish brief, 09-11): scroll Easy Points into view, put keyboard focus
+  // on its first card, outline the row once. With a playable first lesson the existing mechanism
+  // opens it straight away (the player is the strongest "start"); the landing is for the day
+  // nothing is playable yet, and it is what autoplay would hang off later.
+  const seeExam = () => {
+    const row = firstRow.current;
+    row?.scrollIntoView({ behavior: "smooth", block: "start" });
+    row?.querySelector<HTMLElement>(".lk-short, .lk-practice")?.focus({ preventScroll: true });
+    setOutlined(true);
+  };
   const firstTopic = byTopic[0] ?? null;
   const startFirst = () => {
     const playable = firstTopic?.sets.find((s) => !!s.set.playbackId && !s.locked);
@@ -291,12 +311,12 @@ export const LearnHome = forwardRef<HTMLDivElement, {
       <style>{ROW_CSS}</style>
       {/* THE ENTRANCE BAND — full-bleed on the hero ground, the column inside it. */}
       <div style={{ background: LK.heroBg }}>
-        <div className="mx-auto w-full" style={{ maxWidth: CONTENT_MAX, padding: `${narrow ? 10 : wide ? 24 : 20}px ${pad}px 0` }}>
+        <div className="mx-auto w-full" style={{ maxWidth: CONTENT_MAX, padding: `${narrow ? 10 : wide ? 16 : 14}px ${pad}px 0` }}>
           <LearnEntrance tier={tier} averageCaption={averageCaption} onStart={startFirst} />
         </div>
-        <div aria-hidden style={{ height: narrow ? 12 : wide ? 40 : 34, background: `linear-gradient(${LK.heroBg}, ${LK.bg})` }} />
+        <div aria-hidden style={{ height: narrow ? 8 : wide ? 26 : 22, background: `linear-gradient(${LK.heroBg}, ${LK.bg})` }} />
       </div>
-      <div className="mx-auto flex w-full flex-col" style={{ maxWidth: CONTENT_MAX, padding: `0 ${pad}px 96px`, gap: narrow ? 0 : wide ? 40 : 34 }}>
+      <div className="mx-auto flex w-full flex-col" style={{ maxWidth: CONTENT_MAX, padding: `0 ${pad}px 96px`, gap: narrow ? 0 : wide ? 32 : 28 }}>
 
         {/* CRAM ROWS — one per topic, the primary structure of the page. First topic, first short
             sit right under the hero — no control panel between the student and the video. */}
@@ -371,7 +391,8 @@ function TopicBolt({ height, school }: { height: number; school: School | null }
  *  count is the topic's real set count. The first topic only — it is always open, so it is a
  *  heading, not a control. */
 function TopicHead({ topic, sets, school, tier, examLabel }: { topic: StudentTopic; sets: HomeSet[]; school: School | null; tier: Tier; examLabel: string }) {
-  const n = sets.length;
+  // Only what is live counts (the polish brief, 09-11): posted, playable videos.
+  const n = sets.filter((s) => !!s.set.playbackId && !s.locked).length;
   const posted = sets.some(isPosted);
   const size = tier === "wide" ? 26 : tier === "mid" ? 22 : 19;
   return (
@@ -379,8 +400,12 @@ function TopicHead({ topic, sets, school, tier, examLabel }: { topic: StudentTop
       <TopicBolt height={Math.round(size * 1.35)} school={school} />
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
         <span className="lk-disp lk-topic-name" style={{ fontSize: size, lineHeight: 1.1 }}>{topic.name} for {examLabel}</span>
-        <span aria-hidden className="text-[13px]" style={{ color: LK.dim }}>·</span>
-        <span className="text-[14px] tabular-nums" style={{ color: LK.muted }}>{n} video{n === 1 ? "" : "s"}</span>
+        {n > 0 && (
+          <>
+            <span aria-hidden className="text-[13px]" style={{ color: LK.dim }}>·</span>
+            <span className="text-[14px] tabular-nums" style={{ color: LK.muted }}>{n} video{n === 1 ? "" : "s"}</span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -391,8 +416,11 @@ function TopicHead({ topic, sets, school, tier, examLabel }: { topic: StudentTop
  *  Expanded, the same row stays as the heading and the grid opens beneath it. Nothing posted yet:
  *  the bolt is grey and the name muted. */
 function TopicRow({ topic, sets, school, tier, expanded, onToggle }: { topic: StudentTopic; sets: HomeSet[]; school: School | null; tier: Tier; expanded: boolean; onToggle: () => void }) {
+  // What is live, or the tag: "2 videos · 26 practice questions" only for material that opens;
+  // nothing posted → "Coming soon" and no counts at all (the polish brief, 09-11).
   const detail = topicRowDetail(sets.map(gateSetOf));
   const posted = sets.some(isPosted);
+  const meta = detail ?? (posted ? null : "soon");
   const size = tier === "wide" ? 22 : tier === "mid" ? 20 : 18;
   const narrow = tier === "narrow";
   // On a phone the count sits UNDER the name so the name never truncates to "Analyzing Transacti…".
@@ -401,9 +429,9 @@ function TopicRow({ topic, sets, school, tier, expanded, onToggle }: { topic: St
       <TopicBolt height={Math.round(size * 1.35)} school={school} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className={`lk-disp lk-topic-name${narrow ? "" : " truncate"}`} style={{ fontSize: size, lineHeight: 1.15 }}>{topic.name}</span>
-        {narrow && <span className="text-[13px] tabular-nums" style={{ color: LK.muted }}>{detail}</span>}
+        {narrow && meta && (meta === "soon" ? <span className="lk-soon self-start">Coming soon</span> : <span className="text-[13px] tabular-nums" style={{ color: LK.muted }}>{meta}</span>)}
       </div>
-      {!narrow && <span className="shrink-0 text-[14px] tabular-nums" style={{ color: LK.muted }}>{detail}</span>}
+      {!narrow && meta && (meta === "soon" ? <span className="lk-soon shrink-0">Coming soon</span> : <span className="shrink-0 text-[14px] tabular-nums" style={{ color: LK.muted }}>{meta}</span>)}
       <ChevronDown className="h-5 w-5 shrink-0" style={{ color: LK.muted, transform: expanded ? "rotate(180deg)" : "none", transition: "transform 160ms" }} aria-hidden />
     </button>
   );

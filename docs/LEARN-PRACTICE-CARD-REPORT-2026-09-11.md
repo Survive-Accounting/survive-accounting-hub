@@ -127,3 +127,131 @@ player from the first topic's set to the next topic's.
 - The email-gate blur on later topics is unchanged (launch is tomorrow); the calmer disabled
   state from the email's §12 is after launch.
 - Mid-practice hype videos: not built (as asked).
+
+---
+
+# The polish pass (later on 2026-09-11)
+
+Lee's 26-point polish brief plus the laptop illustration. Committed locally; NOT pushed — Lee
+asked for a hold while another session pushes to main.
+
+## Files changed
+
+- `src/components/learn/LearnEntrance.tsx` — the contained hero panel; "Start cramming for free".
+- `src/components/learn/LearnHome.tsx` — tighter hero band; the CTA's landing (scroll + focus);
+  honest counts and the "Coming soon" tag; SOON_CSS.
+- `src/components/learn/StudyRail.tsx` — card widths as clamp(), gaps, hover.
+- `src/components/learn/PracticeCard.tsx` — "Practice Questions / ~15 mins to complete" at the
+  foot; the laptop on every card.
+- `src/components/learn/CramMachine.tsx` + `cram-machine-data.ts` — the fourth machine (laptop),
+  its parts, the boiling bolt, the lid tilt; `PRACTICE_ART`, `ROTATION`.
+- `src/components/learn/LearnTop.tsx` — link icon on Share; "Leave a review" is a button; the
+  exam listbox is fixed-positioned; the hamburger opens LearnMenu and takes focus back.
+- `src/components/learn/LearnMenu.tsx` (new) — the right-side menu sheet.
+- `src/components/learn/ReviewSheet.tsx` (new) — the review form.
+- `src/lib/share-url.ts` (new, + test) — `buildShareUrl`, `shareCaption`.
+- `src/lib/reviews.functions.ts` (new) — `submitReview`.
+- `migration/supabase-migrations/20260911_0900_student_reviews.sql` (new) — SQL LEE MUST RUN.
+- `src/routes/learn.tsx` — the smart share, the two-line toast, the review sheet mount.
+- `src/components/learn/learn-gate.ts` (+ tests) — `topicRowDetail` honest counts;
+  `practiceTimeLabel` "~15 mins to complete".
+
+## Card width rules and gaps
+
+| tier | width | gap |
+|---|---|---|
+| wide ≥ 1024 | `clamp(216px, 17.5vw, 252px)` → 216 at 1024, 224 at 1280, 252 from 1440 up | 20px |
+| mid 640–1023 | `clamp(200px, 27vw, 220px)` | 18px |
+| narrow < 640 | `min(82vw, 340px)` | 12px |
+
+Aspect stays 9:16; height is never set. Measured at 1440: 252px cards, 4.6 visible in the shelf.
+Hover / focus: translateY(-4px) scale(1.03), 220ms, no layout shift.
+
+## Hero
+
+Spacing: band top padding 24→16 (wide), 20→14 (mid); fade strip 40→26 / 34→22; column gap
+40→32 / 34→28; panel padding 30/32/28 wide. Easy Points' heading top at 1440 moved from ~379px
+to ~321px (58px up); the hero panel is 209px tall. Treatment: a 22px-radius panel, background
+`color-mix(surface 72%, canvas)`, hairline border, the room's shadow, two campus-accent radial
+glows (16% at the centre) in the top-left and bottom-right corners, and the real bolt path as a
+5.5% watermark on the right. CSS and the brand path only. CTA: "Start cramming for free" — with a
+playable first lesson it opens it (the existing mechanism); otherwise it smooth-scrolls to Easy
+Points, focuses the first card and outlines the row once.
+
+## PracticeCard
+
+Illustration in the top 64%, text absolutely at the foot with the same 12px padding as a video
+card's title: "Practice Questions" (display face, 17px) over "~15 mins to complete" (12.5px,
+muted). The arrow chip moved to the top-right. Time = the recommended round (15 questions at a
+minute each), never the bank; a shorter bank says its own minutes. No stored per-section estimate
+exists; `practiceTimeLabel` is where one would plug in.
+
+## Waitlist count logic
+
+`topicRowDetail` counts only posted, playable videos; questions only on those sets; with no
+playable video it returns null and the row wears a small "Coming soon" tag (no counts at all).
+The first heading shows "N videos" only when N > 0. NOTE: Lee said "no more coming soon" on 09-10;
+this brief's §9 asks for a COMING SOON state explicitly, so the tag is back on later topics only.
+
+## Exam dropdown fix
+
+The listbox was absolutely positioned inside the course line, which truncates (overflow hidden),
+so it rendered as a clipped sliver over the bar. It is now `position: fixed`, measured from the
+button's rect on open and on resize, 196px wide, z-index 105. Verified with a real CDP mouse click:
+opens at (266, 62) under "Exam 1 ▾" with Exam 1 · 2 · 3 · Final, aria-expanded true, no campus
+dialog triggered.
+
+## Menu
+
+LearnMenu: a right-side sheet — 360px on a desk, `min(100vw − 28px, 420px)` on a phone — navy
+header band with the wordmark and a close button (focused on open), then Home · Set up exam
+reminders · Share this · Leave a review with drawn icons, an Account group (Signed in as + a
+quiet "Sign out" pill, or a Sign in button), and two program cards (Zap: Greek Chapter Program /
+"Get Survive for your chapter"; Megaphone: Campus Rep Program / "Bring Survive to your school")
+with arrows. Escape and backdrop close; focus returns to the hamburger.
+
+## Review persistence
+
+No reviews table existed (the landing testimonials are hard-coded). New `public.student_reviews`
+(id, created_at, user_id, name, email, campus_id, campus_slug, course_code, exam, rating 1–5,
+comment, source_path, is_test, published=false), RLS on with no policies (service role only).
+`submitReview` (zod → service-role insert) fails loudly naming the migration until it is applied.
+ReviewSheet prefills email (session), campus / course / exam (page context, shown read-only),
+asks for name (the session has none), five real radio stars, a comment. Nothing is published.
+
+## Smart Share
+
+`buildShareUrl({ campusSlug, chapterSlug, contactRef })`: campus + chapter → `/go/<school>/<chapter>`
+(+ `?ref=` via withRef); campus → `/s/<school>` (+ `?by=` when forwarding a contact link); nothing →
+the site. Public slugs only. Course and exam do not travel (no route reads them). The bar's Share
+copies it and toasts "Link copied" with "Ole Miss · ACCY 201 · Exam 1" beneath; on a phone the
+native share sheet when available, copy as fallback. Chapter context = the picked chapter
+(`usePickedChapter`, localStorage `sa-cta-chapter-<campus>`); campus = the page's school slug.
+The Greek share sheet remains reachable from LearnCta's own flows.
+
+## The laptop (Lee's later message)
+
+"image (2).svg" (4096², 137 paths) is the fourth machine and what every Practice card shows
+(`PRACTICE_ART = "laptop"`; the three cram machines stay behind `machineForSection`). Parts: lid,
+keys, accent (trackpad + base edge, campus primary), power-line (the lid's orange edge), power-node
+(the hinge knob), sparks, success-mark, placeholder (the two-path slot on the screen, never drawn).
+The real bolt sits in the slot via `boltMatrix` with a 10% margin, campus c1 + c2, white keyline.
+Idle: the card's float only. Hover / focus: the lid tilts back 2.5° around the hinge point
+(2470, 2178) with every lid path rotating about the same user-space origin, a campus glow warms
+the screen to 10%, and the bolt BOILS (the four BoltBoil frames at 0.6s a cycle) for as long as
+the pointer stays; a run also sweeps the current along the lid's edge, flares the sparks and
+ripples the keys in two beats. Reduced motion: static frame 0, no tilt.
+
+## Mobile
+
+375 / 430: hero compact (one panel), one card ~82vw with the next peeking, snap mandatory, no
+arrows; the menu is a right drawer; the exam listbox is fixed-positioned so it cannot clip; Share
+uses the native sheet when present; the review sheet is a bottom sheet.
+
+## Deferred / caveats
+
+- SQL LEE MUST RUN: `migration/supabase-migrations/20260911_0900_student_reviews.sql`.
+- Pushing: held at Lee's request.
+- Practice is still per set (the card opens the topic's first set with questions).
+- The IntersectionObserver-driven behaviours (scroll reveal, touch power-up) cannot be seen in the
+  in-app pane (its document is hidden); they were verified in headless Chrome.

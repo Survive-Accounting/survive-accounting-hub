@@ -70,6 +70,8 @@ import type { RailKey } from "@/components/learn/LearnRail";
 import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome";
 import { LearnTextLee } from "@/components/learn/LearnTextLee";
 import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
+import { ReviewSheet } from "@/components/learn/ReviewSheet";
+import { buildShareUrl, shareCaption } from "@/lib/share-url";
 import { CramPlayer, type PlayerItem } from "@/components/learn/CramPlayer";
 import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
 import { DEFAULT_LOOK, isLook, LK, LEARN_CSS, themeFor, themeStyle, type Look } from "@/components/learn/learn-theme";
@@ -366,11 +368,15 @@ function LearnShell() {
   const unlockedTopics = useMemo(() => new Set(unlockedQ.data ?? []), [unlockedQ.data]);
   const [restoring, setRestoring] = useState(false);
   const restore = async () => { setRestoring(true); try { await claimMyOrders(); await unlockedQ.refetch(); } finally { setRestoring(false); } };
-  const [note, setNote] = useState<string | null>(null);
+  // THE TOAST: a line and an optional second, quieter line ("Link copied" / "Ole Miss · ACCY 201");
+  // it leaves on its own after a few seconds or on its ✕.
+  const [note, setNote] = useState<{ text: string; sub?: string } | null>(null);
+  useEffect(() => { if (!note) return; const t = window.setTimeout(() => setNote(null), 3600); return () => window.clearTimeout(t); }, [note]);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const resolvePlayback = useCallback(async (set: StudentSet): Promise<string | null> => {
     const r = await getSetPlayback({ data: { setId: set.id, stage: "cram" } });
     if (r.status === "ok") return r.playbackId;
-    if (r.status === "unpublished") setNote("This video isn't published yet — check back soon.");
+    if (r.status === "unpublished") setNote({ text: "This video isn't published yet — check back soon." });
     return null;
   }, []);
 
@@ -441,10 +447,20 @@ function LearnShell() {
   // in?" links and the "Share with a friend" action. Nothing about the picking, joining, or
   // sharing FLOW changed — only the always-visible bar is gone.
   const ctaOwnBar = false;
+  // THE SMART SHARE (the polish brief, 2026-09-11): one link from lib/share-url — the chapter's
+  // front door when a chapter is picked, the campus's /s hop when a campus is known, the site
+  // otherwise — copied to the clipboard with a "Link copied" toast (and the campus · course line
+  // under it); on a phone the native share sheet when the browser has one, the copy as fallback.
+  // The Greek share sheet is still reachable from LearnCta's own flows; the bar's Share is a copy.
   const share = async () => {
-    if (ctaMounted) { openLearnCta("share"); return; }
-    const ok = await copyToClipboard(`${window.location.origin}/learn`);
-    setNote(ok ? "Link copied — send it to anyone who needs it." : "Couldn't copy — the link is surviveaccounting.com/learn");
+    const url = buildShareUrl({ campusSlug, chapterSlug: chapter.slug, contactRef: search.by ?? search.ref ?? null });
+    const sub = shareCaption({ campusName, courseCode: school?.courseCode ?? null, examLabel: exam?.label ?? null }) ?? undefined;
+    if (isNarrow && typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try { await navigator.share({ title: "Survive", text: sub ? `Cram what's on your exam. ${sub}` : "Cram what's on your exam.", url }); return; }
+      catch (e) { if (e instanceof Error && e.name === "AbortError") return; /* else fall through to copy */ }
+    }
+    const ok = await copyToClipboard(url);
+    setNote(ok ? { text: "Link copied", sub } : { text: `Couldn't copy — the link is ${url.replace(/^https:\/\//, "")}` });
   };
 
   // THE ROWS' SCROLL TARGETS (the rail that used them is unmounted; the first row still registers
@@ -473,6 +489,7 @@ function LearnShell() {
         theme={theme}
         onPickSchool={() => setPickerOpen(true)}
         onShare={() => void share()}
+        onReview={() => setReviewOpen(true)}
         you={{ email, userId, onSignIn: () => setSignInOpen(true), signOut }}
         demo={demo} narrow={isNarrow}
       />
@@ -526,9 +543,15 @@ function LearnShell() {
 
       {paywallTopic && <Paywall topic={paywallTopic} campusName={campusName} campusId={campusId} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
       {signInOpen && <SignInDialog onClose={() => setSignInOpen(false)} />}
+      {reviewOpen && (
+        <ReviewSheet narrow={isNarrow} email={email} userId={userId} campusId={campusId} campusSlug={campusSlug} campusName={campusName} courseCode={school?.courseCode ?? null} examLabel={exam?.label ?? null} demo={demo} onClose={() => setReviewOpen(false)} />
+      )}
       {note && (
-        <div className="fixed bottom-4 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2.5 text-[12.5px] font-semibold shadow-xl" style={{ background: LK.surface, border: `1px solid ${LK.border}`, color: LK.text }}>
-          <span>{note}</span>
+        <div role="status" aria-live="polite" className="fixed bottom-4 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2.5 text-[12.5px] font-semibold shadow-xl" style={{ background: LK.surface, border: `1px solid ${LK.border}`, color: LK.text, boxShadow: LK.shadow }}>
+          <span className="flex flex-col" style={{ gap: 1 }}>
+            <span>{note.text}</span>
+            {note.sub && <span style={{ fontSize: 11.5, fontWeight: 600, color: LK.muted }}>{note.sub}</span>}
+          </span>
           <button type="button" style={{ background: "transparent", border: 0, color: LK.muted, cursor: "pointer" }} onClick={() => setNote(null)}>✕</button>
         </div>
       )}

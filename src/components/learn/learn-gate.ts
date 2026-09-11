@@ -135,9 +135,13 @@ export function averageVideoCaption(sets: readonly Pick<GateSet, "runtimeSec">[]
 /** A LATER ROW'S OWN COUNTS (redesign, 2026-09-11): "5 videos · 34 practice questions" — the
  *  topic's set count and its ceqCount sum, nothing from any other topic or exam. Zero questions
  *  reads as the videos alone (a row never advertises "0 practice questions"). */
-export function topicRowDetail(sets: readonly Pick<GateSet, "ceqCount">[]): string {
-  const n = sets.length;
-  const q = questionCount(sets);
+export function topicRowDetail(sets: readonly Pick<GateSet, "hasVideo" | "locked" | "ceqCount">[]): string | null {
+  // HONEST COUNTS (Lee, 2026-09-11: "Do not advertise inventory the student cannot use yet"):
+  // videos = posted and playable; questions = on those same sets (posted, not paid-locked); a topic with no
+  // playable video says nothing here — the row wears its "Coming soon" tag instead.
+  const n = sets.filter((s) => s.hasVideo && !s.locked).length;
+  if (n === 0) return null;
+  const q = questionCount(sets.filter((s) => s.hasVideo && !s.locked));
   const videos = `${n} video${n === 1 ? "" : "s"}`;
   return q > 0 ? `${videos} · ${q} practice question${q === 1 ? "" : "s"}` : videos;
 }
@@ -158,11 +162,13 @@ export function examName(exam: number): string { return exam === 4 ? "The Final"
  *  rest stay available as "More practice". The card's time is the ROUND's, at 40 s a question
  *  (planTimes' rate) — "~10 min" for a full round, less for a short one, never the whole bank. */
 export const QUICK_ROUND_SIZE = 15;
-export const SECONDS_PER_QUESTION = 40;
+/** A minute a question — the polish brief's "~15 mins to complete" for a full round (09-11). */
+export const SECONDS_PER_QUESTION = 60;
 export function quickRoundSize(bank: number): number { return Math.max(0, Math.min(QUICK_ROUND_SIZE, bank)); }
 export function practiceMinutes(bank: number): number { return Math.max(1, Math.round((quickRoundSize(bank) * SECONDS_PER_QUESTION) / 60)); }
-/** "~10 min" — the card's one number. Null with nothing to practice. */
-export function practiceTimeLabel(bank: number): string | null { return bank > 0 ? `~${practiceMinutes(bank)} min` : null; }
+/** "~15 mins to complete" — the card's one number, the ROUND's, never the bank's. Null with
+ *  nothing to practice. (A stored per-section estimate would replace this; none exists yet.) */
+export function practiceTimeLabel(bank: number): string | null { return bank > 0 ? `~${practiceMinutes(bank)} min${practiceMinutes(bank) === 1 ? "" : "s"} to complete` : null; }
 
 /** submitIntake's campusId is a uuid or null — a demo id or a stale non-uuid value must not fail
  *  the whole capture over a field that is only context. */
