@@ -3,7 +3,7 @@
 // the Text Lee card's copy. Pixels are not tested here; the rules that produce the words are.
 import { describe, expect, test } from "bun:test";
 
-import { averageVideoCaption, examWaitlistLine, LATER_EXAM_PRICE_USD, topicRowDetail, type GateSet } from "./learn-gate";
+import { averageVideoCaption, examName, examWaitlistLine, LATER_EXAM_PRICE_USD, practiceMinutes, practiceTimeLabel, QUICK_ROUND_SIZE, quickRoundSize, SECONDS_PER_QUESTION, topicRowDetail, type GateSet } from "./learn-gate";
 import { hueShift, practiceFill, practiceTint } from "./PracticeArt";
 import { LEE_PHONE, LEE_TEL, TEXT_LEE_LINES } from "./LearnTextLee";
 import { CARD_SHADOW, DISPLAY, SANS } from "./learn-theme";
@@ -36,6 +36,24 @@ describe("the locked pill's line", () => {
     expect(LATER_EXAM_PRICE_USD).toBe(50);
     expect(examWaitlistLine(2)).toBe("Exam 1 is free. Exam 2 is $50. Join the waitlist and I'll tell you the day it opens.");
     expect(examWaitlistLine(3)).toBe("Exam 1 is free. Exam 3 is $50. Join the waitlist and I'll tell you the day it opens.");
+  });
+  test("the Final is an exam too (Lee, 2026-09-11)", () => {
+    expect(examName(4)).toBe("The Final");
+    expect(examName(2)).toBe("Exam 2");
+    expect(examWaitlistLine(4)).toBe("Exam 1 is free. The Final is $50. Join the waitlist and I'll tell you the day it opens.");
+  });
+});
+
+describe("the quick round (Lee, 2026-09-11: a Practice card is access to the bank, not all of it)", () => {
+  test("at most 15 questions, 40 s each — ~10 min for a full round, less for a short one", () => {
+    expect(QUICK_ROUND_SIZE).toBe(15);
+    expect(SECONDS_PER_QUESTION).toBe(40);
+    expect(quickRoundSize(97)).toBe(15);
+    expect(quickRoundSize(8)).toBe(8);
+    expect(practiceMinutes(97)).toBe(10);
+    expect(practiceMinutes(8)).toBe(5);
+    expect(practiceTimeLabel(97)).toBe("~10 min");
+    expect(practiceTimeLabel(0)).toBeNull();
   });
 });
 

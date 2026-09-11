@@ -3,7 +3,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { averageVideoLabel, averageVideoMinutes, emailGateNeeded, examTease, isUuid, practiceGateNeeded, questionCount, topicDetail, waitlistNeeded, type GateSet } from "./learn-gate";
-import { CHALK, CHARCOAL, CREAM, INK, LOOKS, LOOK_NOTES, LOOK_ORDER, MONO, NAVY, PAPER, SPLIT, contrast, isLook, themeFor, topBarFor } from "./learn-theme";
+import { CHALK, CHARCOAL, CREAM, DEFAULT_LOOK, INK, LOOKS, LOOK_NOTES, LOOK_ORDER, MONO, NAVY, PAPER, SPLIT, contrast, isLook, themeFor, topBarFor } from "./learn-theme";
 import { GENERATED_SCHOOLS } from "@/lib/schools.generated";
 
 function gs(o: Partial<GateSet> = {}): GateSet {
@@ -92,9 +92,11 @@ describe("average video length (the number Lee wants to keep beating)", () => {
 });
 
 describe("the navy look (the home page's palette)", () => {
-  test("default is the Blackboard; ?look=navy swaps every surface token", () => {
-    expect(themeFor(null).look).toBe("black");
-    expect(themeFor(null).palette.bg).toBe(INK.bg);
+  test("default is cream (Lee's pick, 2026-09-11); ?look=navy swaps every surface token", () => {
+    expect(DEFAULT_LOOK).toBe("cream");
+    expect(themeFor(null).look).toBe("cream");
+    expect(themeFor(null).palette.bg).toBe(CREAM.bg);
+    expect(themeFor(null, "black").palette.bg).toBe(INK.bg);
     const navy = themeFor(null, "navy");
     expect(navy.look).toBe("navy");
     expect(navy.palette.bg).toBe(NAVY.bg);
@@ -178,11 +180,13 @@ describe("uuid guard for the intake campusId", () => {
 describe("the shell's top bar (2026-09-11: the navbar no longer wears the school)", () => {
   test("no school → the look's own bar, its accent as the hairline", () => {
     expect(topBarFor(null, null)).toEqual({ bg: INK.nav.bg, border: INK.fallbackAccent, rule: INK.nav.border, ink: INK.nav.text, muted: INK.nav.muted });
-    expect(themeFor(null).topBg).toBe(INK.nav.bg);
-    expect(themeFor(null).topBorder).toBe(INK.lime);
+    expect(themeFor(null, "black").topBg).toBe(INK.nav.bg);
+    expect(themeFor(null, "black").topBorder).toBe(INK.lime);
+    expect(themeFor(null).topBg).toBe(CREAM.nav.bg);
+    expect(themeFor(null).topBorder).toBe(CREAM.fallbackAccent);
   });
   test("a school's c1 is the hairline when it shows on the bar; the ground and ink stay the bar's", () => {
-    const bar = topBarFor("#9E1B32", "#F1F2F3"); // Alabama
+    const bar = topBarFor("#9E1B32", "#F1F2F3", INK); // Alabama, on the Blackboard
     expect(bar.bg).toBe(INK.nav.bg);
     expect(bar.border).toBe("#9E1B32");
     expect(bar.ink).toBe(INK.nav.text);

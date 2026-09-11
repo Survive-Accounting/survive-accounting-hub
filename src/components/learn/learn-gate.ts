@@ -146,8 +146,23 @@ export function topicRowDetail(sets: readonly Pick<GateSet, "ceqCount">[]): stri
  *  Exam 3 opens the waitlist sheet with this. Real prices only — Exam 1 free, later exams $50. */
 export const LATER_EXAM_PRICE_USD = 50;
 export function examWaitlistLine(exam: number): string {
-  return `Exam 1 is free. Exam ${exam} is $${LATER_EXAM_PRICE_USD}. Join the waitlist and I'll tell you the day it opens.`;
+  return `Exam 1 is free. ${examName(exam)} is $${LATER_EXAM_PRICE_USD}. Join the waitlist and I'll tell you the day it opens.`;
 }
+
+/** "Exam 2", or "The Final" for 4 — the exam menu lists the Final as an exam too (Lee, 2026-09-11:
+ *  "And Final is technically an exam too"). */
+export function examName(exam: number): string { return exam === 4 ? "The Final" : `Exam ${exam}`; }
+
+/** THE QUICK ROUND (Lee, 2026-09-11): a Practice card is access to the topic's question bank, not
+ *  an order to answer all of it now. The recommended round is at most this many questions; the
+ *  rest stay available as "More practice". The card's time is the ROUND's, at 40 s a question
+ *  (planTimes' rate) — "~10 min" for a full round, less for a short one, never the whole bank. */
+export const QUICK_ROUND_SIZE = 15;
+export const SECONDS_PER_QUESTION = 40;
+export function quickRoundSize(bank: number): number { return Math.max(0, Math.min(QUICK_ROUND_SIZE, bank)); }
+export function practiceMinutes(bank: number): number { return Math.max(1, Math.round((quickRoundSize(bank) * SECONDS_PER_QUESTION) / 60)); }
+/** "~10 min" — the card's one number. Null with nothing to practice. */
+export function practiceTimeLabel(bank: number): string | null { return bank > 0 ? `~${practiceMinutes(bank)} min` : null; }
 
 /** submitIntake's campusId is a uuid or null — a demo id or a stale non-uuid value must not fail
  *  the whole capture over a field that is only context. */

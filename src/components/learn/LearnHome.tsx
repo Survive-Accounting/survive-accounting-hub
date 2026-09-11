@@ -71,7 +71,10 @@
 //   · THE HERO IS CENTRED (LearnEntrance): the display line, the sub line, one "Get started"
 //     button with the real average video length as its caption. No meta row, no "See what's on
 //     the exam".
-//   · FIRST ROW: "Start Here: Easy Points · 5 videos" — no "Exam 1", no Free chip (the exam pill
+//   · FIRST ROW (as of 2026-09-11, Lee: "Don't say start here twice. Just say 'Easy Points for
+//     Exam [#]' and the start here ↓ underneath is perfect"): "Easy Points for Exam 1 · 5 videos",
+//     with the small "start here ↓" label under it on EVERY tier. Before that it read "Start Here:
+//     Easy Points · 5 videos" — no "Exam 1", no Free chip (the exam pill
 //     already says it). LATER ROWS: the name and the topic's OWN counts, "5 videos · 34 practice
 //     questions" (learn-gate's topicRowDetail). No cross-exam totals anywhere — the tease line
 //     under the waitlist box is gone.
@@ -289,12 +292,12 @@ export const LearnHome = forwardRef<HTMLDivElement, {
           return (
             <section key={id} id={topicSectionId(id)} ref={first ? firstRowRef : undefined} data-tier={tier} className={`lk-topic-sec flex flex-col gap-3${first && outlined ? " lk-outlined" : ""}${first && pulse ? " lk-start-pulse" : ""}`} style={{ scrollMarginTop: 16 }}>
               {first ? (
-                <TopicHead topic={topic} sets={ts} school={school} tier={tier} />
+                <TopicHead topic={topic} sets={ts} school={school} tier={tier} examLabel={examLabel} />
               ) : (
                 <TopicRow topic={topic} sets={ts} school={school} tier={tier} expanded={expanded} onToggle={() => setOpen((m) => ({ ...m, [id]: !expanded }))} />
               )}
-              {/* NARROW'S START CUE: a small accent label over the first card. */}
-              {first && narrow && (
+              {/* THE START CUE: a small accent label over the first card, every tier (2026-09-11). */}
+              {first && (
                 <span aria-hidden className="text-[12px] font-extrabold" style={{ color: LK.acc, letterSpacing: "0.04em", marginBottom: -4, fontFamily: BRAND_SANS }}>start here ↓</span>
               )}
               {expanded && row}
@@ -325,11 +328,11 @@ function TopicBolt({ height, school }: { height: number; school: School | null }
   );
 }
 
-/** "[bolt] Start Here: Easy Points · 5 videos" (redesign, 2026-09-11: no "Exam 1", no Free chip —
- *  the exam pill already says it). The count is the topic's real set count. The first topic only
- *  — it is always open, so it is a heading, not a control. "Start Here:" is the heading's own
- *  answer to "where do I begin?" (Lee, 2026-09-10). */
-function TopicHead({ topic, sets, school, tier }: { topic: StudentTopic; sets: HomeSet[]; school: School | null; tier: Tier }) {
+/** "[bolt] Easy Points for Exam 1 · 5 videos" (Lee, 2026-09-11: "Just say 'Easy Points for Exam
+ *  [#]'" — the "start here ↓" label under it is the cue, so the heading no longer says it). The
+ *  count is the topic's real set count. The first topic only — it is always open, so it is a
+ *  heading, not a control. */
+function TopicHead({ topic, sets, school, tier, examLabel }: { topic: StudentTopic; sets: HomeSet[]; school: School | null; tier: Tier; examLabel: string }) {
   const n = sets.length;
   const posted = sets.some(isPosted);
   const size = tier === "wide" ? 26 : tier === "mid" ? 22 : 19;
@@ -337,7 +340,7 @@ function TopicHead({ topic, sets, school, tier }: { topic: StudentTopic; sets: H
     <div className="lk-topic-hd flex min-w-0 items-center" data-posted={posted} style={{ gap: tier === "narrow" ? 10 : 14, ["--lk-glow" as string]: glowFor(school) } as CSSProperties}>
       <TopicBolt height={Math.round(size * 1.35)} school={school} />
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-        <span className="lk-disp lk-topic-name" style={{ fontSize: size, lineHeight: 1.1 }}>Start Here: {topic.name}</span>
+        <span className="lk-disp lk-topic-name" style={{ fontSize: size, lineHeight: 1.1 }}>{topic.name} for {examLabel}</span>
         <span aria-hidden className="text-[13px]" style={{ color: LK.dim }}>·</span>
         <span className="text-[14px] tabular-nums" style={{ color: LK.muted }}>{n} video{n === 1 ? "" : "s"}</span>
       </div>

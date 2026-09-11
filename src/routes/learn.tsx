@@ -38,8 +38,9 @@
 // I want to pick only the best one"). Eight looks in learn-theme's LOOKS — black, navy, cream,
 // paper, chalk, charcoal, split, mono — behind ?look=<name>; ?looks=1 mounts LearnLookPicker,
 // a floating bottom-left strip that rewrites ?look= so every look can be flipped through on one
-// page with a school picked. Default stays black until Lee picks. In every look the navbar is the
-// shell's own ground and the campus shows only in the bolt, the hairline and the accent.
+// page with a school picked. LEE PICKED CREAM (2026-09-11: "Let's go with Cream look") — it is the
+// default, learn-theme's DEFAULT_LOOK. In every look the navbar is the shell's own ground and the
+// campus shows only in the bolt, the hairline and the accent.
 //
 // Wireframes and the decisions behind this: the "Learn Dashboard Wireframes" canvas, Round 5.
 import { createFileRoute } from "@tanstack/react-router";
@@ -71,7 +72,7 @@ import { LearnTextLee } from "@/components/learn/LearnTextLee";
 import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
 import { CramPlayer, type PlayerItem } from "@/components/learn/CramPlayer";
 import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
-import { isLook, LK, LEARN_CSS, themeFor, themeStyle, type Look } from "@/components/learn/learn-theme";
+import { DEFAULT_LOOK, isLook, LK, LEARN_CSS, themeFor, themeStyle, type Look } from "@/components/learn/learn-theme";
 import { useTier } from "@/components/learn/use-tier";
 import { DEMO_PLAYBACK, LAST_SET_KEY, type Prog, type ProgressState } from "@/components/learn/cram-media";
 import { daysUntil, EXAM_DATE_EVENT, readExamDate } from "@/components/learn/exam-date";
@@ -104,7 +105,7 @@ export const Route = createFileRoute("/learn")({
     by: typeof s.by === "string" && isContactRef(s.by) ? s.by : undefined,
     g: typeof s.g === "string" && s.g ? s.g : undefined,
     test: typeof s.test === "string" && s.test ? s.test : undefined,
-    look: isLook(s.look) && s.look !== "black" ? s.look : undefined,
+    look: isLook(s.look) && s.look !== DEFAULT_LOOK ? s.look : undefined,
     looks: s.looks === true || s.looks === 1 || s.looks === "1" || s.looks === "true" ? true : undefined,
   }),
   // A SHARED /s/<campus> LINK LANDS HERE. That route is a redirect, so the preview a chat app
@@ -308,10 +309,10 @@ function LearnShell() {
   const school = schoolBySlug(search.g) ?? schoolByCampusId(campusId);
   const campusSlug = search.g ?? school?.slug ?? null;
   const campusName = school?.name ?? campuses.find((c) => c.id === campusId)?.name ?? null;
-  const look: Look = search.look ?? "black";
+  const look: Look = search.look ?? DEFAULT_LOOK;
   const theme = useMemo(() => themeFor(school, look), [school, look]);
   const pickLook = useCallback((next: Look) => {
-    void navigate({ search: (p: LearnSearch) => ({ ...p, look: next === "black" ? undefined : next }), replace: true });
+    void navigate({ search: (p: LearnSearch) => ({ ...p, look: next === DEFAULT_LOOK ? undefined : next }), replace: true });
   }, [navigate]);
 
   // AUTH + PROGRESS — unchanged model: localStorage signed-out / student_set_progress signed-in.

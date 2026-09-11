@@ -23,7 +23,8 @@
 // campus-coloured hairline under the bar, the accent (buttons, the active pill, hover glows) and
 // the topic bolts. Green is success only. `hero` lets one look (split) put the entrance on a
 // different ground from the rows; `shadow` is tuned per ground so a card sits in front of a cream
-// room as well as a black one. Default stays black until Lee picks; ?looks=1 mounts a picker.
+// room as well as a black one. LEE PICKED CREAM (2026-09-11: "Let's go with Cream look") — it is
+// DEFAULT_LOOK; ?look= still renders the other seven and ?looks=1 mounts the picker.
 import type { CSSProperties } from "react";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import type { School } from "@/lib/schools";
@@ -204,6 +205,8 @@ export const MONO = {
 } as const satisfies Palette;
 
 export type Look = "black" | "navy" | "cream" | "paper" | "chalk" | "charcoal" | "split" | "mono";
+/** The look the page wears with no ?look= — Lee's pick (2026-09-11). */
+export const DEFAULT_LOOK: Look = "cream";
 export const LOOKS: Record<Look, Palette> = { black: INK, navy: NAVY, cream: CREAM, paper: PAPER, chalk: CHALK, charcoal: CHARCOAL, split: SPLIT, mono: MONO };
 /** The picker's order — the two that exist, then Part E's build order. */
 export const LOOK_ORDER: readonly Look[] = ["black", "navy", "cream", "paper", "chalk", "charcoal", "split", "mono"];
@@ -321,7 +324,7 @@ export function topBarFor(c1: string | null | undefined, c2: string | null | und
 /** The theme for a school (or none) in a look (default: the Blackboard). Candidates are the
  *  school's bright colour first, then its dark one (mono: the dark one first); the first that
  *  clears 3:1 on the ground wins. */
-export function themeFor(school: Pick<School, "c1" | "c2"> | null | undefined, look: Look = "black"): LearnTheme {
+export function themeFor(school: Pick<School, "c1" | "c2"> | null | undefined, look: Look = DEFAULT_LOOK): LearnTheme {
   const p = LOOKS[look];
   const c1 = school?.c1 ?? null, c2 = school?.c2 ?? null;
   const ordered = p.accentFirst === "c1" ? [c1, c2] : [c2, c1];

@@ -1,8 +1,7 @@
 // THE NAVBAR (redesign, 2026-09-11 — docs/LEARN-REDESIGN-PROPOSAL-2026-09-11.md §1).
 //
-//   [BIG bolt]  survive │ Ole Miss                  Leave a review   [Share]  [≡]
-//     ΑΤΟ               │ ACCY 201 · Exam 1
-//   [Exam 1] [Exam 2 🔒] [Exam 3 🔒]
+//   [BIG bolt]  survive │ Ole Miss ▾                Leave a review   [Share]  [≡]
+//     ΑΤΟ               │ ACCY 201 · Exam 1 ▾
 //
 // LEFT: the campus bolt, big (44px tall on wide / 36 on narrow, BoltBoil in the school's colours),
 // and when the share funnel knows the student's chapter its Greek letters sit centred over the
@@ -11,10 +10,17 @@
 // a two-line block: the campus name (or "Pick your school", which opens the picker sheet in place)
 // over "ACCY 201 · Exam 1". "Ole Miss · ACCY 201 · Exam 1" has left the bar; there is no rail.
 //
-// EXAM PILLS under the bolt: Exam 1 is the live pill. Exam 2 and Exam 3 wear a drawn lock and
-// open the waitlist sheet — "Exam 1 is free. Exam 2 is $50. Join the waitlist and I'll tell you
-// the day it opens." (learn-gate's examWaitlistLine) — which submits through the unified intake
-// (kind notify_exam, exam 2|3, source learn-exam-waitlist). An exam that has videos is live.
+// THE EXAM MENU (Lee, 2026-09-11: "Exam 1, Exam 2, Exam 3 at top is a bit unnecessary right now.
+// Just make it where clicking Exam 1 (to right of course code) can let you switch between them.
+// Clicking Exam 1 opens dropdown to see all exams. And Final is technically an exam too."). The
+// "Exam 1 ▾" beside the course code is a button; it opens a listbox — Exam 1 · Exam 2 · Exam 3 ·
+// Final — in the same visual language as the campus selector. An exam that has videos is live; a
+// locked one wears a drawn lock inside the menu and opens the waitlist sheet — "Exam 1 is free.
+// Exam 2 is $50. Join the waitlist and I'll tell you the day it opens." (learn-gate's
+// examWaitlistLine; "The Final is $50" for the Final) — which submits through the unified intake
+// (kind notify_exam, source learn-exam-waitlist). The exam button is its own control, so it can
+// never open the campus picker. Keyboard: Enter / Space open, ↑ ↓ move, Enter picks, Escape closes.
+// The pill row that sat under the bolt until 09-11 is gone; the bar is one line again.
 //
 // RIGHT: "Leave a review" (a link to /#reviews) · Share (the page's share) · the hamburger, which
 // holds everything else, in this order: Share this · Set up exam reminders (the home page's
@@ -31,7 +37,7 @@
 // bar's own reminder sheet are gone from the bar (ReminderSheet stays below, unmounted, for the
 // day reminders are advertised inside the player). Copy rule: no "run" / "blast" / "pledge", no
 // emoji — every glyph in the bar is drawn.
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, Loader2, X } from "lucide-react";
 
@@ -45,7 +51,7 @@ import type { School } from "@/lib/schools";
 import type { ExamTabState } from "@/components/learn/ExamRail";
 import { daysUntil, writeExamDate } from "@/components/learn/exam-date";
 import { CTA_CHAPTER_EVENT } from "@/components/learn/LearnCta";
-import { EMAIL_RE, examWaitlistLine, isUuid } from "@/components/learn/learn-gate";
+import { EMAIL_RE, examName, examWaitlistLine, isUuid } from "@/components/learn/learn-gate";
 import { allowedOffsets, REMINDER_DISCLOSURE, scheduleExamReminder } from "@/lib/exam-reminder.functions";
 import { submitIntake } from "@/lib/intake.functions";
 import { useDismiss } from "@/lib/use-dismiss";
@@ -89,8 +95,8 @@ export function senderRole(c: ShareContact): string | null {
   return role.toLowerCase().includes(council.toLowerCase()) ? role : `${council} ${role}`;
 }
 
-/** The pills the bar always shows, live or locked. The Final (4) joins only once it has videos. */
-const PILL_EXAMS = [1, 2, 3] as const;
+/** The exams the menu always lists, live or locked — the Final included (Lee, 2026-09-11). */
+const MENU_EXAMS = [1, 2, 3, 4] as const;
 
 /** The bolt's height per tier — the one big thing in the bar. */
 const BOLT_H = { narrow: 36, wide: 44 } as const;
@@ -122,8 +128,7 @@ export function LearnTop({
   const examLabel = exam?.label ?? "Exam 1";
   const courseCode = school?.courseCode ?? null;
   const schoolName = school?.name ?? campusName;
-  const finalExam = exams.find((e) => e.num === 4 && e.available) ?? null;
-  const pills = [...PILL_EXAMS.map((n) => exams.find((e) => e.num === n) ?? { num: n, label: `Exam ${n}`, available: false, videoCount: 0 }), ...(finalExam ? [finalExam] : [])];
+  const menuExams = MENU_EXAMS.map((n) => exams.find((e) => e.num === n) ?? { num: n, label: n === 4 ? "Final" : `Exam ${n}`, available: false, videoCount: 0 });
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
@@ -159,7 +164,7 @@ export function LearnTop({
             </button>
             <div className="flex min-w-0 items-center gap-1.5 truncate" style={{ fontSize: narrow ? 11.5 : 12.5, color: muted, fontWeight: 600, lineHeight: 1.2 }}>
               {courseCode && <><span className="truncate">{courseCode}</span><span aria-hidden>·</span></>}
-              <span style={{ color: ink }}>{examLabel}</span>
+              <ExamMenu exams={menuExams} examNum={examNum} examLabel={examLabel} ink={ink} muted={muted} onPick={onPickExam} onLocked={setWaitlistExam} />
               {demo && <span className="rounded-full px-1.5 py-px text-[9px] font-black uppercase tracking-wider" style={{ color: "#111", background: LK.green }}>Demo</span>}
             </div>
           </div>
@@ -178,18 +183,6 @@ export function LearnTop({
           <button type="button" onClick={() => setMenuOpen(true)} aria-label="Menu" aria-expanded={menuOpen} className="grid shrink-0 place-items-center rounded-full" style={{ ...iconBtn, width: narrow ? 40 : 44, height: narrow ? 40 : 44 }}><HamburgerGlyph /></button>
         </div>
 
-        {/* THE EXAM PILLS, under the bolt. */}
-        <div className="flex flex-wrap items-center" style={{ gap: 6 }} role="tablist" aria-label="Which exam">
-          {pills.map((p) => {
-            const locked = !p.available;
-            const on = !locked && p.num === examNum;
-            return (
-              <button key={p.num} type="button" role="tab" aria-selected={on} className="lk-pill" data-on={on} data-locked={locked} onClick={() => (locked ? setWaitlistExam(p.num) : onPickExam(p.num))} title={locked ? `${p.label} is not open yet` : p.label}>
-                {p.label}{locked && <LockGlyph />}
-              </button>
-            );
-          })}
-        </div>
       </header>
 
       {menuOpen && (
@@ -206,6 +199,56 @@ export function LearnTop({
         <ExamWaitlistSheet exam={waitlistExam} campusId={campusId} courseCode={courseCode} demo={demo} narrow={narrow} onClose={() => setWaitlistExam(null)} />
       )}
     </>
+  );
+}
+
+/** THE EXAM MENU — "Exam 1 ▾" as a button, a listbox beneath it. A live exam picks; a locked one
+ *  (drawn lock) opens the waitlist sheet. Focus lands on the current exam when the list opens and
+ *  returns to the button when it closes; ↑ ↓ wrap; Escape and a click outside close it. */
+function ExamMenu({ exams, examNum, examLabel, ink, muted, onPick, onLocked }: {
+  exams: ExamTabState[]; examNum: number | null; examLabel: string; ink: string; muted: string;
+  onPick: (num: number) => void; onLocked: (num: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  const listId = `lk-exam-menu-${id}`;
+  const btn = useRef<HTMLButtonElement | null>(null);
+  const list = useRef<HTMLDivElement | null>(null);
+  const close = () => { setOpen(false); btn.current?.focus(); };
+  const box = useDismiss<HTMLSpanElement>(() => setOpen(false), { enabled: open });
+  useEffect(() => {
+    if (!open) return;
+    const current = list.current?.querySelector<HTMLButtonElement>('[aria-selected="true"]') ?? list.current?.querySelector<HTMLButtonElement>("[role=option]");
+    current?.focus();
+  }, [open]);
+  const onListKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = [...(list.current?.querySelectorAll<HTMLButtonElement>("[role=option]") ?? [])];
+    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); const n = items.length; items[((i < 0 ? 0 : i) + (e.key === "ArrowDown" ? 1 : n - 1)) % n]?.focus(); }
+    else if (e.key === "Escape") { e.preventDefault(); close(); }
+    else if (e.key === "Tab") setOpen(false);
+  };
+  return (
+    <span ref={box} className="relative inline-flex">
+      <button ref={btn} type="button" onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? listId : undefined} title="Change exam" className="inline-flex items-center gap-0.5" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", color: ink, fontFamily: "inherit", fontSize: "inherit", fontWeight: 700, lineHeight: "inherit" }}>
+        {examLabel}
+        <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: muted, transform: open ? "rotate(180deg)" : "none", transition: "transform 160ms" }} aria-hidden />
+      </button>
+      {open && (
+        <div ref={list} id={listId} role="listbox" aria-label="Which exam" onKeyDown={onListKey} className="lk-sheet lk-in absolute left-0 z-[105] flex flex-col rounded-xl" style={{ top: "calc(100% + 8px)", minWidth: 188, padding: 6, gap: 2 }}>
+          {exams.map((x) => {
+            const locked = !x.available;
+            const on = !locked && x.num === examNum;
+            return (
+              <button key={x.num} type="button" role="option" aria-selected={on} className="lk-menu-item" data-on={on} data-locked={locked} onClick={() => { setOpen(false); if (locked) onLocked(x.num); else { onPick(x.num); btn.current?.focus(); } }} title={locked ? `${x.label} is not open yet` : x.label} style={{ minHeight: 42, fontSize: 14, gap: 8, opacity: locked ? 0.78 : 1, color: on ? LK.acc : undefined }}>
+                <span className="flex-1">{x.label}</span>
+                {locked ? <LockGlyph /> : on ? <Check className="h-4 w-4" aria-hidden /> : null}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -297,11 +340,11 @@ function ExamWaitlistSheet({ exam, campusId, courseCode, demo, narrow, onClose }
   return (
     <Sheet label={`Exam ${exam} waitlist`} narrow={narrow} onClose={onClose}>
       <div className="mb-2 flex items-center justify-between">
-        <span className="lk-disp" style={{ fontSize: 20 }}>Exam {exam}</span>
+        <span className="lk-disp" style={{ fontSize: 20 }}>{examName(exam)}</span>
         <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }}><X className="h-4 w-4" /></button>
       </div>
       {state === "done" ? (
-        <p className="flex items-center gap-2 text-[14px] font-bold" style={{ margin: 0 }}><Check className="h-4 w-4" style={{ color: LK.green }} /> You're on the list. I'll email you the day Exam {exam} opens.</p>
+        <p className="flex items-center gap-2 text-[14px] font-bold" style={{ margin: 0 }}><Check className="h-4 w-4" style={{ color: LK.green }} /> You're on the list. I'll email you the day {examName(exam) === "The Final" ? "the Final" : examName(exam)} opens.</p>
       ) : (
         <>
           <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.5, color: LK.muted }}>{examWaitlistLine(exam)}</p>
