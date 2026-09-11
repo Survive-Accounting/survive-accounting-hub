@@ -106,7 +106,7 @@ export const frameSchema = z.object({
   ad: z.enum(AD_KINDS).optional(),
   url: z.string().max(120).optional(),
   portrait: z.enum(["on", "off"]).optional(),
-  cam: z.enum(["home", "corner", "hero", "top", "free", "off"]).optional(),
+  cam: z.enum(["home", "corner", "hero", "top", "left", "free", "off"]).optional(),
   camPos: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(),
   camSize: z.number().min(0.05).max(1).optional(),
   illustration: illustrationSchema.nullable().optional(),

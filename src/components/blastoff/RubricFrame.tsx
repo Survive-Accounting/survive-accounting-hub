@@ -26,17 +26,18 @@
 // ONLY MODE "ale" DRAWS. "dc" is reserved on the schema and refused here with a red block that
 // says so — the convention is fail loud, and a rubric that silently drew the wrong equation on
 // camera would be worse than one that stops the take.
-import { createContext, useContext } from "react";
+import { useContext } from "react";
 
 import { BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
 
 import { assertRenderable, balanceLine, equityShown, fmtDollars, revealedKeys, rubricSteps, type RubricArrow, type RubricKey, type RubricSpec } from "./rubric";
 import { BRAND_FONT, DISPLAY_FONT } from "./stage";
 
-/** What the film knows about a rubric slide: the reveal step being walked. Absent → at rest,
- *  everything shown. Provided by BlastOffCapture only. */
-export interface RubricFilm { step: number }
-export const RubricFilmContext = createContext<RubricFilm | null>(null);
+/** What the film knows about a rubric slide: the reveal step being walked (frame-step.ts — the
+ *  one step context every self-walking kind shares). Absent → at rest, everything shown. */
+export type { FrameStep as RubricFilm } from "./frame-step";
+export { FrameStepContext as RubricFilmContext } from "./frame-step";
+import { FrameStepContext } from "./frame-step";
 
 const GOLD = "#FCA311";
 const SKY = "#7DD3FC";
@@ -83,7 +84,7 @@ export function RubricFrame({ spec, k, live = false, onCycle, popKey }: {
   /** The Review stage's click-to-cycle; absent everywhere else. */
   onCycle?: (key: RubricKey) => void;
 }) {
-  const film = useContext(RubricFilmContext);
+  const film = useContext(FrameStepContext);
   const G = RUBRIC_GEOM;
   if (!spec) return <Loud k={k} text="This rubric slide has no data — delete it and add a fresh Rubric." />;
   const refused = assertRenderable(spec);

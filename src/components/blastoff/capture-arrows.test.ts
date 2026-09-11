@@ -47,6 +47,14 @@ describe("capture arrows — the canvas's F1 tool on the capture surface", () =>
     const branchEnd = backtick.indexOf("}\n      else if");
     expect(backtick.slice(0, branchEnd)).toContain("resetTake();");
   });
+  // Lee, 2026-09-11: "Ensure that ~ is clearing the A = L + E rubric." ~ is shift+` (the same
+  // key code), so the one wipe branch carries it: the rubric's reveal goes back to the bare block.
+  test("` on a rubric slide clears its arrows back to the bare block, in the same branch", () => {
+    const backtick = capture.slice(capture.indexOf('else if (e.code === "Backquote" || e.key === "`") {'));
+    const branchEnd = backtick.indexOf("}\n      else if");
+    expect(branchEnd).toBeGreaterThan(0);
+    expect(backtick.slice(0, branchEnd)).toContain("if (rubric) setShot(() => 0);");
+  });
   test("Delete / Backspace takes the most recent arrow back", () => {
     expect(arrows).toContain('if (e.key === "Delete" || e.key === "Backspace")');
     expect(arrows).toContain("if (pendingRef.current) cancel(); else setArrows((p) => p.slice(0, -1));");

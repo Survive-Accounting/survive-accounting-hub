@@ -131,6 +131,7 @@ import { RUBRIC_KEYS, RUBRIC_MODE_LABEL, RUBRIC_PRESETS, applyPreset, cycleKey, 
 // THE END-OF-TOPIC FRAMES (2026-09-11): the Editor faces read the bank the same way the slides
 // do, so what the panel says the slide will say is what it says.
 import { TOPIC_DONE_COPY, topicProgress, upNextFor } from "./end-of-topic";
+import { SURVIBES_PROPS } from "./survibes";
 import { useBank } from "@/components/v3/use-bank";
 import type { MapCard } from "@/lib/cluster-brief";
 
@@ -159,7 +160,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -1540,6 +1541,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     // THE END-OF-TOPIC PAIR (2026-09-11). Up Next opens the skippable segment as it lands.
     { label: "Topic complete", color: KIND_COLOR.topic_done ?? MUTED, add: () => insertAfter(f.id, "topic_done", {}, true) },
     { label: "Up next", color: KIND_COLOR.up_next ?? MUTED, add: () => insertAfter(f.id, "up_next", { segment: "skippable" }, true) },
+    { label: "Survibes", color: KIND_COLOR.survibes ?? MUTED, add: () => insertAfter(f.id, "survibes", {}, true) },
     { label: "Exhibit…", color: MUTED, add: () => { setSelId(f.id); setPicker("exhibit"); } },
   ];
   const spineRow = (f: BlastFrame, i: number, opts: { number?: number; foldered?: boolean; thumb?: boolean; card?: boolean } = {}) => {
@@ -2045,6 +2047,14 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         {/* THE END-OF-TOPIC FRAMES (2026-09-11): what the bank will put on the slide, and the one
             typed line each has. */}
         {(sel.kind === "topic_done" || sel.kind === "up_next") && <EndOfTopicEditor sel={sel} set={set} onPatch={onPatch} />}
+        {/* SURVIBES (2026-09-11): nothing to type — the flip is the slide. What the spacebar does is
+            said here so it isn't a surprise on camera. */}
+        {sel.kind === "survibes" && (
+          <div className="flex flex-col" style={{ gap: 8 }}>
+            <div style={{ fontSize: 11.5, color: MUTED }}>The logo flips on: at 0.7 s the bolt strikes, "ve" becomes "bes", the room lights red and blue, then the wordmark glides up and you take the frame in the big camera box on the left. Captions get the large box (the dashed one on the stage).</div>
+            <div style={{ fontSize: 11.5, color: MUTED }}>On camera, <b style={{ color: CREAM }}>space</b> pops a prop over the top area while the wordmark shrinks to the corner and the camera to a small circle under it; shift+space takes it down. Props so far: {SURVIBES_PROPS.map((p) => p.title).join(", ")}. A 2:00 monologue clock runs in the film chrome — never in the pop-out or the shot.</div>
+          </div>
+        )}
         {/* THE SLOGAN SLIDE (2026-09-08) — the words and nothing else. The picture, when the
             slide wants one, is the Illustrator's face; the chips are the three Lee actually
             says, straight from brand-cards/slogans.ts so the slide and the spoken line can

@@ -85,8 +85,12 @@ import { camDefault, layoutOf, type RailStatus } from "./layout";
 import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
 // THE RUBRIC's reveal (2026-09-11): the same spacebar walk as a map's shots — the step lives
 // here, the block reads it through its own context (RubricFrame.tsx).
-import { RubricFilmContext, type RubricFilm } from "./RubricFrame";
+import { FrameStepContext, type FrameStep } from "./frame-step";
 import { rubricSteps } from "./rubric";
+// SURVIBES (2026-09-11): its props are steps too; the authoring-only 2:00 clock lives in the
+// main window's chrome (never the pop-out, never the shot).
+import { SURVIBES_COUNTDOWN_S, SURVIBES_PROP_CAM, SURVIBES_T, SURVIBES_WARN_S, clockLabel, survibesSteps } from "./survibes";
+import { ExamTopicsMenu } from "@/components/v3/ExamTopicsMenu";
 import { resolveCluster, type ArrowOverrides, type EqTerm } from "./cluster/cluster-models";
 import { cameraAt, shotsOf } from "./cluster/cluster-spec";
 import { nextEqDir } from "./cluster/nodes/EquationNode";
@@ -218,7 +222,8 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // A, L, E, Rev/Exp as the spacebar walks them (rubric.ts revealGroups). `steps` is the one
   // count both kinds share; every other slide has none and space leaves the frame at once.
   const rubric = frame?.kind === "rubric" ? frame.rubric ?? null : null;
-  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric) : 0;
+  const survibes = frame?.kind === "survibes";
+  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric) : survibes ? survibesSteps() : 0;
   const [shotState, setShotState] = useState<{ id: string; shot: number }>({ id: "", shot: 0 });
   const shot = steps > 0 && shotState.id === frameId ? Math.min(shotState.shot, Math.max(0, steps - 1)) : 0;
   const setShot = useCallback((f: (s: number) => number) => { const id = frameId ?? ""; setShotState((p) => ({ id, shot: Math.max(0, f(p.id === id ? p.shot : 0)) })); }, [frameId]);
@@ -520,7 +525,27 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // the cycle with pass 2, 2026-09-05), which lasts until the next slide.
   const [camOverride, setCamOverride] = useState<CamSpot | null>(null);
   useEffect(() => { setCamOverride(null); }, [frameId]);
-  const camNow: CamSpot = camOverride ?? (frame ? (isCamSpot(frame.cam) ? frame.cam : camDefault(layoutOf(plan), frame.kind).spot) : "off");
+  // SURVIBES' ENTRANCE: no camera until the flip has settled — the brief: "then the wordmark glides
+  // to the top and the camera … fade in". The camera is PhoneFrame's, not the slide's, so the capture
+  // holds it off for SURVIBES_T.settled after the slide arrives (it covered the big wordmark mid-flip
+  // otherwise). Reduced motion: at once, like the slide itself. The NEXT preview never holds.
+  const [svSettledId, setSvSettledId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!survibes || !frameId) return;
+    let reduce = false;
+    try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { /* no media queries: animate */ }
+    if (reduce) { setSvSettledId(frameId); return; }
+    setSvSettledId(null);
+    // settled + the 700 ms glide: the camera arrives once the wordmark has reached the top.
+    const t = window.setTimeout(() => setSvSettledId(frameId), SURVIBES_T.camIn);
+    return () => window.clearTimeout(t);
+  }, [survibes, frameId]);
+  const svHoldCam = survibes && !preview && svSettledId !== frameId;
+  // SURVIBES' PROP STEP: the camera shrinks to a small circle under the prop card while a prop is up
+  // (the brief: "the wordmark shrinks to the corner and the camera to a small circle") — the free
+  // spot at SURVIBES_PROP_CAM, carried on a copy of the frame below. B's override still wins.
+  const stepCam: CamSpot | null = svHoldCam ? "off" : survibes && shot > 0 ? "free" : null;
+  const camNow: CamSpot = camOverride ?? stepCam ?? (frame ? (isCamSpot(frame.cam) ? frame.cam : camDefault(layoutOf(plan), frame.kind).spot) : "off");
   // A QA override left on the filming PC films the wrong pass — say so in the chrome (audit §2.15).
   const qaLayout = (() => { try { return typeof window !== "undefined" ? window.localStorage.getItem("sa-layout-qa") : null; } catch { return null; } })();
 
@@ -570,8 +595,12 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
       // screen if needed") — the illustration's drag/resize decorations are gated on chrome
       // (below), so this is the guaranteed "get it off screen" reset, on top of chrome already
       // defaulting off in the popout.
+      // ON A RUBRIC SLIDE it also clears the arrows back to the bare block — the reveal step goes
+      // to 0 (Lee, 2026-09-11: "Ensure that ~ is clearing the A = L + E rubric."). Shift+` is ~,
+      // same key code, same wipe. Nothing saved is touched: the arrows Lee set in the Editor stay.
       else if (e.code === "Backquote" || e.key === "`") {
         e.preventDefault(); resetTake(); setChrome(false); scratchTake();
+        if (rubric) setShot(() => 0);
       }
       else if (e.key === "Escape") { e.preventDefault(); onExit(); }
       else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
@@ -596,13 +625,15 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, steps, shot, setShot, roll, set.id]);
+  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, steps, shot, setShot, rubric, roll, set.id]);
 
   // What FrameView's map draws from (cluster/ClusterStage.tsx): in the main window's NEXT
   // preview the map is its bird's-eye with everything revealed — honest about what comes next.
   const clusterFilm = useMemo<ClusterFilm | null>(() => (cluster ? { shot, roam: fieldRoam.roam, overview: preview, arrowOverrides, onArrowCycle } : null), [cluster, shot, fieldRoam.roam, preview, arrowOverrides, onArrowCycle]);
   // The rubric's step, the same way; in the NEXT preview the block is at rest with every arrow on.
-  const rubricFilm = useMemo<RubricFilm | null>(() => (rubric && !preview ? { step: shot } : null), [rubric, preview, shot]);
+  const rubricFilm = useMemo<FrameStep | null>(() => ((rubric || survibes) && !preview ? { step: shot } : null), [rubric, survibes, preview, shot]);
+  // The frame the phone draws: Survibes' prop step places its small camera circle (never saved).
+  const shownFrame = useMemo(() => (survibes && shot > 0 && frame ? { ...frame, camPos: { ...SURVIBES_PROP_CAM } } : frame), [survibes, shot, frame]);
 
   // FIT THE PHONE to the window: as tall as the window allows, 9:16. Size the
   // browser window to 9:16 (or pop it out) and the phone IS the window.
@@ -646,10 +677,10 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
         <div style={{ position: "relative", opacity: preview && !take?.countdown ? 0.55 : 1, transition: "opacity 200ms ease-out" }}>
           <SlideEditContext.Provider value={popout.isPopout && chrome ? patchCurrentFrame : null}>
           <ClusterFilmContext.Provider value={clusterFilm}>
-          <RubricFilmContext.Provider value={rubricFilm}>
-            <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture popout={popout.isPopout} stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} onRailStatus={setRailStatus} coldOpen={coldOpen}
+          <FrameStepContext.Provider value={rubricFilm}>
+            <PhoneFrame frame={shownFrame ?? frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture popout={popout.isPopout} stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? stepCam ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} onRailStatus={setRailStatus} coldOpen={coldOpen}
               progress={questionProgress(frames, ceqById).get(frame.id)} />
-          </RubricFilmContext.Provider>
+          </FrameStepContext.Provider>
           </ClusterFilmContext.Provider>
           </SlideEditContext.Provider>
           {preview && (
@@ -721,7 +752,11 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
           {crumbs.map((c, k) => (
             <span key={`${c.label}-${k}`} style={{ display: "flex", alignItems: "center", gap: 6 }}>
               {k > 0 && <span>›</span>}
-              {c.to ? <Link to={c.to} style={{ color: MUTED, fontWeight: 600, textDecoration: "none" }}>{c.label}</Link> : <span style={{ color: CREAM, fontWeight: 700 }}>{c.label}</span>}
+              {/* THE TOPIC'S NAME opens the exam's topics (Lee, 2026-09-11: "If we click [topic name]
+                  at top left, let's let it open the topics for this exam"). Film stays Film. */}
+              {c.label === topicName && topicName
+                ? <ExamTopicsMenu label={c.label} setId={set.id} step="film" tone="muted" />
+                : c.to ? <Link to={c.to} style={{ color: MUTED, fontWeight: 600, textDecoration: "none" }}>{c.label}</Link> : <span style={{ color: CREAM, fontWeight: 700 }}>{c.label}</span>}
             </span>
           ))}
         </nav>
@@ -764,6 +799,13 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
               reveal {shot} / {steps - 1}
             </span>
           )}
+          {/* SURVIBES: which prop is up, and the authoring-only monologue clock — main window only. */}
+          {survibes && !preview && (
+            <span title="space pops the next prop over the top area; shift+space takes it down; off the last one, the next slide" style={{ color: CREAM, fontWeight: 700 }}>
+              prop {shot} / {steps - 1}
+            </span>
+          )}
+          {survibes && !preview && !popout.isPopout && <SurvibesClock key={frameId ?? "sv"} />}
           {qaLayout &&<span title="localStorage sa-layout-qa is set on this browser — the take films THIS pass, not the set's" style={{ color: "#FF7A59", fontWeight: 800 }}>layout override: {qaLayout}</span>}
           <span title="The fixed caption rail (layout.ts CAPTION_RAIL): where the burned captions will land on this slide"
             style={{ color: railStatus === "clear" ? MUTED : GOLD, fontWeight: railStatus === "clear" ? 500 : 800 }}>
@@ -943,4 +985,38 @@ function PrompterLine({ line, marks, first }: { line: string; marks: PrompterMar
       {paintLine(line, marks).map((s, i) => <span key={i} style={markStyle(s.tone)}>{s.text}</span>)}
     </div>
   );
+}
+
+/** SURVIBES\x27 MONOLOGUE CLOCK (2026-09-11) — authoring only: 2:00 from the moment the slide arrives, red
+
+ *  for the last fifteen seconds. Lives in the main window\x27s chrome bar (data-sa-film-chrome), so it is
+
+ *  never in the pop-out and never in the shot. Re-keyed per frame by the caller. */
+
+function SurvibesClock() {
+
+  const [left, setLeft] = useState(SURVIBES_COUNTDOWN_S);
+
+  useEffect(() => {
+
+    const t0 = Date.now();
+
+    const id = window.setInterval(() => setLeft(Math.max(0, SURVIBES_COUNTDOWN_S - Math.floor((Date.now() - t0) / 1000))), 250);
+
+    return () => window.clearInterval(id);
+
+  }, []);
+
+  const warn = left <= SURVIBES_WARN_S;
+
+  return (
+
+    <span title="The monologue clock — 2:00 from when this slide came up. Authoring only; it never films." style={{ fontFamily: V3_DISPLAY, fontWeight: 800, fontSize: 15, lineHeight: 1, fontVariantNumeric: "tabular-nums", color: warn ? "#FF6B6B" : GOLD }}>
+
+      ⏱ {clockLabel(left)}
+
+    </span>
+
+  );
+
 }

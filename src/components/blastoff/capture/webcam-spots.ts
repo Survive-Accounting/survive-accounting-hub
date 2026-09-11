@@ -14,6 +14,8 @@
 //           (the intro, the bio, a straight-to-camera moment).
 //   top     a big circle, centred under the status bar (pass 2, 2026-09-05 —
 //           the camera above the wordmark on the intro).
+//   left    a big rounded box on the left (Survibes, 2026-09-11 — the camera is the slide
+//           once the logo has flipped; the struck bolt stands to its right).
 //   free    anywhere, any size (dragged on the Review stage or in the take).
 //   off     no camera.
 //
@@ -22,9 +24,9 @@
 // like/share rail right 16% from 30% to 80% of the height.
 import type { BlastFrame } from "../plan";
 
-export const CAM_SPOTS = ["home", "corner", "hero", "top", "free", "off"] as const;
+export const CAM_SPOTS = ["home", "corner", "hero", "top", "left", "free", "off"] as const;
 export type CamSpot = (typeof CAM_SPOTS)[number];
-export const CAM_LABEL: Record<CamSpot, string> = { home: "home · bottom-left", corner: "corner · top-right", hero: "hero · big, top", top: "top · a big circle, centred", free: "free · anywhere", off: "off" };
+export const CAM_LABEL: Record<CamSpot, string> = { home: "home · bottom-left", corner: "corner · top-right", hero: "hero · big, top", top: "top · a big circle, centred", left: "left · a big rounded box, left (Survibes)", free: "free · anywhere", off: "off" };
 
 export function isCamSpot(v: unknown): v is CamSpot { return typeof v === "string" && (CAM_SPOTS as readonly string[]).includes(v); }
 
@@ -59,6 +61,9 @@ export function camRect(spot: Exclude<CamSpot, "off">, w: number, h: number, siz
     case "hero": { const cw = r(w * (size ?? 0.62)); const ch = r(cw * 1.2); return { x: r((w - cw) / 2), y: r(h * 0.11), w: cw, h: ch, shape: "portrait" }; }
     // TOP (pass 2): a big circle, centred, under the status bar — above the wordmark on the intro.
     case "top": { const d = r(w * (size ?? 0.34)); return { x: r((w - d) / 2), y: r(h * 0.105), w: d, h: d, shape: "circle" }; }
+    // LEFT (2026-09-11, Survibes): a big rounded box on the left. .51w wide, 1.28 tall-to-wide,
+    // from .215h — its bottom is .58h, above the large captions box (layout.SURVIBES_RAIL).
+    case "left": { const cw = r(w * (size ?? 0.51)); const ch = r(cw * 1.28); return { x: r(w * 0.067), y: r(h * 0.215), w: cw, h: ch, shape: "portrait" }; }
     case "free": { const d = r(w * (size ?? 0.26)); const p = pos ?? { x: 0.05, y: 0.55 }; return { x: r(p.x * w), y: r(p.y * h), w: d, h: d, shape: "circle" }; }
   }
 }
@@ -72,7 +77,7 @@ export function overlaps(a: Box, b: Box, pad = 0): boolean {
 /** THE CAMERA NEVER BLOCKS A CARD (Lee: "it would probably scale down
  *  automatically, huh?"). Shrink the camera in steps, anchored to the edge it
  *  belongs to (home: bottom-left · corner: top-right · hero: top-centre ·
- *  free: its own centre), until it clears the card — down to `min` of its
+ *  left: top-left · free: its own centre), until it clears the card — down to `min` of its
  *  size. Returns the rect it ends at and whether it cleared. */
 export function avoidCard(cam: CamRect, spot: Exclude<CamSpot, "off">, card: Box | null, min = 0.55, pad = 8): { rect: CamRect; scale: number; clear: boolean } {
   if (!card || !overlaps(cam, card, pad)) return { rect: cam, scale: 1, clear: true };
@@ -82,6 +87,7 @@ export function avoidCard(cam: CamRect, spot: Exclude<CamSpot, "off">, card: Box
     const w = Math.round(cam.w * k), h = Math.round(cam.h * k);
     const rect: CamRect = spot === "home" ? { ...cam, x: cam.x, y: cam.y + (cam.h - h), w, h }
       : spot === "corner" ? { ...cam, x: cam.x + (cam.w - w), y: cam.y, w, h }
+      : spot === "left" ? { ...cam, x: cam.x, y: cam.y, w, h }
       : spot === "hero" || spot === "top" ? { ...cam, x: cam.x + Math.round((cam.w - w) / 2), y: cam.y, w, h }
       : { ...cam, x: cam.x + Math.round((cam.w - w) / 2), y: cam.y + Math.round((cam.h - h) / 2), w, h };
     if (!overlaps(rect, card, pad)) return { rect, scale: k, clear: true };

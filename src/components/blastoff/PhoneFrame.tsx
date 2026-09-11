@@ -243,7 +243,7 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
   }, [w, frame.id, moment]);
   // THE RAIL: reserved on the Review stage (drawn with the safe zones), checked on the take.
   // Nothing is ever drawn on the capture — OBS must not see a guide.
-  const rail = captionRailRect(w, h, cam === "off");
+  const rail = captionRailRect(w, h, cam === "off", frame.kind);
   useEffect(() => {
     if (!capture || !onRailStatus) return;
     const camBox = cam === "off" ? null : camRect(cam, w, h, camSize, frame.camPos);

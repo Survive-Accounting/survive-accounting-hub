@@ -34,7 +34,9 @@ import { GenerationDock } from "@/components/talkthrough/GenerationDock";
 // It lives with the run widget, not here: the popover needs that widget's handlers.
 import { SettingsGear } from "@/components/v3/ProductionTimer";
 import { useCeqQueueDrain } from "@/components/v3/ceq-queue-client";
-import { findSet, findTopic, useBank } from "@/components/v3/use-bank";
+import { findSet, findTopic, useBank } from "./use-bank";
+// THE EXAM TOPICS MENU (2026-09-11): the topic's name in the crumb opens the exam's topics.
+import { ExamTopicsMenu, stepSegOf } from "./ExamTopicsMenu";
 
 export const V3_NAVY = "#14213D";
 export const V3_CREAM = "#F5EFE6";
@@ -99,6 +101,10 @@ function Where({ crumbs }: { crumbs: Crumb[] }) {
   ];
   return (
     <>
+      {SEP}
+      {/* THE TOPIC'S NAME, clickable (Lee, 2026-09-11: "If we click [topic name] at top left, let's
+          let it open the topics for this exam. Break it up by toggles by exam"). Keeps the step. */}
+      <ExamTopicsMenu label={topic?.name ?? params.topic.replace(/-/g, " ")} setId={set?.id} step={stepSegOf(pathname)} />
       {SEP}
       <Link to="/v3/$topic/$set" params={{ topic: params.topic, set: params.set }} title="This set"
         style={{ color: V3_CREAM, fontSize: 12.5, fontWeight: 700, textDecoration: "none", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: set ? undefined : "capitalize" }}>

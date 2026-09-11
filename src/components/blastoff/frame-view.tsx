@@ -34,6 +34,7 @@ import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigC
 import { SlideEditContext } from "./slide-edit";
 import { RubricFrame } from "./RubricFrame";
 import { TopicDoneFrame, UpNextFrame } from "./EndOfTopicFrames";
+import { SurvibesFrame } from "./SurvibesFrame";
 import { cycleKey } from "./rubric";
 import { introWordmarkTop, type SlideLayout } from "./layout";
 
@@ -135,6 +136,9 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   // the bank through the set's id; `live` runs the charge and the Up Next cycle on film only.
   if (frame.kind === "topic_done") return <TopicDoneFrame w={fw} set={set} frame={frame} live={live} />;
   if (frame.kind === "up_next") return <UpNextFrame w={fw} set={set} frame={frame} live={live} />;
+  // SURVIBES (2026-09-11, SurvibesFrame.tsx): the flip runs on film only; the props follow the
+  // capture's step (frame-step.ts); at rest it is the settled look, the camera alone.
+  if (frame.kind === "survibes") return <SurvibesFrame w={fw} live={live} />;
 
   // THE STANDARD SPINE renders as the vertical 9:16 frame it actually is —
   // these are brand cards, not CEQ cards, and showing them in the silver card

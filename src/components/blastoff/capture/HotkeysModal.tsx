@@ -51,7 +51,7 @@ export const HOTKEY_GROUPS: readonly Group[] = [
     ["Delete", "removes the arrow"],
   ] },
   { title: "Take", keys: [
-    ["`", "reset the take: emphasis, spotlight, highlights, hero, chrome off (while rehearsing: scratch this slide's take too)"],
+    ["`", "reset the take: emphasis, spotlight, highlights, hero, chrome off, a rubric's arrows (while rehearsing: scratch this slide's take too)"],
     ["H", "hide / show the chrome bar (in the main window: the breadcrumbs too)"],
     ["P", "hide / show the prompter panel"],
     ["F", "fullscreen (in the 9:16 pop-out)"],

@@ -76,6 +76,11 @@ export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spo
   // THE END-OF-TOPIC FRAMES (2026-09-11): the corner bubble — the charge bar and the tease own
   // the column; the header block keeps clear of the corner (EndOfTopicFrames.tsx headerW).
   if (kind === "topic_done" || kind === "up_next") return { spot: "corner" };
+  // SURVIBES (2026-09-11): the big rounded box on the LEFT (the brief: "the camera (large rounded
+  // box, left)"), the struck bolt standing to its right — the `left` spot, whose bottom (.58h)
+  // clears the large captions box (SURVIBES_RAIL, .60h). A prop step swaps it for a small circle
+  // under the prop card (BlastOffCapture, survibes.SURVIBES_PROP_CAM).
+  if (kind === "survibes") return { spot: "left" };
   // MEMORIZE THIS / DEEPER IDEA (Deep Question since 2026-09-06; kind "tip") / BIO (Lee, fast
   // track 2026-09-05: "enlarge the camera frame
   // … large enough to be viewable on a phone without blocking any text"). Bigger than every
@@ -123,8 +128,21 @@ export const CAPTION_RAIL = {
   ink: "#FFFFFF", spoken: "#FFD98A", stroke: "#0B1220", strokeW: 0.005,
 } as const;
 
-/** The rail in px on a phone w × h; `wide` when the slide films with no camera. */
-export function captionRailRect(w: number, h: number, wide = false): Box {
+/** THE LARGE CAPTIONS BOX (Survibes, 2026-09-11): the full safe width under the camera, taller
+ *  and bigger type (~29 px on the mockup's 640-tall phone → 4.5 % of the height) — the brief's
+ *  "a LARGE captions box (full safe width under the camera, ~29px captions — branch
+ *  captionRailRect on this kind)". Top .60h: under the left camera's bottom (.58h);
+ *  bottom .78h = SAFE.bottom. The burn (lib/captions.ts) still reads CAPTION_RAIL for every
+ *  split — a Survibes split wants these margins there too; that is a per-split follow-up. */
+export const SURVIBES_RAIL = { top: 0.60, bottom: 0.78, left: SAFE.left, right: SAFE.right, size: 0.045, maxLines: 3 } as const;
+
+/** The rail in px on a phone w × h; `wide` when the slide films with no camera; `kind` lets a
+ *  frame kind choose its own box (Survibes takes the large one). */
+export function captionRailRect(w: number, h: number, wide = false, kind?: BlastFrame["kind"]): Box {
+  if (kind === "survibes") {
+    const R = SURVIBES_RAIL;
+    return { x: Math.round(w * R.left), y: Math.round(h * R.top), w: Math.round(w * (R.right - R.left)), h: Math.round(h * (R.bottom - R.top)) };
+  }
   const left = wide ? CAPTION_RAIL.wideLeft : CAPTION_RAIL.left;
   return { x: Math.round(w * left), y: Math.round(h * CAPTION_RAIL.top), w: Math.round(w * (CAPTION_RAIL.right - left)), h: Math.round(h * (CAPTION_RAIL.bottom - CAPTION_RAIL.top)) };
 }

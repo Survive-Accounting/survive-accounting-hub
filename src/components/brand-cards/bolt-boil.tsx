@@ -126,7 +126,10 @@ export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, classNam
 /** "surv[bolt]ve" — the wordmark with the boiling bolt standing in for the "i". `size` is
  *  the cap-height in px; the bolt tracks it and drops slightly to sit on the baseline.
  *  Colours default to the active BoltSpec (so a loaded preset carries through). */
-export function SurviveWordmark({ size, cream = BRAND_CREAM, style, boilFrame, boilSeconds, red, blue, boltCream, boltScale = 0.8, boltGap = 0.03, boltOpacity = 1 }: { size: number; cream?: string; style?: CSSProperties; boilFrame?: number;
+export function SurviveWordmark({ size, cream = BRAND_CREAM, style, boilFrame, boilSeconds, red, blue, boltCream, boltScale = 0.8, boltGap = 0.03, boltOpacity = 1, tail = "ve" }: { size: number; cream?: string; style?: CSSProperties; boilFrame?: number;
+  /** THE TAIL (2026-09-11, Survibes): the letters after the bolt. "ve" everywhere; the Survibes
+   *  frame hands in a span it can flip to "bes". The letters stay DOM text either way. */
+  tail?: ReactNode;
   /** A calmer boil for the bolt-as-"i" (the navbar runs it at 1.2 s). */
   boilSeconds?: number;
   /** Recolour the bolt-as-"i". Left off it keeps the brand red/blue. A MONOCHROME lockup passes the
@@ -154,7 +157,7 @@ export function SurviveWordmark({ size, cream = BRAND_CREAM, style, boilFrame, b
     <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "-0.01em", color: cream, whiteSpace: "nowrap", ...style }}>
       surv
       <BoltBoil height={size * boltScale} boilFrame={boilFrame} boilSeconds={boilSeconds} red={red} blue={blue} cream={boltCream} style={{ marginLeft: size * (boltGap * -0.5), marginRight: size * boltGap, transform: `translate(${size * (-1 / 96)}px, ${size * 0.13}px) rotate(2deg)`, transformOrigin: "100% 51%", opacity: boltOpacity, transition: "opacity 500ms ease" }} />
-      ve
+      {tail}
     </span>
   );
 }
