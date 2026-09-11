@@ -217,7 +217,10 @@ async function runClaimIntake(claimId: string | null, isTest: boolean): Promise<
     // │ you". Everything needed is already here: the chapter, the claimant, and the intent.     │
     // │ Deliberately NOT enabled in this pass — no live checkout, no price is charged today.    │
     // └─────────────────────────────────────────────────────────────────────────────────────────┘
-    if ((claim.intent as string | null) === "committed" && !isTest) {
+    // EVERY CLAIM, not just "ready to sponsor" (Lee, 2026-09-11: "for any chapter exec that claims
+    // their page form… I want a notification text immediately to my personal phone. Give me their
+    // name, campus, chapter, phone number"). The willingness question is gone from the form.
+    if (!isTest) {
       try {
         // RAW senders, not the template pipeline: this is an internal operator alert to Lee, not
         // a templated message to a lead, and it must not be suppressed, capped or unsubscribed.
@@ -227,18 +230,18 @@ async function runClaimIntake(claimId: string | null, isTest: boolean): Promise<
         const goUrl = `https://surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`;
         const who = `${claim.name as string} (${claim.position as string})`;
         const seats = `${ch.members} member${ch.members === 1 ? "" : "s"} banked`;
-        const line = `READY TO SPONSOR — ${ch.chapterName} at ${ch.schoolName}. ${who} · ${claim.phone as string} · ${seats}. They were told you'd text within the hour.`;
+        const line = `NEW DASHBOARD CLAIM — ${ch.chapterName} at ${ch.schoolName}. ${who} · ${claim.phone as string} · ${claim.email as string} · ${seats}. They were told you'd text shortly.`;
         await sendResendEmail({
           to: FOUNDER_EMAIL,
-          subject: `🔥 ${ch.chapterName} is ready to sponsor seats`,
+          subject: `${ch.chapterName} at ${ch.schoolName} claimed their dashboard`,
           text: `${line}
 ${claim.email as string}
 ${goUrl}`,
           html: [
-            `<p><b>${ch.chapterName}</b> at <b>${ch.schoolName}</b> answered &quot;we&rsquo;re ready to sponsor seats&quot;.</p>`,
+            `<p><b>${ch.chapterName}</b> at <b>${ch.schoolName}</b> claimed their exec dashboard.</p>`,
             `<p>${who}<br><a href="tel:${claim.phone as string}">${claim.phone as string}</a><br>${claim.email as string}</p>`,
             `<p>${seats}. <a href="${goUrl}">Chapter page</a></p>`,
-            `<p><b>They were told you would text within the hour.</b></p>`,
+            `<p><b>They were told you would text shortly.</b></p>`,
           ].join(""),
         }).catch(() => undefined);
         if (FOUNDER_PHONE) await sendSms(FOUNDER_PHONE, line).catch(() => undefined);

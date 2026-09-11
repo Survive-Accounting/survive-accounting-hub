@@ -631,6 +631,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "api.cron.growth-campaigns.tsx": "cron endpoint",
   "api.cron.comms-sequences.tsx": "cron endpoint",
   "api.cron.weekly-digest.tsx": "cron endpoint",
+  "api.cron.daily-pulse.tsx": "cron endpoint (7am CT chapter + campus pulse emails)",
   "api.flyer.$school.$chapter.tsx": "generated image endpoint",
   "api.partner-kit.$school.$council.tsx": "generated ZIP endpoint (council partner kit)",
   "api.slide.$school.council.$council.tsx": "generated slide endpoint (council meeting slide, SVG/PDF)",

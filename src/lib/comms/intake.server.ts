@@ -75,5 +75,30 @@ export async function runIntake(data: IntakeInput): Promise<IntakeResult> {
       if (PRIORITY_KINDS.includes(data.kind)) await comms.founderAlert({ db, ctx, leadId: id, isTest });
     } catch (e) { console.warn("intake comms failed (row saved)", e instanceof Error ? e.message : e); }
 
+    // "NEW EMAIL ADDED!" — a text to Lee's own phone with the running counts (Lee, 2026-09-11):
+    //   New email added!
+    //   Ole Miss #12
+    //   Alpha Tau Omega #3        (or "Chapter N/A")
+    // Distinct emails, real rows only. EMAIL_ALERT_SMS=off switches it off if launch day gets loud.
+    if (email && !isTest && process.env.EMAIL_ALERT_SMS !== "off") {
+      try {
+        const { FOUNDER_PHONE } = await import("@/lib/comms/send.server");
+        if (FOUNDER_PHONE) {
+          const { sendSms } = await import("@/lib/greek-chapters.functions");
+          const distinct = async (chapter: string | null): Promise<number> => {
+            if (!data.campusId) return 0;
+            let q = db.from("campus_waitlist").select("email").eq("campus_id", data.campusId).eq("is_test", false).not("email", "is", null).limit(20000);
+            if (chapter) q = q.eq("chapter", chapter);
+            const { data: rows } = await q;
+            return new Set(((rows ?? []) as Array<{ email: string }>).map((r) => r.email.toLowerCase())).size;
+          };
+          const pretty = (slug: string) => slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+          const campusLine = campusName ? `${campusName} #${await distinct(null)}` : "Campus N/A";
+          const chapterLine = data.chapter ? `${pretty(data.chapter)} #${await distinct(data.chapter)}` : "Chapter N/A";
+          await sendSms(FOUNDER_PHONE, `New email added!\n${campusLine}\n${chapterLine}`);
+        }
+      } catch (e) { console.warn("email-added text failed (row saved)", e instanceof Error ? e.message : e); }
+    }
+
     return { id, kind: data.kind, confirmation };
 }

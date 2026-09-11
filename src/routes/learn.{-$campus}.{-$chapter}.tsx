@@ -91,6 +91,7 @@ import { DEMO_PLAYBACK, LAST_SET_KEY, type Prog, type ProgressState } from "@/co
 import { daysUntil, EXAM_DATE_EVENT, readExamDate } from "@/components/learn/exam-date";
 import { schoolByAny, schoolByCampusId, schoolBySlug, type School } from "@/lib/schools";
 import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
+import { useLearnPulse } from "@/components/learn/useLearnPulse";
 import { isContactRef } from "@/lib/contact-ref";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { track } from "@/lib/analytics";
@@ -548,6 +549,9 @@ function LearnShell() {
   const chapter = usePickedChapter(campusSlug, !demo);
   adCtx.current = { campus: campusSlug ?? undefined, chapter: chapter.slug ?? undefined, exam: examNum ?? undefined };
   pathSetIds.current = sets.filter((s) => !!s.set.playbackId && !s.locked).map((s) => s.set.id);
+  // THE PULSE (2026-09-11): visits, video starts, watch time and time on page, tagged with the
+  // campus and the picked chapter, for the 7am chapter / campus emails (lib/daily-pulse.server).
+  const pulse = useLearnPulse({ campusId: school?.campusId ?? null, campusSlug: school?.slug ?? null, chapterSlug: chapter?.slug ?? null, enabled: !demo });
   const ctaMounted = !demo && (!!campusSlug || !!search.test);
   // STUDY SHELL SIMPLIFICATION (2026-09-09) — LearnCta's own persistent bar (state C "Set up
   // <chapter>", D "<chapter> · N members · Join") is a scholarship-chair claim/setup ask, which
@@ -656,7 +660,7 @@ function LearnShell() {
           <CramPlayer
             items={playerItems} index={playerIndex}
             onIndex={(i) => { const it = playerItems[i]; if (it) { setPractice(false); void navigate({ search: (p: LearnSearch) => ({ ...p, set: it.set.id, part: it.part.index > 0 ? it.part.index + 1 : undefined, stage: undefined }), replace: true }); } }}
-            progress={progress} onStarted={onStarted} onComplete={onComplete} onPosition={markPosition} resolvePlayback={resolvePlayback}
+            progress={progress} onStarted={(k) => { onStarted(k); pulse.videoStart(k, setIdOfKey(k)); }} onComplete={onComplete} onPosition={(k, p, d) => { markPosition(k, p, d); pulse.position(k, p); }} resolvePlayback={resolvePlayback}
             demo={demo} narrow={isNarrow} theme={theme}
             practice={practice} onPractice={setPractice}
             campusName={campusName} campusSlug={campusSlug} contactRef={contactRef}

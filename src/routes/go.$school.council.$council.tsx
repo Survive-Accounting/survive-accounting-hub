@@ -26,6 +26,8 @@ import type { CouncilPartner } from "@/lib/partners";
 import { boltForSlug, schoolBySlug } from "@/lib/schools";
 import { isContactRef } from "@/lib/contact-ref";
 import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
+import { notifyChairAction } from "@/lib/chair-alerts.functions";
+import { currentContactRef } from "@/lib/contact-ref";
 import { ogMeta } from "@/lib/og";
 
 export const Route = createFileRoute("/go/$school/council/$council")({
@@ -84,6 +86,8 @@ function CouncilRoute() {
       shortName={partner.councilName}
       code={partner.courseCode}
       bolt={boltForSlug(school)}
+      // The first share action on this council's page emails Lee; the DM link's ref says who.
+      onAction={(action) => void notifyChairAction({ data: { kind: "council", schoolSlug: school, slug: council, name: partner.councilFull, action, ref: currentContactRef() } }).catch(() => {})}
     />
   );
 }

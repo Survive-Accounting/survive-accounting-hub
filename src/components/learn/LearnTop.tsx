@@ -177,7 +177,7 @@ export function LearnTop({
       <header className="flex shrink-0 flex-col" style={{ background: theme.topBg, borderBottom: `2px solid ${hairline}`, color: ink, padding: `${narrow ? 8 : 12}px ${pad}px ${narrow ? 10 : 12}px`, gap: narrow ? 8 : 10, fontFamily: BRAND_SANS }}>
         <div className="flex items-center" style={{ gap: narrow ? 8 : 14, minHeight: boltH }}>
           {/* THE WORDMARK — "survive" only — then a rule, then the campus. */}
-          <span className="lk-disp shrink-0" style={{ fontSize: narrow ? 15 : 21, letterSpacing: "-0.01em", lineHeight: 1, color: ink }}>survive</span>
+          <a href="/" aria-label="Survive Accounting home" className="lk-disp shrink-0" style={{ fontSize: narrow ? 15 : 21, letterSpacing: "-0.01em", lineHeight: 1, color: ink, textDecoration: "none" }}>survive</a>
           <span aria-hidden className="shrink-0 self-stretch" style={{ width: 1, background: rule, minHeight: boltH }} />
           {/* THE BIG BOLT, with the chapter's letters held still over it. It catches the drop. */}
           <span key={arrive} id={NAV_BOLT_ID} className={`relative inline-block shrink-0${arrive > 0 ? " lk-bolt-arrive" : ""}`} style={{ lineHeight: 0 }} title={letters ? `${letters} · ${schoolName ?? "your campus"}` : undefined}>

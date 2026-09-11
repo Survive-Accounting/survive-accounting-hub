@@ -152,6 +152,7 @@ import { Route as ApiCronRepNudgesRouteImport } from './routes/api.cron.rep-nudg
 import { Route as ApiCronKingDigestRouteImport } from './routes/api.cron.king-digest'
 import { Route as ApiCronIgDigestRouteImport } from './routes/api.cron.ig-digest'
 import { Route as ApiCronGrowthCampaignsRouteImport } from './routes/api.cron.growth-campaigns'
+import { Route as ApiCronDailyPulseRouteImport } from './routes/api.cron.daily-pulse'
 import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.comms-sequences'
 import { Route as ApiCronChapterReportsRouteImport } from './routes/api.cron.chapter-reports'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
@@ -929,6 +930,11 @@ const ApiCronGrowthCampaignsRoute = ApiCronGrowthCampaignsRouteImport.update({
   path: '/api/cron/growth-campaigns',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronDailyPulseRoute = ApiCronDailyPulseRouteImport.update({
+  id: '/api/cron/daily-pulse',
+  path: '/api/cron/daily-pulse',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronCommsSequencesRoute = ApiCronCommsSequencesRouteImport.update({
   id: '/api/cron/comms-sequences',
   path: '/api/cron/comms-sequences',
@@ -1350,6 +1356,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
+  '/api/cron/daily-pulse': typeof ApiCronDailyPulseRoute
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/ig-digest': typeof ApiCronIgDigestRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
@@ -1543,6 +1550,7 @@ export interface FileRoutesByTo {
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
+  '/api/cron/daily-pulse': typeof ApiCronDailyPulseRoute
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/ig-digest': typeof ApiCronIgDigestRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
@@ -1741,6 +1749,7 @@ export interface FileRoutesById {
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
+  '/api/cron/daily-pulse': typeof ApiCronDailyPulseRoute
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/ig-digest': typeof ApiCronIgDigestRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
@@ -1940,6 +1949,7 @@ export interface FileRouteTypes {
     | '/api/cron/backup'
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
+    | '/api/cron/daily-pulse'
     | '/api/cron/growth-campaigns'
     | '/api/cron/ig-digest'
     | '/api/cron/king-digest'
@@ -2133,6 +2143,7 @@ export interface FileRouteTypes {
     | '/api/cron/backup'
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
+    | '/api/cron/daily-pulse'
     | '/api/cron/growth-campaigns'
     | '/api/cron/ig-digest'
     | '/api/cron/king-digest'
@@ -2330,6 +2341,7 @@ export interface FileRouteTypes {
     | '/api/cron/backup'
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
+    | '/api/cron/daily-pulse'
     | '/api/cron/growth-campaigns'
     | '/api/cron/ig-digest'
     | '/api/cron/king-digest'
@@ -2476,6 +2488,7 @@ export interface RootRouteChildren {
   ApiCronBackupRoute: typeof ApiCronBackupRoute
   ApiCronChapterReportsRoute: typeof ApiCronChapterReportsRoute
   ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
+  ApiCronDailyPulseRoute: typeof ApiCronDailyPulseRoute
   ApiCronGrowthCampaignsRoute: typeof ApiCronGrowthCampaignsRoute
   ApiCronIgDigestRoute: typeof ApiCronIgDigestRoute
   ApiCronKingDigestRoute: typeof ApiCronKingDigestRoute
@@ -3518,6 +3531,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronGrowthCampaignsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/daily-pulse': {
+      id: '/api/cron/daily-pulse'
+      path: '/api/cron/daily-pulse'
+      fullPath: '/api/cron/daily-pulse'
+      preLoaderRoute: typeof ApiCronDailyPulseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/comms-sequences': {
       id: '/api/cron/comms-sequences'
       path: '/api/cron/comms-sequences'
@@ -4200,6 +4220,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronBackupRoute: ApiCronBackupRoute,
   ApiCronChapterReportsRoute: ApiCronChapterReportsRoute,
   ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,
+  ApiCronDailyPulseRoute: ApiCronDailyPulseRoute,
   ApiCronGrowthCampaignsRoute: ApiCronGrowthCampaignsRoute,
   ApiCronIgDigestRoute: ApiCronIgDigestRoute,
   ApiCronKingDigestRoute: ApiCronKingDigestRoute,

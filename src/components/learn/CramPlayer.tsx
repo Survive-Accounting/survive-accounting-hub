@@ -102,8 +102,31 @@ export function CramPlayer({
 
   // swipe (phone)
   const touchY = useRef<number | null>(null);
-  const onTouchStart = (e: React.TouchEvent) => { touchY.current = e.touches[0].clientY; };
-  const onTouchEnd = (e: React.TouchEvent) => { if (touchY.current == null) return; const dy = e.changedTouches[0].clientY - touchY.current; touchY.current = null; if (Math.abs(dy) > 70) go(dy < 0 ? 1 : -1); };
+  // THE VIDEO FOLLOWS THE THUMB (Lee, 2026-09-11: "make it where the whole thumbnail is swiping
+  // with it … it's not visually clear"): the stage translates with the finger, slides off when
+  // the swipe passes the threshold (then the next video mounts at rest), and springs back when
+  // it does not. A swipe with nowhere to go moves a quarter as far, which reads as "that's the end".
+  const [drag, setDrag] = useState<{ y: number; settle: boolean }>({ y: 0, settle: false });
+  const dragging = useRef(false);
+  const onTouchStart = (e: React.TouchEvent) => { touchY.current = e.touches[0].clientY; dragging.current = false; };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (touchY.current == null || practice || cards || ask) return;
+    const dy = e.touches[0].clientY - touchY.current;
+    if (!dragging.current && Math.abs(dy) < 8) return;
+    dragging.current = true;
+    const can = dy < 0 ? hasNext : hasPrev;
+    setDrag({ y: can ? dy : dy * 0.25, settle: false });
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchY.current == null) return;
+    const dy = e.changedTouches[0].clientY - touchY.current; touchY.current = null; dragging.current = false;
+    const can = dy < 0 ? hasNext : hasPrev;
+    if (Math.abs(dy) > 70 && can) {
+      const h = typeof window !== "undefined" ? window.innerHeight : 800;
+      setDrag({ y: dy < 0 ? -h : h, settle: true });
+      window.setTimeout(() => { go(dy < 0 ? 1 : -1); setDrag({ y: 0, settle: false }); }, 190);
+    } else setDrag({ y: 0, settle: true });
+  };
 
   if (!item) return null;
   const { set, topic, n, of, locked, part } = item;
@@ -171,8 +194,8 @@ export function CramPlayer({
 
   if (narrow) {
     return (
-      <div className="relative flex min-h-0 flex-1 flex-col" style={{ background: "#000" }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-        <div className={practice || cards || ask ? "shrink-0" : "min-h-0 flex-1"} style={practice || cards || ask ? { height: 220 } : undefined}>{video}</div>
+      <div className="relative flex min-h-0 flex-1 flex-col" style={{ background: "#000", overflow: "hidden" }} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={() => { touchY.current = null; dragging.current = false; setDrag({ y: 0, settle: true }); }}>
+        <div className={practice || cards || ask ? "shrink-0" : "min-h-0 flex-1"} style={{ ...(practice || cards || ask ? { height: 220 } : {}), transform: `translateY(${drag.y}px)`, transition: drag.settle ? "transform 190ms ease-out" : "none", willChange: "transform" }}>{video}</div>
         <button type="button" onClick={onExit} className="absolute left-3 top-3 z-[2] inline-flex h-9 items-center gap-1 rounded-full pl-2 pr-3.5 text-[12.5px] font-extrabold" style={{ background: "rgba(0,0,0,0.72)", color: "#FFFFFF", border: "1px solid rgba(255,255,255,0.4)", cursor: "pointer", backdropFilter: "blur(6px)" }} aria-label="Back to all videos"><ChevronLeft className="h-4 w-4" /> All videos</button>
         {!practice && !cards && !ask && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 p-4" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0))" }}>

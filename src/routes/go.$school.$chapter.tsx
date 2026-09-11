@@ -33,6 +33,8 @@ import { adEvent } from "@/lib/retargeting";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { chapterShortName } from "@/components/site/ChapterShare";
 import { chapterOgImage, chapterShareOg, HOME_OG, ogMeta } from "@/lib/og";
+import { notifyChairAction } from "@/lib/chair-alerts.functions";
+import { currentContactRef } from "@/lib/contact-ref";
 
 /** The share stamp on the current URL, or null. Reads `via` first, then the legacy `s=flyer`
  *  that every already-printed flyer QR carries. */
@@ -129,6 +131,9 @@ function GoChapterPage() {
   // Every share action the chair takes is logged under the same kinds the old kit used, so the
   // exec dashboard's numbers carry on unchanged.
   const onAction = (action: "open_learn" | "copy_link" | "copy_groupme" | "flyer" | "slide") => {
+    // THE FIRST SHARE ACTION on this chapter's page emails Lee (lib/chair-alerts.functions); the
+    // ref cookie from the DM link says who. Every action is logged there too.
+    if (ch) void notifyChairAction({ data: { kind: "chapter", schoolSlug: school, slug: chapter, name: ch.chapterName, action, ref: currentContactRef() } }).catch(() => {});
     const ev = action === "copy_link" ? { kind: "copy_link" as const, via: "link" as const }
       : action === "copy_groupme" ? { kind: "copy_message" as const, via: "groupme" as const }
       : action === "flyer" ? { kind: "flyer_download" as const, via: "flyer" as const }
