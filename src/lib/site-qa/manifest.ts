@@ -580,6 +580,8 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "leeportal.tsx": "Lee's private nav portal (AdminGate, noindex, unlinked)",
   "buildqueue.tsx": "internal (AdminGate, noindex) — the build machine's plate; fast-track requests for Lee and King",
   "branding.tsx": "Lee's brand-slide wall — the shipping slides, the bolt detour, the set-aside experiments (AdminGate, noindex)",
+  "branding_.thumbnails.tsx": "the thumbnail system — site thumbnails + social covers, four variants, any campus (AdminGate, noindex)",
+  "branding_.social.tsx": "the social kit — master avatar, YouTube banner, cover template, campus bolts (AdminGate, noindex)",
   "survive-bolt.tsx": "the three original Survive bolt candidates to pick from (AdminGate, noindex)",
   // V3 — the production menu (noindex). Blast Off is the one live door;
   // Practice and Review render closed until they exist.

@@ -24,8 +24,8 @@
 // the .srt and the ffmpeg command folded away underneath as the fallback.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { ThumbnailStudio } from "@/components/brand-kit/ThumbnailStudio";
 import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
-import { TakeFrame } from "@/components/v3/TakeFrame";
 import { downloadText, storedTranscript, transcribeTakeFile } from "@/components/v3/take-transcript";
 import { assName, burnCommand, burnedName, shortCaptionFiles, srtName, transcriptFromWords, whisperCostUsd, type Word } from "@/lib/short-captions";
 import type { BurnProgress } from "@/components/v3/take-burn";
@@ -63,14 +63,15 @@ function Step({ n, title, hint, done, children }: {
   );
 }
 
-export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTranscript, onOpenCopy, onClose, hidden = false, copyDone = false }: {
+export function PostProduction({ pubKey, title, topicName, cover, onTranscript, onOpenCopy, onClose, hidden = false, copyDone = false }: {
   /** The publish key for THIS video — the set's id, or "<setId>#N" for a split. */
   pubKey: string;
   /** What this video is called: the set's name, or the split's. */
   title: string;
   topicName: string;
-  /** This video's first question — the cover's default hook. */
-  defaultHookLine: string;
+  /** Step 5's seed: the set (for its illustrations) and the video's place on the cram path ("3")
+   *  or a name for the series label. */
+  cover?: { setId: string; part?: string };
   /** Handed up so the caption sheet writes from what he actually said on camera. */
   onTranscript: (text: string) => void;
   /** Opens step 4 — the caption sheet, seeded with the transcript. */
@@ -318,15 +319,12 @@ export function PostProduction({ pubKey, title, topicName, defaultHookLine, onTr
         </Step>
 
         {/* ── 5 ─────────────────────────────────────────────────────────────────────────────── */}
-        <Step n={5} title="The cover" hint="a frame of the take, or the card">
-          {/* The picker inside the frame picker is the SAME door as step 1's: a take chosen here
-              starts the upload too. It used to be plain setFile, so a take picked at step 5 never
-              went up and Burn waited on an upload that had never started. */}
-          <TakeFrame name={title} file={file} onFile={pick} />
-          <div style={{ marginTop: 10, fontSize: 11.5, color: V3_MUTED }}>
-            Prefer the drawn card? Its hook is{" "}
-            <b style={{ color: V3_CREAM }}>{defaultHookLine ? `"${defaultHookLine.slice(0, 60)}"` : "this video's first question"}</b> — the 🖼 button on the row.
-          </div>
+        <Step n={5} title="The cover" hint="the social cover and the site thumbnail">
+          {/* THE THUMBNAIL SYSTEM (2026-09-11) — the same studio as /branding/thumbnails, handed
+              this take: its frame picker is the SAME door as step 1's (a take chosen here starts
+              the upload too — it used to be plain setFile, and Burn waited on an upload that had
+              never started), and "Use on the cover" drops the still straight into the art. */}
+          <ThumbnailStudio compact context={{ title, topicName, setId: cover?.setId, part: cover?.part, exam: 1 }} takeFile={file} onTakeFile={pick} />
         </Step>
 
         {/* ── 6 ─────────────────────────────────────────────────────────────────────────────── */}
