@@ -17,7 +17,13 @@ describe("the post page's upload path", () => {
     expect(src).toMatch(/import \{[^}]*uploadTake[^}]*\} from "@\/components\/v3\/take-burn"/);
   });
 
-  test("take-burn loads nothing on demand", () => {
-    expect(read("take-burn.ts")).not.toContain("await import(");
+  test("take-burn loads nothing on demand, and its burn goes through the patient loop", () => {
+    const src = read("take-burn.ts");
+    expect(src).not.toContain("await import(");
+    expect(src).toContain("return runBurn(");
+  });
+
+  test("take-transcript loads nothing on demand (step 2 must survive a deploy too)", () => {
+    expect(read("take-transcript.ts")).not.toContain("await import(");
   });
 });

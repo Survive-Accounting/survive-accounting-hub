@@ -23,16 +23,13 @@
 // byte moved. They are all small, so they ship with the page now and a deploy can't strand them.
 import { putSignedUpload } from "@/components/canvas/ceq-takes";
 import { createPipelineTestStagingUpload } from "@/lib/publish.functions";
-import { resolveWorkerRender, startCaptionBurn } from "@/lib/render-worker.functions";
+import { resolveWorkerRender, startCaptionBurn, workerPreflight } from "@/lib/render-worker.functions";
+// THE BURN'S PATIENCE (2026-09-11) lives in burn-loop.ts — pure, tested against a sleeping worker.
+import { runBurn, type BurnProgress } from "@/components/v3/burn-loop";
+export type { BurnProgress } from "@/components/v3/burn-loop";
+export { BURN_BUDGET_MS, BURN_POLL_MS } from "@/components/v3/burn-loop";
 import { assName, burnedName } from "@/lib/short-captions";
 
-/** Progress in the two phases that take real time, so a bar can be honest about which. */
-export interface BurnProgress {
-  phase: "uploading" | "queued" | "rendering" | "done";
-  /** 0..1 during the upload; null once the worker has it (its stages don't report a fraction). */
-  frac: number | null;
-  note: string;
-}
 
 /** Put a file into canvas-media and return the public URL the worker will fetch. Direct to
  *  storage: `createPipelineTestStagingUpload` hands back a signed token and no bytes ever touch
@@ -55,42 +52,19 @@ export function uploadAss(takeName: string, ass: string): Promise<string> {
   return stage(new File([ass], assName(takeName), { type: "text/plain" }), "ass", "blastoff-takes");
 }
 
-/** How long to wait on a burn before giving up. A 3-minute 1080x1920 short at preset medium on
- *  the worker's two shared vCPUs is minutes, not seconds; the worker's own per-stage ceiling is
- *  45 minutes, so this sits comfortably under it and above any real job. */
-export const BURN_POLL_MS = 3000;
-export const BURN_BUDGET_MS = 20 * 60 * 1000;
 
-/** Start the burn and poll it to completion. Resolves with the captioned file's public URL.
- *  Rejects with the worker's own message — a burn that fails must say why, because the fallback
- *  (the .srt sidecar) is a different decision he needs to make knowingly. */
-export async function burnCaptions(
-  videoUrl: string,
-  assUrl: string,
-  onProgress: (p: BurnProgress) => void,
-  signal?: AbortSignal,
-): Promise<string> {
-  onProgress({ phase: "queued", frac: null, note: "Handing it to the renderer…" });
-  const job = await startCaptionBurn({ data: { videoUrl, assUrl } });
-
-  const deadline = Date.now() + BURN_BUDGET_MS;
-  for (;;) {
-    if (signal?.aborted) throw new Error("Stopped.");
-    if (Date.now() > deadline) throw new Error("The burn is taking longer than twenty minutes — check the worker.");
-    await new Promise((r) => window.setTimeout(r, BURN_POLL_MS));
-    const r = await resolveWorkerRender({ data: { jobId: job.jobId, path: job.path, machineId: job.machineId } });
-    if (r.state === "error") throw new Error(r.error || "The renderer failed without saying why.");
-    if (r.state === "done") {
-      if (!r.fileUrl) throw new Error("The renderer finished but produced no file.");
-      onProgress({ phase: "done", frac: 1, note: "Captioned." });
-      return r.fileUrl;
-    }
-    onProgress({
-      phase: r.state === "queued" ? "queued" : "rendering",
-      frac: null,
-      note: r.note || (r.state === "queued" ? "Waking the renderer…" : "Burning the captions in…"),
-    });
-  }
+/** Wake the worker, start the burn once, poll it to completion (burn-loop.ts). Resolves with
+ *  the captioned file's public URL; rejects with the worker's own message — a burn that fails
+ *  must say why, because the fallback (the .srt sidecar) is a different decision he needs to
+ *  make knowingly. */
+export function burnCaptions(videoUrl: string, assUrl: string, onProgress: (p: BurnProgress) => void, signal?: AbortSignal): Promise<string> {
+  return runBurn({
+    preflight: () => workerPreflight(),
+    start: (v, a) => startCaptionBurn({ data: { videoUrl: v, assUrl: a } }),
+    resolve: (job) => resolveWorkerRender({ data: { jobId: job.jobId, path: job.path, machineId: job.machineId ?? null } }),
+    sleep: (ms) => new Promise((r) => window.setTimeout(r, ms)),
+    now: () => Date.now(),
+  }, videoUrl, assUrl, onProgress, signal);
 }
 
 /** Save a URL the browser can reach to disk under a chosen name. The captioned file lives in
