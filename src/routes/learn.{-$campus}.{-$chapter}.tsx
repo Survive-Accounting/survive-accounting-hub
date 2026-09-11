@@ -600,7 +600,7 @@ function LearnShell() {
       <style>{LEARN_CSS}</style>
       {/* ONE loading screen: the brand splash stays up while the tree loads (and for its beat on a
           first visit), so there is never a second "loading" view behind it. */}
-      <LearnLoading loading={isLoading} school={school} campusName={campusName} courseCode={school?.courseCode ?? null} onArrive={() => setArrive((n) => n + 1)} />
+      <LearnLoading loading={isLoading} school={school} campusName={campusName} courseCode={school?.courseCode ?? null} onArrive={() => setArrive((n) => n + 1)} replayKey={campusId} />
 
       <LearnTop
         school={school} campusId={campusId} campusName={campusName}

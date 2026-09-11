@@ -44,8 +44,13 @@ const CSS = `
 @media (prefers-reduced-motion: reduce) { .lkl-wash, .lkl-core { animation: none; } .lkl-fly { transition: none; } }
 `;
 
-export function LearnLoading({ loading, school, campusName, courseCode, onArrive }: {
+export function LearnLoading({ loading, school, campusName, courseCode, onArrive, replayKey }: {
   loading: boolean;
+  /** THE SWITCH (Lee, 2026-09-11: "Switching schools on /learn doesn't have the cool drop in
+   *  animation anymore … white screen then switching"): when this changes after mount — the
+   *  campus id — the flourish plays again for the new school, first visit or not, and covers the
+   *  tree reload the way it covers the first load. */
+  replayKey?: string | null;
   school: School | null;
   campusName: string | null;
   courseCode: string | null;
@@ -69,6 +74,18 @@ export function LearnLoading({ loading, school, campusName, courseCode, onArrive
     const t = window.setTimeout(() => setBeatUp(true), BEAT_MS);
     return () => window.clearTimeout(t);
   }, []);
+  // A campus switch replays the flourish (never on the first render — that is the arrival above).
+  const keyRef = useRef(replayKey);
+  useEffect(() => {
+    if (keyRef.current === replayKey) return;
+    const first = keyRef.current == null;
+    keyRef.current = replayKey;
+    if (first || !replayKey) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    setFly(null); setDone(false); setBeatUp(false); setMode("play");
+    const t = window.setTimeout(() => setBeatUp(true), BEAT_MS);
+    return () => window.clearTimeout(t);
+  }, [replayKey]);
 
   // THE FLIGHT — when the tree is in and the beat is up. Measured from the flourish's bolt to the
   // navbar's; if the navbar bolt cannot be found (it always can — LearnTop is in the same tree),
@@ -82,9 +99,15 @@ export function LearnLoading({ loading, school, campusName, courseCode, onArrive
     } else {
       setFly({ dx: 0, dy: 0, scale: 0.8 });
     }
+  }, [mode, beatUp, loading, fly, done]);
+  // THE LANDING — its own effect, keyed on the flight only: the flight effect above re-runs the
+  // moment setFly lands (fly is a dep) and its cleanup would cancel a timer started there, which
+  // is exactly how a campus switch left the bolt parked at the navbar at opacity 0 (2026-09-11).
+  useEffect(() => {
+    if (!fly || done) return;
     const t = window.setTimeout(() => { setDone(true); writeIntroSeen(); arriveRef.current?.(); }, FLY_MS + 20);
     return () => window.clearTimeout(t);
-  }, [mode, beatUp, loading, fly, done]);
+  }, [fly, done]);
 
   if (mode !== "play" || done) return null;
 
