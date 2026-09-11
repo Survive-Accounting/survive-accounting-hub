@@ -84,8 +84,23 @@
 //     band painted --lk-hero-bg, which is the canvas in every look but "split" (navy over cream —
 //     "the fold IS the design"). The band's foot fades hero → canvas over the old row gap, so the
 //     seven looks that do not split render exactly as before.
-//   · PRACTICE CARD ART (PracticeArt.tsx): one nuts-and-bolts illustration, re-tinted per school,
-//     above "Practice · N questions". A placeholder until the Recraft asset exists.
+//   · PRACTICE CARD ART: was PracticeArt.tsx's nuts-and-bolts placeholder; since 09-11 the card is
+//     PracticeCard.tsx with the Recraft cram machine (CramMachine.tsx) — see THE RAIL below.
+//
+// THE RAIL (Lee, 2026-09-11, after the design email): "Practice should be the final item in every
+// StudyRail immediately after the final video. Never reserve a specific slot number." The grid of
+// four frames + Practice pinned in column five (09-10) is gone. Every topic's row is a StudyRail
+// (StudyRail.tsx): fixed-width 9:16 cards — the videos in order, then PracticeCard — that scrolls
+// with snap, bleeds to the column's edge, and shows a fade + arrow ONLY when it really overflows.
+// One rail on every tier; a phone swipes 84vw cards, a desk sees ~4–5 of 256px. The Practice
+// card shows the RECOMMENDED ROUND's time (~10 min), not the bank size, and its machine is
+// sectionIndex % 3 so the art never changes on a rerender.
+//   · SCROLL REVEAL (Lee, 2026-09-11: "a subtle one-time entrance: opacity 0 → 1, translateY
+//     10–16px → 0, roughly 300–450ms. Stagger cards very lightly. Do not use scroll hijacking or
+//     heavy parallax."): every section after the first plays a 380 ms rise the first time it
+//     scrolls into view (useReveal — one IntersectionObserver, unobserved after it fires), delayed
+//     40 ms per section. Nothing ever fades OUT. No IntersectionObserver, or reduced motion → the
+//     sections are simply there.
 //   · DIMENSION: every card carries learn-theme's CARD_SHADOW; on a phone each topic section gets
 //     28px of vertical padding and a hairline top border so topics read as blocks.
 //
@@ -93,7 +108,7 @@
 // invented. Where a topic has no runtime data yet, it just doesn't claim a duration (no fake
 // "~12 min"), per the "manageable, not overwhelming" rule.
 import { forwardRef, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Check, ChevronDown, ChevronRight, Loader2, Lock } from "lucide-react";
+import { Check, ChevronDown, Loader2, Lock } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { BRAND_SANS } from "@/components/canvas/brand";
@@ -102,7 +117,9 @@ import { fmtRuntime, muxThumb } from "@/components/learn/cram-media";
 import { averageVideoCaption, EMAIL_RE, emailGateNeeded, isUuid, practiceGateNeeded, questionCount, readStartPulsed, topicRowDetail, waitlistNeeded, writeStartPulsed, writeUnlocked, type GateSet } from "@/components/learn/learn-gate";
 import { LearnEntrance } from "@/components/learn/LearnEntrance";
 import type { RailKey } from "@/components/learn/LearnRail";
-import { PracticeArt } from "@/components/learn/PracticeArt";
+import { CRAM_MACHINE_CSS } from "@/components/learn/CramMachine";
+import { PRACTICE_CARD_CSS, PracticeCard } from "@/components/learn/PracticeCard";
+import { STUDY_RAIL_CSS, StudyRail } from "@/components/learn/StudyRail";
 import type { Tier } from "@/components/learn/use-tier";
 import { submitIntake } from "@/lib/intake.functions";
 import type { School } from "@/lib/schools";
@@ -155,9 +172,42 @@ function glowFor(school: School | null): string { return school?.c2 ?? GLOW_BLUE
 const START_PULSE_DELAY_MS = 1200;
 const START_PULSE_MS = 2100;
 
-/** Grid columns per tier — the last one is always Practice. Narrow has no grid (the strip). */
-const GRID_COLS: Record<Tier, number> = { narrow: 0, mid: 4, wide: 5 };
-const GRID_GAP: Record<Tier, number> = { narrow: 8, mid: 14, wide: 16 };
+/** THE ENTRANCE: hidden until seen, then a short rise. Sections start visible where there is no
+ *  observer to reveal them (SSR without JS, an old browser) — data-reveal is only set client-side. */
+const REVEAL_CSS = `
+.lk-reveal[data-reveal="wait"] { opacity: 0; transform: translateY(12px); }
+.lk-reveal[data-reveal="in"] { animation: lk-reveal 380ms cubic-bezier(.2,.7,.2,1) both; }
+@keyframes lk-reveal { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .lk-reveal[data-reveal="wait"] { opacity: 1; transform: none; } .lk-reveal[data-reveal="in"] { animation: none; } }
+`;
+/** The rails' and cards' CSS, injected once with the home. ONE string — never two text children. */
+const ROW_CSS = STUDY_RAIL_CSS + PRACTICE_CARD_CSS + CRAM_MACHINE_CSS + REVEAL_CSS;
+
+/** One observer for every section that wants an entrance: "wait" until 12% of it is in view,
+ *  then "in" once, for good. Sections without the observer keep no data-reveal at all. The
+ *  observer lives in an effect (created on mount, disconnected on unmount — and re-created after
+ *  StrictMode's rehearsal, which is why the ref callback only collects elements and the effect
+ *  does the observing); a section that mounts later is observed straight away. */
+function useReveal(): (el: HTMLElement | null) => void {
+  const io = useRef<IntersectionObserver | null>(null);
+  const pending = useRef<Set<HTMLElement>>(new Set());
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver((entries) => {
+      for (const e of entries) if (e.isIntersecting) { (e.target as HTMLElement).dataset.reveal = "in"; obs.unobserve(e.target); }
+    }, { threshold: 0.12 });
+    io.current = obs;
+    for (const el of pending.current) if (el.dataset.reveal === "wait") obs.observe(el);
+    return () => { obs.disconnect(); io.current = null; };
+  }, []);
+  return (el) => {
+    if (!el || el.dataset.reveal) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    el.dataset.reveal = "wait";
+    pending.current.add(el);
+    io.current?.observe(el);
+  };
+}
 
 export const LearnHome = forwardRef<HTMLDivElement, {
   sets: HomeSet[];
@@ -220,6 +270,7 @@ export const LearnHome = forwardRef<HTMLDivElement, {
     if (playable) onOpenSet(playable.set.id); else seeExam();
   };
   const firstRowRef = (el: HTMLElement | null) => { firstRow.current = el; rowRef("cram")(el); };
+  const reveal = useReveal();
 
   // THE START CUE (mid / wide): the first row's outline pulses once a session, after the loading
   // moment has revealed the page. Narrow has its "start here" label instead — one cue per tier.
@@ -234,11 +285,10 @@ export const LearnHome = forwardRef<HTMLDivElement, {
 
   // THE ONE EMAIL. Both boxes — unlock and waitlist — capture the same address; once it is in
   // (any visit: `unlocked`; or the student is signed in) nothing asks again.
-  const cols = GRID_COLS[tier];
-  const frames = Math.max(0, cols - 1);
 
   return (
     <div ref={ref} className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin", overflowX: "hidden" }}>
+      <style>{ROW_CSS}</style>
       {/* THE ENTRANCE BAND — full-bleed on the hero ground, the column inside it. */}
       <div style={{ background: LK.heroBg }}>
         <div className="mx-auto w-full" style={{ maxWidth: CONTENT_MAX, padding: `${narrow ? 10 : wide ? 24 : 20}px ${pad}px 0` }}>
@@ -260,37 +310,25 @@ export const LearnHome = forwardRef<HTMLDivElement, {
           const gated = emailGateNeeded(i, signedIn, unlocked);
           const overlay: GateVariant | null = gated ? (waitlistNeeded(posted, signedIn, unlocked) ? "waitlist" : "unlock") : null;
           const dimmed: CSSProperties = { filter: overlay ? "blur(6px)" : undefined, pointerEvents: overlay ? "none" : undefined };
+          // THE RAIL: rowItems = [...videos, practice] — Practice is the last card, whatever the count.
+          const practiceable = ts.find((s) => s.set.ceqCount > 0 && !s.locked) ?? null;
+          const practiceLocked = !practiceable && ts.some((s) => s.locked);
           const row = (
             <div className="relative">
-              {/* FOUR FRAMES, THEN PRACTICE (Lee, 2026-09-10): "four cram frames in the middle,
-                  practice pinned right, so it's 5 total vertical frames. Odd numbers tend to
-                  appear cleaner." More than four: "fade out on the right side of the last one,
-                  a show-more arrow makes it clear there's more." On wide / mid the five are grid
-                  tracks that fill the column; narrow keeps the strip of fixed frames. */}
-              {narrow ? (
-                <div className="flex items-stretch" style={{ gap: GRID_GAP.narrow, ...dimmed }} aria-hidden={!!overlay || undefined}>
-                  <CramStrip sets={ts} narrow onOpen={(s) => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id))} />
-                  <PracticeFrame topic={topic} sets={ts} school={school} narrow onPractice={(setId) => tryPractice(ts, setId)} onLocked={onLocked} />
-                </div>
-              ) : (
-                <div className="lk-grid" data-tier={tier} style={dimmed} aria-hidden={!!overlay || undefined}>
-                  {ts.length <= frames ? (
-                    ts.map((s) => <Short key={s.set.id} s={s} fluid onOpen={() => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id))} />)
-                  ) : (
-                    <div style={{ gridColumn: `span ${frames}`, minWidth: 0 }}>
-                      <CramStrip sets={ts} narrow={false} columns={frames} gap={GRID_GAP[tier]} onOpen={(s) => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id))} />
-                    </div>
-                  )}
-                  <div style={{ gridColumnStart: cols }}>
-                    <PracticeFrame topic={topic} sets={ts} school={school} narrow={false} fluid onPractice={(setId) => tryPractice(ts, setId)} onLocked={onLocked} />
-                  </div>
-                </div>
-              )}
+              <StudyRail tier={tier} label={`${topic.name} videos`} bleed={pad} style={dimmed} ariaHidden={!!overlay}>
+                {ts.map((s) => <Short key={s.set.id} s={s} onOpen={() => (s.locked ? onLocked(s.topic) : onOpenSet(s.set.id))} />)}
+                <PracticeCard
+                  topicName={topic.name} sectionIndex={i} school={school}
+                  bank={questionCount(ts.map(gateSetOf))} ready={!!practiceable} locked={practiceLocked}
+                  onPractice={() => { if (practiceable) tryPractice(ts, practiceable.set.id); }}
+                  onLocked={() => onLocked(topic)}
+                />
+              </StudyRail>
               {overlay && <EmailGate variant={overlay} examLabel={examLabel} topicName={topic.name} campusId={campusId} demo={demo} onUnlocked={onUnlocked} narrow={narrow} />}
             </div>
           );
           return (
-            <section key={id} id={topicSectionId(id)} ref={first ? firstRowRef : undefined} data-tier={tier} className={`lk-topic-sec flex flex-col gap-3${first && outlined ? " lk-outlined" : ""}${first && pulse ? " lk-start-pulse" : ""}`} style={{ scrollMarginTop: 16 }}>
+            <section key={id} id={topicSectionId(id)} ref={first ? firstRowRef : reveal} data-tier={tier} className={`lk-topic-sec flex flex-col gap-3${first ? "" : " lk-reveal"}${first && outlined ? " lk-outlined" : ""}${first && pulse ? " lk-start-pulse" : ""}`} style={{ scrollMarginTop: 16, animationDelay: first ? undefined : `${Math.min(i, 6) * 40}ms` }}>
               {first ? (
                 <TopicHead topic={topic} sets={ts} school={school} tier={tier} examLabel={examLabel} />
               ) : (
@@ -429,104 +467,16 @@ function PracticeAskSheet({ onWatch, onAnyway, onClose }: { onWatch: () => void;
   );
 }
 
-const SHORT_W = { wide: 152, narrow: 118 };
-const SHORT_H = { wide: 270, narrow: 210 };
-/** How many fixed frames sit in view on a phone before the fade. */
-const FRAMES_IN_VIEW = 4;
-
-/** THE CRAM STRIP — the frames in one scroll row; when the topic has more than fit, the last
- *  visible one fades at the right edge and an arrow scrolls the strip by one frame. The fade and
- *  the arrow exist only while there is more to the right. Given `columns` (wide / mid) the strip
- *  fills its grid tracks and each frame is exactly one track wide, so the strip's frames line up
- *  with the Practice frame beside it. */
-function CramStrip({ sets, narrow, columns, gap: gapProp, onOpen }: { sets: HomeSet[]; narrow: boolean; columns?: number; gap?: number; onOpen: (s: HomeSet) => void }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [more, setMore] = useState(false);
-  const fluid = !narrow && !!columns;
-  const gap = gapProp ?? (narrow ? 8 : 12);
-  const w = narrow ? SHORT_W.narrow : SHORT_W.wide;
-  const maxW = fluid ? undefined : FRAMES_IN_VIEW * w + (FRAMES_IN_VIEW - 1) * gap;
-  useEffect(() => {
-    const el = ref.current; if (!el) return;
-    const check = () => setMore(el.scrollWidth - el.clientWidth - el.scrollLeft > 4);
-    check();
-    el.addEventListener("scroll", check, { passive: true });
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(check) : null;
-    ro?.observe(el);
-    return () => { el.removeEventListener("scroll", check); ro?.disconnect(); };
-  }, [sets.length]);
-  const next = () => {
-    const el = ref.current; if (!el) return;
-    const n = columns ?? 1;
-    const step = fluid ? (el.clientWidth - gap * (n - 1)) / n + gap : w + gap;
-    el.scrollBy({ left: step, behavior: "smooth" });
-  };
-  const frameW = fluid ? `calc((100% - ${gap * ((columns ?? 1) - 1)}px) / ${columns})` : undefined;
-  return (
-    <div className="relative min-w-0" style={{ maxWidth: maxW, flex: fluid ? undefined : "0 1 auto" }}>
-      <div ref={ref} className="lk-scroll-x" style={{ gap }}>
-        {sets.map((s) => <Short key={s.set.id} s={s} narrow={narrow} fluid={fluid} style={frameW ? { width: frameW, flex: "0 0 auto" } : undefined} onOpen={() => onOpen(s)} />)}
-      </div>
-      {more && (
-        <>
-          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0" style={{ width: narrow ? 44 : 72, background: "linear-gradient(to right, transparent, var(--lk-bg))" }} />
-          <button type="button" onClick={next} aria-label="More videos" className="absolute right-1 top-1/2 grid -translate-y-1/2 place-items-center rounded-full" style={{ width: narrow ? 34 : 40, height: narrow ? 34 : 40, background: LK.text, color: LK.bg, border: 0, cursor: "pointer", boxShadow: "0 4px 14px rgba(0,0,0,0.5)" }}>
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
-
-/** PRACTICE, PINNED FAR RIGHT — the fifth frame. The one place practice is offered for a topic:
- *  after its videos, not after every single one. The nuts-and-bolts art (PracticeArt, tinted for
- *  the school) above "Practice" and the real question count, nothing else. Dimmed until the topic
- *  has questions to practice. */
-function PracticeFrame({ topic, sets, school, narrow, fluid, onPractice, onLocked }: {
-  topic: StudentTopic; sets: HomeSet[]; school: School | null; narrow: boolean; fluid?: boolean;
-  onPractice: (setId: string) => void;
-  onLocked: (topic: StudentTopic) => void;
-}) {
-  const practiceable = sets.find((s) => s.set.ceqCount > 0 && !s.locked);
-  const locked = !practiceable && sets.some((s) => s.locked);
-  const ready = !!practiceable || locked;
-  const n = questionCount(sets.map(gateSetOf));
-  const size: CSSProperties = fluid ? { width: "100%", height: "auto", aspectRatio: "9 / 16" } : { width: narrow ? SHORT_W.narrow : SHORT_W.wide, height: narrow ? SHORT_H.narrow : SHORT_H.wide, marginLeft: "auto" };
-  return (
-    <button
-      type="button"
-      onClick={() => { if (locked) onLocked(topic); else if (practiceable) onPractice(practiceable.set.id); }}
-      disabled={!ready}
-      className="lk-card flex shrink-0 flex-col justify-between text-left"
-      style={{ ...size, padding: fluid ? 16 : 12, cursor: ready ? "pointer" : "default", opacity: ready ? 1 : 0.55, fontFamily: BRAND_SANS, color: LK.text, borderColor: ready ? LK.border2 : undefined }}
-      title={ready ? `Practice ${topic.name}` : "Practice comes once this topic has questions"}
-    >
-      <div className="flex flex-col items-center" style={{ paddingTop: narrow ? 4 : 8 }}>
-        <PracticeArt school={school} size={narrow ? 72 : fluid ? 112 : 96} />
-      </div>
-      <div>
-        <div className="lk-disp" style={{ fontSize: narrow ? 15 : fluid ? 20 : 17 }}>Practice</div>
-        <div className="mt-1 text-[12px] font-semibold sm:text-[13px]" style={{ color: LK.muted }}>{n > 0 ? `${n} question${n === 1 ? "" : "s"}` : "No questions yet"}</div>
-      </div>
-      <div className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase" style={{ letterSpacing: "0.08em", color: ready ? LK.acc : LK.dim }}>
-        {locked && <Lock className="h-3 w-3" />}{ready ? <ChevronRight className="h-5 w-5" aria-label="Practice this topic" /> : null}
-      </div>
-    </button>
-  );
-}
-
 /** ONE FRAME. A card whose video is not posted yet stays in the row, black-and-white and dimmed
  *  (.lk-short[data-posted="false"]) — it still opens (the player says so, and the set's practice
  *  is there when it has questions), it just does not pretend to be a video. */
-function Short({ s, narrow, fluid, style, onOpen }: { s: HomeSet; narrow?: boolean; fluid?: boolean; style?: CSSProperties; onOpen: () => void }) {
+function Short({ s, onOpen }: { s: HomeSet; onOpen: () => void }) {
   const pid = s.set.playbackId;
   const posted = isPosted(s);
   const hasThumb = !!pid && pid !== "__demo__" && !s.locked;
-  const size: CSSProperties = fluid ? {} : { width: narrow ? SHORT_W.narrow : SHORT_W.wide, height: narrow ? SHORT_H.narrow : SHORT_H.wide };
   return (
-    <button type="button" onClick={onOpen} className="lk-short" data-on={false} data-fluid={fluid || undefined} data-posted={posted} style={{ ...size, ...style, opacity: s.locked ? 0.7 : undefined }} title={posted ? s.set.name : `${s.set.name} — not posted yet`}>
-      {hasThumb && <img src={muxThumb(pid!, fluid ? 480 : 320)} alt="" loading="lazy" />}
+    <button type="button" onClick={onOpen} className="lk-short" data-on={false} data-rail="true" data-posted={posted} style={{ opacity: s.locked ? 0.7 : undefined }} title={posted ? s.set.name : `${s.set.name} — not posted yet`}>
+      {hasThumb && <img src={muxThumb(pid!, 480)} alt="" loading="lazy" />}
       {s.locked && <Lock className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2" style={{ color: "#B5B5B5" }} />}
       {s.set.runtimeSec != null && pid && <span className="lk-short-d">{fmtRuntime(s.set.runtimeSec)}</span>}
       {s.done && <span className="absolute left-2 top-2 z-[1] grid h-6 w-6 place-items-center rounded-full" style={{ background: LK.green, color: "#111" }}><Check className="h-3.5 w-3.5" /></span>}

@@ -4,7 +4,6 @@
 import { describe, expect, test } from "bun:test";
 
 import { averageVideoCaption, examName, examWaitlistLine, LATER_EXAM_PRICE_USD, practiceMinutes, practiceTimeLabel, QUICK_ROUND_SIZE, quickRoundSize, SECONDS_PER_QUESTION, topicRowDetail, type GateSet } from "./learn-gate";
-import { hueShift, practiceFill, practiceTint } from "./PracticeArt";
 import { LEE_PHONE, LEE_TEL, TEXT_LEE_LINES } from "./LearnTextLee";
 import { CARD_SHADOW, DISPLAY, SANS } from "./learn-theme";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -54,25 +53,6 @@ describe("the quick round (Lee, 2026-09-11: a Practice card is access to the ban
     expect(practiceMinutes(8)).toBe(5);
     expect(practiceTimeLabel(97)).toBe("~10 min");
     expect(practiceTimeLabel(0)).toBeNull();
-  });
-});
-
-describe("the practice art's tint", () => {
-  test("is c2 when the school has one", () => {
-    expect(practiceTint({ c1: "#9E1B32", c2: "#F1F2F3" })).toBe("#F1F2F3");
-    expect(practiceFill({ c1: "#9E1B32", c2: "#F1F2F3" })).toBe("#9E1B32");
-  });
-  test("is c1 turned round the hue wheel when there is no c2 — a different colour, same lightness", () => {
-    const t = practiceTint({ c1: "#9E1B32", c2: null });
-    expect(t).not.toBe("#9E1B32");
-    expect(t).toMatch(/^#[0-9A-F]{6}$/);
-    expect(hueShift("#9E1B32", 0)).toBe("#9E1B32");
-    expect(hueShift("#FF0000", 120)).toBe("#00FF00");
-    expect(hueShift("#FF0000", 240)).toBe("#0000FF");
-  });
-  test("is the brand cream with no school", () => {
-    expect(practiceTint(null)).toBe("#F5EFE6");
-    expect(practiceFill(null)).toBe("#F5EFE6");
   });
 });
 

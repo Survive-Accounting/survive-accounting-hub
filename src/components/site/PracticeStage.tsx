@@ -62,9 +62,22 @@ export interface PracticeStageProps {
   pathAdvance?: { label: string; onContinue: () => void } | null;
   /** Fires once when the completion screen first renders — "reached set completion state". */
   onFinished?: () => void;
+  /** THE QUICK ROUND (/learn, 2026-09-11 — Lee: "A Practice card represents access to the section's
+   *  QUESTION BANK. It should NOT mean 'you must answer every question right now.'"): the first
+   *  pass is at most this many questions, in the set's saved order; the rest wait behind "More
+   *  practice", which serves the next slice and wraps round. Undefined = the whole set, as before. */
+  roundSize?: number;
+  /** THE RECOMMENDED NEXT ACTION (/learn, 2026-09-11 — Lee: "ONE visually dominant action with a
+   *  small Recommended label … The student should always be able to understand: 'What does Survive
+   *  think I should do next?'"). When set, the completion screen ranks its actions:
+   *    missed some   Recommended · Retry missed (N)  ›  Next topic →  ›  More practice · Retry all
+   *    clean round   Recommended · Next topic →      ›  More practice ›  Retry round
+   *  `nextLabel` / `onNext` are the surface's ("Next topic →", or "Back to the videos" on the last
+   *  topic). Undefined = the older screen (Retry the N you missed / doneLabel / Review with Lee). */
+  guidance?: { nextLabel: string; onNext: () => void };
 }
 
-export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress, pathAdvance = null, onFinished }: PracticeStageProps) {
+export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress, pathAdvance = null, onFinished, roundSize, guidance }: PracticeStageProps) {
   const q = useQuery({ queryKey: ["set-practice", setId], queryFn: () => fetchSetPractice({ data: { setId } }), enabled: !override, staleTime: 300_000, networkMode: "always" });
   const questions = useMemo<PracticeQuestion[]>(() => override ?? (q.data?.status === "ok" ? q.data.questions : []), [override, q.data]);
 
@@ -95,7 +108,13 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   const userId = useRef<string | null>(null);
   const touchX = useRef<number | null>(null);
   useEffect(() => { void supabase.auth.getSession().then(({ data }) => { userId.current = data.session?.user?.id ?? null; }); }, []);
-  useEffect(() => { if (questions.length && order.length === 0) setOrder(questions.map((_, i) => i)); }, [questions, order.length]);
+  // THE ROUND: the first pass is the first `roundSize` questions (or all of them); `roundStart`
+  // remembers where the last slice began so "More practice" can serve the next one.
+  const [roundStart, setRoundStart] = useState(0);
+  const sliceOf = useCallback((start: number) => { const all = questions.map((_, i) => i); return roundSize ? all.slice(start, start + roundSize) : all; }, [questions, roundSize]);
+  useEffect(() => { if (questions.length && order.length === 0) setOrder(sliceOf(0)); }, [questions, order.length, sliceOf]);
+  /** More of the bank than this round showed — "More practice" has somewhere to go. */
+  const moreAvailable = !!roundSize && questions.length > roundSize;
 
   const cur = order.length ? questions[order[pos]] : undefined;
   const total = order.length;
@@ -202,6 +221,19 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
     setPickedBy((m) => { const n = { ...m }; for (const i of missedIdx) delete n[questions[i]?.id ?? ""]; return n; });
     setOrder(missedIdx); setPass((p) => p + 1); setPos(0); setPicked(null); setHi(0); setFinished(false); revealedAt.current = Date.now();
   };
+  /** A fresh pass over a list of question indexes — the round again, or the next slice. */
+  const startPass = (idx: number[]) => {
+    setPickedBy((m) => { const n = { ...m }; for (const i of idx) delete n[questions[i]?.id ?? ""]; return n; });
+    setOrder(idx); setPass((p) => p + 1); setPos(0); setPicked(null); setHi(0); setFinished(false); revealedAt.current = Date.now();
+  };
+  const retryRound = () => startPass(order);
+  const morePractice = () => {
+    const size = roundSize ?? questions.length;
+    let next = roundStart + size;
+    if (next >= questions.length) next = 0; // the bank is used up — round again from the top
+    setRoundStart(next);
+    startPass(sliceOf(next));
+  };
 
   // ---- states with a way forward -----------------------------------------------------------------
   if (!override && q.isLoading) return <div className="grid h-full w-full place-items-center text-[12px]" style={{ color: C.muted }}><span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</span></div>;
@@ -222,9 +254,34 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
           <div className="text-[10.5px] font-black uppercase tracking-[0.14em]" style={{ color: C.yellow }}>{pass > 1 ? `Pass ${pass}` : "First pass"} · {fmtElapsed(Date.now() - startedAt.current)}</div>
           <p className="mt-1.5 text-[17px] font-black">You've been through {n} of {n}{m > 0 ? ` · ${m} to review` : ""}</p>
           <p className="mt-1 text-[12.5px]" style={{ color: C.muted }}>{m === 0 ? "Clean pass. Keep the momentum — next set." : rough ? "First pass is always rough — that's the point. Run the missed ones again." : "Close. Run the ones you missed until they're automatic."}</p>
-          {m > 0 && <button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13px] font-black uppercase tracking-wide" style={{ background: C.yellow, color: "#0B1322", minHeight: 46 }} onClick={retryMissed}><RotateCcw className="h-4 w-4" /> Retry the {m} you missed →</button>}
-          <button className="mt-2 w-full rounded-xl px-4 py-2.5 text-[12.5px] font-black uppercase tracking-wide" style={{ background: m > 0 ? "rgba(245,239,230,0.1)" : C.yellow, color: m > 0 ? C.text : "#0B1322", minHeight: 44 }} onClick={onDone}>{doneLabel}</button>
-          {onReview && <button className="mt-2 w-full rounded-xl px-4 py-2 text-[12px] font-bold" style={{ color: C.yellow, border: `1px solid ${C.border}`, minHeight: 44 }} onClick={onReview}>Review with Lee →</button>}
+          {guidance ? (
+            // THE RECOMMENDED NEXT ACTION: one dominant button, its "Recommended" label above it,
+            // the others quieter in rank — never four equal buttons.
+            <>
+              <div className="mt-4 text-[10.5px] font-black uppercase tracking-[0.14em]" style={{ color: C.green }}>Recommended</div>
+              {m > 0 ? (
+                <button className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13px] font-black uppercase tracking-wide" style={{ background: C.yellow, color: "#0B1322", minHeight: 48 }} onClick={retryMissed}><RotateCcw className="h-4 w-4" /> Retry missed ({m})</button>
+              ) : (
+                <button className="mt-1 w-full rounded-xl px-4 py-3 text-[13px] font-black uppercase tracking-wide" style={{ background: C.yellow, color: "#0B1322", minHeight: 48 }} onClick={guidance.onNext}>{guidance.nextLabel}</button>
+              )}
+              {m > 0 ? (
+                <button className="mt-2 w-full rounded-xl px-4 py-2.5 text-[12.5px] font-black uppercase tracking-wide" style={{ background: "rgba(245,239,230,0.1)", color: C.text, minHeight: 44 }} onClick={guidance.onNext}>{guidance.nextLabel}</button>
+              ) : (
+                <button className="mt-2 w-full rounded-xl px-4 py-2.5 text-[12.5px] font-black uppercase tracking-wide" style={{ background: "rgba(245,239,230,0.1)", color: C.text, minHeight: 44 }} onClick={moreAvailable ? morePractice : retryRound}>{moreAvailable ? "More practice" : "Retry round"}</button>
+              )}
+              <div className="mt-2 flex items-center justify-center gap-4">
+                {m > 0 && moreAvailable && <button className="px-2 py-2 text-[12px] font-bold underline underline-offset-2" style={{ color: C.muted, minHeight: 40 }} onClick={morePractice}>More practice</button>}
+                {m > 0 && <button className="px-2 py-2 text-[12px] font-bold underline underline-offset-2" style={{ color: C.muted, minHeight: 40 }} onClick={retryRound}>Retry all</button>}
+                {m === 0 && moreAvailable && <button className="px-2 py-2 text-[12px] font-bold underline underline-offset-2" style={{ color: C.muted, minHeight: 40 }} onClick={retryRound}>Retry round</button>}
+              </div>
+            </>
+          ) : (
+            <>
+              {m > 0 && <button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13px] font-black uppercase tracking-wide" style={{ background: C.yellow, color: "#0B1322", minHeight: 46 }} onClick={retryMissed}><RotateCcw className="h-4 w-4" /> Retry the {m} you missed →</button>}
+              <button className="mt-2 w-full rounded-xl px-4 py-2.5 text-[12.5px] font-black uppercase tracking-wide" style={{ background: m > 0 ? "rgba(245,239,230,0.1)" : C.yellow, color: m > 0 ? C.text : "#0B1322", minHeight: 44 }} onClick={onDone}>{doneLabel}</button>
+              {onReview && <button className="mt-2 w-full rounded-xl px-4 py-2 text-[12px] font-bold" style={{ color: C.yellow, border: `1px solid ${C.border}`, minHeight: 44 }} onClick={onReview}>Review with Lee →</button>}
+            </>
+          )}
           {pathAdvance && <FinishAutoAdvance key={pass} label={pathAdvance.label} onContinue={pathAdvance.onContinue} />}
         </div>
       </div>

@@ -21,6 +21,7 @@ import type { PracticeQuestion, StudentSet, StudentTopic } from "@/lib/student.f
 import { LK, type LearnTheme } from "@/components/learn/learn-theme";
 import { RailIcon } from "@/components/learn/LearnRail";
 import { DEMO_PLAYBACK, muxThumb, SOUND_KEY, type Prog } from "@/components/learn/cram-media";
+import { QUICK_ROUND_SIZE } from "@/components/learn/learn-gate";
 
 export type PlayerItem = { set: StudentSet; topic: StudentTopic; n: number; of: number; locked: boolean };
 
@@ -63,6 +64,10 @@ export function CramPlayer({
   const [shareCard, setShareCard] = useState(true);
   useEffect(() => { try { setShareCard(sessionStorage.getItem(SHARE_DISMISS) !== "1"); } catch { /* ignore */ } }, []);
   const hasPrev = index > 0, hasNext = index < items.length - 1;
+  // THE NEXT TOPIC (2026-09-11): the first item after this one in a different topic — what the
+  // practice drawer's "Next topic →" opens. -1 on the last topic, where it becomes "Back to the
+  // videos" (the exit).
+  const nextTopicIndex = items.findIndex((it, j) => j > index && it.topic.id !== items[index]?.topic.id);
   const go = useCallback((d: 1 | -1) => { const j = index + d; if (j >= 0 && j < items.length) { onIndex(j); setAsk(false); } }, [index, items.length, onIndex]);
 
   // keys: ↑↓ / j k move, space toggles play (when the drawer isn't focused)
@@ -152,6 +157,10 @@ export function CramPlayer({
           isTest={demo}
           doneLabel={hasNext ? "Next cram →" : "Back to the videos"}
           onDone={() => { onPractice(false); if (hasNext) go(1); }}
+          roundSize={QUICK_ROUND_SIZE}
+          guidance={nextTopicIndex >= 0
+            ? { nextLabel: "Next topic →", onNext: () => { onPractice(false); setAsk(false); onIndex(nextTopicIndex); } }
+            : { nextLabel: "Back to the videos", onNext: () => { onPractice(false); onExit(); } }}
         />
       </div>
     </div>
