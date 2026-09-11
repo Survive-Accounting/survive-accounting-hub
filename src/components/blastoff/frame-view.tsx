@@ -32,6 +32,8 @@ import { DISPLAY_FONT, V } from "./stage";
 import { OUTRO_CTA_KEY, SurviveOutro } from "./SurviveOutro";
 import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
+import { RubricFrame } from "./RubricFrame";
+import { cycleKey } from "./rubric";
 import { introWordmarkTop, type SlideLayout } from "./layout";
 
 const GOLD = "#FCA311";
@@ -117,6 +119,15 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   if (frame.kind === "cluster") {
     if (!frame.cluster) return <EmptyMap w={fw} />;
     return <ClusterStage spec={frame.cluster} set={set} w={fw} live={live} shot={film?.shot ?? 0} overview={!film || !!film.overview} roam={film?.roam} arrowOverrides={film?.arrowOverrides} onArrowCycle={live ? film?.onArrowCycle : undefined} />;
+  }
+
+  // THE EQUATION RUBRIC (2026-09-11, RubricFrame.tsx): a fixed block at the top of the safe
+  // column, sized straight from the phone (phoneScale hands in w / 306 for this kind, so
+  // `scale` IS the block's multiplier). On the Review stage a box click cycles its arrows;
+  // on film the reveal follows RubricFilmContext, provided by BlastOffCapture alone.
+  if (frame.kind === "rubric") {
+    return <RubricFrame spec={frame.rubric} k={scale} live={live}
+      onCycle={edit && !live && frame.rubric ? (key) => edit({ rubric: { ...frame.rubric!, arrows: cycleKey(frame.rubric!.arrows, key) } }) : undefined} />;
   }
 
   // THE STANDARD SPINE renders as the vertical 9:16 frame it actually is —

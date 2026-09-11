@@ -54,6 +54,20 @@ export const illustrationSchema = z.object({
   attempts: z.number().int().min(0).optional(),
 });
 
+// THE EQUATION RUBRIC (2026-09-11, components/blastoff/rubric.ts RubricSpec) — the same shape,
+// typed here in zod; rubric.test.ts and the round-trip test below keep the two honest. Every
+// box is a LIST of arrows (blank / ↑ / ↓ / ↑↓), never more than two. "dc" is accepted on the
+// wire — reserved for the debit / credit rubric — and refused at render (rubric.assertRenderable).
+const rubricArrows = z.array(z.enum(["up", "down"])).max(2);
+export const rubricSchema = z.object({
+  mode: z.enum(["ale", "dc"]),
+  text: z.string().max(400),
+  amount: z.number().min(0).max(1_000_000_000),
+  arrows: z.object({ A: rubricArrows, L: rubricArrows, E: rubricArrows, Rev: rubricArrows, Exp: rubricArrows }),
+  show: z.enum(["arrows", "amounts"]),
+  equityEffect: z.boolean(),
+});
+
 export const frameSchema = z.object({
   id: z.string().min(1).max(80),
   kind: z.enum(BLAST_FRAME_KINDS),
@@ -96,6 +110,7 @@ export const frameSchema = z.object({
   camPos: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).optional(),
   camSize: z.number().min(0.05).max(1).optional(),
   illustration: illustrationSchema.nullable().optional(),
+  rubric: rubricSchema.optional(),
 });
 
 export type FrameRow = z.infer<typeof frameSchema>;

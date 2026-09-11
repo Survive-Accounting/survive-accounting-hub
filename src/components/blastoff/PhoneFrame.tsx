@@ -85,6 +85,9 @@ const WATERMARK_CHARGE_CSS = `
 export function phoneScale(frame: BlastFrame, w: number): number {
   const k = w / PHONE_W;
   if (framesFullFrame(frame)) return w / 1080 / 0.34;
+  // THE RUBRIC (2026-09-11) is drawn in phone units (RubricFrame.tsx RUBRIC_GEOM, a 306-wide
+  // phone), so its multiplier is the phone's own.
+  if (frame.kind === "rubric") return k;
   if (frame.kind === "bio") return 0.45 * k;
   return 0.48 * k;
 }
@@ -203,7 +206,8 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
     const phone = phoneRef.current;
     if (!phone) return;
     const measure = () => {
-      const card = phone.querySelector("[data-ceq-card]") as HTMLElement | null;
+      // The rubric block (2026-09-11) counts as the card here: the camera keeps off it too.
+      const card = phone.querySelector("[data-ceq-card], [data-sa-rubric]") as HTMLElement | null;
       const art = phone.querySelector("[data-sa-illustration]") as HTMLElement | null;
       if (!card && !art) { setCardBox(null); setArtBox(null); return; }
       const p = phone.getBoundingClientRect();

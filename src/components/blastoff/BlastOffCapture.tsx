@@ -83,6 +83,10 @@ import { useTeleprompterPopout } from "./capture/teleprompter-popout";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf, type RailStatus } from "./layout";
 import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
+// THE RUBRIC's reveal (2026-09-11): the same spacebar walk as a map's shots — the step lives
+// here, the block reads it through its own context (RubricFrame.tsx).
+import { RubricFilmContext, type RubricFilm } from "./RubricFrame";
+import { rubricSteps } from "./rubric";
 import { resolveCluster, type ArrowOverrides, type EqTerm } from "./cluster/cluster-models";
 import { cameraAt, shotsOf } from "./cluster/cluster-spec";
 import { nextEqDir } from "./cluster/nodes/EquationNode";
@@ -210,8 +214,13 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // flash of the old one (the same {id, value} pattern the card camera's slide state uses).
   const cluster = frame?.kind === "cluster" ? frame.cluster ?? null : null;
   const shots = useMemo(() => (cluster ? shotsOf(cluster) : []), [cluster]);
+  // THE RUBRIC (2026-09-11): its reveal groups are its shots — step 0 is the bare block, then
+  // A, L, E, Rev/Exp as the spacebar walks them (rubric.ts revealGroups). `steps` is the one
+  // count both kinds share; every other slide has none and space leaves the frame at once.
+  const rubric = frame?.kind === "rubric" ? frame.rubric ?? null : null;
+  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric) : 0;
   const [shotState, setShotState] = useState<{ id: string; shot: number }>({ id: "", shot: 0 });
-  const shot = cluster && shotState.id === frameId ? Math.min(shotState.shot, Math.max(0, shots.length - 1)) : 0;
+  const shot = steps > 0 && shotState.id === frameId ? Math.min(shotState.shot, Math.max(0, steps - 1)) : 0;
   const setShot = useCallback((f: (s: number) => number) => { const id = frameId ?? ""; setShotState((p) => ({ id, shot: Math.max(0, f(p.id === id ? p.shot : 0)) })); }, [frameId]);
   // THE ARROWS (Lee: "click around each A = L + E and move the arrows how I want"): the take's
   // overrides over the map's own arrows, per frame, never written back to the plan.
@@ -545,8 +554,9 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
         if (rounds.phase === "armed" && !e.shiftKey) { startRound(); return; }
         // THE MAP: the shots first — space walks the shot until the last, shift+space back to
         // the first; only off either end does the walk leave the frame.
-        if (cluster && !e.shiftKey && shot < shots.length - 1) { setShot((s) => s + 1); return; }
-        if (cluster && e.shiftKey && shot > 0) { setShot((s) => s - 1); return; }
+        // (And the rubric's reveal steps, 2026-09-11 — the same walk.)
+        if (steps > 1 && !e.shiftKey && shot < steps - 1) { setShot((s) => s + 1); return; }
+        if (steps > 1 && e.shiftKey && shot > 0) { setShot((s) => s - 1); return; }
         if (rounds.phase === "running" && !e.shiftKey && idx >= n - 1) { finishRound(); return; }
         if (e.shiftKey) setI((v) => Math.max(0, v - 1));
         else setI((v) => Math.min(n - 1, v + 1));
@@ -586,11 +596,13 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, cluster, shot, shots.length, setShot, roll, set.id]);
+  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, steps, shot, setShot, roll, set.id]);
 
   // What FrameView's map draws from (cluster/ClusterStage.tsx): in the main window's NEXT
   // preview the map is its bird's-eye with everything revealed — honest about what comes next.
   const clusterFilm = useMemo<ClusterFilm | null>(() => (cluster ? { shot, roam: fieldRoam.roam, overview: preview, arrowOverrides, onArrowCycle } : null), [cluster, shot, fieldRoam.roam, preview, arrowOverrides, onArrowCycle]);
+  // The rubric's step, the same way; in the NEXT preview the block is at rest with every arrow on.
+  const rubricFilm = useMemo<RubricFilm | null>(() => (rubric && !preview ? { step: shot } : null), [rubric, preview, shot]);
 
   // FIT THE PHONE to the window: as tall as the window allows, 9:16. Size the
   // browser window to 9:16 (or pop it out) and the phone IS the window.
@@ -634,8 +646,10 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
         <div style={{ position: "relative", opacity: preview && !take?.countdown ? 0.55 : 1, transition: "opacity 200ms ease-out" }}>
           <SlideEditContext.Provider value={popout.isPopout && chrome ? patchCurrentFrame : null}>
           <ClusterFilmContext.Provider value={clusterFilm}>
+          <RubricFilmContext.Provider value={rubricFilm}>
             <PhoneFrame frame={frame} frames={frames} index={idx} set={set} topicName={topicName} w={w} rounded={false} capture popout={popout.isPopout} stageStyle={camera.stageStyle} cardOverride={camera.cardOverride} camSpot={camOverride ?? undefined} layout={layoutOf(plan)} hero={hero} onHero={setHero} onRailStatus={setRailStatus} coldOpen={coldOpen}
               progress={questionProgress(frames, ceqById).get(frame.id)} />
+          </RubricFilmContext.Provider>
           </ClusterFilmContext.Provider>
           </SlideEditContext.Provider>
           {preview && (
@@ -742,6 +756,12 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
           {cluster && !preview && shots.length > 0 && (
             <span title="space / shift+space walk the map's shots; off the last one, the next slide" style={{ color: CREAM, fontWeight: 700 }}>
               shot {shot + 1} / {shots.length}{shots[shot]?.label ? ` · ${shots[shot].label}` : ""}
+            </span>
+          )}
+          {/* THE RUBRIC: which reveal the block is on — 0 of N is the bare block. */}
+          {rubric && !preview && steps > 1 && (
+            <span title="space reveals the next box's arrows (A, L, E, then Rev/Exp); shift+space hides it again; off the last one, the next slide" style={{ color: CREAM, fontWeight: 700 }}>
+              reveal {shot} / {steps - 1}
             </span>
           )}
           {qaLayout &&<span title="localStorage sa-layout-qa is set on this browser — the take films THIS pass, not the set's" style={{ color: "#FF7A59", fontWeight: 800 }}>layout override: {qaLayout}</span>}

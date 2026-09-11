@@ -49,6 +49,11 @@ export const BLAST_FRAME_KINDS = [
   // behind, the line set huge (brand-cards/SloganCard.tsx). The words come from
   // brand-cards/slogans.ts, never retyped — he says them out loud.
   "slogan",
+  // 2026-09-11: THE EQUATION RUBRIC — the A = L + E block (rubric.ts, RubricFrame.tsx). Lee's
+  // first priority for the end-of-topic work: "the A = L + E rubric first (he needs it on the
+  // cram path)." Its data rides on the frame as `rubric`; the spacebar reveals its arrows box
+  // by box on the film surface.
+  "rubric",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -154,6 +159,10 @@ export interface BlastFrame {
    *  cleared it; a value = an idea banked or a picture made. See illustration.ts. A slide
    *  with none keeps every pixel of the negative space it has today. */
   illustration?: FrameIllustration | null;
+  /** THE EQUATION RUBRIC (2026-09-11, kind "rubric"): mode, the transaction, the amount, the
+   *  arrows per box, arrows-or-amounts, the equity-effect toggle (rubric.ts RubricSpec). A
+   *  rubric frame without one is drawn as a loud red "no data" block, never a blank. */
+  rubric?: RubricSpec;
 }
 
 export interface BlastPlan {
@@ -167,7 +176,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -176,6 +185,7 @@ export { AD_KINDS, isAdKind, type AdKind } from "./ad-kinds";
 import type { ClusterSpec } from "./cluster/cluster-spec";
 import type { AdKind } from "./ad-kinds";
 import type { FrameIllustration } from "./illustration";
+import type { RubricSpec } from "./rubric";
 
 /** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
  *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
@@ -254,6 +264,7 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   ad: "Ad",
   cluster: "Map",
   slogan: "Slogan",
+  rubric: "Rubric",
 };
 
 let seq = 0;

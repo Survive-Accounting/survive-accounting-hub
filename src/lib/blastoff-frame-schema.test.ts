@@ -24,6 +24,8 @@ describe("blastoff frame schema", () => {
         // The revision count (2026-09-07) — a strip here would reset every cap on load.
         attempts: 2,
       },
+      // The equation rubric (2026-09-11) — a strip here would blank every arrow on load.
+      rubric: { mode: "ale", text: "Paid $600 cash for rent", amount: 600, arrows: { A: ["down"], L: [], E: [], Rev: [], Exp: ["up"] }, show: "amounts", equityEffect: true },
     };
     const out = frameSchema.parse(full);
     expect(out).toEqual(full);
@@ -51,6 +53,13 @@ describe("blastoff frame schema", () => {
     if (r.success) expect(r.data.prompterMarks).toEqual({ word: "External" });
     expect(frameSchema.safeParse({ id: "x", kind: "ceq", prompterMarks: {} }).success).toBe(true);
     expect(frameSchema.safeParse({ id: "x", kind: "ceq", prompterMarks: { phrase: 3 } }).success).toBe(false);
+  });
+
+  test("a rubric with three arrows in one box, or an unknown mode, is refused — not stripped", () => {
+    const ok = { mode: "ale", text: "", amount: 0, arrows: { A: [], L: [], E: [], Rev: [], Exp: [] }, show: "arrows", equityEffect: false };
+    expect(frameSchema.safeParse({ id: "x", kind: "rubric", rubric: ok }).success).toBe(true);
+    expect(frameSchema.safeParse({ id: "x", kind: "rubric", rubric: { ...ok, mode: "je" } }).success).toBe(false);
+    expect(frameSchema.safeParse({ id: "x", kind: "rubric", rubric: { ...ok, arrows: { ...ok.arrows, A: ["up", "down", "up"] } } }).success).toBe(false);
   });
 
   test("an unknown ad kind is refused loudly, not stripped", () => {

@@ -50,6 +50,10 @@ export interface CardPlacement {
 
 /** Where a card kind sits in a layout. */
 export function cardPlacement(layout: SlideLayout, kind: BlastFrame["kind"]): CardPlacement {
+  // THE RUBRIC (2026-09-11) sits at the top of the safe column in BOTH templates — it is a
+  // fixed block sized from the phone (RubricFrame.tsx), not a flow card, and centred it would
+  // land on the caption rail.
+  if (kind === "rubric") return { align: "top" };
   if (layout === "pass1") return { align: "centre" };
   // Narrower and bigger: 470 flow units at ×1.24 is the same width as 560 at
   // ×1.04 but every line is a fifth larger, so four choices stack tall.
@@ -65,6 +69,10 @@ export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spo
   // THE MAP (2026-09-07): the small corner circle in both templates — a field wants the camera
   // out of the way (webcam-spots.defaultCamFor says the same).
   if (kind === "cluster") return { spot: "corner" };
+  // THE RUBRIC (2026-09-11): content, camera small — the plain home circle at .28w in both
+  // templates. The block ends well above the circle (RubricFrame.tsx's geometry, pinned in
+  // rubric-frame.test.ts).
+  if (kind === "rubric") return { spot: "home", size: 0.28 };
   // MEMORIZE THIS / DEEPER IDEA (Deep Question since 2026-09-06; kind "tip") / BIO (Lee, fast
   // track 2026-09-05: "enlarge the camera frame
   // … large enough to be viewable on a phone without blocking any text"). Bigger than every

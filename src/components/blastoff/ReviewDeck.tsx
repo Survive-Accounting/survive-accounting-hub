@@ -125,6 +125,9 @@ import { IllustrationPanel } from "./IllustrationPanel";
 import { MapFace } from "./cluster/MapFace";
 import { MAP_EXAMPLES, cloneExample } from "./cluster/map-examples";
 import { emptyCluster } from "./cluster/cluster-spec";
+// THE EQUATION RUBRIC (2026-09-11): the pure rules (rubric.ts) behind the Editor's boxes,
+// presets and toggles; the block itself is RubricFrame.tsx, drawn on the stage like any slide.
+import { RUBRIC_KEYS, RUBRIC_MODE_LABEL, RUBRIC_PRESETS, applyPreset, cycleKey, emptyRubric, type RubricKey } from "./rubric";
 import type { MapCard } from "@/lib/cluster-brief";
 
 /** What the AI board hands the deck: "＋ slide" on an idea card. */
@@ -152,7 +155,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -1528,6 +1531,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     { label: "Blank", color: MUTED, add: () => insertAfter(f.id, "blank", {}, true) },
     ...SLOGANS.map((sl) => ({ label: `Slogan · ${sl.text.slice(0, 22)}`, color: KIND_COLOR.slogan ?? MUTED, add: () => { insertAfter(f.id, "slogan", { text: sl.text }, true); if (sl.art) setRightTab("illustrator"); } })),
     { label: "Map", color: KIND_COLOR.cluster ?? MUTED, add: () => insertAfter(f.id, "cluster", { cluster: emptyCluster("New map") }, true) },
+    // A fresh rubric object per insert (emptyRubric() is called at click time, never shared).
+    { label: "Rubric", color: KIND_COLOR.rubric ?? MUTED, add: () => insertAfter(f.id, "rubric", { rubric: emptyRubric() }, true) },
     { label: "Exhibit…", color: MUTED, add: () => { setSelId(f.id); setPicker("exhibit"); } },
   ];
   const spineRow = (f: BlastFrame, i: number, opts: { number?: number; foldered?: boolean; thumb?: boolean; card?: boolean } = {}) => {
@@ -1754,6 +1759,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
               window.setTimeout(() => document.querySelector(`[data-frame-id="${CSS.escape(sel.id)}"]`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" }), 60);
             }}
             onPatch={(p) => patch(sel.id, p)}
+            addAfter={gapKinds(sel)}
             shorten={shortenReq ? { on: shortenId === sel.id, open: openShorten } : null} />
         )}
       </section>
@@ -1831,9 +1837,12 @@ function RightTabs({ tab, onTab, canIllustrate: can }: { tab: RightTab; onTab: (
 
 // ------------------------------------------------------ the middle column
 
-function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop, frames, layout, onMove, onPatch, shorten, onGoHere }: {
+function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop, frames, layout, onMove, onPatch, shorten, onGoHere, addAfter }: {
   /** Scroll the spine to this slide (unfolding its split if it is shut). */
   onGoHere: () => void;
+  /** "＋ add after this" (2026-09-11): the same kinds the spine gap's "+" offers, inserted after
+   *  THIS slide — so a slide can be added from the preview without finding its gap in the strip. */
+  addAfter: readonly { label: string; color: string; add: () => void }[];
   sel: BlastFrame; idx: number; count: number; label: string; viewSet: BoothSetInfo; topic: BoothTopic;
   progress?: { x: number; y: number };
   /** The bolt-zoom backdrop the rule (or the override) gives this slide. */
@@ -1852,6 +1861,7 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
   // The stage is ALWAYS the phone since 2026-09-07 (Lee: "We won't use the phone button") — the
   // flat FrameView preview and its toggle left with that; every video is vertical.
   const [safe, setSafe] = useState(true);
+  const [adding, setAdding] = useState(false);
   return (
     <>
       <div className="flex items-center" style={{ gap: 6, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
@@ -1874,6 +1884,21 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
       <SlideEditContext.Provider value={onPatch}>
         <PhoneFrame frame={sel} frames={frames} index={idx} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} w={STAGE_W} layout={layout} />
       </SlideEditContext.Provider>
+      {/* ＋ ADD AFTER THIS (2026-09-11) — the gap's chooser, under the preview. */}
+      <div style={{ position: "relative", marginTop: 8, width: STAGE_W }}>
+        <button style={{ ...chip(adding, MUTED), textTransform: "none", letterSpacing: 0 }} title="Add a slide right after this one — same choices as the + in the strip" aria-expanded={adding}
+          onClick={() => setAdding((v) => !v)}>＋ add after this {adding ? "▴" : "▾"}</button>
+        {adding && (
+          <div role="menu" onMouseLeave={() => setAdding(false)}
+            style={{ position: "absolute", top: "100%", left: 0, zIndex: 30, marginTop: 4, background: PANEL, border: `1px solid ${GOLD}88`, borderRadius: 9, padding: 6, display: "flex", flexDirection: "column", gap: 3, minWidth: 170, maxHeight: 340, overflowY: "auto", boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}>
+            <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.14em", color: MUTED, padding: "2px 6px" }}>ADD AFTER SLIDE {idx + 1}</span>
+            {addAfter.map((k) => (
+              <button key={k.label} role="menuitem" onClick={() => { setAdding(false); k.add(); }}
+                style={{ textAlign: "left", background: "transparent", border: `1px solid ${k.color}55`, color: k.color, borderRadius: 6, fontSize: 11, fontWeight: 700, padding: "3px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>＋ {k.label}</button>
+            ))}
+          </div>
+        )}
+      </div>
     </>
   );
 }
@@ -2007,6 +2032,9 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
           <label style={{ fontSize: 11, color: MUTED }}>Topic line on the intro (blank = the set's name)
             <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder={set.name} onChange={(e) => onPatch({ text: e.target.value })} /></label>
         )}
+        {/* THE EQUATION RUBRIC (2026-09-11) — the boxes (click to cycle), the transaction, the
+            amount, arrows or amounts, the equity effect, and Lee's eight presets. */}
+        {sel.kind === "rubric" && <RubricEditor sel={sel} onPatch={onPatch} />}
         {/* THE SLOGAN SLIDE (2026-09-08) — the words and nothing else. The picture, when the
             slide wants one, is the Illustrator's face; the chips are the three Lee actually
             says, straight from brand-cards/slogans.ts so the slide and the spoken line can
@@ -2155,6 +2183,82 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         )}
       </div>
     </section>
+  );
+}
+
+// ------------------------------------------------------- the rubric's face
+
+/** The Editor panel for a rubric slide. Everything writes the whole `rubric` object through
+ *  onPatch (debounced into the same commit as any other field). A slide that somehow has no
+ *  rubric data gets one button: give it a fresh one — the stage is already showing the red block. */
+function RubricEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<BlastFrame>) => void }) {
+  const r = sel.rubric;
+  if (!r) {
+    return (
+      <div className="flex flex-col" style={{ gap: 8 }}>
+        <div style={{ fontSize: 12, color: RED }}>This rubric slide has no data.</div>
+        <div><button style={chip(false, ORANGE)} onClick={() => onPatch({ rubric: emptyRubric() })}>Start a fresh A = L + E rubric</button></div>
+      </div>
+    );
+  }
+  const set = (p: Partial<NonNullable<BlastFrame["rubric"]>>) => onPatch({ rubric: { ...r, ...p } });
+  const arrowText = (k: RubricKey) => r.arrows[k].map((d) => (d === "up" ? "↑" : "↓")).join("") || "·";
+  const cellColor = (k: RubricKey) => (r.arrows[k].length ? (r.arrows[k].includes("up") ? GOLD : SKY) : MUTED);
+  return (
+    <div className="flex flex-col" style={{ gap: 10 }}>
+      <div className="flex flex-col" style={{ gap: 6 }}>
+        <span style={subhead}>Mode</span>
+        <div className="flex" style={{ gap: 6, flexWrap: "wrap" }}>
+          <button style={chip(r.mode === "ale", GOLD)} onClick={() => set({ mode: "ale" })}>{RUBRIC_MODE_LABEL.ale}</button>
+          {/* Reserved: the debit / credit rubric. Not pickable until it draws. */}
+          <button style={{ ...chip(false), opacity: 0.45, cursor: "not-allowed" }} disabled title="Coming later — the normal-balance (+/−) rubric">{RUBRIC_MODE_LABEL.dc}</button>
+        </div>
+        {r.mode !== "ale" && <div style={{ fontSize: 11.5, color: RED }}>This slide is in a mode that can't draw yet — pick A = L + E.</div>}
+      </div>
+      <div className="flex flex-col" style={{ gap: 6 }}>
+        <span style={subhead}>Boxes — click to cycle ↑ · ↓ · ↑↓ · blank (or click them on the slide)</span>
+        <div className="flex" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {RUBRIC_KEYS.map((k, i) => (
+            <span key={k} className="flex" style={{ gap: 6, alignItems: "center" }}>
+              {i === 1 && <span style={{ color: MUTED, fontWeight: 700 }}>=</span>}
+              {i === 2 && <span style={{ color: MUTED, fontWeight: 700 }}>+</span>}
+              {i === 3 && <span style={{ color: MUTED, fontWeight: 700 }}>·</span>}
+              <button style={{ ...chip(r.arrows[k].length > 0, cellColor(k)), minWidth: 44, textTransform: "none", letterSpacing: 0 }} title={`${k}: ${arrowText(k)}`}
+                onClick={() => set({ arrows: cycleKey(r.arrows, k) })}>{k} {arrowText(k)}</button>
+            </span>
+          ))}
+          <button style={{ ...chip(false), fontSize: 10.5 }} title="Blank every box" onClick={() => set({ arrows: emptyRubric().arrows })}>clear</button>
+        </div>
+      </div>
+      <label style={{ fontSize: 11, color: MUTED }}>Transaction — the words on the slide
+        <textarea style={{ ...field, minHeight: 48, marginTop: 4 }} value={r.text} placeholder="e.g. Paid $600 cash for rent" onChange={(e) => set({ text: e.target.value })} /></label>
+      <div className="flex" style={{ gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <label style={{ fontSize: 11, color: MUTED }}>Amount $
+          <input type="number" min={0} step={50} style={{ ...field, width: 110, marginTop: 4 }} value={r.amount || ""} placeholder="0"
+            onChange={(e) => set({ amount: Math.max(0, Number(e.target.value) || 0) })} /></label>
+        <div className="flex flex-col" style={{ gap: 4 }}>
+          <span style={subhead}>Show</span>
+          <div className="flex" style={{ gap: 6 }}>
+            <button style={chip(r.show === "arrows", ORANGE)} onClick={() => set({ show: "arrows" })}>Arrows</button>
+            <button style={chip(r.show === "amounts", ORANGE)} title="The amount beside each arrow, and the balance line — A = L + E + Rev − Exp" onClick={() => set({ show: "amounts" })}>Arrows + amounts</button>
+          </div>
+        </div>
+      </div>
+      <label style={{ fontSize: 11.5, color: CREAM, display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+        <input type="checkbox" checked={r.equityEffect} onChange={(e) => set({ equityEffect: e.target.checked })} />
+        Show how Rev and Exp hit Equity (a faded arrow in E)
+      </label>
+      <div style={{ fontSize: 10.5, color: MUTED, marginTop: -4 }}>Leave it off until you've taught it. It's the "expenses up means equity down" moment.</div>
+      <div className="flex flex-col" style={{ gap: 6 }}>
+        <span style={subhead}>Transactions — one click fills the text, the amount and the arrows</span>
+        <div className="flex" style={{ gap: 5, flexWrap: "wrap" }}>
+          {RUBRIC_PRESETS.map((p) => (
+            <button key={p.id} style={{ ...chip(r.text === p.text, GOLD), textTransform: "none", letterSpacing: 0, fontSize: 10.5 }} title={p.text} onClick={() => set(applyPreset(r, p))}>{p.label}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ fontSize: 11.5, color: MUTED }}>On camera, space reveals the boxes one at a time — A, then L, then E, then Rev/Exp. Here they're all shown.</div>
+    </div>
   );
 }
 
