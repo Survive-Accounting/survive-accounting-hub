@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AdminGate } from "@/components/AdminGate";
 import { BrandingNav } from "@/components/brand-kit/BrandingNav";
 import { Field, input } from "@/components/brand-kit/kit-ui";
+import { SeriesBatch } from "@/components/brand-kit/SeriesBatch";
 import { ThumbnailStudio, type CoverContext } from "@/components/brand-kit/ThumbnailStudio";
 import { useBank } from "@/components/v3/use-bank";
 import { listBlastPlanSetIds, type PlanTakeRow } from "@/lib/blastoff.functions";
@@ -22,6 +23,15 @@ export const Route = createFileRoute("/branding_/thumbnails")({
 });
 
 const MUTED = "#9AA3B8";
+
+function SectionHead({ title, blurb }: { title: string; blurb: string }) {
+  return (
+    <div style={{ margin: "26px 0 12px" }}>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.18em", textTransform: "uppercase", color: "#FCA311" }}>{title}</div>
+      <div style={{ fontSize: 12.5, color: MUTED, marginTop: 4 }}>{blurb}</div>
+    </div>
+  );
+}
 
 function contextFor(r: VideoRow | null): CoverContext | undefined {
   if (!r) return undefined;
@@ -66,6 +76,9 @@ function Thumbnails() {
         <h1 style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 22, fontWeight: 900, margin: 0 }}>Thumbnails</h1>
         <span style={{ fontSize: 12.5, color: MUTED }}>one system: the site thumbnail (no title — /learn prints it) and the social cover (the title in the lower third)</span>
       </div>
+      <SectionHead title="Series" blurb="A whole set at once — one kicker, one title per video, one title size across the set, any campuses." />
+      <SeriesBatch />
+      <SectionHead title="One video" blurb="Any video in the bank: a frame of the take, an illustration or a concept, the four variants, the site thumbnail too." />
       <ThumbnailStudio context={contextFor(row)} picker={picker} />
     </div>
   );

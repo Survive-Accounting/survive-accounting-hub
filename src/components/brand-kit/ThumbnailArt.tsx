@@ -10,11 +10,11 @@
 import { forwardRef, useId, type CSSProperties, type ReactNode } from "react";
 
 import { BOLT_RATIO } from "@/components/canvas/brand";
-import { KitBolt, KitBoltCentered, KitWordmark } from "@/components/brand-kit/KitMarks";
+import { KIT_LIVE_CSS, KitBolt, KitBoltCentered, KitLiveContext, KitWordmark } from "@/components/brand-kit/KitMarks";
 import { variantBadge } from "@/components/brand-kit/variant";
 import { measureText } from "@/lib/brand-kit/measure";
 import {
-  conceptParts, containRect, coverRect, eyebrowOf, GRID_CROPS, layoutTitle, LAYOUT, socialTitleBand, THUMB_H, THUMB_W, TITLE_CAP, TITLE_TRACKING,
+  conceptParts, containRect, coverRect, eyebrowOf, fitSocialTitle, GRID_CROPS, LAYOUT, socialLowerThird, THUMB_H, THUMB_W, TITLE_CAP, TITLE_TRACKING,
   type Box, type ConceptKind, type ThumbMode, type ThumbSpec,
 } from "@/lib/brand-kit/thumbnail";
 import { KIT, type Colorway } from "@/lib/brand-kit/tokens";
@@ -39,9 +39,11 @@ export interface ThumbnailArtProps {
   guides?: boolean;
   /** CSS width of the preview; the art itself is always 1080×1920 units. */
   width?: number;
+  /** The bolts boil while the art is hovered (KitMarks). Exports still show the dry mark. */
+  live?: boolean;
 }
 
-export const ThumbnailArt = forwardRef<SVGSVGElement, ThumbnailArtProps>(function ThumbnailArt({ spec, colorway, mode, guides = false, width }, ref) {
+export const ThumbnailArt = forwardRef<SVGSVGElement, ThumbnailArtProps>(function ThumbnailArt({ spec, colorway, mode, guides = false, width, live = false }, ref) {
   const uid = `k${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const ground = spec.ground === "black" ? KIT.black : KIT.navy;
   const badge = variantBadge(spec.variant);
@@ -73,8 +75,10 @@ export const ThumbnailArt = forwardRef<SVGSVGElement, ThumbnailArtProps>(functio
 
   return (
     <svg ref={ref} xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${THUMB_W} ${THUMB_H}`} width={width} height={width ? (width * THUMB_H) / THUMB_W : undefined}
-      role="img" aria-label={mode === "social" ? `Social cover — ${spec.title}` : "Site thumbnail"} style={{ display: "block" }}>
+      role="img" aria-label={mode === "social" ? `Social cover — ${spec.title}` : "Site thumbnail"} className={live ? "kit-live" : undefined} style={{ display: "block" }}>
+      <KitLiveContext.Provider value={live}>
       <defs>
+        {live && <style>{KIT_LIVE_CSS}</style>}
         <linearGradient id={`${uid}-top`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#000" stopOpacity="0.62" />
           <stop offset="1" stopColor="#000" stopOpacity="0" />
@@ -110,6 +114,7 @@ export const ThumbnailArt = forwardRef<SVGSVGElement, ThumbnailArtProps>(functio
       )}
 
       {guides && (mode === "social" ? <SocialGuides /> : <SiteGuides />)}
+      </KitLiveContext.Provider>
     </svg>
   );
 });
@@ -141,15 +146,27 @@ function SeriesRow({ x, y, label, accent, overPicture, badge }: { x: number; y: 
 
 function SocialLowerThird({ spec, colorway, lineAccent, guides }: { spec: ThumbSpec; colorway: Colorway; lineAccent: string; guides: boolean }) {
   const S = LAYOUT.social;
+  const L3 = socialLowerThird(spec);
+  const kicker = spec.kicker.trim().toUpperCase();
   const sub = spec.subtitle.trim();
-  const band = socialTitleBand(!!sub);
-  const t = layoutTitle(spec.title, (s, size) => displayWidth(s, size), { ...S.title, maxHeight: band.bottom - band.top });
+  const t = fitSocialTitle(spec, (s, size) => displayWidth(s, size));
   const blockH = t.lines.length ? t.size * TITLE_CAP + (t.lines.length - 1) * t.size * S.title.leading : 0;
-  const top = band.top + (band.bottom - band.top - blockH) / 2;
+  const hasTitle = t.lines.length > 0;
+  // Kicker, title and subtitle are centred in the band as ONE group; the hairline sits over it.
+  const groupH = (kicker ? L3.kickerH : 0) + blockH + (sub && hasTitle ? L3.subtitleH : 0);
+  const groupTop = L3.top + (L3.bottom - L3.top - groupH) / 2;
+  const top = groupTop + (kicker ? L3.kickerH : 0);
+  const band = { top: L3.top, bottom: L3.bottom };
   const cx = THUMB_W / 2;
+  const K = S.kicker;
+  const kw = kicker ? measureText(kicker, K.size, 800, KIT.sans, K.tracking) : 0;
+  const ks = kw > S.title.maxWidth ? (K.size * S.title.maxWidth) / kw : K.size;
   return (
     <g>
-      {t.lines.length > 0 && <rect x={cx - S.accentLine.w / 2} y={top - S.accentLine.gap - S.accentLine.h} width={S.accentLine.w} height={S.accentLine.h} rx={S.accentLine.h / 2} fill={lineAccent} />}
+      {(hasTitle || kicker) && <rect x={cx - S.accentLine.w / 2} y={groupTop - S.accentLine.gap - S.accentLine.h} width={S.accentLine.w} height={S.accentLine.h} rx={S.accentLine.h / 2} fill={lineAccent} />}
+      {kicker && (
+        <text x={cx + (ks * K.tracking) / 2} y={groupTop + K.size * 0.72} textAnchor="middle" fill={KIT.cream} fillOpacity={0.8} style={sans(ks, 800, K.tracking)}>{kicker}</text>
+      )}
       {t.lines.map((line, i) => (
         <text key={i} x={cx} y={top + t.size * TITLE_CAP + i * t.size * S.title.leading} textAnchor="middle" fill={KIT.cream} style={display(t.size)}>{line}</text>
       ))}

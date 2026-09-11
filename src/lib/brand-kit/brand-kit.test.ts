@@ -13,8 +13,8 @@ import {
   bannerStack, bannerTrail, CAMPUS_CHECK_IDS, rectInside, rectsOverlap,
 } from "./social";
 import {
-  conceptParts, containRect, coverRect, cramNumbers, defaultThumbSpec, exportProblem, GRID_CROPS, layoutTitle, LAYOUT, seriesLabel,
-  socialTitleBand, thumbFilename, videoRows,
+  conceptParts, containRect, coverRect, cramNumbers, defaultThumbSpec, exportProblem, fitSocialTitle, GRID_CROPS, layoutTitle, LAYOUT, seriesLabel,
+  seriesTitleCap, socialLowerThird, thumbFilename, videoRows,
 } from "./thumbnail";
 import { accentFor, colorwayFor, contrastRatio, KIT, KIT_FONT_FILES, NEUTRAL_COLORWAY_ID } from "./tokens";
 import { WORDMARK, wordmarkLayout } from "./wordmark";
@@ -106,8 +106,7 @@ describe("the thumbnail system", () => {
   });
 
   const m = (t: string, s: number) => t.length * s * 0.62;
-  const band = socialTitleBand(false);
-  const opts = { ...LAYOUT.social.title, maxHeight: band.bottom - band.top };
+  const opts = { ...LAYOUT.social.title, maxHeight: socialLowerThird({ kicker: "", subtitle: "" }).titleRoom };
 
   test("the title is as big as it fits, on as few lines as that allows", () => {
     const t = layoutTitle("5 types of accounts", m, opts);
@@ -117,17 +116,26 @@ describe("the thumbnail system", () => {
     expect(layoutTitle("5 types of\naccounts", m, opts).lines).toEqual(["5 TYPES OF", "ACCOUNTS"]);
     expect(layoutTitle("Assets", m, opts).lines).toEqual(["ASSETS"]);
   });
+  test("a series shares its hardest title's size", () => {
+    const base = { kicker: "TYPES OF ACCOUNTS", subtitle: "" };
+    const titles = ["Assets", "Liabilities", "Equity"];
+    const cap = seriesTitleCap(titles.map((title) => ({ ...base, title })), m);
+    const each = titles.map((title) => fitSocialTitle({ ...base, title, titleCap: null }, m).size);
+    expect(cap).toBe(Math.min(...each));
+    expect(each[0]).toBeGreaterThan(cap!);
+    for (const title of titles) expect(fitSocialTitle({ ...base, title, titleCap: cap }, m).size).toBe(cap!);
+    expect(seriesTitleCap([], m)).toBeNull();
+  });
   test("a title that can't fit says so", () => {
     expect(layoutTitle("Supercalifragilisticexpialidocious", m, opts).fits).toBe(false);
   });
 
   test("the social cover keeps its critical words inside the grid crops", () => {
     const [g34, g11] = GRID_CROPS.map((g) => g.box);
-    for (const sub of [false, true]) {
-      const b = socialTitleBand(sub);
-      expect(b.top).toBeGreaterThanOrEqual(g11.y);
-      expect(b.bottom).toBeLessThanOrEqual(g11.y + g11.h);
-    }
+    const b = socialLowerThird({ kicker: "TYPES OF ACCOUNTS", subtitle: "x" });
+    expect(b.top).toBeGreaterThanOrEqual(g11.y);
+    expect(b.bottom).toBeLessThanOrEqual(g11.y + g11.h);
+    expect(b.titleRoom).toBeGreaterThan(LAYOUT.social.title.minSize * 0.72);
     expect(LAYOUT.social.pill.y).toBeGreaterThanOrEqual(g34.y);
     const wmBottom = LAYOUT.social.mark.baseline + LAYOUT.social.mark.wordmark * WORDMARK.drop;
     expect(wmBottom).toBeLessThanOrEqual(g34.y + g34.h);

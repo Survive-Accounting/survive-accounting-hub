@@ -19,7 +19,7 @@ import { loadBlastPlan } from "@/lib/blastoff.functions";
 import { exportSvg } from "@/lib/brand-kit/export-png";
 import { measureText } from "@/lib/brand-kit/measure";
 import {
-  CONCEPT_HINT, CONCEPT_KINDS, defaultThumbSpec, exportProblem, layoutTitle, LAYOUT, SITE_EXPORT, SOCIAL_EXPORT, socialTitleBand,
+  CONCEPT_HINT, CONCEPT_KINDS, defaultThumbSpec, exportProblem, fitSocialTitle, SITE_EXPORT, SOCIAL_EXPORT,
   THUMB_VARIANTS, thumbFilename, TITLE_TRACKING, VISUAL_TYPES, type ThumbMode, type ThumbSpec, type VisualType,
 } from "@/lib/brand-kit/thumbnail";
 import { colorwayFor, KIT, NEUTRAL_COLORWAY_ID, type Colorway } from "@/lib/brand-kit/tokens";
@@ -114,9 +114,7 @@ export function ThumbnailStudio({ context, takeFile, onTakeFile, compact = false
     } catch (e) { setPictureErr(e instanceof Error ? e.message : String(e)); }
   };
 
-  const S = LAYOUT.social;
-  const band = socialTitleBand(!!spec.subtitle.trim());
-  const titleFit = layoutTitle(spec.title, (t, size) => measureText(t, size, 900, KIT.display, TITLE_TRACKING), { ...S.title, maxHeight: band.bottom - band.top });
+  const titleFit = fitSocialTitle(spec, (t, size) => measureText(t, size, 900, KIT.display, TITLE_TRACKING));
 
   const socialRef = useRef<SVGSVGElement>(null);
   const siteRef = useRef<SVGSVGElement>(null);
@@ -151,6 +149,10 @@ export function ThumbnailStudio({ context, takeFile, onTakeFile, compact = false
             </label>
             <input value={spec.part} onChange={(e) => patch({ part: e.target.value })} placeholder="03 or Easy Points" style={input} />
           </div>
+        </Field>
+
+        <Field label="Kicker · social cover only" hint="Optional small line over the title — the series, e.g. TYPES OF ACCOUNTS.">
+          <input value={spec.kicker} onChange={(e) => patch({ kicker: e.target.value })} placeholder="TYPES OF ACCOUNTS" style={input} />
         </Field>
 
         <Field label="Title · social cover only" hint={titleFit.fits ? "Enter forces a line break. The site thumbnail carries no title — /learn prints it under the card." : <span style={{ color: BAD }}>Too long to fit at any size — shorten it or break it with Enter.</span>}>
@@ -254,7 +256,7 @@ export function ThumbnailStudio({ context, takeFile, onTakeFile, compact = false
         <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 12 }}>
           <div>
             <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${V3_EDGE}`, width: bigW }}>
-              <ThumbnailArt ref={socialRef} spec={spec} colorway={cw} mode="social" guides={guides} width={bigW} />
+              <ThumbnailArt ref={socialRef} spec={spec} colorway={cw} mode="social" guides={guides} width={bigW} live />
             </div>
             <div style={{ marginTop: 6, fontSize: 11.5, fontWeight: 800 }}>Social cover <span style={{ color: V3_MUTED, fontWeight: 600 }}>· 1080×1920 PNG</span></div>
             <div style={{ marginTop: 6 }}>
@@ -263,7 +265,7 @@ export function ThumbnailStudio({ context, takeFile, onTakeFile, compact = false
           </div>
           <div>
             <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${V3_EDGE}`, width: bigW }}>
-              <ThumbnailArt ref={siteRef} spec={spec} colorway={cw} mode="site" guides={guides} width={bigW} />
+              <ThumbnailArt ref={siteRef} spec={spec} colorway={cw} mode="site" guides={guides} width={bigW} live />
             </div>
             <div style={{ marginTop: 6, fontSize: 11.5, fontWeight: 800 }}>Site thumbnail <span style={{ color: V3_MUTED, fontWeight: 600 }}>· 720×1280 WebP</span></div>
             <div style={{ marginTop: 6 }}>
@@ -285,8 +287,8 @@ export function ThumbnailStudio({ context, takeFile, onTakeFile, compact = false
                 <button key={id} type="button" onClick={() => setFocus(id)} title={`Edit the ${c.name} version`}
                   style={{ all: "unset", cursor: "pointer", padding: 6, borderRadius: 12, border: `1.5px solid ${on ? V3_GOLD : "transparent"}` }}>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <div style={{ borderRadius: 8, overflow: "hidden" }}><ThumbnailArt ref={(el) => { tiles.current[`social:${id}`] = el; }} spec={spec} colorway={c} mode="social" width={tileW} /></div>
-                    <div style={{ borderRadius: 8, overflow: "hidden" }}><ThumbnailArt ref={(el) => { tiles.current[`site:${id}`] = el; }} spec={spec} colorway={c} mode="site" width={tileW} /></div>
+                    <div style={{ borderRadius: 8, overflow: "hidden" }}><ThumbnailArt ref={(el) => { tiles.current[`social:${id}`] = el; }} spec={spec} colorway={c} mode="social" width={tileW} live /></div>
+                    <div style={{ borderRadius: 8, overflow: "hidden" }}><ThumbnailArt ref={(el) => { tiles.current[`site:${id}`] = el; }} spec={spec} colorway={c} mode="site" width={tileW} live /></div>
                   </div>
                   <div style={{ marginTop: 5, fontSize: 11.5, fontWeight: 800, color: on ? V3_GOLD : V3_CREAM }}>{c.name}</div>
                 </button>

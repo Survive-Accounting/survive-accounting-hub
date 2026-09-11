@@ -56,8 +56,13 @@ export interface ThumbSpec {
   part: string;
   /** Replaces the series label outright when set (the social template's free eyebrow). */
   eyebrow: string;
+  /** Social only: the small line over the title — the series a video belongs to ("TYPES OF ACCOUNTS"). */
+  kicker: string;
   /** Social only. A line break forces one. */
   title: string;
+  /** Social only: the largest the title may be set. A series sets it to the size its hardest title
+   *  fits at, so five covers in a row read at one size. null = as large as this title fits. */
+  titleCap: number | null;
   /** Social only, optional. */
   subtitle: string;
   variant: ThumbVariant;
@@ -79,7 +84,7 @@ export interface ThumbSpec {
 
 export function defaultThumbSpec(p: Partial<ThumbSpec> = {}): ThumbSpec {
   return {
-    exam: 1, part: "", eyebrow: "", title: "", subtitle: "",
+    exam: 1, part: "", eyebrow: "", kicker: "", title: "", titleCap: null, subtitle: "",
     variant: "STANDARD", visualType: "concept",
     frame: null, frameZoom: 1, frameY: 0,
     illustration: null, illustrationZoom: 1,
@@ -134,17 +139,33 @@ export const LAYOUT = {
     pill: { x: 72, y: 284 },
     visual: { x: 90, y: 400, w: 900, h: 720 },
     title: { top: 1180, bottom: 1500, maxWidth: 900, maxSize: 150, minSize: 84, maxLines: 3, leading: 0.98 },
+    kicker: { size: 46, tracking: 0.16, gap: 26 },
     subtitle: { size: 44, gap: 30 },
     accentLine: { w: 96, h: 8, gap: 40 },
     mark: { baseline: 1618, wordmark: 66, bolt: 120 },
   },
 } as const;
 
-/** The band the social title is centred in — shorter by the subtitle's room when there is one. */
-export function socialTitleBand(hasSubtitle: boolean): { top: number; bottom: number } {
+/** THE SOCIAL LOWER THIRD, measured: kicker, title and subtitle share one band and are centred in
+ *  it as a group; the title gets whatever height the other two leave. */
+export function socialLowerThird(spec: Pick<ThumbSpec, "kicker" | "subtitle">) {
   const S = LAYOUT.social;
-  const subH = hasSubtitle ? S.subtitle.gap + S.subtitle.size * (0.72 + 0.22) : 0;
-  return { top: S.title.top, bottom: S.title.bottom - subH };
+  const kickerH = spec.kicker.trim() ? S.kicker.size * 0.72 + S.kicker.gap : 0;
+  const subtitleH = spec.subtitle.trim() ? S.subtitle.gap + S.subtitle.size * (0.72 + 0.22) : 0;
+  return { top: S.title.top, bottom: S.title.bottom, kickerH, subtitleH, titleRoom: S.title.bottom - S.title.top - kickerH - subtitleH };
+}
+
+/** The social title's lines and size, inside the room the lower third leaves it and under its cap. */
+export function fitSocialTitle(spec: Pick<ThumbSpec, "title" | "kicker" | "subtitle" | "titleCap">, measure: Measure): TitleLayout {
+  const S = LAYOUT.social;
+  const maxSize = spec.titleCap ? Math.max(S.title.minSize, Math.min(S.title.maxSize, Math.floor(spec.titleCap))) : S.title.maxSize;
+  return layoutTitle(spec.title, measure, { ...S.title, maxSize, maxHeight: socialLowerThird(spec).titleRoom });
+}
+
+/** THE SERIES SIZE: the size the hardest title in a set fits at — the cap every cover in it shares. */
+export function seriesTitleCap(specs: readonly Pick<ThumbSpec, "title" | "kicker" | "subtitle">[], measure: Measure): number | null {
+  const sizes = specs.filter((s) => s.title.trim()).map((s) => fitSocialTitle({ ...s, titleCap: null }, measure).size);
+  return sizes.length ? Math.min(...sizes) : null;
 }
 
 /** Rubik's cap height, as a share of the size — the title and every display line are placed by it. */
