@@ -17,6 +17,7 @@
 // comes straight from getGoChapter (public, unauth, count only — no names).
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { Users, Check, X, ArrowRight, Share2 } from "lucide-react";
 
 import { NEON } from "@/components/canvas/theme";
@@ -26,6 +27,7 @@ import { ChapterAccessForm } from "@/components/site/ChapterAccessForm";
 import { ChapterShareSheet } from "@/components/learn/ChapterShareSheet";
 import { getGoChapter, listGoChapters, tagChapterMember } from "@/lib/greek-go.functions";
 import { deviceAnonId } from "@/lib/device-id";
+import { schoolBySlug } from "@/lib/schools";
 
 const AMBER = NEON.yellow;
 
@@ -94,6 +96,7 @@ export function LearnCta({
   const [dismissed, setDismissed] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const [view, setView] = useState<"bar" | "pick" | "setup" | "share">("bar");
+  const navigate = useNavigate();
   const [joinBusy, setJoinBusy] = useState(false);
   const [justJoined, setJustJoined] = useState(false);
 
@@ -172,9 +175,12 @@ export function LearnCta({
     setPicked(slug);
     if (!testing) ls.set(kPick(campusSlug), slug);
     window.dispatchEvent(new CustomEvent(CTA_CHAPTER_EVENT));
-    // Picking a chapter is the chair's path to the deliverable: go straight to the share sheet
-    // (what-you-get + the link), not back to the bar.
-    setView("share");
+    // THE CHAPTER'S OWN PAGE (Lee, 2026-09-11: "If you pick a chapter just load that chapter's
+    // /learn pretty url page. This way, when a user adds their email, we'll know they're from
+    // this chapter."): /learn/<school>/<chapter> — the letters go over the bolt and every email
+    // the page collects carries the chapter. (It used to open the share sheet here.)
+    setView("bar");
+    void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: schoolBySlug(campusSlug)?.id ?? campusSlug, chapter: slug } });
   };
 
   const dismiss = () => {

@@ -19,7 +19,7 @@ import { withRef } from "@/lib/contact-ref";
 
 export const SHARE_ORIGIN = "https://surviveaccounting.com";
 /** Search keys that are the page's own state, never the link's. */
-const VOLATILE = ["set", "stage", "topic", "look", "looks", "test", "demo"] as const;
+const VOLATILE = ["set", "stage", "topic", "look", "looks", "test", "demo", "share", "c"] as const;
 export const SHARE_UTM = { utm_source: "share", utm_medium: "link", utm_campaign: "learn" } as const;
 
 export type ShareContext = {

@@ -80,6 +80,7 @@ import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome
 import { LearnTextLee } from "@/components/learn/LearnTextLee";
 import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
 import { ReviewSheet } from "@/components/learn/ReviewSheet";
+import { LearnShareKit } from "@/components/learn/LearnShareKit";
 import { pageShareUrl } from "@/lib/share-url";
 import { CramPlayer, type PlayerItem } from "@/components/learn/CramPlayer";
 import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
@@ -102,6 +103,10 @@ type LearnSearch = {
   look?: Look;
   /** ?looks=1 — mount the floating look picker (LearnLookPicker). */
   looks?: true;
+  /** THE SHARE KIT (2026-09-11): ?share=council (+ ?c=<council slug>) for a council chair, ?share=chair
+   *  for a chapter's chair — LearnShareKit above the hero. Never copied onward (share-url strips both). */
+  share?: "council" | "chair";
+  c?: string;
 };
 
 export const Route = createFileRoute("/learn/{-$campus}/{-$chapter}")({
@@ -118,6 +123,8 @@ export const Route = createFileRoute("/learn/{-$campus}/{-$chapter}")({
     test: typeof s.test === "string" && s.test ? s.test : undefined,
     look: isLook(s.look) && s.look !== DEFAULT_LOOK ? s.look : undefined,
     looks: s.looks === true || s.looks === 1 || s.looks === "1" || s.looks === "true" ? true : undefined,
+    share: s.share === "council" || s.share === "chair" ? s.share : undefined,
+    c: typeof s.c === "string" && /^[a-z0-9-]{1,40}$/.test(s.c) ? s.c : undefined,
   }),
   // A SHARED /s/<campus> LINK LANDS HERE. That route is a redirect, so the preview a chat app
   // builds comes from THIS page's tags — and with only a title it previewed as the generic site
@@ -503,12 +510,13 @@ function LearnShell() {
       <style>{LEARN_CSS}</style>
       {/* ONE loading screen: the brand splash stays up while the tree loads (and for its beat on a
           first visit), so there is never a second "loading" view behind it. */}
-      <LearnLoading loading={isLoading} school={school} onArrive={() => setArrive((n) => n + 1)} />
+      <LearnLoading loading={isLoading} school={school} campusName={campusName} courseCode={school?.courseCode ?? null} onArrive={() => setArrive((n) => n + 1)} />
 
       <LearnTop
         school={school} campusId={campusId} campusName={campusName}
         exams={examTabs} examNum={examNum} onPickExam={setExamNum}
-        chapter={chapter.slug ? { name: chapter.name, letters: chapter.letters, members: chapter.members } : null}
+        chapter={chapter.slug ? { slug: chapter.slug, name: chapter.name, letters: chapter.letters, members: chapter.members } : null}
+        onPickChapter={() => openLearnCta("pick")}
         theme={theme}
         onPickSchool={() => setPickerOpen(true)}
         onShare={share} arrive={arrive}
@@ -550,6 +558,15 @@ function LearnShell() {
             campusId={campusId} demo={demo}
             unlocked={unlocked} onUnlocked={() => setUnlocked(true)}
             school={school}
+            chapterSlug={chapter.slug}
+            kit={search.share && school ? (
+              <LearnShareKit
+                mode={search.share} councilSlug={search.c ?? null} school={school}
+                chapter={chapter.slug ? { slug: chapter.slug, name: chapter.name, letters: chapter.letters } : null}
+                contactRef={search.by ?? search.ref ?? null} narrow={isNarrow}
+                onClose={() => void navigate({ search: (p: LearnSearch) => ({ ...p, share: undefined, c: undefined }), replace: true })}
+              />
+            ) : null}
           />
         )}
       </div>
