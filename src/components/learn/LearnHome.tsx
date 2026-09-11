@@ -53,8 +53,8 @@
 //     row every card without a posted video is grayscale + dimmed, never removed, so a student
 //     who comes back sees the library growing. A posted card is in full colour.
 //   · "START HERE: EASY POINTS." The first heading says where to start; one cue per tier on top
-//     of it: mid / wide pulse the first row's outline for ~2 s on first paint (once a session,
-//     learn-gate's START_PULSE_KEY), narrow shows a small "start here ↓" label over the first card.
+//     of it: a small "start here ↓" label over the first card. (The outline pulse that ran for ~2 s
+//     on first paint is gone — Lee, 2026-09-11, later: "Lose the border highlight thing".)
 //   · NO "COMING SOON" ANYWHERE. A collapsed topic reads "N videos" only. Opening a topic with no
 //     posted video shows its grey cards blurred under "Get notified when these drop." / Join the
 //     waitlist (submitIntake, source learn-waitlist) and a tease of the whole exam's real counts
@@ -120,7 +120,7 @@ import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { CONTENT_MAX, LK, SIDE_PAD, type LearnTheme } from "@/components/learn/learn-theme";
 import { fmtRuntime, muxThumb } from "@/components/learn/cram-media";
-import { averageVideoCaption, EMAIL_RE, emailGateNeeded, isUuid, practiceGateNeeded, questionCount, readStartPulsed, topicRowDetail, waitlistNeeded, writeStartPulsed, writeUnlocked, type GateSet } from "@/components/learn/learn-gate";
+import { averageVideoCaption, EMAIL_RE, emailGateNeeded, isUuid, practiceGateNeeded, questionCount, topicRowDetail, waitlistNeeded, writeUnlocked, type GateSet } from "@/components/learn/learn-gate";
 import { LearnEntrance } from "@/components/learn/LearnEntrance";
 import type { RailKey } from "@/components/learn/LearnRail";
 import { CRAM_MACHINE_CSS } from "@/components/learn/CramMachine";
@@ -172,11 +172,6 @@ function gateSetOf(s: HomeSet): GateSet {
 /** The hover glow: the school's second colour, else the brand blue (Lee, 2026-09-10). */
 const GLOW_BLUE = "#3B82F6";
 function glowFor(school: School | null): string { return school?.c2 ?? GLOW_BLUE; }
-
-/** How long after the home mounts the start pulse begins — past the loading moment's wipe
- *  (LearnLoading: ~1000 ms beat + 600 ms wipe), so it is seen, not hidden under the reveal. */
-const START_PULSE_DELAY_MS = 1200;
-const START_PULSE_MS = 2100;
 
 /** COMING SOON — the tag a later topic wears when nothing in it is posted (the polish brief, 09-11:
  *  "The waitlist state itself is enough"). Small caps, quiet; never a count beside it. */
@@ -272,17 +267,15 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   // GET STARTED. Opens the first playable video of the first topic; with none playable it scrolls
   // to the first row and outlines it for a second, so the click always lands somewhere visible.
   const firstRow = useRef<HTMLElement | null>(null);
-  const [outlined, setOutlined] = useState(false);
-  useEffect(() => { if (!outlined) return; const t = window.setTimeout(() => setOutlined(false), 1000); return () => window.clearTimeout(t); }, [outlined]);
   // THE CTA'S LANDING (the polish brief, 09-11): scroll Easy Points into view, put keyboard focus
-  // on its first card, outline the row once. With a playable first lesson the existing mechanism
+  // on its first card (its focus ring is the cue — no outline pulse: Lee, later, "Lose the border
+  // highlight thing"). With a playable first lesson the existing mechanism
   // opens it straight away (the player is the strongest "start"); the landing is for the day
   // nothing is playable yet, and it is what autoplay would hang off later.
   const seeExam = () => {
     const row = firstRow.current;
     row?.scrollIntoView({ behavior: "smooth", block: "start" });
     row?.querySelector<HTMLElement>(".lk-short, .lk-practice")?.focus({ preventScroll: true });
-    setOutlined(true);
   };
   const firstTopic = byTopic[0] ?? null;
   const startFirst = () => {
@@ -291,17 +284,6 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   };
   const firstRowRef = (el: HTMLElement | null) => { firstRow.current = el; rowRef("cram")(el); };
   const reveal = useReveal();
-
-  // THE START CUE (mid / wide): the first row's outline pulses once a session, after the loading
-  // moment has revealed the page. Narrow has its "start here" label instead — one cue per tier.
-  const [pulse, setPulse] = useState(false);
-  useEffect(() => {
-    if (tier === "narrow" || readStartPulsed()) return;
-    writeStartPulsed();
-    const start = window.setTimeout(() => setPulse(true), START_PULSE_DELAY_MS);
-    const stop = window.setTimeout(() => setPulse(false), START_PULSE_DELAY_MS + START_PULSE_MS);
-    return () => { window.clearTimeout(start); window.clearTimeout(stop); };
-  }, [tier]);
 
   // THE ONE EMAIL. Both boxes — unlock and waitlist — capture the same address; once it is in
   // (any visit: `unlocked`; or the student is signed in) nothing asks again.
@@ -348,7 +330,7 @@ export const LearnHome = forwardRef<HTMLDivElement, {
             </div>
           );
           return (
-            <section key={id} id={topicSectionId(id)} ref={first ? firstRowRef : reveal} data-tier={tier} className={`lk-topic-sec flex flex-col gap-3${first ? "" : " lk-reveal"}${first && outlined ? " lk-outlined" : ""}${first && pulse ? " lk-start-pulse" : ""}`} style={{ scrollMarginTop: 16, animationDelay: first ? undefined : `${Math.min(i, 6) * 40}ms` }}>
+            <section key={id} id={topicSectionId(id)} ref={first ? firstRowRef : reveal} data-tier={tier} className={`lk-topic-sec flex flex-col gap-3${first ? "" : " lk-reveal"}`} style={{ scrollMarginTop: 16, animationDelay: first ? undefined : `${Math.min(i, 6) * 40}ms` }}>
               {first ? (
                 <TopicHead topic={topic} sets={ts} school={school} tier={tier} examLabel={examLabel} />
               ) : (

@@ -1,7 +1,12 @@
 // THE NAVBAR (redesign, 2026-09-11 — docs/LEARN-REDESIGN-PROPOSAL-2026-09-11.md §1).
 //
-//   [BIG bolt]  survive │ Ole Miss ▾                Leave a review   [Share]  [≡]
-//     ΑΤΟ               │ ACCY 201 · Exam 1 ▾
+//   survive │ [BIG bolt]  Ole Miss ▾               Leave a review   [Share]  [≡]
+//           │    ΑΤΟ      ACCY 201 · Exam 1 ▾
+//
+// (Lee, 2026-09-11, later: "survive | bolt (campus) / course code · exam # in the navbar top left"
+// — the wordmark first, a rule, then the campus bolt with the two-line block beside it. The Greek
+// letters over the bolt grew to 0.42 of its height "so they can be read". The bolt carries
+// NAV_BOLT_ID: the loading screen's bolt drops into it, and `arrive` pops it to catch the drop.)
 //
 // LEFT: the campus bolt, big (44px tall on wide / 36 on narrow, BoltBoil in the school's colours),
 // and when the share funnel knows the student's chapter its Greek letters sit centred over the
@@ -58,10 +63,20 @@ import { submitIntake } from "@/lib/intake.functions";
 import { useDismiss } from "@/lib/use-dismiss";
 import { LK, type LearnTheme } from "@/components/learn/learn-theme";
 import { LEARN_MENU_CSS, LearnMenu } from "@/components/learn/LearnMenu";
+import { NAV_BOLT_ID } from "@/components/learn/LearnLoading";
 
 export type TopProgress = { total: number; done: number; secondsLeft: number | null };
 
 const pickKey = (campusSlug: string) => `sa-cta-chapter-${campusSlug}`;
+/** The CTA picker's storage key for a campus — the pretty /learn/<campus>/<chapter> path writes it. */
+export const chapterPickKey = pickKey;
+
+/** THE ARRIVAL — the navbar bolt catches the loading screen's drop (the home page's sa-bolt-arrive). */
+const ARRIVE_CSS = `
+@keyframes lk-bolt-arrive { 0% { opacity: .15; transform: scale(.72); } 62% { transform: scale(1.06); } 100% { opacity: 1; transform: scale(1); } }
+.lk-bolt-arrive { animation: lk-bolt-arrive 320ms cubic-bezier(.2, .9, .3, 1.2) both; transform-origin: 50% 55%; }
+@media (prefers-reduced-motion: reduce) { .lk-bolt-arrive { animation: none; } }
+`;
 
 /** The CTA bar's picked chapter, read from ITS localStorage key so the two never disagree.
  *  `letters` rides along for the header's Greek identity treatment — same field, same fallback
@@ -106,7 +121,7 @@ const BOLT_H = { narrow: 36, wide: 44 } as const;
 export type TopYou = { email: string | null; userId: string | null; onSignIn: () => void; signOut: () => void };
 
 export function LearnTop({
-  school, campusId, campusName, exams, examNum, onPickExam, chapter, theme, onPickSchool, onShare, onReview, you, demo, narrow,
+  school, campusId, campusName, exams, examNum, onPickExam, chapter, theme, onPickSchool, onShare, onReview, you, demo, narrow, arrive = 0,
 }: {
   school: School | null;
   campusId: string | null;
@@ -119,8 +134,10 @@ export function LearnTop({
   theme: LearnTheme;
   /** Opens the in-place school picker (LearnSchoolSheet) — never a navigation. */
   onPickSchool: () => void;
-  /** The page's share — copies the smart link (learn.tsx). */
-  onShare: () => void;
+  /** The page's share — copies the page's link (learn.tsx); true when it landed on the clipboard. */
+  onShare: () => Promise<boolean>;
+  /** Counts the loading screen's drop-ins; each one pops the bolt to catch it. */
+  arrive?: number;
   /** Opens the review sheet (learn.tsx mounts ReviewSheet). */
   onReview: () => void;
   /** Sign in / sign out for the hamburger. */
@@ -136,6 +153,9 @@ export function LearnTop({
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuBtn = useRef<HTMLButtonElement | null>(null);
+  // "Link copied!" in the button for a moment after a copy (Lee: "and that's it").
+  const [copied, setCopied] = useState(false);
+  const shareNow = async () => { const ok = await onShare(); if (ok) { setCopied(true); window.setTimeout(() => setCopied(false), 2200); } };
   const closeMenu = () => { setMenuOpen(false); menuBtn.current?.focus(); };
   const [reminderOpen, setReminderOpen] = useState(false);
   const [waitlistExam, setWaitlistExam] = useState<number | null>(null);
@@ -153,17 +173,18 @@ export function LearnTop({
     <>
       <header className="flex shrink-0 flex-col" style={{ background: theme.topBg, borderBottom: `2px solid ${hairline}`, color: ink, padding: `${narrow ? 8 : 12}px ${pad}px ${narrow ? 10 : 12}px`, gap: narrow ? 8 : 10, fontFamily: BRAND_SANS }}>
         <div className="flex items-center" style={{ gap: narrow ? 8 : 14, minHeight: boltH }}>
-          {/* THE BIG BOLT, with the chapter's letters held still over it. */}
-          <span className="relative inline-block shrink-0" style={{ lineHeight: 0 }} title={letters ? `${letters} · ${schoolName ?? "your campus"}` : undefined}>
+          {/* THE WORDMARK — "survive" only — then a rule, then the campus. */}
+          <span className="lk-disp shrink-0" style={{ fontSize: narrow ? 15 : 21, letterSpacing: "-0.01em", lineHeight: 1, color: ink }}>survive</span>
+          <span aria-hidden className="shrink-0 self-stretch" style={{ width: 1, background: rule, minHeight: boltH }} />
+          {/* THE BIG BOLT, with the chapter's letters held still over it. It catches the drop. */}
+          <span key={arrive} id={NAV_BOLT_ID} className={`relative inline-block shrink-0${arrive > 0 ? " lk-bolt-arrive" : ""}`} style={{ lineHeight: 0 }} title={letters ? `${letters} · ${schoolName ?? "your campus"}` : undefined}>
             <BoltBoil height={boltH} red={school?.c1 ?? undefined} blue={school?.c2 ?? undefined} cream={ink} boilSeconds={1.2} />
             {letters && (
-              <span aria-hidden className="absolute inset-0 grid place-items-center" style={{ pointerEvents: "none", color: "#F5EFE6", fontFamily: BRAND_DISPLAY, fontWeight: 800, fontSize: Math.round(boltH * 0.3), letterSpacing: "0.02em", lineHeight: 1, textShadow: "0 1px 2px rgba(0,0,0,0.85), 0 0 6px rgba(0,0,0,0.6)", whiteSpace: "nowrap" }}>{letters}</span>
+              <span aria-hidden className="absolute inset-0 grid place-items-center" style={{ pointerEvents: "none", color: "#F5EFE6", fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: Math.round(boltH * 0.42), letterSpacing: "0.01em", lineHeight: 1, textShadow: "0 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.7)", whiteSpace: "nowrap" }}>{letters}</span>
             )}
           </span>
-          {/* THE WORDMARK — "survive" only. */}
-          <span className="lk-disp shrink-0" style={{ fontSize: narrow ? 15 : 21, letterSpacing: "-0.01em", lineHeight: 1, color: ink }}>survive</span>
           {/* THE TWO-LINE BLOCK: campus over course · exam. */}
-          <div className="flex min-w-0 flex-col justify-center border-l" style={{ borderColor: rule, paddingLeft: narrow ? 10 : 14, gap: 1 }}>
+          <div className="flex min-w-0 flex-col justify-center" style={{ gap: 1 }}>
             <button type="button" onClick={onPickSchool} className="flex min-w-0 items-center gap-1 text-left" title="Change school" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", color: schoolName ? ink : LK.acc, fontSize: narrow ? 13.5 : 15, fontWeight: 800, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 22 : 24 }}>
               <span className="truncate">{schoolName ?? "Pick your school"}</span>
               <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: muted }} aria-hidden />
@@ -182,20 +203,20 @@ export function LearnTop({
             <button type="button" onClick={onReview} className="shrink-0" style={{ background: "transparent", border: 0, padding: "0 4px", color: ink, fontSize: 13.5, fontWeight: 700, opacity: 0.9, minHeight: 36, display: "inline-flex", alignItems: "center", cursor: "pointer", fontFamily: "inherit" }}>Leave a review</button>
           )}
           {narrow ? (
-            <button type="button" onClick={onShare} aria-label="Share — copy the link" title="Copy link" className="grid shrink-0 place-items-center rounded-full" style={{ ...iconBtn, width: 40, height: 40 }}><Link2 className="h-[18px] w-[18px]" aria-hidden /></button>
+            <button type="button" onClick={() => void shareNow()} aria-label={copied ? "Link copied!" : "Share — copy the link"} title="Copy link" className="grid shrink-0 place-items-center rounded-full" style={{ ...iconBtn, width: 40, height: 40, color: copied ? LK.acc : ink }}>{copied ? <Check className="h-[18px] w-[18px]" aria-hidden /> : <Link2 className="h-[18px] w-[18px]" aria-hidden />}</button>
           ) : (
-            <button type="button" onClick={onShare} title="Copy link" className="inline-flex shrink-0 items-center gap-2 rounded-full" style={{ minHeight: 38, padding: "0 16px", border: `1px solid ${rule}`, background: "transparent", color: ink, cursor: "pointer", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit" }}><Link2 className="h-4 w-4" aria-hidden /> Share</button>
+            <button type="button" onClick={() => void shareNow()} title="Copy link" aria-live="polite" className="inline-flex shrink-0 items-center gap-2 rounded-full" style={{ minHeight: 38, padding: "0 16px", border: `1px solid ${copied ? LK.acc : rule}`, background: copied ? LK.acc : "transparent", color: copied ? LK.accInk : ink, cursor: "pointer", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit", transition: "background 160ms, color 160ms, border-color 160ms" }}>{copied ? <Check className="h-4 w-4" aria-hidden /> : <Link2 className="h-4 w-4" aria-hidden />} {copied ? "Link copied!" : "Share"}</button>
           )}
           <button ref={menuBtn} type="button" onClick={() => setMenuOpen(true)} aria-label="Menu" aria-haspopup="dialog" aria-expanded={menuOpen} className="grid shrink-0 place-items-center rounded-full" style={{ ...iconBtn, width: narrow ? 40 : 44, height: narrow ? 40 : 44 }}><HamburgerGlyph /></button>
         </div>
 
       </header>
 
-      <style>{LEARN_MENU_CSS}</style>
+      <style>{LEARN_MENU_CSS + ARRIVE_CSS}</style>
       {menuOpen && (
         <LearnMenu
           narrow={narrow} you={you} onClose={closeMenu}
-          onShare={() => { closeMenu(); onShare(); }}
+          onShare={() => { closeMenu(); void shareNow(); }}
           onReminders={() => { setMenuOpen(false); setReminderOpen(true); }}
           onReview={() => { setMenuOpen(false); onReview(); }}
         />

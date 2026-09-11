@@ -29,7 +29,6 @@ import { Route as OrderRouteImport } from './routes/order'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as LogoLabRouteImport } from './routes/logo-lab'
 import { Route as LeeportalRouteImport } from './routes/leeportal'
-import { Route as LearnRouteImport } from './routes/learn'
 import { Route as LandingRouteImport } from './routes/landing'
 import { Route as JeRouteImport } from './routes/je'
 import { Route as IntroOutroRouteImport } from './routes/intro-outro'
@@ -137,6 +136,7 @@ import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreac
 import { Route as OutreachGreekOrgsVendorQueueRouteImport } from './routes/outreach.greek-orgs_.vendor-queue'
 import { Route as OutreachGreekOrgsQueueRouteImport } from './routes/outreach.greek-orgs_.queue'
 import { Route as OutreachGreekOrgsPeopleQueueRouteImport } from './routes/outreach.greek-orgs_.people-queue'
+import { Route as LearnChar123CampusChar125Char123ChapterChar125RouteImport } from './routes/learn.{-$campus}.{-$chapter}'
 import { Route as GoDemoDemoRouteImport } from './routes/go.demo.demo'
 import { Route as GoSchoolChapterRouteImport } from './routes/go.$school.$chapter'
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
@@ -300,11 +300,6 @@ const LogoLabRoute = LogoLabRouteImport.update({
 const LeeportalRoute = LeeportalRouteImport.update({
   id: '/leeportal',
   path: '/leeportal',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LearnRoute = LearnRouteImport.update({
-  id: '/learn',
-  path: '/learn',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LandingRoute = LandingRouteImport.update({
@@ -849,6 +844,12 @@ const OutreachGreekOrgsPeopleQueueRoute =
     path: '/greek-orgs/people-queue',
     getParentRoute: () => OutreachRoute,
   } as any)
+const LearnChar123CampusChar125Char123ChapterChar125Route =
+  LearnChar123CampusChar125Char123ChapterChar125RouteImport.update({
+    id: '/learn/{-$campus}/{-$chapter}',
+    path: '/learn/{-$campus}/{-$chapter}',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const GoDemoDemoRoute = GoDemoDemoRouteImport.update({
   id: '/demo',
   path: '/demo',
@@ -1208,7 +1209,6 @@ export interface FileRoutesByFullPath {
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
-  '/learn': typeof LearnRoute
   '/leeportal': typeof LeeportalRoute
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
@@ -1343,6 +1343,7 @@ export interface FileRoutesByFullPath {
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
   '/go/$school/$chapter': typeof GoSchoolChapterRoute
   '/go/demo/demo': typeof GoDemoDemoRoute
+  '/learn/{-$campus}/{-$chapter}': typeof LearnChar123CampusChar125Char123ChapterChar125Route
   '/outreach/greek-orgs/people-queue': typeof OutreachGreekOrgsPeopleQueueRoute
   '/outreach/greek-orgs/queue': typeof OutreachGreekOrgsQueueRoute
   '/outreach/greek-orgs/vendor-queue': typeof OutreachGreekOrgsVendorQueueRoute
@@ -1402,7 +1403,6 @@ export interface FileRoutesByTo {
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
-  '/learn': typeof LearnRoute
   '/leeportal': typeof LeeportalRoute
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
@@ -1533,6 +1533,7 @@ export interface FileRoutesByTo {
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
   '/go/$school/$chapter': typeof GoSchoolChapterRoute
   '/go/demo/demo': typeof GoDemoDemoRoute
+  '/learn/{-$campus}/{-$chapter}': typeof LearnChar123CampusChar125Char123ChapterChar125Route
   '/outreach/greek-orgs/people-queue': typeof OutreachGreekOrgsPeopleQueueRoute
   '/outreach/greek-orgs/queue': typeof OutreachGreekOrgsQueueRoute
   '/outreach/greek-orgs/vendor-queue': typeof OutreachGreekOrgsVendorQueueRoute
@@ -1593,7 +1594,6 @@ export interface FileRoutesById {
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
-  '/learn': typeof LearnRoute
   '/leeportal': typeof LeeportalRoute
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
@@ -1728,6 +1728,7 @@ export interface FileRoutesById {
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
   '/go/$school/$chapter': typeof GoSchoolChapterRoute
   '/go/demo/demo': typeof GoDemoDemoRoute
+  '/learn/{-$campus}/{-$chapter}': typeof LearnChar123CampusChar125Char123ChapterChar125Route
   '/outreach/greek-orgs_/people-queue': typeof OutreachGreekOrgsPeopleQueueRoute
   '/outreach/greek-orgs_/queue': typeof OutreachGreekOrgsQueueRoute
   '/outreach/greek-orgs_/vendor-queue': typeof OutreachGreekOrgsVendorQueueRoute
@@ -1789,7 +1790,6 @@ export interface FileRouteTypes {
     | '/intro-outro'
     | '/je'
     | '/landing'
-    | '/learn'
     | '/leeportal'
     | '/logo-lab'
     | '/onboard'
@@ -1924,6 +1924,7 @@ export interface FileRouteTypes {
     | '/ceq/$id/tutor'
     | '/go/$school/$chapter'
     | '/go/demo/demo'
+    | '/learn/{-$campus}/{-$chapter}'
     | '/outreach/greek-orgs/people-queue'
     | '/outreach/greek-orgs/queue'
     | '/outreach/greek-orgs/vendor-queue'
@@ -1983,7 +1984,6 @@ export interface FileRouteTypes {
     | '/intro-outro'
     | '/je'
     | '/landing'
-    | '/learn'
     | '/leeportal'
     | '/logo-lab'
     | '/onboard'
@@ -2114,6 +2114,7 @@ export interface FileRouteTypes {
     | '/ceq/$id/tutor'
     | '/go/$school/$chapter'
     | '/go/demo/demo'
+    | '/learn/{-$campus}/{-$chapter}'
     | '/outreach/greek-orgs/people-queue'
     | '/outreach/greek-orgs/queue'
     | '/outreach/greek-orgs/vendor-queue'
@@ -2173,7 +2174,6 @@ export interface FileRouteTypes {
     | '/intro-outro'
     | '/je'
     | '/landing'
-    | '/learn'
     | '/leeportal'
     | '/logo-lab'
     | '/onboard'
@@ -2308,6 +2308,7 @@ export interface FileRouteTypes {
     | '/ceq/$id/tutor'
     | '/go/$school/$chapter'
     | '/go/demo/demo'
+    | '/learn/{-$campus}/{-$chapter}'
     | '/outreach/greek-orgs_/people-queue'
     | '/outreach/greek-orgs_/queue'
     | '/outreach/greek-orgs_/vendor-queue'
@@ -2368,7 +2369,6 @@ export interface RootRouteChildren {
   IntroOutroRoute: typeof IntroOutroRoute
   JeRoute: typeof JeRouteWithChildren
   LandingRoute: typeof LandingRoute
-  LearnRoute: typeof LearnRoute
   LeeportalRoute: typeof LeeportalRoute
   LogoLabRoute: typeof LogoLabRoute
   OnboardRoute: typeof OnboardRoute
@@ -2448,6 +2448,7 @@ export interface RootRouteChildren {
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   ApiThumbSetIdRoute: typeof ApiThumbSetIdRoute
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
+  LearnChar123CampusChar125Char123ChapterChar125Route: typeof LearnChar123CampusChar125Char123ChapterChar125Route
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
   PartnersNationalOrgRoute: typeof PartnersNationalOrgRoute
   RepJoinCampusRoute: typeof RepJoinCampusRoute
@@ -2615,13 +2616,6 @@ declare module '@tanstack/react-router' {
       path: '/leeportal'
       fullPath: '/leeportal'
       preLoaderRoute: typeof LeeportalRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/learn': {
-      id: '/learn'
-      path: '/learn'
-      fullPath: '/learn'
-      preLoaderRoute: typeof LearnRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/landing': {
@@ -3373,6 +3367,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachGreekOrgsPeopleQueueRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/learn/{-$campus}/{-$chapter}': {
+      id: '/learn/{-$campus}/{-$chapter}'
+      path: '/learn/{-$campus}/{-$chapter}'
+      fullPath: '/learn/{-$campus}/{-$chapter}'
+      preLoaderRoute: typeof LearnChar123CampusChar125Char123ChapterChar125RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/go/demo/demo': {
       id: '/go/demo/demo'
       path: '/demo'
@@ -4067,7 +4068,6 @@ const rootRouteChildren: RootRouteChildren = {
   IntroOutroRoute: IntroOutroRoute,
   JeRoute: JeRouteWithChildren,
   LandingRoute: LandingRoute,
-  LearnRoute: LearnRoute,
   LeeportalRoute: LeeportalRoute,
   LogoLabRoute: LogoLabRoute,
   OnboardRoute: OnboardRoute,
@@ -4147,6 +4147,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   ApiThumbSetIdRoute: ApiThumbSetIdRoute,
   GoSchoolChapterRoute: GoSchoolChapterRoute,
+  LearnChar123CampusChar125Char123ChapterChar125Route:
+    LearnChar123CampusChar125Char123ChapterChar125Route,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
   PartnersNationalOrgRoute: PartnersNationalOrgRoute,
   RepJoinCampusRoute: RepJoinCampusRoute,

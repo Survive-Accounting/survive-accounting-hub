@@ -174,7 +174,7 @@ export function LaneMapPage() {
           pubKey={producing.key}
           title={producing.title}
           topicName={producing.topicName}
-          cover={{ setId: producing.key.split("#")[0] }}
+          coverSeed={{ setId: producing.key.split("#")[0] }}
           onTranscript={() => { /* the caption sheet lives on /v3/post; it re-reads the transcript there */ }}
           onOpenCopy={() => { void navigate({ to: "/v3/post", search: { open: producing.key } }); }}
           onClose={() => { setProducing(null); listPublishStatuses().then(setPublish).catch(() => { /* ticks refresh on the next load */ }); }}

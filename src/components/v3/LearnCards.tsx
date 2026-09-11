@@ -69,7 +69,7 @@ export function CramVideoCard({ title, made, playbackId, setId, admin }: { title
   return (
     <div>
       {made
-        ? <Link to="/learn" search={{ set: setId }} className="lk-short" style={{ textDecoration: "none" }} title={title}>{face}</Link>
+        ? <Link to="/learn/{-$campus}/{-$chapter}" search={{ set: setId }} className="lk-short" style={{ textDecoration: "none" }} title={title}>{face}</Link>
         : <div className="lk-short" style={{ cursor: "default", opacity: 0.85 }} title={title}>{face}</div>}
       {admin && <AdminStrip info={admin} />}
     </div>
@@ -95,7 +95,7 @@ export function OffshootCard({ o, parentName, index, admin, onRequest }: { o: Of
     <div className="lk-branch" style={{ animationDelay: `${index * 40}ms` }}>
       <div className="lk-stem" />
       {o.made
-        ? <Link to="/learn" search={{ set: o.id }} className="lk-off" data-made="true" style={{ textDecoration: "none" }}>{body}</Link>
+        ? <Link to="/learn/{-$campus}/{-$chapter}" search={{ set: o.id }} className="lk-off" data-made="true" style={{ textDecoration: "none" }}>{body}</Link>
         : <button type="button" className="lk-off" data-made="false" onClick={() => onRequest(o)}>{body}</button>}
       {admin && <AdminStrip info={admin} />}
     </div>

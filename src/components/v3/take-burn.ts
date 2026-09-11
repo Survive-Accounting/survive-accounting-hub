@@ -52,6 +52,12 @@ export function uploadAss(takeName: string, ass: string): Promise<string> {
   return stage(new File([ass], assName(takeName), { type: "text/plain" }), "ass", "blastoff-takes");
 }
 
+/** YOUR OWN THUMBNAIL (2026-09-11): the image, straight to canvas-media, kept per video on the row. */
+export function uploadCover(file: File): Promise<string> {
+  const ext = (file.name.match(/\.([A-Za-z0-9]{1,5})$/)?.[1] ?? "png").toLowerCase();
+  return stage(file, ext, "blastoff-covers");
+}
+
 
 /** Wake the worker, start the burn once, poll it to completion (burn-loop.ts). Resolves with
  *  the captioned file's public URL; rejects with the worker's own message — a burn that fails
