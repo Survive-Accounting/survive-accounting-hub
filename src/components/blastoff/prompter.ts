@@ -83,6 +83,7 @@ export const PHRASE_SLIDE_KINDS: readonly { kind: BlastFrameKind; label: string 
   { kind: "tricky", label: "Tricky question" },
   { kind: "tip", label: "Go deeper" },
   { kind: "found", label: "Found on your exam" },
+  { kind: "ask", label: "Ask yourself" },
 ];
 
 /** The set's live talk: its sessions' segments and stamp contexts. */

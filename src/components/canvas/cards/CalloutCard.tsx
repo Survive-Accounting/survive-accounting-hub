@@ -35,6 +35,9 @@ export const CALLOUT_KINDS: Record<Exclude<CalloutKind, "tutor" | "found-on-exam
   // days earlier: DISTRACTOR is what a test writer calls it, TRICKY is what a student needs to
   // hear. The internal kind stays "distractor" everywhere so no stored card has to change.
   distractor: { label: "TRICKY QUESTION", accent: "#C22B45", tint: "rgba(194,43,69,0.10)" },
+  // 2026-09-11, Lee: "Add a callout type for 'Ask Yourself' where I'll suggest prompted questions
+  // that help them get the answer." Teal — none of the other five.
+  "ask-yourself": { label: "ASK YOURSELF", accent: "#0E9AA7", tint: "rgba(14,154,167,0.10)" },
 };
 /** THE TUTOR CARD (Lee, 2026-09-03): the bio slide in the detour format. Not
  *  one of the five authoring kinds (the cycler never offers it) — Blast Off's
@@ -107,6 +110,7 @@ export function detourAccent(kind?: CalloutKind): string {
   if (kind === "deeper-idea") return "#7DD3FC";
   if (kind === "tutor") return "#FF6B6B";
   if (kind === "found-on-exam") return DETOUR.gold;
+  if (kind === "ask-yourself") return "#5EEAD4";
   return DETOUR.gold;
 }
 

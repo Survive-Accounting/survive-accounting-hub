@@ -58,7 +58,8 @@ export const illustrationSchema = z.object({
 // typed here in zod; rubric.test.ts and the round-trip test below keep the two honest. Every
 // box is a LIST of arrows (blank / ↑ / ↓ / ↑↓), never more than two. "dc" is accepted on the
 // wire — reserved for the debit / credit rubric — and refused at render (rubric.assertRenderable).
-const rubricArrows = z.array(z.enum(["up", "down"])).max(2);
+// NE ("No Effect", 2026-09-11) is the fifth state a box can hold.
+const rubricArrows = z.array(z.enum(["up", "down", "ne"])).max(2);
 export const rubricSchema = z.object({
   mode: z.enum(["ale", "dc"]),
   text: z.string().max(400),
@@ -66,6 +67,8 @@ export const rubricSchema = z.object({
   arrows: z.object({ A: rubricArrows, L: rubricArrows, E: rubricArrows, Rev: rubricArrows, Exp: rubricArrows }),
   show: z.enum(["arrows", "amounts"]),
   equityEffect: z.boolean(),
+  // 2026-09-11: show the Rev / Exp row (absent = only when it has something).
+  revExp: z.boolean().optional(),
 });
 
 export const frameSchema = z.object({

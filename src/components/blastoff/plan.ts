@@ -62,6 +62,10 @@ export const BLAST_FRAME_KINDS = [
   // "ve" becomes "bes", the room lights up, the camera and a large captions box take the frame,
   // and props pop in on the spacebar. Full-frame; its captions box is the rail's own branch.
   "survibes",
+  // 2026-09-11: ASK YOURSELF — Lee: "Add a callout type for 'Ask Yourself' where I'll suggest
+  // prompted questions that help them get the answer." A callout like the other five: the
+  // heading is the question, the lines under it the prompts. Canvas kind "ask-yourself" (teal).
+  "ask",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -188,7 +192,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -206,7 +210,7 @@ export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.incl
 
 /** THE FOUR CALLOUTS that can be drawn either way (2026-09-08, `BlastFrame.display`). The
  *  brand slides are always full-frame and a set card never is, so neither takes a choice. */
-export const BIG_CALLOUT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found"];
+export const BIG_CALLOUT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "ask"];
 export const canGoBig = (k: BlastFrameKind): boolean => BIG_CALLOUT_KINDS.includes(k);
 
 /** Is THIS FRAME drawn big? A `display` on a kind that has no big form is ignored rather than
@@ -252,6 +256,8 @@ export const INSERT_CALLOUT: Partial<Record<BlastFrameKind, string>> = {
   // 2026-09-09: Lee asked for it back by name, as a kind he picks — the canvas card already
   // has the skin (FOUND_META, gold).
   found: "found-on-exam",
+  // 2026-09-11: Ask yourself — the canvas's new teal callout.
+  ask: "ask-yourself",
 };
 
 export const FRAME_LABEL: Record<BlastFrameKind, string> = {
@@ -280,6 +286,7 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   topic_done: "Topic complete",
   up_next: "Up next",
   survibes: "Survibes",
+  ask: "Ask yourself",
 };
 
 let seq = 0;
@@ -409,8 +416,31 @@ export function dropFrame(frames: readonly BlastFrame[], id: string): BlastFrame
   // skipped, because this function treated every `ceq` frame as irreplaceable. It is not the
   // FRAME that reconcile insists on, it is the CARD: as long as another frame still points at
   // the same ceqId, this one can simply go. The last frame for a card still only skips.
-  if (f.kind === "ceq" && f.ceqId && frames.some((x) => x.id !== id && x.ceqId === f.ceqId)) return removeFrame(frames, id);
+  // (Filtered directly: removeFrame only ever drops inserts, so routing this through it removed
+  // nothing — fixed 2026-09-11 alongside the extra-bio case below.)
+  if (f.kind === "ceq" && f.ceqId && frames.some((x) => x.id !== id && x.ceqId === f.ceqId)) return frames.filter((x) => x.id !== id);
+  // AN EXTRA SPINE SLIDE GOES TOO (2026-09-11). Lee: "include a + bio slide." A second bio (or
+  // any spine slide there are two of — every split carries its own) can simply be removed while
+  // another stays; the last one still only skips, as reconcile would put it back.
+  if (isStandard(f.kind) && frames.some((x) => x.id !== id && x.kind === f.kind)) return frames.filter((x) => x.id !== id);
   return frames.map((x) => (x.id === id ? { ...x, skipped: true } : x));
+}
+
+/** Can this slide simply go (dropFrame removes rather than skips)? An insert, a second copy of a
+ *  set card, or an extra spine slide while another of its kind stays. */
+export function canRemove(frames: readonly BlastFrame[], f: BlastFrame): boolean {
+  if (isInsert(f.kind)) return true;
+  if (f.kind === "ceq" && !!f.ceqId && frames.some((x) => x.id !== f.id && x.ceqId === f.ceqId)) return true;
+  return isStandard(f.kind) && frames.some((x) => x.id !== f.id && x.kind === f.kind);
+}
+
+/** THE BOLT ZOOM BEHIND A SLIDE (2026-09-11, Lee: "I want bolt zoom animation as a toggle option
+ *  in slides. For background."). `backdrop: "zoom"` turns it on. It can sit behind a slide that
+ *  doesn't paint the whole frame itself — a card on the phone's black — and behind the end-of-topic
+ *  pair, whose shell is see-through. The brand slides, the slogan, a big callout and the map draw
+ *  their own. */
+export function canZoomBehind(f: BlastFrame): boolean {
+  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next";
 }
 
 /** THE STANDARD OPENER (2026-09-09), in Lee's words and in his own draft's order: "Hero camera,

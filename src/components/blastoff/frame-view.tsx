@@ -32,10 +32,9 @@ import { DISPLAY_FONT, V } from "./stage";
 import { OUTRO_CTA_KEY, SurviveOutro } from "./SurviveOutro";
 import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
-import { RubricFrame } from "./RubricFrame";
+import { RubricSlide } from "./RubricSlide";
 import { TopicDoneFrame, UpNextFrame } from "./EndOfTopicFrames";
 import { SurvibesFrame } from "./SurvibesFrame";
-import { cycleKey } from "./rubric";
 import { introWordmarkTop, type SlideLayout } from "./layout";
 
 const GOLD = "#FCA311";
@@ -44,7 +43,9 @@ const GOLD = "#FCA311";
  *  The canvas's own rule: a note frame is breath — it neither counts toward the
  *  "Q 3/8" counter nor is counted by it. */
 function isQuestion(f: BlastFrame, byId: Map<string, BoothCeq>): boolean {
-  return f.kind === "ceq" && !!f.ceqId && !byId.get(f.ceqId)?.noteOnly;
+  // A RUBRIC SLIDE MADE FROM A CARD (2026-09-11, rubric-convert.ts) is that card's question — the
+  // skipped MCQ and the rubric share the ceqId, so the counter numbers it once.
+  return (f.kind === "ceq" || f.kind === "rubric") && !!f.ceqId && !byId.get(f.ceqId)?.noteOnly;
 }
 
 /** frame id → "Q 3/8", questions only. Built once per plan. */
@@ -127,10 +128,8 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   // column, sized straight from the phone (phoneScale hands in w / 306 for this kind, so
   // `scale` IS the block's multiplier). On the Review stage a box click cycles its arrows;
   // on film the reveal follows RubricFilmContext, provided by BlastOffCapture alone.
-  if (frame.kind === "rubric") {
-    return <RubricFrame spec={frame.rubric} k={scale} live={live}
-      onCycle={edit && !live && frame.rubric ? (key) => edit({ rubric: { ...frame.rubric!, arrows: cycleKey(frame.rubric!.arrows, key) } }) : undefined} />;
-  }
+  // 2026-09-11: the slide is the transaction in the card skin, the heading, the boxes (RubricSlide).
+  if (frame.kind === "rubric") return <RubricSlide frame={frame} k={scale} live={live} topicName={topicName} progress={progress ?? null} layout={layout} />;
 
   // THE END-OF-TOPIC FRAMES (2026-09-11, EndOfTopicFrames.tsx): the whole 9:16, the words from
   // the bank through the set's id; `live` runs the charge and the Up Next cycle on film only.

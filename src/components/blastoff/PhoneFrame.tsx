@@ -17,7 +17,7 @@
 import { memo, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
-import { CampusBanner } from "@/components/brand-cards/BoltZoom";
+import { BoltZoom, CampusBanner } from "@/components/brand-cards/BoltZoom";
 import { COLD_OPEN_CLASS, pieceClass } from "@/components/brand-cards/cold-open";
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 
@@ -27,7 +27,7 @@ import { FrameView } from "./frame-view";
 import { IllustrationLayer, PlacedIllustration } from "./IllustrationLayer";
 import { canIllustrate, isPlaced } from "./illustration";
 import { SAFE, camDefault, captionRailClear, captionRailRect, cardPlacement, type RailStatus, type SlideLayout } from "./layout";
-import { backdropFor, framesFullFrame, isBigCallout, isFullFrame, type BackdropMode, type BlastFrame } from "./plan";
+import { backdropFor, canZoomBehind, framesFullFrame, isBigCallout, isFullFrame, type BackdropMode, type BlastFrame } from "./plan";
 import type { CardOverride } from "./SetCard";
 import { SlideEditContext } from "./slide-edit";
 import { BRAND_FONT } from "./stage";
@@ -207,14 +207,16 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
     if (!phone) return;
     const measure = () => {
       // The rubric block (2026-09-11) counts as the card here: the camera keeps off it too.
-      const card = phone.querySelector("[data-ceq-card], [data-sa-rubric]") as HTMLElement | null;
+      // Every card-ish box: the rubric slide has two — the transaction card and the boxes.
+      const cards = [...phone.querySelectorAll("[data-ceq-card], [data-sa-rubric]")] as HTMLElement[];
+      const card = cards[0] ?? null;
       const art = phone.querySelector("[data-sa-illustration]") as HTMLElement | null;
       if (!card && !art) { setCardBox(null); setArtBox(null); return; }
       const p = phone.getBoundingClientRect();
       if (art) { const r = art.getBoundingClientRect(); setArtBox({ x: r.left - p.left, y: r.top - p.top, w: r.width, h: r.height }); }
       else setArtBox(null);
       // The camera keeps off the card AND the picture under it: one box around both.
-      const boxes = [card, art].filter(Boolean).map((el) => (el as HTMLElement).getBoundingClientRect());
+      const boxes = [...cards, art].filter(Boolean).map((el) => (el as HTMLElement).getBoundingClientRect());
       const x1 = Math.min(...boxes.map((b) => b.left)), y1 = Math.min(...boxes.map((b) => b.top));
       const x2 = Math.max(...boxes.map((b) => b.right)), y2 = Math.max(...boxes.map((b) => b.bottom));
       setCardBox({ x: x1 - p.left, y: y1 - p.top, w: x2 - x1, h: y2 - y1 });
@@ -302,6 +304,13 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
           banner sits behind it and shows through. A FULL-FRAME slide paints its own opaque
           black over this whole area, so its banner is drawn AFTER the slide instead — see
           below. (open / intro draw their own inside BoltZoom, and never take either path.) */}
+      {/* THE BOLT ZOOM BEHIND THE SLIDE (2026-09-11, plan.ts canZoomBehind): the bolt detour's own
+          animation at a little over half strength, under everything, so a card stays readable. */}
+      {frame.backdrop === "zoom" && canZoomBehind(frame) && (
+        <div data-sa-bg-zoom="" style={{ position: "absolute", inset: 0, opacity: 0.55, pointerEvents: "none" }}>
+          <BoltZoom w={w} h={h} mode="bolt" variant="zoom" psych={0.1} live={live} />
+        </div>
+      )}
       {!framesFullFrame(frame) && frame.banner === "on" && <CampusBanner w={w} h={h} live={live} />}
       {/* THE WATERMARK — the wordmark with the live bolt in the "i", top-left,
           sized like the film popout's (5.2% of the width). */}

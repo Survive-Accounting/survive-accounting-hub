@@ -1707,7 +1707,7 @@ export function cardId(kind: string): string {
 }
 
 /** The five callout types (P1) — the banner a callout card can carry. */
-export type CalloutKind = "cheat-code" | "memorize-this" | "deeper-idea" | "recap" | "distractor" | "tutor" | "found-on-exam";
+export type CalloutKind = "cheat-code" | "memorize-this" | "deeper-idea" | "recap" | "distractor" | "tutor" | "found-on-exam" | "ask-yourself";
 /** CALLOUT settings (P1) on a zero-choice (note) frame. Every field optional so
  *  an untouched note frame stays byte-identical in scene JSON. */
 export interface CalloutSettings {

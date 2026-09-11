@@ -1,43 +1,26 @@
-// THE RUBRIC FRAME — the A = L + E block a `rubric` slide draws, through PhoneFrame like every
-// other kind: the Editor thumbnails, the Review stage, the film pop-out all mount this.
+// THE RUBRIC FRAME — the A = L + E block. Two variants:
 //
-// Lee (2026-09-11, the Editor session brief): "the A = L + E rubric first (he needs it on the
-// cram path)." The layout is the "Rubric tool" from end-of-topic-frames.html — an L. The top
-// row is A = L + E as three boxes with the operators between; under E hang two smaller dashed
-// boxes, Rev then Exp, joined by short amber connectors; the open space left of Rev/Exp holds
-// the "Transaction" chip, the transaction text and, at the bottom, the balance line.
+//   "slide"  the rubric slide (RubricSlide.tsx): the boxes and the balance line only — the
+//            transaction sits in the set-card skin above (Lee, 2026-09-11: "Same skin/UI we see
+//            for MCQ, but only the transaction"). The Rev/Exp row shows only when asked.
+//   "tease"  Up Next (EndOfTopicFrames.tsx): the mockup's L, the "Transaction" chip and the words
+//            in the open space left of Rev/Exp, the balance line under them.
 //
-// GEOMETRY. Everything here is in PHONE UNITS for the Review stage's 306-wide phone, times `k`
-// (= the phone's width / 306 — phoneScale hands exactly that in for this kind). The block is
-// the full width of the Shorts safe column (.05w–.84w) and sits at its top (layout.cardPlacement
-// says "top" for this kind in both templates), so it ends above the caption rail (.61h) and
-// clear of the home camera (bottom-left, .28w) — rubric-frame.test.ts pins both.
+// GEOMETRY. Everything is in PHONE UNITS for the Review stage's 306-wide phone, times `k` (the
+// phone's width / 306). The block is the Shorts safe column's width; RubricSlide scales it down
+// when the Rev/Exp row is in so the column still ends above the caption rail.
 //
-// THE REVEAL. On the film surface the spacebar walks the boxes that have arrows — A, L, E,
-// then Rev/Exp together (rubric.ts revealGroups) — the way a map walks its shots: BlastOffCapture
-// keeps the step and hands it in through RubricFilmContext; a newly revealed group POPS (scale
-// in). Absent the context (the Editor, the thumbnails, the next-slide preview) every arrow is
-// shown at rest. prefers-reduced-motion: no pop.
-//
-// AUTHORING. On the Review stage (SlideEditContext present) each box is a button: click cycles
-// blank → ↑ → ↓ → ↑↓ → blank. The Editor panel (ReviewDeck RubricEditor) has the same boxes plus
-// the text, the amount, the show toggle, the equity checkbox and the eight presets.
+// THE BOXES ARE CLICKABLE wherever a caller hands in `onCycle` — the Review stage (the saved
+// arrows) and the film surface (the take only) — and SAY SO: a lift, an amber edge and a glow on
+// hover (Lee: "Make it clear by hover animation that these are clickable"). They are divs, not
+// buttons: a focused button would take the film's spacebar as a click.
 //
 // ONLY MODE "ale" DRAWS. "dc" is reserved on the schema and refused here with a red block that
-// says so — the convention is fail loud, and a rubric that silently drew the wrong equation on
-// camera would be worse than one that stops the take.
-import { useContext } from "react";
-
+// says so — the convention is fail loud.
 import { BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
 
-import { assertRenderable, balanceLine, equityShown, fmtDollars, revealedKeys, rubricSteps, type RubricArrow, type RubricKey, type RubricSpec } from "./rubric";
+import { assertRenderable, balanceLine, equityShown, fmtDollars, revExpShown, type RubricArrow, type RubricKey, type RubricSpec } from "./rubric";
 import { BRAND_FONT, DISPLAY_FONT } from "./stage";
-
-/** What the film knows about a rubric slide: the reveal step being walked (frame-step.ts — the
- *  one step context every self-walking kind shares). Absent → at rest, everything shown. */
-export type { FrameStep as RubricFilm } from "./frame-step";
-export { FrameStepContext as RubricFilmContext } from "./frame-step";
-import { FrameStepContext } from "./frame-step";
 
 const GOLD = "#FCA311";
 const SKY = "#7DD3FC";
@@ -57,69 +40,95 @@ export const RUBRIC_GEOM = {
   sub: { w: 67, h: 53, gap: 7 },   // Rev, Exp, and the amber connector between rows
   // Where the boxes sit (left edges): A · = · L · + · E — E's right edge is the block's.
   x: { A: 0, eq: 67, L: 87, plus: 154, E: 174 },
-  // The transaction column left of Rev/Exp.
+  // The column left of Rev/Exp (the tease's transaction; the slide's balance line).
   tx: { w: 165 },
+  /** The slide variant with the Rev/Exp row hidden: the row, then a line for the balance. */
+  balanceH: 22,
 } as const;
 
-/** Where the block's bottom lands as a fraction of the phone's height, given the stage's top
- *  margin (PhoneFrame puts a top-aligned stage at SAFE.top + .02). Pure — the test reads it. */
+/** The slide variant's height in phone units: the L with Rev/Exp, else the row and a balance line. */
+export function rubricBlockH(revExp: boolean): number {
+  return revExp ? RUBRIC_GEOM.h : RUBRIC_GEOM.top.h + RUBRIC_GEOM.balanceH;
+}
+
+/** Where the full L's bottom lands as a fraction of the phone's height, given the stage's top
+ *  margin (PhoneFrame puts a top-aligned stage at SAFE.top + .02). */
 export function rubricBottomFrac(stageTopFrac: number): number {
   return stageTopFrac + RUBRIC_GEOM.h / (306 * 16 / 9);
 }
 
-const POP_CSS = `
+const RUBRIC_CSS = `
 @keyframes sa-rubric-pop { 0% { transform: scale(0.3); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 .sa-rubric-pop { animation: sa-rubric-pop 420ms cubic-bezier(0.3, 1.6, 0.5, 1) both; }
-@media (prefers-reduced-motion: reduce) { .sa-rubric-pop { animation: none; } }`;
+.sa-rubric-cell.sa-click { cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 200ms ease; }
+.sa-rubric-cell.sa-click:hover { transform: translateY(-2px) scale(1.045); border-color: ${GOLD} !important; box-shadow: 0 0 0 2px rgba(252,163,17,0.35), 0 6px 18px rgba(252,163,17,0.22); }
+.sa-rubric-cell.sa-click:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) { .sa-rubric-pop { animation: none; } .sa-rubric-cell.sa-click:hover, .sa-rubric-cell.sa-click:active { transform: none; } }`;
 
-export function RubricFrame({ spec, k, live = false, onCycle, popKey }: {
+export function RubricFrame({ spec, k, live = false, onCycle, popKey, popKeys, variant = "tease", revExp, showBalance = true }: {
   spec: RubricSpec | undefined;
-  /** The phone's width / 306. */
+  /** The phone's width / 306 (times any scale-down the caller wants). */
   k: number;
-  /** The film surface — the reveal follows RubricFilmContext and a revealed group pops. */
+  /** The film surface — a changed box pops. */
   live?: boolean;
-  /** POP EVERYTHING AGAIN when this changes (the Up Next demo's cycle, 2026-09-11) — a block
-   *  at rest whose arrows should still arrive with the pop each time the transaction changes. */
-  popKey?: string;
-  /** The Review stage's click-to-cycle; absent everywhere else. */
+  /** A box click; absent = the boxes are inert. */
   onCycle?: (key: RubricKey) => void;
+  /** POP EVERYTHING AGAIN when this changes (the Up Next demo's cycle). */
+  popKey?: string;
+  /** POP ONE BOX when its own key changes (the rubric slide on film: a reveal or a click). */
+  popKeys?: Partial<Record<RubricKey, string>>;
+  variant?: "slide" | "tease";
+  /** The slide variant: show the Rev/Exp row. Absent = the spec's own rule. The tease always does. */
+  revExp?: boolean;
+  /** Draw the balance line (the slide holds it back until every box is in). */
+  showBalance?: boolean;
 }) {
-  const film = useContext(FrameStepContext);
   const G = RUBRIC_GEOM;
   if (!spec) return <Loud k={k} text="This rubric slide has no data — delete it and add a fresh Rubric." />;
   const refused = assertRenderable(spec);
   if (refused) return <Loud k={k} text={refused} />;
 
-  const step = live && film ? film.step : undefined;
-  const shown = revealedKeys(spec, step);
-  const eq = equityShown(spec);
+  const tease = variant === "tease";
+  const rx = tease ? true : (revExp ?? revExpShown(spec));
+  const eq = equityShown(spec, rx);
   const amounts = spec.show === "amounts" && spec.amount > 0;
-  const bal = balanceLine(spec);
-  // The balance line belongs to the last reveal: at rest, or once every box is on.
-  const balShown = step === undefined || step >= rubricSteps(spec) - 1;
-
-  const cell: CellCtx = { k, spec, shown, step, live, amounts, eq, onCycle, popKey };
+  const bal = showBalance ? balanceLine(spec, rx) : null;
+  const cell: CellCtx = { k, spec, live, amounts, eq, onCycle, popKey, popKeys };
   const connX = (G.x.E + G.sub.w / 2 - 1) * k;
   const revTop = G.top.h + G.sub.gap;
   const expTop = revTop + G.sub.h + G.sub.gap + 1;
+  const H = tease ? G.h : rubricBlockH(rx);
+  const balEl = bal ? <div style={{ fontFamily: BRAND_FONT, fontWeight: 700, fontSize: 11.5 * k, color: bal.ok ? OK : BAD }}>{bal.text}</div> : null;
   return (
-    <div data-sa-rubric="" style={{ position: "relative", width: G.w * k, height: G.h * k, fontFamily: BRAND_FONT, color: BRAND_CREAM }}>
-      {live && <style>{POP_CSS}</style>}
+    <div data-sa-rubric="" style={{ position: "relative", width: G.w * k, height: H * k, fontFamily: BRAND_FONT, color: BRAND_CREAM }}>
+      <style>{RUBRIC_CSS}</style>
       <RubricCell ctx={cell} keyName="A" sub={false} left={G.x.A} top={0} />
       <RubricOp k={k} text="=" left={G.x.eq} />
       <RubricCell ctx={cell} keyName="L" sub={false} left={G.x.L} top={0} />
       <RubricOp k={k} text="+" left={G.x.plus} />
       <RubricCell ctx={cell} keyName="E" sub={false} left={G.x.E} top={0} />
-      <div style={{ position: "absolute", left: connX, top: G.top.h * k, width: Math.max(1, 2 * k), height: G.sub.gap * k, background: "rgba(252,163,17,0.55)" }} />
-      <RubricCell ctx={cell} keyName="Rev" sub left={G.x.E} top={revTop} />
-      <div style={{ position: "absolute", left: connX, top: (revTop + G.sub.h) * k, width: Math.max(1, 2 * k), height: (G.sub.gap + 1) * k, background: "rgba(252,163,17,0.55)" }} />
-      <RubricCell ctx={cell} keyName="Exp" sub left={G.x.E} top={expTop} />
-      {/* The transaction column: chip, the words, the balance line at the bottom. */}
-      <div style={{ position: "absolute", left: 0, top: revTop * k, width: G.tx.w * k, height: (G.h - revTop) * k, display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-        <span style={{ display: "inline-block", fontFamily: BRAND_FONT, fontWeight: 800, fontSize: 9.5 * k, lineHeight: 1, letterSpacing: "0.14em", textTransform: "uppercase", color: GOLD, border: `1px solid rgba(252,163,17,0.45)`, background: "rgba(252,163,17,0.08)", borderRadius: 5 * k, padding: `${5 * k}px ${7 * k}px` }}>Transaction</span>
-        <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 600, fontSize: 16 * k, lineHeight: 1.22, color: BRAND_CREAM, marginTop: 7 * k, textWrap: "balance" as never }}>{spec.text}</div>
-        {bal && balShown && <div style={{ marginTop: "auto", fontFamily: BRAND_FONT, fontWeight: 700, fontSize: 11.5 * k, color: bal.ok ? OK : BAD }}>{bal.text}</div>}
-      </div>
+      {rx && (
+        <>
+          <div style={{ position: "absolute", left: connX, top: G.top.h * k, width: Math.max(1, 2 * k), height: G.sub.gap * k, background: "rgba(252,163,17,0.55)" }} />
+          <RubricCell ctx={cell} keyName="Rev" sub left={G.x.E} top={revTop} />
+          <div style={{ position: "absolute", left: connX, top: (revTop + G.sub.h) * k, width: Math.max(1, 2 * k), height: (G.sub.gap + 1) * k, background: "rgba(252,163,17,0.55)" }} />
+          <RubricCell ctx={cell} keyName="Exp" sub left={G.x.E} top={expTop} />
+        </>
+      )}
+      {tease ? (
+        // THE TEASE: the transaction column — chip, words, the balance line at the bottom.
+        <div style={{ position: "absolute", left: 0, top: revTop * k, width: G.tx.w * k, height: (G.h - revTop) * k, display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+          <span style={{ display: "inline-block", fontFamily: BRAND_FONT, fontWeight: 800, fontSize: 9.5 * k, lineHeight: 1, letterSpacing: "0.14em", textTransform: "uppercase", color: GOLD, border: `1px solid rgba(252,163,17,0.45)`, background: "rgba(252,163,17,0.08)", borderRadius: 5 * k, padding: `${5 * k}px ${7 * k}px` }}>Transaction</span>
+          <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 600, fontSize: 16 * k, lineHeight: 1.22, color: BRAND_CREAM, marginTop: 7 * k, textWrap: "balance" as never }}>{spec.text}</div>
+          {balEl && <div style={{ marginTop: "auto" }}>{balEl}</div>}
+        </div>
+      ) : rx ? (
+        // THE SLIDE WITH REV/EXP: the balance line in the open space left of them, at the bottom.
+        balEl && <div style={{ position: "absolute", left: 0, top: revTop * k, width: G.tx.w * k, height: (G.h - revTop) * k, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>{balEl}</div>
+      ) : (
+        // THE SLIDE WITHOUT: the balance line under the row.
+        balEl && <div style={{ position: "absolute", left: 0, top: (G.top.h + 6) * k }}>{balEl}</div>
+      )}
     </div>
   );
 }
@@ -128,20 +137,24 @@ export function RubricFrame({ spec, k, live = false, onCycle, popKey }: {
  *  (a component defined inside the render is a new identity every render, and every PhoneFrame
  *  re-render would remount the arrows and replay the pop). */
 interface CellCtx {
-  k: number; spec: RubricSpec; shown: Set<RubricKey>; step: number | undefined; live: boolean; amounts: boolean;
-  eq: { arrows: RubricArrow[]; ghost: boolean }; onCycle?: (key: RubricKey) => void; popKey?: string;
+  k: number; spec: RubricSpec; live: boolean; amounts: boolean;
+  eq: { arrows: RubricArrow[]; ghost: boolean };
+  onCycle?: (key: RubricKey) => void; popKey?: string; popKeys?: Partial<Record<RubricKey, string>>;
 }
 
 function RubricArrows({ ctx, keyName, sub }: { ctx: CellCtx; keyName: RubricKey; sub: boolean }) {
-  const { k, spec, shown, step, live, amounts, eq, popKey } = ctx;
+  const { k, spec, live, amounts, eq, popKey, popKeys } = ctx;
   const { list, ghost } = keyName === "E" ? { list: eq.arrows, ghost: eq.ghost } : { list: spec.arrows[keyName], ghost: false };
-  if (!shown.has(keyName) || !list.length) return <div style={{ minHeight: (sub ? 22 : 26) * k }} />;
+  if (!list.length) return <div style={{ minHeight: (sub ? 22 : 26) * k }} />;
   const stack = amounts && list.length > 1 && !sub;
-  // Re-keyed on the step so the pop plays exactly when this group is revealed on film.
+  const key = popKeys?.[keyName] ?? popKey ?? "rest";
   return (
-    <div key={popKey ?? (step === undefined ? "rest" : `s${step}`)} className={live && (step !== undefined || popKey) ? "sa-rubric-pop" : undefined}
+    <div key={key} className={live && (popKeys || popKey) ? "sa-rubric-pop" : undefined}
       style={{ display: "flex", flexDirection: stack ? "column" : "row", gap: stack ? 0 : 1 * k, alignItems: "center", minHeight: stack ? 0 : (sub ? 22 : 26) * k, opacity: ghost ? 0.42 : 1 }}>
-      {list.map((d) => (
+      {list.map((d) => d === "ne" ? (
+        // NO EFFECT, spelled the way some teachers mark it.
+        <span key="ne" style={{ fontFamily: BRAND_FONT, fontWeight: 900, fontSize: (sub ? 12 : 15) * k, letterSpacing: "0.06em", lineHeight: 1, color: "#E6EAF4" }}>NE</span>
+      ) : (
         <span key={d} style={{ display: "inline-flex", alignItems: "baseline", gap: 3 * k, fontFamily: DISPLAY_FONT, fontWeight: 700, lineHeight: 1, fontSize: (stack ? 19 : sub ? 22 : 26) * k, color: d === "up" ? GOLD : SKY }}>
           {d === "up" ? "↑" : "↓"}
           {amounts && <em style={{ fontStyle: "normal", fontFamily: BRAND_FONT, fontWeight: 600, fontSize: 11 * k, color: "#E6EAF4" }}>{fmtDollars(spec.amount)}</em>}
@@ -158,18 +171,17 @@ function RubricCell({ ctx, keyName, sub, left, top }: { ctx: CellCtx; keyName: R
   const style: React.CSSProperties = {
     position: "absolute", boxSizing: "border-box", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 * k,
     background: on ? CELL_ON_BG : CELL_BG, border: `${Math.max(1, 1.5 * k)}px ${sub ? "dashed" : "solid"} ${on ? CELL_ON_EDGE : CELL_EDGE}`, borderRadius: 12 * k,
-    color: BRAND_CREAM, padding: 0, font: "inherit", cursor: onCycle ? "pointer" : "default", transition: "border-color 200ms, background 200ms",
+    color: BRAND_CREAM, userSelect: "none", WebkitUserSelect: "none",
     left: left * k, top: top * k, width: size.w * k, height: size.h * k,
   };
-  const inner = (
-    <>
+  return (
+    <div data-rubric-cell={keyName} role={onCycle ? "button" : undefined} className={onCycle ? "sa-rubric-cell sa-click" : "sa-rubric-cell"}
+      title={onCycle ? `${keyName}: click to cycle ↑ · ↓ · ↑↓ · NE · blank` : undefined} style={style}
+      onClick={onCycle ? (e) => { e.stopPropagation(); onCycle(keyName); } : undefined}>
       <div style={{ fontFamily: DISPLAY_FONT, fontWeight: sub ? 600 : 700, lineHeight: 1, fontSize: (sub ? 17 : 30) * k, color: sub ? "#DFE6F5" : BRAND_CREAM }}>{keyName}</div>
       <RubricArrows ctx={ctx} keyName={keyName} sub={sub} />
-    </>
+    </div>
   );
-  return onCycle
-    ? <button type="button" data-rubric-cell={keyName} title={`${keyName}: click to cycle ↑ · ↓ · ↑↓ · blank`} style={style} onClick={(e) => { e.stopPropagation(); onCycle(keyName); }}>{inner}</button>
-    : <div data-rubric-cell={keyName} style={style}>{inner}</div>;
 }
 
 function RubricOp({ k, text, left }: { k: number; text: string; left: number }) {

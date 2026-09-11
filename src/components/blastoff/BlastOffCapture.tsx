@@ -86,7 +86,7 @@ import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
 // THE RUBRIC's reveal (2026-09-11): the same spacebar walk as a map's shots — the step lives
 // here, the block reads it through its own context (RubricFrame.tsx).
 import { FrameStepContext, type FrameStep } from "./frame-step";
-import { rubricSteps } from "./rubric";
+import { revExpShown, rubricSteps, type RubricArrow, type RubricKey } from "./rubric";
 // SURVIBES (2026-09-11): its props are steps too; the authoring-only 2:00 clock lives in the
 // main window's chrome (never the pop-out, never the shot).
 import { SURVIBES_COUNTDOWN_S, SURVIBES_PROP_CAM, SURVIBES_T, SURVIBES_WARN_S, clockLabel, survibesSteps } from "./survibes";
@@ -223,7 +223,11 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // count both kinds share; every other slide has none and space leaves the frame at once.
   const rubric = frame?.kind === "rubric" ? frame.rubric ?? null : null;
   const survibes = frame?.kind === "survibes";
-  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric) : survibes ? survibesSteps() : 0;
+  // THE RUBRIC'S TAKE (2026-09-11): what a box click set and whether Tab has the Rev/Exp row in —
+  // this take, this slide, never saved (frame-step.ts). A new slide starts clean.
+  const [rubricTakeState, setRubricTake] = useState<{ id: string; over: Partial<Record<RubricKey, RubricArrow[]>>; revExp?: boolean }>({ id: "", over: {} });
+  const rubricRevExp = rubric ? (rubricTakeState.id === frameId ? rubricTakeState.revExp : undefined) ?? revExpShown(rubric) : false;
+  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric, rubricRevExp) : survibes ? survibesSteps() : 0;
   const [shotState, setShotState] = useState<{ id: string; shot: number }>({ id: "", shot: 0 });
   const shot = steps > 0 && shotState.id === frameId ? Math.min(shotState.shot, Math.max(0, steps - 1)) : 0;
   const setShot = useCallback((f: (s: number) => number) => { const id = frameId ?? ""; setShotState((p) => ({ id, shot: Math.max(0, f(p.id === id ? p.shot : 0)) })); }, [frameId]);
@@ -598,9 +602,16 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
       // ON A RUBRIC SLIDE it also clears the arrows back to the bare block — the reveal step goes
       // to 0 (Lee, 2026-09-11: "Ensure that ~ is clearing the A = L + E rubric."). Shift+` is ~,
       // same key code, same wipe. Nothing saved is touched: the arrows Lee set in the Editor stay.
+      // TAB ON A RUBRIC SLIDE (Lee, 2026-09-11: "Let revenue/exp be toggleable with maybe the TAB
+      // key? Tab again it goes away"): the Rev/Exp row in or out, for this take.
+      else if (e.key === "Tab" && rubric && !preview) {
+        e.preventDefault();
+        setRubricTake((p) => { const cur = p.id === frameId ? p : { id: frameId ?? "", over: {} }; return { ...cur, id: frameId ?? "", revExp: !(cur.revExp ?? revExpShown(rubric)) }; });
+      }
       else if (e.code === "Backquote" || e.key === "`") {
         e.preventDefault(); resetTake(); setChrome(false); scratchTake();
         if (rubric) setShot(() => 0);
+        if (rubric) setRubricTake({ id: "", over: {} });
       }
       else if (e.key === "Escape") { e.preventDefault(); onExit(); }
       else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
@@ -625,13 +636,18 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, steps, shot, setShot, rubric, roll, set.id]);
+  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, steps, shot, setShot, rubric, frameId, roll, set.id]);
 
   // What FrameView's map draws from (cluster/ClusterStage.tsx): in the main window's NEXT
   // preview the map is its bird's-eye with everything revealed — honest about what comes next.
   const clusterFilm = useMemo<ClusterFilm | null>(() => (cluster ? { shot, roam: fieldRoam.roam, overview: preview, arrowOverrides, onArrowCycle } : null), [cluster, shot, fieldRoam.roam, preview, arrowOverrides, onArrowCycle]);
   // The rubric's step, the same way; in the NEXT preview the block is at rest with every arrow on.
-  const rubricFilm = useMemo<FrameStep | null>(() => ((rubric || survibes) && !preview ? { step: shot } : null), [rubric, survibes, preview, shot]);
+  const rubricFilm = useMemo<FrameStep | null>(() => {
+    if (preview || (!rubric && !survibes)) return null;
+    if (!rubric) return { step: shot };
+    const mine = rubricTakeState.id === frameId ? rubricTakeState : { id: frameId ?? "", over: {} as Partial<Record<RubricKey, RubricArrow[]>>, revExp: undefined };
+    return { step: shot, rubric: { over: mine.over, revExp: mine.revExp, set: (key: RubricKey, arrows: RubricArrow[]) => setRubricTake((p) => { const cur = p.id === frameId ? p : { id: frameId ?? "", over: {} }; return { ...cur, id: frameId ?? "", over: { ...cur.over, [key]: arrows } }; }) } };
+  }, [rubric, survibes, preview, shot, rubricTakeState, frameId]);
   // The frame the phone draws: Survibes' prop step places its small camera circle (never saved).
   const shownFrame = useMemo(() => (survibes && shot > 0 && frame ? { ...frame, camPos: { ...SURVIBES_PROP_CAM } } : frame), [survibes, shot, frame]);
 

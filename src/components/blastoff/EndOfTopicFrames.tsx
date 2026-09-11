@@ -84,7 +84,7 @@ function Shell({ w, k, children }: { w: number; k: number; children: React.React
   const h = Math.round(w * 16 / 9);
   const wm = watermarkSpot(w);
   return (
-    <div style={{ position: "relative", width: w, height: h, background: "#000", overflow: "hidden", fontFamily: BRAND_FONT, color: BRAND_CREAM }}>
+    <div style={{ position: "relative", width: w, height: h, background: "transparent", overflow: "hidden", fontFamily: BRAND_FONT, color: BRAND_CREAM }}>
       <div style={{ position: "absolute", left: wm.left, top: wm.top, pointerEvents: "none" }}><SurviveWordmark size={wm.size} boilSeconds={1.2} /></div>
       <div style={{ position: "absolute", left: END_OF_TOPIC_GEOM.left * k, top: END_OF_TOPIC_GEOM.top * k, width: END_OF_TOPIC_GEOM.w * k, display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
         {children}

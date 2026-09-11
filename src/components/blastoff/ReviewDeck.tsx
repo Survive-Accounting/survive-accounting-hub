@@ -99,7 +99,7 @@ import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
 import { emptyTakes, nameTake, planTakes, takeLabel, type PlanTake } from "./plan";
-import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, moveMany, newFrameId, pasteAfter, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
+import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, canRemove, canZoomBehind, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, moveMany, newFrameId, pasteAfter, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 // THE MULTI-SELECT and THE DRAG (2026-09-09, Lee's notes: multi-select, range select, group
 // drag, copy/cut/paste, bundled ghost, zoom-out while dragging, auto-scroll). The pure parts
 // live beside the plan (spine-select.ts, spine-drag.ts); this file only wires them to rows.
@@ -127,7 +127,9 @@ import { MAP_EXAMPLES, cloneExample } from "./cluster/map-examples";
 import { emptyCluster } from "./cluster/cluster-spec";
 // THE EQUATION RUBRIC (2026-09-11): the pure rules (rubric.ts) behind the Editor's boxes,
 // presets and toggles; the block itself is RubricFrame.tsx, drawn on the stage like any slide.
-import { RUBRIC_KEYS, RUBRIC_MODE_LABEL, RUBRIC_PRESETS, applyPreset, cycleKey, emptyRubric, type RubricKey } from "./rubric";
+import { RUBRIC_HEADING, RUBRIC_KEYS, RUBRIC_MODE_LABEL, RUBRIC_PRESETS, applyPreset, cycleKey, emptyRubric, revExpShown, type RubricKey } from "./rubric";
+// THE A = L + E CONVERT (2026-09-11): a set's A = L + E questions become rubric slides.
+import { aleCandidates, convertAleCards } from "./rubric-convert";
 // THE END-OF-TOPIC FRAMES (2026-09-11): the Editor faces read the bank the same way the slides
 // do, so what the panel says the slide will say is what it says.
 import { TOPIC_DONE_COPY, topicProgress, upNextFor } from "./end-of-topic";
@@ -147,6 +149,8 @@ const QUICK: readonly { kind: BlastFrameKind; label: string; patch?: Partial<Bla
   { kind: "tricky", label: "Tricky question" },
   // 2026-09-09, Lee: "add a new one: Found on your exam."
   { kind: "found", label: "Found on your exam" },
+  // 2026-09-11, Lee: "Add a callout type for 'Ask Yourself' where I'll suggest prompted questions."
+  { kind: "ask", label: "Ask yourself" },
   // 2026-09-04: the bolt detour (Lee's OBS camera bed) and the three ads.
   { kind: "bolt", label: "Bolt detour" },
   { kind: "ad", label: "Ad · Greek", patch: { ad: "greek" } },
@@ -160,7 +164,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -1376,8 +1380,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
       // faster at the end of a video sometimes." The copy lands ahead of the bio and the outro.
       { label: "⧉↓ Clone to the end", title: "A copy at the back of the running order, before the sign-off — for coming back to it at the end", run: () => cloneToEnd(f.id) },
       // A DUPLICATED set card really deletes (plan.ts dropFrame); the last one for a card skips.
-      isInsert(f.kind) || (f.kind === "ceq" && f.ceqId && frames.some((x) => x.id !== f.id && x.ceqId === f.ceqId))
-        ? { label: "✕ Remove", title: isInsert(f.kind) ? "Remove this slide" : "Delete this copy — the card itself stays in the set", color: RED, run: () => removeAt(f.id, i) }
+      canRemove(frames, f)
+        ? { label: "✕ Remove", title: isInsert(f.kind) ? "Remove this slide" : f.kind === "ceq" ? "Delete this copy — the card itself stays in the set" : "Remove this extra slide — another one stays", color: RED, run: () => removeAt(f.id, i) }
         : f.skipped
           ? { label: "↺ Film it", title: "Film this slide again", color: MINT, run: () => commit(toggleSkip(frames, f.id)) }
           : { label: "⊘ Skip in the film", title: "Skip this card in the film (it stays in the set)", color: RED, run: () => commit(toggleSkip(frames, f.id)) },
@@ -1542,6 +1546,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     { label: "Topic complete", color: KIND_COLOR.topic_done ?? MUTED, add: () => insertAfter(f.id, "topic_done", {}, true) },
     { label: "Up next", color: KIND_COLOR.up_next ?? MUTED, add: () => insertAfter(f.id, "up_next", { segment: "skippable" }, true) },
     { label: "Survibes", color: KIND_COLOR.survibes ?? MUTED, add: () => insertAfter(f.id, "survibes", {}, true) },
+    // 2026-09-11, Lee: "include a + bio slide." An extra one can be removed while another stays.
+    { label: "Bio", color: SKY, add: () => insertAfter(f.id, "bio", {}, true) },
     { label: "Exhibit…", color: MUTED, add: () => { setSelId(f.id); setPicker("exhibit"); } },
   ];
   const spineRow = (f: BlastFrame, i: number, opts: { number?: number; foldered?: boolean; thumb?: boolean; card?: boolean } = {}) => {
@@ -1800,6 +1806,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
         </section>
       ) : (
         <SlideEditor key={sel.id} sel={sel} label={labelOf(sel)} set={set} topic={topic} tabs={tabs} layout={layout}
+          aleConvert={{ candidates: new Set(aleCandidates(frames, viewSet.ceqs).map((x) => x.id)), run: (only?: string) => { const r = convertAleCards(frames, viewSet.ceqs, only); if (!r.converted.length) return; commit(r.frames); setSelId(r.newIds[0]); } }}
           ceq={selCeq}
           saving={saving}
           shortenApplied={shortenApplied}
@@ -1924,9 +1931,11 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
  *  switches. Same shell as the Illustrator — the two are faces of one column
  *  (the prompter was the other face until 2026-09-07). */
 
-function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplied, above, sayIt, onPatch, onPatchKind, onSaved }: {
+function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplied, above, sayIt, onPatch, onPatchKind, onSaved, aleConvert }: {
   /** The set's slide template — the camera chips read their default from it. */
   layout: "pass1" | "pass2";
+  /** THE A = L + E CONVERT (2026-09-11): the set-card slides it can turn, and the turn itself. */
+  aleConvert?: { candidates: ReadonlySet<string>; run: (onlyFrameId?: string) => void };
   sel: BlastFrame; label: string; ceq?: BoothCeq; set: BoothSetInfo; topic: BoothTopic;
   /** The Editor | Illustrator buttons, drawn by the deck (the Teleprompter | Editor toggle until 2026-09-07). */
   tabs: ReactNode;
@@ -1968,6 +1977,18 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
       {above}
       <div>
         {sel.kind === "ceq" && ceq && <CeqEditor key={ceq.id} ceq={ceq} setId={set.id} shortenApplied={shortenApplied} onSaved={onSaved} />}
+        {/* THE A = L + E CONVERT (2026-09-11). Lee: "For all the A = L + E ones, I think we don't do
+            the MCQ version." Offered on any A = L + E question slide that hasn't been turned yet. */}
+        {sel.kind === "ceq" && aleConvert?.candidates.has(sel.id) && (
+          <div style={{ marginTop: 10, padding: 10, border: `1px solid ${GOLD}55`, borderRadius: 9, background: "rgba(252,163,17,0.06)" }}>
+            <div style={{ fontSize: 12, color: CREAM, fontWeight: 700 }}>An A = L + E question</div>
+            <div style={{ fontSize: 11.5, color: MUTED, margin: "4px 0 8px" }}>Film it as a rubric instead: the transaction, shortened, in this card's skin; "Effect on A = L + E?" over the boxes; the correct answer's arrows ready for space. This question slide is skipped, not deleted, and the card in the bank is untouched.</div>
+            <div className="flex" style={{ gap: 6, flexWrap: "wrap" }}>
+              <button style={chip(false, GOLD)} onClick={() => aleConvert.run(sel.id)}>↔ Make this one a rubric slide</button>
+              {aleConvert.candidates.size > 1 && <button style={chip(false, ORANGE)} onClick={() => aleConvert.run()}>↔ All {aleConvert.candidates.size} A = L + E questions in this set</button>}
+            </div>
+          </div>
+        )}
         {sel.kind === "ceq" && !ceq && <div style={{ fontSize: 12, color: RED }}>This card is no longer in the set — skip it.</div>}
         {/* THE TWO FORMATS (2026-09-08). Lee: "I want a way to have a memorize this, cheat code
             slide, deep ideas, tricky in two formats… either it's in the current format, or it's
@@ -2018,7 +2039,7 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         )}
         {((isCallout(sel.kind) && sel.kind !== "cheat") || sel.kind === "blank" || sel.kind === "exhibit") && (
           <label style={{ fontSize: 11, color: MUTED }}>{isCallout(sel.kind) ? "Title — the bold heading" : sel.kind === "exhibit" ? `Caption${sel.exhibitRef ? ` · exhibit: ${sel.exhibitRef}` : ""}` : "Text on the bare frame"}
-            <textarea style={{ ...field, minHeight: 48, marginTop: 4 }} value={sel.text ?? ""} placeholder={sel.kind === "phrase" ? "e.g. Internal users" : sel.kind === "tricky" ? "e.g. Dividends are contra-EQUITY, not contra-asset" : sel.kind === "tip" ? "e.g. Why the board feels like a gray area" : "say it the way you'd say it on camera"} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+            <textarea style={{ ...field, minHeight: 48, marginTop: 4 }} value={sel.text ?? ""} placeholder={sel.kind === "phrase" ? "e.g. Internal users" : sel.kind === "tricky" ? "e.g. Dividends are contra-EQUITY, not contra-asset" : sel.kind === "tip" ? "e.g. Why the board feels like a gray area" : sel.kind === "ask" ? "e.g. What did Survive Co give up, and what did it get?" : "say it the way you'd say it on camera"} onChange={(e) => onPatch({ text: e.target.value })} /></label>
         )}
         {detour && (
           <label style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 8 }}>{sel.kind === "cheat" ? "More lines under it" : "Lines under it"} — one per line, Tab to nest
@@ -2196,6 +2217,13 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
             );
           })()}
         </div>
+        {/* THE BOLT ZOOM BEHIND THIS SLIDE (2026-09-11, Lee: "I want bolt zoom animation as a toggle
+            option in slides. For background.") — plan.ts canZoomBehind says where it can show. */}
+        {canZoomBehind(sel) && (
+          <div style={{ marginTop: 8 }}>
+            <button style={chip(sel.backdrop === "zoom", ORANGE)} title="The bolt zoom, animated, behind this slide" onClick={() => onPatch({ backdrop: sel.backdrop === "zoom" ? undefined : "zoom" })}>⚡ bolt zoom background · {sel.backdrop === "zoom" ? "on" : "off"}</button>
+          </div>
+        )}
         {sel.kind !== "open" && (
           <div style={{ marginTop: 8 }}>
             <button style={chip(sel.banner === "on", ORANGE)} title="Put the slow Power Four campus banner on this slide (any slide — an expansion moment)" onClick={() => onPatch({ banner: sel.banner === "on" ? undefined : "on" })}>🏫 campus banner · {sel.banner === "on" ? "on" : "off"}</button>
@@ -2253,10 +2281,11 @@ function RubricEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<
     );
   }
   const set = (p: Partial<NonNullable<BlastFrame["rubric"]>>) => onPatch({ rubric: { ...r, ...p } });
-  const arrowText = (k: RubricKey) => r.arrows[k].map((d) => (d === "up" ? "↑" : "↓")).join("") || "·";
-  const cellColor = (k: RubricKey) => (r.arrows[k].length ? (r.arrows[k].includes("up") ? GOLD : SKY) : MUTED);
+  const arrowText = (k: RubricKey) => r.arrows[k].map((d) => (d === "up" ? "↑" : d === "down" ? "↓" : "NE")).join("") || "·";
+  const cellColor = (k: RubricKey) => (r.arrows[k].length ? (r.arrows[k].includes("up") ? GOLD : r.arrows[k].includes("down") ? SKY : CREAM) : MUTED);
   return (
     <div className="flex flex-col" style={{ gap: 10 }}>
+      {sel.ceqId && <div style={{ fontSize: 11.5, color: MUTED }}>Made from a set card — its question slide is skipped, and this one counts in its place.</div>}
       <div className="flex flex-col" style={{ gap: 6 }}>
         <span style={subhead}>Mode</span>
         <div className="flex" style={{ gap: 6, flexWrap: "wrap" }}>
@@ -2267,7 +2296,7 @@ function RubricEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<
         {r.mode !== "ale" && <div style={{ fontSize: 11.5, color: RED }}>This slide is in a mode that can't draw yet — pick A = L + E.</div>}
       </div>
       <div className="flex flex-col" style={{ gap: 6 }}>
-        <span style={subhead}>Boxes — click to cycle ↑ · ↓ · ↑↓ · blank (or click them on the slide)</span>
+        <span style={subhead}>Boxes — click to cycle ↑ · ↓ · ↑↓ · NE · blank (or click them on the slide)</span>
         <div className="flex" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           {RUBRIC_KEYS.map((k, i) => (
             <span key={k} className="flex" style={{ gap: 6, alignItems: "center" }}>
@@ -2281,7 +2310,14 @@ function RubricEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<
           <button style={{ ...chip(false), fontSize: 10.5 }} title="Blank every box" onClick={() => set({ arrows: emptyRubric().arrows })}>clear</button>
         </div>
       </div>
-      <label style={{ fontSize: 11, color: MUTED }}>Transaction — the words on the slide
+      <div className="flex" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={subhead}>Rev / Exp</span>
+        <button style={chip(revExpShown(r), SKY)} title="The Revenue and Expense boxes under E — on camera, Tab flips them in and out for the take" onClick={() => set({ revExp: !revExpShown(r) })}>{revExpShown(r) ? "shown" : "hidden"}</button>
+        {r.revExp !== undefined && <button style={{ ...chip(false), fontSize: 10.5 }} title="Back to automatic: shown only when Rev or Exp has something in it" onClick={() => set({ revExp: undefined })}>↺ auto</button>}
+      </div>
+      <label style={{ fontSize: 11, color: MUTED }}>Heading over the boxes (blank = "{RUBRIC_HEADING}")
+        <input style={{ ...field, marginTop: 4 }} value={sel.title ?? ""} placeholder={RUBRIC_HEADING} onChange={(e) => onPatch({ title: e.target.value || undefined })} /></label>
+      <label style={{ fontSize: 11, color: MUTED }}>Transaction — the words in the card
         <textarea style={{ ...field, minHeight: 48, marginTop: 4 }} value={r.text} placeholder="e.g. Paid $600 cash for rent" onChange={(e) => set({ text: e.target.value })} /></label>
       <div className="flex" style={{ gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
         <label style={{ fontSize: 11, color: MUTED }}>Amount $
@@ -2308,7 +2344,7 @@ function RubricEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<
           ))}
         </div>
       </div>
-      <div style={{ fontSize: 11.5, color: MUTED }}>On camera, space reveals the boxes one at a time — A, then L, then E, then Rev/Exp. Here they're all shown.</div>
+      <div style={{ fontSize: 11.5, color: MUTED }}>On camera, space reveals the boxes one at a time — A, then L, then E, then Rev/Exp. Click a box to change it for the take, Tab flips Rev/Exp, ~ clears. Here they're all shown.</div>
     </div>
   );
 }
