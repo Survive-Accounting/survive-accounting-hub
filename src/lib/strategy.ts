@@ -42,7 +42,7 @@ export const STRATEGY_LANES: readonly StrategyLaneDef[] = [
   {
     key: "product", title: "Product strategy", blurb: "Short-form is the format, not a channel.",
     canon: [
-      "Two-minute cram videos, not lectures. \"YouTube Shorts that explain my practice exams.\"",
+      "Two-minute cram videos, not lectures. \"Reels that explain my practice exams.\"",
       "Easy Points is free on every exam — real points, and proof the harder material is behind the wall.",
       "Exam 1: the rest is gated by email + a 3-email sequence timed to the exam date. Exams 2–4: gated by payment ($50).",
       "Chapter members are provisioned, but the email gate still applies — chapter-level email volume is the demand signal for reps.",
@@ -79,7 +79,7 @@ export const STRATEGY_LANES: readonly StrategyLaneDef[] = [
   {
     key: "chairs", title: "The scholarship chair pitch", blurb: "Partnership, not vendor.",
     canon: [
-      "\"I'm building the YouTube Shorts of exam prep.\"",
+      "\"I'm building the Reels of exam prep.\"",
       "\"I want you to be incredible at your job.\"",
       "\"Help me understand what a chapter actually needs — which courses, what the experience should be for you and your members.\"",
       "Build a real academic culture in the house with something built for this generation. A two-minute short that gets you points is different from a long video.",
@@ -149,7 +149,7 @@ export const STRATEGY_SHORTS: readonly StrategyShortSeed[] = [
     slides: [
       { title: "The problem", lines: ["For a lot of students, the intro accounting exam is the hardest thing they've faced", "College is incredible — this one course is where it stops being fun"] },
       { title: "The asset", lines: ["Ten years, 1,000+ students", "The practice exams are the asset — the shorts are how they get taught"] },
-      { title: "The pitch", lines: ["\"YouTube Shorts that explain my practice exams\"", "Two minutes that get you points, not a lecture"] },
+      { title: "The pitch", lines: ["\"Reels that explain my practice exams\"", "Two minutes that get you points, not a lecture"] },
       { title: "Your one job", lines: ["Get the free Exam 1 kit into every chapter house on your campus", "Easy Points is free on every exam — real points first"] },
     ],
     riff: ["Say the Dr. Davis line if it comes: the course you thrived in is the one everyone else dreads", "Face to the name — this one is who you are, not what the product does"],
@@ -218,7 +218,7 @@ export const STRATEGY_SHORTS: readonly StrategyShortSeed[] = [
     title: "For the scholarship chair: I want you to be incredible at your job",
     hook: "Partnership, not vendor. Help me understand what your chapter needs.",
     slides: [
-      { title: "What this is", lines: ["\"I'm building the YouTube Shorts of exam prep\"", "\"I want you to be incredible at your job\""] },
+      { title: "What this is", lines: ["\"I'm building the Reels of exam prep\"", "\"I want you to be incredible at your job\""] },
       { title: "What I'm asking", lines: ["\"Help me understand what a chapter actually needs\"", "Which courses. What the experience should be for you as manager, and for your members"] },
       { title: "Why it lands", lines: ["Everyone knows how hard it is to pay attention to a long video", "A two-minute short that gets you extra points is different", "A real academic culture in the house, built for this generation"] },
     ],

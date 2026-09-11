@@ -514,7 +514,7 @@ function TwoDoorHero({ code, schoolName }: {
           competing with the headline. Deliberately far from "Exam 1 is free." below the doors —
           that line is the OFFER; this one is the PRODUCT, and conflating them muddies both. */}
       <p className="mt-2.5 text-[14px] font-bold sm:text-[15px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
-        Like <span style={{ color: "var(--accent)" }}>YouTube Shorts</span> for exam prep.
+        Like <span style={{ color: "var(--accent)" }}>Reels</span> for exam prep.
       </p>
     </section>
   );

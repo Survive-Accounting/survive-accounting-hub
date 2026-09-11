@@ -357,8 +357,7 @@ const SPINE_CSS = `
 .sa-spine-row:hover .sa-spine-tools,.sa-spine-row.is-on .sa-spine-tools,.sa-spine-row.is-menu .sa-spine-tools,.sa-spine-row .sa-spine-tools:focus-within{opacity:1}
 .sa-slide-menu button:hover{background:rgba(255,255,255,0.06)}
 .sa-spine-row.is-picked{outline:1px solid ${CREAM};outline-offset:-1px}
-.sa-spine-card .sa-spine-peek{display:none;position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);z-index:40;pointer-events:none;border-radius:8px;overflow:hidden;border:1px solid ${GOLD};box-shadow:0 14px 40px rgba(0,0,0,0.6);background:#000}
-.sa-spine-card:hover .sa-spine-peek{display:block}
+.sa-spine-peek{z-index:80;pointer-events:none;border-radius:8px;overflow:hidden;border:1px solid ${GOLD};box-shadow:0 14px 40px rgba(0,0,0,0.6);background:#000}
 .sa-spine-card.is-hit{outline:2px solid ${MINT};outline-offset:-2px}
 .sa-spine-h{scrollbar-width:thin}
 .sa-spine-card > span:first-child{position:absolute;top:5px;left:5px;z-index:1;border-right:0!important;min-width:0!important;padding:1px 5px!important;background:rgba(9,13,26,0.85);border-radius:4px}
@@ -664,7 +663,10 @@ function sameRowProps(a: SpineRowProps, b: SpineRowProps): boolean {
 
 const SpineRow = memo(function SpineRow(p: SpineRowProps) {
   const { frame: f, i, foldered, on } = p;
-  const [peeking, setPeeking] = useState(false);
+  // THE PEEK (Lee, 2026-09-10: "it's showing bigger one above it, and it's cut off"). The strip
+  // is a sticky, overflow-x box, so anything positioned inside it is clipped; the peek is a
+  // FIXED layer placed under the card from its screen rect on hover.
+  const [peek, setPeek] = useState<{ x: number; y: number } | null>(null);
   const menu = p.isMenuOpen;
   // Foldered rows accept neither drag (nothing to reorder — a skipped card's
   // order relative to other skipped cards films nothing) nor drop (dragging an
@@ -682,8 +684,8 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
       onDrop={canDrop ? (e) => { e.preventDefault(); on.drop(); } : undefined}
       onDragEnd={on.dragEnd}
       onClick={(e) => on.select(f.id, e)}
-      onMouseEnter={p.card ? () => setPeeking(true) : undefined}
-      onMouseLeave={p.card ? () => setPeeking(false) : undefined}
+      onMouseEnter={p.card ? (e) => { const r = e.currentTarget.getBoundingClientRect(); setPeek({ x: r.left + r.width / 2, y: r.bottom + 8 }); } : undefined}
+      onMouseLeave={p.card ? () => setPeek(null) : undefined}
       title={canDrop ? "Click to open · shift-click a range · ctrl-click to add · drag to reorder" : "Click to open"}
       style={{
         position: "relative", display: "flex", alignItems: p.card ? "stretch" : "center", gap: p.card ? 4 : 8, padding: p.card ? "6px 6px 5px" : "7px 10px", borderRadius: 7,
@@ -709,8 +711,8 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
       {/* THE CARD IS THE LABEL (Lee, 2026-09-10: "I only need that label. None of the other text is
           needed. If I hover over a slide, pop out a more zoomed in version so I can see it better"). */}
       {!p.card && <span style={{ fontSize: 12, color: CREAM, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textDecoration: f.skipped ? "line-through" : "none" }}>{p.snippet}</span>}
-      {p.card && p.thumb && peeking && (
-        <span className="sa-spine-peek" aria-hidden="true">
+      {p.card && p.thumb && peek && (
+        <span className="sa-spine-peek" aria-hidden="true" style={{ position: "fixed", left: peek.x, top: Math.min(peek.y, window.innerHeight - 420), transform: "translateX(-50%)", display: "block" }}>
           <PhoneFrame frame={f} frames={p.frames} index={i} set={p.set} topicName={p.topicName} w={220} live={false} rounded={false} progress={progress} layout={p.layout} backdrop={p.backdrop} />
         </span>
       )}
@@ -765,8 +767,11 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
 // slidePatchFor (a proofread phrase → the slide it becomes) left with the prompter face on
 // 2026-09-07 — it had no caller outside it.
 
-export function ReviewDeck({ set, topic, register, initialSelectedId = null, focusTake = null }: {
+export function ReviewDeck({ set, topic, register, initialSelectedId = null, focusTake = null, knife = null }: {
   set: BoothSetInfo; topic: BoothTopic;
+  /** THE KNIFE (cut this set into sibling sets) — the route's button, shown small beside the
+   *  slides toggle instead of on its own row (Lee, 2026-09-10: "not losing so much vertical space"). */
+  knife?: ReactNode;
   /** Hands the deck's verbs to whoever mounts it (the AI board's "＋ slide"). */
   register?: (api: DeckApi | null) => void;
   /** Open with this slide selected and scrolled into view — the route's ?frame= (2026-09-06,
@@ -1115,6 +1120,13 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
       if (mod && key === "f") { e.preventDefault(); setStripOpen(true); window.setTimeout(() => { searchRef.current?.focus(); searchRef.current?.select(); }, 30); return; }
       // UNDO / REDO (Lee, 2026-09-10: "Ctrl Z undo needs to work on the slide editor. I moved a
       // slide, and lost it."). The running order only — a card's words have their own ↶ Revert.
+      // DUPLICATE (Lee, 2026-09-10: "CTRL + D to duplicate a slide I'm on") — the same ⧉ the
+      // row offers: the same card shown twice, the copy selected.
+      if (mod && key === "d") {
+        e.preventDefault();
+        if (sel && selIdx >= 0) duplicateAt(sel.id, selIdx);
+        return;
+      }
       if (mod && key === "z") {
         e.preventDefault();
         if (e.shiftKey) redo(); else undo();
@@ -1554,6 +1566,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
             {query && <span style={{ position: "absolute", right: 8, fontSize: 10.5, color: hits.length ? MINT : RED, pointerEvents: "none" }}>{hits.length ? `${hitAt + 1}/${hits.length}` : "0"}</span>}
           </span>
           <span style={{ fontSize: 11.5, color: MUTED }}>{filmed} slides{skipped ? ` · ${skipped} skipped` : ""}</span>
+          {knife}
           {(spineNote ?? saving) && (() => { const s = spineNote ?? saving!; return <span style={{ fontSize: 11, color: s === POPOUT_BLOCKED || s.startsWith("⚠") ? RED : s === "saved" || s === POPOUT_OPENED ? MINT : MUTED, marginLeft: "auto" }}>{s}</span>; })()}
         </div>
         {/* THE INSERT TOGGLE AND ITS CHIP ROWS LEFT (Lee, 2026-09-10: "Insert a slide isn't needed.

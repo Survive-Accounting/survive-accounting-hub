@@ -17,8 +17,8 @@
 // etc. the top navbar. The breadcrumbs aren't needed anymore. Settings icon can be
 // the top right of navbar."). The header (Home · Lab · breadcrumb · ⚙ · ▴hide) and
 // the step strip under it were two rows saying the same thing; they are one slim
-// row now: 🗺 Map › the set › its steps, and on a page that belongs to no set,
-// 🗺 Map › the page's name. The `crumbs` prop every screen passes is kept so no
+// row now: 🏠 Home › the set › its steps, and on a page that belongs to no set,
+// 🏠 Home › the page's name. The `crumbs` prop every screen passes is kept so no
 // caller changes; only its last label is read. The collapse toggle went with the
 // second row — a ~40px bar has nothing worth hiding.
 //
@@ -130,9 +130,9 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
         className="flex items-center gap-2"
         style={{ minHeight: 40, padding: "5px 20px", borderBottom: `1px solid ${V3_EDGE}`, background: "#05070D", flexWrap: "wrap", position: "relative" }}
       >
-        <Link to="/v3" title="The map"
+        <Link to="/v3" title="Home — the map"
           style={{ color: V3_GOLD, fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none", whiteSpace: "nowrap" }}>
-          🗺 Map
+          🏠 Home
         </Link>
         <Where crumbs={crumbs} />
 

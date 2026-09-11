@@ -99,7 +99,7 @@ export const STEPS: readonly StepDef[] = [
     key: "1", title: "What Survive is", videoKey: "step1", response: "sentence",
     gist: [
       "Ten years of tutoring intro accounting, 1,000+ students. The practice exams are the asset.",
-      "Two-minute shorts that explain them — YouTube Shorts for exam prep, not lectures.",
+      "Two-minute shorts that explain them — Reels for exam prep, not lectures.",
       "Easy Points is free on every exam. Real points first, then the wall.",
     ],
     prompt: "In one sentence — how would you describe Survive to a friend?",

@@ -107,27 +107,20 @@ function V3Results() {
 
       {set && topic && (
         <>
-          {/* THE KNIFE (2026-09-09, components/blastoff/SplitPanel.tsx). Lee: "the splitting has to
-              be ruthless… a short for assets, one for liabilities, one for equity, one for revenue,
-              one for expense." A Blast Off plan is one per set, so a set over the ceiling is cut
-              into sibling sets from here, then each gets its own Editor and Film. */}
-          {/* The step bar that used to carry this button is gone (2026-09-10: the steps live in the
-              navbar now — components/v3/Shell.tsx); the knife stays, on its own right-aligned row. */}
-          <div className="flex items-center justify-end gap-2" style={{ marginBottom: 16 }}>
-            <button onClick={() => setSplit((v) => !v)} className="rounded-xl px-3.5 py-2"
-              style={{ border: `1.5px solid ${split ? V3_GOLD : V3_EDGE}`, background: split ? "rgba(252,163,17,0.12)" : "transparent", color: split ? V3_CREAM : V3_MUTED, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
-              title={`Cut this set into sibling sets — ${set.liveCount} cards is ${set.liveCount > 12 ? "over" : "under"} the 12-card ceiling for one Short`}>
-              ✂ Split{set.liveCount > 12 ? ` · ${set.liveCount} cards` : ""}
-            </button>
-          </div>
-
+          {/* THE KNIFE (components/blastoff/SplitPanel.tsx) is a small button on the deck's own header
+              row now — see the knife prop below. */}
           {split && <SplitPanel set={set} topic={topic} onClose={() => setSplit(false)} />}
 
           {/* SUGGESTED CARDS (docs/DESIGN-CEQ-QUEUE.md, 2026-09-10): what the queue made of the
               brainstorm, ticked into the deck as drafts. Applying refreshes the bank, so the new
               drafts reconcile into the plan below without a reload. */}
           <SuggestedCards deckId={set.id} deckName={set.name} onApplied={() => void refreshBank()} />
-          <ReviewDeck set={set} topic={topic} register={register} initialSelectedId={frameParam ?? null} focusTake={takeParam ?? null} />
+          <ReviewDeck set={set} topic={topic} register={register} initialSelectedId={frameParam ?? null} focusTake={takeParam ?? null}
+            knife={
+              <button onClick={() => setSplit((v) => !v)}
+                style={{ background: split ? "rgba(252,163,17,0.12)" : "transparent", border: `1px solid ${split ? V3_GOLD : V3_EDGE}`, borderRadius: 8, color: split ? V3_CREAM : V3_MUTED, cursor: "pointer", padding: "3px 8px", fontSize: 11, lineHeight: 1 }}
+                title={`Cut this set into sibling sets — ${set.liveCount} cards`}>✂ split set</button>
+            } />
 
           {/* PRE-FLIGHT (2026-09-09): the film summary that sat under the /blast-off menu's doors.
               That menu is a redirect into this page now (blast-off.index.tsx — so Escape from

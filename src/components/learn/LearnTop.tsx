@@ -26,7 +26,7 @@ import type { ExamTabState } from "@/components/learn/ExamRail";
 import { countdownLabel, daysUntil, readExamDate, writeExamDate } from "@/components/learn/exam-date";
 import { CTA_CHAPTER_EVENT } from "@/components/learn/LearnCta";
 import { allowedOffsets, REMINDER_DISCLOSURE, scheduleExamReminder } from "@/lib/exam-reminder.functions";
-import { INK, withAlpha, type LearnTheme } from "@/components/learn/learn-theme";
+import { LK, withAlpha, type LearnTheme } from "@/components/learn/learn-theme";
 
 export type TopProgress = { total: number; done: number; secondsLeft: number | null };
 
@@ -166,12 +166,12 @@ export function LearnTop({
               <span aria-hidden>·</span>
               {availableExams.length > 1 ? (
                 <select value={examNum ?? ""} onChange={(e) => onPickExam(Number(e.target.value))} aria-label="Which exam" className="rounded-md px-1 py-0.5 font-semibold outline-none" style={{ background: "transparent", color: ink, border: `1px solid ${rule}`, fontSize: 12.5 }}>
-                  {availableExams.map((e) => <option key={e.num} value={e.num} style={{ color: INK.text, background: INK.surface }}>{e.label}</option>)}
+                  {availableExams.map((e) => <option key={e.num} value={e.num} style={{ color: LK.text, background: LK.surface }}>{e.label}</option>)}
                 </select>
               ) : (
                 <span className="font-semibold" style={{ color: ink }}>{examLabel}</span>
               )}
-              {demo && <span className="rounded-full px-1.5 py-px text-[9px] font-black uppercase tracking-wider" style={{ color: "#111", background: INK.green }}>Demo</span>}
+              {demo && <span className="rounded-full px-1.5 py-px text-[9px] font-black uppercase tracking-wider" style={{ color: "#111", background: LK.green }}>Demo</span>}
             </div>
           </div>
         )}
@@ -220,8 +220,8 @@ export function LearnTop({
         )}
         {!narrow && progressText && (
           <div className="flex items-center gap-2">
-            <span className="h-1.5 w-[110px] overflow-hidden rounded-full lg:w-[150px]" style={{ background: withAlpha(ink, 0.2) }}><span className="block h-full rounded-full" style={{ width: `${Math.round((progress.total ? progress.done / progress.total : 0) * 100)}%`, background: allDone ? INK.green : "var(--lk-acc)", transition: "width 300ms" }} /></span>
-            <span className="whitespace-nowrap font-semibold tabular-nums" style={{ fontSize: 12.5, color: allDone ? INK.green : ink }}>{progressText}</span>
+            <span className="h-1.5 w-[110px] overflow-hidden rounded-full lg:w-[150px]" style={{ background: withAlpha(ink, 0.2) }}><span className="block h-full rounded-full" style={{ width: `${Math.round((progress.total ? progress.done / progress.total : 0) * 100)}%`, background: allDone ? LK.green : "var(--lk-acc)", transition: "width 300ms" }} /></span>
+            <span className="whitespace-nowrap font-semibold tabular-nums" style={{ fontSize: 12.5, color: allDone ? LK.green : ink }}>{progressText}</span>
           </div>
         )}
         {SHOW_REMINDER_CTA && (
@@ -279,14 +279,14 @@ function ReminderSheet({ examNum, examLabel, initialDate, campusId, courseCode, 
 
   return (
     <div className="fixed inset-0 z-[110] flex items-end justify-center sm:items-center" style={{ background: "rgba(0,0,0,0.7)" }} onClick={onClose}>
-      <div className="lk-in w-full rounded-t-2xl p-5 sm:max-w-[420px] sm:rounded-2xl" style={{ background: INK.surface, border: `1px solid ${INK.border}` }} onClick={(e) => e.stopPropagation()}>
+      <div className="lk-in w-full rounded-t-2xl p-5 sm:max-w-[420px] sm:rounded-2xl" style={{ background: LK.surface, border: `1px solid ${LK.border}` }} onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
           <div className="lk-disp" style={{ fontSize: 20 }}>When's {examLabel}?</div>
-          <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full" style={{ background: INK.border, color: INK.text, border: 0, cursor: "pointer" }} aria-label="Close"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }} aria-label="Close"><X className="h-4 w-4" /></button>
         </div>
         {done ? (
-          <div className="rounded-xl px-4 py-4 text-center" style={{ background: "rgba(78,232,180,0.12)", border: `1px solid ${INK.green}` }}>
-            <Check className="mx-auto h-6 w-6" style={{ color: INK.green }} />
+          <div className="rounded-xl px-4 py-4 text-center" style={{ background: "rgba(78,232,180,0.12)", border: `1px solid ${LK.green}` }}>
+            <Check className="mx-auto h-6 w-6" style={{ color: LK.green }} />
             <p className="mt-1 text-[14px] font-bold">{done}</p>
             <button type="button" onClick={onClose} className="lk-btn lk-btn-ghost mt-3">Back to cramming</button>
           </div>
@@ -295,10 +295,10 @@ function ReminderSheet({ examNum, examLabel, initialDate, campusId, courseCode, 
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="lk-field" style={{ colorScheme: "dark" }} aria-label="Exam date" />
             <input type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="your number (optional)" className="lk-field" aria-label="Phone number" />
             {phoneOk && offsets.length > 1 && (
-              <div className="flex items-center gap-2 text-[12.5px]" style={{ color: INK.muted }}>
+              <div className="flex items-center gap-2 text-[12.5px]" style={{ color: LK.muted }}>
                 text me
                 <div className="relative">
-                  <select value={offset} onChange={(e) => setOffset(Number(e.target.value))} className="appearance-none rounded-lg py-1 pl-2 pr-6 font-semibold outline-none" style={{ background: INK.surface2, color: INK.text, border: `1px solid ${INK.border}` }}>
+                  <select value={offset} onChange={(e) => setOffset(Number(e.target.value))} className="appearance-none rounded-lg py-1 pl-2 pr-6 font-semibold outline-none" style={{ background: LK.surface2, color: LK.text, border: `1px solid ${LK.border}` }}>
                     {offsets.map((n) => <option key={n} value={n}>{n} day{n === 1 ? "" : "s"}</option>)}
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" />
@@ -309,8 +309,8 @@ function ReminderSheet({ examNum, examLabel, initialDate, campusId, courseCode, 
             <button type="button" onClick={() => void submit()} disabled={!dateOk || busy} className="lk-btn lk-btn-acc mt-1 disabled:opacity-40" style={{ minHeight: 46, fontSize: 13 }}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {phoneOk ? "Set my reminder" : "Save the date"}
             </button>
-            {err && <p role="alert" className="text-[12.5px]" style={{ color: INK.red }}>{err}</p>}
-            <p className="text-[11.5px] leading-snug" style={{ color: INK.dim }}>{phoneOk ? REMINDER_DISCLOSURE : "I'll text you the cram videos before your exam and keep your spot here on this number."}</p>
+            {err && <p role="alert" className="text-[12.5px]" style={{ color: LK.red }}>{err}</p>}
+            <p className="text-[11.5px] leading-snug" style={{ color: LK.dim }}>{phoneOk ? REMINDER_DISCLOSURE : "I'll text you the cram videos before your exam and keep your spot here on this number."}</p>
           </div>
         )}
       </div>

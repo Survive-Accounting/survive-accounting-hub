@@ -205,7 +205,7 @@ export async function printFlyerSvg(i: FlyerInput): Promise<string> {
     <tspan fill="${PRINT_INK}">IS </tspan><tspan fill="${PRINT_ACCENT}">FREE.</tspan>
   </text>
 
-  <text x="1275" y="1160" fill="${PRINT_INK}" font-size="72" font-weight="600" text-anchor="middle">Like YouTube Shorts for exam prep.</text>
+  <text x="1275" y="1160" fill="${PRINT_INK}" font-size="72" font-weight="600" text-anchor="middle">Like Reels for exam prep.</text>
   <text x="1275" y="1250" fill="${PRINT_MUTED}" font-size="50" text-anchor="middle">2-minute cram videos + exam-style practice.</text>
   <line x1="700" y1="1320" x2="1850" y2="1320" stroke="${PRINT_RULE}" stroke-width="3"/>
 
@@ -486,7 +486,7 @@ export async function printFlyerPdf(i: FlyerInput): Promise<Buffer> {
   centre(page, line1, 830, size1, bold, PRINT_INK);
   centreTwoTone(page, "IS ", PRINT_INK, "FREE.", PRINT_ACCENT, 1030, size1, bold);
 
-  centre(page, "Like YouTube Shorts for exam prep.", 1160, 72, semi, PRINT_INK);
+  centre(page, "Like Reels for exam prep.", 1160, 72, semi, PRINT_INK);
   centre(page, "2-minute cram videos + exam-style practice.", 1250, 50, semi, PRINT_MUTED);
   page.drawRectangle({ x: X(700), y: Y(1320), width: X(1150), height: X(3), color: hex(PRINT_RULE) });
 

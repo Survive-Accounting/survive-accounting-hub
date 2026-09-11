@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
 import { renderInline } from "@/components/canvas/inline-md";
-import { INK } from "@/components/learn/learn-theme";
+import { LK } from "@/components/learn/learn-theme";
 import { fetchSetCramCards, type CramCard } from "@/lib/student.functions";
 
 const LOOK: Record<CramCard["kind"], { label: string; accent: string }> = {
@@ -58,10 +58,10 @@ export function CramCardsPanel({ setId, demo, onPractice, practiceCount }: {
   const cards: CramCard[] = demo ? DEMO_CRAM_CARDS : q.data?.status === "ok" ? q.data.cards : [];
   return (
     <div className="flex flex-col" style={{ gap: 12, padding: "14px 16px 18px" }}>
-      {!demo && q.isLoading && <div className="flex items-center gap-2 text-[12px]" style={{ color: INK.muted }}><Loader2 className="h-4 w-4 animate-spin" /> loading the cards…</div>}
+      {!demo && q.isLoading && <div className="flex items-center gap-2 text-[12px]" style={{ color: LK.muted }}><Loader2 className="h-4 w-4 animate-spin" /> loading the cards…</div>}
       {!demo && q.isError && <div className="text-[12px]" style={{ color: "#FF5C6E" }}>Could not load the cards. Try again in a moment.</div>}
       {!demo && q.data && q.data.status !== "ok" && (
-        <div className="text-[13px]" style={{ color: INK.muted }}>
+        <div className="text-[13px]" style={{ color: LK.muted }}>
           {q.data.status === "locked" ? "The cards for this set come with the paid course." : "No cram cards on this set yet — the video and practice have you covered."}
         </div>
       )}

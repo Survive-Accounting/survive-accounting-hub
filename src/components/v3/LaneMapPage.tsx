@@ -109,7 +109,7 @@ export function LaneMapPage() {
   return (
     <V3Shell wide crumbs={[{ label: "V3" }, { label: "Map" }]}>
       <h1 style={{ fontFamily: V3_DISPLAY, fontSize: 30, fontWeight: 900, letterSpacing: "-0.01em", margin: "0 0 4px" }}>
-        Like <span style={{ color: "#E63B2D" }}>YouTube Shorts</span> for exam prep.
+        Like <span style={{ color: "#E63B2D" }}>Reels</span> for exam prep.
       </h1>
       <div style={{ color: V3_MUTED, fontSize: 13, marginBottom: 22 }}>The cram path, in production order. Open a topic to see what hangs off it.</div>
       {moveNote && <V3Note tone={/moving/.test(moveNote) ? undefined : "bad"}>{moveNote}</V3Note>}

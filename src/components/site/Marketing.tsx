@@ -130,7 +130,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
             Body font, not display, so it reads as a tagline and never competes with the headline
             above it. A touch of accent color, sparingly, on the comparison itself. */}
         <p className="mt-2.5 text-[14.5px] font-bold sm:text-[15.5px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
-          Like <span style={{ color: "var(--accent)" }}>YouTube Shorts</span> for exam prep.
+          Like <span style={{ color: "var(--accent)" }}>Reels</span> for exam prep.
         </p>
         {greek && (
           <CampusLine>

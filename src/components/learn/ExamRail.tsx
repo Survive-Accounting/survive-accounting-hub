@@ -67,7 +67,7 @@ export function ExamRail({ exams, activeNum, onPick, campusId, campusName, cours
               {/* FREE vs LOCKED, said plainly on every tab. A student should never have to click
                   to find out which exams they can watch right now. */}
               <div className="mt-0.5 text-[10.5px] font-bold uppercase tracking-wider" style={{ color: e.available ? "#3BF5A0" : "var(--lm-muted)" }}>
-                {e.available ? "Free" : "Coming soon"}
+                {e.available ? "Free" : "Not yet"}
               </div>
               {e.available && e.videoCount > 0 && (
                 <div className="text-[10.5px]" style={{ color: "var(--lm-muted)" }}>

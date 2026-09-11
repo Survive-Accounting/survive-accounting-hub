@@ -19,6 +19,11 @@ const small: React.CSSProperties = { font: "inherit", fontSize: 11.5, fontWeight
 
 export function SuggestedCards({ deckId, deckName, onApplied }: { deckId: string; deckName: string; onApplied?: () => void }) {
   const { jobs, error, reload } = useCeqJobs(deckId);
+  // FOLDED BY DEFAULT (Lee, 2026-09-10: "let the generate cards thing be dismissible. It's up top
+  // and in the way"). One line until he opens it; remembered per browser.
+  const [open, setOpen] = useState(false);
+  useEffect(() => { try { setOpen(localStorage.getItem("sa-suggested-open") === "1"); } catch { /* forgets */ } }, []);
+  const toggle = () => setOpen((v) => { try { localStorage.setItem("sa-suggested-open", v ? "0" : "1"); } catch { /* forgets */ } return !v; });
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   // The newest job with something to show; older done ones stay reachable by their count.
@@ -48,17 +53,19 @@ export function SuggestedCards({ deckId, deckName, onApplied }: { deckId: string
   const undecided = current ? cards.length > current.decided : false;
 
   return (
-    <section style={{ border: `1px solid ${V3_EDGE}`, borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
+    <section style={{ border: `1px solid ${V3_EDGE}`, borderRadius: 12, padding: open ? "12px 14px" : "6px 14px", marginBottom: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <button type="button" onClick={toggle} aria-expanded={open} title={open ? "Fold this away" : "Open the suggested cards"} style={{ ...small, padding: "2px 7px", fontSize: 11, color: V3_MUTED }}>{open ? "▴" : "▸"}</button>
         <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: V3_GOLD }}>Suggested cards</span>
         <span style={{ fontSize: 12, color: V3_MUTED }}>
           {pending.length ? `${pending.length} generating…` : current?.status === "failed" ? "the last run failed" : cards.length ? `${cards.length} candidates from what you said` : "from your brainstorm, in the background"}
         </span>
         <span style={{ flex: 1 }} />
-        <button type="button" disabled={!!busy} onClick={() => void queue()} style={{ ...small, borderColor: `${V3_GOLD}88`, color: V3_GOLD, opacity: busy ? 0.5 : 1 }} title="Turn what you said in the Booth into candidate cards — runs in the background">
+        {open && <button type="button" disabled={!!busy} onClick={() => void queue()} style={{ ...small, borderColor: `${V3_GOLD}88`, color: V3_GOLD, opacity: busy ? 0.5 : 1 }} title="Turn what you said in the Booth into candidate cards — runs in the background">
           {busy === "queuing" ? "Queuing…" : "Generate cards"}
-        </button>
+        </button>}
       </div>
+      {open && (<>
       {(err || error) && <div style={{ fontSize: 12, color: "#FF8B7E", marginTop: 8 }}>{err ?? error}</div>}
       {current?.status === "failed" && current.error && <div style={{ fontSize: 12, color: "#FF8B7E", marginTop: 8 }}>{current.error}</div>}
 
@@ -98,6 +105,7 @@ export function SuggestedCards({ deckId, deckName, onApplied }: { deckId: string
       {!undecided && jobs.length > 0 && !pending.length && current?.status === "done" && (
         <div style={{ fontSize: 12, color: V3_MUTED, marginTop: 8 }}>Every candidate from the last run has been decided. Generate again after you've talked more.</div>
       )}
+      </>)}
     </section>
   );
 }

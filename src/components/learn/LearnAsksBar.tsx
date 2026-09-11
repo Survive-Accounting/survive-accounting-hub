@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 import { Check, Loader2, X } from "lucide-react";
 
-import { INK, type LearnTheme } from "@/components/learn/learn-theme";
+import { LK, type LearnTheme } from "@/components/learn/learn-theme";
 import { submitIntake } from "@/lib/intake.functions";
 
 type Ask = { key: "greek" | "rep" | "syllabus"; title: string; sub: string; cta: string };
@@ -51,8 +51,8 @@ export function LearnAsksBar({ theme, campusName, campusId, campusSlug, courseCo
   }, [list.length]);
   if (hidden || list.length === 0) return null;
   const ask = list[i % list.length];
-  const bg = theme.primary ?? INK.surface;
-  const ink = theme.primary ? theme.primaryInk : INK.text;
+  const bg = theme.primary ?? LK.surface;
+  const ink = theme.primary ? theme.primaryInk : LK.text;
   const act = () => { if (ask.key === "greek") onGreek(); else if (ask.key === "rep") window.location.assign("/rep/join"); else setSyllabus(true); };
   const dismiss = () => { setHidden(true); try { sessionStorage.setItem(DISMISS_KEY, "1"); } catch { /* ignore */ } };
 
@@ -63,10 +63,10 @@ export function LearnAsksBar({ theme, campusName, campusId, campusSlug, courseCo
           <div className="truncate text-[14px] font-extrabold sm:text-[15px]">{ask.title}</div>
           {!narrow && <div className="truncate text-[12.5px]" style={{ opacity: 0.85 }}>{ask.sub}</div>}
         </div>
-        <button type="button" onClick={act} className="lk-btn" style={{ background: theme.schoolAccent ? theme.accent : INK.lime, color: theme.schoolAccent ? theme.accentInk : "#111", fontSize: narrow ? 10.5 : 12 }}>{narrow ? ask.cta.replace(" →", "") : ask.cta}</button>
+        <button type="button" onClick={act} className="lk-btn" style={{ background: theme.schoolAccent ? theme.accent : LK.acc, color: theme.schoolAccent ? theme.accentInk : "#111", fontSize: narrow ? 10.5 : 12 }}>{narrow ? ask.cta.replace(" →", "") : ask.cta}</button>
         {!narrow && list.length > 1 && (
           <div className="flex gap-1.5" aria-hidden>
-            {list.map((a, k) => <span key={a.key} className="h-1.5 w-1.5 rounded-full" style={{ background: k === i % list.length ? (theme.schoolAccent ? theme.accent : INK.lime) : "rgba(255,255,255,0.3)" }} />)}
+            {list.map((a, k) => <span key={a.key} className="h-1.5 w-1.5 rounded-full" style={{ background: k === i % list.length ? (theme.schoolAccent ? theme.accent : LK.acc) : "rgba(255,255,255,0.3)" }} />)}
           </div>
         )}
         <button type="button" onClick={dismiss} className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ background: "rgba(0,0,0,0.25)", color: ink, border: 0, cursor: "pointer" }} aria-label="Dismiss"><X className="h-4 w-4" /></button>
@@ -96,23 +96,23 @@ function SyllabusSheet({ campusName, campusId, campusSlug, courseCode, demo, onC
   };
   return (
     <div className="fixed inset-0 z-[110] flex items-end justify-center sm:items-center" style={{ background: "rgba(0,0,0,0.7)" }} onClick={onClose}>
-      <div className="lk-in w-full rounded-t-2xl p-5 sm:max-w-[440px] sm:rounded-2xl" style={{ background: INK.surface, border: `1px solid ${INK.border}` }} onClick={(e) => e.stopPropagation()}>
+      <div className="lk-in w-full rounded-t-2xl p-5 sm:max-w-[440px] sm:rounded-2xl" style={{ background: LK.surface, border: `1px solid ${LK.border}` }} onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center justify-between">
           <div className="lk-disp" style={{ fontSize: 20 }}>Your syllabus</div>
-          <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full" style={{ background: INK.border, color: INK.text, border: 0, cursor: "pointer" }} aria-label="Close"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }} aria-label="Close"><X className="h-4 w-4" /></button>
         </div>
         {done ? (
-          <div className="rounded-xl px-4 py-4 text-center" style={{ background: "rgba(78,232,180,0.12)", border: `1px solid ${INK.green}` }}>
-            <Check className="mx-auto h-6 w-6" style={{ color: INK.green }} />
+          <div className="rounded-xl px-4 py-4 text-center" style={{ background: "rgba(78,232,180,0.12)", border: `1px solid ${LK.green}` }}>
+            <Check className="mx-auto h-6 w-6" style={{ color: LK.green }} />
             <p className="mt-1 text-[14px] font-bold">Got it. I'll line the videos up with your chapters.</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2.5">
-            <p className="text-[13px]" style={{ color: INK.muted }}>Paste the chapter list from your syllabus, or the textbook name and your professor. Whatever you've got.</p>
+            <p className="text-[13px]" style={{ color: LK.muted }}>Paste the chapter list from your syllabus, or the textbook name and your professor. Whatever you've got.</p>
             <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder="Ch 1 Intro to Accounting, Ch 2 Analyzing Transactions… · Wild, Financial Accounting 11e · Prof. Smith" className="lk-field" style={{ resize: "vertical" }} />
             <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="your number or email, so I can reply" className="lk-field" />
             <button type="button" onClick={() => void send()} disabled={!ok || busy} className="lk-btn lk-btn-acc disabled:opacity-40" style={{ minHeight: 46, fontSize: 13 }}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Send</button>
-            {err && <p role="alert" className="text-[12.5px]" style={{ color: INK.red }}>{err}</p>}
+            {err && <p role="alert" className="text-[12.5px]" style={{ color: LK.red }}>{err}</p>}
           </div>
         )}
       </div>

@@ -17,6 +17,13 @@
 // page via /learn?campus=<id>; the email gate on every topic after Easy Points (LearnHome); the
 // reminder block and a one-line footer at the bottom of the page and of the path drawer.
 //
+// THE DESKTOP PASS (Lee, 2026-09-10: "/learn on desktop is showing up like the mobile version").
+// Three tiers from useTier (narrow < 640 / mid / wide ≥ 1024) replace the one `narrow` flag; the
+// home is a centred 1280 column with an entrance (the campus bolt, "Like Reels for exam prep.",
+// the real average video length, Start) and grid rows — see LearnHome / LearnEntrance. The loading
+// screen is a moment (LearnLoading: strike, settle, wipe). ?look=navy renders the room in the home
+// page's palette for a side-by-side (learn-theme's themeFor(school, look)); default stays black.
+//
 // Wireframes and the decisions behind this: the "Learn Dashboard Wireframes" canvas, Round 5.
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -46,7 +53,8 @@ import { LearnRail, LearnTabs, PathList, type PathTopic, type RailKey } from "@/
 import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome";
 import { CramPlayer, type PlayerItem } from "@/components/learn/CramPlayer";
 import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
-import { INK, LEARN_CSS, themeFor, themeStyle } from "@/components/learn/learn-theme";
+import { isLook, LK, LEARN_CSS, themeFor, themeStyle, type Look } from "@/components/learn/learn-theme";
+import { useTier } from "@/components/learn/use-tier";
 import { DEMO_PLAYBACK, LAST_SET_KEY, type Prog, type ProgressState } from "@/components/learn/cram-media";
 import { daysUntil, EXAM_DATE_EVENT, readExamDate } from "@/components/learn/exam-date";
 import { schoolByCampusId, schoolBySlug, type School } from "@/lib/schools";
@@ -60,6 +68,8 @@ type LearnSearch = {
   // shows the "sent by" line). g = the campus slug the /s/<campus> hop resolved. test = force a
   // CTA state (A–F) or the banner, client-side, no DB.
   ref?: string; by?: string; g?: string; test?: string;
+  /** ?look=navy — the home page's palette instead of the Blackboard (learn-theme.ts). */
+  look?: Look;
 };
 
 export const Route = createFileRoute("/learn")({
@@ -74,6 +84,7 @@ export const Route = createFileRoute("/learn")({
     by: typeof s.by === "string" && isContactRef(s.by) ? s.by : undefined,
     g: typeof s.g === "string" && s.g ? s.g : undefined,
     test: typeof s.test === "string" && s.test ? s.test : undefined,
+    look: isLook(s.look) && s.look !== "black" ? s.look : undefined,
   }),
   // A SHARED /s/<campus> LINK LANDS HERE. That route is a redirect, so the preview a chat app
   // builds comes from THIS page's tags — and with only a title it previewed as the generic site
@@ -129,12 +140,20 @@ function demoTree(): StudentCourse[] {
           set("s2", "Financial vs. managerial accounting", { runtimeSec: 98, ceqCount: 8, shortLabel: "Financial vs. managerial" }),
           set("s3", "Principles & assumptions", { runtimeSec: 120, ceqCount: 11, shortLabel: "Principles" }),
           set("s4", "Standards & regulation", { runtimeSec: 115, ceqCount: 13, shortLabel: "Standards" }),
-          set("s5", "Accounting careers", { runtimeSec: 90, ceqCount: 10, shortLabel: "Careers" }),
+          // Not posted yet (playbackId null) — so the demo walks the partial-topic state: a grey
+          // card in the first row and the "Get notified when these drop." box under it.
+          set("s5", "Accounting careers", { playbackId: null, ceqCount: 10, shortLabel: "Careers" }),
         ] },
         { id: "demo-t2", name: "Analyzing Transactions", shortLabel: "Analyzing", number: 2, sets: [
           set("s6", "Account classification", { runtimeSec: 89, ceqCount: 12, shortLabel: "Classify accounts" }),
           set("s7", "Equation effects", { runtimeSec: 65, ceqCount: 9, orientation: "landscape", shortLabel: "Equation effects" }),
           set("s8", "Trial balance", { playbackId: null, ceqCount: 4, shortLabel: "Trial balance" }),
+        ] },
+        // A topic with NOTHING posted yet: black-and-white heading, grey cards, the waitlist ask.
+        { id: "demo-t3", name: "Adjusting Entries", shortLabel: "Adjusting", number: 3, sets: [
+          set("s9a", "Accruals", { playbackId: null, ceqCount: 7, shortLabel: "Accruals" }),
+          set("s9b", "Deferrals", { playbackId: null, ceqCount: 6, shortLabel: "Deferrals" }),
+          set("s9c", "Depreciation", { playbackId: null, ceqCount: 5, shortLabel: "Depreciation" }),
         ] },
       ] },
       { id: "demo-exam2", name: "Exam 2", topics: [
@@ -161,14 +180,14 @@ function SignInDialog({ onClose }: { onClose: () => void }) {
   };
   return (
     <div className="fixed inset-0 z-[110] grid place-items-center p-4" style={{ background: "rgba(0,0,0,0.75)" }} onClick={onClose}>
-      <div className="lk-in w-full max-w-sm rounded-2xl p-5" style={{ background: INK.surface, border: `1px solid ${INK.border}`, color: INK.text }} onClick={(e) => e.stopPropagation()}>
-        <div className="mb-2 flex items-center gap-2"><Mail className="h-4 w-4" style={{ color: "var(--lk-acc)" }} /><span className="lk-disp" style={{ fontSize: 18 }}>Pick up where you left off</span><button type="button" onClick={onClose} aria-label="Close" className="ml-auto grid h-8 w-8 place-items-center rounded-full" style={{ background: INK.border, color: INK.text, border: 0, cursor: "pointer" }}><X className="h-4 w-4" /></button></div>
+      <div className="lk-in w-full max-w-sm rounded-2xl p-5" style={{ background: LK.surface, border: `1px solid ${LK.border}`, color: LK.text }} onClick={(e) => e.stopPropagation()}>
+        <div className="mb-2 flex items-center gap-2"><Mail className="h-4 w-4" style={{ color: "var(--lk-acc)" }} /><span className="lk-disp" style={{ fontSize: 18 }}>Pick up where you left off</span><button type="button" onClick={onClose} aria-label="Close" className="ml-auto grid h-8 w-8 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }}><X className="h-4 w-4" /></button></div>
         {state === "sent" ? (
-          <p className="text-[13px] leading-relaxed" style={{ color: INK.muted }}>Check <b style={{ color: INK.text }}>{email}</b> and tap the link. That's it.</p>
+          <p className="text-[13px] leading-relaxed" style={{ color: LK.muted }}>Check <b style={{ color: LK.text }}>{email}</b> and tap the link. That's it.</p>
         ) : (
           <>
             <input type="email" autoFocus inputMode="email" autoComplete="email" placeholder="the email you used" className="lk-field" value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("idle"); }} onKeyDown={(e) => { if (e.key === "Enter") void send(); }} />
-            {state === "error" && <p className="mt-1.5 text-[12px]" style={{ color: INK.red }}>{msg}</p>}
+            {state === "error" && <p className="mt-1.5 text-[12px]" style={{ color: LK.red }}>{msg}</p>}
             <button type="button" disabled={state === "sending"} className="lk-btn lk-btn-acc mt-3 w-full disabled:opacity-50" style={{ minHeight: 46 }} onClick={() => void send()}>{state === "sending" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Send me in</button>
           </>
         )}
@@ -194,9 +213,9 @@ function Paywall({ topic, campusName, campusId, demo, onClose, onRestore, restor
   };
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center p-4" style={{ background: "rgba(0,0,0,0.75)" }} onClick={onClose}>
-      <div className="lk-in w-full max-w-md rounded-2xl p-5" style={{ background: INK.surface, border: `1px solid ${INK.border}`, color: INK.text }} onClick={(e) => e.stopPropagation()}>
-        <div className="mb-2 flex items-center gap-2"><Lock className="h-4 w-4" style={{ color: INK.muted }} /><span className="lk-disp" style={{ fontSize: 18 }}>{topic.name} is coming</span></div>
-        <p className="text-[13px] leading-relaxed" style={{ color: INK.muted }}>{n} cram {n === 1 ? "video" : "videos"} in <b style={{ color: INK.text }}>{topic.name}</b>{topic.sets.slice(0, 3).length > 0 && <> — {topic.sets.slice(0, 3).map((s) => s.name).join(", ")}{n > 3 ? `, +${n - 3} more` : ""}</>}.</p>
+      <div className="lk-in w-full max-w-md rounded-2xl p-5" style={{ background: LK.surface, border: `1px solid ${LK.border}`, color: LK.text }} onClick={(e) => e.stopPropagation()}>
+        <div className="mb-2 flex items-center gap-2"><Lock className="h-4 w-4" style={{ color: LK.muted }} /><span className="lk-disp" style={{ fontSize: 18 }}>{topic.name} is coming</span></div>
+        <p className="text-[13px] leading-relaxed" style={{ color: LK.muted }}>{n} cram {n === 1 ? "video" : "videos"} in <b style={{ color: LK.text }}>{topic.name}</b>{topic.sets.slice(0, 3).length > 0 && <> — {topic.sets.slice(0, 3).map((s) => s.name).join(", ")}{n > 3 ? `, +${n - 3} more` : ""}</>}.</p>
         <div className="mt-4 flex flex-col gap-2">
           {state === "done" ? (
             <p className="text-[13px] font-semibold">✓ You're on the list — I'll email you the day {topic.name} opens.</p>
@@ -204,26 +223,15 @@ function Paywall({ topic, campusName, campusId, demo, onClose, onRestore, restor
             <>
               <input value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} type="email" inputMode="email" autoComplete="email" placeholder="you@school.edu" className="lk-field" />
               <button type="button" onClick={() => void submit()} disabled={state === "busy"} className="lk-btn lk-btn-acc disabled:opacity-50" style={{ minHeight: 46 }}>{state === "busy" ? "…" : `Tell me when ${topic.name} is ready`}</button>
-              {state === "error" && <p className="text-[12px]" style={{ color: INK.red }}>Couldn't save that — try again in a moment.</p>}
+              {state === "error" && <p className="text-[12px]" style={{ color: LK.red }}>Couldn't save that — try again in a moment.</p>}
             </>
           )}
         </div>
         {onRestore && <button type="button" className="lk-btn mt-2 w-full disabled:opacity-50" style={{ background: "transparent", color: "var(--lk-acc)" }} disabled={restoring} onClick={onRestore}>{restoring ? "Checking…" : "Already have access? Restore it"}</button>}
-        <button type="button" className="lk-btn mt-1 w-full" style={{ background: "transparent", color: INK.muted }} onClick={onClose}>Keep cramming</button>
+        <button type="button" className="lk-btn mt-1 w-full" style={{ background: "transparent", color: LK.muted }} onClick={onClose}>Keep cramming</button>
       </div>
     </div>
   );
-}
-
-function useIsNarrow(): boolean {
-  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 719px)").matches);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 719px)");
-    const on = () => setNarrow(mq.matches);
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
-  return narrow;
 }
 
 const examNumOf = (unitName: string): number | null => { const m = /exam\s*(\d+)/i.exec(unitName); return m ? Number(m[1]) : /final/i.test(unitName) ? 4 : null; };
@@ -272,7 +280,8 @@ function LearnShell() {
   const isLoading = !demo && q.isLoading;
   const isError = !demo && q.isError;
   const [paywallTopic, setPaywallTopic] = useState<StudentTopic | null>(null);
-  const isNarrow = useIsNarrow();
+  const tier = useTier();
+  const isNarrow = tier === "narrow";
   const [pathOpen, setPathOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const [pickedExam, setExamNum] = useState<number | null>(null);
@@ -280,7 +289,8 @@ function LearnShell() {
   const school = schoolBySlug(search.g) ?? schoolByCampusId(campusId);
   const campusSlug = search.g ?? school?.slug ?? null;
   const campusName = school?.name ?? campuses.find((c) => c.id === campusId)?.name ?? null;
-  const theme = useMemo(() => themeFor(school), [school]);
+  const look: Look = search.look ?? "black";
+  const theme = useMemo(() => themeFor(school, look), [school, look]);
 
   // AUTH + PROGRESS — unchanged model: localStorage signed-out / student_set_progress signed-in.
   const { userId, email, signOut } = useStudentAuth();
@@ -453,7 +463,7 @@ function LearnShell() {
       <style>{LEARN_CSS}</style>
       {/* ONE loading screen: the brand splash stays up while the tree loads (and for its beat on a
           first visit), so there is never a second "loading" view behind it. */}
-      <LearnLoading loading={isLoading} />
+      <LearnLoading loading={isLoading} school={school} />
 
       <LearnTop
         school={school} campusId={campusId} campusName={campusName}
@@ -470,13 +480,13 @@ function LearnShell() {
         {!isNarrow && <LearnRail active={inPlayer ? "cram" : rail} onPick={pickRail} expanded={railOpen} onToggle={() => setRailOpen((v) => !v)} path={path} activeSetId={search.set ?? null} onOpenSet={(id) => openSet(id)} />}
 
         {isError ? (
-          <div className="grid flex-1 place-items-center p-6 text-center text-[13px]" style={{ color: INK.red }}>Something went wrong loading videos. <button type="button" className="ml-1 underline" style={{ background: "transparent", border: 0, color: INK.text, cursor: "pointer" }} onClick={() => q.refetch()}>Retry</button></div>
+          <div className="grid flex-1 place-items-center p-6 text-center text-[13px]" style={{ color: LK.red }}>Something went wrong loading videos. <button type="button" className="ml-1 underline" style={{ background: "transparent", border: 0, color: LK.text, cursor: "pointer" }} onClick={() => q.refetch()}>Retry</button></div>
         ) : isLoading ? (
           // Blank on purpose: LearnLoading covers this while the tree loads. A second spinner
           // here is the flash-between-two-screens Lee asked to remove.
           <div className="flex-1" aria-busy="true" />
         ) : sets.length === 0 ? (
-          <div className="grid flex-1 place-items-center p-6 text-center"><div><p className="lk-disp" style={{ fontSize: 18 }}>Cram videos are on the way.</p><p className="mt-1 text-[13px]" style={{ color: INK.muted }}>Nothing is live for {exam?.label ?? "this exam"} yet — check back soon.</p></div></div>
+          <div className="grid flex-1 place-items-center p-6 text-center"><div><p className="lk-disp" style={{ fontSize: 18 }}>Cram videos are on the way.</p><p className="mt-1 text-[13px]" style={{ color: LK.muted }}>Nothing is live for {exam?.label ?? "this exam"} yet — check back soon.</p></div></div>
         ) : inPlayer ? (
           <CramPlayer
             items={playerItems} index={playerIndex}
@@ -494,11 +504,12 @@ function LearnShell() {
             sets={sets} topics={topics}
             chip={chip} onChip={setChip}
             plan={plan} onPlan={setPlan} daysOut={daysOut} examLabel={exam?.label ?? "Exam 1"} comingExams={comingExams}
-            theme={theme} narrow={isNarrow}
+            theme={theme} tier={tier}
             onStart={start} onOpenSet={openSet} onLocked={setPaywallTopic} rowRef={rowRef}
             you={{ email, userId, onSignIn: () => setSignInOpen(true), signOut, onShare: () => void share(), done: topProgress.done, total: topProgress.total }}
             campusId={campusId} courseCode={school?.courseCode ?? null} demo={demo}
             unlocked={unlocked} onUnlocked={() => setUnlocked(true)}
+            school={school} campusName={campusName} chapterLetters={chapter.slug ? chapter.letters : null} onPickSchool={() => setPickerOpen(true)}
           />
         )}
       </div>
@@ -509,10 +520,10 @@ function LearnShell() {
       {isNarrow && !inPlayer && <LearnTabs active={rail} onPick={pickRail} />}
 
       {isNarrow && pathOpen && (
-        <div className="fixed inset-0 z-[95] flex flex-col" style={{ background: INK.bg }}>
-          <div className="flex h-12 shrink-0 items-center gap-2 px-3" style={{ borderBottom: `1px solid ${INK.border}` }}>
+        <div className="fixed inset-0 z-[95] flex flex-col" style={{ background: LK.bg }}>
+          <div className="flex h-12 shrink-0 items-center gap-2 px-3" style={{ borderBottom: `1px solid ${LK.border}` }}>
             <span className="lk-disp" style={{ fontSize: 15 }}>{exam?.label ?? "Exam 1"}</span>
-            <button type="button" className="ml-auto grid h-9 w-9 place-items-center rounded-full" style={{ background: INK.surface, color: INK.text, border: 0, cursor: "pointer" }} onClick={() => setPathOpen(false)} aria-label="Close"><X className="h-4 w-4" /></button>
+            <button type="button" className="ml-auto grid h-9 w-9 place-items-center rounded-full" style={{ background: LK.surface, color: LK.text, border: 0, cursor: "pointer" }} onClick={() => setPathOpen(false)} aria-label="Close"><X className="h-4 w-4" /></button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto py-2">
             <PathList path={path} activeSetId={search.set ?? null} onOpenSet={(id) => { setPathOpen(false); openSet(id); }} />
@@ -526,9 +537,9 @@ function LearnShell() {
       {paywallTopic && <Paywall topic={paywallTopic} campusName={campusName} campusId={campusId} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
       {signInOpen && <SignInDialog onClose={() => setSignInOpen(false)} />}
       {note && (
-        <div className="fixed bottom-4 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2.5 text-[12.5px] font-semibold shadow-xl" style={{ background: INK.surface, border: `1px solid ${INK.border}`, color: INK.text }}>
+        <div className="fixed bottom-4 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2.5 text-[12.5px] font-semibold shadow-xl" style={{ background: LK.surface, border: `1px solid ${LK.border}`, color: LK.text }}>
           <span>{note}</span>
-          <button type="button" style={{ background: "transparent", border: 0, color: INK.muted, cursor: "pointer" }} onClick={() => setNote(null)}>✕</button>
+          <button type="button" style={{ background: "transparent", border: 0, color: LK.muted, cursor: "pointer" }} onClick={() => setNote(null)}>✕</button>
         </div>
       )}
       {ctaMounted && <LearnCta bare={!ctaOwnBar} campusSlug={campusSlug ?? "your-campus"} campusName={campusName ?? campusSlug ?? "your campus"} sharerBy={contactRef} sharerIsCouncil={shareCtx.isCouncil} test={search.test} />}

@@ -2,8 +2,8 @@
 // functions, so these pin the decisions rather than the pixels.
 import { describe, expect, test } from "bun:test";
 
-import { emailGateNeeded, isUuid, practiceGateNeeded, questionCount, topicDetail, type GateSet } from "./learn-gate";
-import { contrast, INK, themeFor, topBarFor } from "./learn-theme";
+import { averageVideoLabel, averageVideoMinutes, emailGateNeeded, examTease, isUuid, practiceGateNeeded, questionCount, topicDetail, waitlistNeeded, type GateSet } from "./learn-gate";
+import { contrast, INK, NAVY, themeFor, topBarFor } from "./learn-theme";
 import { GENERATED_SCHOOLS } from "@/lib/schools.generated";
 
 function gs(o: Partial<GateSet> = {}): GateSet {
@@ -21,6 +21,20 @@ describe("email gate", () => {
   test("a signed-in student skips it; so does a device that already unlocked", () => {
     expect(emailGateNeeded(1, true, false)).toBe(false);
     expect(emailGateNeeded(1, false, true)).toBe(false);
+  });
+});
+
+describe("waitlist ask (no posted video yet)", () => {
+  test("asks only when nothing is posted and no email is on file", () => {
+    expect(waitlistNeeded(0, false, false)).toBe(true);
+    expect(waitlistNeeded(2, false, false)).toBe(false);
+    expect(waitlistNeeded(0, true, false)).toBe(false);
+    expect(waitlistNeeded(0, false, true)).toBe(false);
+  });
+  test("teases the whole exam with real counts, singulars included", () => {
+    expect(examTease(3, [gs({ ceqCount: 8 }), gs({ ceqCount: 4 }), gs({ ceqCount: 0 })])).toBe("3 topics · 3 videos · 12 exam questions");
+    expect(examTease(1, [gs({ ceqCount: 1 })])).toBe("1 topic · 1 video · 1 exam question");
+    expect(examTease(0, [])).toBe("0 topics · 0 videos · 0 exam questions");
   });
 });
 
@@ -47,11 +61,61 @@ describe("topic detail", () => {
   });
   test("never claims minutes unless every video has a runtime", () => {
     expect(topicDetail([gs(), gs({ runtimeSec: null })])).toBe("2 videos");
-    expect(topicDetail([gs({ hasVideo: false, runtimeSec: null })])).toBe("1 video · coming soon");
+    // No "coming soon" anywhere on the page (Lee, 2026-09-10): an unposted topic is just its count.
+    expect(topicDetail([gs({ hasVideo: false, runtimeSec: null })])).toBe("1 video");
     expect(topicDetail([])).toBe("0 videos");
   });
   test("questions are a plain sum of real counts", () => {
     expect(questionCount([gs({ ceqCount: 8 }), gs({ ceqCount: 0 }), gs({ ceqCount: 3 })])).toBe(11);
+  });
+});
+
+describe("average video length (the number Lee wants to keep beating)", () => {
+  test("is the mean over the sets that have a runtime, in minutes", () => {
+    expect(averageVideoMinutes([gs({ runtimeSec: 120 }), gs({ runtimeSec: 180 })])).toBe(2.5);
+  });
+  test("leaves untimed sets out of the mean instead of counting them as zero", () => {
+    expect(averageVideoMinutes([gs({ runtimeSec: 120 }), gs({ runtimeSec: null }), gs({ runtimeSec: 0 })])).toBe(2);
+  });
+  test("is null — never invented — when nothing has a runtime", () => {
+    expect(averageVideoMinutes([gs({ runtimeSec: null })])).toBeNull();
+    expect(averageVideoMinutes([])).toBeNull();
+    expect(averageVideoLabel([])).toBeNull();
+  });
+  test("labels one decimal under ten minutes, whole minutes from ten up", () => {
+    expect(averageVideoLabel([gs({ runtimeSec: 102 }), gs({ runtimeSec: 98 }), gs({ runtimeSec: 120 }), gs({ runtimeSec: 115 }), gs({ runtimeSec: 90 })])).toBe("~1.8 min");
+    expect(averageVideoLabel([gs({ runtimeSec: 150 })])).toBe("~2.5 min");
+    expect(averageVideoLabel([gs({ runtimeSec: 745 })])).toBe("~12 min");
+    expect(averageVideoLabel([gs({ runtimeSec: 599 })])).toBe("~10 min");
+    expect(averageVideoLabel([gs({ runtimeSec: 596 })])).toBe("~9.9 min");
+  });
+});
+
+describe("the navy look (the home page's palette)", () => {
+  test("default is the Blackboard; ?look=navy swaps every surface token", () => {
+    expect(themeFor(null).look).toBe("black");
+    expect(themeFor(null).palette.bg).toBe(INK.bg);
+    const navy = themeFor(null, "navy");
+    expect(navy.look).toBe("navy");
+    expect(navy.palette.bg).toBe(NAVY.bg);
+    expect(navy.topBg).toBe(NAVY.bg);
+    expect(navy.topInk).toBe(NAVY.text);
+  });
+  test("no school → gold on navy, lime on black", () => {
+    expect(themeFor(null, "navy").accent).toBe(NAVY.fallbackAccent);
+    expect(themeFor(null, "black").accent).toBe(INK.lime);
+  });
+  test("the school-coloured top bar still works in navy", () => {
+    const t = themeFor({ c1: "#9E1B32", c2: "#F1F2F3" }, "navy"); // Alabama
+    expect(t.topBg).toBe("#9E1B32");
+    expect(contrast(t.topBg, t.topInk)).toBeGreaterThanOrEqual(3);
+  });
+  test("every generated school's accent clears 3:1 on the navy ground, or falls back", () => {
+    for (const s of GENERATED_SCHOOLS) {
+      const t = themeFor(s, "navy");
+      expect(contrast(t.accent, NAVY.bg)).toBeGreaterThanOrEqual(3);
+      expect(contrast(t.topBg, t.topInk)).toBeGreaterThanOrEqual(3);
+    }
   });
 });
 

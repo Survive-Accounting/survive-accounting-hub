@@ -10,6 +10,10 @@
 //     A topic with no playable video goes straight to practice, as it always did.
 //   · THE INTRO. The brand splash holds for a beat on the first arrival of a browser session and
 //     is only a loading screen (no beat, no fade) on every arrival after (INTRO_SEEN_KEY).
+//   · THE WAITLIST (Lee, 2026-09-10). A topic with NO posted video yet never says "unlock" — it
+//     asks "Get notified when these drop." (source learn-waitlist) and teases the whole exam's
+//     real counts (examTease). Same one email; either submit marks the device (UNLOCK_KEY).
+//   · THE START CUE. The first row's outline pulse plays once per session (START_PULSE_KEY).
 //
 // Copy rule (learn.tsx header): no "run" / "blast" / "pledge", no emoji, in anything a student reads.
 
@@ -17,6 +21,8 @@
 export const UNLOCK_KEY = "sa-learn-unlocked";
 /** sessionStorage — "1" once the brand splash has played in this browser session. */
 export const INTRO_SEEN_KEY = "sa-learn-intro-seen";
+/** sessionStorage — "1" once the first row's "start here" outline pulse has played this session. */
+export const START_PULSE_KEY = "sa-learn-start-pulsed";
 
 export function readUnlocked(): boolean {
   try { return localStorage.getItem(UNLOCK_KEY) === "1"; } catch { return false; }
@@ -29,6 +35,28 @@ export function readIntroSeen(): boolean {
 }
 export function writeIntroSeen(): void {
   try { sessionStorage.setItem(INTRO_SEEN_KEY, "1"); } catch { /* ignore */ }
+}
+export function readStartPulsed(): boolean {
+  try { return sessionStorage.getItem(START_PULSE_KEY) === "1"; } catch { return false; }
+}
+export function writeStartPulsed(): void {
+  try { sessionStorage.setItem(START_PULSE_KEY, "1"); } catch { /* ignore */ }
+}
+
+/** THE WAITLIST TEASE (Lee, 2026-09-10) — "3 topics · 12 videos · 96 exam questions" for the
+ *  WHOLE exam, under the "Get notified when these drop." box. Topics is every topic, videos is
+ *  every set (made or not — each is one video), questions is the plain ceqCount sum. Real
+ *  counts only; zero reads as zero. */
+export function examTease(topicCount: number, sets: readonly Pick<GateSet, "ceqCount">[]): string {
+  const q = questionCount(sets);
+  return `${topicCount} topic${topicCount === 1 ? "" : "s"} · ${sets.length} video${sets.length === 1 ? "" : "s"} · ${q} exam question${q === 1 ? "" : "s"}`;
+}
+
+/** Does a topic get the "Get notified" ask rather than the unlock one? The unlock wording belongs
+ *  to a topic that HAS posted videos; one with none posted asks for the waitlist instead. Both
+ *  capture the same one email — either submit marks the device, so nothing asks twice. */
+export function waitlistNeeded(postedCount: number, signedIn: boolean, unlocked: boolean): boolean {
+  return postedCount === 0 && !signedIn && !unlocked;
 }
 
 /** Does topic #index (0 = Easy Points) sit behind the email gate for this student? */
@@ -64,15 +92,37 @@ export function questionCount(sets: readonly Pick<GateSet, "ceqCount">[]): numbe
  *  number is worse than none. */
 export function topicDetail(sets: readonly Pick<GateSet, "hasVideo" | "runtimeSec">[]): string {
   // The count is the topic's VIDEOS — every set is one, made or not — so a topic never reads
-  // "0 videos" before launch. "coming soon" says none is up yet; the minutes appear only once
-  // every made one has a runtime (a partial sum would understate).
+  // "0 videos" before launch. No "coming soon" (Lee, 2026-09-10: nowhere on the page) — a topic
+  // with nothing posted is drawn grey, which says it; the minutes appear only once every made
+  // one has a runtime (a partial sum would understate).
   const n = sets.length;
   const label = `${n} video${n === 1 ? "" : "s"}`;
   const withVideo = sets.filter((s) => s.hasVideo);
-  if (withVideo.length === 0) return n ? `${label} · coming soon` : label;
+  if (withVideo.length === 0) return label;
   if (withVideo.length < n || withVideo.some((s) => s.runtimeSec == null)) return label;
   const total = withVideo.reduce((a, s) => a + (s.runtimeSec ?? 0), 0);
   return `${label} · ~${Math.max(1, Math.round(total / 60))} min`;
+}
+
+/** THE AVERAGE VIDEO (Lee, 2026-09-10: "have the app calculate this so I can try to keep beating
+ *  it"). The mean runtime, in minutes, over the sets that HAVE a runtime; null when none does —
+ *  the line then simply doesn't claim one. Sets without a runtime are left out of the mean rather
+ *  than counted as zero, which would flatter the number. */
+export function averageVideoMinutes(sets: readonly Pick<GateSet, "runtimeSec">[]): number | null {
+  const timed = sets.filter((s) => s.runtimeSec != null && s.runtimeSec > 0);
+  if (timed.length === 0) return null;
+  const total = timed.reduce((a, s) => a + (s.runtimeSec ?? 0), 0);
+  return total / timed.length / 60;
+}
+
+/** "~2.4 min" under ten minutes, "~12 min" from ten up — or null when nothing has a runtime. */
+export function averageVideoLabel(sets: readonly Pick<GateSet, "runtimeSec">[]): string | null {
+  const m = averageVideoMinutes(sets);
+  if (m == null) return null;
+  // Rounded to one decimal FIRST, so 9.98 reads "~10 min", not "~10.0 min".
+  const tenth = Math.round(m * 10) / 10;
+  const n = tenth < 10 ? tenth.toFixed(1) : String(Math.round(m));
+  return `~${n} min`;
 }
 
 /** submitIntake's campusId is a uuid or null — a demo id or a stale non-uuid value must not fail

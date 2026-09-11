@@ -18,7 +18,7 @@ import { PracticeStage } from "@/components/site/PracticeStage";
 import { CramCardsPanel } from "@/components/learn/CramCards";
 import { submitIntake } from "@/lib/intake.functions";
 import type { PracticeQuestion, StudentSet, StudentTopic } from "@/lib/student.functions";
-import { INK, type LearnTheme } from "@/components/learn/learn-theme";
+import { LK, type LearnTheme } from "@/components/learn/learn-theme";
 import { RailIcon } from "@/components/learn/LearnRail";
 import { DEMO_PLAYBACK, muxThumb, SOUND_KEY, type Prog } from "@/components/learn/cram-media";
 
@@ -119,12 +119,12 @@ export function CramPlayer({
   );
 
   const cardsPanel = cards && !practice && (
-    <div className={narrow ? "flex min-h-0 flex-1 flex-col" : "lk-in flex flex-col overflow-hidden rounded-2xl"} style={narrow ? { background: INK.surface, borderTop: `1px solid ${INK.border}` } : { width: 420, maxHeight: "78vh", background: INK.surface, border: `1px solid ${INK.border}` }}>
-      <div className="flex shrink-0 items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${INK.border}` }}>
+    <div className={narrow ? "flex min-h-0 flex-1 flex-col" : "lk-in flex flex-col overflow-hidden rounded-2xl"} style={narrow ? { background: LK.surface, borderTop: `1px solid ${LK.border}` } : { width: 420, maxHeight: "78vh", background: LK.surface, border: `1px solid ${LK.border}` }}>
+      <div className="flex shrink-0 items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${LK.border}` }}>
         <span className="lk-disp" style={{ fontSize: 15 }}>Cram cards</span>
-        <span className="min-w-0 truncate text-[12px]" style={{ color: INK.muted }}>{set.name}</span>
+        <span className="min-w-0 truncate text-[12px]" style={{ color: LK.muted }}>{set.name}</span>
         <span className="flex-1" />
-        <button type="button" onClick={() => setCards(false)} className="grid h-8 w-8 place-items-center rounded-full" style={{ background: INK.border, color: INK.text, border: 0, cursor: "pointer" }} aria-label="Close"><X className="h-4 w-4" /></button>
+        <button type="button" onClick={() => setCards(false)} className="grid h-8 w-8 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }} aria-label="Close"><X className="h-4 w-4" /></button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <CramCardsPanel setId={set.id} demo={demo} practiceCount={set.ceqCount} onPractice={() => { setCards(false); onPractice(true); }} />
@@ -133,12 +133,12 @@ export function CramPlayer({
   );
 
   const practicePanel = practice && set.ceqCount > 0 && (
-    <div className={narrow ? "flex min-h-0 flex-1 flex-col" : "lk-in flex flex-col overflow-hidden rounded-2xl"} style={narrow ? { background: INK.surface, borderTop: `1px solid ${INK.border}`, borderRadius: "18px 18px 0 0" } : { width: "min(560px, 46vw)", height: "min(700px, calc(100dvh - 110px))", background: INK.surface, border: `1px solid ${INK.border}` }}>
-      <div className="flex shrink-0 items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${INK.border}` }}>
+    <div className={narrow ? "flex min-h-0 flex-1 flex-col" : "lk-in flex flex-col overflow-hidden rounded-2xl"} style={narrow ? { background: LK.surface, borderTop: `1px solid ${LK.border}`, borderRadius: "18px 18px 0 0" } : { width: "min(560px, 46vw)", height: "min(700px, calc(100dvh - 110px))", background: LK.surface, border: `1px solid ${LK.border}` }}>
+      <div className="flex shrink-0 items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${LK.border}` }}>
         <span className="lk-disp" style={{ fontSize: 15 }}>Practice</span>
-        <span className="min-w-0 truncate text-[12px]" style={{ color: INK.muted }}>{set.name}</span>
+        <span className="min-w-0 truncate text-[12px]" style={{ color: LK.muted }}>{set.name}</span>
         <span className="flex-1" />
-        <button type="button" onClick={() => onPractice(false)} className="grid h-8 w-8 place-items-center rounded-full" style={{ background: INK.border, color: INK.text, border: 0, cursor: "pointer" }} aria-label="Close practice"><X className="h-4 w-4" /></button>
+        <button type="button" onClick={() => onPractice(false)} className="grid h-8 w-8 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }} aria-label="Close practice"><X className="h-4 w-4" /></button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto" style={{ display: "flex", flexDirection: "column" }}>
         <PracticeStage
@@ -161,13 +161,13 @@ export function CramPlayer({
     return (
       <div className="relative flex min-h-0 flex-1 flex-col" style={{ background: "#000" }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <div className={practice || cards || ask ? "shrink-0" : "min-h-0 flex-1"} style={practice || cards || ask ? { height: 220 } : undefined}>{video}</div>
-        <button type="button" onClick={onExit} className="absolute left-3 top-3 z-[2] grid h-9 w-9 place-items-center rounded-full" style={{ background: "rgba(28,28,28,0.85)", color: INK.text, border: 0, cursor: "pointer" }} aria-label="Back"><ChevronLeft className="h-5 w-5" /></button>
+        <button type="button" onClick={onExit} className="absolute left-3 top-3 z-[2] grid h-9 w-9 place-items-center rounded-full" style={{ background: "rgba(28,28,28,0.85)", color: LK.text, border: 0, cursor: "pointer" }} aria-label="Back"><ChevronLeft className="h-5 w-5" /></button>
         {!practice && !cards && !ask && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 p-4" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0))" }}>
             <div className="min-w-0 flex-1 pb-1">
               <div className="text-[10px] font-extrabold uppercase" style={{ letterSpacing: "0.14em", color: theme.accent }}>{topic.name} · {n} of {of}</div>
               <div className="lk-disp" style={{ fontSize: 19, lineHeight: 1.1, marginTop: 4 }}>{set.name}</div>
-              <div className="mt-1.5 text-[11px]" style={{ color: INK.muted }}>swipe up for the next one</div>
+              <div className="mt-1.5 text-[11px]" style={{ color: LK.muted }}>swipe up for the next one</div>
             </div>
             <div className="pointer-events-auto">{actions}</div>
           </div>
@@ -187,9 +187,9 @@ export function CramPlayer({
         <div className="lk-card lk-in absolute bottom-6 left-8 flex w-[280px] flex-col gap-2 p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="text-[13.5px] font-bold leading-snug">Know someone in this class?</div>
-            <button type="button" onClick={() => { setShareCard(false); try { sessionStorage.setItem(SHARE_DISMISS, "1"); } catch { /* ignore */ } }} className="grid h-6 w-6 shrink-0 place-items-center rounded-full" style={{ background: INK.border, color: INK.muted, border: 0, cursor: "pointer" }} aria-label="Dismiss"><X className="h-3 w-3" /></button>
+            <button type="button" onClick={() => { setShareCard(false); try { sessionStorage.setItem(SHARE_DISMISS, "1"); } catch { /* ignore */ } }} className="grid h-6 w-6 shrink-0 place-items-center rounded-full" style={{ background: LK.border, color: LK.muted, border: 0, cursor: "pointer" }} aria-label="Dismiss"><X className="h-3 w-3" /></button>
           </div>
-          <div className="text-[12.5px] leading-relaxed" style={{ color: INK.muted }}>Send them this. Exam 1 is free for them too, and free for your whole fraternity or sorority.</div>
+          <div className="text-[12.5px] leading-relaxed" style={{ color: LK.muted }}>Send them this. Exam 1 is free for them too, and free for your whole fraternity or sorority.</div>
           <button type="button" onClick={onShare} className="lk-btn lk-btn-ghost self-start" style={{ padding: "7px 12px", fontSize: 11 }}>Share with a friend</button>
         </div>
       )}
@@ -265,24 +265,24 @@ function Video({ set, locked, demo, soundOn, onToggleSound, prog, narrow, shrink
   return (
     <div className="relative overflow-hidden" style={{ width: w, height: h, borderRadius: narrow ? 0 : 16, background: "#000", flexShrink: 0, transition: "width 160ms ease, height 160ms ease" }}>
       {locked ? (
-        <button type="button" onClick={onLocked} className="grid h-full w-full place-items-center text-center" style={{ background: INK.surface2, border: 0, color: INK.text, cursor: "pointer" }}>
-          <div><Lock className="mx-auto h-7 w-7" style={{ color: INK.muted }} /><div className="mt-2 text-[13px] font-bold">{caption.topic} isn't open yet</div><div className="mt-0.5 text-[11.5px]" style={{ color: INK.muted }}>tap to get notified</div></div>
+        <button type="button" onClick={onLocked} className="grid h-full w-full place-items-center text-center" style={{ background: LK.surface2, border: 0, color: LK.text, cursor: "pointer" }}>
+          <div><Lock className="mx-auto h-7 w-7" style={{ color: LK.muted }} /><div className="mt-2 text-[13px] font-bold">{caption.topic} isn't open yet</div><div className="mt-0.5 text-[11.5px]" style={{ color: LK.muted }}>tap to get notified</div></div>
         </button>
       ) : isDemo ? (
         <div className="grid h-full w-full place-items-center text-center" style={{ background: "radial-gradient(60% 40% at 50% 45%, #2A2A2A 0%, #000 70%)" }}>
-          <div><div className="mx-auto mb-3 inline-block"><BoltBoil height={56} /></div><div className="text-[11px] font-semibold" style={{ color: INK.muted, fontFamily: "monospace" }}>[ cram video plays here ]</div>{!ended && <button type="button" className="lk-btn lk-btn-acc mt-4" onClick={finish}>Finish video (demo)</button>}</div>
+          <div><div className="mx-auto mb-3 inline-block"><BoltBoil height={56} /></div><div className="text-[11px] font-semibold" style={{ color: LK.muted, fontFamily: "monospace" }}>[ cram video plays here ]</div>{!ended && <button type="button" className="lk-btn lk-btn-acc mt-4" onClick={finish}>Finish video (demo)</button>}</div>
         </div>
       ) : err ? (
-        <div className="grid h-full w-full place-items-center px-6 text-center text-[13px]" style={{ color: INK.red }}>Couldn't load this video. Try again shortly.</div>
+        <div className="grid h-full w-full place-items-center px-6 text-center text-[13px]" style={{ color: LK.red }}>Couldn't load this video. Try again shortly.</div>
       ) : !pid ? (
-        <div className="grid h-full w-full place-items-center text-center" style={{ background: INK.surface2 }}><div><div className="mx-auto mb-2 inline-block"><BoltBoil height={48} /></div><div className="text-[12px] font-semibold" style={{ color: INK.muted }}>Cram video coming soon</div></div></div>
+        <div className="grid h-full w-full place-items-center text-center" style={{ background: LK.surface2 }}><div><div className="mx-auto mb-2 inline-block"><BoltBoil height={48} /></div><div className="text-[12px] font-semibold" style={{ color: LK.muted }}>This video is not posted yet.</div></div></div>
       ) : (
         <>
           <video ref={ref} controls playsInline muted={!soundOn} preload="auto" poster={muxThumb(pid, portrait ? 480 : 960)} className="h-full w-full" style={{ objectFit: "contain", background: "#000" }}
             onPlay={() => { setEnded(false); onStarted(); }} onPause={flush}
             onTimeUpdate={() => { const now = Date.now(); if (now - lastWrite.current > 5000) { lastWrite.current = now; flush(); } }}
             onEnded={finish} />
-          <button type="button" onClick={onToggleSound} className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-extrabold shadow-lg" style={{ background: soundOn ? "rgba(28,28,28,0.85)" : theme.accent, color: soundOn ? INK.text : theme.accentInk, border: 0, cursor: "pointer" }}>
+          <button type="button" onClick={onToggleSound} className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-extrabold shadow-lg" style={{ background: soundOn ? "rgba(28,28,28,0.85)" : theme.accent, color: soundOn ? LK.text : theme.accentInk, border: 0, cursor: "pointer" }}>
             {soundOn ? <><Volume2 className="h-3.5 w-3.5" /> Sound on</> : <><VolumeX className="h-3.5 w-3.5" /> Tap for sound</>}
           </button>
         </>
@@ -293,7 +293,7 @@ function Video({ set, locked, demo, soundOn, onToggleSound, prog, narrow, shrink
           <div className="lk-disp" style={{ fontSize: 18, lineHeight: 1.1, marginTop: 3 }}>{caption.name}</div>
         </div>
       )}
-      {shrink && <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3 pt-8" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0))" }}><div className="lk-disp" style={{ fontSize: 14 }}>{caption.name}</div><div className="text-[11px]" style={{ color: INK.muted }}>replay any time</div></div>}
+      {shrink && <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3 pt-8" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0))" }}><div className="lk-disp" style={{ fontSize: 14 }}>{caption.name}</div><div className="text-[11px]" style={{ color: LK.muted }}>replay any time</div></div>}
     </div>
   );
 }
@@ -321,22 +321,22 @@ function AskLee({ set, topic, campusName, campusSlug, contactRef, demo, narrow, 
     <>
       <div className="flex items-center gap-2.5">
         <span className="lk-disp whitespace-nowrap" style={{ fontSize: 16 }}>Ask Lee</span>
-        <span className="min-w-0 truncate text-[12px]" style={{ color: INK.muted }}>about {set.name}</span>
+        <span className="min-w-0 truncate text-[12px]" style={{ color: LK.muted }}>about {set.name}</span>
         <span className="flex-1" />
-        <button type="button" onClick={onClose} className="grid h-7 w-7 place-items-center rounded-full" style={{ background: INK.border, color: INK.text, border: 0, cursor: "pointer" }} aria-label="Close"><X className="h-3.5 w-3.5" /></button>
+        <button type="button" onClick={onClose} className="grid h-7 w-7 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }} aria-label="Close"><X className="h-3.5 w-3.5" /></button>
       </div>
       {done ? (
-        <div className="rounded-xl px-4 py-4 text-center" style={{ background: "rgba(78,232,180,0.12)", border: `1px solid ${INK.green}` }}><Check className="mx-auto h-5 w-5" style={{ color: INK.green }} /><p className="mt-1 text-[13.5px] font-bold">Got it. I read every one, usually same day.</p></div>
+        <div className="rounded-xl px-4 py-4 text-center" style={{ background: "rgba(78,232,180,0.12)", border: `1px solid ${LK.green}` }}><Check className="mx-auto h-5 w-5" style={{ color: LK.green }} /><p className="mt-1 text-[13.5px] font-bold">Got it. I read every one, usually same day.</p></div>
       ) : (
         <>
           <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={4} placeholder="What's tripping you up?" className="lk-field" style={{ resize: "none", fontSize: 15 }} autoFocus />
           <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="your number or email, so I can answer" className="lk-field" style={{ fontSize: 15 }} />
-          <div className="flex items-center gap-3"><button type="button" onClick={() => void send()} disabled={!ok || busy} className="lk-btn lk-btn-acc disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Send</button><span className="text-[11.5px]" style={{ color: INK.muted }}>I read every one. Usually same day.</span></div>
-          {err && <p role="alert" className="text-[12px]" style={{ color: INK.red }}>{err}</p>}
+          <div className="flex items-center gap-3"><button type="button" onClick={() => void send()} disabled={!ok || busy} className="lk-btn lk-btn-acc disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Send</button><span className="text-[11.5px]" style={{ color: LK.muted }}>I read every one. Usually same day.</span></div>
+          {err && <p role="alert" className="text-[12px]" style={{ color: LK.red }}>{err}</p>}
         </>
       )}
     </>
   );
-  if (narrow) return <div className="lk-in flex min-h-0 flex-1 flex-col gap-3 p-4" style={{ background: INK.surface, borderTop: `1px solid ${INK.border}`, borderRadius: "18px 18px 0 0" }}>{body}</div>;
+  if (narrow) return <div className="lk-in flex min-h-0 flex-1 flex-col gap-3 p-4" style={{ background: LK.surface, borderTop: `1px solid ${LK.border}`, borderRadius: "18px 18px 0 0" }}>{body}</div>;
   return <div className="lk-card lk-in flex w-[380px] flex-col gap-3 self-end p-4" style={{ marginBottom: "min(120px, 12vh)" }}>{body}</div>;
 }
