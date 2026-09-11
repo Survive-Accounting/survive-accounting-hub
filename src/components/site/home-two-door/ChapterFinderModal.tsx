@@ -6,6 +6,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { schoolBySlug } from "@/lib/schools";
 import { X } from "lucide-react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -41,7 +42,8 @@ export function ChapterFinderModal({ onClose }: { onClose: () => void }) {
             autoPick
             escapeHatches
             onPick={(s, c) => {
-              void navigate({ to: "/go/$school/$chapter", params: { school: s, chapter: c } });
+              // The chapter's /learn page (Lee, 2026-09-11), not the /go promo page.
+              void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: schoolBySlug(s)?.id ?? s, chapter: c } });
             }}
           />
         )}

@@ -144,7 +144,7 @@ function FindMyChapter() {
       // was a third click that confirmed the second one.
       autoPick
       initialSchool={preselect ?? stored}
-      onPick={(school, chapter) => void nav({ to: "/go/$school/$chapter", params: { school, chapter } })}
+      onPick={(school, chapter) => void nav({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: schoolBySlug(school)?.id ?? school, chapter } })}
     />
   );
 }

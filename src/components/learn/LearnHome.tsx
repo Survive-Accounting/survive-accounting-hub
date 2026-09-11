@@ -504,15 +504,43 @@ function cardsOf(s: HomeSet, progress: Record<string, Prog>): Card[] {
   return [{ key: s.set.id, part: 1, name: s.set.name, playbackId: s.set.playbackId, coverUrl: s.set.coverUrl, runtimeSec: s.set.runtimeSec, done: s.done, watched: s.watched }];
 }
 
+/** HOVER PREVIEW (Lee, 2026-09-11: "Set up autoplay on the videos when hovering"): after a
+ *  short hover on a desk the card plays its video muted, in place of the thumbnail, through the
+ *  same hls.js path the player uses; leaving the card tears it down. One card at a time by
+ *  construction (each card owns its own element), nothing on a phone (no hover), nothing under
+ *  reduced motion. */
+function HoverPreview({ pid }: { pid: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = ref.current; if (!v) return;
+    let hls: { destroy: () => void } | null = null; let cancelled = false;
+    const src = `https://stream.mux.com/${pid}.m3u8`;
+    void import("hls.js").then(({ default: Hls }) => {
+      if (cancelled || !ref.current) return;
+      if (Hls.isSupported()) { const h = new Hls({ capLevelToPlayerSize: true, startLevel: 0 }); h.loadSource(src); h.attachMedia(ref.current); hls = h; }
+      else if (ref.current.canPlayType("application/vnd.apple.mpegurl")) ref.current.src = src;
+      ref.current?.play().catch(() => { /* the thumbnail stays */ });
+    }).catch(() => { /* the thumbnail stays */ });
+    return () => { cancelled = true; hls?.destroy(); };
+  }, [pid]);
+  return <video ref={ref} muted playsInline loop preload="none" aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#000" }} />;
+}
+
 function Short({ s, card, onOpen }: { s: HomeSet; card: Card; onOpen: () => void }) {
   const pid = card.playbackId;
   const posted = isPosted(s);
   // THE THUMBNAIL (2026-09-11): the cover Lee uploaded for the video when there is one, else the
   // frame the host cuts at two seconds. Never for a paid (locked) set — its face is the lock.
   const thumb = s.locked ? null : (card.coverUrl ?? (pid && pid !== "__demo__" ? muxThumb(pid, 480) : null));
+  const [preview, setPreview] = useState(false);
+  const hoverT = useRef<number | null>(null);
+  const canPreview = !!pid && pid !== "__demo__" && !s.locked;
+  const enter = () => { if (!canPreview || !window.matchMedia?.("(hover: hover)").matches || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return; hoverT.current = window.setTimeout(() => setPreview(true), 350); };
+  const leave = () => { if (hoverT.current) window.clearTimeout(hoverT.current); hoverT.current = null; setPreview(false); };
   return (
-    <button type="button" onClick={onOpen} className="lk-short" data-on={false} data-rail="true" data-posted={posted} style={{ opacity: s.locked ? 0.7 : undefined }} title={posted ? card.name : `${card.name} — not posted yet`}>
+    <button type="button" onClick={onOpen} onMouseEnter={enter} onMouseLeave={leave} onBlur={leave} className="lk-short" data-on={false} data-rail="true" data-posted={posted} style={{ opacity: s.locked ? 0.7 : undefined }} title={posted ? card.name : `${card.name} — not posted yet`}>
       {thumb && <img src={thumb} alt="" loading="lazy" />}
+      {preview && pid && <HoverPreview pid={pid} />}
       {s.locked && <Lock className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2" style={{ color: "#B5B5B5" }} />}
       {card.runtimeSec != null && pid && <span className="lk-short-d">{fmtRuntime(card.runtimeSec)}</span>}
       {card.done && <span className="absolute left-2 top-2 z-[1] grid h-6 w-6 place-items-center rounded-full" title="Crammed" style={{ background: LK.green, color: "#111" }}><Check className="h-3.5 w-3.5" /></span>}
