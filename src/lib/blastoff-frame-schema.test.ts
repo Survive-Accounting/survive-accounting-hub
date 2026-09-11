@@ -29,6 +29,10 @@ describe("blastoff frame schema", () => {
       segment: "skippable",
       // The exam outline's words (2026-09-11) — a strip here would lose every edit on load.
       outline: { topics: { t1: "The easy points" }, sets: { "deck-e1s-2-1": "What type of account?" } },
+      // The note over a set card and the Types of accounts slide (2026-09-11) — a strip here would
+      // lose the note's words and box, and every toggle and edited list, on load.
+      note: { text: "Prepaid = paid in advance", x: 0.1, y: 0.25, w: 0.68, h: 0.16, dim: true },
+      types: { tab: "Contra", term: true, contra: true, def: false, sign: true, words: { A: "OWN" }, lists: { "A.current": ["Cash", "Supplies"] } },
     };
     const out = frameSchema.parse(full);
     expect(out).toEqual(full);

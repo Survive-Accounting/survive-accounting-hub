@@ -33,6 +33,7 @@ import { OUTRO_CTA_KEY, SurviveOutro } from "./SurviveOutro";
 import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
 import { RubricSlide } from "./RubricSlide";
+import { TypesFrame } from "./TypesFrame";
 import { TopicDoneFrame, UpNextFrame } from "./EndOfTopicFrames";
 import { OutlineFrame } from "./OutlineFrame";
 import { SurvibesFrame } from "./SurvibesFrame";
@@ -131,6 +132,9 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   // on film the reveal follows RubricFilmContext, provided by BlastOffCapture alone.
   // 2026-09-11: the slide is the transaction in the card skin, the heading, the boxes (RubricSlide).
   if (frame.kind === "rubric") return <RubricSlide frame={frame} k={scale} live={live} topicName={topicName} progress={progress ?? null} layout={layout} />;
+  // TYPES OF ACCOUNTS (2026-09-11, TypesFrame.tsx): the same kind of phone-unit column — tabs, his
+  // words, the accounts; clicks change the take only on film.
+  if (frame.kind === "types") return <TypesFrame frame={frame} k={scale} live={live} />;
 
   // THE END-OF-TOPIC FRAMES (2026-09-11, EndOfTopicFrames.tsx): the whole 9:16, the words from
   // the bank through the set's id; `live` runs the charge and the Up Next cycle on film only.

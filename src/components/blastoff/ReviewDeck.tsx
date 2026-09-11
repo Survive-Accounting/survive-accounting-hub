@@ -138,6 +138,9 @@ import { aleCandidates, convertAleCards } from "./rubric-convert";
 import { TOPIC_DONE_COPY, topicProgress, upNextFor } from "./end-of-topic";
 import { defaultSetLabel, examOutline, withLabel } from "./exam-outline";
 import { SURVIBES_PROPS } from "./survibes";
+// THE TYPES OF ACCOUNTS SLIDE and THE NOTE ON A SET CARD (2026-09-11): their Editor faces.
+import { LIST_LABEL, TYPE_INFO, TYPE_KEYS, TYPE_TABS, listOf, listsOfType, typesView, withList, withWord, type TypesSpec } from "./account-types";
+import type { CardNoteSpec } from "./card-note";
 import { useBank } from "@/components/v3/use-bank";
 import type { MapCard } from "@/lib/cluster-brief";
 
@@ -168,7 +171,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4", outline: "#86EFAC" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4", outline: "#86EFAC", types: "#A3E635" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -1580,6 +1583,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     { label: "Map", color: KIND_COLOR.cluster ?? MUTED, add: () => insertAfter(f.id, "cluster", { cluster: emptyCluster("New map") }, true) },
     // A fresh rubric object per insert (emptyRubric() is called at click time, never shared).
     { label: "Rubric", color: KIND_COLOR.rubric ?? MUTED, add: () => insertAfter(f.id, "rubric", { rubric: emptyRubric() }, true) },
+    // 2026-09-11, Lee: "a 'Types of accounts' slide that let's me toggle between A, L, E, Rev, Exp, Contra accounts."
+    { label: "Types of accounts", color: KIND_COLOR.types ?? MUTED, add: () => insertAfter(f.id, "types", {}, true) },
     // THE END-OF-TOPIC PAIR (2026-09-11). Up Next opens the skippable segment as it lands.
     { label: "Topic complete", color: KIND_COLOR.topic_done ?? MUTED, add: () => insertAfter(f.id, "topic_done", {}, true) },
     { label: "Up next", color: KIND_COLOR.up_next ?? MUTED, add: () => insertAfter(f.id, "up_next", { segment: "skippable" }, true) },
@@ -2023,6 +2028,8 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
       {above}
       <div>
         {sel.kind === "ceq" && ceq && <CeqEditor key={ceq.id} ceq={ceq} setId={set.id} shortenApplied={shortenApplied} onSaved={onSaved} />}
+        {/* THE NOTE ON A SET CARD (2026-09-11) — a question card only. */}
+        {sel.kind === "ceq" && ceq && !ceq.noteOnly && <CardNoteEditor sel={sel} onPatch={onPatch} />}
         {/* THE A = L + E CONVERT (2026-09-11). Lee: "For all the A = L + E ones, I think we don't do
             the MCQ version." Offered on any A = L + E question slide that hasn't been turned yet. */}
         {sel.kind === "ceq" && aleConvert?.candidates.has(sel.id) && (
@@ -2115,6 +2122,7 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
             typed line each has. */}
         {(sel.kind === "topic_done" || sel.kind === "up_next") && <EndOfTopicEditor sel={sel} set={set} onPatch={onPatch} />}
         {sel.kind === "outline" && <OutlineEditor sel={sel} set={set} onPatch={onPatch} />}
+        {sel.kind === "types" && <TypesEditor sel={sel} onPatch={onPatch} />}
         {/* SURVIBES (2026-09-11): nothing to type — the flip is the slide. What the spacebar does is
             said here so it isn't a surprise on camera. */}
         {sel.kind === "survibes" && (
@@ -2278,6 +2286,98 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         )}
       </div>
     </section>
+  );
+}
+
+// ------------------------------------------------ the note on a set card
+
+/** The note over a set card (card-note.ts): add it, its words, the choices dimmed or clear behind
+ *  it, back to its default spot, or gone. Its spot and size are set on the stage — drag it, pull
+ *  the corner grip. Lee, 2026-09-11: "I will use this to define something in the question stem...
+ *  like what prepaid insurance is." */
+function CardNoteEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<BlastFrame>) => void }) {
+  const n = sel.note;
+  const box = { marginTop: 10, padding: 10, border: `1px solid ${GOLD}55`, borderRadius: 9, background: "rgba(252,163,17,0.05)" };
+  if (!n) {
+    return (
+      <div style={box}>
+        <button style={chip(false, GOLD)} onClick={() => onPatch({ note: { text: "", dim: true } })}>＋ Note on this card</button>
+        <div style={{ fontSize: 11.5, color: MUTED, marginTop: 6 }}>A box over the card, to define a word in the stem. Drag it and resize it on the slide; on camera, F1 draws the arrow from it to the word.</div>
+      </div>
+    );
+  }
+  const put = (p: Partial<CardNoteSpec>) => onPatch({ note: { ...n, ...p } });
+  const placed = n.x !== undefined || n.y !== undefined || n.w !== undefined || n.h !== undefined;
+  return (
+    <div className="flex flex-col" style={{ ...box, gap: 8 }}>
+      <span style={subhead}>Note on this card</span>
+      <textarea style={{ ...field, minHeight: 60 }} value={n.text} placeholder="e.g. Prepaid = paid in advance. It's an asset until it's used up." onChange={(e) => put({ text: e.target.value })} />
+      <div style={{ fontSize: 10.5, color: MUTED, marginTop: -4 }}>Enter or Shift+Enter for a new line. ==highlight== and **bold** work. The words shrink to fit the box.</div>
+      <div className="flex" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={subhead}>Choices behind it</span>
+        <button style={chip(!!n.dim, ORANGE)} title="Blur and dim the answer choices while the note is up" onClick={() => put({ dim: true })}>Dimmed</button>
+        <button style={chip(!n.dim, SKY)} title="Leave the answer choices as they are" onClick={() => put({ dim: false })}>Clear</button>
+      </div>
+      <div className="flex" style={{ gap: 6, flexWrap: "wrap" }}>
+        {placed && <button style={chip(false)} title="Back to the spot and size a new note gets" onClick={() => onPatch({ note: { text: n.text, ...(n.dim ? { dim: true } : {}) } })}>↺ Default spot and size</button>}
+        <button style={chip(false, RED)} onClick={() => onPatch({ note: undefined })}>Remove note</button>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------ the types of accounts' face
+
+/** The Types of accounts slide (account-types.ts): the tab it opens on, the four toggles, the
+ *  heading, and his words per type — the one-word definition and every list. The lists start as
+ *  his old teaching slide; clear a box to bring its default back. */
+function TypesEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<BlastFrame>) => void }) {
+  const spec = sel.types;
+  const v = typesView(spec);
+  const put = (p: Partial<TypesSpec>) => onPatch({ types: { ...(spec ?? {}), ...p } });
+  const flip = (key: "term" | "contra" | "def" | "sign") => { const p: Partial<TypesSpec> = {}; p[key] = !v[key]; put(p); };
+  const toggles: { key: "term" | "contra" | "def" | "sign"; label: string; title: string }[] = [
+    { key: "term", label: "Current vs long-term", title: "Split Assets and Liabilities into Current and Long-term. Off: the long-term ones nest under “LT Assets”, as on your old slide." },
+    { key: "contra", label: "Contras inside A and E", title: "Accumulated Depreciation under Assets, Dividends under Equity. Off: they're only on the Contra tab." },
+    { key: "def", label: "One-word definitions", title: "“OWN”, “OWE”, “VALUE”, “EARN”, “COSTS”" },
+    { key: "sign", label: "+/− signs", title: "(+/−) for Assets and Expenses, (−/+) for Liabilities, Equity and Revenue" },
+  ];
+  return (
+    <div className="flex flex-col" style={{ gap: 10 }}>
+      <div className="flex flex-col" style={{ gap: 6 }}>
+        <span style={subhead}>Opens on</span>
+        <div className="flex" style={{ gap: 6, flexWrap: "wrap" }}>
+          {TYPE_TABS.map((t) => <button key={t} style={{ ...chip(v.tab === t, GOLD), textTransform: "none", letterSpacing: 0 }} onClick={() => put({ tab: t })}>{t}</button>)}
+        </div>
+      </div>
+      <div className="flex flex-col" style={{ gap: 6 }}>
+        <span style={subhead}>Show</span>
+        <div className="flex" style={{ gap: 6, flexWrap: "wrap" }}>
+          {toggles.map((t) => <button key={t.key} style={{ ...chip(v[t.key], SKY), textTransform: "none", letterSpacing: 0 }} title={t.title} onClick={() => flip(t.key)}>{v[t.key] ? "✓ " : ""}{t.label}</button>)}
+        </div>
+      </div>
+      <label style={{ fontSize: 11, color: MUTED }}>Heading (blank = "Types of accounts")
+        <input style={{ ...field, marginTop: 4 }} value={sel.title ?? ""} placeholder="Types of accounts" onChange={(e) => onPatch({ title: e.target.value || undefined })} /></label>
+      <div className="flex flex-col" style={{ gap: 4 }}>
+        <span style={subhead}>Your words — one account per line</span>
+        <div style={{ fontSize: 11, color: MUTED }}>These start as your old teaching slide. Clear a box to bring its default back.</div>
+        {TYPE_KEYS.map((key) => (
+          <div key={key} style={{ marginTop: 6, padding: 8, border: "1px solid rgba(244,239,230,0.14)", borderRadius: 9 }}>
+            <div className="flex" style={{ gap: 8, alignItems: "center" }}>
+              <b style={{ color: CREAM, fontSize: 12.5, minWidth: 96 }}>{key} · {TYPE_INFO[key].name}</b>
+              <input style={{ ...field, width: 120 }} value={spec?.words?.[key] ?? TYPE_INFO[key].word} title="The one-word definition" onChange={(e) => onPatch({ types: withWord(spec, key, e.target.value) })} />
+            </div>
+            <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+              {listsOfType(key).map((id) => (
+                <label key={id} style={{ fontSize: 11, color: MUTED, flex: "1 1 140px" }}>{LIST_LABEL[id]}
+                  <textarea style={{ ...field, minHeight: 64, marginTop: 4 }} value={(spec?.lists?.[id] ?? listOf(spec, id)).join("\n")} onChange={(e) => onPatch({ types: withList(spec, id, e.target.value.split("\n")) })} /></label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11.5, color: MUTED }}>On camera, click a tab to switch and click an account to light it up. Scroll the list with the wheel when it's long. Clicks there aren't saved. Here, a tab click on the slide sets the tab it opens on.</div>
+    </div>
   );
 }
 

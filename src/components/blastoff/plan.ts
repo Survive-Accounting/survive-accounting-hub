@@ -69,6 +69,9 @@ export const BLAST_FRAME_KINDS = [
   // 2026-09-11: THE EXAM OUTLINE (OutlineFrame.tsx, exam-outline.ts) — the roadmap for the first
   // video in a topic: the exam's topics as a strip, one open at a time with ‹ ›, its videos listed.
   "outline",
+  // 2026-09-11: TYPES OF ACCOUNTS (TypesFrame.tsx, account-types.ts) — Lee's old teaching slide,
+  // vertical: tabs A · L · E · Rev · Exp · Contra, the accounts under each, four toggles.
+  "types",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -187,6 +190,13 @@ export interface BlastFrame {
    *  "A lot of times I like to change the way we're describing them internally." Absent = the
    *  defaults (a topic's name; a video's question stem, exam-outline.ts defaultSetLabel). */
   outline?: { topics?: Record<string, string>; sets?: Record<string, string> };
+  /** THE NOTE ON A SET CARD (2026-09-11, kind "ceq", card-note.ts): a box over the card, its words,
+   *  its spot and size as fractions of the phone, and whether the choices dim behind it. Lee: "I
+   *  will use this to define something in the question stem... like what prepaid insurance is." */
+  note?: CardNoteSpec;
+  /** THE TYPES OF ACCOUNTS slide's settings and his words (2026-09-11, kind "types",
+   *  account-types.ts TypesSpec). Absent = his old slide with the defaults. */
+  types?: TypesSpec;
 }
 
 export interface BlastPlan {
@@ -200,7 +210,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline", "types"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -210,6 +220,8 @@ import type { ClusterSpec } from "./cluster/cluster-spec";
 import type { AdKind } from "./ad-kinds";
 import type { FrameIllustration } from "./illustration";
 import type { RubricSpec } from "./rubric";
+import type { TypesSpec } from "./account-types";
+import type { CardNoteSpec } from "./card-note";
 
 /** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
  *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
@@ -296,6 +308,7 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   survibes: "Survibes",
   ask: "Ask yourself",
   outline: "Exam outline",
+  types: "Types of accounts",
 };
 
 let seq = 0;

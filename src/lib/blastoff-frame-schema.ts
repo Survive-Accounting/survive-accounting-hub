@@ -17,6 +17,7 @@ import { AD_KINDS } from "@/components/blastoff/ad-kinds";
 import { ANIMATION_PRESETS } from "@/components/blastoff/illustration";
 import { BLAST_FRAME_KINDS } from "@/components/blastoff/plan";
 import { clusterSpecSchema } from "@/components/blastoff/cluster/cluster-spec";
+import { TYPE_LISTS, TYPE_TABS } from "@/components/blastoff/account-types";
 
 // Matches the Attachment shape (components/ideas/model.ts) — its own copy, the way
 // fast-track.functions.ts also keeps its own, rather than a cross-file type import here.
@@ -118,6 +119,21 @@ export const frameSchema = z.object({
   segment: z.enum(["skippable"]).optional(),
   // 2026-09-11: the exam outline's words, by topic id and set id (plan.ts `outline`).
   outline: z.object({ topics: z.record(z.string().max(200)).optional(), sets: z.record(z.string().max(200)).optional() }).optional(),
+  // 2026-09-11: the note over a set card (plan.ts `note`, card-note.ts) — its words, its box as
+  // fractions of the phone, the dimmed choices.
+  note: z.object({
+    text: z.string().max(600),
+    x: z.number().min(0).max(1).optional(), y: z.number().min(0).max(1).optional(),
+    w: z.number().min(0.05).max(1).optional(), h: z.number().min(0.02).max(1).optional(),
+    dim: z.boolean().optional(),
+  }).optional(),
+  // 2026-09-11: the Types of accounts slide (plan.ts `types`, account-types.ts TypesSpec).
+  types: z.object({
+    tab: z.enum(TYPE_TABS).optional(),
+    term: z.boolean().optional(), contra: z.boolean().optional(), def: z.boolean().optional(), sign: z.boolean().optional(),
+    words: z.record(z.enum(["A", "L", "E", "Rev", "Exp"]), z.string().max(40)).optional(),
+    lists: z.record(z.enum(TYPE_LISTS), z.array(z.string().max(120)).max(30)).optional(),
+  }).optional(),
 });
 
 export type FrameRow = z.infer<typeof frameSchema>;

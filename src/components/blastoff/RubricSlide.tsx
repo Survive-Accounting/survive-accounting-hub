@@ -5,14 +5,19 @@
 // R / Exp in… it will make transaction stem smaller, responsive like that. Helps to make sure
 // we're using vertical real estate best."
 //
-// Three pieces in a column at the top of the safe column:
+// Three pieces in a column — the safe column exactly, flush to its left edge (layout.ts
+// COLUMN_KINDS; PhoneFrame places it):
 //   · the transaction in the SET CARD's own skin (SetCard — the kicker, the "Q n/N" counter when
-//     the slide came from a card, the stem; no choices), sized exactly like the MCQ cards;
+//     the slide came from a card, the stem; no choices), sized to fill the column;
 //   · the heading — frame.title, default "Effect on A = L + E?";
-//   · the boxes (RubricFrame's slide variant).
-// With Rev/Exp in, the card's type steps down (same width, smaller scale) and the boxes scale to
-// .68 so the column still ends above the caption rail (.61h) — rubric-frame.test.ts pins the
-// budget with a generous card height; the Rev/Exp column sits where the captions would.
+//   · the boxes (RubricFrame's slide variant), full size.
+//
+// THE SPACE (2026-09-11). Lee: "needs to make better use of our available space. It's too tucked
+// into the top right corner." It was: the card overflowed the column to the right and the boxes
+// were scaled to .68 and centred under it, all to end above a caption rail. The rubric has no rail
+// now, so the block draws at full size both ways and the column runs toward the bottom of the safe
+// area; with Rev/Exp in, the card's type steps down (same width, smaller scale) and the camera's
+// home circle sits in the L's crook. rubric-frame.test.ts pins the budget.
 //
 // The card is drawn INERT even on film: a live SetCard brings the canvas previewer's own film keys
 // (its ` and shift+` handlers stop the event), and ~ has to reach the capture to clear the rubric.
@@ -23,10 +28,9 @@
 import { useContext } from "react";
 
 import { BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
-import { CARD_W } from "@/components/canvas/ceq-geom";
 
 import { FrameStepContext } from "./frame-step";
-import { cardPlacement, type SlideLayout } from "./layout";
+import type { SlideLayout } from "./layout";
 import type { BlastFrame } from "./plan";
 import { RUBRIC_GEOM, RubricFrame } from "./RubricFrame";
 import { RUBRIC_HEADING, RUBRIC_KEYS, cycleArrows, cycleKey, emptyArrows, revExpShown, revealedKeys, rubricSteps, type RubricKey } from "./rubric";
@@ -34,17 +38,24 @@ import { SetCard } from "./SetCard";
 import { SlideEditContext } from "./slide-edit";
 import { DISPLAY_FONT } from "./stage";
 
-/** How the column changes with the Rev/Exp row in: the card's type and the boxes' scale. */
-export const RUBRIC_SLIDE = { cardShrinkRevExp: 0.82, blockScaleRevExp: 0.68, cardScale: 0.48 } as const;
+/** The card's scale (the MCQ cards' .48 of the phone), its type at rest, and with Rev/Exp in. */
+export const RUBRIC_SLIDE = { cardScale: 0.48, cardMulRest: 1.12, cardShrinkRevExp: 0.82 } as const;
 
-export function RubricSlide({ frame, k, live = false, topicName, progress, layout }: {
+/** The card's width in flow units so the card — its paper plus the navy padding round it (22 flow
+ *  units a side) — fits the column at scale .48 × `mul`. */
+export function rubricCardW(mul: number): number {
+  return Math.floor(RUBRIC_GEOM.w / (RUBRIC_SLIDE.cardScale * mul) - 44);
+}
+
+export function RubricSlide({ frame, k, live = false, topicName, progress }: {
   frame: BlastFrame;
   /** The phone's width / 306. */
   k: number;
   live?: boolean;
   topicName?: string | null;
   progress?: { x: number; y: number } | null;
-  layout: SlideLayout;
+  /** The set's template — the rubric sits the same way in both. */
+  layout?: SlideLayout;
 }) {
   const edit = useContext(SlideEditContext);
   const film = useContext(FrameStepContext);
@@ -69,21 +80,19 @@ export function RubricSlide({ frame, k, live = false, topicName, progress, layou
       ? (key: RubricKey) => edit({ rubric: { ...spec, arrows: cycleKey(spec.arrows, key) } })
       : undefined;
 
-  // THE CARD, sized like the MCQ cards (phoneScale's .48 and the template's card placement); with
-  // Rev/Exp in, the same width at a smaller scale — smaller type, a shorter card.
-  const cp = cardPlacement(layout, "ceq");
-  const shrink = revExp ? RUBRIC_SLIDE.cardShrinkRevExp : 1;
-  const cardW = Math.round((cp.cardW ?? CARD_W) / shrink);
-  const scaleMul = (cp.scaleMul ?? 1) * shrink;
-  const rk = revExp ? k * RUBRIC_SLIDE.blockScaleRevExp : k;
+  // THE CARD fills the column; with Rev/Exp in, the same width at a smaller scale — smaller type,
+  // a shorter card.
+  const mul = revExp ? RUBRIC_SLIDE.cardShrinkRevExp : RUBRIC_SLIDE.cardMulRest;
   const heading = frame.title?.trim() || RUBRIC_HEADING;
   return (
-    <div data-sa-rubric-slide="" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 * k }}>
-      <SetCard id={frame.id} stem={spec.text.trim() || "Type the transaction in the Editor."} topic={topicName ?? null} progress={progress ?? null}
-        scale={RUBRIC_SLIDE.cardScale * k} cardW={cardW} scaleMul={scaleMul} />
-      <div style={{ width: RUBRIC_GEOM.w * rk, display: "flex", flexDirection: "column", gap: 6 * k }}>
-        <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: (revExp ? 14 : 16) * k, lineHeight: 1.1, color: BRAND_CREAM }}>{heading}</div>
-        <RubricFrame spec={effSpec} k={rk} live={live} variant="slide" revExp={revExp} onCycle={onCycle} popKeys={popKeys} showBalance={allIn} />
+    <div data-sa-rubric-slide="" style={{ width: RUBRIC_GEOM.w * k, display: "flex", flexDirection: "column", alignItems: "stretch", gap: 8 * k }}>
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <SetCard id={frame.id} stem={spec.text.trim() || "Type the transaction in the Editor."} topic={topicName ?? null} progress={progress ?? null}
+          scale={RUBRIC_SLIDE.cardScale * k} cardW={rubricCardW(mul)} scaleMul={mul} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 * k }}>
+        <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: (revExp ? 16 : 19) * k, lineHeight: 1.1, color: BRAND_CREAM }}>{heading}</div>
+        <RubricFrame spec={effSpec} k={k} live={live} variant="slide" revExp={revExp} onCycle={onCycle} popKeys={popKeys} showBalance={allIn} />
       </div>
     </div>
   );

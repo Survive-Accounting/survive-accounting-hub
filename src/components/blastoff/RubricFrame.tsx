@@ -7,8 +7,10 @@
 //            in the open space left of Rev/Exp, the balance line under them.
 //
 // GEOMETRY. Everything is in PHONE UNITS for the Review stage's 306-wide phone, times `k` (the
-// phone's width / 306). The block is the Shorts safe column's width; RubricSlide scales it down
-// when the Rev/Exp row is in so the column still ends above the caption rail.
+// phone's width / 306). The block is the Shorts safe column's width, drawn full size both ways
+// since 2026-09-11 — the rubric slide has no caption rail (layout.ts COLUMN_KINDS). With Rev/Exp
+// in, the camera's home circle sits in the L's crook, so only the TOP ROW is marked for the camera
+// to keep off (data-sa-rubric), and the balance line moves to the top of the crook.
 //
 // THE BOXES ARE CLICKABLE wherever a caller hands in `onCycle` — the Review stage (the saved
 // arrows) and the film surface (the take only) — and SAY SO: a lift, an amber edge and a glow on
@@ -99,9 +101,13 @@ export function RubricFrame({ spec, k, live = false, onCycle, popKey, popKeys, v
   const expTop = revTop + G.sub.h + G.sub.gap + 1;
   const H = tease ? G.h : rubricBlockH(rx);
   const balEl = bal ? <div style={{ fontFamily: BRAND_FONT, fontWeight: 700, fontSize: 11.5 * k, color: bal.ok ? OK : BAD }}>{bal.text}</div> : null;
+  // THE CROOK (2026-09-11): the slide's L — the camera may sit in it, so only the top row is measured.
+  const crook = !tease && rx;
+  const mark = crook ? { "data-sa-rubric-l": "" } : { "data-sa-rubric": "" };
   return (
-    <div data-sa-rubric="" style={{ position: "relative", width: G.w * k, height: H * k, fontFamily: BRAND_FONT, color: BRAND_CREAM }}>
+    <div {...mark} style={{ position: "relative", width: G.w * k, height: H * k, fontFamily: BRAND_FONT, color: BRAND_CREAM }}>
       <style>{RUBRIC_CSS}</style>
+      {crook && <div data-sa-rubric="" aria-hidden style={{ position: "absolute", left: 0, top: 0, width: G.w * k, height: G.top.h * k, pointerEvents: "none" }} />}
       <RubricCell ctx={cell} keyName="A" sub={false} left={G.x.A} top={0} />
       <RubricOp k={k} text="=" left={G.x.eq} />
       <RubricCell ctx={cell} keyName="L" sub={false} left={G.x.L} top={0} />
@@ -123,8 +129,9 @@ export function RubricFrame({ spec, k, live = false, onCycle, popKey, popKeys, v
           {balEl && <div style={{ marginTop: "auto" }}>{balEl}</div>}
         </div>
       ) : rx ? (
-        // THE SLIDE WITH REV/EXP: the balance line in the open space left of them, at the bottom.
-        balEl && <div style={{ position: "absolute", left: 0, top: revTop * k, width: G.tx.w * k, height: (G.h - revTop) * k, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>{balEl}</div>
+        // THE SLIDE WITH REV/EXP: the balance line in the open space left of them, at the TOP of it
+        // (2026-09-11) — the camera's home circle sits in the bottom of that crook now.
+        balEl && <div style={{ position: "absolute", left: 0, top: (G.top.h + 8) * k, width: G.tx.w * k }}>{balEl}</div>
       ) : (
         // THE SLIDE WITHOUT: the balance line under the row.
         balEl && <div style={{ position: "absolute", left: 0, top: (G.top.h + 6) * k }}>{balEl}</div>

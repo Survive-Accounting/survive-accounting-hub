@@ -25,8 +25,9 @@ import { WebcamFrame } from "./capture/Webcam";
 import { camRect, isCamSpot, watermarkSpot, wordmarkHero, type Box, type CamSpot } from "./capture/webcam-spots";
 import { FrameView } from "./frame-view";
 import { IllustrationLayer, PlacedIllustration } from "./IllustrationLayer";
+import { CardNote, NOTE_DIM_CSS } from "./CardNote";
 import { canIllustrate, isPlaced } from "./illustration";
-import { SAFE, camDefault, captionRailClear, captionRailRect, cardPlacement, type RailStatus, type SlideLayout } from "./layout";
+import { SAFE, camDefault, captionRailClear, captionRailRect, cardPlacement, isColumnKind, type RailStatus, type SlideLayout } from "./layout";
 import { backdropFor, canZoomBehind, framesFullFrame, isBigCallout, isFullFrame, type BackdropMode, type BlastFrame } from "./plan";
 import type { CardOverride } from "./SetCard";
 import { SlideEditContext } from "./slide-edit";
@@ -87,7 +88,8 @@ export function phoneScale(frame: BlastFrame, w: number): number {
   if (framesFullFrame(frame)) return w / 1080 / 0.34;
   // THE RUBRIC (2026-09-11) is drawn in phone units (RubricFrame.tsx RUBRIC_GEOM, a 306-wide
   // phone), so its multiplier is the phone's own.
-  if (frame.kind === "rubric") return k;
+  // TYPES OF ACCOUNTS (2026-09-11, TypesFrame.tsx) is drawn in phone units the same way.
+  if (frame.kind === "rubric" || frame.kind === "types") return k;
   if (frame.kind === "bio") return 0.45 * k;
   return 0.48 * k;
 }
@@ -270,6 +272,11 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
   // PASS 2 puts a card at the top of the safe column; the full-frame kinds
   // and pass 1 keep the centre.
   const topAligned = place.align === "top" && !framesFullFrame(frame);
+  // THE COLUMN KINDS (2026-09-11, layout.ts): flush to the safe column's left edge, its full width.
+  const column = topAligned && isColumnKind(frame.kind);
+  // THE NOTE ON A SET CARD (2026-09-11, card-note.ts), and whether the choices dim behind it.
+  const note = frame.kind === "ceq" ? frame.note : undefined;
+  const noteDim = !!note?.dim;
   // THE FADE FROM INTRO (2026-09-06, Lee: "we probably need a good fade from intro 2 to first
   // slide as well"). Every other cut in the deck is instant — that's the house rule (Lee: "a
   // cool transition" is asked for only at named, special moments, never as a general slide-to-
@@ -299,7 +306,7 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
   // and the outro end the video, and the mark going quiet is how the ending reads as an ending.
   const liveWatermark = capture && frame.kind !== "bio" && frame.kind !== "outro";
   return (
-    <div ref={phoneRef} className={capture ? "film-mode" : undefined} data-sa-phone="" data-sa-layout={layout} style={{ fontFamily: BRAND_FONT, width: w, height: h, background: "#000", borderRadius: rounded ? Math.round(w * 0.072) : 0, border: rounded ? "1px solid rgba(244,239,230,0.16)" : "none", position: "relative", overflow: "hidden", display: "grid", placeItems: topAligned ? "start center" : "center", opacity: dim ? 0.5 : 1, ...style }}>
+    <div ref={phoneRef} className={capture ? "film-mode" : undefined} data-sa-phone="" data-sa-layout={layout} data-sa-note-dim={noteDim ? "" : undefined} style={{ fontFamily: BRAND_FONT, width: w, height: h, background: "#000", borderRadius: rounded ? Math.round(w * 0.072) : 0, border: rounded ? "1px solid rgba(244,239,230,0.16)" : "none", position: "relative", overflow: "hidden", display: "grid", placeItems: topAligned ? "start center" : "center", opacity: dim ? 0.5 : 1, ...style }}>
       {/* THE CAMPUS BANNER, under a CARD slide. A card floats on the phone's own black, so the
           banner sits behind it and shows through. A FULL-FRAME slide paints its own opaque
           black over this whole area, so its banner is drawn AFTER the slide instead — see
@@ -338,6 +345,7 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
       <div key={capture ? frame.id : undefined} data-sa-stage="" className={fadeInFromIntro ? "sa-stage-fade-in" : undefined} style={{ display: "grid", placeItems: "center", position: "relative",
         // The safe column: below the status bar (and the watermark), inside the rail.
         ...(topAligned ? { marginTop: Math.round(h * (SAFE.top + 0.02)), maxWidth: Math.round(w * (SAFE.right - SAFE.left)) } : {}),
+        ...(column ? { justifySelf: "start", placeItems: "start", marginLeft: Math.round(w * SAFE.left), width: Math.round(w * (SAFE.right - SAFE.left)) } : {}),
         ...(moment ? { filter: "blur(2px) brightness(0.35)", transition: "filter 480ms ease" } : { transition: "filter 480ms ease" }),
         ...stageStyle }}>
         <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} layout={layout} coldOpen={opener ? coldOpen : null} opener={opener} />
@@ -364,6 +372,15 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
           stageStyle={{ ...(moment ? { filter: "blur(2px) brightness(0.35)" } : {}), transition: "filter 480ms ease, transform 480ms ease", ...(stageStyle?.transform ? { transform: stageStyle.transform, transformOrigin: stageStyle.transformOrigin } : {}) }}
           onPlace={edit && (!capture || popout) ? (p) => edit({ illustration: { ...frame.illustration!, placement: p } }) : undefined} />
       )}
+      {/* THE NOTE ON A SET CARD (2026-09-11, card-note.ts): over the card, placed and sized on Review
+          like a placed picture, with the camera transform; a dimming note blurs the choices behind
+          it (NOTE_DIM_CSS, keyed on this phone's data-sa-note-dim). */}
+      {note && noteDim && <style>{NOTE_DIM_CSS}</style>}
+      {note && (
+        <CardNote key={capture ? `note-${frame.id}` : undefined} note={note} w={w} h={h} layout={layout}
+          stageStyle={{ ...(moment ? { filter: "blur(2px) brightness(0.35)" } : {}), transition: "filter 480ms ease, transform 480ms ease", ...(stageStyle?.transform ? { transform: stageStyle.transform, transformOrigin: stageStyle.transformOrigin } : {}) }}
+          onPlace={edit && (!capture || popout) ? (b) => edit({ note: { ...note, ...b } }) : undefined} />
+      )}
       {cam !== "off" && (() => {
         const webcam = (
           <WebcamFrame w={w} h={h} spot={cam} size={camSize} pos={frame.camPos} live={capture} cardBox={cardBox} moment={moment}
@@ -386,7 +403,7 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
           <div key={coldOpen?.key} className={`${COLD_OPEN_CLASS} ${pieceClass("camera")}`} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>{webcam}</div>
         );
       })()}
-      {safe && !moment && (
+      {safe && !moment && rail.h > 0 && (
         <div style={{ position: "absolute", left: rail.x, top: rail.y, width: rail.w, height: rail.h, border: "1px dashed rgba(252,163,17,0.55)", borderRadius: 6, pointerEvents: "none" }}>
           <span style={{ ...tag, left: 6, top: 4, color: "rgba(252,163,17,0.8)" }}>captions</span>
         </div>

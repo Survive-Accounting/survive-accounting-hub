@@ -53,7 +53,7 @@ export function cardPlacement(layout: SlideLayout, kind: BlastFrame["kind"]): Ca
   // THE RUBRIC (2026-09-11) sits at the top of the safe column in BOTH templates — it is a
   // fixed block sized from the phone (RubricFrame.tsx), not a flow card, and centred it would
   // land on the caption rail.
-  if (kind === "rubric") return { align: "top" };
+  if (kind === "rubric" || kind === "types") return { align: "top" };
   if (layout === "pass1") return { align: "centre" };
   // Narrower and bigger: 470 flow units at ×1.24 is the same width as 560 at
   // ×1.04 but every line is a fifth larger, so four choices stack tall.
@@ -76,6 +76,9 @@ export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spo
   // THE END-OF-TOPIC FRAMES (2026-09-11): the corner bubble — the charge bar and the tease own
   // the column; the header block keeps clear of the corner (EndOfTopicFrames.tsx headerW).
   if (kind === "topic_done" || kind === "up_next" || kind === "outline") return { spot: "corner" };
+  // TYPES OF ACCOUNTS (2026-09-11): the corner bubble too — the list takes the column down to the
+  // bottom of the safe area, and the header keeps left of the corner (TypesFrame.tsx headerW).
+  if (kind === "types") return { spot: "corner" };
   // SURVIBES (2026-09-11): the big rounded box on the LEFT (the brief: "the camera (large rounded
   // box, left)"), the struck bolt standing to its right — the `left` spot, whose bottom (.58h)
   // clears the large captions box (SURVIBES_RAIL, .60h). A prop step swaps it for a small circle
@@ -138,7 +141,17 @@ export const SURVIBES_RAIL = { top: 0.60, bottom: 0.78, left: SAFE.left, right: 
 
 /** The rail in px on a phone w × h; `wide` when the slide films with no camera; `kind` lets a
  *  frame kind choose its own box (Survibes takes the large one). */
+/** THE COLUMN KINDS (2026-09-11): slides laid out as one fixed column in phone units, flush to the
+ *  safe column's left edge rather than centred, running down to its bottom — so NO CAPTION RAIL on
+ *  them (an empty rail: no guide on Review, never a collision on film). Lee, on the rubric: "needs
+ *  to make better use of our available space. It's too tucked into the top right corner." On
+ *  captions: "if we remove captions, it creates more space in the frame for us to teach from."
+ *  The burn (lib/captions.ts) still reads CAPTION_RAIL; captions are skipped in post today. */
+export const COLUMN_KINDS: readonly BlastFrame["kind"][] = ["rubric", "types"];
+export function isColumnKind(kind: BlastFrame["kind"] | undefined): boolean { return !!kind && COLUMN_KINDS.includes(kind); }
+
 export function captionRailRect(w: number, h: number, wide = false, kind?: BlastFrame["kind"]): Box {
+  if (isColumnKind(kind)) return { x: 0, y: 0, w: 0, h: 0 };
   if (kind === "survibes") {
     const R = SURVIBES_RAIL;
     return { x: Math.round(w * R.left), y: Math.round(h * R.top), w: Math.round(w * (R.right - R.left)), h: Math.round(h * (R.bottom - R.top)) };
@@ -160,6 +173,7 @@ export type RailStatus = "clear" | "card" | "illustration" | "camera";
  *  the actual culprit was a placed illustration, since the card box handed in was already a
  *  card+picture union) — then the card, then the camera. */
 export function captionRailClear(rail: Box, card: Box | null, cam: Box | null, art: Box | null = null): RailStatus {
+  if (rail.w <= 0 || rail.h <= 0) return "clear";   // a column kind has no rail to sit on
   if (art && overlaps(rail, art)) return "illustration";
   if (card && overlaps(rail, card)) return "card";
   if (cam && overlaps(rail, cam)) return "camera";
