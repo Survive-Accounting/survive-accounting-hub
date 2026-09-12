@@ -100,7 +100,7 @@ export function usePickedChapter(campusSlug: string | null, enabled: boolean) {
   });
   const name = q.data?.chapterName ?? null;
   const letters = q.data ? ((q.data.letters ?? "").trim() || chapterShortName(q.data.chapterName, q.data.letters, q.data.nickname)) : null;
-  return { slug, name, letters, members: q.data?.members ?? 0 };
+  return { slug, name, letters, members: q.data?.members ?? 0, council: q.data?.council ?? null };
 }
 
 const titleCase = (s: string) => s.split(/\s+/).map((w) => (w === w.toUpperCase() ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
@@ -180,9 +180,11 @@ export function LearnTop({
           <a href="/" aria-label="Survive Accounting home" className="lk-disp shrink-0" style={{ fontSize: narrow ? 15 : 21, letterSpacing: "-0.01em", lineHeight: 1, color: ink, textDecoration: "none" }}>survive</a>
           <span aria-hidden className="shrink-0 self-stretch" style={{ width: 1, background: rule, minHeight: boltH }} />
           {/* THE BIG BOLT, with the chapter's letters held still over it. It catches the drop. */}
-          <span key={arrive} id={NAV_BOLT_ID} className={`relative inline-block shrink-0${arrive > 0 ? " lk-bolt-arrive" : ""}`} style={{ lineHeight: 0 }} title={letters ? `${letters} · ${schoolName ?? "your campus"}` : undefined}>
+          <span key={arrive} id={NAV_BOLT_ID} className={`relative inline-block shrink-0${arrive > 0 ? " lk-bolt-arrive" : ""}`} style={{ lineHeight: 0 }} title={schoolName ?? undefined}>
             <BoltBoil height={boltH} red={school?.c1 ?? undefined} blue={school?.c2 ?? undefined} cream={ink} boilSeconds={1.2} />
-            {letters && (
+            {/* NO LETTERS ON THE NAV BOLT (Lee, 2026-09-11): illegible at this size on a desk and
+                unreadable on a phone. The chapter's identity lives in the chapter module, large. */}
+            {false && letters && (
               <span aria-hidden className="absolute inset-0 grid place-items-center" style={{ pointerEvents: "none", color: "#F5EFE6", fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: Math.round(boltH * 0.42), letterSpacing: "0.01em", lineHeight: 1, textShadow: "0 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.7)", whiteSpace: "nowrap" }}>{letters}</span>
             )}
           </span>

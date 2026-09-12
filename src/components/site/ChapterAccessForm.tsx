@@ -276,7 +276,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
             <span aria-hidden style={{ fontSize: 18 }}>×</span>
           </button>
 
-          <p className="mb-4 pr-10 text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Get {who}&apos;s dashboard</p>
+          <p className="mb-4 pr-10 text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Activate {who}&apos;s dashboard</p>
         </>
       )}
 
@@ -334,7 +334,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
         className="mt-4 w-full rounded-xl text-[14px] font-black leading-tight transition-opacity disabled:opacity-40"
         style={{ minHeight: 52, background: "var(--accent)", color: "#0B1220" }}
       >
-        {busy ? "Opening…" : "Open dashboard →"}
+        {busy ? "Activating…" : "Activate dashboard"}
       </button>
     </div>
   );

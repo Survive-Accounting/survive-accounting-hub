@@ -149,7 +149,7 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letter
                 className="font-bold underline underline-offset-4"
                 style={{ background: "none", border: 0, padding: 0, color: "var(--accent)", cursor: "pointer" }}
               >
-                Claim the chapter dashboard — see who signs up. →
+                Activate the chapter dashboard — see who signs up. →
               </button>
             </span>
             <button
@@ -252,7 +252,7 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
     ? "Open your dashboard →"
     : claimState === "pending"
       ? "Your claim is in review →"
-      : `Claim ${ctaLetters}'s dashboard →`;
+      : `Activate ${ctaLetters}'s dashboard →`;
 
   return (
     <section id={id} className="sa-anchor mx-auto w-full max-w-[640px] px-5 py-12" style={{ fontFamily: BRAND_SANS }}>
@@ -335,7 +335,7 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
           SCHOLARSHIP CHAIR?
         </p>
         <h3 className="mx-auto mt-2 max-w-[22ch] text-[18px] font-black leading-[1.2]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
-          Claim your chapter dashboard.
+          Activate your chapter dashboard.
         </h3>
         <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
           Give members access, share exam prep, and sponsor the full semester from one place.
@@ -426,13 +426,13 @@ function ClaimSheet({ chapterName, shortName, schoolSlug, chapterSlug, claim, on
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Get ${shortName}'s dashboard`}
+        aria-label={`Activate ${shortName}'s dashboard`}
         className="w-full max-w-[420px] rounded-t-2xl p-5 sm:rounded-2xl"
         style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))", fontFamily: BRAND_SANS }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-3">
-          <h3 className="pr-2 text-[18px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Get {shortName}&apos;s dashboard</h3>
+          <h3 className="pr-2 text-[18px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Activate {shortName}&apos;s dashboard</h3>
           <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)", background: "none", border: 0, cursor: "pointer" }}>×</button>
         </div>
 

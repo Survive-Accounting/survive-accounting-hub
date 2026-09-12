@@ -63,8 +63,12 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
     chapterSlug: z.string().trim().min(1).max(60),
     name: z.string().trim().min(2).max(120),
     position: z.string().trim().min(1).max(60),
-    email: z.string().trim().email().max(200),
+    // OPTIONAL since 2026-09-11 (the /learn module asks name · phone · role · question; the phone
+    // is how Lee gets the call). Stored as "" when absent — the column is NOT NULL.
+    email: z.string().trim().email().max(200).optional(),
     phone: z.string().trim().min(7).max(20),
+    /** "Anything you want to ask" — goes straight into Lee's text and email, nowhere else. */
+    question: z.string().trim().max(500).optional(),
     // K3 — WHERE THE CHAPTER SAID IT WAS AT, in its own words. Lead scoring, never shown back to
     // the exec as a score. "committed" routes to the hot path, where Lee is alerted to close it.
     // OPTIONAL since 2026-09-11: the claim form no longer asks (Lee calls every claimant). A
@@ -109,7 +113,7 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
     // invisible breakage the house rules forbid.
     const baseRow = {
       campus_greek_chapter_id: ch.campusGreekChapterId,
-      name: data.name, position: data.position, email: data.email, phone,
+      name: data.name, position: data.position, email: data.email ?? "", phone,
       // Snapshot: how many members this chapter had already banked at the moment of the claim.
       // Recorded now because it is the number that made the claim interesting, and it keeps moving.
       members_at_claim: ch.members,
@@ -153,13 +157,13 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
     // module-level function in this file would survive into the browser graph and fail the build.
     const { isTestRequest } = await import("@/lib/test-mode.functions");
     const isTest = await isTestRequest();
-    const scheduled = afterResponse(() => runClaimIntake(claimId, isTest));
+    const scheduled = afterResponse(() => runClaimIntake(claimId, isTest, data.question));
     return { ok: true, claimId: claimId ?? undefined, notifyPending: !scheduled };
   });
 
 /** Run the claim's notifications. Extracted so it can be reached from either scheduling path, and
  *  written to be safe to call twice: the intake row it would create is looked for first. */
-async function runClaimIntake(claimId: string | null, isTest: boolean): Promise<{ ok: boolean; reason?: string }> {
+async function runClaimIntake(claimId: string | null, isTest: boolean, question?: string): Promise<{ ok: boolean; reason?: string }> {
   if (!claimId) return { ok: false, reason: "no_claim" };
   try {
     const db = await admin();
@@ -230,7 +234,7 @@ async function runClaimIntake(claimId: string | null, isTest: boolean): Promise<
         const goUrl = `https://surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`;
         const who = `${claim.name as string} (${claim.position as string})`;
         const seats = `${ch.members} member${ch.members === 1 ? "" : "s"} banked`;
-        const line = `NEW DASHBOARD CLAIM — ${ch.chapterName} at ${ch.schoolName}. ${who} · ${claim.phone as string} · ${claim.email as string} · ${seats}. They were told you'd text shortly.`;
+        const line = `DASHBOARD ACTIVATION — ${ch.chapterName} at ${ch.schoolName}. ${who} · ${claim.phone as string}${claim.email ? ` · ${claim.email as string}` : ""} · ${seats}.${question ? ` They asked: "${question}"` : ""} They were told you'd text shortly.`;
         await sendResendEmail({
           to: FOUNDER_EMAIL,
           subject: `${ch.chapterName} at ${ch.schoolName} claimed their dashboard`,
@@ -277,10 +281,10 @@ function afterResponse(work: () => Promise<unknown>): boolean {
  *  servers). Idempotent — see runClaimIntake — so calling it when the platform already ran the
  *  work is a no-op rather than a duplicate email. */
 export const notifyChapterClaim = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ claimId: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ claimId: z.string().uuid(), question: z.string().trim().max(500).optional() }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; reason?: string }> => {
     const { isTestRequest } = await import("@/lib/test-mode.functions");
-    return runClaimIntake(data.claimId, await isTestRequest());
+    return runClaimIntake(data.claimId, await isTestRequest(), data.question);
   });
 
 // ── REVIEW (admin, JWT-verified) ──────────────────────────────────────────────────────────────

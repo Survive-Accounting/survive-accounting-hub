@@ -80,7 +80,7 @@ import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome
 import { LearnTextLee } from "@/components/learn/LearnTextLee";
 import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
 import { ReviewSheet } from "@/components/learn/ReviewSheet";
-import { LearnChapterBar, readChapterBarHidden } from "@/components/learn/LearnChapterBar";
+import { LearnChapterModule } from "@/components/learn/LearnChapterModule";
 import { pageShareUrl } from "@/lib/share-url";
 import { CramPlayer, type PlayerItem, type PlayerPart } from "@/components/learn/CramPlayer";
 import { partKey, setIdOfKey } from "@/lib/student-shorts";
@@ -362,12 +362,27 @@ function LearnShell() {
   const theme = useMemo(() => themeFor(school, look), [school, look]);
   // THE CHAPTER BAR (2026-09-11): hidden on this device only by its own "Not in a chapter?" link,
   // and never when a chapter or a council is in the address. Read in an effect (storage).
-  const [barHidden, setBarHidden] = useState(false);
-  useEffect(() => { setBarHidden(readChapterBarHidden()); }, []);
+  // PICK AND CLEAR IN PLACE (Lee, 2026-09-11: "It must not full-page reload — swap the module in
+  // place and keep scroll position"). The pick key + event update the module; the address is
+  // rewritten underneath (history.replaceState) so a refresh or a share still names the chapter,
+  // without the router re-running the loader and blanking the page.
   const pickChapter = useCallback((slug: string) => {
     if (school?.slug) { try { localStorage.setItem(chapterPickKey(school.slug), slug); } catch { /* ignore */ } window.dispatchEvent(new CustomEvent(CTA_CHAPTER_EVENT)); }
-    void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: school?.id ?? params.campus, chapter: slug }, search: (p: LearnSearch) => ({ ...p, share: undefined }), replace: true });
-  }, [navigate, school, params.campus]);
+    try {
+      const u = new URL(window.location.href);
+      u.pathname = `/learn/${school?.id ?? params.campus ?? ""}/${slug}`;
+      u.searchParams.delete("share"); u.searchParams.delete("c");
+      window.history.replaceState(window.history.state, "", u.toString());
+    } catch { /* address stays; the pick is already in place */ }
+  }, [school, params.campus]);
+  const clearChapter = useCallback(() => {
+    if (school?.slug) { try { localStorage.removeItem(chapterPickKey(school.slug)); } catch { /* ignore */ } window.dispatchEvent(new CustomEvent(CTA_CHAPTER_EVENT)); }
+    try {
+      const u = new URL(window.location.href);
+      u.pathname = `/learn/${school?.id ?? params.campus ?? ""}`;
+      window.history.replaceState(window.history.state, "", u.toString());
+    } catch { /* ignore */ }
+  }, [school, params.campus]);
   const pickLook = useCallback((next: Look) => {
     void navigate({ search: (p: LearnSearch) => ({ ...p, look: next === DEFAULT_LOOK ? undefined : next }), replace: true });
   }, [navigate]);
@@ -639,12 +654,12 @@ function LearnShell() {
             school={school}
             progress={progress}
             chapterSlug={chapter.slug}
-            kit={school && !demo && (!barHidden || !!chapter.slug || !!search.c) ? (
-              <LearnChapterBar
-                school={school} councilSlug={search.c ?? null}
-                chapter={chapter.slug ? { slug: chapter.slug, name: chapter.name, letters: chapter.letters } : null}
+            kit={school && !demo ? (
+              <LearnChapterModule
+                school={school} councilPreset={search.c ?? null}
+                chapter={chapter.slug ? { slug: chapter.slug, name: chapter.name, letters: chapter.letters, members: chapter.members, council: chapter.council } : null}
                 contactRef={search.by ?? search.ref ?? null} narrow={isNarrow}
-                onPick={pickChapter} onHide={() => setBarHidden(true)}
+                onPick={pickChapter} onClear={clearChapter}
               />
             ) : null}
           />

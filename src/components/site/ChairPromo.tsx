@@ -90,9 +90,9 @@ export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name,
               <span aria-hidden> — </span>
               {claim === "unclaimed" ? (
                 <button type="button" onClick={onClaim} className="underline underline-offset-4" style={{ background: "none", border: 0, padding: 0, color: "var(--text-muted)", cursor: "pointer", font: "inherit" }}>
-                  Claim your exec dashboard
+                  Activate your chapter dashboard
                 </button>
-              ) : claim === "pending" ? "Dashboard request received" : "Exec dashboard claimed"}
+              ) : claim === "pending" ? "Dashboard activation received" : "Chapter dashboard active"}
             </>
           )}
         </p>
