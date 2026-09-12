@@ -72,6 +72,10 @@ export const BLAST_FRAME_KINDS = [
   // 2026-09-11: TYPES OF ACCOUNTS (TypesFrame.tsx, account-types.ts) — Lee's old teaching slide,
   // vertical: tabs A · L · E · Rev · Exp · Contra, the accounts under each, four toggles.
   "types",
+  // 2026-09-12: THE ACCOUNTING CYCLE (CycleFrame.tsx, cycle-field.ts) — the Lab's ring on a field,
+  // drawn way out and swum around with the map's own gestures. Lee: "just to give users a quick
+  // tease of it. We will need this zoom functionality later, too."
+  "cycle",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -203,6 +207,14 @@ export interface BlastFrame {
    *  per run between cuts (reel.setLead keeps it one); absent everywhere else, and then the first
    *  callout in the Reel is what it is about. */
   lead?: true;
+  /** NO CHIP (2026-09-12). Lee: "sometimes I want a callout slide but with no callout. I just like
+   *  the big text format. So just a 'none' option would be great." The slide stays whatever kind it
+   *  is — so switching back brings the chip and its colour with it — and only the chip is dropped. */
+  chip?: "off";
+  /** A CUSTOM CHIP (2026-09-12). Lee: "for callouts, allow me to create a custom one. Just make it
+   *  red and let me write whatever text I want." These words instead of the kind's, drawn red on
+   *  both formats. Absent = the kind's own chip. */
+  chipText?: string;
 }
 
 export interface BlastPlan {
@@ -216,7 +228,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline", "types"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline", "types", "cycle"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -231,7 +243,7 @@ import type { CardNoteSpec } from "./card-note";
 
 /** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
  *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
-export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next", "survibes", "outline"];
+export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next", "survibes", "outline", "cycle"];
 export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.includes(k);
 
 /** THE FOUR CALLOUTS that can be drawn either way (2026-09-08, `BlastFrame.display`). The
@@ -315,7 +327,15 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   ask: "Ask yourself",
   outline: "Exam outline",
   types: "Types of accounts",
+  cycle: "Accounting cycle",
 };
+
+/** THE CAMPUS BANNER IS OFF (2026-09-12). Lee: "Turn off campus banner globally on the app. We're
+ *  not using for a while." One switch, read by everything that draws it: a saved `banner: "on"` is
+ *  IGNORED rather than cleared, so a stale tab re-saving one changes nothing on screen. Flip this
+ *  to false and every slide's own toggle is live again, exactly as it was. */
+export const CAMPUS_BANNER_OFF = true;
+export const showCampusBanner = (f: Pick<BlastFrame, "banner">): boolean => !CAMPUS_BANNER_OFF && f.banner === "on";
 
 let seq = 0;
 export const newFrameId = (kind: BlastFrameKind): string =>

@@ -1721,6 +1721,9 @@ export interface CalloutSettings {
   bolt?: boolean;
   /** The type banner; absent = plain callout (kicker + stem only). */
   kind?: CalloutKind;
+  /** A CUSTOM BANNER (2026-09-12, Lee: "allow me to create a custom one. Just make it red and let
+   *  me write whatever text I want."): these words instead of the kind's, drawn red. */
+  label?: string;
   /** Dropped-memo node ids: 1 = memo callout, 2+ = the highlights stack. */
   memoIds?: string[];
   /** BARE FRAME (Lee): the callout card itself is hidden — the frame is just

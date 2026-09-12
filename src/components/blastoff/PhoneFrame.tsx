@@ -28,7 +28,7 @@ import { IllustrationLayer, PlacedIllustration } from "./IllustrationLayer";
 import { CardNote, NOTE_DIM_CSS } from "./CardNote";
 import { canIllustrate, isPlaced } from "./illustration";
 import { SAFE, camDefault, cardPlacement, isColumnKind, type SlideLayout } from "./layout";
-import { backdropFor, canZoomBehind, framesFullFrame, isBigCallout, isFullFrame, type BackdropMode, type BlastFrame } from "./plan";
+import { backdropFor, canZoomBehind, framesFullFrame, isBigCallout, isFullFrame, showCampusBanner, type BackdropMode, type BlastFrame } from "./plan";
 import type { CardOverride } from "./SetCard";
 import { SlideEditContext } from "./slide-edit";
 import { BRAND_FONT } from "./stage";
@@ -48,10 +48,18 @@ export const PHONE_W = 306;
 // Scoped to the phone, so a teased word is a FILMING device: blurred on the Editor stage, on the
 // thumbnails and in the shot, opened by a click (which is take-local — walking to the next slide
 // re-keys the stage, and ` wipes every open one). On the student's own cards it renders plain.
+// NO BOX, AND THE WORD STAYS A WORD (2026-09-12). Lee, on the first cut: "No box needed for this.
+// Just the blur … make it a bit more clear that this is a WORD we're blurring … I can't tell that
+// what is blurred here is a word." A heavy blur inside a pill read as a redaction block, so: no
+// background, no ring, and a blur light enough (0.11em — proportional, so it holds at any type
+// size) that the word's own shape and length still show. It is the shape that makes it a tease.
+//
+// POINTER EVENTS ON (2026-09-12): "Clicking it doesn't reveal it" on the big format — BigCallout's
+// text block is pointerEvents: none so the camera can be dragged behind it, which swallowed the
+// click. The teased word itself opts back in; nothing else on that block does.
 const TEASE_CSS = `
-[data-sa-phone] .sa-tease { border-radius: 0.18em; padding: 0 0.12em; cursor: pointer; background: rgba(252,163,17,0.10); box-shadow: inset 0 0 0 1px rgba(252,163,17,0.32); }
-[data-sa-phone] .sa-tease .sa-tease-ink { display: inline-block; filter: blur(0.3em); opacity: 0.9; transition: filter 260ms ease, opacity 260ms ease; }
-[data-sa-phone] .sa-tease.sa-tease-open { background: transparent; box-shadow: none; }
+[data-sa-phone] .sa-tease { cursor: pointer; pointer-events: auto; }
+[data-sa-phone] .sa-tease .sa-tease-ink { display: inline-block; filter: blur(0.11em); opacity: 0.96; transition: filter 260ms ease, opacity 260ms ease; }
 [data-sa-phone] .sa-tease.sa-tease-open .sa-tease-ink { filter: none; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { [data-sa-phone] .sa-tease .sa-tease-ink { transition: none; } }`;
 
@@ -331,7 +339,7 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
           <BoltZoom w={w} h={h} mode="bolt" variant="zoom" psych={0.1} live={live} />
         </div>
       )}
-      {!framesFullFrame(frame) && frame.banner === "on" && <CampusBanner w={w} h={h} live={live} />}
+      {!framesFullFrame(frame) && showCampusBanner(frame) && <CampusBanner w={w} h={h} live={live} />}
       {/* THE WATERMARK — the wordmark with the live bolt in the "i", top-left,
           sized like the film popout's (5.2% of the width). */}
       {watermarkOn(frame, backdrop) && !beforeFirstCard && (chargedWatermark || liveWatermark) && <style>{WATERMARK_CHARGE_CSS}</style>}
@@ -376,7 +384,7 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
           its banner has to sit on top of it, the way the open card's does inside BoltZoom. Same
           toggle, same component, same place on the lower third; only the order changes.
           open / intro are excluded: BoltZoom draws theirs itself. */}
-      {framesFullFrame(frame) && frame.kind !== "open" && frame.kind !== "intro" && frame.banner === "on" && (
+      {framesFullFrame(frame) && frame.kind !== "open" && frame.kind !== "intro" && showCampusBanner(frame) && (
         <CampusBanner w={w} h={h} live={live} />
       )}
       {/* THE PLACED PICTURE (2026-09-05): at its own spot, dragged and resized on Review; carries

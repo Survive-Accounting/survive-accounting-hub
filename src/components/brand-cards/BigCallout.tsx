@@ -124,7 +124,10 @@ export function BigCallout({ w, h, label, accent, text, bullets = [], art = fals
       }}>
         {/* THE CHIP — the callout's own accent and words, so a big cheat code still says it is
             one. Same shape as the card's KindChip; drawn here rather than imported because
-            brand-cards must not reach into the canvas's card components. */}
+            brand-cards must not reach into the canvas's card components.
+            AN EMPTY LABEL DRAWS NO CHIP (2026-09-12, plan.ts `chip: "off"`) — Lee: "sometimes I
+            want a callout slide but with no callout. I just like the big text format." */}
+        {label ? (
         <div className={live ? "sa-bigc-rise" : undefined}>
           <span style={{
             display: "inline-flex", padding: `${Math.round(chipSize * 0.3)}px ${Math.round(chipSize * 0.85)}px`,
@@ -133,6 +136,7 @@ export function BigCallout({ w, h, label, accent, text, bullets = [], art = fals
             color: accent, background: `${accent}24`, border: `1px solid ${accent}66`,
           }}>{label}</span>
         </div>
+        ) : null}
 
         {/* THE HEADING. Pure white, lifted off the black by a contact edge + a near shadow + a
             wide ambient rather than a glow — the three stages GlowWordmark uses, because a

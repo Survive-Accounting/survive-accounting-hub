@@ -797,6 +797,7 @@ onClick={undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).e
             topic={d.callout?.showTopic === false || summaryCard ? null : d.topic}
             stem={d.stem}
             extraStems={d.callout?.extraStems}
+            customLabel={d.callout?.label}
             footer={d.callout?.footer}
             lineSpot={detour && !stemEditing ? (k) => ({ state: spot.state(spotKey(id, k)), onDown: (e) => spot.onClick(spotKey(id, k), e) }) : undefined}
             kind={d.callout?.kind ?? (summaryCard ? "found-on-exam" : d.calloutMemos?.length ? calloutKindForCategory(d.calloutMemos[0].category) : undefined)}

@@ -10,8 +10,11 @@ import type { CalloutKind } from "../types";
 const previewerSrc = readFileSync(join(import.meta.dir, "..", "CeqPreviewer.tsx"), "utf8");
 
 describe("callout kinds", () => {
-  test("exactly the five agreed types, each with a label + accent", () => {
-    expect(Object.keys(CALLOUT_KINDS).sort()).toEqual(["cheat-code", "deeper-idea", "distractor", "memorize-this", "recap"]);
+  // SIX SINCE 2026-09-11 — the list grew twice and this test did not: "Found on your exam" came
+  // back by name on 09-09 (its own FOUND_META, outside this record) and Ask yourself landed on
+  // 09-11. The record is the taxonomy; the cycler below walks exactly it.
+  test("the agreed types, each with a label + accent", () => {
+    expect(Object.keys(CALLOUT_KINDS).sort()).toEqual(["ask-yourself", "cheat-code", "deeper-idea", "distractor", "memorize-this", "recap"]);
     for (const m of Object.values(CALLOUT_KINDS)) { expect(m.label.length).toBeGreaterThan(0); expect(m.accent).toMatch(/^#/); }
   });
   test("memo categories map to sensible default kinds on drop", () => {
@@ -22,12 +25,13 @@ describe("callout kinds", () => {
     expect(calloutKindForCategory(undefined)).toBe("recap");
     expect(calloutKindForCategory("UNFILED")).toBe("recap");
   });
-  test("the kind cycler walks all five then returns to none", () => {
+  test("the kind cycler walks every type then returns to none", () => {
+    const n = Object.keys(CALLOUT_KINDS).length;
     const seen: (CalloutKind | undefined)[] = [];
     let k: CalloutKind | undefined = undefined;
-    for (let i = 0; i < 6; i++) { k = nextCalloutKind(k); seen.push(k); }
-    expect(seen.filter(Boolean).length).toBe(5);
-    expect(seen[5]).toBeUndefined();
+    for (let i = 0; i <= n; i++) { k = nextCalloutKind(k); seen.push(k); }
+    expect(seen.filter(Boolean).length).toBe(n);
+    expect(seen[n]).toBeUndefined();
   });
 });
 

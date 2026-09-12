@@ -23,7 +23,7 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
 import { renderInline } from "@/components/canvas/inline-md";
 
-import { CONTRA_INFO, TYPE_INFO, TYPE_TABS, sectionsFor, typesView, wordOf, type TypeTab } from "./account-types";
+import { CONTRA_INFO, TYPE_INFO, TYPE_TABS, sectionsFor, tabLabel, typesView, wordOf, type TypeTab } from "./account-types";
 import type { BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
 import { BRAND_FONT, DISPLAY_FONT } from "./stage";
@@ -76,13 +76,14 @@ export function TypesFrame({ frame, k, live = false }: { frame: BlastFrame; k: n
 
   const contraTab = tab === "Contra";
   const info = contraTab ? null : TYPE_INFO[tab];
-  const big = contraTab ? "Contra" : tab;
+  // FULL WORDS (2026-09-12): the header and the tabs spell it out — "Assets", not "A".
+  const big = v.full ? (contraTab ? CONTRA_INFO.name : TYPE_INFO[tab].name) : contraTab ? "Contra" : tab;
   const word = contraTab ? CONTRA_INFO.word : wordOf(spec, tab);
   const kicker = frame.title?.trim() || "Types of accounts";
   const sections = sectionsFor(spec, tab);
   const G = TYPES_GEOM;
   const headerH = 50;
-  const tabsTop = 18 + headerH + 6, tabsH = 30;
+  const tabsTop = 18 + headerH + 6, tabsH = v.full ? 62 : 30;
   const listTop = tabsTop + tabsH + 8;
   const mask = edge.up || edge.down
     ? `linear-gradient(to bottom, ${edge.up ? "transparent 0, black 10%" : "black 0"}, ${edge.down ? "black 88%, transparent 100%" : "black 100%"})`
@@ -94,7 +95,7 @@ export function TypesFrame({ frame, k, live = false }: { frame: BlastFrame; k: n
       <div style={{ position: "absolute", left: 0, top: 0, width: G.headerW * k, fontFamily: BRAND_FONT, fontWeight: 800, fontSize: 9.5 * k, lineHeight: 1, letterSpacing: "0.18em", textTransform: "uppercase", color: GOLD, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kicker}</div>
       {/* THE HEADER — the letter, his word, the sign; left of the corner camera. */}
       <div key={`h-${tab}`} className="sa-types-in" style={{ position: "absolute", left: 0, top: 16 * k, width: G.headerW * k, height: headerH * k, display: "flex", alignItems: "center", gap: 10 * k }}>
-        <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: (contraTab ? 34 : 48) * k, lineHeight: 1, color: BRAND_CREAM, letterSpacing: "-0.01em" }}>{big}</div>
+        <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: (v.full ? 25 : contraTab ? 34 : 48) * k, lineHeight: 1.02, color: BRAND_CREAM, letterSpacing: "-0.01em" }}>{big}</div>
         {(v.def || (v.sign && info)) && (
           <div style={{ display: "flex", flexDirection: "column", gap: 3 * k, minWidth: 0 }}>
             {v.def && <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: 18 * k, lineHeight: 1, color: GOLD, whiteSpace: "nowrap" }}>“{word}”</div>}
@@ -103,7 +104,7 @@ export function TypesFrame({ frame, k, live = false }: { frame: BlastFrame; k: n
         )}
       </div>
       {/* THE TABS */}
-      <div style={{ position: "absolute", left: 0, top: tabsTop * k, width: G.w * k, height: tabsH * k, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1.3fr 1.3fr 1.75fr", gap: 4 * k }}>
+      <div style={{ position: "absolute", left: 0, top: tabsTop * k, width: G.w * k, height: tabsH * k, display: "grid", gridTemplateColumns: v.full ? "1fr 1fr" : "1fr 1fr 1fr 1.3fr 1.3fr 1.75fr", gap: 4 * k }}>
         {TYPE_TABS.map((t) => {
           const on = t === tab;
           return (
@@ -112,8 +113,8 @@ export function TypesFrame({ frame, k, live = false }: { frame: BlastFrame; k: n
               style={{ boxSizing: "border-box", display: "grid", placeItems: "center", userSelect: "none", borderRadius: 9 * k,
                 background: on ? CELL_ON_BG : CELL_BG, border: `${Math.max(1, 1.5 * k)}px solid ${on ? GOLD : CELL_EDGE}`,
                 boxShadow: on ? "0 0 0 2px rgba(252,163,17,0.25)" : "none",
-                fontFamily: DISPLAY_FONT, fontWeight: 700, fontSize: (t.length > 1 ? 13 : 17) * k, lineHeight: 1, color: on ? GOLD : BRAND_CREAM }}>
-              {t}
+                fontFamily: DISPLAY_FONT, fontWeight: 700, fontSize: (v.full ? 12.5 : t.length > 1 ? 13 : 17) * k, lineHeight: 1, color: on ? GOLD : BRAND_CREAM }}>
+              {tabLabel(t, v.full)}
             </div>
           );
         })}

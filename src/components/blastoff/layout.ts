@@ -86,7 +86,7 @@ export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spo
   if (kind === "open" || kind === "outro" || kind === "bolt" || kind === "ad" || kind === "slogan") return { spot: "off" };
   // THE MAP (2026-09-07): the small corner circle in both templates — a field wants the camera
   // out of the way (webcam-spots.defaultCamFor says the same).
-  if (kind === "cluster") return { spot: "corner" };
+  if (kind === "cluster" || kind === "cycle") return { spot: "corner" };
   // THE RUBRIC (2026-09-11): content, camera small — the plain home circle in both templates. The
   // block's top row ends well above the circle, which sits in the L's crook (RubricFrame.tsx's
   // geometry, pinned in rubric-frame.test.ts).

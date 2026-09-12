@@ -76,6 +76,8 @@ export interface CalloutBodyProps {
   stem: string;
   extraStems?: string[];
   kind?: CalloutKind;
+  /** A custom banner instead of the kind's, drawn red (2026-09-12, CalloutSettings.label). */
+  customLabel?: string;
   /** Dropped-memo labels; 1 = single memo callout, 2+ = highlights stack. */
   highlights?: string[];
   bolt?: boolean;
@@ -141,21 +143,26 @@ export type LineSpotOf = (key: string) => LineSpot;
 
 /** The callout's face — cream card interior, navy text, orange corner accent.
  *  Rendered INSIDE the existing card shell (which owns width/drag/scale). */
-export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, highlights = [], bolt, onEditBullet, dark = false, footer, lineSpot, headerOutside = false }: CalloutBodyProps) {
+export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, customLabel, highlights = [], bolt, onEditBullet, dark = false, footer, lineSpot, headerOutside = false }: CalloutBodyProps) {
   const spotProps = (key: string): { className?: string; onPointerDownCapture?: (e: React.PointerEvent) => void } => {
     if (!lineSpot) return {};
     const ls = lineSpot(key);
     return { className: ls.state === "spot" ? "sa-detour-spot" : undefined, onPointerDownCapture: ls.onDown };
   };
   const stack = highlights.length > 1;
-  const kindMeta = stack ? { label: "HIGHLIGHTS FROM THIS SET", accent: "#C77D0A", tint: "rgba(199,125,10,0.08)" } : kind ? calloutMeta(kind) : null;
+  // A CUSTOM BANNER (2026-09-12) wins over the kind's: his words, red, on either skin.
+  const custom = customLabel?.trim() ? customLabel.trim().toUpperCase() : null;
+  const customAccent = dark ? "#FF7A7A" : "#C22B45";
+  const kindMeta = stack ? { label: "HIGHLIGHTS FROM THIS SET", accent: "#C77D0A", tint: "rgba(199,125,10,0.08)" }
+    : custom ? { label: custom, accent: customAccent, tint: `${customAccent}1A` }
+    : kind ? calloutMeta(kind) : null;
   // On the dark card each kind keeps its own colour (Lee, 2026-09-03: "make
   // the cheat code stay the same, but deeper idea, memorize this are different
   // colors"): cheat code stays brand gold; memorize this is orange; deeper
   // idea is sky. The paper accents were chosen for cream and go muddy on
   // navy, so these are the on-navy versions.
   const darkAccent = detourAccent(kind);
-  const meta = kindMeta && dark ? { label: kindMeta.label, accent: darkAccent, tint: `${darkAccent}24` } : kindMeta;
+  const meta = kindMeta && dark && !custom ? { label: kindMeta.label, accent: darkAccent, tint: `${darkAccent}24` } : kindMeta;
   const ink = dark ? DETOUR.ink : PAPER.ink;
   const inkMuted = dark ? DETOUR.inkMuted : PAPER.inkMuted;
   const hl = dark ? { bg: darkAccent, color: "#14213D" } : undefined;

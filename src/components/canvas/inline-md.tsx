@@ -16,6 +16,46 @@
 // camera must never become a permanent blur on the thing a student is revising from.
 import type { ReactNode } from "react";
 
+/** Is this run already teased — either wrapped itself, or hugged by the markers? */
+export const isTeased = (text: string, start: number, end: number): boolean =>
+  end > start && (/^\*[^*][\s\S]*\*$/.test(text.slice(start, end)) || (text[start - 1] === "*" && text[end] === "*"));
+
+/** BLUR THE SELECTION (2026-09-12). Lee: "it will be better if I can just like highlight a text
+ *  item in the editor and have a popup tooltip for blur or unblur. * is taking too long." Wraps
+ *  the selected run in the marker, or unwraps it when it is already teased — either way handing
+ *  back where the selection should sit afterwards. Pure; the Editor's bar is the only caller. */
+export function wrapTease(text: string, start: number, end: number): { text: string; start: number; end: number } {
+  if (end <= start) return { text, start, end };
+  const inner = text.slice(start, end);
+  if (/^\*[^*][\s\S]*\*$/.test(inner)) {
+    const bare = inner.slice(1, -1);
+    return { text: text.slice(0, start) + bare + text.slice(end), start, end: end - 2 };
+  }
+  if (text[start - 1] === "*" && text[end] === "*") {
+    return { text: text.slice(0, start - 1) + inner + text.slice(end + 1), start: start - 1, end: end - 1 };
+  }
+  return { text: `${text.slice(0, start)}*${inner}*${text.slice(end)}`, start, end: end + 2 };
+}
+
+/** BLUR EACH WORD (2026-09-12). Lee: "on the blur, enable a setting to blur word by word. Just so
+ *  I have all scenarios ready." One run blurs as a single blob; word by word keeps every word's own
+ *  shape — a better tease, and each word opens on its own click. Already-teased words are left. */
+export function wrapTeaseWords(text: string, start: number, end: number): { text: string; start: number; end: number } {
+  if (end <= start) return { text, start, end };
+  const out = text.slice(start, end).replace(/\S+/g, (w) => (/^\*[^*][\s\S]*\*$/.test(w) ? w : `*${w}*`));
+  return { text: text.slice(0, start) + out + text.slice(end), start, end: start + out.length };
+}
+
+/** BLUR EACH LINE (2026-09-12) — the same, a line at a time: "if it's on a separate line, it's
+ *  still about blurring it line by line." Blank lines stay blank. */
+export function wrapTeaseLines(text: string, start: number, end: number): { text: string; start: number; end: number } {
+  if (end <= start) return { text, start, end };
+  const out = text.slice(start, end).split("\n")
+    .map((line) => { const t = line.trim(); if (!t || /^\*[^*][\s\S]*\*$/.test(t)) return line; const pad = line.slice(0, line.indexOf(t)); return `${pad}*${t}*`; })
+    .join("\n");
+  return { text: text.slice(0, start) + out + text.slice(end), start, end: start + out.length };
+}
+
 /** Wrap a line in the tease marker, or take it off — what the Editor's ✳ blur button does. */
 export function toggleTease(s: string): string {
   const t = s.trim();
@@ -44,7 +84,10 @@ export function renderInline(text: string, hl?: { bg?: string; color?: string })
   // "about ~5 minutes and ~10 more" from striking everything between the two tildes.
   // The tease is LAST in the alternation and single-starred, so **bold** still wins at the same
   // position; the \S guards are the ~single~ rule, so "3 * 4 * 5" and a footnote star fall through.
-  const re = /(\*\*([^*]+?)\*\*|==((?:[^=]|=(?!=))+?)==|~~((?:[^~]|~(?!~))+?)~~|~(\S|\S[^~\n]*?\S)~|__([^_\n]+?)__|(_{3,})|\*(\S|\S[^*\n]*?\S)\*)/g;
+  // IT MAY CROSS A LINE BREAK (2026-09-12). Lee: "Blur didn't work on this" — his heading was
+  // *"What type of account\nis ____?"*, and the run refused to span the newline. A highlight has
+  // always been allowed to; so is this.
+  const re = /(\*\*([^*]+?)\*\*|==((?:[^=]|=(?!=))+?)==|~~((?:[^~]|~(?!~))+?)~~|~(\S|\S[^~\n]*?\S)~|__([^_\n]+?)__|(_{3,})|\*(\S|\S[^*]*?\S)\*)/g;
   let last = 0;
   let k = 0;
   let m: RegExpExecArray | null;

@@ -127,12 +127,16 @@ export const frameSchema = z.object({
     w: z.number().min(0.05).max(1).optional(), h: z.number().min(0.02).max(1).optional(),
     dim: z.boolean().optional(),
   }).optional(),
-  // 2026-09-12: the callout this Reel is ABOUT (plan.ts `lead`, reel.ts).
+  // 2026-09-12: the callout this Reel is ABOUT (plan.ts `lead`, reel.ts), and a callout drawn with
+  // no chip at all (plan.ts `chip`).
   lead: z.literal(true).optional(),
+  chip: z.enum(["off"]).optional(),
+  chipText: z.string().max(40).optional(),
   // 2026-09-11: the Types of accounts slide (plan.ts `types`, account-types.ts TypesSpec).
   types: z.object({
     tab: z.enum(TYPE_TABS).optional(),
     term: z.boolean().optional(), contra: z.boolean().optional(), def: z.boolean().optional(), sign: z.boolean().optional(),
+    full: z.boolean().optional(),
     words: z.record(z.enum(["A", "L", "E", "Rev", "Exp"]), z.string().max(40)).optional(),
     lists: z.record(z.enum(TYPE_LISTS), z.array(z.string().max(120)).max(30)).optional(),
   }).optional(),

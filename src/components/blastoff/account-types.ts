@@ -49,6 +49,9 @@ export const TYPE_INFO: Record<TypeKey, TypeInfo> = {
 /** The Contra tab's own header. "Contra" = opposite-of (the registry's own trap note). */
 export const CONTRA_INFO = { name: "Contra accounts", word: "OPPOSITE" } as const;
 
+/** What a tab says: the letter, or the full word (TypesSpec.full). */
+export const tabLabel = (t: TypeTab, full: boolean): string => (t === "Contra" ? "Contra" : full ? TYPE_INFO[t].name : t);
+
 export const DEFAULT_LISTS: Record<TypeListId, readonly string[]> = {
   "A.current": ["Cash", "Supplies", "“Receivables”", "“Prepaids”"],
   "A.longterm": ["Equipment", "Machine", "Car / Truck", "Building"],
@@ -81,15 +84,18 @@ export interface TypesSpec {
   def?: boolean;
   /** The +/− signs. Absent = on. */
   sign?: boolean;
+  /** THE FULL WORDS (2026-09-12): "Assets", "Liabilities"… on the tabs and the header, instead of
+   *  A · L · E · Rev · Exp. Lee: "Add a version of this that is the full words." Absent = letters. */
+  full?: boolean;
   /** His words, per type. */
   words?: Partial<Record<TypeKey, string>>;
   lists?: Partial<Record<TypeListId, string[]>>;
 }
 
-export interface TypesView { tab: TypeTab; term: boolean; contra: boolean; def: boolean; sign: boolean }
+export interface TypesView { tab: TypeTab; term: boolean; contra: boolean; def: boolean; sign: boolean; full: boolean }
 
 export function typesView(spec: TypesSpec | undefined): TypesView {
-  return { tab: spec?.tab ?? "A", term: spec?.term ?? false, contra: spec?.contra ?? false, def: spec?.def ?? true, sign: spec?.sign ?? true };
+  return { tab: spec?.tab ?? "A", term: spec?.term ?? false, contra: spec?.contra ?? false, def: spec?.def ?? true, sign: spec?.sign ?? true, full: spec?.full ?? false };
 }
 
 /** A list as it draws: his edit (blank lines dropped), else the default. */

@@ -32,9 +32,12 @@ describe("blastoff frame schema", () => {
       // The note over a set card and the Types of accounts slide (2026-09-11) — a strip here would
       // lose the note's words and box, and every toggle and edited list, on load.
       note: { text: "Prepaid = paid in advance", x: 0.1, y: 0.25, w: 0.68, h: 0.16, dim: true },
-      types: { tab: "Contra", term: true, contra: true, def: false, sign: true, words: { A: "OWN" }, lists: { "A.current": ["Cash", "Supplies"] } },
-      // The Reel's lead callout (2026-09-12) — a strip here would lose every star on load.
+      types: { tab: "Contra", term: true, contra: true, def: false, sign: true, full: true, words: { A: "OWN" }, lists: { "A.current": ["Cash", "Supplies"] } },
+      // The Reel's lead callout and the no-chip callout (2026-09-12) — a strip here would lose
+      // every star, and every chipless slide would get its chip back, on load.
       lead: true,
+      chip: "off",
+      chipText: "HEADS UP",
     };
     const out = frameSchema.parse(full);
     expect(out).toEqual(full);

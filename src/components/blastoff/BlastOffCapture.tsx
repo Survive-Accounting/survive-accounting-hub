@@ -75,6 +75,7 @@ import { cannedLinesFor, pickCannedLine, type CannedLine, type CannedSlot } from
 import { CaptureArrows } from "./capture/arrows";
 import { useCaptureCamera } from "./capture/camera";
 import { useFieldRoam } from "./capture/field-roam";
+import { CYCLE_FIELD, cycleHome } from "./cycle-field";
 import { HotkeysModal } from "./capture/HotkeysModal";
 import { COUNTDOWN_SECONDS, countdownCue, countdownTone, useCapturePopout, useCountdown } from "./capture/popout";
 import { previewIndex, signalRoll, useCapturePrompterSyncFrame, usePopoutTake, useRollSignal } from "./capture/prompter-sync";
@@ -223,6 +224,8 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // count both kinds share; every other slide has none and space leaves the frame at once.
   const rubric = frame?.kind === "rubric" ? frame.rubric ?? null : null;
   const survibes = frame?.kind === "survibes";
+  // THE ACCOUNTING CYCLE (2026-09-12) roams like the map: one field, one set of gestures.
+  const cycle = frame?.kind === "cycle";
   // THE RUBRIC'S TAKE (2026-09-11): what a box click set and whether Tab has the Rev/Exp row in —
   // this take, this slide, never saved (frame-step.ts). A new slide starts clean.
   const [rubricTakeState, setRubricTake] = useState<{ id: string; over: Partial<Record<RubricKey, RubricArrow[]>>; revExp?: boolean }>({ id: "", over: {} });
@@ -435,8 +438,8 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
 
   // ---- the plug-ins: camera, arrows, teleprompter sync, the 9:16 pop-out ----
   // On a map frame the card camera stands down and the field roam takes the same gestures.
-  const camera = useCaptureCamera({ hostRef, frameId: frameId ?? "", target: cluster ? "field" : "card" });
-  const fieldRoam = useFieldRoam({ hostRef, active: !!cluster && !preview, shot: cluster ? cameraAt(cluster, shot) : null, field: cluster?.field ?? null, key: `${frameId ?? ""}:${shot}` });
+  const camera = useCaptureCamera({ hostRef, frameId: frameId ?? "", target: cluster || cycle ? "field" : "card" });
+  const fieldRoam = useFieldRoam({ hostRef, active: (!!cluster || cycle) && !preview, shot: cluster ? cameraAt(cluster, shot) : cycle ? cycleHome() : null, field: cluster?.field ?? (cycle ? CYCLE_FIELD : null), key: `${frameId ?? ""}:${shot}` });
   const openTeleprompter = useTeleprompterPopout(set.id);
   // THE COUNTDOWN (pop-out only; capture/popout.ts). Starting it jumps to slide 0, so slide 1 is
   // what is there when the black lifts. Cancelling (space) leaves slide 1 up as well.
@@ -641,7 +644,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
 
   // What FrameView's map draws from (cluster/ClusterStage.tsx): in the main window's NEXT
   // preview the map is its bird's-eye with everything revealed — honest about what comes next.
-  const clusterFilm = useMemo<ClusterFilm | null>(() => (cluster ? { shot, roam: fieldRoam.roam, overview: preview, arrowOverrides, onArrowCycle } : null), [cluster, shot, fieldRoam.roam, preview, arrowOverrides, onArrowCycle]);
+  const clusterFilm = useMemo<ClusterFilm | null>(() => (cluster || cycle ? { shot, roam: fieldRoam.roam, overview: preview, arrowOverrides, onArrowCycle } : null), [cluster, cycle, shot, fieldRoam.roam, preview, arrowOverrides, onArrowCycle]);
   // The rubric's step, the same way; in the NEXT preview the block is at rest with every arrow on.
   const rubricFilm = useMemo<FrameStep | null>(() => {
     if (preview || (!rubric && !survibes)) return null;

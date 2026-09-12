@@ -109,7 +109,7 @@ import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, canRemove, canZoomBehind,
 import { EMPTY_SELECTION, clickSelect, focusOnly, getClip, pickOrdered, setClip, type Selection } from "./spine-select";
 // THE SLIDE BANK (2026-09-11): Ctrl+C / Ctrl+X also shelve the slide; the shelf sits above the spine.
 import { SlideBank } from "./SlideBank";
-import { addToBank, loadBank, saveBank } from "./slide-bank";
+import type { BankAdd } from "./slide-bank";
 import { DRAG_ZOOM_AFTER_MS, autoScrollDelta, buildBundleGhost } from "./spine-drag";
 // THE FILM POP-OUT, opened from the spine (2026-09-09). The window name is what makes a second
 // click refocus the same window instead of spawning another; the features snap it to 9:16.
@@ -144,7 +144,7 @@ import { SURVIBES_PROPS } from "./survibes";
 // THE TYPES OF ACCOUNTS SLIDE and THE NOTE ON A SET CARD (2026-09-11): their Editor faces.
 import { LIST_LABEL, TYPE_INFO, TYPE_KEYS, TYPE_TABS, listOf, listsOfType, typesView, withList, withWord, type TypesSpec } from "./account-types";
 // THE TEASE (2026-09-12, canvas/inline-md.tsx): *word* films blurred until he clicks it.
-import { toggleTease } from "@/components/canvas/inline-md";
+import { isTeased, toggleTease, wrapTease, wrapTeaseLines, wrapTeaseWords } from "@/components/canvas/inline-md";
 import type { CardNoteSpec } from "./card-note";
 import { useBank } from "@/components/v3/use-bank";
 import type { MapCard } from "@/lib/cluster-brief";
@@ -176,7 +176,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4", outline: "#86EFAC", types: "#A3E635" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4", outline: "#86EFAC", types: "#A3E635", cycle: "#FDBA74" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -1191,14 +1191,12 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
         if (!picked.length) return;
         e.preventDefault();
         setClip(picked);
-        bankAddRef.current(picked);
         return;
       }
       if (mod && key === "x") {
         if (!picked.length) return;
         e.preventDefault();
         setClip(picked);
-        bankAddRef.current(picked);
         let next: BlastFrame[] = [...frames];
         for (const f of [...picked].reverse()) next = dropFrame(next, f.id);
         commit(next);
@@ -1478,19 +1476,19 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   };
   const labelOf = (f: BlastFrame): string => (f.kind === "ceq" && f.ceqId && summaryLabel.get(f.ceqId)) || (f.kind === "ad" && f.ad ? AD_LABEL[f.ad] : FRAME_LABEL[f.kind]);
   const colorOf = (f: BlastFrame): string => KIND_COLOR[f.kind] ?? (isStandard(f.kind) ? SKY : f.kind === "ceq" && f.ceqId && summaryLabel.has(f.ceqId) ? MINT : MUTED);
-  // THE SLIDE BANK (2026-09-11, slide-bank.ts): what Ctrl+C / Ctrl+X shelve — the slide, what it
-  // is, and a line of its words (a set card's stem, else its heading), so the shelf reads without
-  // the set open. Through a ref, so the key handler above always calls this render's copy.
-  const bankAdd = (fs: readonly BlastFrame[]) => {
-    const adds = fs.map((f) => {
+  // THE SLIDE BANK (2026-09-12, slide-bank.ts + SlideBank.tsx). Lee, on the first version: "the
+  // bank you have doesn't make sense. I want to just have a blank bank I can click, paste into,
+  // and then the slide is saved for future use." So Ctrl+C / Ctrl+X only fill the clipboard, and
+  // the SHELF's blank slot is what saves — this hands it whatever is on the clipboard, described
+  // well enough to read on the shelf with another set open.
+  const clipAdds = (): BankAdd[] | null => {
+    const fs = getClip();
+    if (!fs.length) return null;
+    return fs.map((f) => {
       const words = f.kind === "ceq" ? viewSet.ceqs.find((c) => c.id === f.ceqId)?.stem ?? "" : (f.title || f.text || "");
       return { setId: set.id, setName: set.name, label: labelOf(f), snippet: words.replace(/\s+/g, " ").trim().slice(0, 90), frame: f };
     });
-    if (!saveBank(addToBank(loadBank(), adds))) { flashNote("⚠ this browser won't store the bank"); return; }
-    flashNote(`🗂 ${fs.length === 1 ? "1 slide" : `${fs.length} slides`} in the bank`);
   };
-  const bankAddRef = useRef(bankAdd);
-  bankAddRef.current = bankAdd;
 
   if (!plan) return <div style={{ color: MUTED, fontSize: 13 }}>Loading the film draft…</div>;
 
@@ -1603,6 +1601,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     { label: "Rubric", color: KIND_COLOR.rubric ?? MUTED, add: () => insertAfter(f.id, "rubric", { rubric: emptyRubric() }, true) },
     // 2026-09-11, Lee: "a 'Types of accounts' slide that let's me toggle between A, L, E, Rev, Exp, Contra accounts."
     { label: "Types of accounts", color: KIND_COLOR.types ?? MUTED, add: () => insertAfter(f.id, "types", {}, true) },
+    // 2026-09-12, Lee: "pull out the Accounting Cycle exhibit we have … zoomed way out, but let me zoom up to it and drag around."
+    { label: "Accounting cycle", color: KIND_COLOR.cycle ?? MUTED, add: () => insertAfter(f.id, "cycle", {}, true) },
     // THE END-OF-TOPIC PAIR (2026-09-11). Up Next opens the skippable segment as it lands.
     { label: "Topic complete", color: KIND_COLOR.topic_done ?? MUTED, add: () => insertAfter(f.id, "topic_done", {}, true) },
     { label: "Up next", color: KIND_COLOR.up_next ?? MUTED, add: () => insertAfter(f.id, "up_next", { segment: "skippable" }, true) },
@@ -1658,12 +1658,13 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
             style={{ ...chip(reelsMode, reelsMode ? GOLD : MUTED), fontSize: 10.5, padding: "3px 9px", cursor: "pointer", textTransform: "none", letterSpacing: 0 }}>
             🎞 Reels{reelsMode ? " · on" : ""}
           </button>
-          {/* THE SLIDE BANK (2026-09-11) — top right above the spine. */}
-          <span style={{ marginLeft: "auto" }}>
-            <SlideBank setId={set.id} pasteLabel={selIdx < 0 ? "Paste at the end" : `Paste after slide ${selIdx + 1}`}
-              onPaste={(it) => { const { frames: next, ids } = pasteAfter(frames, [it.frame], selIdx < 0 ? frames.length - 1 : selIdx); commit(next); setPick({ ids, anchor: ids[0] ?? null }); }} />
-          </span>
         </div>
+        {/* THE SLIDE BANK (2026-09-12) — its own row above the strip: the saved slides, then a
+            blank slot. Copy a slide, click the slot, it is kept for any set, any time. */}
+        {stripOpen && (
+          <SlideBank setId={set.id} takeClip={clipAdds} pasteLabel={selIdx < 0 ? "Paste at the end" : `Paste after slide ${selIdx + 1}`}
+            onPaste={(it) => { const { frames: next, ids } = pasteAfter(frames, [it.frame], selIdx < 0 ? frames.length - 1 : selIdx); commit(next); setPick({ ids, anchor: ids[0] ?? null }); flashNote(`🗂 ${it.label} pasted in`); }} />
+        )}
         {/* THE INSERT TOGGLE AND ITS CHIP ROWS LEFT (Lee, 2026-09-10: "Insert a slide isn't needed.
             I will do it with the + hover icon"). Every kind they offered is in the gap's "+" now. */}
         {picker && <BankPicker kind={picker} setId={set.id} setName={set.name} onPick={(p) => add(picker, p)} onClose={() => setPicker(null)} />}
@@ -2129,7 +2130,19 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
                   {k.label}
                 </button>
               ))}
+              {/* NONE (2026-09-12) — the format without the label. Lee: "sometimes I want a callout
+                  slide but with no callout. I just like the big text format." */}
+              <button style={chip(sel.chip === "off", MUTED)} title={sel.chip === "off" ? "No chip on this slide — click to put it back" : "Drop the chip: the same slide, no callout label"}
+                onClick={() => onPatch({ chip: sel.chip === "off" ? undefined : "off" })}>None</button>
+              {/* CUSTOM (2026-09-12) — Lee: "allow me to create a custom one. Just make it red and
+                  let me write whatever text I want." */}
+              <button style={chip(sel.chipText !== undefined, RED)} title={sel.chipText !== undefined ? "Back to this kind's own chip" : "Your own words on the chip, in red"}
+                onClick={() => onPatch({ chipText: sel.chipText === undefined ? "HEADS UP" : undefined, chip: undefined })}>Custom</button>
             </div>
+            {sel.chipText !== undefined && (
+              <input style={{ ...field, marginTop: 2 }} value={sel.chipText} placeholder="HEADS UP" maxLength={40}
+                title="The chip's words — drawn red on the slide" onChange={(e) => onPatch({ chipText: e.target.value })} />
+            )}
           </div>
         )}
         {canGoBig(sel.kind) && (
@@ -2154,12 +2167,12 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         )}
         {((isCallout(sel.kind) && sel.kind !== "cheat") || sel.kind === "blank" || sel.kind === "exhibit") && (
           <label style={{ fontSize: 11, color: MUTED }}>{isCallout(sel.kind) ? "Title — the bold heading" : sel.kind === "exhibit" ? `Caption${sel.exhibitRef ? ` · exhibit: ${sel.exhibitRef}` : ""}` : "Text on the bare frame"}
-            <textarea style={{ ...field, minHeight: 48, marginTop: 4 }} value={sel.text ?? ""} placeholder={sel.kind === "phrase" ? "e.g. Internal users" : sel.kind === "tricky" ? "e.g. Dividends are contra-EQUITY, not contra-asset" : sel.kind === "tip" ? "e.g. Why the board feels like a gray area" : sel.kind === "ask" ? "e.g. What did Survive Co give up, and what did it get?" : "say it the way you'd say it on camera"} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+            <TeaseField style={{ ...field, minHeight: 48, marginTop: 4 }} value={sel.text ?? ""} placeholder={sel.kind === "phrase" ? "e.g. Internal users" : sel.kind === "tricky" ? "e.g. Dividends are contra-EQUITY, not contra-asset" : sel.kind === "tip" ? "e.g. Why the board feels like a gray area" : sel.kind === "ask" ? "e.g. What did Survive Co give up, and what did it get?" : "say it the way you'd say it on camera"} onChange={(v) => onPatch({ text: v })} /></label>
         )}
         {detour && (
           <label style={{ fontSize: 11, color: MUTED, display: "block", marginTop: 8 }}>{sel.kind === "cheat" ? "More lines under it" : "Lines under it"} — one per line, Tab to nest
-            <textarea style={{ ...field, minHeight: 64, marginTop: 4, tabSize: 2 }} value={bulletsText} placeholder={"Management\nBudgets, costs, forecasts\nProduction"}
-              onChange={(e) => onPatch({ bullets: e.target.value.split("\n") })}
+            <TeaseField style={{ ...field, minHeight: 64, marginTop: 4, tabSize: 2 }} value={bulletsText} placeholder={"Management\nBudgets, costs, forecasts\nProduction"}
+              onChange={(v) => onPatch({ bullets: v.split("\n") })}
               // NESTING (2026-09-06, Lee: "let me tab over to nest bullets into another
               // indention under"): Tab/Shift+Tab on the current LINE, not the whole field —
               // a plain textarea Tab would otherwise just jump focus to the next control.
@@ -2351,6 +2364,62 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
   );
 }
 
+/** A TEXT FIELD THAT CAN BLUR WHAT YOU SELECT (2026-09-12). Lee: "it will be better if I can just
+ *  like highlight a text item in the editor and have a popup tooltip for blur or unblur. * is
+ *  taking too long." Select any run of words and the bar appears over the field; it writes the
+ *  same *stars* the marker has always used, so a slide built either way is the same slide. */
+function TeaseField({ value, onChange, style, placeholder, rows, onKeyDown }: {
+  value: string;
+  onChange: (v: string) => void;
+  style?: React.CSSProperties;
+  placeholder?: string;
+  rows?: number;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [sel, setSel] = useState<{ s: number; e: number } | null>(null);
+  const read = () => {
+    const el = ref.current;
+    if (!el) return;
+    setSel(el.selectionEnd > el.selectionStart ? { s: el.selectionStart, e: el.selectionEnd } : null);
+  };
+  const apply = (how: "run" | "words" | "lines") => {
+    const el = ref.current;
+    if (!sel || !el) return;
+    const f = how === "words" ? wrapTeaseWords : how === "lines" ? wrapTeaseLines : wrapTease;
+    const r = f(value, sel.s, sel.e);
+    onChange(r.text);
+    // Put the selection back where the words now are, so a second click un-blurs them.
+    requestAnimationFrame(() => { const t = ref.current; if (!t) return; t.focus(); t.setSelectionRange(r.start, r.end); setSel({ s: r.start, e: r.end }); });
+  };
+  const teased = !!sel && isTeased(value, sel.s, sel.e);
+  const picked = sel ? value.slice(sel.s, sel.e) : "";
+  const manyWords = /\S\s+\S/.test(picked);
+  const manyLines = picked.includes("\n");
+  return (
+    <span style={{ position: "relative", display: "block" }}>
+      <textarea ref={ref} value={value} placeholder={placeholder} rows={rows} style={style} onKeyDown={onKeyDown}
+        onChange={(e) => onChange(e.target.value)} onSelect={read} onKeyUp={read} onMouseUp={read}
+        onBlur={() => window.setTimeout(() => setSel(null), 200)} />
+      {sel && (
+        <span style={{ position: "absolute", right: 6, top: -11, zIndex: 5, display: "inline-flex", gap: 4 }}>
+          {([
+            { how: "run" as const, label: teased ? "✳ un-blur" : "✳ blur", show: true, title: teased ? "These words are teased — they film blurred until you click them. Click to un-blur." : "Tease the whole run: it films blurred, and a click on the slide opens it" },
+            { how: "words" as const, label: "word × word", show: manyWords && !teased, title: "Tease each word on its own — every word keeps its shape, and each one opens with its own click" },
+            { how: "lines" as const, label: "line × line", show: manyLines && !teased, title: "Tease each line on its own — one click opens one line" },
+          ]).filter((b) => b.show).map((b) => (
+            <button key={b.how} type="button" onMouseDown={(e) => { e.preventDefault(); apply(b.how); }} title={b.title}
+              style={{ font: "inherit", fontSize: 10, fontWeight: 800, letterSpacing: "0.04em", padding: "2px 9px", borderRadius: 999,
+                border: `1px solid ${b.how === "run" ? GOLD : EDGE}`, background: "#0E1728", color: b.how === "run" ? GOLD : CREAM, cursor: "pointer", boxShadow: "0 4px 14px rgba(0,0,0,0.55)" }}>
+              {b.label}
+            </button>
+          ))}
+        </span>
+      )}
+    </span>
+  );
+}
+
 // ------------------------------------------------ the note on a set card
 
 /** The note over a set card (card-note.ts): add it, its words, the choices dimmed or clear behind
@@ -2397,12 +2466,14 @@ function TypesEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<B
   const spec = sel.types;
   const v = typesView(spec);
   const put = (p: Partial<TypesSpec>) => onPatch({ types: { ...(spec ?? {}), ...p } });
-  const flip = (key: "term" | "contra" | "def" | "sign") => { const p: Partial<TypesSpec> = {}; p[key] = !v[key]; put(p); };
-  const toggles: { key: "term" | "contra" | "def" | "sign"; label: string; title: string }[] = [
+  const flip = (key: "term" | "contra" | "def" | "sign" | "full") => { const p: Partial<TypesSpec> = {}; p[key] = !v[key]; put(p); };
+  const toggles: { key: "term" | "contra" | "def" | "sign" | "full"; label: string; title: string }[] = [
     { key: "term", label: "Current vs long-term", title: "Split Assets and Liabilities into Current and Long-term. Off: the long-term ones nest under “LT Assets”, as on your old slide." },
     { key: "contra", label: "Contras inside A and E", title: "Accumulated Depreciation under Assets, Dividends under Equity. Off: they're only on the Contra tab." },
     { key: "def", label: "One-word definitions", title: "“OWN”, “OWE”, “VALUE”, “EARN”, “COSTS”" },
     { key: "sign", label: "+/− signs", title: "(+/−) for Assets and Expenses, (−/+) for Liabilities, Equity and Revenue" },
+    // 2026-09-12, Lee: "Add a version of this that is the full words — Assets, Liabilities, etc etc."
+    { key: "full", label: "Full words", title: "Assets · Liabilities · Equity · Revenue · Expenses instead of A · L · E · Rev · Exp" },
   ];
   return (
     <div className="flex flex-col" style={{ gap: 10 }}>
@@ -2587,7 +2658,7 @@ function RubricEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<
       </div>
       <label style={{ fontSize: 11, color: MUTED }}>Heading over the boxes (blank = "{RUBRIC_HEADING}")
         <input style={{ ...field, marginTop: 4 }} value={sel.title ?? ""} placeholder={RUBRIC_HEADING} onChange={(e) => onPatch({ title: e.target.value || undefined })} /></label>
-      <label style={{ fontSize: 11, color: MUTED }}>Transaction — the words in the card
+      <label style={{ fontSize: 11, color: MUTED }}>Transaction — the words in the card (blank = no card, just the boxes)
         <textarea style={{ ...field, minHeight: 48, marginTop: 4 }} value={r.text} placeholder="e.g. Paid $600 cash for rent" onChange={(e) => set({ text: e.target.value })} /></label>
       <div className="flex" style={{ gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
         <label style={{ fontSize: 11, color: MUTED }}>Amount $

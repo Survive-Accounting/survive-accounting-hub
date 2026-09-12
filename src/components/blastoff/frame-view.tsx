@@ -30,10 +30,11 @@ import { SetCard, type CardOverride } from "./SetCard";
 import { BIO_CARD, bioCallout } from "./bio-card";
 import { DISPLAY_FONT, V } from "./stage";
 import { OUTRO_CTA_KEY, SurviveOutro } from "./SurviveOutro";
-import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, type BlastFrame } from "./plan";
+import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, showCampusBanner, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
 import { RubricSlide } from "./RubricSlide";
 import { TypesFrame } from "./TypesFrame";
+import { CycleFrame } from "./CycleFrame";
 import { TopicDoneFrame, UpNextFrame } from "./EndOfTopicFrames";
 import { OutlineFrame } from "./OutlineFrame";
 import { SurvibesFrame } from "./SurvibesFrame";
@@ -135,6 +136,9 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   // TYPES OF ACCOUNTS (2026-09-11, TypesFrame.tsx): the same kind of phone-unit column — tabs, his
   // words, the accounts; clicks change the take only on film.
   if (frame.kind === "types") return <TypesFrame frame={frame} k={scale} live={live} />;
+  // THE ACCOUNTING CYCLE (2026-09-12, CycleFrame.tsx): the ring on a field. The take's roam rides
+  // in on the same context the map uses — absent everywhere else, so it draws home.
+  if (frame.kind === "cycle") return <CycleFrame w={fw} frame={frame} live={live} roam={film?.roam} />;
 
   // THE END-OF-TOPIC FRAMES (2026-09-11, EndOfTopicFrames.tsx): the whole 9:16, the words from
   // the bank through the set's id; `live` runs the charge and the Up Next cycle on film only.
@@ -179,7 +183,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // [topic name], surviveaccounting.com, campus banner underneath" — is this assembly. So the
     // deck's first filmed slide builds itself, and an intro that opens the video takes the
     // open's own topic lines (the topic above, the set below).
-    if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={frame.banner === "on"} tagline={frame.text?.trim() ?? ""} domain={frame.url?.trim() || undefined} live
+    if (frame.kind === "open") return <BoltZoom w={fw} h={fh} mode="open" banner={showCampusBanner(frame)} tagline={frame.text?.trim() ?? ""} domain={frame.url?.trim() || undefined} live
       assembly={{ wordmarkSpot: watermarkSpot(fw), ...(coldOpen ? (coldOpen.held ? { key: "held", atMs: 0 } : { totalMs: coldOpen.ms, key: coldOpen.key }) : { key: "still", finished: true }) }}
       topicTop={topicName} topicBottom={set.name}
       onEdit={edit ? (p) => edit({ ...(p.tagline !== undefined ? { text: p.tagline } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
@@ -190,7 +194,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // five-piece assembly is gone from this path: it drew a different composition than the
     // Editor did (his two screenshots side by side), and staggering was the "starts and stops
     // and all kinds of mess."
-    if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} tutorLine={frame.title?.trim() || undefined} domain={frame.url?.trim() || undefined} banner={frame.banner === "on"} wordmarkTop={introWordmarkTop(layout)} live
+    if (frame.kind === "intro") return <BoltZoom w={fw} h={fh} mode="intro" topic={frame.text?.trim() || set.name} tutorLine={frame.title?.trim() || undefined} domain={frame.url?.trim() || undefined} banner={showCampusBanner(frame)} wordmarkTop={introWordmarkTop(layout)} live
       entrance={opener && coldOpen && !coldOpen.held ? { key: coldOpen.key } : null}
       onEdit={edit ? (p) => edit({ ...(p.topic !== undefined ? { text: p.topic } : {}), ...(p.tutorLine !== undefined ? { title: p.tutorLine } : {}), ...(p.domain !== undefined ? { url: p.domain } : {}) }) : undefined} />;
     // THE TUTOR CARD (2026-09-03): the bio in the detour format, a bit bigger.
@@ -273,7 +277,8 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   if (isBigCallout(frame)) {
     const tag = INSERT_CALLOUT[frame.kind];
     const meta = tag ? calloutMeta(tag as Parameters<typeof calloutMeta>[0]) : { label: FRAME_LABEL[frame.kind].toUpperCase(), accent: GOLD };
-    return <BigCallout w={fw} h={fh} label={meta.label} accent={meta.accent} text={insertStem(frame)} bullets={frameBullets(frame)} art={!!frame.illustration?.assetUrl} live={live} />;
+    const customChip = frame.chipText?.trim();
+    return <BigCallout w={fw} h={fh} label={frame.chip === "off" ? "" : customChip ? customChip.toUpperCase() : meta.label} accent={customChip ? "#FF7A7A" : meta.accent} text={insertStem(frame)} bullets={frameBullets(frame)} art={!!frame.illustration?.assetUrl} live={live} />;
   }
 
   const kindTag = INSERT_CALLOUT[frame.kind];
@@ -287,7 +292,9 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
       // "blank" is a BARE frame — card hidden, so Lee builds on it from scratch.
       // Every other insert is a DETOUR: the dark card, gold label, key phrase
       // highlighted — the same flag the sync writes, so preview = film.
-      callout={frame.kind === "blank" ? { hidden: true } : kindTag ? { kind: kindTag, detour: true, ...(frameBullets(frame).length ? { extraStems: frameBullets(frame) } : {}) } : undefined}
+      // `chip: "off"` keeps the detour skin and drops the label — the card's own no-chip form,
+      // the same one the set's note cards use.
+      callout={frame.kind === "blank" ? { hidden: true } : frame.chip === "off" ? { detour: true, showTopic: false, ...(frameBullets(frame).length ? { extraStems: frameBullets(frame) } : {}) } : kindTag ? { kind: kindTag, detour: true, ...(frame.chipText?.trim() ? { label: frame.chipText.trim() } : {}), ...(frameBullets(frame).length ? { extraStems: frameBullets(frame) } : {}) } : undefined}
     />
   );
 }

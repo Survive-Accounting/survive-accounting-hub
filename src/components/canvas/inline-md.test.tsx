@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { renderInline, toggleTease } from "./inline-md";
+import { isTeased, renderInline, toggleTease, wrapTease, wrapTeaseLines, wrapTeaseWords } from "./inline-md";
 
 const html = (s: string) => renderToStaticMarkup(<>{renderInline(s)}</>);
 
@@ -50,6 +50,43 @@ describe("the inline markers", () => {
     expect(html("3 * 4 * 5")).not.toContain("sa-tease");
     expect(html("Assets* are tricky")).not.toContain("sa-tease");
   });
+  // Lee, 2026-09-12: "Blur didn't work on this" — his heading wrapped a line break.
+  test("a tease may cross a line break", () => {
+    const out = html('*"What type of account\nis ____?"*');
+    expect(out).toContain("sa-tease");
+    expect(out).not.toContain("*");
+  });
+
+  // "it will be better if I can just like highlight a text item in the editor and have a popup
+  // tooltip for blur or unblur. * is taking too long."
+  test("wrapTease blurs the selection, and un-blurs it when it is already teased", () => {
+    const a = wrapTease("the Land account", 4, 8);
+    expect(a.text).toBe("the *Land* account");
+    expect(a.text.slice(a.start, a.end)).toBe("*Land*");
+    // selecting the same run again takes it off
+    expect(wrapTease(a.text, a.start, a.end).text).toBe("the Land account");
+    // and so does selecting the bare word inside the markers
+    expect(wrapTease("the *Land* account", 5, 9).text).toBe("the Land account");
+    expect(wrapTease("nothing selected", 3, 3).text).toBe("nothing selected");
+  });
+
+  test("isTeased sees both shapes", () => {
+    expect(isTeased("the *Land* account", 4, 10)).toBe(true);   // the wrapped run
+    expect(isTeased("the *Land* account", 5, 9)).toBe(true);    // the word inside it
+    expect(isTeased("the Land account", 4, 8)).toBe(false);
+  });
+
+  // "on the blur, enable a setting to blur word by word. Just so I have all scenarios ready."
+  test("word by word and line by line", () => {
+    expect(wrapTeaseWords("Cash Supplies Land", 0, 18).text).toBe("*Cash* *Supplies* *Land*");
+    // already-teased words are left alone
+    expect(wrapTeaseWords("*Cash* Supplies", 0, 15).text).toBe("*Cash* *Supplies*");
+    const lines = wrapTeaseLines("Cash and coins\nSupplies", 0, 23);
+    expect(lines.text).toBe("*Cash and coins*\n*Supplies*");
+    // a blank line stays blank
+    expect(wrapTeaseLines("Cash\n\nLand", 0, 10).text).toBe("*Cash*\n\n*Land*");
+  });
+
   test("toggleTease is the blur button: wraps a line, and takes it off again", () => {
     expect(toggleTease("Land")).toBe("*Land*");
     expect(toggleTease("*Land*")).toBe("Land");

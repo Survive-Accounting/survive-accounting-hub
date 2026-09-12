@@ -84,12 +84,18 @@ export function RubricSlide({ frame, k, live = false, topicName, progress }: {
   // a shorter card.
   const mul = revExp ? RUBRIC_SLIDE.cardShrinkRevExp : RUBRIC_SLIDE.cardMulRest;
   const heading = frame.title?.trim() || RUBRIC_HEADING;
+  // NO TRANSACTION, NO CARD (2026-09-12). Lee: "Let me hide the transaction in the rubric card. So
+  // it's just the rubric." Leaving the transaction blank IS hiding it — the slide becomes the
+  // heading and the boxes, which is what the five-types slide wants.
+  const transaction = spec.text.trim();
   return (
     <div data-sa-rubric-slide="" style={{ width: RUBRIC_GEOM.w * k, display: "flex", flexDirection: "column", alignItems: "stretch", gap: 8 * k }}>
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <SetCard id={frame.id} stem={spec.text.trim() || "Type the transaction in the Editor."} topic={topicName ?? null} progress={progress ?? null}
-          scale={RUBRIC_SLIDE.cardScale * k} cardW={rubricCardW(mul)} scaleMul={mul} />
-      </div>
+      {transaction && (
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <SetCard id={frame.id} stem={transaction} topic={topicName ?? null} progress={progress ?? null}
+            scale={RUBRIC_SLIDE.cardScale * k} cardW={rubricCardW(mul)} scaleMul={mul} />
+        </div>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 * k }}>
         <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: (revExp ? 16 : 19) * k, lineHeight: 1.1, color: BRAND_CREAM }}>{heading}</div>
         <RubricFrame spec={effSpec} k={k} live={live} variant="slide" revExp={revExp} onCycle={onCycle} popKeys={popKeys} showBalance={allIn} />
