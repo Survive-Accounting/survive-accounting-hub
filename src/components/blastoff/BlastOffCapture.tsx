@@ -609,6 +609,8 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
       }
       else if (e.code === "Backquote" || e.key === "`") {
         e.preventDefault(); resetTake(); setChrome(false); scratchTake();
+        // THE TEASES CLOSE AGAIN (2026-09-12): every word he opened by clicking goes back to blur.
+        document.querySelectorAll(".sa-tease-open").forEach((n) => n.classList.remove("sa-tease-open"));
         if (rubric) setShot(() => 0);
         if (rubric) setRubricTake({ id: "", over: {} });
       }

@@ -143,6 +143,8 @@ import { defaultSetLabel, examOutline, withLabel } from "./exam-outline";
 import { SURVIBES_PROPS } from "./survibes";
 // THE TYPES OF ACCOUNTS SLIDE and THE NOTE ON A SET CARD (2026-09-11): their Editor faces.
 import { LIST_LABEL, TYPE_INFO, TYPE_KEYS, TYPE_TABS, listOf, listsOfType, typesView, withList, withWord, type TypesSpec } from "./account-types";
+// THE TEASE (2026-09-12, canvas/inline-md.tsx): *word* films blurred until he clicks it.
+import { toggleTease } from "@/components/canvas/inline-md";
 import type { CardNoteSpec } from "./card-note";
 import { useBank } from "@/components/v3/use-bank";
 import type { MapCard } from "@/lib/cluster-brief";
@@ -2170,7 +2172,7 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
                 requestAnimationFrame(() => ta.setSelectionRange(r.cursor, r.cursor));
               }} /></label>
         )}
-        {detour && <div style={{ fontSize: 10.5, color: MUTED, marginTop: 6 }}>Nothing is highlighted on its own — highlight while filming, or type ==like this== for a fixed one. Type __word__ to underline, or ____ for a blank.</div>}
+        {detour && <div style={{ fontSize: 10.5, color: MUTED, marginTop: 6 }}>Nothing is highlighted on its own — highlight while filming, or type ==like this== for a fixed one. Type __word__ to underline, or ____ for a blank. Put *stars* round a word to <b style={{ color: CREAM }}>tease</b> it — it films blurred, and a click on the slide opens it.</div>}
         {sel.kind === "intro" && (
           <label style={{ fontSize: 11, color: MUTED }}>Topic line on the intro (blank = the set's name)
             <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder={set.name} onChange={(e) => onPatch({ text: e.target.value })} /></label>
@@ -2428,10 +2430,26 @@ function TypesEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<B
               <input style={{ ...field, width: 120 }} value={spec?.words?.[key] ?? TYPE_INFO[key].word} title="The one-word definition" onChange={(e) => onPatch({ types: withWord(spec, key, e.target.value) })} />
             </div>
             <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-              {listsOfType(key).map((id) => (
-                <label key={id} style={{ fontSize: 11, color: MUTED, flex: "1 1 140px" }}>{LIST_LABEL[id]}
-                  <textarea style={{ ...field, minHeight: 64, marginTop: 4 }} value={(spec?.lists?.[id] ?? listOf(spec, id)).join("\n")} onChange={(e) => onPatch({ types: withList(spec, id, e.target.value.split("\n")) })} /></label>
-              ))}
+              {listsOfType(key).map((id) => {
+                const lines = spec?.lists?.[id] ?? listOf(spec, id);
+                return (
+                  <label key={id} style={{ fontSize: 11, color: MUTED, flex: "1 1 140px" }}>{LIST_LABEL[id]}
+                    <textarea style={{ ...field, minHeight: 64, marginTop: 4 }} value={lines.join("\n")} onChange={(e) => onPatch({ types: withList(spec, id, e.target.value.split("\n")) })} />
+                    {/* THE BLUR BUTTON (2026-09-12). Lee: "maybe better to use a 'blur' button and it
+                        lets me select specific accounts to blur." One chip per account: on means
+                        teased — it films blurred until he clicks it on the slide. */}
+                    <span className="flex" style={{ gap: 4, flexWrap: "wrap", marginTop: 4 }}>
+                      {lines.map((line, li) => (line.trim() ? (
+                        <button key={li} title={/^\*[^*][\s\S]*\*$/.test(line.trim()) ? "Teased — films blurred until you click it on the slide. Click to un-tease." : "Tease it: films blurred until you click it on the slide"}
+                          onClick={() => onPatch({ types: withList(spec, id, lines.map((l, j) => (j === li ? toggleTease(l) : l))) })}
+                          style={{ ...chip(/^\*[^*][\s\S]*\*$/.test(line.trim()), /^\*[^*][\s\S]*\*$/.test(line.trim()) ? GOLD : MUTED), fontSize: 9.5, padding: "1px 6px", textTransform: "none", letterSpacing: 0, maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {/^\*[^*][\s\S]*\*$/.test(line.trim()) ? "✳ " : ""}{line.trim().replace(/^\*|\*$/g, "")}
+                        </button>
+                      ) : null))}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           </div>
         ))}

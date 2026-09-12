@@ -41,6 +41,20 @@ export const PHONE_W = 306;
 // begins rather than flashing the full card for one frame first). Scoped to PhoneFrame's own
 // stylesheet rather than reusing that class name directly: sa-outro-fade lives in the older
 // canvas pipeline's own file and this is the V3 Blast Off capture path — same idea, own home.
+// THE TEASE (2026-09-12, canvas/inline-md.tsx *word*). Lee: "it would blur that type out. This
+// will help me teach them incrementally. I'm not teaching EVERY asset at first … If I click blur
+// on screen in film mode, it opens it."
+//
+// Scoped to the phone, so a teased word is a FILMING device: blurred on the Editor stage, on the
+// thumbnails and in the shot, opened by a click (which is take-local — walking to the next slide
+// re-keys the stage, and ` wipes every open one). On the student's own cards it renders plain.
+const TEASE_CSS = `
+[data-sa-phone] .sa-tease { border-radius: 0.18em; padding: 0 0.12em; cursor: pointer; background: rgba(252,163,17,0.10); box-shadow: inset 0 0 0 1px rgba(252,163,17,0.32); }
+[data-sa-phone] .sa-tease .sa-tease-ink { display: inline-block; filter: blur(0.3em); opacity: 0.9; transition: filter 260ms ease, opacity 260ms ease; }
+[data-sa-phone] .sa-tease.sa-tease-open { background: transparent; box-shadow: none; }
+[data-sa-phone] .sa-tease.sa-tease-open .sa-tease-ink { filter: none; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { [data-sa-phone] .sa-tease .sa-tease-ink { transition: none; } }`;
+
 const STAGE_FADE_CSS = `
 @keyframes sa-stage-fade-in { from { opacity: 0; } to { opacity: 1; } }
 .film-mode .sa-stage-fade-in { animation: sa-stage-fade-in 900ms ease-out both; }
@@ -297,7 +311,15 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
   // and the outro end the video, and the mark going quiet is how the ending reads as an ending.
   const liveWatermark = capture && frame.kind !== "bio" && frame.kind !== "outro";
   return (
-    <div ref={phoneRef} className={capture ? "film-mode" : undefined} data-sa-phone="" data-sa-layout={layout} data-sa-note-dim={noteDim ? "" : undefined} style={{ fontFamily: BRAND_FONT, width: w, height: h, background: "#000", borderRadius: rounded ? Math.round(w * 0.072) : 0, border: rounded ? "1px solid rgba(244,239,230,0.16)" : "none", position: "relative", overflow: "hidden", display: "grid", placeItems: topAligned ? "start center" : "center", opacity: dim ? 0.5 : 1, ...style }}>
+    <div ref={phoneRef} className={capture ? "film-mode" : undefined} data-sa-phone="" data-sa-layout={layout} data-sa-note-dim={noteDim ? "" : undefined}
+      // A CLICK OPENS A TEASE (2026-09-12). Caught here, ahead of the card's own handlers, so
+      // opening a blurred word never also resolves a choice or clears a highlight.
+      onPointerDownCapture={(e) => {
+        const el = (e.target as HTMLElement | null)?.closest?.("[data-sa-tease]") as HTMLElement | null;
+        if (!el) return;
+        e.preventDefault(); e.stopPropagation();
+        el.classList.toggle("sa-tease-open");
+      }} style={{ fontFamily: BRAND_FONT, width: w, height: h, background: "#000", borderRadius: rounded ? Math.round(w * 0.072) : 0, border: rounded ? "1px solid rgba(244,239,230,0.16)" : "none", position: "relative", overflow: "hidden", display: "grid", placeItems: topAligned ? "start center" : "center", opacity: dim ? 0.5 : 1, ...style }}>
       {/* THE CAMPUS BANNER, under a CARD slide. A card floats on the phone's own black, so the
           banner sits behind it and shows through. A FULL-FRAME slide paints its own opaque
           black over this whole area, so its banner is drawn AFTER the slide instead — see
@@ -332,6 +354,7 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
           <SurviveWordmark size={wm.size} boilSeconds={1.2} boltOpacity={moment && !cameraReady ? 0 : 1} />
         </div>
       )}
+      <style>{TEASE_CSS}</style>
       {fadeInFromIntro && <style>{STAGE_FADE_CSS}</style>}
       <div key={capture ? frame.id : undefined} data-sa-stage="" className={fadeInFromIntro ? "sa-stage-fade-in" : undefined} style={{ display: "grid", placeItems: "center", position: "relative",
         // The safe column: below the status bar (and the watermark), inside the rail.

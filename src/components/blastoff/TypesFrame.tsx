@@ -21,6 +21,7 @@
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
+import { renderInline } from "@/components/canvas/inline-md";
 
 import { CONTRA_INFO, TYPE_INFO, TYPE_TABS, sectionsFor, typesView, wordOf, type TypeTab } from "./account-types";
 import type { BlastFrame } from "./plan";
@@ -159,7 +160,9 @@ function Item({ id, text, lit, onToggle, k, size, sub = false }: { id: string; t
     <div role="button" className="sa-types-item" onClick={(e) => { e.stopPropagation(); onToggle(id); }}
       style={{ display: "flex", alignItems: "baseline", gap: 7 * k, userSelect: "none", fontFamily: BRAND_FONT, fontWeight: sub ? 600 : 700, fontSize: size * k, lineHeight: 1.2 }}>
       <span style={{ flex: "0 0 auto", color: sub ? MUTED : SKY, fontWeight: 800 }}>{sub ? "◦" : "›"}</span>
-      <span style={{ minWidth: 0, borderRadius: 4 * k, padding: `0 ${3 * k}px`, margin: `0 ${-3 * k}px`, background: lit ? GOLD : "transparent", color: lit ? INK : sub ? "#DBE1EE" : BRAND_CREAM, transition: "background 160ms ease, color 160ms ease" }}>{text}</span>
+      {/* THE TEASE (2026-09-12): *Land* films blurred until Lee clicks it — "I'm not teaching
+          EVERY asset at first". Inline markers work here like anywhere else. */}
+      <span style={{ minWidth: 0, borderRadius: 4 * k, padding: `0 ${3 * k}px`, margin: `0 ${-3 * k}px`, background: lit ? GOLD : "transparent", color: lit ? INK : sub ? "#DBE1EE" : BRAND_CREAM, transition: "background 160ms ease, color 160ms ease" }}>{renderInline(text)}</span>
     </div>
   );
 }

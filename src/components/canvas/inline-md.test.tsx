@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { renderInline } from "./inline-md";
+import { renderInline, toggleTease } from "./inline-md";
 
 const html = (s: string) => renderToStaticMarkup(<>{renderInline(s)}</>);
 
@@ -33,6 +33,30 @@ describe("the inline markers", () => {
     expect(html("the ~wrong~ way")).toContain("<s ");
     expect(html("the ~wrong~ way")).toContain(">wrong</s>");
   });
+  // THE TEASE (Lee, 2026-09-12: "maybe we make * * around text do this behavior?"). A teased word
+  // films blurred and opens when he clicks it; the blur is PhoneFrame's, scoped to the phone, so a
+  // student's own card shows the word plainly.
+  test("*tease* marks a word without blurring it here", () => {
+    const out = html("the *Land* account");
+    expect(out).toContain("sa-tease");
+    expect(out).toContain(">Land</span>");
+    expect(out).not.toContain("blur(");          // the phone owns the blur, not the markup
+  });
+  test("**bold** still wins at the same position", () => {
+    expect(html("a **b** c")).not.toContain("sa-tease");
+    expect(html("a **b** c")).toContain("<strong");
+  });
+  test("stray stars survive — a footnote, or multiplication", () => {
+    expect(html("3 * 4 * 5")).not.toContain("sa-tease");
+    expect(html("Assets* are tricky")).not.toContain("sa-tease");
+  });
+  test("toggleTease is the blur button: wraps a line, and takes it off again", () => {
+    expect(toggleTease("Land")).toBe("*Land*");
+    expect(toggleTease("*Land*")).toBe("Land");
+    expect(toggleTease("  ")).toBe("  ");
+    expect(toggleTease("Accounts Receivable")).toBe("*Accounts Receivable*");
+  });
+
   test("prose with stray tildes survives — the run may not begin or end on whitespace", () => {
     expect(html("about ~5 minutes and ~10 more")).not.toContain("<s ");
     expect(html("a ~ b ~ c")).not.toContain("<s ");
