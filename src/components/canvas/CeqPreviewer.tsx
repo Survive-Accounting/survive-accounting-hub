@@ -862,6 +862,9 @@ onClick={undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).e
           const key = spotKey(id, c.id);
           const spState = spot.state(key);
           const flamed = spot.flamed(key);
+          // THE SPOTLIGHT TAKES ROOM (2026-09-12, film only): bigger type and padding, so the
+          // choices below it are pushed down the card rather than covered by a transform.
+          const spotBig = film && spState === "spot";
           return (
             <div
               key={c.id ?? i}
@@ -884,15 +887,15 @@ onClick={undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).e
               onDragOver={film ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; if (dropChoice !== c.id) setDropChoice(c.id); } }}
               onDragLeave={film ? undefined : () => setDropChoice((p) => (p === c.id ? null : p))}
               onDrop={film ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); setDropChoice(null); if (mid) { e.preventDefault(); attachMemo(c.id, mid); } }}
-              style={{ display: "flex", alignItems: "center", gap: 10 * s, borderRadius: 10 * s, border: `${1.5 * s}px solid ${!film && viewChoice === i ? NEON.cyan : dropChoice === c.id ? "#FCA311" : border}`, outline: !film && viewChoice === i ? `${2 * s}px solid rgba(79,163,227,0.35)` : undefined, outlineOffset: 2, background: dropChoice === c.id ? "rgba(252,163,17,0.16)" : bg, padding: `${9 * s}px ${12 * s}px`, position: "relative", boxShadow: dropChoice === c.id ? `0 0 0 ${2 * s}px rgba(252,163,17,0.6)` : emph ? `0 0 0 ${2 * s}px rgba(184,134,11,0.7)` : undefined, filter: st === "wrong" ? "grayscale(0.3)" : undefined, opacity: spot.any() && !spState ? 0.55 : undefined, ...containSpot(spState) }}
+              style={{ display: "flex", alignItems: "center", gap: 10 * s, borderRadius: 10 * s, border: `${1.5 * s}px solid ${!film && viewChoice === i ? NEON.cyan : dropChoice === c.id ? "#FCA311" : border}`, outline: !film && viewChoice === i ? `${2 * s}px solid rgba(79,163,227,0.35)` : undefined, outlineOffset: 2, background: dropChoice === c.id ? "rgba(252,163,17,0.16)" : bg, padding: spotBig ? `${14 * s}px ${14 * s}px` : `${9 * s}px ${12 * s}px`, transition: "padding 240ms cubic-bezier(0.2,0.8,0.2,1), box-shadow 240ms ease, background 240ms ease, border-color 240ms ease", position: "relative", boxShadow: dropChoice === c.id ? `0 0 0 ${2 * s}px rgba(252,163,17,0.6)` : emph ? `0 0 0 ${2 * s}px rgba(184,134,11,0.7)` : undefined, filter: st === "wrong" ? "grayscale(0.3)" : undefined, opacity: spot.any() && !spState ? 0.55 : undefined, ...containSpot(spState), ...(spotBig ? { transform: "none", zIndex: 3, boxShadow: `inset ${5 * s}px 0 0 #FCA311, 0 0 ${44 * s}px rgba(252,163,17,0.85), 0 ${14 * s}px ${30 * s}px -${10 * s}px rgba(0,0,0,0.65)` } : {}) }}
             >
-              <span title={(c.chain?.length ?? 0) > 0 ? `${c.chain!.length} explanation memo(s) behind this choice` : undefined} style={{ display: "grid", placeItems: "center", width: 28 * s, height: 28 * s, borderRadius: 8 * s, fontWeight: 900, fontSize: 15 * s, color: st ? "#fff" : chipC, background: st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : "transparent", border: `${2 * s}px solid ${chipC}`, ...((c.chain?.length ?? 0) > 0 ? { boxShadow: film ? CHAINED_MARKER.ringFilm : CHAINED_MARKER.ring } : {}) }}>{LETTER(i)}</span>
+              <span title={(c.chain?.length ?? 0) > 0 ? `${c.chain!.length} explanation memo(s) behind this choice` : undefined} style={{ display: "grid", placeItems: "center", flex: "0 0 auto", transition: "width 240ms cubic-bezier(0.2,0.8,0.2,1), height 240ms cubic-bezier(0.2,0.8,0.2,1), font-size 240ms", width: (spotBig ? 36 : 28) * s, height: (spotBig ? 36 : 28) * s, borderRadius: 8 * s, fontWeight: 900, fontSize: (spotBig ? 19 : 15) * s, color: st ? "#fff" : chipC, background: st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : "transparent", border: `${2 * s}px solid ${chipC}`, ...((c.chain?.length ?? 0) > 0 ? { boxShadow: film ? CHAINED_MARKER.ringFilm : CHAINED_MARKER.ring } : {}) }}>{LETTER(i)}</span>
               {/* TextAnchor drops the anc:<choiceId> handle ~7px past the choice TEXT
                   (exactly like the real dealt card), so the memo arrow lands AT the choice
                   — right after "Asset" — not at the card's far edge. It measures the text
                   end + re-reads on reflow via updateNodeInternals; the #185 loop was a
                   separate selEdgeIds bug (fixed), so this is safe again. */}
-              <span style={{ fontSize: 18 * s, fontWeight: 600, color: PAPER.ink }}>
+              <span style={{ fontSize: (spotBig ? 25 : 18) * s, fontWeight: spotBig ? 800 : 600, color: PAPER.ink, transition: "font-size 240ms cubic-bezier(0.2,0.8,0.2,1)", lineHeight: 1.15 }}>
                 <TextAnchor subId={c.id} nodeId={id} strike={st === "wrong"}><span
                   onMouseUp={film && !inert ? (e) => {
                     if (!e.shiftKey) return; // shift required — see the stem's own onMouseUp for why

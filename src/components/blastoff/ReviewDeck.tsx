@@ -99,6 +99,9 @@ import { BIO_CARD } from "./bio-card";
 import { CREAM, EDGE, GOLD, MUTED, PANEL, questionProgress, usePlan } from "./BlastOffEditor";
 import { SetCard } from "./SetCard";
 import { emptyTakes, nameTake, planTakes, takeLabel, type PlanTake } from "./plan";
+// A REEL (2026-09-12, reel.ts): what one run between cuts IS — its ranked callouts, the questions
+// it covers, and how long it is likely to run.
+import { REEL_BUDGET, reelClock, reelTitle, setLead, takeSummary } from "./reel";
 import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, canRemove, canZoomBehind, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, moveMany, newFrameId, pasteAfter, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 // THE MULTI-SELECT and THE DRAG (2026-09-09, Lee's notes: multi-select, range select, group
 // drag, copy/cut/paste, bundled ghost, zoom-out while dragging, auto-scroll). The pure parts
@@ -402,6 +405,8 @@ const readStripView = (): "film" | "list" => { try { return localStorage.getItem
  *  fold survives a reload, a trip to Film and back, and a new cut landing above it. A browser
  *  that refuses storage just forgets, like the other keys here. */
 const COLLAPSED_KEY = "sa-review-collapsed:";
+/** REELS MODE (2026-09-12): one Reel open, the rest of the chain ghosted. Per browser. */
+const REELS_KEY = "sa-review-reels";
 function readCollapsed(setId: string): Set<string> {
   try {
     const raw = localStorage.getItem(COLLAPSED_KEY + setId);
@@ -924,6 +929,17 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   useEffect(() => { if (collapsedState.setId === set.id) writeCollapsed(set.id, collapsedState.ids); }, [collapsedState, set.id]);
   const setCollapsed = useCallback((fn: (s: Set<string>) => Set<string>) => setCollapsedState((c) => ({ setId: c.setId, ids: fn(c.ids) })), []);
   const toggleGroup = useCallback((headId: string) => setCollapsed((s) => { const x = new Set(s); if (x.has(headId)) x.delete(headId); else x.add(headId); return x; }), [setCollapsed]);
+  // REELS MODE (2026-09-12). Lee: "Make it FEEL more like we're making these little Reels, less
+  // like a full video … Looking at only one at a time. Like we can 'ghost' one portion of the
+  // chain for a while." So: the Reel holding the selected slide is open, every other run is a
+  // ghosted bar, and the manual folds are left alone underneath (they come back when it's off).
+  const [reelsMode, setReelsModeState] = useState(false);
+  useEffect(() => { try { setReelsModeState(localStorage.getItem(REELS_KEY) === "on"); } catch { /* forgets */ } }, []);
+  const setReelsMode = (v: boolean) => { setReelsModeState(v); try { localStorage.setItem(REELS_KEY, v ? "on" : "off"); } catch { /* forgets */ } };
+  /** What each run IS (reel.ts): ranked callouts, questions covered, the length estimate. */
+  const reelOf = useMemo(() => new Map(takes.map((t) => [t.headId, takeSummary(t, (cid) => !!ceqById.get(cid)?.noteOnly)])), [takes, ceqById]);
+  /** The open Reel: the selected slide's run, else the first. */
+  const openHead = useMemo(() => (selId ? takeOf.get(selId)?.take.headId ?? null : null) ?? takes[0]?.headId ?? null, [selId, takeOf, takes]);
   const focused = useRef<string | null>(null);
   useEffect(() => {
     if (!focusTake || collapsedState.setId !== set.id || takes.length < 2) return;
@@ -1634,6 +1650,12 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
           {knife}
           {cloning && <CloneBusy />}
           {(spineNote ?? saving) && (() => { const s = spineNote ?? saving!; return <span style={{ fontSize: 11, color: s === POPOUT_BLOCKED || s.startsWith("⚠") ? RED : s === "saved" || s === POPOUT_OPENED ? MINT : MUTED, marginLeft: "auto" }}>{s}</span>; })()}
+          {/* REELS MODE (2026-09-12) — one Reel open, the rest of the chain ghosted. */}
+          <button onClick={() => setReelsMode(!reelsMode)} aria-pressed={reelsMode}
+            title={reelsMode ? "Reels mode: one Reel open at a time, the rest of the chain ghosted. Click for the whole chain." : "Work on one Reel at a time — the rest of the chain ghosts out"}
+            style={{ ...chip(reelsMode, reelsMode ? GOLD : MUTED), fontSize: 10.5, padding: "3px 9px", cursor: "pointer", textTransform: "none", letterSpacing: 0 }}>
+            🎞 Reels{reelsMode ? " · on" : ""}
+          </button>
           {/* THE SLIDE BANK (2026-09-11) — top right above the spine. */}
           <span style={{ marginLeft: "auto" }}>
             <SlideBank setId={set.id} pasteLabel={selIdx < 0 ? "Paste at the end" : `Paste after slide ${selIdx + 1}`}
@@ -1678,14 +1700,15 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
               here); a folded run is one bar, and the bar is a drop target so a drag can land
               above it without opening it. A set with no cuts is one bracket with only 🎬. */}
           {takes.map((take) => {
-            const isCollapsed = hasCuts && collapsed.has(take.headId);
+            // REELS MODE decides this instead of the manual folds while it is on.
+            const isCollapsed = hasCuts && (reelsMode ? take.headId !== openHead : collapsed.has(take.headId));
             const firstReal = indexOf.get(take.frames[0]?.id ?? "") ?? 0;
             const empty = emptyHeads.has(take.headId);
             const count = take.frames.length;
             return (
               <div key={take.headId} style={{ display: "flex", flexDirection: "column", gap: 4, flex: "0 0 auto", borderLeft: `2px solid ${GOLD}`, paddingLeft: 6 }}>
                 <div className="flex items-center" style={{ gap: 4 }}>
-                  {hasCuts && (
+                  {hasCuts && !reelsMode && (
                     <button style={gutterBtn} title={isCollapsed ? "Expand this split" : "Collapse this split"} aria-expanded={!isCollapsed} onClick={() => toggleGroup(take.headId)}>{isCollapsed ? "▸" : "▾"}</button>
                   )}
                   <button style={gutterBtn} title={hasCuts ? "Film this split — pops out the 9:16 window" : "Film this set"} onClick={() => filmTake(take)}>🎬</button>
@@ -1693,15 +1716,27 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                 </div>
                 <div className="flex flex-col" style={{ gap: 4, minWidth: 0 }}>
                   {isCollapsed ? (
-                    <button onClick={() => toggleGroup(take.headId)} title={`Expand ${takeLabel(take)} · ${count} slides`}
+                    <button onClick={() => (reelsMode ? setSelId(take.headId) : toggleGroup(take.headId))} title={reelsMode ? `Open ${reelTitle(take, reelOf.get(take.headId) ?? takeSummary(take))} · ${count} slides` : `Expand ${takeLabel(take)} · ${count} slides`}
                       onDragOver={(e) => { e.preventDefault(); setOver({ i: firstReal, below: false }); }}
                       onDrop={(e) => { e.preventDefault(); drop(); }}
                       style={{
                         display: "flex", alignItems: "center", gap: 4, textAlign: "left", minWidth: 0, cursor: "pointer", fontFamily: "inherit",
                         background: PANEL, border: `1px solid ${over?.i === firstReal && !over.below ? SKY : EDGE}`, borderRadius: 7, padding: "4px 10px",
                         fontSize: 11, fontWeight: 800, color: CREAM, boxShadow: over?.i === firstReal && !over.below ? `0 -3px 0 0 ${SKY}` : "none",
+                        // GHOSTED while another Reel is open: present, quiet, one click away.
+                        ...(reelsMode ? { opacity: 0.5, maxWidth: 210 } : {}),
                       }}>
                       <span style={{ color: GOLD }}>▸</span> {take.index + 1}
+                      {reelsMode && (() => {
+                        const r = reelOf.get(take.headId);
+                        if (!r) return null;
+                        return (
+                          <>
+                            <span style={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{reelTitle(take, r)}</span>
+                            <span style={{ flex: "0 0 auto", fontSize: 9.5, fontWeight: 700, color: r.over ? AMBER : MUTED }}>~{reelClock(r.seconds)}</span>
+                          </>
+                        );
+                      })()}
                     </button>
                   ) : (
                     <>
@@ -1731,6 +1766,31 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                             </button>
                           )}
                           <span style={{ fontSize: 10, color: MUTED }}>{count} slide{count === 1 ? "" : "s"}</span>
+                          {/* WHAT THIS REEL IS (2026-09-12, reel.ts). Lee: "We make each video about
+                              THE callout in it … we can think of each Reel as like ranking the
+                              callouts? Which is main one with most value, then descending from
+                              there." Click a callout to make it the one the video is about; the
+                              estimate is from the slides, and says when it wants another split. */}
+                          {(() => {
+                            const r = reelOf.get(take.headId);
+                            if (!r) return null;
+                            return (
+                              <>
+                                <span title={`About ${r.seconds}s of camera at this length — an estimate from the slides, not a measurement. The target is ${REEL_BUDGET.target}s; past ${REEL_BUDGET.max}s it wants another split.`}
+                                  style={{ ...chip(r.over, r.over ? AMBER : MUTED), fontSize: 10, padding: "2px 8px", cursor: "default", textTransform: "none", letterSpacing: 0 }}>
+                                  ~{reelClock(r.seconds)}{r.over ? " · split it" : ""}
+                                </span>
+                                {r.questions > 0 && <span style={{ fontSize: 10, color: MUTED }}>{r.questions}Q</span>}
+                                {r.callouts.map((c) => (
+                                  <button key={c.frameId} onClick={() => commit(setLead(frames, take.frames.map((x) => x.id), c.frameId))}
+                                    title={c.lead ? `This Reel is about this ${c.label.toLowerCase()} — click again to unstar it` : `Make this ${c.label.toLowerCase()} what the Reel is about`}
+                                    style={{ ...chip(c.lead, KIND_COLOR[c.kind] ?? GOLD), fontSize: 10, padding: "2px 8px", textTransform: "none", letterSpacing: 0, maxWidth: 210, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {c.lead ? "★ " : ""}{c.text || c.label}
+                                  </button>
+                                ))}
+                              </>
+                            );
+                          })()}
                           {/* THE EMPTY RUN (plan.ts emptyTakes): a cut with no question behind it. Flagged
                               and offered a fix; never fixed on its own — the live data is Lee's. */}
                           {empty && (

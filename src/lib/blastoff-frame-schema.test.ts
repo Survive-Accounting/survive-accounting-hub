@@ -33,6 +33,8 @@ describe("blastoff frame schema", () => {
       // lose the note's words and box, and every toggle and edited list, on load.
       note: { text: "Prepaid = paid in advance", x: 0.1, y: 0.25, w: 0.68, h: 0.16, dim: true },
       types: { tab: "Contra", term: true, contra: true, def: false, sign: true, words: { A: "OWN" }, lists: { "A.current": ["Cash", "Supplies"] } },
+      // The Reel's lead callout (2026-09-12) — a strip here would lose every star on load.
+      lead: true,
     };
     const out = frameSchema.parse(full);
     expect(out).toEqual(full);

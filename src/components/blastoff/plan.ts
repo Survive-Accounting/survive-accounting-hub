@@ -197,6 +197,12 @@ export interface BlastFrame {
   /** THE TYPES OF ACCOUNTS slide's settings and his words (2026-09-11, kind "types",
    *  account-types.ts TypesSpec). Absent = his old slide with the defaults. */
   types?: TypesSpec;
+  /** THE REEL IS ABOUT THIS ONE (2026-09-12, reel.ts). Lee: "We make each video about THE callout
+   *  in it … we can think of each Reel as like ranking the callouts? Which is main one with most
+   *  value, then descending from there. It may be useful data for later." Set on ONE callout slide
+   *  per run between cuts (reel.setLead keeps it one); absent everywhere else, and then the first
+   *  callout in the Reel is what it is about. */
+  lead?: true;
 }
 
 export interface BlastPlan {
