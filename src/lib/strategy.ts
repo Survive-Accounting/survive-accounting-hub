@@ -141,6 +141,30 @@ export interface StrategyShortSeed {
 }
 
 export const STRATEGY_SHORTS: readonly StrategyShortSeed[] = [
+  // ---- #1 (2026-09-12). Lee, the morning he set the cram formula: "Make this the #1… the idea of
+  // 'Reels for exam prep' — how will this work, how is this scaleable, how to produce this type of
+  // content, attention spans research, education isn't keeping up, give students something better
+  // than AI." Filed as a Build in Public short because it is the thesis of the whole line, said
+  // out loud; Feed the Machine still applies — bank it, post it when the accounting run is out.
+  {
+    slug: "build-reels-for-exam-prep", lane: "building", priority: 1,
+    title: "Reels for exam prep",
+    hook: "One micro topic, thirty seconds, built from interchangeable parts.",
+    slides: [
+      { title: "The format IS the product", lines: ["Reels for exam prep — not lectures, not a course", "30–45 seconds. One micro topic. Usually one cheat code", "Every video is ABOUT its callout"] },
+      { title: "The formula", lines: ["Same open every time: cramming here, not teaching too much", "Just what you need for your exam", "Then the cheat code. That's it"] },
+      { title: "Interchangeable parts", lines: ["Split ruthlessly. Post it, then split it again when you see the seam", "Any video works in any order — a topic is a cluster, not a sequence", "Watch the suggested order, shuffle it, or watch only what you missed"] },
+      { title: "Why it scales", lines: ["The line makes the next hundred the same way it made the first", "Compilations come free: only the cheat codes, only what to memorize, only the deep ideas", "A new exam or a new course reuses the line, not the content"] },
+      { title: "Why now", lines: ["Education hasn't kept up with how people actually watch", "Better than asking AI: this is a teacher who has taught it a thousand times", "Ten years of practice exams is the asset; the Reels are how it gets taught"] },
+    ],
+    riff: [
+      "The history: interchangeable parts. Guns, then Ford, then shipping containers — standardising the PART is what made the volume possible. Same move here, with teaching.",
+      "The attention-span line needs a real source before it's said on camera — bring the study, not a vibe. Say what you've seen in ten years of tutoring instead; that part is yours.",
+      "Ads and personal stories are the optional, skippable part — never the middle of a cram video.",
+      "This is the thesis video. If someone watches one strategy short, it's this one.",
+    ],
+  },
+
   // ---- Campus reps — tonight
   {
     slug: "rep-what-survive-is", lane: "reps", priority: 1,
