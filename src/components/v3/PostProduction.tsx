@@ -37,6 +37,7 @@ import { splitOfPubKey } from "@/lib/short-publication";
 import type { PublishCover } from "@/lib/publish-cover";
 import { takeFileProblem } from "@/lib/take-frame";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
+import { ScrapCuts } from "@/components/v3/ScrapCuts";
 
 const MINT = "#3BF5A0";
 
@@ -306,6 +307,8 @@ export function PostProduction({ pubKey, title, topicName, coverSeed, onTranscri
               <div style={{ width: `${Math.round((upFrac ?? 0) * 100)}%`, height: "100%", background: V3_GOLD, transition: "width 200ms linear" }} />
             </div>
           )}
+          {/* F3 SCRAPS (2026-09-13): the stretches to cut out of this take before it's posted. */}
+          {file && fileChecked && <ScrapCuts setId={setId} takeIndex={takeIndex} file={file} fileSeconds={fileS} />}
         </Step>
 
         {/* ── 2 ─────────────────────────────────────────────────────────────────────────────── */}

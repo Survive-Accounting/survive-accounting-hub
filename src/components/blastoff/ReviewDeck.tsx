@@ -74,6 +74,7 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type
 
 import { applyCeqEdit, duplicateCeqCard, revertCeqEdit, runMicro, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import { logCeqEdit, recentEditExamples, type EditSource } from "@/lib/edit-log.functions";
+import { logFrameEvents } from "@/lib/frame-events.functions";
 import { logCostEvent } from "@/lib/cost-ledger.functions";
 import { buildShortenMessages, parseShorten, type EditExample, type ShortenFields, type ShortenRequest, type ShortenResult } from "@/lib/shorten-brief";
 import { useDictation } from "@/lib/use-dictation";
@@ -1046,7 +1047,10 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
       const base = calloutBase.current;
       if (!base || base.id !== id || base.json === calloutJson) return;
       calloutBase.current = { id, json: calloutJson };
-      void logCeqEdit({ data: { setId: set.id, target: id, kind: "callout", source: sourceFor(shortenApplied.current, id), before: JSON.parse(base.json) as ShortenFields, after: JSON.parse(calloutJson) as ShortenFields, who: getAdminWho() } });
+      const edit = { source: sourceFor(shortenApplied.current, id), before: JSON.parse(base.json) as ShortenFields, after: JSON.parse(calloutJson) as ShortenFields, who: getAdminWho() };
+      void logCeqEdit({ data: { setId: set.id, target: id, kind: "callout", ...edit } });
+      // The frame ledger mirrors callout edits (Lee's decision #3: keep ceq_edit_log, mirror into it).
+      void logFrameEvents({ data: { events: [{ frameId: id, setId: set.id, event: "edited", source: edit.source, before: edit.before, after: edit.after }], who: edit.who } }).catch((e) => console.warn("[frame-ledger] edit:", e));
     }, 1200);
     return () => clearTimeout(t);
   }, [sel, calloutJson, set.id]);
@@ -1074,6 +1078,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
       patch(sel.id, calloutPatchOf(sel.kind, after));
       shortenApplied.current = { target: sel.id, at: Date.now() };
       void logCeqEdit({ data: { setId: set.id, target: sel.id, kind: "callout", source: "shorten", before, after, who } });
+      void logFrameEvents({ data: { events: [{ frameId: sel.id, setId: set.id, event: "edited", source: "shorten", before, after }], who } }).catch((e) => console.warn("[frame-ledger] shorten:", e));
     }
     setShortenId(null);
   }, [sel, selCeq, shortenReq, set.id, patch]);
@@ -1350,15 +1355,16 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   // run once P2 lands; until then it starts at slide 1). From the click, never an effect — a
   // popup opened from an effect is blocked — and under POPOUT_NAME, so a second click on any
   // bracket refocuses the one window rather than spawning another.
-  /** FILM FROM HERE: the split this slide is in, starting on this slide, in the pop-out. */
+  /** FILM FROM HERE: the split this slide is in, starting on this slide — on /film in a NEW TAB
+   *  (Lee, 2026-09-13: "if I click film icon on a frame, it goes to /film versus pops out in the
+   *  editor. Open in a new tab, open the /film route at the exact slide I clicked icon from."). The
+   *  9:16 pop-out for OBS opens from /film's own button, as it does for any take. */
   const filmFrom = (id: string) => {
     const t = takeOf.get(id)?.take;
-    const href = blastOffPath(topic, set, "film") + "?popout=1" + (t ? "&take=" + t.index : "") + "&frame=" + encodeURIComponent(id);
+    const href = blastOffPath(topic, set, "film") + "?frame=" + encodeURIComponent(id) + (t ? "&take=" + t.index : "");
     let w: Window | null = null;
-    try { w = window.open(href, POPOUT_NAME, POPOUT_FEATURES); } catch { w = null; }
-    if (w === null) { flashNote(POPOUT_BLOCKED); return; }
-    try { w.focus(); } catch { /* ignore */ }
-    flashNote(POPOUT_OPENED);
+    try { w = window.open(href, "_blank"); } catch { w = null; }
+    if (w === null) { flashNote("⚠ The browser blocked the new tab — allow pop-ups for this site, then click the film icon again."); return; }
   };
   const filmTake = (take: PlanTake) => {
     const href = blastOffPath(topic, set, "film") + "?popout=1&take=" + take.index;
@@ -1852,7 +1858,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
         if (!take) return null;
         return (
           <SplitRunPanel
-            topicName={topic.name} setName={set.name} take={take}
+            setId={set.id} topicName={topic.name} setName={set.name} take={take}
             slides={take.frames.map((f) => ({ kind: f.kind, words: snippet(f) }))}
             cards={takeCards(take, (id) => ceqById.get(id)?.stem ?? "")}
             opener={() => standardOpener(set.name, CRAM_NOT_LECTURE)}

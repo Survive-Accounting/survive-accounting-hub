@@ -97,6 +97,22 @@ export const resolveSitePost = createServerFn({ method: "POST" })
     if (up.error) return { state: "error", error: up.error.message };
     if (!up.data?.length) return { state: "error", error: "The set changed while posting (an open editor saved it). Press Post again." };
 
+    // THE FRAME LEDGER: the posted split's frames are now FILMED (Lee's decision #1). Best-effort —
+    // the post has landed; a ledger miss is a server log line naming the cause, never an error here.
+    try {
+      const { filmedEvents } = await import("@/components/blastoff/frame-events");
+      const frames = ((deck as { blastOff?: { frames?: unknown } }).blastOff?.frames ?? []) as import("@/components/blastoff/plan").BlastFrame[];
+      const prior = await db.from("frame_events").select("frame_id").eq("event", "filmed").eq("take_ref", data.pubKey);
+      if (prior.error) throw new Error(prior.error.message);
+      const events = filmedEvents(data.setId, frames, data.takeIndex, data.pubKey, new Set((prior.data ?? []).map((r: { frame_id: string }) => r.frame_id)));
+      if (events.length) {
+        const ins = await db.from("frame_events").insert(events.map((e) => ({ frame_id: e.frameId, set_id: e.setId, event: "filmed", after: e.after, take_ref: e.takeRef })));
+        if (ins.error) throw new Error(ins.error.message);
+      }
+    } catch (e) {
+      console.warn(`[frame-ledger] filmed events for ${data.pubKey} not recorded:`, e instanceof Error ? e.message : e, "— if frame_events is missing, run migration/supabase-migrations/20260913_1000_frame_learning_loop.sql");
+    }
+
     // THE ROW'S SITE TICK, with the link — what the queue counts. A failure here doesn't undo the
     // post, so it comes back beside the success rather than as an error.
     const link = siteLinkFor(data.setId);

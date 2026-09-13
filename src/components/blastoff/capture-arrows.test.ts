@@ -11,6 +11,12 @@ function read(f: string): string {
 
 const arrows = read("capture/arrows.tsx");
 const capture = read("BlastOffCapture.tsx");
+/** The body of the one wipe (` and F3's restart both call it). */
+const wipeBody = () => {
+  const at = capture.indexOf("const wipeSlide = useCallback(");
+  expect(at).toBeGreaterThan(0);
+  return capture.slice(at, capture.indexOf("}, [", at));
+};
 
 describe("capture arrows — the canvas's F1 tool on the capture surface", () => {
   test("one arrow on both surfaces: the SVG comes from the extracted canvas layer", () => {
@@ -43,9 +49,12 @@ describe("capture arrows — the canvas's F1 tool on the capture surface", () =>
     // resetTake() must run on the same branch that claims the key — not just appear anywhere in
     // the file. Loosened 2026-09-06 when ` grew more jobs (clearing a rehearsal segment, forcing
     // chrome off) beyond the original one-liner this used to pin verbatim.
+    // Since 2026-09-13 the branch calls wipeSlide() — shared with F3's restart (capture/scrap.tsx) —
+    // so the pin follows it there: the branch calls it, and it runs resetTake().
     const backtick = capture.slice(capture.indexOf('else if (e.code === "Backquote" || e.key === "`") {'));
     const branchEnd = backtick.indexOf("}\n      else if");
-    expect(backtick.slice(0, branchEnd)).toContain("resetTake();");
+    expect(backtick.slice(0, branchEnd)).toContain("wipeSlide();");
+    expect(wipeBody()).toContain("resetTake();");
   });
   // Lee, 2026-09-11: "Ensure that ~ is clearing the A = L + E rubric." ~ is shift+` (the same
   // key code), so the one wipe branch carries it: the rubric's reveal goes back to the bare block.
@@ -53,7 +62,9 @@ describe("capture arrows — the canvas's F1 tool on the capture surface", () =>
     const backtick = capture.slice(capture.indexOf('else if (e.code === "Backquote" || e.key === "`") {'));
     const branchEnd = backtick.indexOf("}\n      else if");
     expect(branchEnd).toBeGreaterThan(0);
-    expect(backtick.slice(0, branchEnd)).toContain("if (rubric) setShot(() => 0);");
+    expect(backtick.slice(0, branchEnd)).toContain("wipeSlide();");
+    expect(wipeBody()).toContain("if (rubric) setShot(() => 0);");
+    expect(wipeBody()).toContain('if (rubric) setRubricTake({ id: "", over: {} });');
   });
   test("Delete / Backspace takes the most recent arrow back", () => {
     expect(arrows).toContain('if (e.key === "Delete" || e.key === "Backspace")');

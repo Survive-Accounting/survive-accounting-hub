@@ -12,17 +12,20 @@
 // loud blank slide). This file is the room they happen in.
 import { useState } from "react";
 
+import { getAdminWho } from "@/components/AdminGate";
+import { markGenerationBuilt, recordDraftGeneration } from "@/lib/frame-events.functions";
 import { proposeSplitRun } from "@/lib/split-run.functions";
 
 import { CREAM, EDGE, GOLD, MUTED, PANEL } from "./BlastOffEditor";
 import { FRAME_LABEL, type BlastFrame, type PlanTake } from "./plan";
 import { REEL_BUDGET } from "./reel";
-import { cardsIn, proposalToFrames, type SplitProposal, type SplitReel } from "./split-run";
+import { SPLIT_PROMPT_VERSION, cardsIn, generationSlots, keyProposal, proposalToFrames, slideEdited, type SplitProposal, type SplitReel } from "./split-run";
 
 const MINT = "#3BF5A0";
 const RED = "#FF8B7E";
 
-export function SplitRunPanel({ topicName, setName, take, slides, cards, opener, closer, onBuild, onClose }: {
+export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, opener, closer, onBuild, onClose }: {
+  setId: string;
   topicName: string;
   setName: string;
   take: PlanTake;
@@ -41,12 +44,27 @@ export function SplitRunPanel({ topicName, setName, take, slides, cards, opener,
   const [proposal, setProposal] = useState<SplitProposal | null>(null);
   const title = take.name.trim() || `Reel ${take.index + 1}`;
 
+  // THE LEDGER (frame-events): every proposal is kept as a draft generation the moment it comes
+  // back — so a proposal Lee throws away still counts — and Build it marks that draft built, links
+  // each built frame to the slide the model wrote, and logs the ones he changed first.
+  const [draft, setDraft] = useState<{ generationId: string; slotIds: Record<string, string>; generated: SplitProposal } | null>(null);
   const propose = async () => {
     setBusy(true); setErr(null);
     try {
-      const r = await proposeSplitRun({ data: { topicName, setName, reelTitle: title, slides, cards, note } });
-      setProposal(r.proposal);
+      const input = { topicName, setName, reelTitle: title, slides, cards, note };
+      const r = await proposeSplitRun({ data: input });
+      const keyed = keyProposal(r.proposal);
+      setProposal(keyed);
+      setDraft(null);
       if (!r.proposal.reels.length) setErr("It didn't propose a split. Say a bit more about where it should break.");
+      else {
+        void recordDraftGeneration({ data: {
+          setId, scopeKey: `${setId}#split:${take.headId}`, generator: "split_run", reelCount: keyed.reels.length,
+          model: r.model, promptVersion: SPLIT_PROMPT_VERSION, input, output: r.proposal, slots: generationSlots(keyed), who: getAdminWho(),
+        } })
+          .then((g) => { if (g.ok) setDraft({ generationId: g.generationId, slotIds: g.slotIds, generated: keyed }); else console.warn("[frame-ledger] split draft not recorded:", g.error); })
+          .catch((e) => console.warn("[frame-ledger] split draft not recorded:", e));
+      }
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   };
@@ -55,8 +73,21 @@ export function SplitRunPanel({ topicName, setName, take, slides, cards, opener,
 
   const build = () => {
     if (!proposal?.reels.length) return;
-    const { frames, appended } = proposalToFrames(proposal, { cards: cards.map((c) => c.id), opener, closer });
+    const { frames, appended, sources } = proposalToFrames(proposal, { cards: cards.map((c) => c.id), opener, closer });
     onBuild(frames, `${proposal.reels.length} Reels from ${title}${appended.length ? ` · ${appended.length} card${appended.length === 1 ? "" : "s"} kept on the last one` : ""}`);
+    if (draft) {
+      const generatedByKey = new Map(generationSlots(draft.generated).map((s) => [s.key, s.generated]));
+      const links = sources.flatMap(({ frameId, slide }) => {
+        const generatedId = slide.key ? draft.slotIds[slide.key] : undefined;
+        const gen = slide.key ? generatedByKey.get(slide.key) : undefined;
+        if (!generatedId || !gen) return [];
+        const { key: _k, ...after } = slide;
+        return [{ generatedId, frameId, edited: slideEdited(gen, slide) ? { before: gen, after } : null }];
+      });
+      void markGenerationBuilt({ data: { generationId: draft.generationId, setId, links, who: getAdminWho() } })
+        .then((r) => { if (!r.ok) console.warn("[frame-ledger] split build not recorded:", r.error); })
+        .catch((e) => console.warn("[frame-ledger] split build not recorded:", e));
+    }
   };
 
   const box: React.CSSProperties = { font: "inherit", fontSize: 12.5, width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: `1px solid ${EDGE}`, background: "rgba(255,255,255,0.05)", color: CREAM, outline: "none" };
