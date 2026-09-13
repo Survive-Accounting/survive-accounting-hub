@@ -38,6 +38,7 @@ import { rehearsalContextFor } from "@/components/blastoff/rehearsal-context";
 import { startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
 import { blastOffPath, useBank } from "@/components/v3/use-bank";
+import { SliceRecording } from "@/components/v3/SliceRecording";
 import { V3Shell, V3Note, V3_CREAM, V3_MUTED, V3_GOLD, V3_EDGE, V3_DISPLAY } from "@/components/v3/Shell";
 import { StageChip, stepLabel } from "@/components/v3/StageChip";
 import { CoverSheet } from "@/components/brand-kit/CoverSheet";
@@ -94,6 +95,7 @@ const FILTERS: { id: StageFilter; label: string }[] = [
 
 function PostQueue() {
   const { topics, error } = useBank();
+  const [slicing, setSlicing] = useState(false);
   const [status, setStatus] = useState<Record<string, SetPublishStatus> | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
@@ -277,6 +279,10 @@ function PostQueue() {
       {topics && status && (
         <>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 18 }}>
+            {/* ONE CONTINUOUS TAKE (G): slice a whole-set recording into its splits — reads the file here, uploads nothing. */}
+            <button type="button" onClick={() => setSlicing(true)} title="Filmed a whole set in one recording? Pick the file — it's matched to the take's timeline and sliced into one video per split. Nothing uploads."
+              style={{ background: "rgba(252,163,17,0.12)", border: `1.5px solid ${V3_GOLD}`, borderRadius: 10, padding: "8px 12px", color: V3_CREAM, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>✂ Slice a recording</button>
+            {slicing && <SliceRecording topics={topics} onClose={() => setSlicing(false)} />}
             <input
               value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a topic or set…"
               style={{ background: "transparent", border: `1px solid ${V3_EDGE}`, borderRadius: 10, padding: "8px 12px", color: V3_CREAM, fontSize: 13, minWidth: 220 }}

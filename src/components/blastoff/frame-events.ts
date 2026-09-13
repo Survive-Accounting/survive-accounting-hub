@@ -80,6 +80,17 @@ export function scrapTimes(rollAt: number | null, attemptStartedAt: number, scra
   return { attemptStartMs, scrapMs, resumeMs: Math.max(scrapMs, rel(resumeAt)) };
 }
 
+/** WHERE THE CUT STARTS WHEN HE RESTARTS SOMEWHERE ELSE (2026-09-13). Lee: "I think maybe it's best to
+ *  scrap, then let me go back to a slide where I want to restart from." The cut starts when he last
+ *  ARRIVED on the slide he restarts from, before the scrap — so filming 4 · 5 · 6, scrapping on 6 and
+ *  walking back to 4 cuts from 4's arrival. A slide he hadn't reached before the scrap (or restarting
+ *  where it went wrong) keeps the scrapped slide's own attempt start. */
+export function restartAttemptStart(arrivals: readonly { frameId: string; at: number }[], restartId: string | null, scrapStartedAt: number, fallback: number): number {
+  let best: number | null = null;
+  for (const a of arrivals) if (a.frameId === restartId && a.at <= scrapStartedAt && (best === null || a.at > best)) best = a.at;
+  return best === null ? fallback : Math.min(best, fallback);
+}
+
 export interface ScrapMark extends ScrapTimes { frameId: string; takeRef: string; reason: string; at: string }
 
 /** A take_abandoned row read back as a mark — null for one with no times (a rehearsal scrap). */
@@ -118,9 +129,14 @@ export const ROLL_MATCH_SLACK_MS = 45_000;
  *  start — the file's last-modified time minus its length, since OBS writes until it stops. Null
  *  when none is close enough. */
 export function matchRoll(marks: readonly ScrapMark[], takeIndex: number | null, fileEndMs: number, fileSeconds: number): string | null {
+  return matchRollRef(marks.map((m) => m.takeRef), takeIndex, fileEndMs, fileSeconds);
+}
+
+/** The same match over any take_refs — the scraps' and the take logs' (G) together. */
+export function matchRollRef(refs: readonly string[], takeIndex: number | null, fileEndMs: number, fileSeconds: number): string | null {
   const start = fileEndMs - fileSeconds * 1000;
   let best: { ref: string; off: number } | null = null;
-  for (const ref of new Set(marks.map((m) => m.takeRef))) {
+  for (const ref of new Set(refs)) {
     const p = parseTakeRef(ref);
     if (!p) continue;
     if (takeIndex !== null && p.takeIndex !== null && p.takeIndex !== takeIndex) continue;

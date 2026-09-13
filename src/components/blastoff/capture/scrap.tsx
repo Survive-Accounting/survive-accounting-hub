@@ -5,11 +5,14 @@
 // THE FLOW, one slide at a time, with OBS still recording:
 //   F3        → scrapping. A red bar says so; dictation listens for why.
 //   (talk)    → the reason, live in the bar.
-//   F3 again  → saved as a `take_abandoned` event (frame-events.ts), the slide goes back to its top
-//               (the same wipe as `), and the retake starts. Everything from when this attempt began
-//               to this press is the stretch Post cuts out of a kept take.
+//   (walk)    → optional: go back to the slide you want to restart FROM. The scrap stays open.
+//   F3 again  → saved as a `take_abandoned` event (frame-events.ts), the slide you're on goes back to
+//               its top (the same wipe as `), and the retake starts. The cut runs from when you last
+//               arrived on that slide before the scrap (restartAttemptStart) to this press — so a
+//               range of slides filmed together comes out together.
 //   Esc       → never mind: nothing saved, nothing reset.
-//   walk on   → saved as-is, no reset (he moved on; the reason so far is the reason).
+// Lee, 2026-09-13: "I will plan to start that slide over … maybe it's best to scrap, then let me go
+// back to a slide where I want to restart from."
 //
 // WHICH WINDOW. The pop-out is what OBS records, so the pop-out owns the scrap: its slide resets,
 // its bar shows (inside the stretch that gets cut, so it never reaches the video). F3 in the main
@@ -21,7 +24,7 @@ import { getAdminWho } from "@/components/AdminGate";
 import { logFrameEvents } from "@/lib/frame-events.functions";
 import { useDictation } from "@/lib/use-dictation";
 
-import { rollAtFor, scrapReason, scrapTimes, takeRefOf } from "../frame-events";
+import { restartAttemptStart, rollAtFor, scrapReason, scrapTimes, takeRefOf } from "../frame-events";
 import { readRoll } from "./prompter-sync";
 
 export const FILM_SCRAP_KEY = "sa-film-scrap";
@@ -52,6 +55,10 @@ export function useScrap({ setId, takeIndex, frameId, owns, onRestart }: {
   // WHEN THIS ATTEMPT BEGAN: arriving on the slide, or the last restart. (A roll after that is the
   // earlier bound — scrapTimes clamps to the recording's own start.)
   const attemptAt = useRef(Date.now());
+  // Every slide arrival this session (trimmed) — where a restart elsewhere starts its cut.
+  const arrivals = useRef<{ frameId: string; at: number }[]>(frameId ? [{ frameId, at: Date.now() }] : []);
+  const frameIdRef = useRef(frameId);
+  frameIdRef.current = frameId;
   const heardRef = useRef({ heard: "", interim: "" });
   const dictation = useDictation((final, live) => {
     heardRef.current = { heard: final.trim() ? `${heardRef.current.heard} ${final}`.trim() : heardRef.current.heard, interim: live };
@@ -70,18 +77,20 @@ export function useScrap({ setId, takeIndex, frameId, owns, onRestart }: {
     dictationRef.current.stop();
     setScrap(null);
     const rollAt = rollAtFor(readRoll(), setId, now);
-    const times = scrapTimes(rollAt, s.attemptStartedAt, s.startedAt, now);
+    const restartId = frameIdRef.current;
+    const from = restartAttemptStart(arrivals.current, restartId, s.startedAt, s.attemptStartedAt);
+    const times = scrapTimes(rollAt, from, s.startedAt, now);
     const reason = scrapReason(heardRef.current.heard, heardRef.current.interim, dictationRef.current.supported);
     heardRef.current = { heard: "", interim: "" };
     void logFrameEvents({ data: { events: [{
       frameId: s.frameId, setId, event: "take_abandoned", reason,
       takeRef: rollAt !== null ? takeRefOf(setId, takeIndex, rollAt) : null,
       takeOffsetMs: times?.scrapMs ?? null,
-      after: times ?? { rehearsal: true },
+      after: times ? { ...times, ...(restartId && restartId !== s.frameId ? { restartFrameId: restartId } : {}) } : { rehearsal: true },
     }], who: getAdminWho() } })
       .then((r) => { if (!r.ok) flash(`⚠ scrap not saved — ${r.error ?? "unknown error"}`); })
       .catch((e) => flash(`⚠ scrap not saved — ${e instanceof Error ? e.message : String(e)}`));
-    flash(times ? "✗ scrapped — cut marked · go again from the top" : "✗ scrapped (nothing recording — reason kept, nothing to cut)");
+    flash(times ? "✗ scrapped — cut marked · go again from this slide" : "✗ scrapped (nothing recording — reason kept, nothing to cut)");
     if (restart) { onRestart(); attemptAt.current = Date.now(); }
   }, [setId, takeIndex, onRestart, flash]);
 
@@ -101,14 +110,15 @@ export function useScrap({ setId, takeIndex, frameId, owns, onRestart }: {
     if (dictationRef.current.supported) { try { dictationRef.current.start(); } catch { /* the bar says not listening */ } }
   }, [frameId, finish]);
 
-  // A new slide is a new attempt — and walking on mid-scrap saves it without a reset.
+  // A new slide is a new attempt. Mid-scrap, walking just moves to where he'll restart — the scrap
+  // stays open until F3.
   const lastFrame = useRef(frameId);
   useEffect(() => {
     if (lastFrame.current === frameId) return;
     lastFrame.current = frameId;
-    if (scrapRef.current) finish(false);
-    attemptAt.current = Date.now();
-  }, [frameId, finish]);
+    if (frameId) { arrivals.current.push({ frameId, at: Date.now() }); if (arrivals.current.length > 400) arrivals.current.splice(0, 100); }
+    if (!scrapRef.current) attemptAt.current = Date.now();
+  }, [frameId]);
 
   // The pop-out hears the main window's F3 / Esc.
   const pressRef = useRef(press); pressRef.current = press;
@@ -151,7 +161,7 @@ export function ScrapBar({ scrap, note, listening, supported, inShot }: {
       {scrap ? (
         <>
           <div style={{ fontWeight: 800, letterSpacing: "0.04em" }}>
-            ✗ SCRAPPING — say why · <span style={{ color: "#FFD1D1" }}>F3</span> saves &amp; restarts the slide · <span style={{ color: "#FFD1D1" }}>Esc</span> cancels
+            ✗ SCRAPPING — say why · walk to the slide to restart from · <span style={{ color: "#FFD1D1" }}>F3</span> restarts there · <span style={{ color: "#FFD1D1" }}>Esc</span> cancels
           </div>
           <div style={{ marginTop: 4, color: said ? "#F4EFE6" : "#FFB3B3", fontStyle: said ? "normal" : "italic" }}>
             {said || (supported ? (listening ? "listening…" : "not listening — the reason will be blank") : "dictation needs Chrome — the reason will say so")}

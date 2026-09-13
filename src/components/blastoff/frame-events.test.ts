@@ -113,3 +113,16 @@ describe("the Editor's diffs", () => {
     expect(removedFrames([a, b], [b, a])).toEqual([]);
   });
 });
+
+describe("restarting from another slide (G)", () => {
+  test("the cut starts at the last arrival on the restart slide before the scrap", async () => {
+    const { restartAttemptStart } = await import("./frame-events");
+    const arrivals = [{ frameId: "s4", at: 100 }, { frameId: "s5", at: 200 }, { frameId: "s6", at: 300 }, { frameId: "s4", at: 400 }];
+    // filmed 4·5·6, scrapped on 6 at 350, walked back to 4 (arrived at 400), F3 there → cut from 100
+    expect(restartAttemptStart(arrivals, "s4", 350, 300)).toBe(100);
+    // restarting on the slide it went wrong on keeps that slide's attempt
+    expect(restartAttemptStart(arrivals, "s6", 350, 300)).toBe(300);
+    // a slide not reached before the scrap: the scrapped slide's attempt start
+    expect(restartAttemptStart(arrivals, "s9", 350, 300)).toBe(300);
+  });
+});

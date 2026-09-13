@@ -82,6 +82,7 @@ import { previewIndex, signalRoll, useCapturePrompterSyncFrame, usePopoutTake, u
 import { fmtClock, historyLabel, initialRounds, opensReview, prompterEditable, reduceRounds, roundLabel, roundMode, roundSegments, showsPrompterInRound } from "./capture/rehearsal-rounds";
 import { useTeleprompterPopout } from "./capture/teleprompter-popout";
 import { ScrapBar, signalScrap, useScrap } from "./capture/scrap";
+import { useTakeLog } from "./capture/take-log";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf } from "./layout";
 import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
@@ -512,7 +513,10 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // slide that has to build itself, and both brand cards are drawn by the same component
   // (BoltZoom), so the choreography lands on either. Anchored to the first FILMED slide rather
   // than to a kind: F4 rolls the video, and the video starts wherever he starts it.
-  const isOpenFrame = !!frame && idx === 0 && (frame.kind === "open" || frame.kind === "intro");
+  // ONE CONTINUOUS TAKE (G, 2026-09-13): filming the whole set in one recording, every LATER split's
+  // opening slide assembles too — each split is its own video once Post slices the file.
+  const laterHead = takeParam == null && idx > 0 && !!frame && takes.some((t) => t.index > 0 && t.headId === frame.id);
+  const isOpenFrame = !!frame && (idx === 0 || laterHead) && (frame.kind === "open" || frame.kind === "intro");
   const lastOpenId = useRef<string | null>(null);
   useEffect(() => {
     if (!isOpenFrame) { lastOpenId.current = null; return; }
@@ -522,8 +526,10 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     if (lastOpenId.current === frameId || counting) { lastOpenId.current = frameId; return; }
     lastOpenId.current = frameId;
     // In the pop-out, arriving does not play it — it HOLDS (see the note above). C rolls it.
-    setRun((r) => (popout.isPopout ? { id: r.id + 1, ms: ASSEMBLY_SHORT_MS, held: true } : { id: r.id + 1, ms: ASSEMBLY_SHORT_MS }));
-  }, [isOpenFrame, frameId, counting, popout.isPopout]);
+    // A later split's opener mid-recording plays the full assembly on arrival — the recording is
+    // already rolling, so there is no F4 to wait for.
+    setRun((r) => (popout.isPopout ? (laterHead ? { id: r.id + 1, ms: ASSEMBLY_TOTAL_MS } : { id: r.id + 1, ms: ASSEMBLY_SHORT_MS, held: true }) : { id: r.id + 1, ms: ASSEMBLY_SHORT_MS }));
+  }, [isOpenFrame, laterHead, frameId, counting, popout.isPopout]);
   // The main window's NEXT preview never assembles: it is showing Lee what is coming, so it shows
   // slide one finished. Nor does anything outside capture — the Review stage draws it at rest.
   const coldOpen = isOpenFrame && !preview ? { ms: run.ms, key: run.id, held: !!run.held } : null;
@@ -578,6 +584,9 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // window does. A retake starts from the top, so the restart also walks a map back to shot one.
   const scrapOwner = popout.isPopout || take === null;
   const scrapper = useScrap({ setId: set.id, takeIndex: takeInfo?.index, frameId, owns: scrapOwner, onRestart: useCallback(() => { wipeSlide(); setShot(() => 0); }, [wipeSlide, setShot]) });
+  // THE TAKE LOG (G): the owner window writes when each slide arrived, for slicing one long recording.
+  const takeIndexOf = useMemo(() => { const m = new Map<string, number>(); for (const t of takes) for (const f of t.frames) m.set(f.id, t.index); return m; }, [takes]);
+  useTakeLog({ setId: set.id, takeIndex: takeInfo?.index, owns: scrapOwner && !preview, frameId, takeOf: useCallback((id: string) => takeIndexOf.get(id) ?? 0, [takeIndexOf]), onError: scrapper.flash });
   /** The main window's F3 went to the pop-out — so its Esc cancels there instead of leaving Film. */
   const [remoteScrap, setRemoteScrap] = useState(false);
   useEffect(() => { if (take === null) setRemoteScrap(false); }, [take]);
