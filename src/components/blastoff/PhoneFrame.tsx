@@ -183,7 +183,10 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
   // THE CAMERA: the slide's spot (or the template's default), or the take's
   // override; on the capture it measures the live card so it can shrink out of
   // its way.
-  const def = camDefault(layout, frame.kind);
+  // A CALLOUT DRAWN BIG FILMS WITH NO CAMERA (2026-09-12). Lee: "Big callout mode? Camera default
+  // to off." The words are the slide — the same rule the slogan slide already had. His own `cam`
+  // on the slide still wins, so turning it back on for one is a click.
+  const def = big ? { spot: "off" as const, size: undefined } : camDefault(layout, frame.kind);
   const own: CamSpot = isCamSpot(frame.cam) ? frame.cam : def.spot;
   // THE ASSEMBLY COLD OPEN (2026-09-08). Lee: "my camera's out on the right and comes in… it
   // comes in, slides in" — and THE CAMERA IS FIRST, "the only living thing on screen", so the

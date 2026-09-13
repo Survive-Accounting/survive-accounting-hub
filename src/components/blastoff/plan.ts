@@ -76,6 +76,10 @@ export const BLAST_FRAME_KINDS = [
   // drawn way out and swum around with the map's own gestures. Lee: "just to give users a quick
   // tease of it. We will need this zoom functionality later, too."
   "cycle",
+  // 2026-09-12: THE END-OF-TOPIC AD (TopicAdFrame.tsx, topic-ad.ts). Lee: "Hey, I just filmed a run
+  // of videos for this topic. Here's the stats. Here's the best ones … Here's how the practice
+  // works. I need to end every topic like this." The one slide allowed to point at other videos.
+  "topic_ad",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -215,6 +219,15 @@ export interface BlastFrame {
    *  red and let me write whatever text I want." These words instead of the kind's, drawn red on
    *  both formats. Absent = the kind's own chip. */
   chipText?: string;
+  /** THIS SLIDE CAN'T BE FILMED YET (2026-09-12, split-run.ts). Lee: "We can even instruct it to
+   *  have placeholders for certain items if we need to build them later. Like a JE card or a T
+   *  account card… we note it, and maybe we just film others in the meantime." What it is waiting
+   *  for, in his words; the slide says so on the strip and the set can list them. */
+  needs?: string;
+  /** THE END-OF-TOPIC AD's picks (2026-09-12, kind "topic_ad"): the set ids of "the best ones",
+   *  in no particular order — the slide shows them in the topic's own order. Absent = the first
+   *  three, so the slide is never empty before he has chosen. */
+  best?: string[];
 }
 
 export interface BlastPlan {
@@ -228,7 +241,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline", "types", "cycle"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline", "types", "cycle", "topic_ad"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -243,7 +256,7 @@ import type { CardNoteSpec } from "./card-note";
 
 /** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
  *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
-export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next", "survibes", "outline", "cycle"];
+export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next", "survibes", "outline", "cycle", "topic_ad"];
 export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.includes(k);
 
 /** THE FOUR CALLOUTS that can be drawn either way (2026-09-08, `BlastFrame.display`). The
@@ -328,6 +341,7 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   outline: "Exam outline",
   types: "Types of accounts",
   cycle: "Accounting cycle",
+  topic_ad: "End-of-topic ad",
 };
 
 /** THE CAMPUS BANNER IS OFF (2026-09-12). Lee: "Turn off campus banner globally on the app. We're
@@ -488,7 +502,7 @@ export function canRemove(frames: readonly BlastFrame[], f: BlastFrame): boolean
  *  pair, whose shell is see-through. The brand slides, the slogan, a big callout and the map draw
  *  their own. */
 export function canZoomBehind(f: BlastFrame): boolean {
-  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next" || f.kind === "outline";
+  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next" || f.kind === "outline" || f.kind === "topic_ad";
 }
 
 /** THE STANDARD OPENER (2026-09-09), in Lee's words and in his own draft's order: "Hero camera,

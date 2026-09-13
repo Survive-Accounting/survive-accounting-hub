@@ -132,6 +132,9 @@ export const frameSchema = z.object({
   lead: z.literal(true).optional(),
   chip: z.enum(["off"]).optional(),
   chipText: z.string().max(40).optional(),
+  // 2026-09-12: a placeholder slide's ask (plan.ts `needs`), and the end-of-topic ad's picks.
+  needs: z.string().max(200).optional(),
+  best: z.array(z.string().max(130)).max(12).optional(),
   // 2026-09-11: the Types of accounts slide (plan.ts `types`, account-types.ts TypesSpec).
   types: z.object({
     tab: z.enum(TYPE_TABS).optional(),

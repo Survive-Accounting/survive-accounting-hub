@@ -35,6 +35,7 @@ import { SlideEditContext } from "./slide-edit";
 import { RubricSlide } from "./RubricSlide";
 import { TypesFrame } from "./TypesFrame";
 import { CycleFrame } from "./CycleFrame";
+import { TopicAdFrame } from "./TopicAdFrame";
 import { TopicDoneFrame, UpNextFrame } from "./EndOfTopicFrames";
 import { OutlineFrame } from "./OutlineFrame";
 import { SurvibesFrame } from "./SurvibesFrame";
@@ -146,6 +147,9 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   // THE EXAM OUTLINE (2026-09-11, OutlineFrame.tsx): the roadmap, one topic open at a time.
   if (frame.kind === "outline") return <OutlineFrame w={fw} set={set} frame={frame} live={live} />;
   if (frame.kind === "up_next") return <UpNextFrame w={fw} set={set} frame={frame} live={live} />;
+  // THE END-OF-TOPIC AD (2026-09-12, TopicAdFrame.tsx): the run's own count, his best ones, and how
+  // the practice works — the one slide that may point at other videos.
+  if (frame.kind === "topic_ad") return <TopicAdFrame w={fw} set={set} frame={frame} live={live} />;
   // SURVIBES (2026-09-11, SurvibesFrame.tsx): the flip runs on film only; the props follow the
   // capture's step (frame-step.ts); at rest it is the settled look, the camera alone.
   if (frame.kind === "survibes") return <SurvibesFrame w={fw} live={live} />;

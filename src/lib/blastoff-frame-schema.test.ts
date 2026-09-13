@@ -38,6 +38,9 @@ describe("blastoff frame schema", () => {
       lead: true,
       chip: "off",
       chipText: "HEADS UP",
+      // The split run's placeholder and the end-of-topic ad's picks (2026-09-12).
+      needs: "a JE card for this entry",
+      best: ["deck-e1s-2-1", "deck-e1s-2-2"],
     };
     const out = frameSchema.parse(full);
     expect(out).toEqual(full);

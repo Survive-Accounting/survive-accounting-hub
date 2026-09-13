@@ -36,11 +36,9 @@ const BOLT_OPACITY = 0.13;
 
 const BIG_CSS = `
 @keyframes sa-bigc-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0px); } }
-@keyframes sa-bigc-charge { 0% { opacity: ${BOLT_OPACITY * 0.4}; transform: scale(0.9); } 45% { opacity: ${BOLT_OPACITY * 2}; transform: scale(1.06); } 100% { opacity: ${BOLT_OPACITY}; transform: scale(1); } }
 .sa-bigc-rise { animation: sa-bigc-rise 620ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .sa-bigc-bullets { animation: sa-bigc-rise 620ms cubic-bezier(0.22, 1, 0.36, 1) 240ms both; }
-.sa-bigc-charge { animation: sa-bigc-charge 1150ms ease-out both; }
-@media (prefers-reduced-motion: reduce) { .sa-bigc-rise, .sa-bigc-bullets, .sa-bigc-charge { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .sa-bigc-rise, .sa-bigc-bullets { animation: none; } }
 `;
 
 /** THE HEADING'S SIZE, as px, from the frame height.
@@ -111,10 +109,12 @@ export function BigCallout({ w, h, label, accent, text, bullets = [], art = fals
   return (
     <div style={{ position: "relative", width: w, height: h, overflow: "hidden", background: "#000", ...style }}>
       {live && <style>{BIG_CSS}</style>}
-      {/* THE BOLT, BEHIND — the house bolt at low intensity, one pulse on arrival. */}
-      <div className={live ? "sa-bigc-charge" : undefined} aria-hidden
-        style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: BOLT_OPACITY, pointerEvents: "none" }}>
-        <BoltBoil height={Math.round(h * 0.46)} boilSeconds={1.2} boilFrame={live ? undefined : 0} />
+      {/* THE BOLT, BEHIND — the house bolt at low intensity, and STILL since 2026-09-12. Lee, mid
+          filming run: "remove the animation behind that bolt. It's distracting … This is film
+          unblocker too." It used to pulse in on arrival AND boil continuously under the words; a
+          pinned frame keeps the shape and takes the movement away. The WORDS still rise. */}
+      <div aria-hidden style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: BOLT_OPACITY, pointerEvents: "none" }}>
+        <BoltBoil height={Math.round(h * 0.46)} boilSeconds={1.2} boilFrame={0} />
       </div>
 
       <div style={{

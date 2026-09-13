@@ -102,6 +102,11 @@ import { emptyTakes, nameTake, planTakes, takeLabel, type PlanTake } from "./pla
 // A REEL (2026-09-12, reel.ts): what one run between cuts IS — its ranked callouts, the questions
 // it covers, and how long it is likely to run.
 import { REEL_BUDGET, reelClock, reelTitle, setLead, takeSummary } from "./reel";
+// THE SPLIT RUN (2026-09-12): one Reel in, smaller Reels out — the panel proposes, this commits.
+import { SplitRunPanel, takeCards } from "./SplitRunPanel";
+import { replaceRun } from "./split-run";
+// THE END-OF-TOPIC AD (2026-09-12): his picks of the topic's best videos.
+import { TOPIC_AD_COPY, bestOf, toggleBest } from "./topic-ad";
 import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, canRemove, canZoomBehind, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, moveMany, newFrameId, pasteAfter, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 // THE MULTI-SELECT and THE DRAG (2026-09-09, Lee's notes: multi-select, range select, group
 // drag, copy/cut/paste, bundled ghost, zoom-out while dragging, auto-scroll). The pure parts
@@ -176,7 +181,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4", outline: "#86EFAC", types: "#A3E635", cycle: "#FDBA74" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4", outline: "#86EFAC", types: "#A3E635", cycle: "#FDBA74", topic_ad: "#F0ABFC" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -935,6 +940,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   // like a full video … Looking at only one at a time. Like we can 'ghost' one portion of the
   // chain for a while." So: the Reel holding the selected slide is open, every other run is a
   // ghosted bar, and the manual folds are left alone underneath (they come back when it's off).
+  /** THE SPLIT RUN (2026-09-12): which Reel's panel is open, by head id. */
+  const [splitHead, setSplitHead] = useState<string | null>(null);
   const [reelsMode, setReelsModeState] = useState(false);
   useEffect(() => { try { setReelsModeState(localStorage.getItem(REELS_KEY) === "on"); } catch { /* forgets */ } }, []);
   const setReelsMode = (v: boolean) => { setReelsModeState(v); try { localStorage.setItem(REELS_KEY, v ? "on" : "off"); } catch { /* forgets */ } };
@@ -1606,6 +1613,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     // THE END-OF-TOPIC PAIR (2026-09-11). Up Next opens the skippable segment as it lands.
     { label: "Topic complete", color: KIND_COLOR.topic_done ?? MUTED, add: () => insertAfter(f.id, "topic_done", {}, true) },
     { label: "Up next", color: KIND_COLOR.up_next ?? MUTED, add: () => insertAfter(f.id, "up_next", { segment: "skippable" }, true) },
+    // 2026-09-12, Lee: "I need to end every topic like this." An ad, so it opens a skippable segment.
+    { label: "End-of-topic ad", color: KIND_COLOR.topic_ad ?? MUTED, add: () => insertAfter(f.id, "topic_ad", { segment: "skippable" }, true) },
     { label: "Survibes", color: KIND_COLOR.survibes ?? MUTED, add: () => insertAfter(f.id, "survibes", {}, true) },
     // 2026-09-11, Lee: "include a + bio slide." An extra one can be removed while another stays.
     { label: "Bio", color: SKY, add: () => insertAfter(f.id, "bio", {}, true) },
@@ -1784,6 +1793,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                                   ~{reelClock(r.seconds)}{r.over ? " · split it" : ""}
                                 </span>
                                 {r.questions > 0 && <span style={{ fontSize: 10, color: MUTED }}>{r.questions}Q</span>}
+                                <button onClick={() => setSplitHead(take.headId)} title="Talk this Reel down into smaller ones — nothing is written until you build it"
+                                  style={{ ...chip(false, MINT), fontSize: 10, padding: "2px 8px", textTransform: "none", letterSpacing: 0 }}>✂ Split this</button>
                                 {r.callouts.map((c) => (
                                   <button key={c.frameId} onClick={() => commit(setLead(frames, take.frames.map((x) => x.id), c.frameId))}
                                     title={c.lead ? `This Reel is about this ${c.label.toLowerCase()} — click again to unstar it` : `Make this ${c.label.toLowerCase()} what the Reel is about`}
@@ -1833,6 +1844,28 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
           </SkipFolder>
         )}
       </section>
+
+      {/* THE SPLIT RUN (2026-09-12) — the Reel goes in with what Lee says about it; what comes back
+          is reviewed here and only then written. Every card in it survives the build (split-run.ts). */}
+      {(() => {
+        const take = takes.find((t) => t.headId === splitHead);
+        if (!take) return null;
+        return (
+          <SplitRunPanel
+            topicName={topic.name} setName={set.name} take={take}
+            slides={take.frames.map((f) => ({ kind: f.kind, words: snippet(f) }))}
+            cards={takeCards(take, (id) => ceqById.get(id)?.stem ?? "")}
+            opener={() => standardOpener(set.name, CRAM_NOT_LECTURE)}
+            closer={() => [{ id: newFrameId("outro"), kind: "outro" as const }]}
+            onClose={() => setSplitHead(null)}
+            onBuild={(built, summary) => {
+              commit(replaceRun(frames, take.frames.map((f) => f.id), built));
+              setSplitHead(null);
+              flashNote(`✂ ${summary}`);
+            }}
+          />
+        );
+      })()}
 
       {/* MOVE A SLIDE, ZOOMED OUT (2026-09-09) — the whole running order at once, as slides, and
           a drop slot between every pair. Lee asked for "zooms out a little bit and lets me drag
@@ -2196,6 +2229,7 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         {/* THE END-OF-TOPIC FRAMES (2026-09-11): what the bank will put on the slide, and the one
             typed line each has. */}
         {(sel.kind === "topic_done" || sel.kind === "up_next") && <EndOfTopicEditor sel={sel} set={set} onPatch={onPatch} />}
+        {sel.kind === "topic_ad" && <TopicAdEditor sel={sel} set={set} onPatch={onPatch} />}
         {sel.kind === "outline" && <OutlineEditor sel={sel} set={set} onPatch={onPatch} />}
         {sel.kind === "types" && <TypesEditor sel={sel} onPatch={onPatch} />}
         {/* SURVIBES (2026-09-11): nothing to type — the flip is the slide. What the spacebar does is
@@ -2571,6 +2605,50 @@ function OutlineEditor({ sel, set, onPatch }: { sel: BlastFrame; set: BoothSetIn
         </div>
       )}
       <div style={{ fontSize: 11.5, color: MUTED }}>On camera, click a topic's number or the ‹ › arrows to open its videos. It opens on this video's topic, with this video marked. Clicks aren't saved.</div>
+    </div>
+  );
+}
+
+// ------------------------------------------------ the end-of-topic ad's face
+
+/** The ad that closes a topic: which videos are "the best ones", and the two lines around them.
+ *  The topic and its videos come from the bank; the picks are his. */
+function TopicAdEditor({ sel, set, onPatch }: { sel: BlastFrame; set: BoothSetInfo; onPatch: (p: Partial<BlastFrame>) => void }) {
+  const { topics, error } = useBank();
+  const o = topics ? examOutline(topics, set.id) : null;
+  const here = o?.topics[o.hereIndex] ?? null;
+  const best = here ? bestOf(here.sets, sel.best) : [];
+  return (
+    <div className="flex flex-col" style={{ gap: 10 }}>
+      <div className="flex flex-col" style={{ gap: 4 }}>
+        <span style={subhead}>From the bank — never typed</span>
+        {error && <div style={{ fontSize: 12, color: RED }}>The bank didn't load: {error}</div>}
+        {!topics && !error && <div style={{ fontSize: 12, color: MUTED }}>Loading the bank…</div>}
+        {topics && (here
+          ? <div style={{ fontSize: 12.5, color: CREAM }}>Topic <b>{here.name}</b> · {here.sets.length} video{here.sets.length === 1 ? "" : "s"} — the only number the slide says.</div>
+          : <div style={{ fontSize: 12, color: RED }}>This set isn't on an exam topic — the slide shows a red block.</div>)}
+      </div>
+      {here && (
+        <div className="flex flex-col" style={{ gap: 4 }}>
+          <span style={subhead}>The best ones — pick up to three</span>
+          <div className="flex" style={{ gap: 5, flexWrap: "wrap" }}>
+            {here.sets.map((s) => {
+              const on = best.some((b) => b.id === s.id);
+              return (
+                <button key={s.id} style={{ ...chip(on, on ? GOLD : MUTED), fontSize: 10.5, textTransform: "none", letterSpacing: 0, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  title={on ? "One of the best — click to drop it" : "Put this one on the slide"}
+                  onClick={() => onPatch({ best: toggleBest(here.sets, sel.best, s.id) })}>{on ? "★ " : ""}{s.name}</button>
+              );
+            })}
+          </div>
+          {!sel.best?.length && <div style={{ fontSize: 11, color: MUTED }}>Nothing picked yet — the slide shows the first three.</div>}
+        </div>
+      )}
+      <label style={{ fontSize: 11, color: MUTED }}>Heading (blank = "{TOPIC_AD_COPY.heading}")
+        <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.title ?? ""} placeholder={TOPIC_AD_COPY.heading} onChange={(e) => onPatch({ title: e.target.value || undefined })} /></label>
+      <label style={{ fontSize: 11, color: MUTED }}>How the practice works (blank = the default)
+        <textarea rows={2} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder={TOPIC_AD_COPY.practice} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+      <div style={{ fontSize: 11.5, color: MUTED }}>This is the one slide that may point at other videos — it's an ad, and it opens a skippable segment{sel.segment === "skippable" ? "" : " — but the flag is missing on this one"}.</div>
     </div>
   );
 }

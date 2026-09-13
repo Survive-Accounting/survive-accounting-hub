@@ -93,7 +93,7 @@ export function camDefault(layout: SlideLayout, kind: BlastFrame["kind"]): { spo
   if (kind === "rubric") return { spot: "home", size: 0.32 };
   // THE END-OF-TOPIC FRAMES (2026-09-11): the corner bubble — the charge bar and the tease own
   // the column; the header block keeps clear of the corner (EndOfTopicFrames.tsx headerW).
-  if (kind === "topic_done" || kind === "up_next" || kind === "outline") return { spot: "corner" };
+  if (kind === "topic_done" || kind === "up_next" || kind === "outline" || kind === "topic_ad") return { spot: "corner" };
   // TYPES OF ACCOUNTS (2026-09-11): the corner bubble too — the list takes the column down to the
   // bottom of the safe area, and the header keeps left of the corner (TypesFrame.tsx headerW).
   if (kind === "types") return { spot: "corner" };
