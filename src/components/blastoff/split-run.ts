@@ -18,13 +18,24 @@
 //     "We can even instruct it to have placeholders for certain items if we need to build them
 //     later … we note it, and maybe we just film others in the meantime."
 import { BIG_CALLOUT_KINDS, newFrameId, type BlastFrame, type BlastFrameKind } from "./plan";
-import { FRAME_BUDGET, REEL_BUDGET, SPEED_RUN } from "./reel";
+import { FRAME_BUDGET, REEL_BUDGET, SPEED_RUN, contentFrames } from "./reel";
+import { emptyRubric } from "./rubric";
 
 /** What a proposed Reel may contain. A callout, a blank, or one of the set's own cards. */
 export const SPLIT_SLIDE_KINDS: readonly BlastFrameKind[] = [...BIG_CALLOUT_KINDS, "blank", "slogan", "ceq"];
 
+/** H (2026-09-13): the special slides a split can ask for as PLACEHOLDERS — only where Lee says so
+ *  ("put a rubric after the prepaid card"). They build as the real slide at its defaults, carrying
+ *  `needs`, and he fills them in. */
+export const SPLIT_PLACEHOLDER_KINDS: readonly BlastFrameKind[] = ["rubric", "types", "teaser"];
+/** The kinds the model may WRITE. Anything else in a Reel it can only keep. */
+const WRITABLE_KINDS: readonly BlastFrameKind[] = [...BIG_CALLOUT_KINDS, "blank", "slogan"];
+
 export interface SplitSlide {
-  kind: BlastFrameKind;
+  /** "keep" = one of his existing slides, unchanged, by `ref` (H). */
+  kind: BlastFrameKind | "keep";
+  /** keep: which existing slide ("s3"). */
+  ref?: string;
   /** The heading / the words. Ignored for a card slide. */
   text?: string;
   bullets?: string[];
@@ -53,8 +64,9 @@ export interface SplitInput {
   topicName: string;
   setName: string;
   reelTitle: string;
-  /** The Reel's slides, in order — kind plus whatever words they carry. */
-  slides: { kind: string; words: string }[];
+  /** The Reel's slides, in order — kind plus whatever words they carry; an existing slide the model
+   *  may keep carries its `ref`, and `locked` when it MUST be kept (H). */
+  slides: { kind: string; words: string; ref?: string; locked?: boolean }[];
   /** The set's cards in this Reel: the short id the model refers to, and the question. */
   cards: { id: string; stem: string; speed?: boolean }[];
   /** What Lee just said about it. */
@@ -88,6 +100,8 @@ export function buildSplitMessages(input: SplitInput): { system: string; user: s
     "· phrase (Memorize this) · cheat (Cheat code) · tip (Go deeper) · tricky (Tricky question) · found (Common exam question) · ask (Ask yourself)",
     "· ceq — one of the set's OWN question cards. Refer to it by its id; never invent a question.",
     "· blank — use ONLY for something that has to be built before it can be filmed (a journal-entry card, a T-account, a diagram). Put what it needs in `needs`.",
+    "· keep — one of his EXISTING slides, exactly as it is: { \"kind\": \"keep\", \"ref\": \"s3\" }. A slide marked LOCKED must appear exactly once, as keep, in the Reel where it belongs. Unlocked ones you may keep, rewrite, or leave out.",
+    "· rubric / types / teaser — ONLY where Lee asks for one (\"put a rubric after the prepaid card\"): a placeholder he sets up later. Say what it is for in `needs`. Never add one he didn't ask for.",
     "",
     "Keep his words where he has already written them. Improve phrasing only to make it shorter.",
     "",
@@ -101,7 +115,7 @@ export function buildSplitMessages(input: SplitInput): { system: string; user: s
     `This Reel: ${input.reelTitle}`,
     "",
     "Its slides now:",
-    ...input.slides.map((s, i) => `${i + 1}. [${s.kind}] ${s.words || "(no words)"}`),
+    ...input.slides.map((s, i) => `${i + 1}. [${s.kind}]${s.ref ? ` ref ${s.ref}${s.locked ? " LOCKED" : ""}` : ""} ${s.words || "(no words)"}`),
     "",
     input.cards.length ? "Its question cards (use these ids):" : "It has no question cards.",
     ...input.cards.map((c) => `${c.id}: ${c.stem}${c.speed ? "  [speed run: he flies through this one, it barely takes screen time]" : ""}`),
@@ -114,7 +128,9 @@ export function buildSplitMessages(input: SplitInput): { system: string; user: s
 }
 
 const str = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
-const isKind = (v: unknown): v is BlastFrameKind => typeof v === "string" && (SPLIT_SLIDE_KINDS as readonly string[]).includes(v);
+function isKind(v: unknown): v is SplitSlide["kind"] {
+  return typeof v === "string" && (v === "keep" || (SPLIT_SLIDE_KINDS as readonly string[]).includes(v) || (SPLIT_PLACEHOLDER_KINDS as readonly string[]).includes(v));
+}
 
 /** Read the model's answer back, clamped. Anything unrecognised is dropped rather than trusted;
  *  an empty proposal is a valid answer (the panel says so) and never a crash. */
@@ -129,6 +145,9 @@ export function parseSplitProposal(raw: unknown): SplitProposal {
     for (const s of slidesRaw.slice(0, MAX_SLIDES)) {
       const t = (s ?? {}) as Record<string, unknown>;
       if (!isKind(t.kind)) continue;
+      if (t.kind === "keep") { const ref = str(t.ref, 20); if (ref) slides.push({ kind: "keep", ref }); continue; }
+      // A special kind is only ever a placeholder; one with no `needs` is still his ask, so it says so.
+      if ((SPLIT_PLACEHOLDER_KINDS as readonly string[]).includes(t.kind)) { slides.push({ kind: t.kind, needs: str(t.needs, 200) || `set up this ${t.kind}` }); continue; }
       const bullets = Array.isArray(t.bullets) ? t.bullets.map((b) => str(b, 200)).filter(Boolean).slice(0, 8) : [];
       slides.push({
         kind: t.kind,
@@ -242,11 +261,106 @@ export function slideEdited(generated: SplitSlide, built: SplitSlide): boolean {
 export const cardsIn = (frames: readonly BlastFrame[]): string[] =>
   frames.filter((f) => f.kind === "ceq" && !!f.ceqId).map((f) => f.ceqId!);
 
+// ─────────────────────────────────────────────── H: the slides a split must not lose ──
+//
+// Lee, 2026-09-13, on Build it replacing a polished Reel: "build out H just in case, although I think
+// I'll probably avoid letting that happen." Every existing non-card slide in the Reel is handed to
+// the model with a ref it can KEEP unchanged; the special ones (a rubric, a types slide, a teaser, a
+// map, anything with a picture, the starred callout, a space walk) are LOCKED — if the model leaves
+// one out it is put back beside the card it sat next to. Cards come back as their own frames too,
+// with their notes, camera, pace and pictures intact.
+
+export interface SplitSource { ref: string; frame: BlastFrame; locked: boolean }
+
+/** The Reel's existing content slides (not cards, not the opener or sign-off), each with its ref. */
+export function splitSources(frames: readonly BlastFrame[]): SplitSource[] {
+  return contentFrames(frames)
+    .filter((f) => f.kind !== "ceq")
+    .map((frame, i) => ({
+      ref: `s${i + 1}`,
+      frame,
+      locked: !WRITABLE_KINDS.includes(frame.kind) || !!frame.illustration || !!frame.lead || !!frame.walk,
+    }));
+}
+
+/** Where a ceq slide points, as a real card id — or null. */
+function cardIdOf(s: SplitSlide, shortOf: ReadonlyMap<string, string>): string | null {
+  return s.kind === "ceq" && s.card ? shortOf.get(s.card.trim()) ?? null : null;
+}
+
+/** PUT BACK EVERY LOCKED SLIDE the proposal dropped, next to the card (or kept slide) it followed in
+ *  the Reel as it stands — else before the one it preceded, else at the end. Each ref once: a second
+ *  keep of the same slide, or a ref that names nothing, is dropped. Pure; the panel runs it on every
+ *  proposal and again at Build it, so a locked slide cannot be removed by editing either. */
+export function placeLocked(p: SplitProposal, frames: readonly BlastFrame[], cards: readonly string[]): SplitProposal {
+  const sources = splitSources(frames);
+  const byRef = new Map(sources.map((s) => [s.ref, s]));
+  const shortOf = new Map<string, string>();
+  cards.forEach((id, i) => { shortOf.set(`c${i + 1}`, id); shortOf.set(id, id); });
+  // 1. drop unknown and repeated keeps
+  const seen = new Set<string>();
+  const reels = p.reels.map((r) => ({
+    ...r,
+    slides: r.slides.filter((s) => {
+      if (s.kind !== "keep") return true;
+      if (!s.ref || !byRef.has(s.ref) || seen.has(s.ref)) return false;
+      seen.add(s.ref);
+      return true;
+    }),
+  }));
+  if (!reels.length) return { ...p, reels };
+  // 2. the Reel's own order, as tokens a proposal slide can match
+  const refOf = new Map(sources.map((s) => [s.frame.id, s.ref]));
+  const order = contentFrames(frames).map((f) => (f.kind === "ceq" ? (f.ceqId ? `card:${f.ceqId}` : "") : `ref:${refOf.get(f.id) ?? ""}`));
+  const tokenOf = (s: SplitSlide): string => (s.kind === "keep" ? `ref:${s.ref}` : cardIdOf(s, shortOf) ? `card:${cardIdOf(s, shortOf)}` : "");
+  const find = (token: string): [number, number] | null => {
+    for (let ri = 0; ri < reels.length; ri++) {
+      const si = reels[ri].slides.findIndex((s) => tokenOf(s) === token);
+      if (si >= 0) return [ri, si];
+    }
+    return null;
+  };
+  for (const src of sources) {
+    if (!src.locked || seen.has(src.ref)) continue;
+    const at = order.indexOf(`ref:${src.ref}`);
+    const keep: SplitSlide = { kind: "keep", ref: src.ref };
+    let placed = false;
+    for (let k = at - 1; k >= 0 && !placed; k--) {
+      const hit = order[k] ? find(order[k]) : null;
+      if (hit) { reels[hit[0]].slides.splice(hit[1] + 1, 0, keep); placed = true; }
+    }
+    for (let k = at + 1; k < order.length && !placed; k++) {
+      const hit = order[k] ? find(order[k]) : null;
+      if (hit) { reels[hit[0]].slides.splice(hit[1], 0, keep); placed = true; }
+    }
+    if (!placed) reels[reels.length - 1].slides.push(keep);
+    seen.add(src.ref);
+  }
+  return { ...p, reels };
+}
+
+/** A copy of an existing frame for its new place: same id (Build it removes the old run first, so
+ *  nothing is duplicated and the frame ledger sees no deletion), minus the split marks. */
+function carried(f: BlastFrame): BlastFrame {
+  const { cutAfter: _c, takeName: _t, ...rest } = f;
+  return rest;
+}
+
 /** One proposed slide as a frame. `cardOf` turns the model's short id into a real ceqId. */
-function slideToFrame(s: SplitSlide, cardOf: (short: string) => string | undefined): BlastFrame | null {
+function slideToFrame(s: SplitSlide, cardOf: (short: string) => string | undefined, keep: (ref: string) => BlastFrame | undefined, cardFrame: (ceqId: string) => BlastFrame | undefined): BlastFrame | null {
+  if (s.kind === "keep") {
+    const f = s.ref ? keep(s.ref) : undefined;
+    return f ? carried(f) : null;
+  }
   if (s.kind === "ceq") {
     const ceqId = s.card ? cardOf(s.card) : undefined;
-    return ceqId ? { id: newFrameId("ceq"), kind: "ceq", ceqId } : null;
+    if (!ceqId) return null;
+    const own = cardFrame(ceqId);
+    return own ? carried(own) : { id: newFrameId("ceq"), kind: "ceq", ceqId };
+  }
+  // H: a rubric / types / teaser he asked for — the real slide at its defaults, flagged.
+  if ((SPLIT_PLACEHOLDER_KINDS as readonly string[]).includes(s.kind)) {
+    return { id: newFrameId(s.kind), kind: s.kind, needs: s.needs || `set up this ${s.kind}`, ...(s.kind === "rubric" ? { rubric: emptyRubric() } : {}) };
   }
   if (s.needs) {
     // A placeholder is a blank slide that SAYS what it is waiting for — loud in the strip, and
@@ -255,7 +369,7 @@ function slideToFrame(s: SplitSlide, cardOf: (short: string) => string | undefin
   }
   return {
     id: newFrameId(s.kind),
-    kind: s.kind,
+    kind: s.kind as BlastFrameKind,
     ...(s.text ? { text: s.text } : {}),
     ...(s.bullets?.length ? { bullets: s.bullets } : {}),
     ...(s.big ? { display: "big" as const } : {}),
@@ -275,8 +389,15 @@ export function proposalToFrames(p: SplitProposal, opts: {
   closer: () => BlastFrame[];
   /** ⚡ The cards he marked speed run — they stay speed runs in the Reels built from them. */
   speed?: ReadonlySet<string>;
+  /** H: the Reel as it stands — its slides can be kept by ref, and its cards come back as themselves. */
+  from?: readonly BlastFrame[];
 }): { frames: BlastFrame[]; placed: string[]; appended: string[]; sources: { frameId: string; slide: SplitSlide }[] } {
   const sources: { frameId: string; slide: SplitSlide }[] = [];
+  const keepRefs = new Map((opts.from ? splitSources(opts.from) : []).map((s) => [s.ref, s.frame]));
+  const usedRefs = new Set<string>();
+  const keepOf = (ref: string): BlastFrame | undefined => { if (usedRefs.has(ref)) return undefined; usedRefs.add(ref); return keepRefs.get(ref); };
+  const cardFrames = new Map((opts.from ?? []).filter((f) => f.kind === "ceq" && f.ceqId).map((f) => [f.ceqId!, f]));
+  const cardFrameOf = (ceqId: string) => cardFrames.get(ceqId);
   const shortOf = new Map<string, string>();
   opts.cards.forEach((id, i) => { shortOf.set(`c${i + 1}`, id); shortOf.set(id, id); });
   const placed: string[] = [];
@@ -295,7 +416,7 @@ export function proposalToFrames(p: SplitProposal, opts: {
         if (!id || placed.includes(id)) return undefined;
         placed.push(id);
         return id;
-      });
+      }, keepOf, cardFrameOf);
       if (f) { body.push(f); if (s.key) sources.push({ frameId: f.id, slide: s }); }
     }
     if (!body.length) continue;
@@ -307,7 +428,7 @@ export function proposalToFrames(p: SplitProposal, opts: {
   const appended = opts.cards.filter((id) => !placed.includes(id));
   if (appended.length) {
     const last = runs[runs.length - 1];
-    const tail = appended.map((ceqId) => ({ id: newFrameId("ceq"), kind: "ceq" as const, ceqId }));
+    const tail = appended.map((ceqId): BlastFrame => { const own = cardFrameOf(ceqId); return own ? carried(own) : { id: newFrameId("ceq"), kind: "ceq", ceqId }; });
     if (last) last.push(...tail);
     else runs.push([...opts.opener(), ...tail]);
   }

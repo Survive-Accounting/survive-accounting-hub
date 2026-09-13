@@ -3,7 +3,8 @@
 import { describe, expect, test } from "bun:test";
 
 import { newFrameId, planTakes, type BlastFrame } from "./plan";
-import { buildSplitMessages, cardsIn, generationSlots, keyProposal, mergeSubSplit, needsInPlan, parseSplitProposal, pinSubCards, projectedCounts, proposalToFrames, reelCards, replaceRun, slideEdited } from "./split-run";
+import { buildSplitMessages, cardsIn, generationSlots, keyProposal, mergeSubSplit, needsInPlan, parseSplitProposal, pinSubCards, placeLocked, projectedCounts, proposalToFrames, reelCards, replaceRun, slideEdited, splitSources } from "./split-run";
+import { emptyRubric } from "./rubric";
 
 const opener = (): BlastFrame[] => [{ id: newFrameId("intro"), kind: "intro" }];
 const closer = (): BlastFrame[] => [{ id: newFrameId("outro"), kind: "outro" }];
@@ -210,5 +211,64 @@ describe("speed-run cards through a split", () => {
     expect(built.filter((f) => f.pace === "speed").map((f) => f.ceqId)).toEqual(["ceq-2"]);
     const { user } = buildSplitMessages({ topicName: "T", setName: "S", reelTitle: "R", slides: [], cards: [{ id: "ceq-2", stem: "Q?", speed: true }], note: "" });
     expect(user).toContain("ceq-2: Q?  [speed run");
+  });
+});
+
+describe("H — the slides a split must not lose", () => {
+  const f = (id: string, kind: BlastFrame["kind"], extra: Partial<BlastFrame> = {}): BlastFrame => ({ id, kind, ...extra });
+  // intro · card 1 (with a note) · rubric · card 2 · a plain cheat code · a starred tip · outro
+  const reel: BlastFrame[] = [
+    f("i", "intro", { takeName: "Old" }),
+    f("q1", "ceq", { ceqId: "ceq-1", note: { text: "watch the date" }, pace: "speed" }),
+    f("r", "rubric", { rubric: emptyRubric() }),
+    f("q2", "ceq", { ceqId: "ceq-2" }),
+    f("ch", "cheat", { title: "Paid early" }),
+    f("tp", "tip", { title: "Why", lead: true }),
+    f("o", "outro", { cutAfter: true }),
+  ];
+  const cards = ["ceq-1", "ceq-2"];
+
+  test("every existing content slide gets a ref; the special ones are locked", () => {
+    const src = splitSources(reel);
+    expect(src.map((s) => [s.ref, s.frame.id, s.locked])).toEqual([["s1", "r", true], ["s2", "ch", false], ["s3", "tp", true]]);
+    const { user, system } = buildSplitMessages({ topicName: "T", setName: "S", reelTitle: "R", slides: [{ kind: "rubric", words: "", ref: "s1", locked: true }], cards: [], note: "" });
+    expect(user).toContain("[rubric] ref s1 LOCKED");
+    expect(system).toContain("\"kind\": \"keep\"");
+    expect(system).toContain("ONLY where Lee asks for one");
+  });
+
+  test("a locked slide the model dropped goes back beside the card it followed; a plain one may go", () => {
+    const p = parseSplitProposal({ reels: [
+      { title: "A", slides: [{ kind: "ceq", card: "c1" }] },
+      { title: "B", slides: [{ kind: "ceq", card: "c2" }, { kind: "cheat", text: "Rewritten" }, { kind: "keep", ref: "s3" }, { kind: "keep", ref: "s3" }, { kind: "keep", ref: "s99" }] },
+    ] });
+    const placed = placeLocked(p, reel, cards);
+    expect(placed.reels[0].slides).toEqual([{ kind: "ceq", card: "c1" }, { kind: "keep", ref: "s1" }]);            // the rubric, after card 1
+    expect(placed.reels[1].slides.filter((s) => s.kind === "keep")).toEqual([{ kind: "keep", ref: "s3" }]);      // once, unknown dropped
+    expect(placed.reels[1].slides.some((s) => s.ref === "s2")).toBe(false);                                    // the plain cheat code was rewritten
+  });
+
+  test("the build carries kept slides and cards as themselves — note, pace, picture, star", () => {
+    const p = placeLocked(parseSplitProposal({ reels: [{ title: "A", slides: [{ kind: "ceq", card: "c1" }, { kind: "ceq", card: "c2" }] }] }), reel, cards);
+    const built = proposalToFrames(p, { cards, opener, closer, from: reel }).frames;
+    const rubric = built.find((x) => x.kind === "rubric");
+    expect(rubric?.id).toBe("r");
+    expect(built.find((x) => x.id === "tp")?.lead).toBe(true);
+    const q1 = built.find((x) => x.ceqId === "ceq-1");
+    expect(q1?.id).toBe("q1");
+    expect(q1?.note?.text).toBe("watch the date");
+    expect(q1?.pace).toBe("speed");
+    expect(built.some((x) => x.takeName === "Old")).toBe(false);
+    expect(built.filter((x) => x.id === "r")).toHaveLength(1);
+  });
+
+  test("a rubric / types / teaser he asks for builds as the real slide, flagged to set up", () => {
+    const p = parseSplitProposal({ reels: [{ title: "A", slides: [{ kind: "ceq", card: "c1" }, { kind: "rubric", needs: "prepaid rent entry" }, { kind: "types" }] }] });
+    expect(p.reels[0].slides[2]).toEqual({ kind: "types", needs: "set up this types" });
+    const built = proposalToFrames(p, { cards: ["ceq-1"], opener, closer }).frames;
+    const r = built.find((x) => x.kind === "rubric");
+    expect(r?.needs).toBe("prepaid rent entry");
+    expect(r?.rubric).toEqual(emptyRubric());
+    expect(built.find((x) => x.kind === "types")?.needs).toBe("set up this types");
   });
 });

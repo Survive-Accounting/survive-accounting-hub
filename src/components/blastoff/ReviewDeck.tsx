@@ -754,6 +754,10 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
         {p.number != null ? p.number : "⊘"}
       </span>
       {/* ⚡ SPEED RUN (plan.ts `pace`): a card he flies through — ½ frame, ~4 s in the estimates. */}
+      {/* H: a rubric / types / teaser a split placed for him to set up (plan.ts `needs`). */}
+      {f.needs && f.kind !== "blank" && (
+        <span title={`To set up: ${f.needs}`} style={{ position: "absolute", top: 4, left: p.card ? (f.pace === "speed" ? 50 : 30) : undefined, right: p.card ? undefined : 28, zIndex: 2, fontSize: 11, lineHeight: 1, padding: "2px 4px", borderRadius: 4, background: "rgba(9,13,26,0.85)", color: RED, pointerEvents: "none" }}>⚠</span>
+      )}
       {f.pace === "speed" && (
         <span title="Speed run — counts as ½ frame and ~4 s" style={{ position: "absolute", top: 4, left: p.card ? 30 : undefined, right: p.card ? undefined : 8, zIndex: 2, fontSize: 12, lineHeight: 1, padding: "2px 4px", borderRadius: 4, background: "rgba(9,13,26,0.85)", color: GOLD, pointerEvents: "none" }}>⚡</span>
       )}

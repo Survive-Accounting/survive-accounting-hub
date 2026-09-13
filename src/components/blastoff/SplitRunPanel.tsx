@@ -20,7 +20,7 @@ import { useDictation } from "@/lib/use-dictation";
 import { CREAM, EDGE, GOLD, MUTED, PANEL } from "./BlastOffEditor";
 import { FRAME_LABEL, type BlastFrame, type PlanTake } from "./plan";
 import { FRAME_BUDGET, REEL_BUDGET, countText, frameCountLabel, frameFlag } from "./reel";
-import { SPLIT_PROMPT_VERSION, cardsIn, generationSlots, keyProposal, mergeSubSplit, pinSubCards, projectedCounts, proposalToFrames, reelCards, slideEdited, type SplitProposal, type SplitReel } from "./split-run";
+import { SPLIT_PROMPT_VERSION, cardsIn, placeLocked, splitSources, generationSlots, keyProposal, mergeSubSplit, pinSubCards, projectedCounts, proposalToFrames, reelCards, slideEdited, type SplitProposal, type SplitReel } from "./split-run";
 
 const MINT = "#3BF5A0";
 const RED = "#FF8B7E";
@@ -60,6 +60,12 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
   // and kept as speed runs in whatever gets built.
   const speedIds = new Set(take.frames.filter((f) => f.kind === "ceq" && f.pace === "speed" && f.ceqId).map((f) => f.ceqId!));
   const stemOf = (id: string) => cards.find((c) => c.id === id)?.stem ?? "";
+  // H: this Reel's existing slides, each with a ref the model can keep — the special ones locked.
+  const sources = splitSources(take.frames);
+  const sourceByRef = new Map(sources.map((x) => [x.ref, x]));
+  const sourceById = new Map(sources.map((x) => [x.frame.id, x]));
+  const wordsOf = (f: BlastFrame) => [f.title, f.text, ...(f.bullets ?? [])].filter(Boolean).join(" · ") || FRAME_LABEL[f.kind];
+  const inputSlides = slides.map((x, i) => { const src = sourceById.get(take.frames[i]?.id ?? ""); return src ? { ...x, ref: src.ref, locked: src.locked } : x; });
 
   // THE LEDGER (frame-events): every pass is kept as a draft generation the moment it comes back —
   // a proposal Lee throws away still counts, and a discarded one never reaches the topic's frame
@@ -97,13 +103,14 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
     setBusy(true); setErr(null);
     try {
       if (mic.on) { mic.stop(); setInterim(""); }
-      const input = { topicName, setName, reelTitle: title, slides, cards, note: `${note} ${interim}`.trim(), mode };
+      const input = { topicName, setName, reelTitle: title, slides: inputSlides, cards, note: `${note} ${interim}`.trim(), mode };
       const r = await proposeSplitRun({ data: input });
       retire("superseded");
       // One-Reel mode: exactly one Reel, and it keeps the name he already gave it.
       const shaped = mode === "one" ? { ...r.proposal, reels: r.proposal.reels.slice(0, 1).map((x) => (take.name.trim() ? { ...x, title: take.name.trim() } : x)) } : r.proposal;
       const keyed = keyProposal(shaped, `p${pass.current++}.`);
-      setProposal(keyed);
+      // H: any locked slide the model dropped goes back beside its card (placeLocked).
+      setProposal(placeLocked(keyed, take.frames, cardIds));
       if (!r.proposal.reels.length) setErr("It didn't propose a split. Say a bit more about where it should break.");
       else chain.current = [record(input, r.proposal, keyed, r.model, null)];
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
@@ -119,14 +126,17 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
       const subCards = reelCards(reel, cardIds);
       const input = {
         topicName, setName, reelTitle: reel.title,
-        slides: reel.slides.map((s) => ({ kind: s.kind, words: s.kind === "ceq" ? stemOf(reelCards({ title: "", slides: [s] }, cardIds)[0] ?? "") : s.needs ?? [s.text, ...(s.bullets ?? [])].filter(Boolean).join(" · ") })),
+        slides: reel.slides.map((s) => {
+          if (s.kind === "keep") { const src = sourceByRef.get(s.ref ?? ""); return { kind: src?.frame.kind ?? "keep", words: src ? wordsOf(src.frame) : "", ref: s.ref, locked: !!src?.locked }; }
+          return { kind: s.kind, words: s.kind === "ceq" ? stemOf(reelCards({ title: "", slides: [s] }, cardIds)[0] ?? "") : s.needs ?? [s.text, ...(s.bullets ?? [])].filter(Boolean).join(" · ") };
+        }),
         cards: subCards.map((id) => ({ id, stem: stemOf(id), ...(speedIds.has(id) ? { speed: true } : {}) })),
         note: [`This is one candidate Reel from a larger split, projected at ${countText(projectedCounts(proposal, cardIds, speedIds)[ri] ?? 0)} frames. Split it into smaller Reels.`, note.trim()].filter(Boolean).join("\n"),
       };
       const r = await proposeSplitRun({ data: input });
       const keyed = keyProposal(pinSubCards(r.proposal, subCards), `p${pass.current++}.`);
       if (!keyed.reels.length) { setErr(`It didn't split "${reel.title}" further. Say where it should break, then try again.`); return; }
-      setProposal((p) => (p ? mergeSubSplit(p, ri, keyed, subCards) : p));
+      setProposal((p) => (p ? placeLocked(mergeSubSplit(p, ri, keyed, subCards), take.frames, cardIds) : p));
       const parent = (await drafts())[0] ?? null;
       chain.current = [...chain.current, record(input, r.proposal, keyed, r.model, parent)];
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
@@ -146,7 +156,7 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
     const keptHead = take.frames.slice(0, headLen);
     const keptTail = take.frames.slice(headLen).filter((f, k, arr) => f.kind === "outro" && arr.slice(k).every((x) => x.kind === "outro"));
     const reuse = mode === "one" && proposal.reels.length === 1 && keptHead.length > 0;
-    const { frames, appended, sources } = proposalToFrames(proposal, { cards: cardIds, speed: speedIds, opener: reuse ? () => keptHead.map((f) => ({ ...f })) : opener, closer: reuse && keptTail.length ? () => keptTail.map((f) => ({ ...f })) : closer });
+    const { frames, appended, sources } = proposalToFrames(placeLocked(proposal, take.frames, cardIds), { cards: cardIds, speed: speedIds, from: take.frames, opener: reuse ? () => keptHead.map((f) => ({ ...f })) : opener, closer: reuse && keptTail.length ? () => keptTail.map((f) => ({ ...f })) : closer });
     onBuild(frames, `${proposal.reels.length} Reels from ${title}${appended.length ? ` · ${appended.length} card${appended.length === 1 ? "" : "s"} kept on the last one` : ""}`);
     const pending = chain.current;
     chain.current = [];
@@ -249,10 +259,19 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
               {reel.slides.map((s, si) => {
                 const cardId = s.kind === "ceq" ? reelCards({ title: "", slides: [s] }, cardIds)[0] : undefined;
                 const card = cardId ? cards.find((c) => c.id === cardId) : undefined;
+                // H: one of his existing slides, kept as it is — locked ones can't be dropped.
+                const kept = s.kind === "keep" ? sourceByRef.get(s.ref ?? "") : undefined;
+                if (kept) return (
+                  <div key={si} className="flex items-center" style={{ gap: 6 }}>
+                    <span style={{ flex: "0 0 auto", fontSize: 10, fontWeight: 800, color: GOLD, minWidth: 96 }}>{kept.locked ? "🔒 " : ""}KEPT · {FRAME_LABEL[kept.frame.kind]}</span>
+                    <span title={kept.locked ? "Your slide, carried through as it is — a special slide can't be dropped by a split" : "Your slide, carried through as it is"} style={{ flex: 1, fontSize: 12, color: MUTED, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{wordsOf(kept.frame)}</span>
+                    {!kept.locked && <button title="Drop this slide" onClick={() => edit((rs) => rs.map((r, i) => (i === ri ? { ...r, slides: r.slides.filter((_, k) => k !== si) } : r)))} style={{ ...btn(), padding: "4px 8px" }}>✕</button>}
+                  </div>
+                );
                 return (
                   <div key={si} className="flex items-center" style={{ gap: 6 }}>
                     <span style={{ flex: "0 0 auto", fontSize: 10, fontWeight: 800, color: s.needs ? RED : s.kind === "ceq" ? MINT : CREAM, minWidth: 96 }}>
-                      {s.needs ? "NEEDS BUILDING" : FRAME_LABEL[s.kind as keyof typeof FRAME_LABEL] ?? s.kind}{s.big ? " · big" : ""}
+                      {s.needs ? (s.kind !== "blank" && s.kind !== "keep" && s.kind !== "ceq" && FRAME_LABEL[s.kind] ? `${FRAME_LABEL[s.kind].toUpperCase()} · TO SET UP` : "NEEDS BUILDING") : FRAME_LABEL[s.kind as keyof typeof FRAME_LABEL] ?? s.kind}{s.big ? " · big" : ""}
                     </span>
                     {card ? (
                       <span style={{ flex: 1, fontSize: 12, color: MUTED, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.stem}</span>
