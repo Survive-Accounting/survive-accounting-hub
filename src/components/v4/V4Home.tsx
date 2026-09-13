@@ -25,6 +25,7 @@ export function V4Home() {
       <div style={{ color: V3_MUTED, fontSize: 13.5, maxWidth: 640, lineHeight: 1.5 }}>
         Questions → Slides → Chain → Split → Film. Talk it, let the AI propose, edit until it's yours, mark it final. v3 stays exactly as it was.
       </div>
+      <div style={{ marginTop: 8 }}><Link to="/v4/todo" style={{ color: V3_GOLD, fontWeight: 700, fontSize: 13, textDecoration: "none" }}>To-do · every placeholder →</Link></div>
       {error && <V3Note tone="bad">Could not load the bank: {error}</V3Note>}
       {err && <V3Note tone="bad">{err}</V3Note>}
       {(!topics || !v4) && !error && !err && <V3Note>Loading…</V3Note>}

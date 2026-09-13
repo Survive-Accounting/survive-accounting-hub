@@ -481,7 +481,8 @@ function CloneBusy() {
 }
 
 function GapTools({ onInsert, onClone, onCut, cut, onOver, onDrop, vertical = false, kinds }: {
-  onInsert: () => void; onClone: () => void; onCut: () => void; cut: boolean;
+  /** Absent = no cut button (v4 cuts only in its Split step). */
+  onInsert: () => void; onClone: () => void; onCut?: () => void; cut: boolean;
   /** THE STRIP (2026-09-10): the gap stands to the RIGHT of its slide, tools stacked. */
   vertical?: boolean;
   /** "+" opens these right here (Lee, 2026-09-10: "adding a slide underneath with the hover +
@@ -524,7 +525,7 @@ function GapTools({ onInsert, onClone, onCut, cut, onOver, onDrop, vertical = fa
           <span className="flex flex-col" style={{ gap: 4, position: "relative" }}>
             {btn("＋", "Add a slide here", plus, MUTED)}
             {btn("⧉+", "Clone the slide before this gap as its own card — edit it without touching the original", onClone, MINT)}
-            {btn(cut ? "✂↺" : "✂", cut ? "Remove this cut (the slides it added stay)" : "Cut the video here — a sign-off goes before, the standard opener after", onCut, GOLD)}
+            {onCut && btn(cut ? "✂↺" : "✂", cut ? "Remove this cut (the slides it added stay)" : "Cut the video here — a sign-off goes before, the standard opener after", onCut, GOLD)}
           </span>
         )}
         {chooser}
@@ -545,7 +546,7 @@ function GapTools({ onInsert, onClone, onCut, cut, onOver, onDrop, vertical = fa
         <span className="flex" style={{ gap: 6, position: "relative" }}>
           {btn("＋", "Add a slide here", plus, MUTED)}
           {btn("⧉+", "Clone the slide above as its own card — edit it without touching the original", onClone, MINT)}
-          {btn(cut ? "✂ undo" : "✂", cut ? "Remove this cut (the slides it added stay)" : "Cut the video here — a sign-off goes above, the standard opener below", onCut, GOLD)}
+          {onCut && btn(cut ? "✂ undo" : "✂", cut ? "Remove this cut (the slides it added stay)" : "Cut the video here — a sign-off goes above, the standard opener below", onCut, GOLD)}
         </span>
       )}
     </div>
@@ -830,8 +831,11 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
 // slidePatchFor (a proofread phrase → the slide it becomes) left with the prompter face on
 // 2026-09-07 — it had no caller outside it.
 
-export function ReviewDeck({ set, topic, register, initialSelectedId = null, focusTake = null, knife = null }: {
+export function ReviewDeck({ set, topic, register, initialSelectedId = null, focusTake = null, knife = null, v4 = false }: {
   set: BoothSetInfo; topic: BoothTopic;
+  /** V4 MODE (2026-09-13, components/v4): no cutting, no split tools — v4 cuts in its own Split step.
+   *  Off (every v3 mount) = exactly as before. */
+  v4?: boolean;
   /** THE KNIFE (cut this set into sibling sets) — the route's button, shown small beside the
    *  slides toggle instead of on its own row (Lee, 2026-09-10: "not losing so much vertical space"). */
   knife?: ReactNode;
@@ -1838,8 +1842,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                                   {frameCountLabel(r.frames)} · ~{reelClock(r.seconds)}
                                 </span>
                                 {r.questions > 0 && <span style={{ fontSize: 10, color: MUTED }}>{r.questions}Q</span>}
-                                <button onClick={() => setSplitHead(take.headId)} title="Talk this Reel down into smaller ones — nothing is written until you build it"
-                                  style={{ ...chip(false, MINT), fontSize: 10, padding: "2px 8px", textTransform: "none", letterSpacing: 0 }}>✂ Split this</button>
+                                {!v4 && <button onClick={() => setSplitHead(take.headId)} title="Talk this Reel down into smaller ones — nothing is written until you build it"
+                                  style={{ ...chip(false, MINT), fontSize: 10, padding: "2px 8px", textTransform: "none", letterSpacing: 0 }}>✂ Split this</button>}
                                 {/* THE STAR lives on the callout slides themselves now (below). */}
                               </>
                             );
@@ -1849,7 +1853,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                           {empty && (
                             <>
                               <span title="This run has an opener and a sign-off but no card — nothing to film" style={{ ...chip(true, AMBER), fontSize: 10, padding: "2px 8px", cursor: "default" }}>no questions in this split</span>
-                              {take.index > 0 && (
+                              {take.index > 0 && !v4 && (
                                 <button onClick={() => uncutBefore(take)} style={{ ...chip(false, AMBER), fontSize: 10, padding: "2px 8px" }} title="Lift the cut that opens this run — the slides it added stay">remove this cut</button>
                               )}
                             </>
@@ -1877,7 +1881,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                                   </button>
                                 </div>
                               ) : spineRow(f, i, { number: numberOf.get(f.id), thumb: true, card: true })}
-                              <GapTools vertical kinds={gapKinds(f)} onInsert={() => { setSelId(f.id); setInsertOpen(true); }} onClone={() => void cloneAfter(f, i)} onCut={() => cutAfter(f)} cut={!!f.cutAfter}
+                              <GapTools vertical kinds={gapKinds(f)} onInsert={() => { setSelId(f.id); setInsertOpen(true); }} onClone={() => void cloneAfter(f, i)} onCut={v4 ? undefined : () => cutAfter(f)} cut={!!f.cutAfter}
                                 onOver={() => setOver({ i, below: true })} onDrop={drop} />
                             </Fragment>
                           );

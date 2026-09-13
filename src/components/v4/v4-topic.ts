@@ -28,6 +28,8 @@ export interface V4State {
   final: Partial<Record<V4Step, string>>;
   /** The plan as it was before v4 took the set over — restorable. */
   backup?: { frames: unknown[]; at: string };
+  /** Step 4: the cuts (v4-chain.ts V4Splits). */
+  split?: import("./v4-chain").V4Splits;
 }
 
 /** A placeholder question (Lee: "either a format the app can't build yet, or one that's half-done and

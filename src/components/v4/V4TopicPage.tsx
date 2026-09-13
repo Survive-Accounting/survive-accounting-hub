@@ -8,12 +8,16 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 
 import { V3Note, V3Shell, V3_CREAM, V3_DISPLAY, V3_EDGE, V3_MUTED } from "@/components/v3/Shell";
-import { blastOffPath, useV3Set } from "@/components/v3/use-bank";
+import { useV3Set } from "@/components/v3/use-bank";
 import { loadV4Topic, startV4Topic } from "@/lib/v4.functions";
 
+import { V4Chain } from "./V4Chain";
+import { V4Film } from "./V4Film";
 import { V4Questions } from "./V4Questions";
-import { V4StepBar, V4_RED, v4Button } from "./V4Chrome";
-import { V4_STEPS, V4_STEP_LABEL, type V4Step } from "./v4-topic";
+import { V4Slides } from "./V4Slides";
+import { V4Split } from "./V4Split";
+import { V4StepBar, V4_AMBER, V4_RED, v4Button } from "./V4Chrome";
+import { V4_STEPS, type V4Step } from "./v4-topic";
 
 export type V4TopicData = Awaited<ReturnType<typeof loadV4Topic>>;
 type Preview = Awaited<ReturnType<typeof startV4Topic>>["preview"];
@@ -55,19 +59,15 @@ export function V4TopicPage({ topicKey, setKey, step }: { topicKey: string; setK
 
           {!data.state && <StartPanel setId={set.id} onStarted={async () => { await reload(); void navigate({ to: "/v4/$topic/$set/$step", params: { topic: topicKey, set: setKey, step: "questions" } }); }} />}
           {data.state && current === "questions" && <V4Questions data={data} onData={setData} />}
-          {data.state && current !== "questions" && (
-            <div style={{ border: `1px dashed ${V3_EDGE}`, borderRadius: 12, padding: "16px 18px", maxWidth: 680 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: V3_CREAM }}>{V4_STEP_LABEL[current]} is the next part of v4 being built.</div>
-              <div style={{ marginTop: 6, fontSize: 13, color: V3_MUTED, lineHeight: 1.55 }}>
-                {data.state.final.questions ? "Your questions are final. " : "Finish Questions first. "}
-                Until this step lands, the set's slides are still editable in the v3 Editor — its chain is already stripped of old cuts and bookends, in the order it had.
-              </div>
-              <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-                <a href={blastOffPath(topic, set, "results")} style={{ ...v4Button(), textDecoration: "none" }}>Open in the v3 Editor</a>
-                <Link to="/v4/$topic/$set/$step" params={{ topic: topicKey, set: setKey, step: "questions" }} style={{ ...v4Button(), textDecoration: "none" }}>Back to Questions</Link>
-              </div>
+          {data.state && current !== "questions" && !data.state.final.questions && (
+            <div style={{ marginBottom: 12, fontSize: 12.5, color: V4_AMBER }}>
+              Questions aren't marked final yet — you can work ahead, but <Link to="/v4/$topic/$set/$step" params={{ topic: topicKey, set: setKey, step: "questions" }} style={{ color: V4_AMBER }}>finish them</Link> so new questions go live.
             </div>
           )}
+          {data.state && current === "slides" && <V4Slides data={data} onData={setData} set={set} topic={topic} />}
+          {data.state && current === "chain" && <V4Chain data={data} onData={setData} set={set} topic={topic} />}
+          {data.state && current === "split" && <V4Split data={data} onData={setData} />}
+          {data.state && current === "film" && <V4Film data={data} set={set} topic={topic} topics={topics ?? []} topicKey={topicKey} setKey={setKey} />}
         </>
       )}
     </V3Shell>

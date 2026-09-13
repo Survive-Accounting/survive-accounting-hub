@@ -370,7 +370,8 @@ function slideToFrame(s: SplitSlide, cardOf: (short: string) => string | undefin
   return {
     id: newFrameId(s.kind),
     kind: s.kind as BlastFrameKind,
-    ...(s.text ? { text: s.text } : {}),
+    // A cheat code's heading lives in `title` (plan.ts insertStem) — writing `text` left it blank.
+    ...(s.text ? (s.kind === "cheat" ? { title: s.text } : { text: s.text }) : {}),
     ...(s.bullets?.length ? { bullets: s.bullets } : {}),
     ...(s.big ? { display: "big" as const } : {}),
   };

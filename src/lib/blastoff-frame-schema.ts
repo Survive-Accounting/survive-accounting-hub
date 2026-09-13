@@ -134,6 +134,9 @@ export const frameSchema = z.object({
   pace: z.enum(["speed"]).optional(),
   // 2026-09-13: the slide's lines come in one per space on film (plan.ts `walk`).
   walk: z.literal(true).optional(),
+  // 2026-09-13: v4's group tag and cut-bound bookends (plan.ts v4Group / v4Bound).
+  v4Group: z.string().max(40).optional(),
+  v4Bound: z.enum(["intro", "outro"]).optional(),
   chip: z.enum(["off"]).optional(),
   chipText: z.string().max(40).optional(),
   // 2026-09-12: a placeholder slide's ask (plan.ts `needs`), and the end-of-topic ad's picks.

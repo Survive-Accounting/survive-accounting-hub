@@ -222,6 +222,11 @@ export interface BlastFrame {
    *  new line I shift enter in the text is revealed via space. final one advances slide." Each line
    *  of the heading and each bullet comes in on its own space on /film (inline-md WalkLinesContext). */
   walk?: true;
+  /** V4 (2026-09-13, components/v4): the question group a teaching slide belongs to. */
+  v4Group?: string;
+  /** V4: an intro or outro that belongs to a CUT (v4-chain.ts applySplits) — rebuilt from the cuts on
+   *  every split change, so un-cutting leaves nothing behind. */
+  v4Bound?: "intro" | "outro";
   /** NO CHIP (2026-09-12). Lee: "sometimes I want a callout slide but with no callout. I just like
    *  the big text format. So just a 'none' option would be great." The slide stays whatever kind it
    *  is — so switching back brings the chip and its colour with it — and only the chip is dropped. */

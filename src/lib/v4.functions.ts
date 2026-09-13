@@ -302,3 +302,207 @@ export const finalizeV4Questions = createServerFn({ method: "POST" })
     }
     return { ok: true as const, summary, state: (await import("@/components/v4/v4-topic")).stateView(state), logWarning };
   });
+
+// ─────────────────────────────────────────────────────── steps 2–5: shared learning doors ──
+
+const stepSchema = z.enum(["questions", "slides", "chain", "split"]);
+
+/** Record one change in any step (the pages that edit through the plan call this after saving). */
+export const v4LogEdit = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    setId: z.string().min(1).max(200), step: stepSchema, target: z.string().min(1).max(200), action: z.string().min(1).max(40),
+    before: z.any().optional(), after: z.any().optional(), why: z.string().max(2000).nullable().optional(), who: z.string().max(40).nullable().optional(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; editId: string | null; error?: string }> => {
+    const d = await db();
+    const proposal = await openProposalId(d, data.setId, data.step);
+    if (proposal.error) return { ok: false, editId: null, error: proposal.error };
+    const ins = await d.from("teach_edits").insert({ proposal_id: proposal.id, set_id: data.setId, step: data.step, target: data.target, action: data.action, before: data.before ?? null, after: data.after ?? null, why: data.why?.trim() || null, created_by: data.who ?? null }).select("id").single();
+    return ins.error ? { ok: false, editId: null, error: learningError(ins.error) } : { ok: true, editId: ins.data.id as string };
+  });
+
+/** The open proposal for a step, created from `snapshot` if there isn't one (the migrated starting
+ *  point of Slides / Chain / Split, recorded the first time the step is opened). */
+export const v4EnsureProposal = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(200), step: stepSchema, source: z.enum(["ai", "migrated", "manual"]), snapshot: z.any(), input: z.any().optional() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; id: string | null; error?: string }> => {
+    const d = await db();
+    const open = await openProposalId(d, data.setId, data.step);
+    if (open.error) return { ok: false, id: null, error: open.error };
+    if (open.id) return { ok: true, id: open.id };
+    const last = await d.from("teach_proposals").select("version").eq("set_id", data.setId).eq("step", data.step).order("version", { ascending: false }).limit(1);
+    if (last.error) return { ok: false, id: null, error: learningError(last.error) };
+    const version = ((last.data?.[0]?.version as number | undefined) ?? 0) + 1;
+    const ins = await d.from("teach_proposals").insert({ set_id: data.setId, step: data.step, version, source: data.source, status: "open", ai_original: data.snapshot ?? {}, input: data.input ?? null }).select("id").single();
+    return ins.error ? { ok: false, id: null, error: learningError(ins.error) } : { ok: true, id: ins.data.id as string };
+  });
+
+const NEXT_STEP: Record<string, string> = { questions: "slides", slides: "chain", chain: "split", split: "film" };
+
+/** Mark Slides / Chain / Split final: the topic moves on, and the open proposal records his version. */
+export const v4MarkFinal = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(200), step: z.enum(["slides", "chain", "split"]), snapshot: z.any() }).parse(d))
+  .handler(async ({ data }) => {
+    const d = await db();
+    const { stateView } = await import("@/components/v4/v4-topic");
+    const { sceneId, j, deck } = await openScene(d, data.setId);
+    const state = deck.v4 as import("@/components/v4/v4-topic").V4State | undefined;
+    if (!state) throw new Error("This set isn't a v4 topic yet.");
+    const now = new Date().toISOString();
+    state.final = { ...(state.final ?? {}), [data.step]: now };
+    const order = ["questions", "slides", "chain", "split", "film"];
+    if (order.indexOf(state.step) <= order.indexOf(data.step)) state.step = NEXT_STEP[data.step] as typeof state.step;
+    await saveScene(d, sceneId, j);
+    const open = await openProposalId(d, data.setId, data.step);
+    let logWarning = open.error;
+    if (open.id) {
+      const up = await d.from("teach_proposals").update({ status: "final", final: data.snapshot ?? {}, finalized_at: now }).eq("id", open.id);
+      if (up.error) logWarning = learningError(up.error);
+    }
+    return { ok: true as const, state: stateView(state), logWarning };
+  });
+
+// ─────────────────────────────────────────────────────────────────── step 2: AI slides ──
+
+/** PROPOSE ONE GROUP'S TEACHING SLIDES from what Lee said — recorded as a proposal before he sees it. */
+export const proposeV4Slides = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(200), topicName: z.string().max(200), groupId: z.string().min(1).max(40), talk: z.string().max(12000) }).parse(d))
+  .handler(async ({ data }) => {
+    const d = await db();
+    const { buildV4SlidesMessages, parseV4Slides, extractJsonObject, SLIDES_PROMPT_VERSION } = await import("@/components/v4/slides-brief");
+    const { j, deck } = await openScene(d, data.setId);
+    const state = deck.v4 as import("@/components/v4/v4-topic").V4State | undefined;
+    if (!state) throw new Error("This set isn't a v4 topic yet.");
+    const group = state.groups.find((g) => g.id === data.groupId);
+    if (!group) throw new Error("That group isn't in this topic any more.");
+    const cards = (await Promise.all(cardNodes(j, data.setId).map(toCard))).filter((c) => c.group === group.id && !c.rejected && !c.noteOnly);
+    const frames = (Array.isArray(deck.blastOff?.frames) ? deck.blastOff!.frames! : []) as import("@/components/blastoff/plan").BlastFrame[];
+    const existing = frames.filter((f) => f.v4Group === group.id && f.kind !== "ceq" && !f.v4Bound).map((f) => ({ kind: f.kind, words: [f.title, f.text, ...(f.bullets ?? [])].filter(Boolean).join(" · ") || f.needs || "" }));
+    // Past slide edits as examples — the simple version of "learn how I teach".
+    const ex = await d.from("teach_edits").select("before,after,why").eq("step", "slides").eq("action", "edit").order("created_at", { ascending: false }).limit(8);
+    const examples = ex.error ? [] : (ex.data ?? []).map((r: { before: unknown; after: unknown; why: string | null }) => ({ before: r.before, after: r.after, why: r.why }));
+    const input = { topicName: data.topicName, setName: deck.name ?? "", groupName: group.name, questions: cards.map((c) => ({ stem: c.stem, correct: c.choices.filter((x) => x.correct).map((x) => x.text) })), existing, talk: data.talk, examples };
+    const { system, user } = buildV4SlidesMessages(input);
+    const { runAiTask } = await import("@/lib/ai.server");
+    const r = await runAiTask("synthesis", { system, user });
+    const slides = parseV4Slides(extractJsonObject(r.text));
+    const last = await d.from("teach_proposals").select("version").eq("set_id", data.setId).eq("step", "slides").order("version", { ascending: false }).limit(1);
+    let proposalId: string | null = null;
+    let logWarning: string | null = null;
+    if (last.error) logWarning = learningError(last.error);
+    else {
+      const version = ((last.data?.[0]?.version as number | undefined) ?? 0) + 1;
+      const ins = await d.from("teach_proposals").insert({ set_id: data.setId, step: "slides", version, source: "ai", status: "superseded", ai_original: { groupId: group.id, slides }, input: { groupName: group.name, talk: data.talk, questions: input.questions.length, existing: existing.length }, model: r.usage.model, prompt_version: SLIDES_PROMPT_VERSION }).select("id").single();
+      if (ins.error) logWarning = learningError(ins.error); else proposalId = ins.data.id as string;
+    }
+    return { ok: true as const, slides, proposalId, logWarning };
+  });
+
+// ────────────────────────────────────────────────────────────────────────── step 4: split ──
+
+const cutSchema = z.object({ after: z.string().min(1).max(80), intro: z.enum(["bio", "title", "none"]), name: z.string().max(80).optional() });
+const splitsSchema = z.object({ startIntro: z.enum(["bio", "title", "none"]), startName: z.string().max(80).optional(), cuts: z.array(cutSchema).max(60) });
+
+/** APPLY THE CUTS: the plan's bound intro/outro slides are rebuilt from the cuts (applySplits), the
+ *  cuts are kept on the topic, and the change is recorded. */
+export const v4ApplySplits = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(200), splits: splitsSchema, action: z.string().max(40), who: z.string().max(40).nullable().optional() }).parse(d))
+  .handler(async ({ data }) => {
+    const d = await db();
+    const { applySplits } = await import("@/components/v4/v4-chain");
+    const { frameSchema } = await import("@/lib/blastoff-frame-schema");
+    const { sceneId, j, deck } = await openScene(d, data.setId);
+    const state = deck.v4 as import("@/components/v4/v4-topic").V4State | undefined;
+    if (!state) throw new Error("This set isn't a v4 topic yet.");
+    const before = (Array.isArray(deck.blastOff?.frames) ? deck.blastOff!.frames! : []) as import("@/components/blastoff/plan").BlastFrame[];
+    const prevSplits = state.split ?? null;
+    const { frames, splits } = applySplits(before, data.splits, deck.name ?? "");
+    const checked = z.array(frameSchema).max(400).parse(frames);
+    const now = new Date().toISOString();
+    deck.blastOff = { ...(deck.blastOff ?? {}), frames: checked, updatedAt: now };
+    state.split = splits;
+    await saveScene(d, sceneId, j);
+    const proposal = await openProposalId(d, data.setId, "split");
+    let logWarning = proposal.error;
+    if (!proposal.error) {
+      const ins = await d.from("teach_edits").insert({ proposal_id: proposal.id, set_id: data.setId, step: "split", target: "cuts", action: data.action, before: prevSplits, after: splits, created_by: data.who ?? null });
+      if (ins.error) logWarning = learningError(ins.error);
+    }
+    return { ok: true as const, splits, frames: checked, before: z.array(frameSchema).max(400).parse(before), logWarning };
+  });
+
+/** The topic's cuts (step 4), for the Split page. */
+export const loadV4Splits = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const d = await db();
+    const { NO_SPLITS } = await import("@/components/v4/v4-chain");
+    const { deck } = await openScene(d, data.setId);
+    const state = deck.v4 as import("@/components/v4/v4-topic").V4State | undefined;
+    const s = state?.split ?? NO_SPLITS;
+    return { startIntro: s.startIntro, ...(s.startName ? { startName: s.startName } : {}), cuts: s.cuts.map((c) => ({ after: c.after, intro: c.intro, ...(c.name ? { name: c.name } : {}) })) };
+  });
+
+// ─────────────────────────────────────────────────────────────────────────── /v4/todo ──
+
+/** EVERY PLACEHOLDER across the v4 topics — questions and slides — with the split it's in. */
+export const listV4Todo = createServerFn({ method: "GET" }).handler(async () => {
+  const d = await db();
+  const { loadDecksDeduped } = await import("./student.functions");
+  const { splitRows } = await import("@/components/v4/v4-chain");
+  const owned = await loadDecksDeduped(d as never);
+  const out: { setId: string; setName: string; items: { kind: "question" | "slide"; id: string; label: string; note: string; split: number | null }[] }[] = [];
+  for (const [setId, o] of owned) {
+    if (!(o.deck as { v4?: unknown }).v4) continue;
+    const cards = await Promise.all((o.nodes as Node[]).map(toCard));
+    const byId = new Map(cards.map((c) => [c.id, c]));
+    const frames = ((o.deck as Deck).blastOff?.frames ?? []) as import("@/components/blastoff/plan").BlastFrame[];
+    const rows = splitRows(frames, (id) => { const c = byId.get(id); return c?.placeholder && !c.rejected ? { note: c.placeholder.note, stem: c.stem } : null; });
+    const splitOf = new Map<string, number>();
+    for (const r of rows) for (const f of r.frames) splitOf.set(f.kind === "ceq" && f.ceqId ? `card:${f.ceqId}` : f.id, r.index);
+    const items: { kind: "question" | "slide"; id: string; label: string; note: string; split: number | null }[] = [];
+    for (const c of cards) if (c.placeholder && !c.rejected && !c.noteOnly) items.push({ kind: "question", id: c.id, label: c.stem || "(a question)", note: c.placeholder.note, split: splitOf.get(`card:${c.id}`) ?? null });
+    for (const f of frames) if (f.needs && !f.skipped) items.push({ kind: "slide", id: f.id, label: f.kind, note: f.needs, split: splitOf.get(f.id) ?? null });
+    if (items.length) out.push({ setId, setName: String((o.deck as Deck).name ?? setId), items });
+  }
+  return out;
+});
+
+// ────────────────────────────────────────────────────────────────────────── step 3: chain ──
+
+/** ARRANGE THE CHAIN group by group (v4-chain.ts arrangeChain), keeping any cuts already made. The
+ *  arrangement is recorded as the step's proposal the first time, and as an edit after that. */
+export const v4ArrangeChain = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(200), who: z.string().max(40).nullable().optional() }).parse(d))
+  .handler(async ({ data }) => {
+    const d = await db();
+    const { arrangeChain, applySplits, NO_SPLITS } = await import("@/components/v4/v4-chain");
+    const { frameSchema } = await import("@/lib/blastoff-frame-schema");
+    const { sceneId, j, deck } = await openScene(d, data.setId);
+    const state = deck.v4 as import("@/components/v4/v4-topic").V4State | undefined;
+    if (!state) throw new Error("This set isn't a v4 topic yet.");
+    const cards = await Promise.all(cardNodes(j, data.setId).map(toCard));
+    const groupOf = new Map(cards.map((c) => [c.id, c.group]));
+    const before = (Array.isArray(deck.blastOff?.frames) ? deck.blastOff!.frames! : []) as import("@/components/blastoff/plan").BlastFrame[];
+    const arranged = arrangeChain(before, state.groups.map((g) => g.id), (id) => groupOf.get(id) ?? null);
+    const withSplits = state.split && state.split.cuts.length ? applySplits(arranged, state.split, deck.name ?? "").frames : arranged;
+    const checked = z.array(frameSchema).max(400).parse(withSplits);
+    deck.blastOff = { ...(deck.blastOff ?? {}), frames: checked, updatedAt: new Date().toISOString() };
+    await saveScene(d, sceneId, j);
+    const ids = (fs: { id: string; kind: string }[]) => fs.map((f) => `${f.kind}:${f.id}`);
+    const open = await openProposalId(d, data.setId, "chain");
+    let logWarning = open.error;
+    if (!open.error) {
+      if (!open.id) {
+        const last = await d.from("teach_proposals").select("version").eq("set_id", data.setId).eq("step", "chain").order("version", { ascending: false }).limit(1);
+        const version = ((last.data?.[0]?.version as number | undefined) ?? 0) + 1;
+        const ins = await d.from("teach_proposals").insert({ set_id: data.setId, step: "chain", version, source: "ai", status: "open", ai_original: { order: ids(checked) }, input: { rule: "group by group: teaching slides, then questions", before: ids(before) }, prompt_version: "v4-chain-rule@2026-09-13" });
+        if (ins.error) logWarning = learningError(ins.error);
+      } else {
+        const ins = await d.from("teach_edits").insert({ proposal_id: open.id, set_id: data.setId, step: "chain", target: "chain", action: "arrange", before: ids(before), after: ids(checked), created_by: data.who ?? null });
+        if (ins.error) logWarning = learningError(ins.error);
+      }
+    }
+    void NO_SPLITS;
+    return { ok: true as const, slides: checked.length, logWarning };
+  });
