@@ -58,7 +58,7 @@ export function V4TopicPage({ topicKey, setKey, step }: { topicKey: string; setK
           {data.learningError && <V3Note tone="bad">The learning record isn't saving yet — {data.learningError}</V3Note>}
 
           {!data.state && <StartPanel setId={set.id} onStarted={async () => { await reload(); void navigate({ to: "/v4/$topic/$set/$step", params: { topic: topicKey, set: setKey, step: "questions" } }); }} />}
-          {data.state && current === "questions" && <V4Questions data={data} onData={setData} />}
+          {data.state && current === "questions" && <V4Questions data={data} onData={setData} topicName={topic.name} />}
           {data.state && current !== "questions" && !data.state.final.questions && (
             <div style={{ marginBottom: 12, fontSize: 12.5, color: V4_AMBER }}>
               Questions aren't marked final yet — you can work ahead, but <Link to="/v4/$topic/$set/$step" params={{ topic: topicKey, set: setKey, step: "questions" }} style={{ color: V4_AMBER }}>finish them</Link> so new questions go live.

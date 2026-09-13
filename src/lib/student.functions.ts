@@ -116,7 +116,7 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   const ceqCountByDeck = new Map<string, number>();
   // FIRST STEM per deck (lowest stageOrder) — the outline teaser, with its blur ranges for paid redaction.
   const firstCeqByDeck = new Map<string, { order: number; prompt: string; blur: { s: number; e: number }[]; shorthand: string | null }>();
-  type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[]; noteOnly?: boolean; draft?: boolean; bankArchived?: string };
+  type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[]; noteOnly?: boolean; draft?: boolean; bankArchived?: string; format?: string };
   // PARKED sets are authoring-only — never served, regardless of status (same law as parked topics).
   for (const o of liveDecks(owned)) {
     live.push(o.deck);
@@ -128,6 +128,8 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
       // DRAFTS and soft-archived cards are studio-only (master-sheet status law):
       // they never count, never tease, never reach a student surface.
       if (n.data?.draft || n.data?.bankArchived) continue;
+      // Not served to students yet (fetchSetPractice) — so not counted as one of theirs either.
+      if (n.data?.format !== undefined && n.data?.format !== "mc") continue;
       const did = n.data?.deckId;
       if (!did) continue;
       ceqCountByDeck.set(did, (ceqCountByDeck.get(did) ?? 0) + 1);
@@ -380,7 +382,9 @@ export const fetchSetPractice = createServerFn({ method: "GET" })
       // filmSkip (2026-09-03): Lee skipped it on the review deck and sent to
       // film — "the final edit of slides is what practice will look like".
       // Kept as belt and braces now the plan itself decides (below).
-      .filter((n) => { const d = n.data as (RawCard & { filmSkip?: boolean }) | undefined; return !d?.noteOnly && !d?.draft && !d?.bankArchived && !d?.filmSkip; })
+      // A FORMAT THE PLAYER CAN'T GRADE YET (v4, 2026-09-13): a "select all that apply" card would be
+      // served as single-answer multiple choice — so it isn't served until the player learns it.
+      .filter((n) => { const d = n.data as (RawCard & { filmSkip?: boolean; format?: string }) | undefined; return !d?.noteOnly && !d?.draft && !d?.bankArchived && !d?.filmSkip && (d?.format === undefined || d.format === "mc"); })
       .map((n) => ({ nodeId: n.id ?? "", ...(n.data as RawCard) }));
     // THE SAVED REVIEW PLAN IS THE FINAL EDIT (Lee, 2026-09-04: "whatever
     // questions get pushed to the final video we film from, THOSE questions

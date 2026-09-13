@@ -506,3 +506,100 @@ export const v4ArrangeChain = createServerFn({ method: "POST" })
     void NO_SPLITS;
     return { ok: true as const, slides: checked.length, logWarning };
   });
+
+// ───────────────────────────────────────────────────────────── step 1: AI questions (phase 3) ──
+
+async function questionExamples(d: DB): Promise<{ before: unknown; after: unknown; why: string | null }[]> {
+  const ex = await d.from("teach_edits").select("before,after,why").eq("step", "questions").eq("action", "edit").order("created_at", { ascending: false }).limit(8);
+  return ex.error ? [] : (ex.data ?? []).map((r: { before: unknown; after: unknown; why: string | null }) => ({ before: r.before, after: r.after, why: r.why }));
+}
+
+/** STAGE 1 — THE GROUPS. From what Lee said: the groups (existing ones kept by name), saved on the topic,
+ *  and a new questions proposal opened for this run (the previous open one is superseded). */
+export const proposeV4QuestionGroups = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(200), topicName: z.string().max(200), talk: z.string().max(20000) }).parse(d))
+  .handler(async ({ data }) => {
+    const d = await db();
+    const { buildGroupsMessages, parseGroups, QUESTIONS_PROMPT_VERSION } = await import("@/components/v4/questions-brief");
+    const { extractJsonObject } = await import("@/components/v4/slides-brief");
+    const { nextGroupId, stateView } = await import("@/components/v4/v4-topic");
+    const { sceneId, j, deck } = await openScene(d, data.setId);
+    const state = deck.v4 as import("@/components/v4/v4-topic").V4State | undefined;
+    if (!state) throw new Error("This set isn't a v4 topic yet.");
+    const cards = (await Promise.all(cardNodes(j, data.setId).map(toCard))).filter((c) => !c.rejected && !c.noteOnly);
+    const { system, user } = buildGroupsMessages({ topicName: data.topicName, setName: deck.name ?? "", talk: data.talk, existingGroups: state.groups.map((g) => g.name), existingStems: cards.map((c) => c.stem), examples: [] });
+    const { runAiTask } = await import("@/lib/ai.server");
+    const r = await runAiTask("synthesis", { system, user });
+    const proposed = parseGroups(extractJsonObject(r.text));
+    if (!proposed.length) return { ok: false as const, error: "It didn't propose any groups — say a bit more about what the exam asks." };
+
+    const groups = [...state.groups];
+    const out: { id: string; name: string; covers: string; count: number }[] = [];
+    for (const p of proposed) {
+      let g = groups.find((x) => x.name.trim().toLowerCase() === p.name.toLowerCase());
+      if (!g) { g = { id: nextGroupId(groups), name: p.name }; groups.push(g); }
+      out.push({ id: g.id, name: g.name, covers: p.covers, count: p.count });
+    }
+    state.groups = groups;
+    await saveScene(d, sceneId, j);
+
+    let proposalId: string | null = null;
+    let logWarning: string | null = null;
+    const last = await d.from("teach_proposals").select("version").eq("set_id", data.setId).eq("step", "questions").order("version", { ascending: false }).limit(1);
+    if (last.error) logWarning = learningError(last.error);
+    else {
+      await d.from("teach_proposals").update({ status: "superseded" }).eq("set_id", data.setId).eq("step", "questions").eq("status", "open");
+      const version = ((last.data?.[0]?.version as number | undefined) ?? 0) + 1;
+      const ins = await d.from("teach_proposals").insert({ set_id: data.setId, step: "questions", version, source: "ai", status: "open", ai_original: { groups: out, questions: [] }, input: { talk: data.talk }, model: r.usage.model, prompt_version: QUESTIONS_PROMPT_VERSION }).select("id").single();
+      if (ins.error) logWarning = learningError(ins.error); else proposalId = ins.data.id as string;
+    }
+    return { ok: true as const, groups: out, proposalId, logWarning, state: stateView(state) };
+  });
+
+/** STAGE 2 — ONE GROUP'S QUESTIONS, written into the set as drafts in that group (never in front of a
+ *  student until "Questions final"), and added to the run's proposal as the AI's original. */
+export const proposeV4GroupQuestions = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    setId: z.string().min(1).max(200), topicName: z.string().max(200), talk: z.string().max(20000), proposalId: z.string().uuid().nullable(),
+    group: z.object({ id: z.string().min(1).max(40), name: z.string().max(120), covers: z.string().max(300), count: z.number().int().min(1).max(10) }),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const d = await db();
+    const { buildQuestionsMessages, parseQuestions } = await import("@/components/v4/questions-brief");
+    const { extractJsonObject } = await import("@/components/v4/slides-brief");
+    const { j } = await openScene(d, data.setId);
+    const existing = (await Promise.all(cardNodes(j, data.setId).map(toCard))).filter((c) => !c.rejected && !c.noteOnly);
+    const inGroup = existing.filter((c) => c.group === data.group.id).map((c) => c.stem);
+    const examples = await questionExamples(d);
+    const { system, user } = buildQuestionsMessages({ topicName: data.topicName, setName: "", talk: data.talk, existingGroups: [], existingStems: [], examples, group: { name: data.group.name, covers: data.group.covers, count: data.group.count }, alreadyInGroup: inGroup });
+    const { runAiTask } = await import("@/lib/ai.server");
+    const r = await runAiTask("synthesis", { system, user });
+    const questions = parseQuestions(extractJsonObject(r.text), existing.map((c) => c.stem));
+
+    // Written fresh: another group's call may have saved while this one was thinking.
+    const { sceneId, j: j2 } = await openScene(d, data.setId);
+    const nodes = cardNodes(j2, data.setId);
+    let order = nodes.reduce((m, n) => Math.max(m, typeof n.data?.stageOrder === "number" ? n.data.stageOrder : 0), 0);
+    for (const q of questions) {
+      order += 1;
+      const id = `ceq-v4-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+      (j2.nodes ??= []).push({
+        id, type: "ceq", position: { x: 520, y: 210 + order * 40 },
+        data: { deckId: data.setId, prompt: q.stem, choices: q.choices.map((c, i) => ({ id: `c${i}`, text: c.text, correct: c.correct, ...(c.feedback ? { feedback: c.feedback } : {}) })), stageOrder: order, draft: true, provenance: "v4-ai", v4Group: data.group.id, ...(q.format !== "mc" ? { format: q.format } : {}) },
+      });
+    }
+    if (questions.length) await saveScene(d, sceneId, j2);
+
+    let logWarning: string | null = null;
+    if (data.proposalId && questions.length) {
+      const cur = await d.from("teach_proposals").select("ai_original").eq("id", data.proposalId).single();
+      if (cur.error) logWarning = learningError(cur.error);
+      else {
+        const orig = (cur.data?.ai_original ?? {}) as { groups?: unknown[]; questions?: unknown[] };
+        const up = await d.from("teach_proposals").update({ ai_original: { ...orig, questions: [...(orig.questions ?? []), ...questions.map((q) => ({ group: data.group.id, ...q }))] } }).eq("id", data.proposalId);
+        if (up.error) logWarning = learningError(up.error);
+      }
+    }
+    const cards = await Promise.all(cardNodes(j2, data.setId).map(toCard));
+    return { ok: true as const, added: questions.length, cards, logWarning };
+  });

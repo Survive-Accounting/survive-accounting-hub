@@ -16,12 +16,13 @@ import { finalizeV4Questions, v4EditWhy, v4QuestionsChange, type V4QuestionsOp }
 
 import { FORMATS, QUESTION_FORMATS, cardProblems, formatOf, markCorrect, switchFormat, type Choice, type QuestionFormat } from "./formats";
 import { V4_AMBER, V4_MINT, V4_RED, v4Button, v4Field } from "./V4Chrome";
+import { V4ProposeQuestions } from "./V4ProposeQuestions";
 import type { V4TopicData } from "./V4TopicPage";
 import { UNGROUPED, groupedCards, nextGroupId, questionsSummary, type V4Card, type V4Group, type V4Placeholder } from "./v4-topic";
 
 type Op = V4QuestionsOp;
 
-export function V4Questions({ data, onData }: { data: V4TopicData; onData: (d: V4TopicData) => void }) {
+export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicData; onData: (d: V4TopicData) => void; topicName?: string }) {
   const state = data.state!;
   const cards = data.cards as V4Card[];
   const [busy, setBusy] = useState(false);
@@ -64,6 +65,8 @@ export function V4Questions({ data, onData }: { data: V4TopicData; onData: (d: V
 
   return (
     <div style={{ maxWidth: 980 }}>
+      {/* TALK → PROPOSE (phase 3) */}
+      <V4ProposeQuestions data={data} onData={onData} topicName={topicName} />
       {/* THE SUMMARY + FINAL */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 14px", border: `1px solid ${V3_EDGE}`, borderRadius: 12 }}>
         <span style={{ fontSize: 13.5, color: V3_CREAM }}>
