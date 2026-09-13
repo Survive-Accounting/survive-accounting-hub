@@ -18,15 +18,32 @@
 // Lee is arranging. live=true (the capture) asks for the webcam, mirrors it,
 // and fails soft. The look: a cream ring with a soft glow and a navy shadow.
 // No nametag (Lee: "simple, elegant, modern").
+//
+// THE BACKGROUND (2026-09-13, camera-bg.ts + segmentation.ts): Original / Blur / Remove, one setting
+// for the rig. Blur and Remove draw into a <canvas> laid exactly over the <video> — same box, same
+// cover crop, same mirror — so the ring, the spots, the moment and the cold open never know. The
+// plain video stays underneath and stays visible until the canvas holds a finished frame, and comes
+// straight back on any fallback. Removed onto transparent, the ring's cream moves from a painted
+// background (which would show cream behind Lee) to a masked border, so the slide shows through.
 import { useEffect, useRef, useState } from "react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 
+import { CAM_FILL_CSS, useCamBg } from "./camera-bg";
+import { useCameraBackground, useSegmentHere } from "./segmentation";
 import { avoidCard, camRect, heroCamRect, type Box, type CamRect, type CamSpot } from "./webcam-spots";
 
 const CREAM = "#F5EFE6";
 
 const OVERSHOOT = "cubic-bezier(0.34, 1.3, 0.64, 1)";
+
+const RING_GRADIENT = `linear-gradient(160deg, ${CREAM}, rgba(245,239,230,0.7))`;
+/** Paint only the padding: the content box is cut out of the full box. */
+const RING_ONLY_MASK: React.CSSProperties = {
+  WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+  WebkitMaskComposite: "xor",
+  mask: "linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0)",
+};
 
 export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirror = true, moment = false, onMoment, onReadyChange }: {
   w: number; h: number;
@@ -69,6 +86,14 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setReady(false); onReadyChange?.(false); }, [live]);
   const setReadyAndNotify = (v: boolean) => { setReady(v); onReadyChange?.(v); };
+  // THE BACKGROUND: the canvas over the video, and whether it is showing yet.
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [bg] = useCamBg();
+  const segmentHere = useSegmentHere(live && !err);
+  const { active: cutout } = useCameraBackground({ videoRef, canvasRef, bg, enabled: segmentHere, videoReady: ready });
+  const see = cutout && bg.mode === "remove";
+  const fillCss = see ? CAM_FILL_CSS[bg.fill] : "#000";
+  const seeThrough = see && bg.fill === "transparent";
   // THE CHOREOGRAPHY CURVE overshoots — right for a move between spots, wrong for a shrink
   // in place: avoidCard pulling the ring in on a tall card read as a bounce on every slide
   // entrance. A same-spot, same-mode, smaller ring gets a plain ease. A drag gets none.
@@ -135,14 +160,21 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
         // The move between spots is the choreography — a touch of overshoot, never a snap.
         transition: dragging ? "none" : `left 480ms ${ease}, top 480ms ${ease}, width 480ms ${ease}, height 480ms ${ease}` }}>
       {/* the ring: cream, a soft outer glow, a navy shadow — never loud; the moment breathes */}
-      <div style={{ position: "absolute", inset: 0, borderRadius: radius, padding: ring, background: `linear-gradient(160deg, ${CREAM}, rgba(245,239,230,0.7))`,
+      <div style={{ position: "absolute", inset: 0, borderRadius: radius, padding: ring, background: seeThrough ? "none" : RING_GRADIENT,
         boxShadow: moment
           ? `0 0 0 ${Math.round(ring * 3)}px rgba(252,163,17,0.18), 0 0 ${Math.round(r.w * 0.18)}px rgba(252,163,17,0.35), 0 ${Math.round(r.w * 0.06)}px ${Math.round(r.w * 0.2)}px -${Math.round(r.w * 0.05)}px rgba(0,0,0,0.8)`
           : `0 0 0 ${Math.round(ring * 2.2)}px rgba(245,239,230,0.10), 0 ${Math.round(r.w * 0.06)}px ${Math.round(r.w * 0.16)}px -${Math.round(r.w * 0.05)}px rgba(0,0,0,0.75)`,
         transition: "box-shadow 480ms ease, border-radius 480ms ease" }}>
-        <div style={{ width: "100%", height: "100%", borderRadius: radius, overflow: "hidden", background: live ? "#000" : "rgba(20,33,61,0.55)", position: "relative", transition: "border-radius 480ms ease" }}>
+        {/* SEE-THROUGH: the same cream, painted only in the padding (the classic masked-border
+            trick), so nothing cream sits behind the cut-out. */}
+        {seeThrough && <div aria-hidden style={{ position: "absolute", inset: 0, borderRadius: radius, padding: ring, background: RING_GRADIENT, ...RING_ONLY_MASK, pointerEvents: "none", transition: "border-radius 480ms ease" }} />}
+        <div style={{ width: "100%", height: "100%", borderRadius: radius, overflow: "hidden", background: live ? fillCss : "rgba(20,33,61,0.55)", position: "relative", transition: "border-radius 480ms ease" }}>
+          {/* The video keeps playing under the canvas (the canvas reads its frames), it just stops
+              being seen once the cut-out is — never display:none, which can stall its frames. */}
           {live && !err && <video ref={videoRef} autoPlay muted playsInline draggable={false} onLoadedData={() => setReadyAndNotify(true)}
-            style={{ width: "100%", height: "100%", objectFit: "cover", transform: mirror ? "scaleX(-1)" : undefined, display: "block", opacity: ready ? 1 : 0, transition: "opacity 400ms ease" }} />}
+            style={{ width: "100%", height: "100%", objectFit: "cover", transform: mirror ? "scaleX(-1)" : undefined, display: "block", opacity: ready && !cutout ? 1 : 0, transition: cutout ? "opacity 250ms ease 150ms" : "opacity 400ms ease" }} />}
+          {live && !err && <canvas ref={canvasRef} aria-hidden
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: mirror ? "scaleX(-1)" : undefined, display: "block", opacity: cutout ? 1 : 0, transition: "opacity 250ms ease", pointerEvents: "none" }} />}
           {/* THE PLACEHOLDER, live but not ready: the boiling bolt fills the ring instead of the
               plain black the video's own container shows underneath — something alive and
               on-brand while getUserMedia negotiates, not a hole. Fades out as the video fades
@@ -166,3 +198,4 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
     </div>
   );
 }
+
