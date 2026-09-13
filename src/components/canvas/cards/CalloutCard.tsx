@@ -15,7 +15,9 @@
 // CeqPreviewNode behind the film gate — nothing here captures keys or drags.
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { BRAND_FONT, DISPLAY_FONT } from "@/components/blastoff/stage";
-import { renderInline } from "../inline-md";
+import { useContext } from "react";
+
+import { WalkLinesContext, renderInline, renderInlineLines } from "../inline-md";
 import { PAPER } from "../theme";
 import type { CalloutKind } from "../types";
 
@@ -169,6 +171,8 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, cust
   const inkMuted = dark ? DETOUR.inkMuted : PAPER.inkMuted;
   const hl = dark ? { bg: darkAccent, color: "#14213D" } : undefined;
   const mainText = highlights.length === 1 ? highlights[0] : stem;
+  // SPACE WALK (inline-md WalkLinesContext): each heading line and each bullet is one space.
+  const walk = useContext(WalkLinesContext);
   return (
     <div style={{ position: "relative" }}>
       {/* the little orange corner accent — the callout's signature, kept */}
@@ -215,7 +219,7 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, cust
                 style={dark
                   ? { ...typeStep(0), fontFamily: DISPLAY_FONT, fontSize: 31 * s, fontWeight: 800, lineHeight: 1.1, letterSpacing: "-0.005em", color: ink, whiteSpace: "pre-wrap", textWrap: "balance" as never, borderRadius: 8 * s, padding: `${2 * s}px ${4 * s}px`, margin: `0 ${-4 * s}px` }
                   : { fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: ink, whiteSpace: "pre-wrap" }}>
-                {renderInline(mainText || "Callout", hl)}
+                {renderInlineLines(mainText || "Callout", hl, walk)}
               </div>
               {extraStems.length > 0 && (
                 <ul style={{ margin: `${10 * s}px 0 0 ${6 * s}px`, padding: 0, listStyle: "none", display: "grid", gap: 8 * s }}>
@@ -229,6 +233,7 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, cust
                     return (
                     <li
                       key={i}
+                      {...(walk ? { "data-sa-walk": "" } : {})}
                       {...spotProps(`line:${i}`)}
                       className={[dark ? "sa-type" : "", spotProps(`line:${i}`).className ?? ""].join(" ").trim() || undefined}
                       onDoubleClick={onEditBullet ? (e) => { e.stopPropagation(); onEditBullet(i); } : undefined}

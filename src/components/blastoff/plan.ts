@@ -218,6 +218,10 @@ export interface BlastFrame {
    *  speed run or something would help with the frame count, time estimates." A question card he
    *  flies through: it counts as half a frame and ~4 s (reel.ts SPEED_RUN). Only set cards take it. */
   pace?: "speed";
+  /** SPACE WALK (2026-09-13). Lee: "make any slide turn into a spacewalk. toggle it on, and every
+   *  new line I shift enter in the text is revealed via space. final one advances slide." Each line
+   *  of the heading and each bullet comes in on its own space on /film (inline-md WalkLinesContext). */
+  walk?: true;
   /** NO CHIP (2026-09-12). Lee: "sometimes I want a callout slide but with no callout. I just like
    *  the big text format. So just a 'none' option would be great." The slide stays whatever kind it
    *  is — so switching back brings the chip and its colour with it — and only the chip is dropped. */

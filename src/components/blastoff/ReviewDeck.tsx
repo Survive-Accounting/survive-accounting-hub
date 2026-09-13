@@ -1468,6 +1468,13 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
       label: `🏫 Campus banner · ${bannerOn ? "on" : "off"}`, title: "The slow Power Four banner along the lower third",
       run: () => patch(f.id, { banner: f.banner === "on" ? undefined : "on" }),
     });
+    // SPACE WALK (2026-09-13, plan.ts `walk`): each Shift+Enter line and each bullet comes in on its own
+    // space on /film; the last one's space moves to the next slide.
+    if (isCalloutKind(f.kind) || f.kind === "slogan") items.push({
+      label: `🚶 Space walk · ${f.walk ? "on" : "off"}`,
+      title: f.walk ? "On: on film, each line of the text comes in on its own space. Click to turn off." : "Reveal this slide's text one line per space on film — every Shift+Enter line and every bullet",
+      run: () => patch(f.id, { walk: f.walk ? undefined : true }),
+    });
     // THE CAMERA (2026-09-05): cycles the spots; "free" is placed by dragging the ring on the stage.
     items.push({ label: `📷 Camera · ${camSpotOf(f)}`, title: `Where Lee sits on this slide — ${CAM_LABEL[camSpotOf(f)]}. Click to cycle.`, run: () => patch(f.id, { cam: CAM_SPOTS[(CAM_SPOTS.indexOf(camSpotOf(f)) + 1) % CAM_SPOTS.length] }) });
     // THE ILLUSTRATION (polish pass): opens the Illustrator face for this slide.

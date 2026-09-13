@@ -132,6 +132,8 @@ export const frameSchema = z.object({
   lead: z.literal(true).optional(),
   // 2026-09-13: a set card he flies through (plan.ts `pace`, reel.ts SPEED_RUN).
   pace: z.enum(["speed"]).optional(),
+  // 2026-09-13: the slide's lines come in one per space on film (plan.ts `walk`).
+  walk: z.literal(true).optional(),
   chip: z.enum(["off"]).optional(),
   chipText: z.string().max(40).optional(),
   // 2026-09-12: a placeholder slide's ask (plan.ts `needs`), and the end-of-topic ad's picks.

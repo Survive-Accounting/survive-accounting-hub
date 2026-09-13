@@ -23,7 +23,9 @@
 // only place brand-cards reaches into blastoff/, and layout.ts is pure geometry — no React, no
 // cycle back.)
 import { CONTENT_BOTTOM, SAFE } from "@/components/blastoff/layout";
-import { renderInline } from "@/components/canvas/inline-md";
+import { useContext } from "react";
+
+import { WalkLinesContext, renderInlineLines } from "@/components/canvas/inline-md";
 
 import { BoltBoil } from "./bolt-boil";
 import { sloganSize } from "./slogans";
@@ -71,6 +73,8 @@ export function SloganCard({ w, h, text, art = false, live = true, style }: {
   style?: React.CSSProperties;
 }) {
   const words = text.trim();
+  // SPACE WALK (inline-md WalkLinesContext): each line of the slogan is one space.
+  const walk = useContext(WalkLinesContext);
   const size = sloganSize(h, words, art);
   const band = sloganBand(art);
   // Never wider than the Shorts safe column, and centred on the frame the way the intro's topic
@@ -102,7 +106,7 @@ export function SloganCard({ w, h, text, art = false, live = true, style }: {
           color: WHITE, textAlign: "center", maxWidth, textWrap: "balance" as never,
           textShadow: `0 ${Math.max(1, Math.round(size * 0.012))}px 0 rgba(0,0,0,0.55), 0 ${Math.round(size * 0.03)}px ${Math.round(size * 0.05)}px rgba(0,0,0,0.5), 0 ${Math.round(size * 0.09)}px ${Math.round(size * 0.2)}px rgba(0,0,0,0.4)`,
         }}>
-          {renderInline(words, { bg: "rgba(252,163,17,0.30)", color: WHITE })}
+          {renderInlineLines(words, { bg: "rgba(252,163,17,0.30)", color: WHITE }, walk)}
         </div>
       </div>
     </div>

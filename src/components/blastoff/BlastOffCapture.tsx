@@ -57,7 +57,7 @@
 // pop-out copies the URL, the pop-out too. Nothing else moved: F4 still never moves the slide, C
 // still counts in from slide 0, and the rounds' "from slide 1" is still slide 1.
 import { Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
@@ -132,6 +132,7 @@ const FILM_SELECT_CSS = `
 .film-mode, .film-mode * { -webkit-user-select: none !important; user-select: none !important; -webkit-user-drag: none; }
 .film-mode.sa-shift .sa-pv-node, .film-mode.sa-shift .sa-pv-node * { -webkit-user-select: text !important; user-select: text !important; }
 .film-mode ::selection { background: transparent; }
+.film-mode [data-sa-walk-off] { visibility: hidden !important; }
 .film-mode.sa-shift .sa-pv-node ::selection { background: rgba(252,163,17,0.9); color: #0B0F1E; }
 .film-mode [data-sa-film-chrome], .film-mode [data-sa-film-chrome] * { -webkit-user-select: text !important; user-select: text !important; }
 .film-mode [data-sa-film-chrome] ::selection { background: Highlight; color: HighlightText; }
@@ -225,16 +226,20 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // A, L, E, Rev/Exp as the spacebar walks them (rubric.ts revealGroups). `steps` is the one
   // count both kinds share; every other slide has none and space leaves the frame at once.
   const rubric = frame?.kind === "rubric" ? frame.rubric ?? null : null;
+  const walkOn = !!frame?.walk && frame.kind !== "rubric" && frame.kind !== "cluster" && frame.kind !== "survibes" && frame.kind !== "teaser";
   const survibes = frame?.kind === "survibes";
   // THE ACCOUNTING CYCLE (2026-09-12) roams like the map: one field, one set of gestures.
   const cycle = frame?.kind === "cycle";
   // THE TEASER (2026-09-13, teaser.ts): the callout chips come in one per click — or space — as steps.
   const teaser = frame?.kind === "teaser";
+  // SPACE WALK (2026-09-13, plan.ts `walk`): any text slide's lines come in one per space. The count is
+  // read off the rendered slide (every [data-sa-walk] line), so it follows whatever the text is.
+  const [walkCount, setWalkCount] = useState(0);
   // THE RUBRIC'S TAKE (2026-09-11): what a box click set and whether Tab has the Rev/Exp row in —
   // this take, this slide, never saved (frame-step.ts). A new slide starts clean.
   const [rubricTakeState, setRubricTake] = useState<{ id: string; over: Partial<Record<RubricKey, RubricArrow[]>>; revExp?: boolean }>({ id: "", over: {} });
   const rubricRevExp = rubric ? (rubricTakeState.id === frameId ? rubricTakeState.revExp : undefined) ?? revExpShown(rubric) : false;
-  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric, rubricRevExp) : survibes ? survibesSteps() : teaser ? teaserSteps(frame!) : 0;
+  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric, rubricRevExp) : survibes ? survibesSteps() : teaser ? teaserSteps(frame!) : walkOn ? Math.max(1, walkCount) : 0;
   const [shotState, setShotState] = useState<{ id: string; shot: number }>({ id: "", shot: 0 });
   const shot = steps > 0 && shotState.id === frameId ? Math.min(shotState.shot, Math.max(0, steps - 1)) : 0;
   const setShot = useCallback((f: (s: number) => number) => { const id = frameId ?? ""; setShotState((p) => ({ id, shot: Math.max(0, f(p.id === id ? p.shot : 0)) })); }, [frameId]);
@@ -567,7 +572,8 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     if (rubric) setShot(() => 0);
     if (rubric) setRubricTake({ id: "", over: {} });
     if (teaser) setShot(() => 0);
-  }, [resetTake, scratchTake, rubric, teaser, setShot]);
+    if (walkOn) setShot(() => 0);
+  }, [resetTake, scratchTake, rubric, teaser, walkOn, setShot]);
   // F3 SCRAP (capture/scrap.tsx): the pop-out owns it while a pop-out take is live; otherwise this
   // window does. A retake starts from the top, so the restart also walks a map back to shot one.
   const scrapOwner = popout.isPopout || take === null;
@@ -671,6 +677,17 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
 
   // What FrameView's map draws from (cluster/ClusterStage.tsx): in the main window's NEXT
   // preview the map is its bird's-eye with everything revealed — honest about what comes next.
+  // SPACE WALK: after every render, count the slide's marked lines and hide the ones not reached yet.
+  // An attribute the renderers never set (data-sa-walk-off), so React never fights it; the CSS rule
+  // lives in FILM_SELECT_CSS. The NEXT preview (main window while the pop-out drives) shows them all.
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const lines = Array.from(host.querySelectorAll<HTMLElement>("[data-sa-walk]"));
+    const on = walkOn && !preview;
+    if (on && lines.length !== walkCount) setWalkCount(lines.length);
+    lines.forEach((el, k) => { if (on && k > shot) el.setAttribute("data-sa-walk-off", ""); else el.removeAttribute("data-sa-walk-off"); });
+  });
   const clusterFilm = useMemo<ClusterFilm | null>(() => (cluster || cycle ? { shot, roam: fieldRoam.roam, overview: preview, arrowOverrides, onArrowCycle } : null), [cluster, cycle, shot, fieldRoam.roam, preview, arrowOverrides, onArrowCycle]);
   // The rubric's step, the same way; in the NEXT preview the block is at rest with every arrow on.
   const rubricFilm = useMemo<FrameStep | null>(() => {
@@ -843,6 +860,11 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
             </span>
           )}
           {/* THE RUBRIC: which reveal the block is on — 0 of N is the bare block. */}
+          {walkOn && !preview && walkCount > 0 && (
+            <span title="Space walk: space brings in the next line; off the last one, the next slide. Shift+space takes one back." style={{ color: CREAM, fontWeight: 700 }}>
+              line {Math.min(shot + 1, walkCount)} / {walkCount}
+            </span>
+          )}
           {rubric && !preview && steps > 1 && (
             <span title="space reveals the next box's arrows (A, L, E, then Rev/Exp); shift+space hides it again; off the last one, the next slide" style={{ color: CREAM, fontWeight: 700 }}>
               reveal {shot} / {steps - 1}

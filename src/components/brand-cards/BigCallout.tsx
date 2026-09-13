@@ -23,7 +23,9 @@
 // brand card standing in for the logo).
 import { CONTENT_BOTTOM, SAFE } from "@/components/blastoff/layout";
 
-import { renderInline } from "@/components/canvas/inline-md";
+import { useContext } from "react";
+
+import { WalkLinesContext, renderInline, renderInlineLines } from "@/components/canvas/inline-md";
 
 import { BoltBoil } from "./bolt-boil";
 
@@ -96,6 +98,8 @@ export function BigCallout({ w, h, label, accent, text, bullets = [], art = fals
   style?: React.CSSProperties;
 }) {
   const words = text.trim();
+  // SPACE WALK (inline-md WalkLinesContext): each heading line and each line under it is one space.
+  const walk = useContext(WalkLinesContext);
   const lines = bullets.map((b) => b.trim()).filter(Boolean);
   const size = bigCalloutSize(h, words, { bullets: lines.length, art });
   const band = bigCalloutBand(art);
@@ -155,7 +159,7 @@ export function BigCallout({ w, h, label, accent, text, bullets = [], art = fals
               (canvas/inline-md), with the highlight tuned for white-on-black: the card's amber
               wash on cream paper is unreadable here, so the mark carries the gold and the ink
               stays white. */}
-          {renderInline(words, { bg: "rgba(252,163,17,0.30)", color: WHITE })}
+          {renderInlineLines(words, { bg: "rgba(252,163,17,0.30)", color: WHITE }, walk)}
         </div>
 
         {/* THE LINES UNDER IT — a beat later than the heading, so the eye takes the statement
@@ -167,7 +171,7 @@ export function BigCallout({ w, h, label, accent, text, bullets = [], art = fals
             maxWidth, fontFamily: BODY_FONT, fontSize: bulletSize, fontWeight: 600, lineHeight: 1.25,
             color: "rgba(245,239,230,0.86)", textAlign: "center", textWrap: "balance" as never,
           }}>
-            {lines.map((l, i) => <div key={i}>{renderInline(l, { bg: "rgba(252,163,17,0.30)", color: WHITE })}</div>)}
+            {lines.map((l, i) => <div key={i} {...(walk ? { "data-sa-walk": "" } : {})}>{renderInline(l, { bg: "rgba(252,163,17,0.30)", color: WHITE })}</div>)}
           </div>
         )}
       </div>

@@ -14,11 +14,30 @@
 // click (its TEASE_CSS is scoped to [data-sa-phone]). Everywhere else — the student's cards on
 // /learn most of all — a teased word renders as ordinary text, because a promise Lee makes on
 // camera must never become a permanent blur on the thing a student is revising from.
-import type { ReactNode } from "react";
+import { Fragment, createContext, type ReactNode } from "react";
+
+/** SPACE WALK (2026-09-13, plan.ts `walk`). Lee: "make any slide turn into a spacewalk. toggle it
+ *  on, and every new line I shift enter in the text is revealed via space. final one advances
+ *  slide." True inside a slide that walks: its text renderers mark every line — each line of a
+ *  heading, each bullet — with data-sa-walk, and the film surface shows them one space at a time.
+ *  Off (everywhere by default) nothing is marked and the text renders exactly as before. */
+export const WalkLinesContext = createContext(false);
+
+/** renderInline, but on a walking slide each line of `text` is its own marked span (a marker
+ *  crossing a line break closes at the break there — the one cost of walking by line). */
+export function renderInlineLines(text: string, hl: { bg?: string; color?: string } | undefined, walk: boolean): ReactNode {
+  if (!walk) return renderInline(text, hl);
+  return text.split(/\n/).map((line, i) => (
+    <Fragment key={i}>{i > 0 ? String.fromCharCode(10) : null}<span data-sa-walk="">{renderInline(line, hl)}</span></Fragment>
+  ));
+}
 
 /** Is this run already teased — either wrapped itself, or hugged by the markers? */
-export const isTeased = (text: string, start: number, end: number): boolean =>
-  end > start && (/^\*[^*][\s\S]*\*$/.test(text.slice(start, end)) || (text[start - 1] === "*" && text[end] === "*"));
+// A function declaration, not an arrow: since space walk (2026-09-13) PhoneFrame imports this file,
+// which puts it on the canvas render path (tdz-graph.test.ts).
+export function isTeased(text: string, start: number, end: number): boolean {
+  return end > start && (/^\*[^*][\s\S]*\*$/.test(text.slice(start, end)) || (text[start - 1] === "*" && text[end] === "*"));
+}
 
 /** BLUR THE SELECTION (2026-09-12). Lee: "it will be better if I can just like highlight a text
  *  item in the editor and have a popup tooltip for blur or unblur. * is taking too long." Wraps

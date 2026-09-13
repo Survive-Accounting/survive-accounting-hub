@@ -17,6 +17,7 @@
 import { memo, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
+import { WalkLinesContext } from "@/components/canvas/inline-md";
 import { BoltZoom, CampusBanner } from "@/components/brand-cards/BoltZoom";
 import { COLD_OPEN_CLASS, pieceClass } from "@/components/brand-cards/cold-open";
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
@@ -373,7 +374,10 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
         ...(column ? { justifySelf: "start", placeItems: "start", marginLeft: Math.round(w * SAFE.left), width: Math.round(w * (SAFE.right - SAFE.left)) } : {}),
         ...(moment ? { filter: "blur(2px) brightness(0.35)", transition: "filter 480ms ease" } : { transition: "filter 480ms ease" }),
         ...stageStyle }}>
-        <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} layout={layout} coldOpen={opener ? coldOpen : null} opener={opener} />
+        {/* SPACE WALK (plan.ts `walk`): the text renderers under it mark their lines; /film reveals them. */}
+        <WalkLinesContext.Provider value={!!frame.walk}>
+          <FrameView frame={frame} set={set} scale={phoneScale(frame, w)} topicName={topicName} progress={progress} live={capture} cardOverride={cardOverride} layout={layout} coldOpen={opener ? coldOpen : null} opener={opener} />
+        </WalkLinesContext.Provider>
         {/* THE OPTIONAL ILLUSTRATION — second row of the stage grid, under the card; nothing when
             absent. A placed one (or a blank slide's) is the phone-level layer below instead. */}
         {frame.illustration?.assetUrl && canIllustrate(frame.kind) && !isPlaced(frame.kind, frame.illustration, big) && (
