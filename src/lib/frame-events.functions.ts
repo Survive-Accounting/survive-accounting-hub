@@ -73,6 +73,8 @@ export const recordDraftGeneration = createServerFn({ method: "POST" })
     setId: z.string().min(1).max(200),
     topicId: z.string().max(200).nullable().optional(),
     scopeKey: z.string().min(1).max(300),
+    /** A re-split of one candidate points at the pass it split. */
+    parentGenerationId: z.string().uuid().nullable().optional(),
     generator: z.enum(["split_run", "slide_text", "strategy_short", "draft_pass"]),
     reelCount: z.number().int().min(0).nullable().optional(),
     model: z.string().max(120).nullable().optional(),
@@ -92,7 +94,7 @@ export const recordDraftGeneration = createServerFn({ method: "POST" })
       if (last.error) return fail("generation (version read)", last.error);
       const version = ((last.data?.[0]?.version as number | undefined) ?? 0) + 1;
       const gen = await db.from("frame_generations").insert({
-        set_id: data.setId, topic_id: data.topicId ?? null, scope_key: data.scopeKey, version,
+        set_id: data.setId, topic_id: data.topicId ?? null, scope_key: data.scopeKey, version, parent_generation_id: data.parentGenerationId ?? null,
         generator: data.generator, status: "draft", frame_count: data.slots.length, reel_count: data.reelCount ?? null,
         model: data.model ?? null, prompt_version: data.promptVersion ?? null,
         input: data.input ?? {}, output: data.output ?? {}, created_by: data.who ?? null,
@@ -147,6 +149,23 @@ export const markGenerationBuilt = createServerFn({ method: "POST" })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn("[frame-ledger] built threw:", msg);
+      return { ok: false, error: msg };
+    }
+  });
+
+/** A DRAFT THAT WASN'T BUILT (Studio prompt 3): "Propose again" supersedes the passes it replaces,
+ *  closing the panel without building discards them. Only drafts move — a built run is history. */
+export const setGenerationStatus = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ ids: z.array(z.string().uuid()).min(1).max(50), status: z.enum(["superseded", "discarded"]) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    await gate();
+    try {
+      const db = await ledgerDb();
+      const r = await db.from("frame_generations").update({ status: data.status }).in("id", data.ids).eq("status", "draft");
+      return r.error ? fail(`generation ${data.status}`, r.error) : { ok: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn("[frame-ledger] status threw:", msg);
       return { ok: false, error: msg };
     }
   });
