@@ -2,7 +2,29 @@
 // back never ends a split, scraps come out of the split they're in, one ffmpeg line per split.
 import { describe, expect, test } from "bun:test";
 
-import { keptSeconds, partFileName, sliceCommands, splitRanges, scrapsWithin, tidyArrivals } from "./take-slice";
+import { editScript, keptSeconds, mergeCuts, partFileName, pauseCuts, sliceCommands, speedWindows, splitRanges, scrapsWithin, tidyArrivals } from "./take-slice";
+
+describe("cutting the pauses", () => {
+  // words at 1–2, 2.3–3 (short gap), 6–7 (long gap), 7.2–8; the file is 12 s
+  const words = [{ start: 1, end: 2 }, { start: 2.3, end: 3 }, { start: 6, end: 7 }, { start: 7.2, end: 8 }];
+  test("gentle: silence over 1.2 s comes out with a breath either side, plus the head and tail", () => {
+    const cuts = pauseCuts(words, 12, "gentle");
+    expect(cuts).toEqual([{ start: 0, end: 0.75 }, { start: 3.25, end: 5.75 }, { start: 8.25, end: 12 }]);
+    expect(pauseCuts(words, 12, "off")).toEqual([]);
+  });
+  test("a speed-run slide's window keeps its pauses", () => {
+    const keep = speedWindows([{ frameId: "a", take: 0, atMs: 0 }, { frameId: "speed", take: 0, atMs: 4000 }, { frameId: "b", take: 0, atMs: 5000 }], 12, (id) => id === "speed");
+    expect(keep).toEqual([{ start: 4, end: 5 }]);
+    expect(pauseCuts(words, 12, "gentle", keep)).toEqual([{ start: 0, end: 0.75 }, { start: 3.25, end: 4 }, { start: 5, end: 5.75 }, { start: 8.25, end: 12 }]);
+  });
+  test("scraps and pauses merge into one cut list; the script runs from its own folder", () => {
+    expect(mergeCuts([{ start: 3, end: 5 }], [{ start: 4, end: 6 }, { start: 8, end: 9 }])).toEqual([{ start: 3, end: 6 }, { start: 8, end: 9 }]);
+    const s = editScript(["ffmpeg -i \"a.mp4\" \"a.cut.mp4\""]);
+    expect(s).toContain("cd /d \"%~dp0\"");
+    expect(s).toContain("winget install --id Gyan.FFmpeg -e");
+    expect(s).toContain("ffmpeg -i \"a.mp4\" \"a.cut.mp4\"");
+  });
+});
 
 const a = (frameId: string, take: number, s: number) => ({ frameId, take, atMs: s * 1000 });
 

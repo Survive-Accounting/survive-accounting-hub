@@ -133,7 +133,10 @@ const FILM_SELECT_CSS = `
 .film-mode, .film-mode * { -webkit-user-select: none !important; user-select: none !important; -webkit-user-drag: none; }
 .film-mode.sa-shift .sa-pv-node, .film-mode.sa-shift .sa-pv-node * { -webkit-user-select: text !important; user-select: text !important; }
 .film-mode ::selection { background: transparent; }
-.film-mode [data-sa-walk-off] { visibility: hidden !important; }
+.film-mode [data-sa-walk-off] { opacity: 0 !important; animation: none !important; }
+@keyframes sa-walk-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.film-mode [data-sa-walk-in] { animation: sa-walk-in 520ms ease-out both !important; }
+@media (prefers-reduced-motion: reduce) { .film-mode [data-sa-walk-in] { animation: none !important; } }
 .film-mode.sa-shift .sa-pv-node ::selection { background: rgba(252,163,17,0.9); color: #0B0F1E; }
 .film-mode [data-sa-film-chrome], .film-mode [data-sa-film-chrome] * { -webkit-user-select: text !important; user-select: text !important; }
 .film-mode [data-sa-film-chrome] ::selection { background: Highlight; color: HighlightText; }
@@ -240,7 +243,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // this take, this slide, never saved (frame-step.ts). A new slide starts clean.
   const [rubricTakeState, setRubricTake] = useState<{ id: string; over: Partial<Record<RubricKey, RubricArrow[]>>; revExp?: boolean }>({ id: "", over: {} });
   const rubricRevExp = rubric ? (rubricTakeState.id === frameId ? rubricTakeState.revExp : undefined) ?? revExpShown(rubric) : false;
-  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric, rubricRevExp) : survibes ? survibesSteps() : teaser ? teaserSteps(frame!) : walkOn ? Math.max(1, walkCount) : 0;
+  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric, rubricRevExp) : survibes ? survibesSteps() : teaser ? teaserSteps(frame!) : walkOn ? walkCount + 1 : 0;
   const [shotState, setShotState] = useState<{ id: string; shot: number }>({ id: "", shot: 0 });
   const shot = steps > 0 && shotState.id === frameId ? Math.min(shotState.shot, Math.max(0, steps - 1)) : 0;
   const setShot = useCallback((f: (s: number) => number) => { const id = frameId ?? ""; setShotState((p) => ({ id, shot: Math.max(0, f(p.id === id ? p.shot : 0)) })); }, [frameId]);
@@ -695,7 +698,15 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     const lines = Array.from(host.querySelectorAll<HTMLElement>("[data-sa-walk]"));
     const on = walkOn && !preview;
     if (on && lines.length !== walkCount) setWalkCount(lines.length);
-    lines.forEach((el, k) => { if (on && k > shot) el.setAttribute("data-sa-walk-off", ""); else el.removeAttribute("data-sa-walk-off"); });
+    // Step 0 is the chip alone (Lee: "the callout badge is visible, but spacebar walks out each thing
+    // under it. It has slight fade in"); step N shows N lines. A line coming in gets the fade — a
+    // keyframe, not a transition, so it wins over the card's own typewriter animation.
+    lines.forEach((el, k) => {
+      const hide = on && k >= shot;
+      const was = el.hasAttribute("data-sa-walk-off");
+      if (hide) { el.setAttribute("data-sa-walk-off", ""); el.removeAttribute("data-sa-walk-in"); }
+      else if (was) { el.removeAttribute("data-sa-walk-off"); el.removeAttribute("data-sa-walk-in"); void el.offsetWidth; el.setAttribute("data-sa-walk-in", ""); }
+    });
   });
   const clusterFilm = useMemo<ClusterFilm | null>(() => (cluster || cycle ? { shot, roam: fieldRoam.roam, overview: preview, arrowOverrides, onArrowCycle } : null), [cluster, cycle, shot, fieldRoam.roam, preview, arrowOverrides, onArrowCycle]);
   // The rubric's step, the same way; in the NEXT preview the block is at rest with every arrow on.
@@ -871,7 +882,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
           {/* THE RUBRIC: which reveal the block is on — 0 of N is the bare block. */}
           {walkOn && !preview && walkCount > 0 && (
             <span title="Space walk: space brings in the next line; off the last one, the next slide. Shift+space takes one back." style={{ color: CREAM, fontWeight: 700 }}>
-              line {Math.min(shot + 1, walkCount)} / {walkCount}
+              line {Math.min(shot, walkCount)} / {walkCount}
             </span>
           )}
           {rubric && !preview && steps > 1 && (

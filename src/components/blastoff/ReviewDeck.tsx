@@ -124,7 +124,7 @@ import { POPOUT_BLOCKED, POPOUT_FEATURES, POPOUT_NAME, POPOUT_OPENED } from "./c
 import { ZOOM_VARIANTS } from "@/components/brand-cards/bolt-zoom";
 // THE SLOGANS (2026-09-08) — the three lines, in the one place they are allowed to live
 // (brand-cards/slogans.ts). The quick row inserts them; the Editor offers them as chips.
-import { CRAM_NOT_LECTURE, OUTRO_SLOGANS, SLOGANS, TAGLINE } from "@/components/brand-cards/slogans";
+import { CRAM_NOT_LECTURE, OUTRO_LINE, OUTRO_SLOGANS, SLOGANS, outroLine } from "@/components/brand-cards/slogans";
 import { PHRASE_SLIDE_KINDS } from "./prompter";
 import { ADS, AD_LABEL } from "./AdSlide";
 import { PhoneFrame } from "./PhoneFrame";
@@ -1499,7 +1499,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     if (f.kind === "open") return "Black · the glow wordmark · Power Four ticker";
     if (f.kind === "intro") return f.text?.trim() || set.name;
     if (f.kind === "bio") return "Lee Ingram · BAccy · MAccy — Ole Miss";
-    if (f.kind === "outro") return f.text?.trim() || TAGLINE;
+    if (f.kind === "outro") return outroLine(f.text);
     if (f.kind === "ceq") return ceq ? (ceq.noteOnly ? ceq.stem : `${ceq.label} · ${ceq.stem}`) : "— card missing from the set —";
     if (f.kind === "cheat") return [f.title, f.body].filter(Boolean).join(" — ") || "(empty cheat code)";
     if (f.kind === "ad") return f.title?.trim() || ADS[f.ad ?? "greek"].headline;
@@ -1714,7 +1714,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
         {/* THE SLIDE BANK (2026-09-12) — its own row above the strip: the saved slides, then a
             blank slot. Copy a slide, click the slot, it is kept for any set, any time. */}
         {stripOpen && (
-          <SlideBank setId={set.id} takeClip={clipAdds} pasteLabel={selIdx < 0 ? "Paste at the end" : `Paste after slide ${selIdx + 1}`}
+          <SlideBank setId={set.id} set={set} takeClip={clipAdds} pasteLabel={selIdx < 0 ? "Paste at the end" : `Paste after slide ${selIdx + 1}`}
             onPaste={(it) => { const { frames: next, ids } = pasteAfter(frames, [it.frame], selIdx < 0 ? frames.length - 1 : selIdx); commit(next); setPick({ ids, anchor: ids[0] ?? null }); flashNote(`🗂 ${it.label} pasted in`); }} />
         )}
         {/* THE INSERT TOGGLE AND ITS CHIP ROWS LEFT (Lee, 2026-09-10: "Insert a slide isn't needed.
@@ -2228,6 +2228,10 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
                   let me write whatever text I want." */}
               <button style={chip(sel.chipText !== undefined, RED)} title={sel.chipText !== undefined ? "Back to this kind's own chip" : "Your own words on the chip, in red"}
                 onClick={() => onPatch({ chipText: sel.chipText === undefined ? "HEADS UP" : undefined, chip: undefined })}>Custom</button>
+              {/* SPACE WALK, where he looks for it (2026-09-13, Lee: "I'm not sure where to find the space
+                  walk toggle in the editor"). Also in the slide's ⋯ menu. */}
+              <button style={chip(!!sel.walk, SKY)} title={sel.walk ? "Space walk on: on film the chip shows first, then each line of the heading and each bullet fades in on its own space. Click to turn off." : "Space walk: on film, the chip first, then every line fades in one space at a time — a calmer pace, less text at once"}
+                onClick={() => onPatch({ walk: sel.walk ? undefined : true })}>🚶 Space walk{sel.walk ? " · on" : ""}</button>
             </div>
             {sel.chipText !== undefined && (
               <input style={{ ...field, marginTop: 2 }} value={sel.chipText} placeholder="HEADS UP" maxLength={40}
@@ -2321,11 +2325,11 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
             line appears on now — the cold open's default was retired the same day. */}
         {sel.kind === "outro" && (
           <div className="flex flex-col" style={{ gap: 8 }}>
-            <label style={{ fontSize: 11, color: MUTED }}>Slogan on the outro (blank = the tagline)
-              <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder={TAGLINE} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+            <label style={{ fontSize: 11, color: MUTED }}>Slogan on the outro (blank = "{OUTRO_LINE}")
+              <textarea rows={1} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder={OUTRO_LINE} onChange={(e) => onPatch({ text: e.target.value })} /></label>
             <div className="flex flex-wrap" style={{ gap: 6 }}>
               {OUTRO_SLOGANS.map((s) => (
-                <button key={s.id} style={chip((sel.text?.trim() || TAGLINE) === s.text, GOLD)} title={s.blurb} onClick={() => onPatch({ text: s.text === TAGLINE ? undefined : s.text })}>{s.text}</button>
+                <button key={s.id} style={chip(outroLine(sel.text) === s.text, GOLD)} title={s.blurb} onClick={() => onPatch({ text: s.text === OUTRO_LINE ? undefined : s.text })}>{s.text}</button>
               ))}
             </div>
           </div>

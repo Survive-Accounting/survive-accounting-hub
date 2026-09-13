@@ -33,9 +33,10 @@ describe("space walk", () => {
 
   test("/film counts the lines off the slide, hides the unreached ones, and ` starts over", () => {
     const capture = readFileSync(join(import.meta.dir, "BlastOffCapture.tsx"), "utf8");
-    expect(capture).toContain("walkOn ? Math.max(1, walkCount) : 0");
+    expect(capture).toContain("walkOn ? walkCount + 1 : 0");                 // step 0 = the chip alone
     expect(capture).toContain('querySelectorAll<HTMLElement>("[data-sa-walk]")');
-    expect(capture).toContain(".film-mode [data-sa-walk-off] { visibility: hidden !important; }");
+    expect(capture).toContain(".film-mode [data-sa-walk-off] { opacity: 0 !important; animation: none !important; }");
+    expect(capture).toContain("@keyframes sa-walk-in");
     expect(capture).toContain("if (walkOn) setShot(() => 0);");
     const phone = readFileSync(join(import.meta.dir, "PhoneFrame.tsx"), "utf8");
     expect(phone).toContain("<WalkLinesContext.Provider value={!!frame.walk}>");

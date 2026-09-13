@@ -35,7 +35,9 @@ export interface Slogan {
 export const SLOGANS: readonly Slogan[] = [
   { id: "b-to-a", text: "I'll take you from a B to an A.", art: true, blurb: "the promise — this one carries an illustration" },
   { id: "cram", text: TAGLINE, art: false, blurb: "the site tagline — text only" },
-  { id: "yt-shorts", text: "Like YT shorts for exam prep.", art: false, blurb: "Lee says this one word for word in outros — text only" },
+  // 2026-09-13, Lee: "Change outro card to 'Like Reels for exam prep.' not the YT Shorts one." The id
+  // stays (saved picks refer to it); the words are the site's tagline since 09-11.
+  { id: "yt-shorts", text: "Like Reels for exam prep.", art: false, blurb: "the outro's line — Lee says it word for word · text only" },
   // 2026-09-09, Lee: "one thing I do want to add when it comes to the slogan slides is
   // 'my exam looked nothing like…' — I know I can change these via text but it's nice to have
   // the canned one so I know which ones I have available to use." The ellipsis is the point:
@@ -53,7 +55,17 @@ export const CRAM_NOT_LECTURE = "This is a cram video—not a lecture.";
  *  shorts for exam prep.' on the outro slides too. Like two versions I could use." The
  *  B-to-an-A line is deliberately not here — that one is a slide of its own, mid-video, with a
  *  picture. The tagline is first because it is the outro's default. */
-export const OUTRO_SLOGANS: readonly Slogan[] = SLOGANS.filter((s) => s.id === "cram" || s.id === "yt-shorts");
+export const OUTRO_SLOGANS: readonly Slogan[] = SLOGANS.filter((s) => s.id === "yt-shorts" || s.id === "cram");
+
+/** THE OUTRO'S LINE (2026-09-13): "Like Reels for exam prep." — its default now. */
+export const OUTRO_LINE = "Like Reels for exam prep.";
+/** The line an outro slide shows: his words, the retired YT-shorts line read as the Reels one (saved
+ *  slides carry it verbatim), and blank = OUTRO_LINE. A function declaration (render path). */
+export function outroLine(text: string | undefined): string {
+  const t = text?.trim() ?? "";
+  if (!t || /^like yt shorts for exam prep\.?$/i.test(t)) return OUTRO_LINE;
+  return t;
+}
 
 /** One slogan by id; undefined for anything else. A function DECLARATION, not an arrow const:
  *  this module is on the canvas render path (SloganCard → frame-view) and the TDZ ratchet

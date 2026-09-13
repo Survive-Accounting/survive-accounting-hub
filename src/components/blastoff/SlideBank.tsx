@@ -18,15 +18,20 @@
 // click and the choice is remembered in this browser.
 import { useEffect, useState } from "react";
 
+import type { BoothSetInfo } from "@/lib/talkthrough.functions";
+
 import { CREAM, EDGE, GOLD, MUTED, PANEL } from "./BlastOffEditor";
+import { PhoneFrame } from "./PhoneFrame";
 import { BANK_EVENT, addToBank, loadBank, pasteBlocker, removeFromBank, saveBank, type BankAdd, type BankItem } from "./slide-bank";
 
 const MINT = "#3BF5A0";
 const RED = "#FF8B7E";
 const OPEN_KEY = "sa-slide-bank-open";
 
-export function SlideBank({ setId, pasteLabel, onPaste, takeClip }: {
+export function SlideBank({ setId, set, pasteLabel, onPaste, takeClip }: {
   setId: string;
+  /** For the hover peek — the slide drawn the way it films (a card from another set can't draw here). */
+  set: BoothSetInfo;
   /** What clicking a saved card will do right now: "Paste after slide 4", or "Paste at the end". */
   pasteLabel: string;
   onPaste: (item: BankItem) => void;
@@ -35,6 +40,9 @@ export function SlideBank({ setId, pasteLabel, onPaste, takeClip }: {
 }) {
   const [items, setItems] = useState<BankItem[]>(() => loadBank());
   const [err, setErr] = useState<string | null>(null);
+  // THE PEEK (2026-09-13, Lee: "let me peek at the slides banked on hover, so I can know what it's
+  // referring to"): the saved slide, drawn small under the chip, while the pointer is on it.
+  const [peek, setPeek] = useState<{ id: string; x: number; y: number } | null>(null);
   // Closed on the server and on first paint; the remembered choice is read after mount.
   const [open, setOpen] = useState(false);
   useEffect(() => { try { setOpen(localStorage.getItem(OPEN_KEY) === "1"); } catch { /* storage blocked: stays folded */ } }, []);
@@ -62,7 +70,10 @@ export function SlideBank({ setId, pasteLabel, onPaste, takeClip }: {
       {open && items.map((it) => {
         const blocked = pasteBlocker(it, setId);
         return (
-          <span key={it.id} style={{ display: "inline-flex", alignItems: "stretch", border: `1px solid ${blocked ? EDGE : `${GOLD}66`}`, borderRadius: 8, background: PANEL, maxWidth: 210, opacity: blocked ? 0.55 : 1 }}>
+          <span key={it.id}
+            onMouseEnter={(e) => { const r = e.currentTarget.getBoundingClientRect(); setPeek({ id: it.id, x: r.left + r.width / 2, y: r.bottom + 8 }); }}
+            onMouseLeave={() => setPeek((p) => (p?.id === it.id ? null : p))}
+            style={{ display: "inline-flex", alignItems: "stretch", border: `1px solid ${blocked ? EDGE : `${GOLD}66`}`, borderRadius: 8, background: PANEL, maxWidth: 210, opacity: blocked ? 0.55 : 1 }}>
             <button type="button" disabled={!!blocked} title={blocked ?? `${pasteLabel} — the slide stays in the bank`} onClick={() => onPaste(it)}
               style={{ font: "inherit", textAlign: "left", minWidth: 0, padding: "4px 8px", background: "transparent", border: "none", borderRadius: 8, cursor: blocked ? "not-allowed" : "pointer", color: CREAM }}>
               <span style={{ display: "block", fontSize: 10.5, fontWeight: 800, whiteSpace: "nowrap" }}>{it.label}</span>
@@ -79,6 +90,18 @@ export function SlideBank({ setId, pasteLabel, onPaste, takeClip }: {
           border: `1px dashed ${MINT}77`, background: "rgba(59,245,160,0.06)", color: MINT }}>
         ＋ paste here
       </button>
+      {open && peek && (() => {
+        const it = items.find((x) => x.id === peek.id);
+        if (!it) return null;
+        const foreignCard = it.frame.kind === "ceq" && !set.ceqs.some((c) => c.id === it.frame.ceqId);
+        return (
+          <span aria-hidden="true" style={{ position: "fixed", left: peek.x, top: Math.min(peek.y, window.innerHeight - 340), transform: "translateX(-50%)", zIndex: 80, pointerEvents: "none", borderRadius: 8, overflow: "hidden", border: `1px solid ${GOLD}`, boxShadow: "0 14px 40px rgba(0,0,0,0.6)", background: "#000", display: "block" }}>
+            {foreignCard
+              ? <span style={{ display: "grid", placeItems: "center", width: 170, height: 302, padding: 12, boxSizing: "border-box", fontSize: 11.5, color: MUTED, textAlign: "center" }}>A card from another set — it only pastes there.<br /><br />{it.snippet}</span>
+              : <PhoneFrame frame={it.frame} frames={[it.frame]} index={0} set={set} w={170} live={false} rounded={false} />}
+          </span>
+        );
+      })()}
       {open && items.length === 0 && !err && <span style={{ fontSize: 10.5, color: MUTED }}>Copy a slide (Ctrl+C), then click the slot to keep it for later.</span>}
       {err && <span style={{ fontSize: 10.5, color: RED }}>{err}</span>}
     </div>

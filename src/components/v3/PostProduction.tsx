@@ -198,6 +198,9 @@ export function PostProduction({ pubKey, title, topicName, coverSeed, onTranscri
   // step 2 — by the time the transcript is back the bytes are usually already there. Direct to
   // storage, so a 400MB file is not a body-limit problem.
   const [upFrac, setUpFrac] = useState<number | null>(null);
+  // The picked file, playable in place — revoked when a different file is picked or the panel closes.
+  const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [upErr, setUpErr] = useState<string | null>(null);
 
@@ -308,7 +311,13 @@ export function PostProduction({ pubKey, title, topicName, coverSeed, onTranscri
             </div>
           )}
           {/* F3 SCRAPS (2026-09-13): the stretches to cut out of this take before it's posted. */}
-          {file && fileChecked && <ScrapCuts setId={setId} takeIndex={takeIndex} file={file} fileSeconds={fileS} />}
+          {/* THE PREVIEW (2026-09-13, Lee: "I definitely want to be sure I can preview a final edited video
+              before posting it"): whatever file is picked plays here — pick the .cut.mp4 to watch the edit. */}
+          {file && previewUrl && (
+            <video src={previewUrl} controls playsInline preload="metadata"
+              style={{ display: "block", marginTop: 10, width: 220, aspectRatio: "9 / 16", background: "#000", borderRadius: 10, border: `1px solid ${V3_EDGE}` }} />
+          )}
+          {file && fileChecked && <ScrapCuts setId={setId} takeIndex={takeIndex} file={file} fileSeconds={fileS} words={words} />}
         </Step>
 
         {/* ── 2 ─────────────────────────────────────────────────────────────────────────────── */}

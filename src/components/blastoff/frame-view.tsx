@@ -30,6 +30,7 @@ import { SetCard, type CardOverride } from "./SetCard";
 import { BIO_CARD, bioCallout } from "./bio-card";
 import { DISPLAY_FONT, V } from "./stage";
 import { OUTRO_CTA_KEY, SurviveOutro } from "./SurviveOutro";
+import { outroLine } from "@/components/brand-cards/slogans";
 import { TeaserFrame } from "./TeaserFrame";
 import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, showCampusBanner, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
@@ -225,7 +226,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // was always here; it only ever ran off `progress`, which nothing on the deck passes, so
     // the card arrived finished. `entrance` is the live path (outro-entrance.ts) and is on
     // wherever the slide is being watched rather than authored.
-    return <SurviveOutro tagline={frame.text?.trim() || undefined} scale={s} live={live} entrance={live}
+    return <SurviveOutro tagline={outroLine(frame.text)} scale={s} live={live} entrance={live}
       ctaSpot={{ state: spot.state(OUTRO_CTA_KEY), flamed: spot.flamed(OUTRO_CTA_KEY), onDown: (e) => spot.onClick(OUTRO_CTA_KEY, e) }} />;
   }
 
