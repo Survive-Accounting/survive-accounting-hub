@@ -19,12 +19,7 @@ export const KING_ALERT_EMAIL = "jking.cim@gmail.com";
  *  null means "a real run". Omitted, it is read from the current request. */
 export async function emailTeam(msg: { subject: string; text: string; html?: string }, opts?: { testTo: string | null }): Promise<{ ok: boolean; test: boolean }> {
   try {
-    let tester: string | null;
-    if (opts) tester = opts.testTo;
-    else {
-      const { testerEmailForRequest } = await import("@/lib/test-mode.functions");
-      tester = await testerEmailForRequest().catch(() => null);
-    }
+    const tester: string | null = opts ? opts.testTo : await testerFromCookie();
     if (tester === "") return { ok: false, test: true };
     const { FOUNDER_EMAIL } = await import("@/lib/comms/send.server");
     const { sendResendEmail } = await import("@/lib/email.server");
@@ -43,10 +38,18 @@ export async function emailTeam(msg: { subject: string; text: string; html?: str
 
 /** Is this request part of a test run? (The same predicate the claim path uses.) */
 export async function isTestRun(): Promise<boolean> {
+  return (await testerFromCookie()) !== null;
+}
+
+/** The tester's address from the request's test cookie — read directly, NOT through
+ *  test-mode.functions: that server-fn module imports the claim flow, which imports this file, and
+ *  the loop made the server bundle's chunk rendering crawl (a deploy timed out on it). */
+async function testerFromCookie(): Promise<string | null> {
   try {
-    const { isTestRequest } = await import("@/lib/test-mode.functions");
-    return await isTestRequest();
-  } catch { return false; }
+    const { readTesterCookie, TEST_TO_COOKIE } = await import("@/lib/test-mode.server");
+    const { getCookie } = await import("@tanstack/react-start/server");
+    return readTesterCookie(getCookie(TEST_TO_COOKIE));
+  } catch { return null; }
 }
 
 export const escHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
