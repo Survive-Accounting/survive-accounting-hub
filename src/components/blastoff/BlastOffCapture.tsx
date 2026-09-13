@@ -73,6 +73,7 @@ import { useDictation } from "@/lib/use-dictation";
 import { BG, CREAM, EDGE, GOLD, MUTED, usePlan } from "./BlastOffEditor";
 import { cannedLinesFor, pickCannedLine, type CannedLine, type CannedSlot } from "./canned-lines";
 import { CaptureArrows } from "./capture/arrows";
+import { CameraBgPicker } from "./capture/CameraBgPicker";
 import { useCaptureCamera } from "./capture/camera";
 import { useFieldRoam } from "./capture/field-roam";
 import { CYCLE_FIELD, cycleHome } from "./cycle-field";
@@ -925,6 +926,10 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
               spot is "off" (PhoneFrame's note) — say so, or the bar reads "off" with a camera on
               screen. Lee: "my camera's out on the right and comes in." */}
           <span title="B cycles the camera">B camera {coldOpen && camNow === "off" ? "corner · the cold open" : camNow}</span>
+          {/* THE CAMERA BACKGROUND (2026-09-13, capture/camera-bg.ts): Original / Blur / Remove and the
+              fill behind a removed background. Main window only — the pop-out hears the change and
+              is the one that cuts, and its client area is the shot. */}
+          {!popout.isPopout && <CameraBgPicker compact />}
           {/* REHEARSAL (2026-09-06, second pass): the toggle lives right here, in the same chrome
               bar as everything else about this take — Lee: "I'd prefer to see it somewhere on
               film." Third pass: the chip is the same R the key is — arm, cancel, or finish. */}
