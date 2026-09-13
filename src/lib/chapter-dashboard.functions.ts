@@ -182,7 +182,10 @@ export const requestChapterSeats = createServerFn({ method: "POST" })
     if (!found) return { ok: false, error: "Sign in again to request seats." };
     const { db, ch } = found;
     await db.from("expand_events").insert({ event: `chapter_seat_request:${ch.id}#${data.seats}` });
-    const { SEAT_PRICE } = await import("@/components/site/ChapterAccess");
+    // From lib/terms, NOT components/site/ChapterAccess: a component file imported from a server
+    // handler drags its whole UI tree into the nitro bundle (that is what timed out a deploy).
+    const { SEAT_PRICE_CENTS } = await import("@/lib/terms");
+    const SEAT_PRICE = SEAT_PRICE_CENTS / 100;
     const { emailTeam, escHtml, isTestRun } = await import("@/lib/team-alerts.server");
     const who = String(ch.admin_name_role ?? "The scholarship chair");
     const contact = [ch.admin_phone, ch.admin_email].filter(Boolean).join(" · ");
