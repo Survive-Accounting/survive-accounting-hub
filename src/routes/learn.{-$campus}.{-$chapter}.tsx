@@ -80,7 +80,8 @@ import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome
 import { LearnTextLee } from "@/components/learn/LearnTextLee";
 import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
 import { ReviewSheet } from "@/components/learn/ReviewSheet";
-import { LearnChapterModule } from "@/components/learn/LearnChapterModule";
+import { CHAPTER_JOINED_EVENT, LearnChapterModule, readJoined } from "@/components/learn/LearnChapterModule";
+import { ChapterJoinGate } from "@/components/learn/ChapterJoinGate";
 import { pageShareUrl } from "@/lib/share-url";
 import { CramPlayer, type PlayerItem, type PlayerPart } from "@/components/learn/CramPlayer";
 import { partKey, setIdOfKey } from "@/lib/student-shorts";
@@ -562,6 +563,21 @@ function LearnShell() {
 
   // WHO-BLOCK + share
   const chapter = usePickedChapter(campusSlug, !demo);
+  // THE JOIN GATE (components/learn/ChapterJoinGate): a link that names a chapter asks for the
+  // member's email before the page, once per device. "Not in ΑΤΩ?" dismisses it for this visit.
+  // ANY CHAPTER, HOWEVER IT WAS CHOSEN (Lee, 2026-09-13: "email gate for any time a user is
+  // choosing a chapter's version of /learn") — the path from a chair's link or a flyer QR, or a pick
+  // made on the page itself. Re-entering the same email on a second device re-joins the same member.
+  const [joinedPicked, setJoinedPicked] = useState(true);
+  const [gateDismissed, setGateDismissed] = useState<string | null>(null);
+  useEffect(() => {
+    if (!chapter.slug || !campusSlug) { setJoinedPicked(true); return; }
+    const slug = chapter.slug;
+    const read = () => setJoinedPicked(readJoined(campusSlug, slug));
+    read();
+    window.addEventListener(CHAPTER_JOINED_EVENT, read);
+    return () => window.removeEventListener(CHAPTER_JOINED_EVENT, read);
+  }, [chapter.slug, campusSlug]);
   adCtx.current = { campus: campusSlug ?? undefined, chapter: chapter.slug ?? undefined, exam: examNum ?? undefined };
   pathSetIds.current = sets.filter((s) => !!s.set.playbackId && !s.locked).map((s) => s.set.id);
   // THE PULSE (2026-09-11): visits, video starts, watch time and time on page, tagged with the
@@ -707,6 +723,14 @@ function LearnShell() {
           </span>
           <button type="button" style={{ background: "transparent", border: 0, color: LK.muted, cursor: "pointer" }} onClick={() => setNote(null)}>✕</button>
         </div>
+      )}
+      {!demo && school && chapter.slug && chapter.name && gateDismissed !== chapter.slug && !joinedPicked && !isLoading && (
+        <ChapterJoinGate
+          school={school}
+          chapter={{ slug: chapter.slug, name: chapter.name, letters: chapter.letters, members: chapter.members }}
+          prefillEmail={email || null}
+          onLeave={() => { setGateDismissed(chapter.slug); clearChapter(); }}
+        />
       )}
       {ctaMounted && <LearnCta bare={!ctaOwnBar} campusSlug={campusSlug ?? "your-campus"} campusName={campusName ?? campusSlug ?? "your campus"} sharerBy={contactRef} sharerIsCouncil={shareCtx.isCouncil} test={search.test} />}
       {/* The admin "CTA states" pill (LearnStateSwitcher) is no longer mounted — a student page

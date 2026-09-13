@@ -351,6 +351,9 @@ export const tagChapterMember = createServerFn({ method: "POST" })
      *  exists so a repeat tap from one device counts as one member instead of five. See the
      *  ladder in the handler. */
     deviceId: z.string().trim().max(80).nullable().optional(),
+    /** The member's email from the chapter join (2026-09-13: every chapter page asks for it up
+     *  front). Stronger than the device id — one person on a phone and a laptop is one member. */
+    email: z.string().trim().toLowerCase().email().max(200).nullable().optional(),
     source: z.enum(["link", "self_report", "exec_invite"]).default("link"),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; members: number }> => {
@@ -411,9 +414,14 @@ export const tagChapterMember = createServerFn({ method: "POST" })
       // this pass may not write a migration. It is namespaced so it can never be mistaken for a
       // dialable number, and normalizePhoneE164 is never applied to it. LISTED IN THE REPORT as
       // the one piece of shape-borrowing here; a device_id column is the real fix.
+      // EMAIL SITS BETWEEN THEM (2026-09-13): the chapter page now asks every member for an email,
+      // stored `email:`-prefixed in the same borrowed column, for the same reason as `dev:`. It is
+      // what lets the chair's dashboard say who joined.
       const phone = (data.phone ?? "").trim();
       const device = (data.deviceId ?? "").trim();
-      const handle = phone || (device ? `dev:${device.slice(0, 64)}` : "");
+      const email = (data.email ?? "").trim();
+      const devHandle = device ? `dev:${device.slice(0, 64)}` : "";
+      const handle = phone || (email ? `email:${email}` : "") || devHandle;
 
       if (!handle) {
         // Nothing to de-dupe on. Counting this as a member is what produced the duplicates.
@@ -423,11 +431,18 @@ export const tagChapterMember = createServerFn({ method: "POST" })
 
       const { data: dupe } = await db.from("greek_chapter_members")
         .select("id,name").eq("chapter_id", chapterId).eq("phone", handle).maybeSingle();
+      // A device that already counted as a member (an earlier anonymous tap) and now gives an email
+      // is the same person: upgrade that row instead of adding a second.
+      const { data: devRow } = !dupe?.id && email && devHandle && handle !== devHandle
+        ? await db.from("greek_chapter_members").select("id").eq("chapter_id", chapterId).eq("phone", devHandle).maybeSingle()
+        : { data: null };
       if (dupe?.id) {
         // A returning member who has since given a name upgrades the row rather than adding one.
         if (data.name && !dupe.name) {
           await db.from("greek_chapter_members").update({ name: data.name }).eq("id", dupe.id);
         }
+      } else if (devRow?.id) {
+        await db.from("greek_chapter_members").update({ phone: handle, ...(data.name ? { name: data.name } : {}) }).eq("id", devRow.id);
       } else {
         await db.from("greek_chapter_members").insert({
           chapter_id: chapterId, name: data.name ?? null, phone: handle, source: data.source,

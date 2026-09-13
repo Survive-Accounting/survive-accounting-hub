@@ -22,6 +22,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { CLAIM_POSITIONS, notifyChapterClaim, submitChapterClaim } from "@/lib/greek-claims.functions";
 import { track } from "@/lib/analytics";
+import { readTestSession } from "@/lib/test-mode";
+import { ActivationTestProceed } from "@/components/site/ActivationTestProceed";
 
 const fmtPhone = (v: string) => {
   if (v.trim().startsWith("+")) return "+" + v.replace(/\D/g, "").slice(0, 15);
@@ -189,6 +191,9 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
   const [name, setName] = useState("");
   const [position, setPosition] = useState("");
   const [email, setEmail] = useState("");
+  // A test run pre-fills the tester's address: it is the only address the dashboard's sign-in link
+  // goes to in a test, so the activated chair and the signed-in tester have to be the same email.
+  useEffect(() => { const t = readTestSession(); if (t?.email) setEmail((v) => v || t.email); }, []);
   const [phone, setPhone] = useState("");
   // THE WILLINGNESS QUESTION IS GONE (Lee, 2026-09-11: "the biggest unnecessary friction point").
   // Lee calls every claimant from his own mobile, so nothing here needs to sort hot from cold.
@@ -242,14 +247,12 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
         className="mx-auto max-w-sm rounded-2xl px-5 py-6 text-center outline-none"
         style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.35)", fontFamily: BRAND_SANS }}
       >
-        <p className="text-[17px] font-black" style={{ color: "var(--brand-cream)" }}>You&apos;ve got the dashboard ✓</p>
+        <p className="text-[17px] font-black" style={{ color: "var(--brand-cream)" }}>Activation received</p>
         {/* Says what happens next. Lee calls every claimant himself, from his own mobile. */}
         <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
-          Lee will text you shortly to get {who} set up.
+          Lee will text you shortly to get {who}&apos;s dashboard live.
         </p>
-        <p className="mx-auto mt-1.5 max-w-[34ch] text-[13px] leading-relaxed" style={{ color: "var(--text-secondary, #AAB4C8)" }}>
-          We&apos;ll email you as the house signs up.
-        </p>
+        <ActivationTestProceed schoolSlug={schoolSlug} />
         <button
           type="button"
           onClick={onClose}

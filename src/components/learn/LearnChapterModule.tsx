@@ -26,18 +26,41 @@ import { chapterGroupMe } from "@/components/learn/LearnChapterBar";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { deviceAnonId } from "@/lib/device-id";
 import { COUNCILS, councilMatches } from "@/lib/greek-councils.functions";
-import { submitChapterClaim } from "@/lib/greek-claims.functions";
+import { notifyChapterClaim, submitChapterClaim } from "@/lib/greek-claims.functions";
 import { listGoChapters, tagChapterMember, type GoChapterListItem } from "@/lib/greek-go.functions";
 import { submitIntake } from "@/lib/intake.functions";
 import type { School } from "@/lib/schools";
 import { buildShareUrl } from "@/lib/share-url";
 import { SEAT_MINIMUM } from "@/lib/terms";
+import { writeUnlocked } from "@/components/learn/learn-gate";
+import { readTestSession } from "@/lib/test-mode";
+import { ActivationTestProceed } from "@/components/site/ActivationTestProceed";
 
 export type PickedChapter = { slug: string; name: string | null; letters: string | null; members: number; council: string | null };
 
 const ANIM_KEY = "sa-crest-anim";
-const joinedKey = (school: string, chapter: string) => `sa-joined:${school}/${chapter}`;
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+export const joinedKey = (school: string, chapter: string) => `sa-joined:${school}/${chapter}`;
+export const CHAPTER_JOINED_EVENT = "sa-chapter-joined";
+export function readJoined(school: string, chapter: string): boolean {
+  try { return localStorage.getItem(joinedKey(school, chapter)) === "1"; } catch { return false; }
+}
+
+/** JOIN A CHAPTER'S PAGE — the one member path, shared by the up-front gate (ChapterJoinGate) and
+ *  the crest's own form. Email is the whole ask (Lee, 2026-09-13: "we should just grab the member
+ *  emails upfront if they're trying to join a greek page"): it lands in campus_waitlist through the
+ *  intake (the welcome email), counts the member on the chapter (greek_chapter_members, keyed by the
+ *  email), and unlocks the rest of Exam 1 on this device — a member who gave their email to join
+ *  their chapter is never asked again by the Exam 1 gate. */
+export async function joinChapter(school: School, chapterSlug: string, email: string, source: string): Promise<void> {
+  const v = email.trim().toLowerCase();
+  const isTest = !!readTestSession();
+  await submitIntake({ data: { kind: "greek_member", email: v, campusId: school.campusId || null, chapter: chapterSlug, source, sourcePath: typeof window !== "undefined" ? window.location.pathname : null, isTest } });
+  await tagChapterMember({ data: { schoolSlug: school.slug, chapterSlug, source: "link", deviceId: deviceAnonId(), email: v } }).catch(() => undefined);
+  try { localStorage.setItem(joinedKey(school.slug, chapterSlug), "1"); } catch { /* ignore */ }
+  writeUnlocked();
+  try { window.dispatchEvent(new CustomEvent(CHAPTER_JOINED_EVENT)); } catch { /* ignore */ }
+}
+export const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const NAVY = "#14213D", CREAM = "#F5EFE6", GOLD = "#FCA311", NAVY_DEEP = "#0C1528";
 
 /** The funding threshold for a chapter, or null when there is none to compute from. */
@@ -133,7 +156,12 @@ function Crest({ school, chapter, contactRef, narrow, onNotYours }: { school: Sc
   const [animate, setAnimate] = useState(false);
   const [joined, setJoined] = useState(false);
   useEffect(() => {
-    try { setJoined(localStorage.getItem(joinedKey(school.slug, chapter.slug)) === "1"); } catch { /* ignore */ }
+    const read = () => setJoined(readJoined(school.slug, chapter.slug));
+    read();
+    window.addEventListener(CHAPTER_JOINED_EVENT, read);
+    return () => window.removeEventListener(CHAPTER_JOINED_EVENT, read);
+  }, [school.slug, chapter.slug]);
+  useEffect(() => {
     // ONCE PER SESSION: the bolt lands and the letters settle on it. Static after that.
     try {
       const reduce = !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -163,9 +191,7 @@ function Crest({ school, chapter, contactRef, narrow, onNotYours }: { school: Sc
     if (!EMAIL_RE.test(v)) { setErr("That email doesn't look right."); return; }
     setBusy(true); setErr(null);
     try {
-      await submitIntake({ data: { kind: "greek_member", email: v, campusId: school.campusId, chapter: chapter.slug, source: "learn-chapter", sourcePath: typeof window !== "undefined" ? window.location.pathname : null } });
-      await tagChapterMember({ data: { schoolSlug: school.slug, chapterSlug: chapter.slug, source: "link", deviceId: deviceAnonId() } }).catch(() => undefined);
-      try { localStorage.setItem(joinedKey(school.slug, chapter.slug), "1"); } catch { /* ignore */ }
+      await joinChapter(school, chapter.slug, v, "learn-chapter");
       setJoined(true);
       void qc.invalidateQueries({ queryKey: ["cta-go-chapter"] });
     } catch (e2) { setErr(e2 instanceof Error ? e2.message : "Couldn't save that — try again."); }
@@ -188,7 +214,7 @@ function Crest({ school, chapter, contactRef, narrow, onNotYours }: { school: Sc
 
         {!exec ? (
           <>
-            <h3 style={{ position: "relative", zIndex: 1, fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: 19, margin: "0 0 5px", letterSpacing: "-0.01em", lineHeight: 1.15 }}>You&apos;re studying with<br />{name}</h3>
+            <h3 style={{ position: "relative", zIndex: 1, fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: 19, margin: "0 0 5px", letterSpacing: "-0.01em", lineHeight: 1.15 }}>{joined ? <>You&apos;re in {short}&apos;s page</> : <>Join {short}&apos;s page</>}</h3>
             {remaining && <p style={{ position: "relative", zIndex: 1, fontSize: 12.5, color: "rgba(245,239,230,0.7)", margin: "0 0 13px", lineHeight: 1.45 }}>{remaining}</p>}
             <div style={{ position: "relative", zIndex: 1, display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,107,166,0.24)", border: "1px solid rgba(125,211,252,0.3)", borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "#BFE4FA", marginBottom: 13 }}>
               <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: "#3BF5A0" }} />{countLine(short, chapter.members)}
@@ -202,7 +228,7 @@ function Crest({ school, chapter, contactRef, narrow, onNotYours }: { school: Sc
               <form onSubmit={(e) => void join(e)} style={{ position: "relative", zIndex: 1 }}>
                 <input type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@school.edu" aria-label="Your email" className="lkc-input" />
                 {err && <p role="alert" style={{ margin: "4px 0 0", fontSize: 12, color: "#F3C6CC", textAlign: "left" }}>{err}</p>}
-                <button type="submit" disabled={busy} className="lkc-btn" style={{ background: GOLD, color: NAVY_DEEP, marginTop: 8 }}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : `Count me in with ${short}`}</button>
+                <button type="submit" disabled={busy} className="lkc-btn" style={{ background: GOLD, color: NAVY_DEEP, marginTop: 8 }}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : `Join ${short}'s page`}</button>
               </form>
             )}
             <div style={{ position: "relative", zIndex: 1, marginTop: 11, display: "flex", justifyContent: "center", gap: 14 }}>
@@ -223,19 +249,27 @@ function Crest({ school, chapter, contactRef, narrow, onNotYours }: { school: Sc
 function ExecForm({ school, chapter, short, onMember, onNotYours }: { school: School; chapter: PickedChapter; short: string; onMember: () => void; onNotYours: () => void }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  // EMAIL IS ASKED HERE TOO (2026-09-13) — it is how the dashboard signs the chair in. A chair who
+  // activated from this form used to be stored with no email and could never open their dashboard.
+  // A test run pre-fills the tester's address, which is the only address its sign-in link goes to.
+  const [email, setEmail] = useState("");
+  useEffect(() => { const t = readTestSession(); if (t?.email) setEmail((v) => v || t.email); }, []);
   const [role, setRole] = useState("");
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const ok = name.trim().length > 1 && phone.replace(/\D/g, "").length >= 10 && role.trim().length > 0;
+  const ok = name.trim().length > 1 && EMAIL_RE.test(email.trim()) && phone.replace(/\D/g, "").length >= 10 && role.trim().length > 0;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!ok || busy) return;
     setBusy(true); setErr(null);
     try {
-      const r = await submitChapterClaim({ data: { schoolSlug: school.slug, chapterSlug: chapter.slug, name: name.trim(), position: role.trim(), phone: phone.trim(), question: question.trim() || undefined } });
-      if (r.ok) setDone(true); else setErr(r.error ?? "Something went wrong — try again.");
+      const r = await submitChapterClaim({ data: { schoolSlug: school.slug, chapterSlug: chapter.slug, name: name.trim(), position: role.trim(), email: email.trim(), phone: phone.trim(), question: question.trim() || undefined } });
+      if (r.ok) {
+        setDone(true);
+        if (r.notifyPending && r.claimId) void notifyChapterClaim({ data: { claimId: r.claimId, question: question.trim() || undefined } }).catch(() => undefined);
+      } else setErr(r.error ?? "Something went wrong — try again.");
     } catch { setErr("Couldn't reach the server — try again in a moment."); }
     finally { setBusy(false); }
   };
@@ -243,19 +277,21 @@ function ExecForm({ school, chapter, short, onMember, onNotYours }: { school: Sc
   return (
     <>
       <h3 style={{ position: "relative", zIndex: 1, fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: 19, margin: "0 0 5px", letterSpacing: "-0.01em", lineHeight: 1.15 }}>Activate {short}&apos;s<br />chapter dashboard</h3>
-      <p style={{ position: "relative", zIndex: 1, fontSize: 12.5, color: "rgba(245,239,230,0.7)", margin: "0 0 13px", lineHeight: 1.45 }}>See who&apos;s studying, fund the chapter, and get a page your members can share.</p>
+      <p style={{ position: "relative", zIndex: 1, fontSize: 12.5, color: "rgba(245,239,230,0.7)", margin: "0 0 13px", lineHeight: 1.45 }}>Track who joins and what they watch, and request seats for your members.</p>
       <div role="group" aria-label="I am" style={{ position: "relative", zIndex: 1, display: "flex", gap: 7, marginBottom: 12 }}>
         <button type="button" onClick={onMember} className="lkc-seg">I&apos;m a member</button>
         <button type="button" className="lkc-seg lkc-seg-on" aria-pressed>I&apos;m on exec</button>
       </div>
       {done ? (
         <div style={{ position: "relative", zIndex: 1, padding: "12px 10px", borderRadius: 10, background: "rgba(252,163,17,0.12)", border: "1px solid rgba(252,163,17,0.4)" }}>
-          <div style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: 15 }}>You&apos;re set.</div>
+          <div style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: 15 }}>Activation received.</div>
           <div style={{ fontSize: 12.5, color: "rgba(245,239,230,0.8)", marginTop: 3 }}>Lee will text you shortly to get {short}&apos;s dashboard live.</div>
+          <ActivationTestProceed schoolSlug={school.slug} tone="navy" />
         </div>
       ) : (
         <form onSubmit={(e) => void submit(e)} style={{ position: "relative", zIndex: 1 }}>
           <div style={{ marginBottom: 8 }}><label style={label} htmlFor="lkc-name">Name</label><input id="lkc-name" className="lkc-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jordan Ellis" autoComplete="name" /></div>
+          <div style={{ marginBottom: 8 }}><label style={label} htmlFor="lkc-email">Email</label><input id="lkc-email" className="lkc-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@school.edu" type="email" inputMode="email" autoComplete="email" /></div>
           <div style={{ marginBottom: 8 }}><label style={label} htmlFor="lkc-phone">Phone</label><input id="lkc-phone" className="lkc-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(662) 555-0134" type="tel" inputMode="tel" autoComplete="tel" /></div>
           <div style={{ marginBottom: 8 }}><label style={label} htmlFor="lkc-role">Role</label><input id="lkc-role" className="lkc-input" value={role} onChange={(e) => setRole(e.target.value)} placeholder="Scholarship chair" /></div>
           <div style={{ marginBottom: 8 }}><label style={label} htmlFor="lkc-q">Anything you want to ask <span style={{ fontSize: 10.5, color: "rgba(245,239,230,0.42)", fontWeight: 400, letterSpacing: 0 }}>optional</span></label><input id="lkc-q" className="lkc-input" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="How does funding work?" /></div>
