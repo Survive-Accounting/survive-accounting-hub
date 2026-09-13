@@ -44,10 +44,8 @@ const BOLT_OPACITY = 0.13;
  *  because a slogan is a two-second beat, not a backdrop. */
 const SLOGAN_CSS = `
 @keyframes sa-slogan-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0px); } }
-@keyframes sa-slogan-charge { 0% { opacity: ${BOLT_OPACITY * 0.4}; transform: scale(0.9); } 45% { opacity: ${BOLT_OPACITY * 2}; transform: scale(1.06); } 100% { opacity: ${BOLT_OPACITY}; transform: scale(1); } }
 .sa-slogan-rise { animation: sa-slogan-rise 620ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-.sa-slogan-charge { animation: sa-slogan-charge 1150ms ease-out both; }
-@media (prefers-reduced-motion: reduce) { .sa-slogan-rise, .sa-slogan-charge { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .sa-slogan-rise { animation: none; } }
 `;
 
 /** THE WORDS' BAND, as fractions of the height. Without a picture the words own the frame and
@@ -82,11 +80,13 @@ export function SloganCard({ w, h, text, art = false, live = true, style }: {
   return (
     <div style={{ position: "relative", width: w, height: h, overflow: "hidden", background: "#000", ...style }}>
       {live && <style>{SLOGAN_CSS}</style>}
-      {/* THE BOLT, BEHIND — the house bolt at low intensity, one pulse on arrival. Pinned to a
-          single boil frame when still, so a thumbnail is the same pixels every time. */}
-      <div className={live ? "sa-slogan-charge" : undefined} aria-hidden
+      {/* THE BOLT, BEHIND — the house bolt at low intensity, and STILL since 2026-09-12. Lee, mid
+          filming run: "I mean for any callout slide. Slogan slide, whatever. We want no animation
+          behind on the big bolt." It used to pulse in on arrival AND boil continuously under the
+          words; one pinned frame keeps the shape and takes the movement away. The WORDS still rise. */}
+      <div aria-hidden
         style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", opacity: BOLT_OPACITY, pointerEvents: "none" }}>
-        <BoltBoil height={Math.round(h * 0.46)} boilSeconds={1.2} boilFrame={live ? undefined : 0} />
+        <BoltBoil height={Math.round(h * 0.46)} boilSeconds={1.2} boilFrame={0} />
       </div>
 
       {/* THE WORDS. Pure white, lifted off the black by a contact edge + a near shadow + a wide
