@@ -43,7 +43,13 @@ async function handle({
     // An ad's click id on the /r/ URL itself rides through (lib/carry-params); the link's OWN
     // utm_* stay authoritative, so incoming utm_* are not carried.
     const { carryParams, CLICK_ID_KEYS, withCarried } = await import("@/lib/carry-params");
-    const target = withCarried(decorateDestination(link, origin), carryParams(new URL(request.url).searchParams, CLICK_ID_KEYS));
+    let target = withCarried(decorateDestination(link, origin), carryParams(new URL(request.url).searchParams, CLICK_ID_KEYS));
+    // A printed QR's channel stamp (?via=flyer|slide, flyer.server) rides through, so a chapter
+    // destination can tell a member's scan from a chair opening their own link.
+    const via = new URL(request.url).searchParams.get("via");
+    if (via === "flyer" || via === "slide") {
+      try { const u = new URL(target); if (!u.searchParams.has("via")) u.searchParams.set("via", via); target = u.toString(); } catch { /* keep target */ }
+    }
     const existingAnon = readAnonCookie(request);
     const { anonId, setCookies } = buildAttributionCookies(link.code, existingAnon, now);
 

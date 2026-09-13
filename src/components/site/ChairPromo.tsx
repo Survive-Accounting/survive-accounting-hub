@@ -117,15 +117,15 @@ export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name,
             {/* LEFT DOOR — look first. A new tab, so this page (and the share kit) stays put. */}
             <DoorCard
               icon={<BoltBoil height={SOLO_ICON_H} red={bolt.c1} blue={bolt.c2} />}
-              title={`What ${members} get`}
+              title="What members get"
               button={
                 <a href={learnPath} target="_blank" rel="noreferrer" onClick={() => onAction?.("open_learn")} className={`${DOOR_BTN_CLASS} inline-flex items-center justify-center gap-2`} style={SOLO_BTN}>
-                  See what {members} get →
+                  See what members get →
                 </a>
               }
               support={
                 <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch", color: "var(--text-muted)" }}>
-                  The exact page your {members} land on.
+                  {kind === "council" ? "The page every chapter's members land on." : "The exact page your members land on."}
                 </span>
               }
             />
@@ -187,7 +187,7 @@ function FlipDoor({ kind, letters, shareUrl, groupMe, art, onAction }: {
   const [flipped, setFlipped] = useState(false);
   const title = kind === "council" ? "Share with chapter chairs" : "Share with members";
   const [imgBusy, setImgBusy] = useState(false);
-  const flyerImageFile = `survive-${letters.replace(/[^A-Za-z0-9]+/g, "").toLowerCase() || "chapter"}-flyer.png`;
+  const flyerImageFile = `survive-${art.flyer?.split("/").pop() || "chapter"}-flyer.png`;
   const downloadImage = async () => {
     if (!art.flyerImage || imgBusy) return;
     setImgBusy(true);

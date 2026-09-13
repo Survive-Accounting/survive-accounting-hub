@@ -514,10 +514,17 @@ export const resetFixture = createServerFn({ method: "POST" })
         const { count: m } = await db.from("greek_chapter_members").select("id", { count: "exact", head: true }).eq("chapter_id", shell.id);
         await db.from("greek_chapter_members").delete().eq("chapter_id", shell.id);
         removed.members = m ?? 0;
+        // The dashboard's action steps and seat requests (lib/chapter-dashboard.functions).
+        const { count: ev } = await db.from("expand_events").select("id", { count: "exact", head: true })
+          .or(`event.like.chapter_step:${shell.id}#%,event.like.chapter_seat_request:${shell.id}#%`);
+        await db.from("expand_events").delete().or(`event.like.chapter_step:${shell.id}#%,event.like.chapter_seat_request:${shell.id}#%`);
+        removed.dashboard_events = ev ?? 0;
         await db.from("greek_chapters").delete().eq("id", shell.id);
         removed.chapter_shell = 1;
       }
       await db.from("greek_chapter_claims").delete().eq("campus_greek_chapter_id", roster.id);
+      // The chair pages' "first share" markers, so the next run's first click emails again.
+      await db.from("expand_events").delete().like("event", `greek_chair:${TEST_CAMPUS_SLUG}/%`);
       await db.from("campus_greek_chapters").update({ claim_status: "unclaimed", claimed_at: null }).eq("id", roster.id);
       return { ok: true, removed };
     } catch (e) {

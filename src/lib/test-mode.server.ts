@@ -47,6 +47,8 @@ export function testerAllowList(): string[] {
     ...fromEnv,
     "lee@surviveaccounting.com",
     "king@surviveaccounting.com",
+    // King's own inbox — he runs the chair funnel test from it (2026-09-13).
+    "jking.cim@gmail.com",
     founder,
   ])];
 }

@@ -33,7 +33,7 @@ import type { School } from "@/lib/schools";
 import { buildShareUrl } from "@/lib/share-url";
 import { SEAT_MINIMUM } from "@/lib/terms";
 import { writeUnlocked } from "@/components/learn/learn-gate";
-import { readTestSession } from "@/lib/test-mode";
+import { readTestSession, TEST_CAMPUS_SLUG } from "@/lib/test-mode";
 import { ActivationTestProceed } from "@/components/site/ActivationTestProceed";
 
 export type PickedChapter = { slug: string; name: string | null; letters: string | null; members: number; council: string | null };
@@ -53,7 +53,9 @@ export function readJoined(school: string, chapter: string): boolean {
  *  their chapter is never asked again by the Exam 1 gate. */
 export async function joinChapter(school: School, chapterSlug: string, email: string, source: string): Promise<void> {
   const v = email.trim().toLowerCase();
-  const isTest = !!readTestSession();
+  // The fixture campus is a test by definition — a tab opened from a test page can lose the
+  // session copy, and a test member must never land in the real leads table.
+  const isTest = !!readTestSession() || school.slug === TEST_CAMPUS_SLUG;
   await submitIntake({ data: { kind: "greek_member", email: v, campusId: school.campusId || null, chapter: chapterSlug, source, sourcePath: typeof window !== "undefined" ? window.location.pathname : null, isTest } });
   await tagChapterMember({ data: { schoolSlug: school.slug, chapterSlug, source: "link", deviceId: deviceAnonId(), email: v } }).catch(() => undefined);
   try { localStorage.setItem(joinedKey(school.slug, chapterSlug), "1"); } catch { /* ignore */ }
@@ -73,6 +75,16 @@ export function remainingLine(short: string, members: number, threshold: number 
     ? `${n} more member${n === 1 ? "" : "s"} and ${short} can fund everyone's access for the semester.`
     : `${short} has enough members to fund everyone's access for the semester.`;
 }
+/** "When 10 members join, ΑΤΩ can fund everyone's access to Exams 2, 3 and the Final." — the
+ *  enticement, in "can" (never "will"): a chapter decides to fund; joining makes it possible. */
+export function gateFundingLine(short: string, members: number, threshold: number | null): string | null {
+  if (threshold == null) return null;
+  const left = Math.max(0, threshold - members);
+  return left > 0
+    ? `${left} more member${left === 1 ? "" : "s"} and ${short} can fund everyone's access to Exams 2, 3 and the Final.`
+    : `${short} has enough members to fund everyone's access to Exams 2, 3 and the Final.`;
+}
+
 /** The count pill: never "0 members joined". */
 export function countLine(short: string, members: number): string {
   return members > 0 ? `${members} member${members === 1 ? "" : "s"} joined` : `Be the first from ${short}.`;
@@ -199,7 +211,8 @@ function Crest({ school, chapter, contactRef, narrow, onNotYours }: { school: Sc
   };
 
   const threshold = fundingThreshold(chapter.slug);
-  const remaining = remainingLine(short, chapter.members, threshold);
+  // The same funding line as the join gate, so a member reads one promise, not two.
+  const remaining = gateFundingLine(short, chapter.members, threshold);
   const boltH = 78;
 
   return (

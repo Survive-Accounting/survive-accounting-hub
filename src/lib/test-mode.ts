@@ -121,7 +121,7 @@ export const TEST_CHAPTER_URL = `/go/${TEST_CAMPUS_SLUG}/${TEST_CHAPTER_SLUG}`;
 export type TestStep = {
   id: string;
   /** What the tester is playing at this point — the same words the product uses. */
-  role: "Student" | "Member" | "Exec" | "Admin" | "Applicant" | "Lee";
+  role: "Student" | "Member" | "Exec" | "Admin" | "Applicant" | "Lee" | "Council chair" | "Chapter chair";
   title: string;
   /** What to do, in one instruction. */
   todo: string;
@@ -198,72 +198,129 @@ export const REP_LIFECYCLE: TestStep[] = [
   },
 ];
 
-/** GREEK LIFECYCLE — the first run Lee asked for: claim a chapter page, get into the dashboard,
- *  pull the share materials. Ordered exactly as a real chapter would live it. */
+/** THE CHAIR FUNNEL, END TO END (2026-09-13) — King's run sheet. Lee: "I want King to have an
+ *  extensive end to end testing of the funnel" … "We want king to arrive there from the council.
+ *  He's testing the full flow." One tester plays every role in order: the council's scholarship
+ *  chair, a chapter's scholarship chair, two members, then the chair again on the dashboard. Every
+ *  page is the real one, on the fixture campus (Test University · IFC · Test Chapter, letters ΤΕΣΤ).
+ *
+ *  THE ROLES' EMAILS: the tester's own inbox, with Gmail's +alias so each role is its own address
+ *  and every message still lands in one inbox. All test mail is routed to the tester anyway.
+ *  (Kept as GREEK_LIFECYCLE — the name the bar imports.) */
+export const TEST_COUNCIL_URL = `/go/${TEST_CAMPUS_SLUG}/council/ifc`;
+export const TEST_PORTAL_URL = `/chapters?school=${TEST_CAMPUS_SLUG}&c=ifc`;
+export const TEST_MEMBERS_URL = `/learn/${TEST_CAMPUS_SLUG}/${TEST_CHAPTER_SLUG}`;
+export const TEST_LEARN_URL = `/learn/${TEST_CAMPUS_SLUG}`;
+
 export const GREEK_LIFECYCLE: TestStep[] = [
   {
-    id: "chapter-page",
-    role: "Member",
-    title: "Land on the chapter page",
-    todo: "Open the test chapter's page the way a member would — from a group-chat link.",
-    expect: "The hero names the chapter and TEST 101 at Test University, and Exam 1 is offered free.",
-    href: TEST_CHAPTER_URL,
+    id: "council-page",
+    role: "Council chair",
+    title: "Open the IFC page",
+    todo: "You are Test University's IFC scholarship chair and just got Lee's DM. Open the council page.",
+    expect: "\"Boost every chapter's GPA in TEST 101.\" Two doors: See what chapters get, and Share with chapter chairs.",
+    href: TEST_COUNCIL_URL,
+  },
+  {
+    id: "council-share",
+    role: "Council chair",
+    title: "Share with chapter chairs",
+    todo: "Tap Share with chapter chairs. Copy the link for chapter chairs, copy the GroupMe post, and download the council meeting slide.",
+    expect: "The link is surviveaccounting.com/chapters?school=test-university&c=ifc, and the post ends with it. The slide's QR opens the same page. A [TEST] \"Council chair click\" email arrives.",
+  },
+  {
+    id: "portal",
+    role: "Chapter chair",
+    title: "Pick your chapter",
+    todo: "Now you are a chapter's scholarship chair who got that link. Open it (paste it into this tab) and pick Test Chapter.",
+    expect: "\"For scholarship chairs · IFC · Test University\", the school already filled in, only IFC chapters listed. Picking one opens Test Chapter's chair page.",
+    href: TEST_PORTAL_URL,
+  },
+  {
+    id: "chapter-share",
+    role: "Chapter chair",
+    title: "Share with members",
+    todo: "Tap Share with members. Try all five: copy share link, copy GroupMe post, print flyer, download flyer image, meeting slide.",
+    expect: "The link is surviveaccounting.com/learn/test-university/test-chapter. The flyer image saves as a PNG (a share sheet on a phone). A [TEST] \"Chapter chair click\" email says it came from the IFC link.",
   },
   {
     id: "join",
     role: "Member",
-    title: "Join as a member",
-    todo: "Enter your name and your tester email to unlock Exam 1.",
-    expect: "You get the unlock email at your tester address, subject prefixed [TEST], and the video area opens.",
+    title: "Join from the chair's link",
+    todo: "On your PHONE, open the members' link (or scan the flyer QR). Join with jking.cim+member1@gmail.com.",
+    expect: "Before the page, \"Join ΤΕΣΤ's page\" asks for an email, with the member count and \"… can fund everyone's access\". After joining: straight into Exam 1, no second email ask, and a [TEST] welcome email.",
+    href: TEST_MEMBERS_URL,
+  },
+  {
+    id: "organic",
+    role: "Student",
+    title: "Find the chapter on your own",
+    todo: "On your LAPTOP, open the campus page (not the chapter link). Tap \"In a fraternity or sorority?\", pick IFC → Test Chapter → Continue. Join with jking.cim+member2@gmail.com.",
+    expect: "Picking the chapter brings up the same \"Join ΤΕΣΤ's page\" ask. After joining, the chapter card says 2 members joined.",
+    href: TEST_LEARN_URL,
+  },
+  {
+    id: "return",
+    role: "Member",
+    title: "Come back on another device",
+    todo: "Still on the laptop, tap Forget this device (test panel), then open the members' link and enter jking.cim+member1@gmail.com again.",
+    expect: "The ask appears (new device), you're straight back in, and the count stays at 2 — the same email is never counted twice.",
+    href: TEST_MEMBERS_URL,
   },
   {
     id: "claim",
-    role: "Exec",
-    title: "Claim the chapter",
-    todo: "Scroll to Chapter access → step 02 and submit the claim form as an exec.",
-    expect: "The claim is recorded as pending, you get a [TEST] confirmation, and Lee gets a [TEST] founder alert.",
+    role: "Chapter chair",
+    title: "Activate the dashboard",
+    todo: "Open Test Chapter's chair page and tap \"Activate your chapter dashboard\". Fill it in; your email is already there.",
+    expect: "\"Activation received — Lee will text you shortly.\" A test-mode note explains Lee texts the chair first. A [TEST] activation email arrives (the one Lee and King get for a real chapter).",
+    href: TEST_CHAPTER_URL,
   },
   {
     id: "approve",
-    role: "Admin",
-    title: "Approve the claim",
-    todo: "Approve it from the test panel (or ask Lee to approve it in outreach).",
-    expect: "The chapter flips to claimed and the dashboard becomes reachable.",
+    role: "Lee",
+    title: "Skip ahead past Lee's call",
+    todo: "Tap \"Skip ahead: approve it and open the dashboard\".",
+    expect: "You land on the dashboard's sign-in, and a [TEST] \"your dashboard is live\" email arrives.",
   },
   {
     id: "dashboard",
-    role: "Exec",
-    title: "Open the chapter dashboard",
-    todo: "Sign in with the magic link and open the dashboard.",
-    expect: "You see the roster, the aggregate numbers, the chapter link — and the seat offer with the presale note.",
+    role: "Chapter chair",
+    title: "Sign in to the dashboard",
+    todo: "Tap Email me a sign-in link, open the email on this device, and follow the link.",
+    expect: "Test Chapter's dashboard: the members' link, Members joined 2, and Who joined listing both member emails.",
     href: "/chapters/dashboard",
   },
   {
-    id: "share-kit",
-    role: "Exec",
-    title: "Pull the share materials",
-    todo: "Open 'Not ready? Get what you need to pitch it' and copy the treasurer email and the group-chat line; open the flyer.",
-    expect: "Every piece already says Test Chapter, TEST 101 and the current term with its expiry date.",
+    id: "steps",
+    role: "Chapter chair",
+    title: "Mark the three steps done",
+    todo: "Use each step's button (copy post, download slide, print flyer), then Mark done on all three.",
+    expect: "Each turns green with today's date, \"3 of 3 done\", and one [TEST] email per step.",
   },
   {
     id: "seats",
-    role: "Exec",
-    title: "Choose seats",
-    todo: "Choose a seat pack and a term. Stop before paying if checkout is not switched on yet.",
-    expect: "The screen names the term and the exact date access ends, and shows the presale disclosure.",
-  },
-  {
-    id: "assign",
-    role: "Exec",
-    title: "Assign a seat",
-    todo: "Once seats are active, assign one to the member you joined as in step 2.",
-    expect: "The count moves (1 of N assigned) and that member shows the courtesy line.",
+    role: "Chapter chair",
+    title: "Request seats",
+    todo: "Set 20 seats and tap Request 20 seats.",
+    expect: "\"Request sent — 20 seats. Lee will reach out.\" A [TEST] seat request email arrives. No charge, no checkout.",
   },
   {
     id: "restart",
     role: "Admin",
     title: "Start over",
-    todo: "Press Start over to run it again, or Purge test data to wipe every record this run made.",
-    expect: "The fixture is back to a clean chapter with no members, no claim and no seats.",
+    todo: "Press Reset fixture, then Start over, to run it again on the other device.",
+    expect: "The test chapter is back to no members, no activation, no steps, no seat request.",
   },
 ];
+
+/** FORGET THIS DEVICE — the test run's "come back on another device": clears what this browser
+ *  remembers about joining a chapter and passing the Exam 1 email gate, so the same laptop can play
+ *  a second member. Local keys only; the server's rows stay until Reset fixture. */
+export function forgetTestDevice(): void {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i) ?? "";
+      if (k.startsWith("sa-joined:") || k === "sa-learn-unlocked" || k.startsWith("sa-cta-chapter-")) localStorage.removeItem(k);
+    }
+  } catch { /* storage off */ }
+}

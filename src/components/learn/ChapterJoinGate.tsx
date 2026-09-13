@@ -20,20 +20,10 @@ import { Loader2 } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
-import { countLine, EMAIL_RE, fundingThreshold, joinChapter } from "@/components/learn/LearnChapterModule";
+import { countLine, EMAIL_RE, fundingThreshold, gateFundingLine, joinChapter } from "@/components/learn/LearnChapterModule";
 import type { School } from "@/lib/schools";
 
 const NAVY = "#14213D", CREAM = "#F5EFE6", GOLD = "#FCA311", NAVY_DEEP = "#0C1528";
-
-/** "When 10 members join, ΑΤΩ can fund everyone's access to Exams 2, 3 and the Final." — the
- *  enticement, in "can" (never "will"): a chapter decides to fund; joining makes it possible. */
-export function gateFundingLine(short: string, members: number, threshold: number | null): string | null {
-  if (threshold == null) return null;
-  const left = Math.max(0, threshold - members);
-  return left > 0
-    ? `${left} more member${left === 1 ? "" : "s"} and ${short} can fund everyone's access to Exams 2, 3 and the Final.`
-    : `${short} has enough members to fund everyone's access to Exams 2, 3 and the Final.`;
-}
 
 export function ChapterJoinGate({ school, chapter, prefillEmail, onLeave }: {
   school: School;

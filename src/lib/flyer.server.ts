@@ -68,9 +68,11 @@ export function courseFontSize(code: string): number {
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 
 export function flyerTarget(i: FlyerInput): string {
-  // A rep-attributed flyer scans to the tracked short link — the redirect lands on the same /go
-  // (or campus) page, so the student sees nothing different; only the cookie does.
-  if (i.refCode) return `https://surviveaccounting.com/r/${i.refCode}`;
+  // A rep-attributed flyer scans to the tracked short link, stamped ?via=flyer. The /r/ hop sets the
+  // rep's cookie and carries the stamp on; a chapter destination is the CHAIR page (/go), whose
+  // beforeLoad forwards a flyer/slide stamp to the members' /learn page — so a scan lands a member
+  // where they join, never on the chair's promo (2026-09-13).
+  if (i.refCode) return `https://surviveaccounting.com/r/${i.refCode}?via=flyer`;
   if (i.targetUrl) return i.targetUrl;
   // Flyers printed before 2026-09-11 carry /go/…?s=flyer; the /go route forwards that stamp to
   // /learn, so nothing already pinned up in a house is orphaned.
@@ -83,7 +85,7 @@ export function flyerTarget(i: FlyerInput): string {
  *  meeting is a different channel from a flyer on a wall, and the partner kit is the only thing
  *  that produces one. Rep attribution still wins, exactly as on the flyer. */
 export function slideTarget(i: FlyerInput): string {
-  if (i.refCode) return `https://surviveaccounting.com/r/${i.refCode}`;
+  if (i.refCode) return `https://surviveaccounting.com/r/${i.refCode}?via=slide`;
   if (i.targetUrl) return i.targetUrl;
   return i.chapterSlug
     ? learnTarget(i, "slide")

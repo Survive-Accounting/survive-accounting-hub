@@ -17,7 +17,7 @@ import { useRouterState } from "@tanstack/react-router";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import {
-  GREEK_LIFECYCLE, REP_LIFECYCLE, TEST_CAMPUS_URL, TEST_CHAPTER_URL, parseTestParams, readTestSession,
+  GREEK_LIFECYCLE, REP_LIFECYCLE, TEST_CHAPTER_URL, TEST_COUNCIL_URL, forgetTestDevice, parseTestParams, readTestSession,
   restartTestRun, startTestSession, writeTestSession, type TestSession,
 } from "@/lib/test-mode";
 import {
@@ -124,15 +124,20 @@ export function TestModeBar() {
   // Landing on a page and pulling the share kit leave nothing conclusive behind, so those keep
   // the manual button. The rest read straight off the fixture.
   const autoDone: Record<string, boolean | null> = {
-    "chapter-page": null,                                        // nothing to check — manual
+    "council-page": null,                                        // nothing to check — manual
+    "council-share": null,
+    portal: null,
+    "chapter-share": null,
     join: (fx?.members ?? 0) > 0,
+    organic: (fx?.members ?? 0) > 1,
+    return: null,
     claim: !!fx?.pendingClaimId || fx?.claimStatus === "claimed",
     approve: fx?.claimStatus === "claimed",
     dashboard: signedIn && fx?.claimStatus === "claimed",
-    "share-kit": (fx?.shareEvents ?? 0) > 0,
-    seats: (fx?.seatPools ?? 0) > 0,
-    assign: (fx?.assignments ?? 0) > 0,
+    steps: null,
+    seats: null,
     restart: null,
+    // the rep sheet's steps have no record to read
   };
   const doneMark = (id: string, i: number): { icon: string; title: string } => {
     const auto = autoDone[id];
@@ -185,7 +190,7 @@ export function TestModeBar() {
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[16px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream, #F7F0E6)" }}>{lifecycle === REP_LIFECYCLE ? "Rep flow — apply, onboard, play Lee" : "Greek chapter lifecycle"}</p>
+              <p className="text-[16px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream, #F7F0E6)" }}>{lifecycle === REP_LIFECYCLE ? "Rep flow — apply, onboard, play Lee" : "Chair funnel — council to dashboard"}</p>
               <p className="mt-0.5 text-[12.5px]" style={{ color: "var(--text-secondary, #AAB4C8)" }}>{session.name} · run {session.run}</p>
             </div>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-secondary, #AAB4C8)" }}>
@@ -263,12 +268,12 @@ export function TestModeBar() {
               <button
                 type="button"
                 disabled={busy !== null || !fx?.pendingClaimId}
-                title={fx?.pendingClaimId ? `Approve the claim from ${fx.claimantEmail ?? "the exec"}` : "Submit a claim at step 3 first"}
+                title={fx?.pendingClaimId ? `Approve the activation from ${fx.claimantEmail ?? "the chair"}` : "Activate the dashboard first"}
                 onClick={async () => {
                   setBusy("approve"); setMsg(null);
                   try {
                     const r = await testApproveFixtureClaim();
-                    setMsg(r.ok ? "Claim approved — the dashboard is now reachable." : (r.error ?? "Couldn't approve that."));
+                    setMsg(r.ok ? "Activation approved — the dashboard is now reachable." : (r.error ?? "Couldn't approve that."));
                     loadFixture();
                   } catch { setMsg("Couldn't reach the server."); }
                   finally { setBusy(null); }
@@ -276,7 +281,7 @@ export function TestModeBar() {
                 className="rounded-lg px-3 text-[13px] font-black disabled:opacity-40"
                 style={{ minHeight: 40, background: "var(--accent, #FFA611)", color: "#0B1220" }}
               >
-                {busy === "approve" ? "…" : "Approve claim"}
+                {busy === "approve" ? "…" : "Approve activation"}
               </button>
 
               {/* Reset — the destructive one, so it says what it removes before it runs. */}
@@ -284,7 +289,8 @@ export function TestModeBar() {
                 type="button"
                 disabled={busy !== null}
                 onClick={async () => {
-                  if (!window.confirm("Reset the test chapter? This deletes its members, claims and seat pools. Nothing outside the fixture is touched.")) return;
+                  if (!window.confirm("Reset the test chapter? This deletes its members, activation, dashboard steps and seat requests. Nothing outside the fixture is touched.")) return;
+                  forgetTestDevice();
                   setBusy("reset"); setMsg(null);
                   try {
                     const r = await resetFixture();
@@ -347,8 +353,16 @@ export function TestModeBar() {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: "var(--border-subtle, rgba(52,72,109,0.55))" }}>
-            <a href={TEST_CHAPTER_URL} className="text-[12.5px] font-bold underline underline-offset-4" style={{ color: "var(--text-secondary, #AAB4C8)" }}>Test chapter</a>
-            <a href={TEST_CAMPUS_URL} className="text-[12.5px] font-bold underline underline-offset-4" style={{ color: "var(--text-secondary, #AAB4C8)" }}>Test campus</a>
+            <a href={TEST_COUNCIL_URL} className="text-[12.5px] font-bold underline underline-offset-4" style={{ color: "var(--text-secondary, #AAB4C8)" }}>Council page</a>
+            <a href={TEST_CHAPTER_URL} className="text-[12.5px] font-bold underline underline-offset-4" style={{ color: "var(--text-secondary, #AAB4C8)" }}>Chapter page</a>
+            <button
+              type="button"
+              onClick={() => { forgetTestDevice(); setMsg("This device forgot its chapter joins — the join ask will show again."); }}
+              className="text-[12.5px] font-bold underline underline-offset-4"
+              style={{ color: "var(--text-secondary, #AAB4C8)" }}
+            >
+              Forget this device
+            </button>
             <button
               type="button"
               onClick={() => { const n = restartTestRun(); if (n) setSession(n); }}
