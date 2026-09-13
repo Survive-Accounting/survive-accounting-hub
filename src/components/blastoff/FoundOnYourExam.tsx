@@ -38,7 +38,7 @@ export function FoundOnYourExam({
           fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: 44, letterSpacing: "0.18em",
           textTransform: "uppercase", color: GOLD, ...riseIn(head),
         }}>
-          Found on your exam
+          Common exam question
         </div>
 
         <div style={{

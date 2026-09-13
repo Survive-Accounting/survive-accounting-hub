@@ -326,7 +326,8 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   tip: "Go deeper",
   // Lee, 2026-09-08: "I am not seeing a '+Tricky' type slide. Haven't we discussed this?" We had.
   tricky: "Tricky question",
-  found: "Found on your exam",
+  // Renamed 2026-09-12: "Change name of found on your exam to Common Exam Question." Key unchanged.
+  found: "Common exam question",
   exhibit: "Exhibit",
   blank: "Blank",
   bolt: "Bolt detour",

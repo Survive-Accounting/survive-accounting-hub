@@ -164,8 +164,8 @@ const QUICK: readonly { kind: BlastFrameKind; label: string; patch?: Partial<Bla
   // 2026-09-08, Lee: "Also, I'm not seeing a '+Tricky' type slide. Haven't we discussed this?"
   // The fourth of the family the September strategy doc asked for, and the last one built.
   { kind: "tricky", label: "Tricky question" },
-  // 2026-09-09, Lee: "add a new one: Found on your exam."
-  { kind: "found", label: "Found on your exam" },
+  // 2026-09-09, Lee: "add a new one: Found on your exam." Renamed 2026-09-12 to Common exam question.
+  { kind: "found", label: "Common exam question" },
   // 2026-09-11, Lee: "Add a callout type for 'Ask Yourself' where I'll suggest prompted questions."
   { kind: "ask", label: "Ask yourself" },
   // 2026-09-04: the bolt detour (Lee's OBS camera bed) and the three ads.

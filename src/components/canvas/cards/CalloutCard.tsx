@@ -46,7 +46,9 @@ export const TUTOR_META = { label: "MEET YOUR TUTOR", accent: "#C62828", tint: "
 /** THE SUMMARY SLIDE (Lee, 2026-09-03: "the found on your exam should also
  *  look more like the detour cards. Keep it consistent"): the set's own
  *  note-only card, drawn in the detour skin with this label. */
-export const FOUND_META = { label: "FOUND ON YOUR EXAM", accent: "#FCA311", tint: "rgba(252,163,17,0.12)" } as const;
+// RENAMED 2026-09-12 (Lee: "Change name of found on your exam to Common Exam Question"). The key
+// and the constant keep their old names — every saved slide refers to them.
+export const FOUND_META = { label: "COMMON EXAM QUESTION", accent: "#FCA311", tint: "rgba(252,163,17,0.12)" } as const;
 export function calloutMeta(kind: CalloutKind): { label: string; accent: string; tint: string } {
   return kind === "tutor" ? TUTOR_META : kind === "found-on-exam" ? FOUND_META : CALLOUT_KINDS[kind];
 }

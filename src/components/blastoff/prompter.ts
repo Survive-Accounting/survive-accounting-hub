@@ -82,7 +82,7 @@ export const PHRASE_SLIDE_KINDS: readonly { kind: BlastFrameKind; label: string 
   { kind: "cheat", label: "Cheat code" },
   { kind: "tricky", label: "Tricky question" },
   { kind: "tip", label: "Go deeper" },
-  { kind: "found", label: "Found on your exam" },
+  { kind: "found", label: "Common exam question" },
   { kind: "ask", label: "Ask yourself" },
 ];
 

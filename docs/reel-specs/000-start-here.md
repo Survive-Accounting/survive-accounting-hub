@@ -26,7 +26,7 @@ target: 35s
   note: Two lines, one slide, bolt behind. Beat between them. Camera off — the words are the slide.
 ```
 
-**2 · What's actually on the exam** — 4s
+**2 · What's actually on the exam** — 4s (a Common exam question callout)
 
 ```yaml
 - kind: found
@@ -135,6 +135,6 @@ target: 35s
 - Nine slides, ~40s at the estimate. Over the 45 line it wants a cut: drop slide 7, then trim
   slide 4's list to five transactions.
 - Star slide 4 as the lead callout in Reels mode — this Reel is about the transactions list, not
-  the Found on your exam card it opens with.
+  the Common exam question card it opens with.
 - Nothing here references another video. The only forward-looking line is "what type of account",
   which is a question, not a tease.
