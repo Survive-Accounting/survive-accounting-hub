@@ -49,7 +49,7 @@ describe("the DM", () => {
       "",
       "I'm an Ole Miss accounting grad and I've tutored ACCY 201 since 2015. I make cram videos and practice exams built around what's actually on the exam. Everything for Exam 1 is free.",
       "",
-      "Could you pass this to your chapter scholarship chairs? Every IFC chapter has its own page here:",
+      "Could you pass this to your chapter scholarship chairs? This page gives you one link to send them, and each chair picks their chapter from it:",
       "",
       `surviveaccounting.com/go/university-of-mississippi/council/ifc?ref=${REF}`,
       "",

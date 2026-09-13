@@ -7,6 +7,7 @@
 import { SHARE_ORIGIN, buildShareUrl } from "@/lib/share-url";
 import { chapterGroupMe } from "@/components/learn/LearnChapterBar";
 import { nbspCode } from "@/lib/course-code";
+import { schoolByAny } from "@/lib/schools";
 
 export type ChairKind = "chapter" | "council";
 
@@ -30,39 +31,70 @@ export function chairForLine(name: string, schoolName: string): string {
   return `For ${name} · ${schoolName}`;
 }
 
-/** THE STUDENT LINK the chair hands out — /learn, never /go. A chapter link opens the chapter's
- *  own page (letters over the bolt, every email carries the chapter); a council link opens the
- *  campus page with the chapter bar preset to that council so each member picks their house. */
-export function chairShareUrl(kind: ChairKind, schoolId: string, slug: string, ref?: string | null): string {
-  const base = kind === "council"
-    ? `${SHARE_ORIGIN}/learn/${schoolId}?c=${encodeURIComponent(slug)}`
-    : buildShareUrl({ campus: schoolId, chapter: slug });
+const withRefParam = (base: string, ref?: string | null) =>
   // THE REF TRAVELS (Lee, 2026-09-11: "the links that they then share are also the same, passed
   // down the line, and … trackable"): the chair arrived on a DM link with ?ref=<contact>; what
-  // they hand their members carries the same ref, so every /learn visit down the line attributes
-  // to that chair on the DM console.
-  return ref ? `${base}${base.includes("?") ? "&" : "?"}ref=${encodeURIComponent(ref)}` : base;
+  // they hand on carries the same ref, so every visit down the line attributes to that DM.
+  ref ? `${base}${base.includes("?") ? "&" : "?"}ref=${encodeURIComponent(ref)}` : base;
+
+/** THE LINK THE CHAIR HANDS OUT.
+ *
+ *  A CHAPTER chair shares the chapter's own /learn page — their members land on it, join with an
+ *  email, and study. Never /go.
+ *
+ *  A COUNCIL chair shares ONE link to every chapter's scholarship chair (Lee, 2026-09-13: "if IFC
+ *  is sharing a link, we assume it's going to a scholarship chair … pick their chapter from the
+ *  pre-filled campus, and then the scholarship chair can begin their stage of the funnel"). That
+ *  is the chair portal: /chapters with the campus and council preset. Picking a chapter opens that
+ *  chapter's chair page (/go), where the chapter's own funnel starts. */
+export function chairShareUrl(kind: ChairKind, schoolId: string, slug: string, ref?: string | null): string {
+  if (kind === "council") return withRefParam(councilPortalUrl(schoolId, slug), ref);
+  return withRefParam(buildShareUrl({ campus: schoolId, chapter: slug }), ref);
 }
 
-/** The same destination, relative — what the left door opens in a new tab. */
+/** /chapters?school=<campus slug>&c=<council> — the council's one link (and its slide QR). The
+ *  portal speaks campuses.slug; the id is accepted and translated so callers can pass either. */
+export function councilPortalUrl(school: string, council: string): string {
+  const slug = schoolByAny(school)?.slug ?? school;
+  return `${SHARE_ORIGIN}/chapters?school=${encodeURIComponent(slug)}&c=${encodeURIComponent(council)}`;
+}
+
+/** What the left door opens in a new tab: the page MEMBERS land on. For a chapter, that chapter's
+ *  /learn page; for a council, the campus /learn page with the council preset. */
 export function chairLearnPath(kind: ChairKind, schoolId: string, slug: string, ref?: string | null): string {
-  return chairShareUrl(kind, schoolId, slug, ref).slice(SHARE_ORIGIN.length);
+  const base = kind === "council" ? `/learn/${schoolId}?c=${encodeURIComponent(slug)}` : buildShareUrl({ campus: schoolId, chapter: slug }).slice(SHARE_ORIGIN.length);
+  return withRefParam(base, ref);
 }
 
-/** The GroupMe post — the /learn bar's wording, so a chair and a member post the same thing. */
+/** The GroupMe post. A chapter's is the /learn bar's wording, so a chair and a member post the
+ *  same thing. A council's goes to the scholarship chairs' group chat and sends them to the portal. */
 export function chairGroupMe(kind: ChairKind, courseCode: string | null, url: string, shortName: string): string {
-  return chapterGroupMe({ courseCode, url, chapter: kind === "council" ? null : shortName });
+  if (kind === "council") return councilChairPost(courseCode, url, shortName);
+  return chapterGroupMe({ courseCode, url, chapter: shortName });
+}
+
+/** The council → scholarship chairs post. One link, and it says what they get when they open it. */
+export function councilChairPost(courseCode: string | null, url: string, councilName: string): string {
+  const course = courseCode ?? "intro accounting";
+  return [
+    `Scholarship chairs — ${councilName} is sharing free ${course} cram videos + practice exams for every chapter. The first exam is completely free for your members.`,
+    "",
+    "Pick your chapter here to get your members' link and a flyer for the house:",
+    url,
+  ].join("\n");
 }
 
 /** Print + projector artwork. A council gets the slide only (Lee: "For IFC councils… they just
  *  need the meeting slide"); a chapter gets the flyer for the house and the meeting slide. */
-export function chairArtwork(kind: ChairKind, schoolSlug: string, slug: string): { flyer: string | null; slide: string; slidePreview: string } {
+export function chairArtwork(kind: ChairKind, schoolSlug: string, slug: string): { flyer: string | null; flyerImage: string | null; slide: string; slidePreview: string } {
   if (kind === "council") {
     const base = `/api/slide/${schoolSlug}/council/${slug}`;
-    return { flyer: null, slide: `${base}?pdf=1`, slidePreview: base };
+    return { flyer: null, flyerImage: null, slide: `${base}?pdf=1`, slidePreview: base };
   }
   const base = `/api/flyer/${schoolSlug}/${slug}`;
-  return { flyer: base, slide: `${base}?f=slide&pdf=1`, slidePreview: `${base}?f=slide` };
+  // flyerImage: the SAME print flyer as vector, which the page rasterises to a PNG in the browser
+  // (lib/flyer-image) — the image a chair texts or drops in a GroupMe (Lee, 2026-09-13).
+  return { flyer: base, flyerImage: `${base}?f=svg`, slide: `${base}?f=slide&pdf=1`, slidePreview: `${base}?f=slide` };
 }
 
 /** The three value cards, in the chair's words (Lee, 2026-09-11). "members" becomes "everyone"

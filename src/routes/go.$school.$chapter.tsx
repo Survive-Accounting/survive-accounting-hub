@@ -25,7 +25,7 @@ import { ALL_SCHOOLS, boltForSlug, canonicalSchoolName, schoolBySlug } from "@/l
 import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { ClaimSheetHost, openClaimStep } from "@/components/site/ChapterAccess";
-import { ChairPromo, type ChairClaim } from "@/components/site/ChairPromo";
+import { ChairPromo, type ChairClaim, type ChairPromoAction } from "@/components/site/ChairPromo";
 import { getGoChapter, goPath, logGreekEvent } from "@/lib/greek-go.functions";
 import { track } from "@/lib/analytics";
 import { carryParams } from "@/lib/carry-params";
@@ -134,13 +134,17 @@ function GoChapterPage() {
 
   // Every share action the chair takes is logged under the same kinds the old kit used, so the
   // exec dashboard's numbers carry on unchanged.
-  const onAction = (action: "open_learn" | "copy_link" | "copy_groupme" | "flyer" | "slide") => {
+  // ?from=<council> — this chair came through their council's one-link portal (/chapters?c=ifc).
+  const [fromCouncil, setFromCouncil] = useState<string | null>(null);
+  useEffect(() => { const v = new URLSearchParams(window.location.search).get("from"); setFromCouncil(v && /^[a-z]{2,12}$/.test(v) ? v : null); }, []);
+
+  const onAction = (action: ChairPromoAction) => {
     // THE FIRST SHARE ACTION on this chapter's page emails Lee (lib/chair-alerts.functions); the
     // ref cookie from the DM link says who. Every action is logged there too.
-    if (ch) void notifyChairAction({ data: { kind: "chapter", schoolSlug: school, slug: chapter, name: ch.chapterName, action, ref: currentContactRef() } }).catch(() => {});
+    if (ch) void notifyChairAction({ data: { kind: "chapter", schoolSlug: school, slug: chapter, name: ch.chapterName, action, ref: currentContactRef(), fromCouncil } }).catch(() => {});
     const ev = action === "copy_link" ? { kind: "copy_link" as const, via: "link" as const }
       : action === "copy_groupme" ? { kind: "copy_message" as const, via: "groupme" as const }
-      : action === "flyer" ? { kind: "flyer_download" as const, via: "flyer" as const }
+      : action === "flyer" || action === "flyer_image" ? { kind: "flyer_download" as const, via: "flyer" as const }
       : action === "slide" ? { kind: "flyer_download" as const, via: "slide" as const }
       : null;
     if (!ev) return;

@@ -24,6 +24,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { ALL_SCHOOLS, schoolById, schoolBySlug } from "@/lib/schools";
+import { councilBySlug } from "@/lib/greek-councils.functions";
+import { isContactRef } from "@/lib/contact-ref";
+import { TEST_CAMPUS_SLUG } from "@/lib/test-mode";
+import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { readCampusPrefs } from "@/lib/campus-prefs.functions";
@@ -51,8 +55,19 @@ export const Route = createFileRoute("/chapters")({
   }),
   // ?school=<campus-slug> pre-selects the school in the finder — campus pages link here with
   // their own slug so a visitor never re-finds a school the link already named.
-  validateSearch: (s: Record<string, unknown>): { school?: string } =>
-    typeof s.school === "string" && s.school ? { school: s.school } : {},
+  //
+  // ?c=<council> TURNS THIS INTO THE CHAIR PORTAL (2026-09-13). A council's academics chair shares
+  // ONE link — /chapters?school=<campus>&c=ifc — with every chapter's scholarship chair (and the
+  // council meeting slide's QR encodes the same link). Lee: "if IFC is sharing a link, we assume
+  // it's going to a scholarship chair". The school is pre-filled, the chapter list is that
+  // council's, and the pick opens the chapter's CHAIR page (/go), where that chair's own share kit
+  // and dashboard activation live. Without ?c= the page is unchanged: members find their /learn page.
+  // ?ref= is the council contact's DM ref; it is recorded here and rides the cookie onward.
+  validateSearch: (s: Record<string, unknown>): { school?: string; c?: string; ref?: string } => ({
+    ...(typeof s.school === "string" && s.school ? { school: s.school } : {}),
+    ...(typeof s.c === "string" && councilBySlug(s.c) ? { c: s.c } : {}),
+    ...(typeof s.ref === "string" && isContactRef(s.ref) ? { ref: s.ref } : {}),
+  }),
   // Course codes for the picker rows, resolved on the server so the first paint already carries
   // them. Reference data that changes by hand, so ten minutes of route-level caching makes repeat
   // visits in the same session free. Best-effort: a code fetch failure costs the row its code,
@@ -78,10 +93,14 @@ function ChaptersPage() {
   // remembered campus cookie). "Exam 1" is what we say to someone we cannot place; to a chapter at
   // a campus we HAVE mapped, the course code is the more specific promise. Never a guessed code —
   // a campus with no verified code keeps the generic line.
-  const { school: preselect } = Route.useSearch();
+  const { school: preselect, c } = Route.useSearch();
   const { codes, storedSlug } = Route.useLoaderData();
   const slug = preselect ?? storedSlug ?? null;
   const campusId = slug ? schoolBySlug(slug)?.campusId : undefined;
+  const council = c ? councilBySlug(c) : null;
+  const schoolName = preselect ? schoolBySlug(preselect)?.name ?? null : null;
+  // A council DM's click on its portal link counts on the DM console, like the /go pages do.
+  useRecordRefVisit(campusId || null);
   const code = (campusId && codes.find((c) => c.campusId === campusId)?.code) || null;
   return (
     <div style={{ ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
@@ -99,9 +118,16 @@ function ChaptersPage() {
         <section className="flex flex-col items-center pt-10 pb-16 text-center sm:pt-14">
           {/* M1.2 — was a fixed 84px nowrap lockup, wider than a phone. */}
           <FitWordmark size={84} />
-          <h1 className="mt-5 text-[26px] font-black sm:text-[32px]" style={{ letterSpacing: "-0.01em" }}>Find your chapter.</h1>
+          {council && (
+            <p className="mt-5 text-[12px] font-black uppercase" style={{ letterSpacing: "0.12em", color: "var(--accent)", fontFamily: BRAND_SANS }}>
+              For scholarship chairs · {council.name}{schoolName ? ` · ${schoolName}` : ""}
+            </p>
+          )}
+          <h1 className={`${council ? "mt-2" : "mt-5"} text-[26px] font-black sm:text-[32px]`} style={{ letterSpacing: "-0.01em" }}>Find your chapter.</h1>
           <p className="mt-2 max-w-md text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--brand-cream)", opacity: 0.88, fontFamily: BRAND_SANS }}>
-            {code
+            {council
+              ? `Pick your chapter to get your members' link, a GroupMe post and a flyer for the house${code ? ` — free ${code} Exam 1 for everyone.` : "."}`
+              : code
               ? `Free ${code} cram videos + practice exams for your whole chapter.`
               : "Free Exam 1 cram videos for your whole chapter."}
           </p>
@@ -122,8 +148,11 @@ function ChaptersPage() {
  *  exists. */
 function FindMyChapter() {
   const nav = useNavigate();
-  const { school: preselect } = Route.useSearch();
+  const { school: preselect, c } = Route.useSearch();
   const { codes, storedSlug } = Route.useLoaderData();
+  // THE TEST CAMPUS is never in a picker (schools.ts) — except here, when a test run's council link
+  // names it, so King can walk council → chapter chair on the fixture.
+  const schools = preselect === TEST_CAMPUS_SLUG ? [{ slug: TEST_CAMPUS_SLUG, name: schoolBySlug(TEST_CAMPUS_SLUG)?.name ?? "Test University" }, ...FINDER_SCHOOLS] : FINDER_SCHOOLS;
 
   // A SCHOOL THE SITE ALREADY KNOWS IS NOT ASKED AGAIN. The URL's ?school= wins (a campus page
   // sent them here naming itself); failing that, the campus the visitor implied or picked on an
@@ -136,7 +165,8 @@ function FindMyChapter() {
       // EVERY seeded school, not only those that already have chapters. A member at a campus
       // with no chapters yet is exactly who lazy creation exists for -- restricting the list to
       // schools we already scraped would lock out the people most worth hearing from.
-      schools={FINDER_SCHOOLS}
+      schools={schools}
+      council={c}
       codes={codes}
       card
       escapeHatches
@@ -144,7 +174,11 @@ function FindMyChapter() {
       // was a third click that confirmed the second one.
       autoPick
       initialSchool={preselect ?? stored}
-      onPick={(school, chapter) => void nav({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: schoolBySlug(school)?.id ?? school, chapter } })}
+      onPick={(school, chapter) => {
+        // The chair portal opens the chapter's CHAIR page; the member hallway opens /learn.
+        if (c) { void nav({ href: `/go/${encodeURIComponent(school)}/${encodeURIComponent(chapter)}?from=${encodeURIComponent(c)}` }); return; }
+        void nav({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: schoolBySlug(school)?.id ?? school, chapter } });
+      }}
     />
   );
 }

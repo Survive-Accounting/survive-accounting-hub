@@ -63,9 +63,11 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
     chapterSlug: z.string().trim().min(1).max(60),
     name: z.string().trim().min(2).max(120),
     position: z.string().trim().min(1).max(60),
-    // OPTIONAL since 2026-09-11 (the /learn module asks name · phone · role · question; the phone
-    // is how Lee gets the call). Stored as "" when absent — the column is NOT NULL.
-    email: z.string().trim().email().max(200).optional(),
+    // REQUIRED AGAIN (2026-09-13). It was optional for two days, while the /learn exec form asked
+    // name · phone · role only — and a chair activated from there had "" as their email, which is
+    // exactly the address the dashboard signs them in with. Approved, they still couldn't get in.
+    // Every activation form asks for it now, so every activated chair is treated the same.
+    email: z.string().trim().email().max(200),
     phone: z.string().trim().min(7).max(20),
     /** "Anything you want to ask" — goes straight into Lee's text and email, nowhere else. */
     question: z.string().trim().max(500).optional(),
@@ -155,15 +157,16 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
     // work handed to afterResponse may run once the request is gone. And the handler body is what
     // TanStack strips from the client bundle — a dynamic import of a server module from a plain
     // module-level function in this file would survive into the browser graph and fail the build.
-    const { isTestRequest } = await import("@/lib/test-mode.functions");
-    const isTest = await isTestRequest();
-    const scheduled = afterResponse(() => runClaimIntake(claimId, isTest, data.question));
+    const { testerEmailForRequest } = await import("@/lib/test-mode.functions");
+    const testerTo = await testerEmailForRequest();
+    const isTest = testerTo !== null;
+    const scheduled = afterResponse(() => runClaimIntake(claimId, isTest, data.question, testerTo));
     return { ok: true, claimId: claimId ?? undefined, notifyPending: !scheduled };
   });
 
 /** Run the claim's notifications. Extracted so it can be reached from either scheduling path, and
  *  written to be safe to call twice: the intake row it would create is looked for first. */
-async function runClaimIntake(claimId: string | null, isTest: boolean, question?: string): Promise<{ ok: boolean; reason?: string }> {
+async function runClaimIntake(claimId: string | null, isTest: boolean, question?: string, testerTo?: string | null): Promise<{ ok: boolean; reason?: string }> {
   if (!claimId) return { ok: false, reason: "no_claim" };
   try {
     const db = await admin();
@@ -224,20 +227,22 @@ async function runClaimIntake(claimId: string | null, isTest: boolean, question?
     // EVERY CLAIM, not just "ready to sponsor" (Lee, 2026-09-11: "for any chapter exec that claims
     // their page form… I want a notification text immediately to my personal phone. Give me their
     // name, campus, chapter, phone number"). The willingness question is gone from the form.
-    if (!isTest) {
+    {
       try {
         // RAW senders, not the template pipeline: this is an internal operator alert to Lee, not
         // a templated message to a lead, and it must not be suppressed, capped or unsubscribed.
-        const { FOUNDER_EMAIL, FOUNDER_PHONE } = await import("@/lib/comms/send.server");
-        const { sendResendEmail } = await import("@/lib/email.server");
+        // THE EMAIL GOES TO LEE AND KING (Lee, 2026-09-13: "Let the 'Activate your chapter
+        // dashboard' email King too") through lib/team-alerts.server, which sends a test run to the
+        // tester only — so King sees exactly what Lee would. The text stays Lee's, and never on a test.
+        const { FOUNDER_PHONE } = await import("@/lib/comms/send.server");
+        const { emailTeam } = await import("@/lib/team-alerts.server");
         const { sendSms } = await import("@/lib/greek-chapters.functions");
         const goUrl = `https://surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`;
         const who = `${claim.name as string} (${claim.position as string})`;
         const seats = `${ch.members} member${ch.members === 1 ? "" : "s"} banked`;
         const line = `DASHBOARD ACTIVATION — ${ch.chapterName} at ${ch.schoolName}. ${who} · ${claim.phone as string}${claim.email ? ` · ${claim.email as string}` : ""} · ${seats}.${question ? ` They asked: "${question}"` : ""} They were told you'd text shortly.`;
-        await sendResendEmail({
-          to: FOUNDER_EMAIL,
-          subject: `${ch.chapterName} at ${ch.schoolName} claimed their dashboard`,
+        await emailTeam({
+          subject: `${ch.chapterName} at ${ch.schoolName} activated their dashboard`,
           text: `${line}
 ${claim.email as string}
 ${goUrl}`,
@@ -247,8 +252,8 @@ ${goUrl}`,
             `<p>${seats}. <a href="${goUrl}">Chapter page</a></p>`,
             `<p><b>They were told you would text shortly.</b></p>`,
           ].join(""),
-        }).catch(() => undefined);
-        if (FOUNDER_PHONE) await sendSms(FOUNDER_PHONE, line).catch(() => undefined);
+        }, { testTo: isTest ? (testerTo ?? "") : null });
+        if (FOUNDER_PHONE && !isTest) await sendSms(FOUNDER_PHONE, line).catch(() => undefined);
       } catch (e) {
         // The claim and the standard intake already succeeded; a failed hot-lead ping must never
         // undo them. It is logged so a silent miss is still a visible miss.
@@ -283,8 +288,9 @@ function afterResponse(work: () => Promise<unknown>): boolean {
 export const notifyChapterClaim = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ claimId: z.string().uuid(), question: z.string().trim().max(500).optional() }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; reason?: string }> => {
-    const { isTestRequest } = await import("@/lib/test-mode.functions");
-    return runClaimIntake(data.claimId, await isTestRequest(), data.question);
+    const { testerEmailForRequest } = await import("@/lib/test-mode.functions");
+    const testerTo = await testerEmailForRequest();
+    return runClaimIntake(data.claimId, testerTo !== null, data.question, testerTo);
   });
 
 // ── REVIEW (admin, JWT-verified) ──────────────────────────────────────────────────────────────

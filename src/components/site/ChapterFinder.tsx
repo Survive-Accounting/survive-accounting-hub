@@ -24,10 +24,11 @@ import { PickerNotListed, SearchPicker } from "@/components/site/SearchPicker";
 import { ChapterSelfCreate } from "@/components/site/ChapterSelfCreate";
 import { NotListedForm } from "@/components/site/NotListedForm";
 import { listGoChapters } from "@/lib/greek-go.functions";
+import { councilBySlug, councilMatches } from "@/lib/greek-councils.functions";
 
 export interface FinderSchool { slug: string; name: string }
 
-export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy = false, note, card = false, header, escapeHatches = false, initialSchool, codes, autoPick = false }: {
+export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy = false, note, card = false, header, escapeHatches = false, initialSchool, codes, autoPick = false, council }: {
   schools: FinderSchool[];
   onPick: (schoolSlug: string, chapterSlug: string, chapterName: string) => void;
   cta?: string;
@@ -51,6 +52,9 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
    *  portal uses this: the chapter IS the decision. The self-report on a chapter page keeps the
    *  button, because there the pick writes an attribution row and deserves a deliberate press. */
   autoPick?: boolean;
+  /** A council slug (?c= on a council's portal link). The chapter list shows only that council's
+   *  chapters, so an IFC chair never scrolls past the sororities. Unknown slugs filter nothing. */
+  council?: string;
 }) {
   const [school, setSchool] = useState(() => (initialSchool && schools.some((s) => s.slug === initialSchool) ? initialSchool : ""));
   const [chapter, setChapter] = useState("");
@@ -77,7 +81,14 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
     networkMode: "always",
     staleTime: 300_000,
   });
-  const chapters = useMemo(() => q.data ?? [], [q.data]);
+  const councilDef = council ? councilBySlug(council) : null;
+  const chapters = useMemo(() => {
+    const all = q.data ?? [];
+    if (!councilDef) return all;
+    const inCouncil = all.filter((c) => councilMatches(councilDef, c.council));
+    // A campus whose roster carries no council column at all still lists its chapters.
+    return inCouncil.length ? inCouncil : all;
+  }, [q.data, councilDef]);
   const picked = chapters.find((c) => c.slug === chapter);
   const schoolName = schools.find((s) => s.slug === school)?.name;
 

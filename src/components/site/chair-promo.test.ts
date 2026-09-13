@@ -29,8 +29,9 @@ describe("links", () => {
     expect(chairShareUrl("chapter", "tennessee", "alpha-tau-omega")).toBe("https://surviveaccounting.com/learn/tennessee/alpha-tau-omega");
     expect(chairLearnPath("chapter", "tennessee", "alpha-tau-omega")).toBe("/learn/tennessee/alpha-tau-omega");
   });
-  test("a council's share link is the campus /learn page with the council preset", () => {
-    expect(chairShareUrl("council", "tennessee", "ifc")).toBe("https://surviveaccounting.com/learn/tennessee?c=ifc");
+  test("a council shares ONE link — the chair portal, campus + council preset; its left door still shows members' /learn", () => {
+    expect(chairShareUrl("council", "tennessee", "ifc")).toBe("https://surviveaccounting.com/chapters?school=university-of-tennessee-knoxville&c=ifc");
+    expect(chairShareUrl("council", "tennessee", "ifc", "11111111-2222-3333-4444-555555555555")).toBe("https://surviveaccounting.com/chapters?school=university-of-tennessee-knoxville&c=ifc&ref=11111111-2222-3333-4444-555555555555");
     expect(chairLearnPath("council", "tennessee", "ifc")).toBe("/learn/tennessee?c=ifc");
   });
   test("nothing the chair hands out points at /go", () => {
@@ -48,11 +49,12 @@ describe("the GroupMe post", () => {
     expect(msg.match(/https?:\/\//g)?.length).toBe(1);
     expect(msg.endsWith(url)).toBe(true);
   });
-  test("a council's post speaks to every chapter and asks them to pick theirs", () => {
+  test("a council's post goes to the scholarship chairs and sends them to pick their chapter", () => {
     const url = chairShareUrl("council", "tennessee", "ifc");
     const msg = chairGroupMe("council", "ACCT 200", url, "IFC");
-    expect(msg).toContain("every chapter free ACCT 200");
-    expect(msg).toContain("Pick your chapter and start here:");
+    expect(msg.startsWith("Scholarship chairs — IFC is sharing free ACCT 200")).toBe(true);
+    expect(msg).toContain("Pick your chapter here to get your members' link and a flyer for the house:");
+    expect(msg.match(/https?:\/\//g)?.length).toBe(1);
     expect(msg.endsWith(url)).toBe(true);
   });
 });
@@ -61,6 +63,7 @@ describe("artwork", () => {
   test("a chapter gets the flyer and the slide, off the existing flyer endpoint", () => {
     const a = chairArtwork("chapter", "university-of-tennessee-knoxville", "alpha-tau-omega");
     expect(a.flyer).toBe("/api/flyer/university-of-tennessee-knoxville/alpha-tau-omega");
+    expect(a.flyerImage).toBe("/api/flyer/university-of-tennessee-knoxville/alpha-tau-omega?f=svg");
     expect(a.slide).toBe("/api/flyer/university-of-tennessee-knoxville/alpha-tau-omega?f=slide&pdf=1");
   });
   test("a council gets the slide only (Lee: councils just need the meeting slide)", () => {

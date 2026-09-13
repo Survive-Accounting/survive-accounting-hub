@@ -14,13 +14,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-export const CHAIR_ACTIONS = ["copy_link", "copy_groupme", "flyer", "slide", "open_learn"] as const;
+export const CHAIR_ACTIONS = ["copy_link", "copy_groupme", "flyer", "flyer_image", "slide", "open_learn"] as const;
 export type ChairAction = (typeof CHAIR_ACTIONS)[number];
 
 const ACTION_LABEL: Record<ChairAction, string> = {
   copy_link: "copied the share link",
   copy_groupme: "copied the GroupMe post",
   flyer: "opened the flyer",
+  flyer_image: "downloaded the flyer image",
   slide: "downloaded the meeting slide",
   open_learn: "opened the members' page",
 };
@@ -37,6 +38,8 @@ export const notifyChairAction = createServerFn({ method: "POST" })
     name: z.string().trim().max(160),
     action: z.enum(CHAIR_ACTIONS),
     ref: z.string().uuid().nullable().optional(),
+    /** The council whose portal link sent this chapter chair (/chapters?c=ifc → /go/…?from=ifc). */
+    fromCouncil: z.string().trim().max(20).nullable().optional(),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; first: boolean }> => {
     try {
@@ -65,15 +68,19 @@ export const notifyChairAction = createServerFn({ method: "POST" })
       const campus = schoolBySlug(data.schoolSlug)?.name ?? data.schoolSlug;
       const what = ACTION_LABEL[data.action];
       const pageUrl = `https://surviveaccounting.com/go/${data.schoolSlug}/${data.kind === "council" ? `council/${data.slug}` : data.slug}`;
-      const line = `${who}${title ? ` (${title})` : ""} · ${campus} · ${data.name} ${what}.`;
-      const { FOUNDER_EMAIL } = await import("@/lib/comms/send.server");
-      const { sendResendEmail } = await import("@/lib/email.server");
-      await sendResendEmail({
-        to: process.env.CHAIR_ALERT_EMAIL || FOUNDER_EMAIL,
+      // A chapter chair who arrived through a council's one-link portal (/chapters?c=ifc) carries
+      // the COUNCIL contact's ref, so that contact is who sent them — not who they are.
+      const viaCouncil = data.kind === "chapter" && data.fromCouncil ? data.fromCouncil.toUpperCase() : null;
+      const line = viaCouncil
+        ? `${data.name}'s chair (from the ${viaCouncil} link${who !== "Someone" ? ` ${who} shared` : ""}) · ${campus} · ${what}.`
+        : `${who}${title ? ` (${title})` : ""} · ${campus} · ${data.name} ${what}.`;
+      // Lee AND King (lib/team-alerts.server); a test run emails the tester only.
+      const { emailTeam } = await import("@/lib/team-alerts.server");
+      await emailTeam({
         subject: `${data.kind === "council" ? "Council" : "Chapter"} chair click — ${data.name} · ${campus}`,
         text: `${line}\n\nFirst share action on this ${data.kind}'s page.\n${pageUrl}`,
-        html: `<p style="font-size:15px;"><b>${esc(who)}</b>${title ? ` (${esc(title)})` : ""} · ${esc(campus)} · <b>${esc(data.name)}</b> ${esc(what)}.</p><p style="color:#666;">First share action on this ${data.kind}'s page. <a href="${pageUrl}">${pageUrl}</a></p>`,
-      }).catch(() => undefined);
+        html: `<p style="font-size:15px;">${esc(line)}</p><p style="color:#666;">First share action on this ${data.kind}'s page. <a href="${pageUrl}">${pageUrl}</a></p>`,
+      });
       return { ok: true, first: true };
     } catch (e) {
       console.warn("notifyChairAction failed:", (e as Error).message);

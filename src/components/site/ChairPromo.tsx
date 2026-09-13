@@ -16,7 +16,7 @@
 // value cards in the chair's words. No sign-up form. The exec dashboard claim is one quiet link
 // in the top line (chapters only), which opens the claim sheet in place.
 import { useEffect, useState } from "react";
-import { Check, FileText, Link2, MessageSquare, Presentation, Undo2 } from "lucide-react";
+import { Check, FileText, Image as ImageIcon, Link2, Loader2, MessageSquare, Presentation, Undo2 } from "lucide-react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
@@ -30,12 +30,14 @@ import { FlyerMark } from "@/components/site/chapter/ChapterDoors";
 import { MARKETING_CSS, SocialProofSection, TrustChips, TutorBioModal, TutorCard } from "@/components/site/Marketing";
 import { TestimonialsSlider } from "@/components/site/Testimonials";
 import { scrollToId } from "@/lib/ui-scroll";
+import { saveFlyerImage } from "@/lib/flyer-image";
 import { LEE_PHONE_DISPLAY, LEE_SMS_HREF } from "@/lib/partners";
 import {
   type ChairKind, chairArtwork, chairForLine, chairGroupMe, chairHeadline, chairLearnPath, chairShareUrl, chairSubhead, chairValueCards,
 } from "@/components/site/chair-promo";
 
 export type ChairClaim = "unclaimed" | "pending" | "claimed";
+export type ChairPromoAction = "open_learn" | "copy_link" | "copy_groupme" | "flyer" | "flyer_image" | "slide";
 
 const REVIEWS_ID = "reviews";
 const VALUE_ID = "what-they-get";
@@ -61,7 +63,7 @@ export function ChairPromo({ kind, schoolSlug, schoolId, schoolName, slug, name,
   claim?: ChairClaim;
   onClaim?: () => void;
   /** Best-effort analytics hook; never awaited. */
-  onAction?: (action: "open_learn" | "copy_link" | "copy_groupme" | "flyer" | "slide") => void;
+  onAction?: (action: ChairPromoAction) => void;
   /** The DM contact this chair arrived as (?ref= / the sa_cref cookie) — rides on every link they share. */
   contactRef?: string | null;
 }) {
@@ -180,10 +182,19 @@ function FlipDoor({ kind, letters, shareUrl, groupMe, art, onAction }: {
   shareUrl: string;
   groupMe: string;
   art: ReturnType<typeof chairArtwork>;
-  onAction?: (action: "copy_link" | "copy_groupme" | "flyer" | "slide") => void;
+  onAction?: (action: Exclude<ChairPromoAction, "open_learn">) => void;
 }) {
   const [flipped, setFlipped] = useState(false);
-  const title = kind === "council" ? "Share with chapters" : "Share with members";
+  const title = kind === "council" ? "Share with chapter chairs" : "Share with members";
+  const [imgBusy, setImgBusy] = useState(false);
+  const flyerImageFile = `survive-${letters.replace(/[^A-Za-z0-9]+/g, "").toLowerCase() || "chapter"}-flyer.png`;
+  const downloadImage = async () => {
+    if (!art.flyerImage || imgBusy) return;
+    setImgBusy(true);
+    try { const r = await saveFlyerImage(art.flyerImage, flyerImageFile); if (r !== "cancelled") onAction?.("flyer_image"); }
+    catch { window.open(art.flyerImage, "_blank", "noopener"); }
+    finally { setImgBusy(false); }
+  };
   const slideLabel = kind === "council" ? "Council meeting slide" : "Chapter meeting slide";
   const slideFile = `survive-${kind}-${letters.replace(/[^A-Za-z0-9]+/g, "").toLowerCase() || "meeting"}-slide.pdf`;
   return (
@@ -200,7 +211,7 @@ function FlipDoor({ kind, letters, shareUrl, groupMe, art, onAction }: {
             }
             support={
               <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch", color: "var(--text-muted)" }}>
-                A link, a GroupMe post, and something for the meeting.
+                {kind === "council" ? "One link for every chapter's scholarship chair, and a slide for the meeting." : "A link, a GroupMe post, a flyer, and a slide for the meeting."}
               </span>
             }
           />
@@ -208,14 +219,19 @@ function FlipDoor({ kind, letters, shareUrl, groupMe, art, onAction }: {
         <div className="sa-flip-face sa-flip-back" aria-hidden={!flipped}>
           <div className="sa-door-card" style={{ ...DOOR_CARD, padding: "22px 22px 18px", justifyContent: "flex-start" }}>
             <h3 className="text-[18px] font-black uppercase leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "0.04em" }}>{title}</h3>
-            <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Every link goes to the same free Exam 1.</p>
+            <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>{kind === "council" ? "Chairs pick their chapter and get its link and flyer." : `Every link opens ${letters}'s page. Exam 1 is free.`}</p>
             <div className="mt-4 flex w-full flex-col gap-2">
-              <CopyAction icon={<Link2 className="h-4 w-4" aria-hidden />} label="Copy share link" text={shareUrl} disabled={!flipped} onCopied={() => onAction?.("copy_link")} />
+              <CopyAction icon={<Link2 className="h-4 w-4" aria-hidden />} label={kind === "council" ? "Copy link for chapter chairs" : "Copy share link"} text={shareUrl} disabled={!flipped} onCopied={() => onAction?.("copy_link")} />
               <CopyAction icon={<MessageSquare className="h-4 w-4" aria-hidden />} label="Copy GroupMe post" text={groupMe} disabled={!flipped} onCopied={() => onAction?.("copy_groupme")} />
               {art.flyer && (
                 <a href={art.flyer} target="_blank" rel="noreferrer" tabIndex={flipped ? 0 : -1} onClick={() => onAction?.("flyer")} className="inline-flex items-center justify-center gap-2" style={TIER_ACTION}>
-                  <FileText className="h-4 w-4" aria-hidden /> Flyer for the house
+                  <FileText className="h-4 w-4" aria-hidden /> Print flyer for the house
                 </a>
+              )}
+              {art.flyerImage && (
+                <button type="button" onClick={() => void downloadImage()} tabIndex={flipped ? 0 : -1} disabled={imgBusy} className="inline-flex items-center justify-center gap-2" style={TIER_ACTION}>
+                  {imgBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ImageIcon className="h-4 w-4" aria-hidden />} Download flyer image
+                </button>
               )}
               <a href={art.slide} download={slideFile} tabIndex={flipped ? 0 : -1} onClick={() => onAction?.("slide")} className="inline-flex items-center justify-center gap-2" style={TIER_ACTION}>
                 <Presentation className="h-4 w-4" aria-hidden /> {slideLabel}

@@ -176,7 +176,9 @@ export function contactDm(c: DmContext): string {
       ? "Could you pass this to your chapter scholarship chairs so they can share it with their members?"
       : c.org.kind === "office"
         ? "Could you pass this along to your council and chapter scholarship chairs? Every chapter has its own page here:"
-        : `Could you pass this to your chapter scholarship chairs? Every ${GROUP_LABEL[c.org.group] ?? c.org.group} chapter has its own page here:`;
+        // THE COUNCIL PAGE HANDS THEM ONE LINK FOR EVERY CHAIR (2026-09-13) — the chapter pages are
+        // one pick away from it, not listed on it, so the DM promises exactly that.
+        : "Could you pass this to your chapter scholarship chairs? This page gives you one link to send them, and each chair picks their chapter from it:";
   } else if (c.org.kind === "chapter") {
     open = `${hey} ${cap(course)} is one of the biggest drags on chapter GPAs, and it's a fixable one.`;
     ask = c.org.onSite
