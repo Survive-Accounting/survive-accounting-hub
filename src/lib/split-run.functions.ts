@@ -30,9 +30,11 @@ const inputSchema = z.object({
   topicName: z.string().max(200),
   setName: z.string().max(200),
   reelTitle: z.string().max(200),
-  slides: z.array(z.object({ kind: z.string().max(40), words: z.string().max(600) })).max(60),
-  cards: z.array(z.object({ id: z.string().max(40), stem: z.string().max(600) })).max(40),
+  // Room for a whole unsplit set (5 Types of Accounts is 49 cards / 219 slides).
+  slides: z.array(z.object({ kind: z.string().max(40), words: z.string().max(600) })).max(300),
+  cards: z.array(z.object({ id: z.string().max(40), stem: z.string().max(600) })).max(120),
   note: z.string().max(4000),
+  mode: z.enum(["split", "one"]).optional(),
 });
 
 export const proposeSplitRun = createServerFn({ method: "POST" })

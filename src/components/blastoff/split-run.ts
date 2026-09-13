@@ -59,16 +59,23 @@ export interface SplitInput {
   cards: { id: string; stem: string }[];
   /** What Lee just said about it. */
   note: string;
+  /** "split" (default): smaller Reels out. "one": this Reel's own slides, rewritten or filled in —
+   *  exactly one Reel back (Proposal C, 2026-09-13: talk out an offshoot stub, or redo one split). */
+  mode?: "split" | "one";
 }
 
-const MAX_REELS = 6;
+// A whole unsplit set can come in at once (5 Types of Accounts is 49 cards), so there is room.
+const MAX_REELS = 12;
 // Room past the frame ceiling on purpose: a too-long proposal is flagged and edited down, never
 // silently truncated (Lee: "I'd prefer to have the AI possibly generate too many and I edit down").
 const MAX_SLIDES = 24;
 
 export function buildSplitMessages(input: SplitInput): { system: string; user: string } {
+  const one = input.mode === "one";
   const system = [
-    "You are helping Lee split one cram video into smaller ones. He teaches intro accounting; his videos are vertical Reels.",
+    one
+      ? "You are helping Lee write the slides for ONE cram video. He teaches intro accounting; his videos are vertical Reels. Answer with exactly ONE reel — do not split it."
+      : "You are helping Lee split one cram video into smaller ones. He teaches intro accounting; his videos are vertical Reels.",
     "",
     "THE FORMULA, which every Reel you propose must obey:",
     `· Short: about ${REEL_BUDGET.target}-${REEL_BUDGET.max} seconds. Count only the slides you write (the opener and sign-off are added for you): aim for no more than ${FRAME_BUDGET.ceiling}, ${FRAME_BUDGET.max} at the very most.`,
@@ -99,8 +106,8 @@ export function buildSplitMessages(input: SplitInput): { system: string; user: s
     input.cards.length ? "Its question cards (use these ids):" : "It has no question cards.",
     ...input.cards.map((c) => `${c.id}: ${c.stem}`),
     "",
-    "What Lee says about splitting it:",
-    input.note.trim() || "(nothing — split it the way the formula says)",
+    one ? "What Lee says this video should be:" : "What Lee says about splitting it:",
+    input.note.trim() || (one ? "(nothing — write it the way the formula says)" : "(nothing — split it the way the formula says)"),
   ].join("\n");
 
   return { system, user };

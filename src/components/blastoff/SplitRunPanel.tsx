@@ -15,6 +15,7 @@ import { useRef, useState } from "react";
 import { getAdminWho } from "@/components/AdminGate";
 import { markGenerationBuilt, recordDraftGeneration, setGenerationStatus } from "@/lib/frame-events.functions";
 import { proposeSplitRun } from "@/lib/split-run.functions";
+import { useDictation } from "@/lib/use-dictation";
 
 import { CREAM, EDGE, GOLD, MUTED, PANEL } from "./BlastOffEditor";
 import { FRAME_LABEL, type BlastFrame, type PlanTake } from "./plan";
@@ -24,6 +25,8 @@ import { SPLIT_PROMPT_VERSION, cardsIn, generationSlots, keyProposal, mergeSubSp
 const MINT = "#3BF5A0";
 const RED = "#FF8B7E";
 const AMBER = "#F59E0B";
+/** The opener kinds a Reel starts with — kept as-is by one-Reel mode. */
+const BOOKEND_HEAD: readonly BlastFrame["kind"][] = ["open", "intro", "slogan", "bio", "found"];
 
 export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, opener, closer, onBuild, onClose }: {
   setId: string;
@@ -40,6 +43,12 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
   onClose: () => void;
 }) {
   const [note, setNote] = useState("");
+  // PROPOSAL C (2026-09-13): "split" = smaller Reels out; "one" = just this Reel's slides, talked
+  // out and rewritten (an offshoot stub, or redoing one split) — it keeps this Reel's own opener,
+  // sign-off and name, so a posted split's row stays attached.
+  const [mode, setMode] = useState<"split" | "one">(take.frames.some((f) => f.kind === "ceq") ? "split" : "one");
+  const [interim, setInterim] = useState("");
+  const mic = useDictation((final, live) => { setInterim(live); if (final.trim()) setNote((t) => `${t} ${final}`.trim()); });
   const [busy, setBusy] = useState(false);
   /** Which candidate is being split further, while its pass runs. */
   const [subBusy, setSubBusy] = useState<number | null>(null);
@@ -84,10 +93,13 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
   const propose = async () => {
     setBusy(true); setErr(null);
     try {
-      const input = { topicName, setName, reelTitle: title, slides, cards, note };
+      if (mic.on) { mic.stop(); setInterim(""); }
+      const input = { topicName, setName, reelTitle: title, slides, cards, note: `${note} ${interim}`.trim(), mode };
       const r = await proposeSplitRun({ data: input });
       retire("superseded");
-      const keyed = keyProposal(r.proposal, `p${pass.current++}.`);
+      // One-Reel mode: exactly one Reel, and it keeps the name he already gave it.
+      const shaped = mode === "one" ? { ...r.proposal, reels: r.proposal.reels.slice(0, 1).map((x) => (take.name.trim() ? { ...x, title: take.name.trim() } : x)) } : r.proposal;
+      const keyed = keyProposal(shaped, `p${pass.current++}.`);
       setProposal(keyed);
       if (!r.proposal.reels.length) setErr("It didn't propose a split. Say a bit more about where it should break.");
       else chain.current = [record(input, r.proposal, keyed, r.model, null)];
@@ -125,7 +137,13 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
   const build = () => {
     if (!proposal?.reels.length) return;
     settled.current = true;
-    const { frames, appended, sources } = proposalToFrames(proposal, { cards: cardIds, opener, closer });
+    // One-Reel mode keeps THIS Reel's own bookends (his intro line, the same head id — so the post
+    // row stays on its seat); a split mints fresh openers for the new Reels.
+    const headLen = (() => { let k = 0; while (k < take.frames.length && BOOKEND_HEAD.includes(take.frames[k].kind)) k++; return k; })();
+    const keptHead = take.frames.slice(0, headLen);
+    const keptTail = take.frames.slice(headLen).filter((f, k, arr) => f.kind === "outro" && arr.slice(k).every((x) => x.kind === "outro"));
+    const reuse = mode === "one" && proposal.reels.length === 1 && keptHead.length > 0;
+    const { frames, appended, sources } = proposalToFrames(proposal, { cards: cardIds, opener: reuse ? () => keptHead.map((f) => ({ ...f })) : opener, closer: reuse && keptTail.length ? () => keptTail.map((f) => ({ ...f })) : closer });
     onBuild(frames, `${proposal.reels.length} Reels from ${title}${appended.length ? ` · ${appended.length} card${appended.length === 1 ? "" : "s"} kept on the last one` : ""}`);
     const pending = chain.current;
     chain.current = [];
@@ -172,14 +190,26 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
           ))}
         </div>
 
-        <label style={{ display: "block", marginTop: 12, fontSize: 11, color: MUTED }}>
-          Say how it should split
-          <textarea autoFocus value={note} onChange={(e) => setNote(e.target.value)} rows={3}
-            placeholder="e.g. this is really two — prepaids is its own thing, and the LT assets list wants its own video with the depreciation cheat code"
+        <div className="flex items-center" style={{ gap: 6, marginTop: 12, flexWrap: "wrap" }}>
+          {([["split", "✂ Split into Reels"], ["one", "✎ Just this Reel"]] as const).map(([m, label]) => (
+            <button key={m} type="button" onClick={() => setMode(m)} aria-pressed={mode === m}
+              title={m === "split" ? "Smaller Reels out of this one" : "Rewrite or fill in this Reel's own slides — it stays one video, with its name and opener"}
+              style={{ ...btn(mode === m ? "gold" : "ghost"), padding: "4px 10px", fontSize: 11.5 }}>{label}</button>
+          ))}
+          {mic.supported && (
+            <button type="button" onClick={() => { if (mic.on) { mic.stop(); setInterim(""); } else mic.start(); }} aria-pressed={mic.on}
+              title={mic.on ? "Stop listening" : "Talk it out — your words land in the box"}
+              style={{ ...btn(), padding: "4px 10px", fontSize: 11.5, marginLeft: "auto", color: mic.on ? RED : CREAM, borderColor: mic.on ? RED : EDGE }}>{mic.on ? "● listening — stop" : "🎙 Talk it"}</button>
+          )}
+        </div>
+        <label style={{ display: "block", marginTop: 8, fontSize: 11, color: MUTED }}>
+          {mode === "split" ? "Say how it should split" : "Say what this video should be"}
+          <textarea autoFocus value={mic.on && interim ? `${note} ${interim}`.trim() : note} onChange={(e) => { setInterim(""); setNote(e.target.value); }} rows={3}
+            placeholder={mode === "split" ? "e.g. this is really two — prepaids is its own thing, and the LT assets list wants its own video with the depreciation cheat code" : "e.g. land is never depreciated — one cheat code, then the two cards where the exam tries to trick you with it"}
             style={{ ...box, marginTop: 4, minHeight: 64, resize: "vertical" }} />
         </label>
         <div className="flex items-center" style={{ gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-          <button onClick={() => void propose()} disabled={busy || subBusy !== null} style={{ ...btn("gold"), opacity: busy || subBusy !== null ? 0.5 : 1 }}>{busy ? "Thinking…" : proposal ? "Propose again" : "Propose the split"}</button>
+          <button onClick={() => void propose()} disabled={busy || subBusy !== null} style={{ ...btn("gold"), opacity: busy || subBusy !== null ? 0.5 : 1 }}>{busy ? "Thinking…" : proposal ? "Propose again" : mode === "split" ? "Propose the split" : "Propose the slides"}</button>
           <span style={{ fontSize: 11.5, color: MUTED }}>up to ~{FRAME_BUDGET.ceiling} frames each ({FRAME_BUDGET.max} at most, not counting the opener and sign-off) · ~{REEL_BUDGET.target}–{REEL_BUDGET.max}s · one callout each · nothing is written until you build it</span>
           {err && <span style={{ fontSize: 12, color: RED }}>{err}</span>}
         </div>
@@ -236,7 +266,7 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
 
         {!!proposal?.reels.length && (
           <div className="flex items-center" style={{ gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-            <button onClick={build} disabled={busy || subBusy !== null} style={{ ...btn("gold"), fontSize: 13 }}>{anyOver ? "Build anyway" : "Build it"} — {proposal.reels.length} Reels</button>
+            <button onClick={build} disabled={busy || subBusy !== null} style={{ ...btn("gold"), fontSize: 13 }}>{anyOver ? "Build anyway" : "Build it"} — {proposal.reels.length} Reel{proposal.reels.length === 1 ? "" : "s"}</button>
             {anyOver && <span style={{ fontSize: 11.5, color: AMBER }}>Some Reels run long — fine to build; ✂ further splits one.</span>}
             <span style={{ fontSize: 11.5, color: MUTED }}>
               Replaces {title} in the running order. Every card in it comes out the other side — any the split forgot ride on the last Reel.

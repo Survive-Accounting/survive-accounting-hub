@@ -102,6 +102,14 @@ describe("frame count as the split signal", () => {
     expect(system).toContain("INCLUDE it");
   });
 
+  test("one-Reel mode asks for exactly one Reel of slides, not a split", () => {
+    const one = buildSplitMessages({ topicName: "T", setName: "S", reelTitle: "R", slides: [], cards: [], note: "", mode: "one" });
+    expect(one.system).toContain("exactly ONE reel");
+    expect(one.user).toContain("What Lee says this video should be:");
+    const split = buildSplitMessages({ topicName: "T", setName: "S", reelTitle: "R", slides: [], cards: [], note: "" });
+    expect(split.system).not.toContain("exactly ONE reel");
+  });
+
   test("a long proposal is kept whole for editing, never truncated at the ceiling", () => {
     const long = parseSplitProposal({ reels: [{ title: "Long", slides: Array.from({ length: 16 }, (_, k) => ({ kind: "tip", text: `t${k}` })) }] });
     expect(long.reels[0].slides).toHaveLength(16);
