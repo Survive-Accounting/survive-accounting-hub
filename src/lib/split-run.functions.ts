@@ -14,7 +14,9 @@ import { z } from "zod";
 import { buildSplitMessages, parseSplitProposal, type SplitProposal } from "@/components/blastoff/split-run";
 
 const AI_TIMEOUT_MS = 45_000;
-const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5";
+// THE CHEAP PASS (Studio prompt 3, 2026-09-13): the split is proposed at split time and re-run
+// freely, so the default is the fast, cheap model; SPLIT_RUN_MODEL overrides it.
+const DEFAULT_MODEL = "anthropic/claude-haiku-4.5";
 
 /** Strip code fences + slice to the outermost JSON object (models love to wrap). */
 function extractJson(text: string): Record<string, unknown> {

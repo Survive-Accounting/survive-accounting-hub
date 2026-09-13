@@ -27,6 +27,41 @@ import { BIG_CALLOUT_KINDS, FRAME_LABEL, insertStem, isBigCallout, type BlastFra
 /** Lee's target, and the line he wants to be warned about. */
 export const REEL_BUDGET = { target: 30, max: 45 } as const;
 
+// FRAME COUNT IS THE SPLIT SIGNAL (Studio prompt 3, 2026-09-13). Lee: "I agree that the 5 fixed
+// frames shouldn't count. I think we set 10 frames as the loose ceiling. Even 12... I'd prefer to
+// have the AI possibly generate too many and I edit down, versus the inverse." And: "frame count is
+// flag. And this is a loose flag. We just want some awareness around it, not hard failures."
+//
+// So the count is CONTENT only — the opener every video starts with (intro · slogan · bio · the
+// opener's Common exam question) and the sign-off are not counted — and it only ever colours a
+// chip. Every frame counts as one: a card he flies through and a card he talks over are the same
+// frame here, which is exactly why the flag is loose. The seconds estimate stays, as a hint.
+export const FRAME_BUDGET = { ceiling: 10, max: 12 } as const;
+export type FrameFlag = "ok" | "long" | "over";
+
+const OPENER_KINDS: readonly BlastFrameKind[] = ["open", "intro", "slogan", "bio", "found"];
+const CLOSER_KINDS: readonly BlastFrameKind[] = ["outro"];
+
+/** The frames that count: the run minus its leading opener and its trailing sign-off. A "Common
+ *  exam question" slide in the middle of a Reel is content; only the one in the opener is fixed. */
+export function contentFrames(frames: readonly BlastFrame[]): BlastFrame[] {
+  let a = 0;
+  let b = frames.length;
+  while (a < b && OPENER_KINDS.includes(frames[a].kind)) a++;
+  while (b > a && CLOSER_KINDS.includes(frames[b - 1].kind)) b--;
+  return frames.slice(a, b);
+}
+
+/** Past the ceiling is "long" (worth a look); past the max is "over" (probably wants a split).
+ *  Neither blocks anything. */
+export const frameFlag = (count: number): FrameFlag => (count > FRAME_BUDGET.max ? "over" : count > FRAME_BUDGET.ceiling ? "long" : "ok");
+
+/** The chip's words for a count. */
+export const frameCountLabel = (count: number): string => {
+  const flag = frameFlag(count);
+  return `${count} frame${count === 1 ? "" : "s"}${flag === "over" ? " · split it?" : flag === "long" ? " · long" : ""}`;
+};
+
 /** The six callout kinds — the thing a Reel is ABOUT. */
 export const CALLOUT_KINDS: readonly BlastFrameKind[] = BIG_CALLOUT_KINDS;
 export const isCalloutKind = (k: BlastFrameKind): boolean => CALLOUT_KINDS.includes(k);
@@ -67,6 +102,9 @@ export interface ReelSummary {
   /** Unique exam questions covered (cards and rubric slides; note-only cards are not questions). */
   questions: number;
   slides: number;
+  /** Content frames — the split signal (contentFrames). */
+  frames: number;
+  frameFlag: FrameFlag;
   /** The estimate, in seconds. */
   seconds: number;
   /** Past REEL_BUDGET.max — the nudge to split again. */
@@ -102,6 +140,8 @@ export function reelSummary(frames: readonly BlastFrame[], noteOnly: (ceqId: str
     lead: callouts[0] ?? null,
     questions: seen.size,
     slides: frames.length,
+    frames: contentFrames(frames).length,
+    frameFlag: frameFlag(contentFrames(frames).length),
     seconds: seconds_,
     over: seconds_ > REEL_BUDGET.max,
   };

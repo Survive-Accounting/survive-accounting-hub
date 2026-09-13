@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
 import { planTakes, type BlastFrame } from "./plan";
-import { REEL_BUDGET, reelClock, reelSummary, reelTitle, setLead, takeSummary } from "./reel";
+import { FRAME_BUDGET, REEL_BUDGET, contentFrames, frameCountLabel, frameFlag, reelClock, reelSummary, reelTitle, setLead, takeSummary } from "./reel";
 
 const f = (id: string, kind: BlastFrame["kind"], extra: Partial<BlastFrame> = {}): BlastFrame => ({ id, kind, ...extra });
 
@@ -48,6 +48,22 @@ describe("a reel", () => {
     // a callout drawn BIG is a wall, not a card to read
     const big = reelSummary([f("ch", "cheat", { display: "big" })]);
     expect(big.seconds).toBeLessThan(reelSummary([f("ch", "cheat")]).seconds);
+  });
+
+  test("the frame count is content only — the opener and sign-off don't count — and the flag is loose", () => {
+    const opener = [f("i", "intro"), f("s", "slogan"), f("b", "bio"), f("fo", "found")];
+    const body = Array.from({ length: 11 }, (_, k) => f(`q${k}`, "ceq", { ceqId: `c${k}` }));
+    const reel = [...opener, ...body.slice(0, 3), f("mid", "found", { text: "a real one" }), f("o", "outro")];
+    expect(contentFrames(reel).map((x) => x.id)).toEqual(["q0", "q1", "q2", "mid"]);
+    expect(reelSummary(reel).frames).toBe(4);
+    expect(reelSummary(reel).frameFlag).toBe("ok");
+    expect(frameFlag(FRAME_BUDGET.ceiling)).toBe("ok");
+    expect(frameFlag(FRAME_BUDGET.ceiling + 1)).toBe("long");
+    expect(frameFlag(FRAME_BUDGET.max + 1)).toBe("over");
+    expect(FRAME_BUDGET).toEqual({ ceiling: 10, max: 12 });
+    expect(frameCountLabel(1)).toBe("1 frame");
+    expect(frameCountLabel(11)).toBe("11 frames · long");
+    expect(frameCountLabel(13)).toBe("13 frames · split it?");
   });
 
   test("a reel is called what it's about, unless Lee named it", () => {
@@ -97,9 +113,9 @@ describe("reels mode in the Editor", () => {
     expect(deck).toContain("{hasCuts && !reelsMode && (");
   });
 
-  test("the open Reel says what it is: the estimate, its questions, its callouts ranked", () => {
+  test("the open Reel says what it is: its frame count (the split signal), the estimate, its questions, its callouts ranked", () => {
     expect(deck).toContain("reelClock(r.seconds)");
-    expect(deck).toContain('r.over ? " · split it" : ""');
+    expect(deck).toContain("frameCountLabel(r.frames)");
     expect(deck).toContain("commit(setLead(frames, take.frames.map((x) => x.id), c.frameId))");
   });
 });

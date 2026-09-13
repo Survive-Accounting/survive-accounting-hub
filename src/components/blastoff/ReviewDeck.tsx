@@ -102,7 +102,7 @@ import { SetCard } from "./SetCard";
 import { emptyTakes, nameTake, planTakes, takeLabel, type PlanTake } from "./plan";
 // A REEL (2026-09-12, reel.ts): what one run between cuts IS — its ranked callouts, the questions
 // it covers, and how long it is likely to run.
-import { REEL_BUDGET, reelClock, reelTitle, setLead, takeSummary } from "./reel";
+import { FRAME_BUDGET, REEL_BUDGET, frameCountLabel, reelClock, reelTitle, setLead, takeSummary } from "./reel";
 // THE SPLIT RUN (2026-09-12): one Reel in, smaller Reels out — the panel proposes, this commits.
 import { SplitRunPanel, takeCards } from "./SplitRunPanel";
 import { replaceRun } from "./split-run";
@@ -1751,7 +1751,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                         return (
                           <>
                             <span style={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{reelTitle(take, r)}</span>
-                            <span style={{ flex: "0 0 auto", fontSize: 9.5, fontWeight: 700, color: r.over ? AMBER : MUTED }}>~{reelClock(r.seconds)}</span>
+                            <span title={`${r.frames} content frames · ~${r.seconds}s`} style={{ flex: "0 0 auto", fontSize: 9.5, fontWeight: 700, color: r.frameFlag === "over" ? RED : r.frameFlag === "long" ? AMBER : MUTED }}>{r.frames}f · ~{reelClock(r.seconds)}</span>
                           </>
                         );
                       })()}
@@ -1794,9 +1794,11 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                             if (!r) return null;
                             return (
                               <>
-                                <span title={`About ${r.seconds}s of camera at this length — an estimate from the slides, not a measurement. The target is ${REEL_BUDGET.target}s; past ${REEL_BUDGET.max}s it wants another split.`}
-                                  style={{ ...chip(r.over, r.over ? AMBER : MUTED), fontSize: 10, padding: "2px 8px", cursor: "default", textTransform: "none", letterSpacing: 0 }}>
-                                  ~{reelClock(r.seconds)}{r.over ? " · split it" : ""}
+                                {/* THE SPLIT SIGNAL (Studio prompt 3): content frames, a loose flag past
+                                    FRAME_BUDGET — awareness, never a block. The seconds are the hint. */}
+                                <span title={`${r.frames} content frames (the opener and sign-off don't count). Loose ceiling ${FRAME_BUDGET.ceiling}, ${FRAME_BUDGET.max} at most — a nudge, not a rule. About ${r.seconds}s of camera by the slide estimate (target ${REEL_BUDGET.target}s).`}
+                                  style={{ ...chip(r.frameFlag !== "ok", r.frameFlag === "over" ? RED : r.frameFlag === "long" ? AMBER : MUTED), fontSize: 10, padding: "2px 8px", cursor: "default", textTransform: "none", letterSpacing: 0 }}>
+                                  {frameCountLabel(r.frames)} · ~{reelClock(r.seconds)}
                                 </span>
                                 {r.questions > 0 && <span style={{ fontSize: 10, color: MUTED }}>{r.questions}Q</span>}
                                 <button onClick={() => setSplitHead(take.headId)} title="Talk this Reel down into smaller ones — nothing is written until you build it"

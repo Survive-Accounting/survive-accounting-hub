@@ -2,8 +2,8 @@
 // guarantees the build makes — no card is lost, and a placeholder is loud.
 import { describe, expect, test } from "bun:test";
 
-import { newFrameId, type BlastFrame } from "./plan";
-import { buildSplitMessages, cardsIn, generationSlots, keyProposal, needsInPlan, parseSplitProposal, proposalToFrames, replaceRun, slideEdited } from "./split-run";
+import { newFrameId, planTakes, type BlastFrame } from "./plan";
+import { buildSplitMessages, cardsIn, generationSlots, keyProposal, mergeSubSplit, needsInPlan, parseSplitProposal, pinSubCards, projectedCounts, proposalToFrames, reelCards, replaceRun, slideEdited } from "./split-run";
 
 const opener = (): BlastFrame[] => [{ id: newFrameId("intro"), kind: "intro" }];
 const closer = (): BlastFrame[] => [{ id: newFrameId("outro"), kind: "outro" }];
@@ -90,6 +90,52 @@ describe("the build", () => {
 
   test("an empty proposal builds nothing", () => {
     expect(proposalToFrames({ reels: [] }, { cards: [], opener, closer }).frames).toEqual([]);
+  });
+});
+
+describe("frame count as the split signal", () => {
+  const cards = ["ceq-1", "ceq-2", "ceq-3", "ceq-4"];
+
+  test("the prompt asks for content slides under the loose ceiling, and to err toward too many", () => {
+    const { system } = buildSplitMessages({ topicName: "T", setName: "S", reelTitle: "R", slides: [], cards: [], note: "" });
+    expect(system).toContain("aim for no more than 10, 12 at the very most");
+    expect(system).toContain("INCLUDE it");
+  });
+
+  test("a long proposal is kept whole for editing, never truncated at the ceiling", () => {
+    const long = parseSplitProposal({ reels: [{ title: "Long", slides: Array.from({ length: 16 }, (_, k) => ({ kind: "tip", text: `t${k}` })) }] });
+    expect(long.reels[0].slides).toHaveLength(16);
+  });
+
+  test("projected counts match what the build makes, leftovers counted on the last Reel", () => {
+    const p = parseSplitProposal({ reels: [
+      { title: "A", slides: [{ kind: "cheat", text: "x" }, { kind: "ceq", card: "c1" }, { kind: "ceq", card: "c1" }] },   // a repeat builds nothing
+      { title: "B", slides: [{ kind: "ceq", card: "c2" }, { kind: "ceq", card: "nope" }] },                             // an unknown card builds nothing
+    ] });
+    const counts = projectedCounts(p, cards);
+    expect(counts).toEqual([2, 3]);                                   // B carries c3 and c4, which were left out
+    const built = proposalToFrames(p, { cards, opener, closer }).frames;
+    const bodies = planTakes(built).map((t) => t.frames.filter((f) => f.kind !== "intro" && f.kind !== "outro").length);
+    expect(bodies).toEqual(counts);
+  });
+
+  test("one candidate splits further in place; its cards stay in its part and forgotten ones ride on its last new Reel", () => {
+    const p = parseSplitProposal({ reels: [
+      { title: "A", slides: [{ kind: "ceq", card: "c1" }] },
+      { title: "B", slides: [{ kind: "ceq", card: "c2" }, { kind: "ceq", card: "c3" }, { kind: "tip", text: "t" }] },
+      { title: "C", slides: [{ kind: "ceq", card: "c4" }] },
+    ] });
+    const subCards = reelCards(p.reels[1], cards);
+    expect(subCards).toEqual(["ceq-2", "ceq-3"]);
+    // the sub-pass numbers its own cards: its c1 is ceq-2; it forgot ceq-3
+    const sub = parseSplitProposal({ reels: [{ title: "B1", slides: [{ kind: "ceq", card: "c1" }] }, { title: "B2", slides: [{ kind: "tip", text: "t" }] }] });
+    const merged = mergeSubSplit(p, 1, sub, subCards);
+    expect(merged.reels.map((r) => r.title)).toEqual(["A", "B1", "B2", "C"]);
+    expect(merged.reels[1].slides).toEqual([{ kind: "ceq", card: "ceq-2" }]);
+    expect(merged.reels[2].slides.at(-1)).toEqual({ kind: "ceq", card: "ceq-3" });
+    expect(projectedCounts(merged, cards)).toEqual([1, 1, 2, 1]);
+    expect(pinSubCards(pinSubCards(sub, subCards), subCards)).toEqual(pinSubCards(sub, subCards));
+    expect(mergeSubSplit(p, 1, { reels: [] }, subCards)).toBe(p);
   });
 });
 

@@ -18,7 +18,7 @@
 //     "We can even instruct it to have placeholders for certain items if we need to build them
 //     later … we note it, and maybe we just film others in the meantime."
 import { BIG_CALLOUT_KINDS, newFrameId, type BlastFrame, type BlastFrameKind } from "./plan";
-import { REEL_BUDGET } from "./reel";
+import { FRAME_BUDGET, REEL_BUDGET } from "./reel";
 
 /** What a proposed Reel may contain. A callout, a blank, or one of the set's own cards. */
 export const SPLIT_SLIDE_KINDS: readonly BlastFrameKind[] = [...BIG_CALLOUT_KINDS, "blank", "slogan", "ceq"];
@@ -62,14 +62,17 @@ export interface SplitInput {
 }
 
 const MAX_REELS = 6;
-const MAX_SLIDES = 10;
+// Room past the frame ceiling on purpose: a too-long proposal is flagged and edited down, never
+// silently truncated (Lee: "I'd prefer to have the AI possibly generate too many and I edit down").
+const MAX_SLIDES = 24;
 
 export function buildSplitMessages(input: SplitInput): { system: string; user: string } {
   const system = [
     "You are helping Lee split one cram video into smaller ones. He teaches intro accounting; his videos are vertical Reels.",
     "",
     "THE FORMULA, which every Reel you propose must obey:",
-    `· ${REEL_BUDGET.target}-${REEL_BUDGET.max} seconds. That is about 4-8 slides, no more.`,
+    `· Short: about ${REEL_BUDGET.target}-${REEL_BUDGET.max} seconds. Count only the slides you write (the opener and sign-off are added for you): aim for no more than ${FRAME_BUDGET.ceiling}, ${FRAME_BUDGET.max} at the very most.`,
+    "· When unsure whether a slide belongs, INCLUDE it. Lee would rather cut a slide you wrote than write one you left out. He moves through some question cards very fast.",
     "· ONE micro topic. One callout — a cheat code, a memorize-this, a go-deeper — occasionally two, usually one. The video is ABOUT that callout.",
     "· It stands alone. NEVER reference another video, never tease what is coming next, never say 'as we saw'. A viewer may see this one first.",
     "· Cramming, not teaching everything: only what gets marks on the exam.",
@@ -136,11 +139,12 @@ export function parseSplitProposal(raw: unknown): SplitProposal {
 }
 
 /** Bumped when the prompt changes, so the ledger can tell one prompt's proposals from another's. */
-export const SPLIT_PROMPT_VERSION = "split-run@2026-09-12";
+export const SPLIT_PROMPT_VERSION = "split-run@2026-09-13-frames";
 
-/** Stamp every slide with its generated position — done once, on the proposal as it came back. */
-export function keyProposal(p: SplitProposal): SplitProposal {
-  return { ...p, reels: p.reels.map((r, ri) => ({ ...r, slides: r.slides.map((s, si) => ({ ...s, key: `${ri}:${si}` })) })) };
+/** Stamp every slide with its generated position — done once, on the proposal as it came back.
+ *  `prefix` tells one pass's slides from another's in a panel that re-split a candidate. */
+export function keyProposal(p: SplitProposal, prefix = ""): SplitProposal {
+  return { ...p, reels: p.reels.map((r, ri) => ({ ...r, slides: r.slides.map((s, si) => ({ ...s, key: `${prefix}${ri}:${si}` })) })) };
 }
 
 /** The proposal as ledger slots: one per generated slide, the slide as the model wrote it. */
@@ -149,6 +153,74 @@ export function generationSlots(p: SplitProposal): { key: string; reelIndex: num
     const { key: _k, ...generated } = s;
     return { key: s.key ?? `${ri}:${si}`, reelIndex: ri, position: si, kind: s.kind, generated };
   }));
+}
+
+/** THE PROJECTED FRAME COUNT per candidate Reel (Studio prompt 3) — what Build it would actually
+ *  put between the opener and the sign-off, read the way proposalToFrames reads it: a card slide
+ *  naming no card of this Reel, or a card already claimed, builds nothing; and every card the model
+ *  left out rides on the LAST Reel, so it counts there. */
+export function projectedCounts(p: SplitProposal, cards: readonly string[]): number[] {
+  const shortOf = new Map<string, string>();
+  cards.forEach((id, i) => { shortOf.set(`c${i + 1}`, id); shortOf.set(id, id); });
+  const placed = new Set<string>();
+  const counts = p.reels.map((reel) => reel.slides.reduce((n, s) => {
+    if (s.kind !== "ceq") return n + 1;
+    const id = s.card ? shortOf.get(s.card.trim()) : undefined;
+    if (!id || placed.has(id)) return n;
+    placed.add(id);
+    return n + 1;
+  }, 0));
+  // proposalToFrames drops a Reel that builds nothing; the leftovers then ride on the last one kept.
+  const missing = cards.filter((id) => !placed.has(id)).length;
+  const last = counts.map((c, i) => (c > 0 ? i : -1)).filter((i) => i >= 0).pop();
+  if (missing && last !== undefined) counts[last] += missing;
+  return counts;
+}
+
+/** The real card ids one candidate carries, in order — what a re-split of it hands the model. */
+export function reelCards(reel: SplitReel, cards: readonly string[]): string[] {
+  const shortOf = new Map<string, string>();
+  cards.forEach((id, i) => { shortOf.set(`c${i + 1}`, id); shortOf.set(id, id); });
+  const out: string[] = [];
+  for (const s of reel.slides) {
+    const id = s.kind === "ceq" && s.card ? shortOf.get(s.card.trim()) : undefined;
+    if (id && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+/** SPLIT ONE CANDIDATE FURTHER, in place: Reel `at` is replaced by the sub-proposal's Reels. Card
+ *  references are pinned to real ids (the sub-pass numbered its own cards c1…), and any card of
+ *  that candidate the sub-pass forgot rides on its last new Reel — so no card moves to a different
+ *  part of the split than the one it was in. An empty sub-proposal changes nothing. */
+export function mergeSubSplit(p: SplitProposal, at: number, sub: SplitProposal, subCards: readonly string[]): SplitProposal {
+  if (at < 0 || at >= p.reels.length) return p;
+  const pinned = pinSubCards(sub, subCards);
+  if (!pinned.reels.length) return p;
+  return { ...p, reels: [...p.reels.slice(0, at), ...pinned.reels, ...p.reels.slice(at + 1)] };
+}
+
+/** A sub-pass's card references pinned to real ids, and its forgotten cards kept on its last Reel.
+ *  Run BEFORE the sub-pass is keyed and recorded, so the ledger's copy is what gets built.
+ *  Idempotent: pinning pinned cards changes nothing. */
+export function pinSubCards(sub: SplitProposal, subCards: readonly string[]): SplitProposal {
+  const shortOf = new Map<string, string>();
+  subCards.forEach((id, i) => { shortOf.set(`c${i + 1}`, id); shortOf.set(id, id); });
+  const used = new Set<string>();
+  const reels = sub.reels.map((r) => ({
+    ...r,
+    slides: r.slides.flatMap((s) => {
+      if (s.kind !== "ceq") return [s];
+      const id = s.card ? shortOf.get(s.card.trim()) : undefined;
+      if (!id || used.has(id)) return [];
+      used.add(id);
+      return [{ ...s, card: id }];
+    }),
+  })).filter((r) => r.slides.length > 0);
+  if (!reels.length) return { ...sub, reels: [] };
+  const forgot = subCards.filter((id) => !used.has(id));
+  if (forgot.length) reels[reels.length - 1].slides.push(...forgot.map((card) => ({ kind: "ceq" as const, card })));
+  return { ...sub, reels };
 }
 
 /** Did Lee change this slide in the panel before building? (Key aside.) */
