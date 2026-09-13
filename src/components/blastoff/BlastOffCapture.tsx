@@ -82,6 +82,7 @@ import { previewIndex, signalRoll, useCapturePrompterSyncFrame, usePopoutTake, u
 import { fmtClock, historyLabel, initialRounds, opensReview, prompterEditable, reduceRounds, roundLabel, roundMode, roundSegments, showsPrompterInRound } from "./capture/rehearsal-rounds";
 import { useTeleprompterPopout } from "./capture/teleprompter-popout";
 import { ScrapBar, signalScrap, useScrap } from "./capture/scrap";
+import { ScrapLight } from "./capture/ScrapLight";
 import { useTakeLog } from "./capture/take-log";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf } from "./layout";
@@ -666,7 +667,13 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
       // TAB ON A RUBRIC SLIDE (Lee, 2026-09-11: "Let revenue/exp be toggleable with maybe the TAB
       // key? Tab again it goes away"): the Rev/Exp row in or out, for this take.
       // (Moved off Tab to X on 2026-09-13 — Tab is the slide override now, above.)
-      else if (e.key.toLowerCase() === "x" && !e.ctrlKey && !e.metaKey && !e.altKey && rubric && !preview) {
+      // X = REVEAL (2026-09-13, Lee: "I would say X is a good key to use for reveals"): on a rubric,
+      // every box's saved arrows at once. Shift+X flips the Rev/Exp row for the take.
+      else if (e.key.toLowerCase() === "x" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && rubric && !preview) {
+        e.preventDefault();
+        setShot(() => Math.max(0, steps - 1));
+      }
+      else if (e.key.toLowerCase() === "x" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && rubric && !preview) {
         e.preventDefault();
         setRubricTake((p) => { const cur = p.id === frameId ? p : { id: frameId ?? "", over: {} }; return { ...cur, id: frameId ?? "", revExp: !(cur.revExp ?? revExpShown(rubric)) }; });
       }
@@ -788,6 +795,8 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
       )}
       <CaptureArrows hostRef={hostRef} frameId={frame.id} />
       <ScrapBar scrap={scrapper.scrap} note={scrapper.note} listening={scrapper.listening} supported={scrapper.supported} inShot={popout.isPopout} />
+      {/* THE SCRAP LIGHT (2026-09-13): red ✗ → amber → green, in THIS window only while a pop-out films. */}
+      {!popout.isPopout && <ScrapLight setId={set.id} />}
       {/* THE BRAND CURSOR — the bolt, as on the canvas popout. The native
           cursor is hidden; turn "Capture Cursor" off on the OBS source. */}
       {/* Lee, 2026-09-06: "don't show the bolt cursor on intro 1 and intro 2 slides" — the

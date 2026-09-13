@@ -2814,7 +2814,7 @@ function RubricEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<
       </div>
       <div className="flex" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
         <span style={subhead}>Rev / Exp</span>
-        <button style={chip(revExpShown(r), SKY)} title="The Revenue and Expense boxes under E — on camera, X flips them in and out for the take" onClick={() => set({ revExp: !revExpShown(r) })}>{revExpShown(r) ? "shown" : "hidden"}</button>
+        <button style={chip(revExpShown(r), SKY)} title="The Revenue and Expense boxes under E — on camera, Shift+X flips them in and out for the take" onClick={() => set({ revExp: !revExpShown(r) })}>{revExpShown(r) ? "shown" : "hidden"}</button>
         {r.revExp !== undefined && <button style={{ ...chip(false), fontSize: 10.5 }} title="Back to automatic: shown only when Rev or Exp has something in it" onClick={() => set({ revExp: undefined })}>↺ auto</button>}
       </div>
       <label style={{ fontSize: 11, color: MUTED }}>Heading over the boxes (blank = "{RUBRIC_HEADING}")
@@ -2846,7 +2846,7 @@ function RubricEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<
           ))}
         </div>
       </div>
-      <div style={{ fontSize: 11.5, color: MUTED }}>On camera, space reveals the boxes one at a time — A, then L, then E, then Rev/Exp. Click a box to change it for the take, X flips Rev/Exp, ~ clears. Here they're all shown.</div>
+      <div style={{ fontSize: 11.5, color: MUTED }}>On camera, space reveals the boxes one at a time — A, then L, then E, then Rev/Exp. X reveals every box at once, click a box to change it for the take, Shift+X flips Rev/Exp, ~ clears. Here they're all shown.</div>
     </div>
   );
 }

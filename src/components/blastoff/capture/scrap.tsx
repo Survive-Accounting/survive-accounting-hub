@@ -26,6 +26,7 @@ import { useDictation } from "@/lib/use-dictation";
 
 import { restartAttemptStart, rollAtFor, scrapReason, scrapTimes, takeRefOf } from "../frame-events";
 import { readRoll } from "./prompter-sync";
+import { signalScrapState } from "./ScrapLight";
 
 export const FILM_SCRAP_KEY = "sa-film-scrap";
 type ScrapAction = "press" | "cancel";
@@ -91,6 +92,7 @@ export function useScrap({ setId, takeIndex, frameId, owns, onRestart }: {
       .then((r) => { if (!r.ok) flash(`⚠ scrap not saved — ${r.error ?? "unknown error"}`); })
       .catch((e) => flash(`⚠ scrap not saved — ${e instanceof Error ? e.message : String(e)}`));
     flash(times ? "✗ scrapped — cut marked · go again from this slide" : "✗ scrapped (nothing recording — reason kept, nothing to cut)");
+    signalScrapState(setId, "restarted");
     if (restart) { onRestart(); attemptAt.current = Date.now(); }
   }, [setId, takeIndex, onRestart, flash]);
 
@@ -100,15 +102,18 @@ export function useScrap({ setId, takeIndex, frameId, owns, onRestart }: {
     heardRef.current = { heard: "", interim: "" };
     setScrap(null);
     flash("scrap cancelled — nothing saved");
-  }, [flash]);
+    signalScrapState(setId, "cancelled");
+  }, [flash, setId]);
 
   const press = useCallback(() => {
     if (scrapRef.current) { finish(true); return; }
     if (!frameId) return;
     heardRef.current = { heard: "", interim: "" };
     setScrap({ frameId, startedAt: Date.now(), attemptStartedAt: attemptAt.current, heard: "", interim: "" });
+    // The main /film window's light (ScrapLight) — the pop-out never draws it.
+    signalScrapState(setId, "scrapping");
     if (dictationRef.current.supported) { try { dictationRef.current.start(); } catch { /* the bar says not listening */ } }
-  }, [frameId, finish]);
+  }, [frameId, finish, setId]);
 
   // A new slide is a new attempt. Mid-scrap, walking just moves to where he'll restart — the scrap
   // stays open until F3.

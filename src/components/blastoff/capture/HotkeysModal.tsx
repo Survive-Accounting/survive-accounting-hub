@@ -42,7 +42,8 @@ export const HOTKEY_GROUPS: readonly Group[] = [
     ["0", "snap back to the shot's camera"],
     ["O", "the bird's-eye — the whole map (O again returns)"],
     ["click A / L / E", "cycle its arrow: ↑ → ↓ → ↑↓ → — (the take only; the map is not changed)"],
-    ["X", "on a rubric: the Rev/Exp row in or out for the take (was Tab)"],
+    ["X", "reveal: on a rubric, every box's saved arrows at once (clicking a box still changes it for the take)"],
+    ["shift + X", "on a rubric: the Rev/Exp row in or out for the take"],
   ] },
   { title: "Marks", keys: [
     ["click a choice", "emphasise it — click it again to resolve"],
