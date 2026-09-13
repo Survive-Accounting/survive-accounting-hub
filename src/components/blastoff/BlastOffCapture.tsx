@@ -81,6 +81,7 @@ import { COUNTDOWN_SECONDS, countdownCue, countdownTone, useCapturePopout, useCo
 import { previewIndex, signalRoll, useCapturePrompterSyncFrame, usePopoutTake, useRollSignal } from "./capture/prompter-sync";
 import { fmtClock, historyLabel, initialRounds, opensReview, prompterEditable, reduceRounds, roundLabel, roundMode, roundSegments, showsPrompterInRound } from "./capture/rehearsal-rounds";
 import { useTeleprompterPopout } from "./capture/teleprompter-popout";
+import { ScrapBar, signalScrap, useScrap } from "./capture/scrap";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { camDefault, layoutOf } from "./layout";
 import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
@@ -555,6 +556,22 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // A QA override left on the filming PC films the wrong pass — say so in the chrome (audit §2.15).
   const qaLayout = (() => { try { return typeof window !== "undefined" ? window.localStorage.getItem("sa-layout-qa") : null; } catch { return null; } })();
 
+  /** THE WIPE (` — and F3's restart): this slide back to its top. Nothing saved is touched. */
+  const wipeSlide = useCallback(() => {
+    resetTake(); setChrome(false); scratchTake();
+    // THE TEASES CLOSE AGAIN (2026-09-12): every word he opened by clicking goes back to blur.
+    document.querySelectorAll(".sa-tease-open").forEach((n) => n.classList.remove("sa-tease-open"));
+    if (rubric) setShot(() => 0);
+    if (rubric) setRubricTake({ id: "", over: {} });
+  }, [resetTake, scratchTake, rubric, setShot]);
+  // F3 SCRAP (capture/scrap.tsx): the pop-out owns it while a pop-out take is live; otherwise this
+  // window does. A retake starts from the top, so the restart also walks a map back to shot one.
+  const scrapOwner = popout.isPopout || take === null;
+  const scrapper = useScrap({ setId: set.id, takeIndex: takeInfo?.index, frameId, owns: scrapOwner, onRestart: useCallback(() => { wipeSlide(); setShot(() => 0); }, [wipeSlide, setShot]) });
+  /** The main window's F3 went to the pop-out — so its Esc cancels there instead of leaving Film. */
+  const [remoteScrap, setRemoteScrap] = useState(false);
+  useEffect(() => { if (take === null) setRemoteScrap(false); }, [take]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -572,6 +589,16 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
         if (e.key === "Escape" || e.key === "?") { e.preventDefault(); setShowHotkeys(false); }
         return;
       }
+      // F3 — SCRAP. Handled before everything else so Esc cancels a scrap rather than leaving Film.
+      if (e.key === "F3") {
+        e.preventDefault();
+        if (scrapOwner) scrapper.press();
+        else if (signalScrap(set.id, "press")) { scrapper.flash(remoteScrap ? "F3 → pop-out: scrap saved, slide restarted" : "F3 → pop-out: scrapping — say why, F3 again to save"); setRemoteScrap((v) => !v); }
+        else scrapper.flash("⚠ couldn't reach the pop-out (browser storage is blocked) — press F3 in the pop-out itself");
+        return;
+      }
+      if (e.key === "Escape" && scrapper.scrap) { e.preventDefault(); scrapper.cancel(); return; }
+      if (e.key === "Escape" && remoteScrap) { e.preventDefault(); signalScrap(set.id, "cancel"); setRemoteScrap(false); scrapper.flash("Esc → pop-out: scrap cancelled"); return; }
       if (e.key === "?") { e.preventDefault(); setShowHotkeys(true); return; }
       if (e.key === " " || e.code === "Space") {
         e.preventDefault();
@@ -611,11 +638,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
         setRubricTake((p) => { const cur = p.id === frameId ? p : { id: frameId ?? "", over: {} }; return { ...cur, id: frameId ?? "", revExp: !(cur.revExp ?? revExpShown(rubric)) }; });
       }
       else if (e.code === "Backquote" || e.key === "`") {
-        e.preventDefault(); resetTake(); setChrome(false); scratchTake();
-        // THE TEASES CLOSE AGAIN (2026-09-12): every word he opened by clicking goes back to blur.
-        document.querySelectorAll(".sa-tease-open").forEach((n) => n.classList.remove("sa-tease-open"));
-        if (rubric) setShot(() => 0);
-        if (rubric) setRubricTake({ id: "", over: {} });
+        e.preventDefault(); wipeSlide();
       }
       else if (e.key === "Escape") { e.preventDefault(); onExit(); }
       else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
@@ -640,7 +663,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, steps, shot, setShot, rubric, frameId, roll, set.id]);
+  }, [wipeSlide, scrapOwner, scrapper, remoteScrap, n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, steps, shot, setShot, rubric, frameId, roll, set.id]);
 
   // What FrameView's map draws from (cluster/ClusterStage.tsx): in the main window's NEXT
   // preview the map is its bird's-eye with everything revealed — honest about what comes next.
@@ -711,6 +734,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
         </div>
       )}
       <CaptureArrows hostRef={hostRef} frameId={frame.id} />
+      <ScrapBar scrap={scrapper.scrap} note={scrapper.note} listening={scrapper.listening} supported={scrapper.supported} inShot={popout.isPopout} />
       {/* THE BRAND CURSOR — the bolt, as on the canvas popout. The native
           cursor is hidden; turn "Capture Cursor" off on the OBS source. */}
       {/* Lee, 2026-09-06: "don't show the bolt cursor on intro 1 and intro 2 slides" — the

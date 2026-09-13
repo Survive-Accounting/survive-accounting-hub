@@ -63,6 +63,8 @@ export const HOTKEY_GROUPS: readonly Group[] = [
     // 2026-09-09, later: F4 no longer jumps to slide 1. Lee: "I press it mid-split and it wrecks
     // the take." C is the key that goes to the top.
     ["F4", "records in OBS. On slide 1 it also assembles the cold open; anywhere else it leaves you where you are."],
+    // 2026-09-13 (capture/scrap.tsx): the abandoned attempt, marked for the cut.
+    ["F3", "scrap this attempt: say why, F3 again saves it and restarts the slide from the top (Post cuts the scrapped stretch) · Esc cancels"],
     // THE ASSEMBLY COLD OPEN (2026-09-08). Lee: "this is a machine being put together… you're
     // about to get your system shocked. It's like a defibrillator."
     ["—", "the cold open BUILDS ITSELF over 10 s: camera in from the right, the line from the top, the topics left then right, the ticker, and the wordmark landing hard in the watermark corner. Talk over it. Outside the pop-out it plays short (2.2 s) whenever you land on slide 1"],

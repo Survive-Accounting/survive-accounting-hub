@@ -32,6 +32,9 @@ export interface SplitSlide {
   big?: boolean;
   /** A card of this set, by the short id the prompt handed the model ("c2"). */
   card?: string;
+  /** Where this slide sat in the proposal as GENERATED ("reel:slide") — survives Lee's panel edits,
+   *  so the built frame can be linked back to what the model wrote (the frame ledger). */
+  key?: string;
   /** This slide can't be built yet — what it needs, in Lee's words ("a JE card"). */
   needs?: string;
 }
@@ -132,6 +135,29 @@ export function parseSplitProposal(raw: unknown): SplitProposal {
   return { reels, ...(str(obj.note, 400) ? { note: str(obj.note, 400) } : {}) };
 }
 
+/** Bumped when the prompt changes, so the ledger can tell one prompt's proposals from another's. */
+export const SPLIT_PROMPT_VERSION = "split-run@2026-09-12";
+
+/** Stamp every slide with its generated position — done once, on the proposal as it came back. */
+export function keyProposal(p: SplitProposal): SplitProposal {
+  return { ...p, reels: p.reels.map((r, ri) => ({ ...r, slides: r.slides.map((s, si) => ({ ...s, key: `${ri}:${si}` })) })) };
+}
+
+/** The proposal as ledger slots: one per generated slide, the slide as the model wrote it. */
+export function generationSlots(p: SplitProposal): { key: string; reelIndex: number; position: number; kind: string; generated: SplitSlide }[] {
+  return p.reels.flatMap((r, ri) => r.slides.map((s, si) => {
+    const { key: _k, ...generated } = s;
+    return { key: s.key ?? `${ri}:${si}`, reelIndex: ri, position: si, kind: s.kind, generated };
+  }));
+}
+
+/** Did Lee change this slide in the panel before building? (Key aside.) */
+export function slideEdited(generated: SplitSlide, built: SplitSlide): boolean {
+  const { key: _a, ...g } = generated;
+  const { key: _b, ...b } = built;
+  return JSON.stringify(g) !== JSON.stringify(b);
+}
+
 /** THE CARDS THIS REEL CARRIES, in order — what the build must not lose. */
 export const cardsIn = (frames: readonly BlastFrame[]): string[] =>
   frames.filter((f) => f.kind === "ceq" && !!f.ceqId).map((f) => f.ceqId!);
@@ -167,7 +193,8 @@ export function proposalToFrames(p: SplitProposal, opts: {
   opener: () => BlastFrame[];
   /** The slides that close one (the sign-off). */
   closer: () => BlastFrame[];
-}): { frames: BlastFrame[]; placed: string[]; appended: string[] } {
+}): { frames: BlastFrame[]; placed: string[]; appended: string[]; sources: { frameId: string; slide: SplitSlide }[] } {
+  const sources: { frameId: string; slide: SplitSlide }[] = [];
   const shortOf = new Map<string, string>();
   opts.cards.forEach((id, i) => { shortOf.set(`c${i + 1}`, id); shortOf.set(id, id); });
   const placed: string[] = [];
@@ -187,7 +214,7 @@ export function proposalToFrames(p: SplitProposal, opts: {
         placed.push(id);
         return id;
       });
-      if (f) body.push(f);
+      if (f) { body.push(f); if (s.key) sources.push({ frameId: f.id, slide: s }); }
     }
     if (!body.length) continue;
     const head = opts.opener();
@@ -207,7 +234,7 @@ export function proposalToFrames(p: SplitProposal, opts: {
   runs.forEach((run, i) => {
     frames.push(...run, ...opts.closer().map((f, k, arr) => (k === arr.length - 1 && i < runs.length - 1 ? { ...f, cutAfter: true as const } : f)));
   });
-  return { frames, placed, appended };
+  return { frames, placed, appended, sources };
 }
 
 /** SWAP ONE RUN FOR THE BUILT ONES, in place. The new block lands exactly where the old Reel was,

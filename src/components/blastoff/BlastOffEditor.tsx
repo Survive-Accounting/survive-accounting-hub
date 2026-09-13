@@ -20,6 +20,9 @@ import { ArrowDown, ArrowUp, Clapperboard, Plus, X } from "lucide-react";
 import type { BoothCeq, BoothSetInfo } from "@/lib/talkthrough.functions";
 import { loadBlastPlan, saveBlastPlan } from "@/lib/blastoff.functions";
 import { syncBlastPlanToSet } from "@/lib/blastoff-sync.functions";
+import { logFrameEvents } from "@/lib/frame-events.functions";
+import { getAdminWho } from "@/components/AdminGate";
+import { saveEvents } from "./frame-events";
 import { openFilmMode } from "./FilmHandoff";
 import { PhoneFrame } from "./PhoneFrame";
 import { questionProgress } from "./frame-view";
@@ -44,6 +47,9 @@ export function usePlan(set: BoothSetInfo) {
   const [plan, setPlan] = useState<BlastPlan | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const dirty = useRef(false);
+  /** The frames as last saved (or loaded) — what the ledger diffs the next save against. */
+  const ledgerBase = useRef<BlastFrame[] | null>(null);
+  const deletedIds = useRef(new Set<string>());
 
   // FETCH ONCE PER SET. Until 2026-09-10 this re-fetched on every ceqs change too — and every
   // card save, clone or bank refresh changes ceqs. The fetch raced the debounced plan save: the
@@ -55,8 +61,8 @@ export function usePlan(set: BoothSetInfo) {
   useEffect(() => {
     let live = true;
     loadBlastPlan({ data: { setId: set.id } })
-      .then((stored) => { if (live) { const s = stored as BlastPlan | null; setPlan({ ...reconcilePlan(s, set.ceqs), ...(s?.layout ? { layout: s.layout } : {}) }); } })
-      .catch(() => { if (live) setPlan(reconcilePlan(null, set.ceqs)); });
+      .then((stored) => { if (live) { const s = stored as BlastPlan | null; const p = reconcilePlan(s, set.ceqs); ledgerBase.current = p.frames; setPlan({ ...p, ...(s?.layout ? { layout: s.layout } : {}) }); } })
+      .catch(() => { if (live) { const p = reconcilePlan(null, set.ceqs); ledgerBase.current = p.frames; setPlan(p); } });
     return () => { live = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [set.id]);
@@ -64,6 +70,9 @@ export function usePlan(set: BoothSetInfo) {
   useEffect(() => {
     if (ceqsRef.current === set.ceqs) return;
     ceqsRef.current = set.ceqs;
+    // A card deleted from the BANK drops its frames here too — that isn't a deletion in the plan,
+    // so the ledger's baseline takes the same reconcile and the next save doesn't log it.
+    if (ledgerBase.current) ledgerBase.current = reconcilePlan({ frames: ledgerBase.current, updatedAt: "" }, set.ceqs).frames;
     setPlan((prev) => (prev ? { ...prev, ...reconcilePlan(prev, set.ceqs), ...(prev.layout ? { layout: prev.layout } : {}) } : prev));
   }, [set.ceqs]);
 
@@ -77,8 +86,18 @@ export function usePlan(set: BoothSetInfo) {
     const frames = pendingFrames.current;
     if (!frames) return;
     pendingFrames.current = null;
+    // THE LEDGER (frame-events.ts saveEvents): what this save deleted, restored or skipped, logged
+    // once the save lands — fire-and-forget; a failed log never fails the save.
+    const base = ledgerBase.current;
     saveBlastPlan({ data: { setId: set.id, frames } })
-      .then(() => setSaving("saved"))
+      .then(() => {
+        setSaving("saved");
+        if (!base) return;
+        ledgerBase.current = frames;
+        const events = saveEvents(set.id, base, frames, deletedIds.current);
+        for (const e of events) if (e.event === "deleted") deletedIds.current.add(e.frameId);
+        if (events.length) void logFrameEvents({ data: { events, who: getAdminWho() } }).catch((err) => console.warn("[frame-ledger] save events:", err));
+      })
       .catch((e) => setSaving(`⚠ ${e instanceof Error ? e.message : String(e)}`));
   }, [set.id]);
   // UNDO (Lee, 2026-09-10: "Ctrl Z undo needs to work on the slide editor. I moved a slide, and

@@ -35,7 +35,7 @@ const inputSchema = z.object({
 
 export const proposeSplitRun = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => inputSchema.parse(d))
-  .handler(async ({ data }): Promise<{ proposal: SplitProposal }> => {
+  .handler(async ({ data }): Promise<{ proposal: SplitProposal; model: string }> => {
     const aiKey = process.env.AI_GATEWAY_API_KEY;
     if (!aiKey) throw new Error("AI_GATEWAY_API_KEY is not configured on the server");
     const model = process.env.SPLIT_RUN_MODEL || DEFAULT_MODEL;
@@ -55,7 +55,7 @@ export const proposeSplitRun = createServerFn({ method: "POST" })
         throw new Error(`AI gateway ${res.status}: ${t.slice(0, 200)}`);
       }
       const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-      return { proposal: parseSplitProposal(extractJson(json.choices?.[0]?.message?.content ?? "{}")) };
+      return { proposal: parseSplitProposal(extractJson(json.choices?.[0]?.message?.content ?? "{}")), model };
     } finally {
       clearTimeout(timer);
     }

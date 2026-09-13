@@ -3,7 +3,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { newFrameId, type BlastFrame } from "./plan";
-import { buildSplitMessages, cardsIn, needsInPlan, parseSplitProposal, proposalToFrames, replaceRun } from "./split-run";
+import { buildSplitMessages, cardsIn, generationSlots, keyProposal, needsInPlan, parseSplitProposal, proposalToFrames, replaceRun, slideEdited } from "./split-run";
 
 const opener = (): BlastFrame[] => [{ id: newFrameId("intro"), kind: "intro" }];
 const closer = (): BlastFrame[] => [{ id: newFrameId("outro"), kind: "outro" }];
@@ -90,6 +90,35 @@ describe("the build", () => {
 
   test("an empty proposal builds nothing", () => {
     expect(proposalToFrames({ reels: [] }, { cards: [], opener, closer }).frames).toEqual([]);
+  });
+});
+
+describe("the ledger's provenance", () => {
+  const generated = keyProposal(parseSplitProposal({
+    reels: [
+      { title: "A", slides: [{ kind: "cheat", text: "Paid early = asset" }, { kind: "ceq", card: "c1" }] },
+      { title: "B", slides: [{ kind: "phrase", text: "They owe you" }] },
+    ],
+  }));
+
+  test("slots are the proposal as generated, keyed by position, key not stored in the copy", () => {
+    const slots = generationSlots(generated);
+    expect(slots.map((s) => s.key)).toEqual(["0:0", "0:1", "1:0"]);
+    expect(slots[0]).toEqual({ key: "0:0", reelIndex: 0, position: 0, kind: "cheat", generated: { kind: "cheat", text: "Paid early = asset" } });
+  });
+
+  test("a built frame traces to its generated slide through panel edits — and edits are spotted", () => {
+    // Lee drops Reel A's cheat and rewrites B's phrase before building.
+    const edited = { ...generated, reels: [
+      { ...generated.reels[0], slides: [generated.reels[0].slides[1]] },
+      { ...generated.reels[1], slides: [{ ...generated.reels[1].slides[0], text: "They owe you money" }] },
+    ] };
+    const { frames, sources } = proposalToFrames(edited, { cards: ["ceq-1"], opener, closer });
+    expect(sources.map((s) => s.slide.key)).toEqual(["0:1", "1:0"]);
+    expect(sources.every((s) => frames.some((f) => f.id === s.frameId))).toBe(true);
+    const gen = new Map(generationSlots(generated).map((s) => [s.key, s.generated]));
+    expect(slideEdited(gen.get("0:1")!, sources[0].slide)).toBe(false);
+    expect(slideEdited(gen.get("1:0")!, sources[1].slide)).toBe(true);
   });
 });
 
