@@ -290,6 +290,10 @@ const FLIP_CSS = `
 .sa-flip-back { position: absolute; inset: 0; transform: rotateY(180deg); }
 .sa-flip-back > .sa-door-card { height: 100%; }
 .sa-flip.is-flipped .sa-flip-front { pointer-events: none; }
+/* A share kit taller than the door it replaced (the chapter's five actions on a phone) grows the
+   card instead of spilling its Back link over the line below: once flipped, the back is in flow. */
+.sa-flip.is-flipped .sa-flip-front { position: absolute; inset: 0; }
+.sa-flip.is-flipped .sa-flip-back { position: relative; inset: auto; min-height: 100%; }
 .sa-flip:not(.is-flipped) .sa-flip-back { pointer-events: none; }
 @media (prefers-reduced-motion: reduce) {
   .sa-flip-inner { transition: none; }
