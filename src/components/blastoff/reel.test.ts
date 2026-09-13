@@ -56,6 +56,8 @@ describe("a reel", () => {
     const reel = [...opener, ...body.slice(0, 3), f("mid", "found", { text: "a real one" }), f("o", "outro")];
     expect(contentFrames(reel).map((x) => x.id)).toEqual(["q0", "q1", "q2", "mid"]);
     expect(reelSummary(reel).frames).toBe(4);
+    // a bio or slogan moved past a card is still a bookend
+    expect(contentFrames([f("i", "intro"), f("q", "ceq", { ceqId: "c" }), f("s2", "slogan"), f("b2", "bio"), f("t", "tip"), f("o", "outro")]).map((x) => x.id)).toEqual(["q", "t"]);
     expect(reelSummary(reel).frameFlag).toBe("ok");
     expect(frameFlag(FRAME_BUDGET.ceiling)).toBe("ok");
     expect(frameFlag(FRAME_BUDGET.ceiling + 1)).toBe("long");

@@ -1867,7 +1867,11 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
             closer={() => [{ id: newFrameId("outro"), kind: "outro" as const }]}
             onClose={() => setSplitHead(null)}
             onBuild={(built, summary) => {
-              commit(replaceRun(frames, take.frames.map((f) => f.id), built));
+              // RE-KEY THE POST ROWS like a cut does (publish-rekey.ts): a build adds splits, so every
+              // split after this one moves down a seat — its filmed/posted row must move with it.
+              const next = replaceRun(frames, take.frames.map((f) => f.id), built);
+              commit(next);
+              rekey(frames, next);
               setSplitHead(null);
               flashNote(`✂ ${summary}`);
             }}

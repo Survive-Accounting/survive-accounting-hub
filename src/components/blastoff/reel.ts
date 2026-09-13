@@ -39,17 +39,18 @@ export const REEL_BUDGET = { target: 30, max: 45 } as const;
 export const FRAME_BUDGET = { ceiling: 10, max: 12 } as const;
 export type FrameFlag = "ok" | "long" | "over";
 
-const OPENER_KINDS: readonly BlastFrameKind[] = ["open", "intro", "slogan", "bio", "found"];
-const CLOSER_KINDS: readonly BlastFrameKind[] = ["outro"];
+/** Fixed wherever they sit — a moved slide can put the opener's bio after a card, and it is still
+ *  the bookend (the live 5 Types plan has exactly that). */
+const FIXED_KINDS: readonly BlastFrameKind[] = ["open", "intro", "slogan", "bio", "outro"];
+/** Fixed only at the head: the opener's "Common exam question". Mid-Reel, it's content. */
+const OPENER_ONLY_KINDS: readonly BlastFrameKind[] = ["found"];
 
-/** The frames that count: the run minus its leading opener and its trailing sign-off. A "Common
- *  exam question" slide in the middle of a Reel is content; only the one in the opener is fixed. */
+/** The frames that count: the run minus its bookend kinds, and minus the leading opener's
+ *  "Common exam question". */
 export function contentFrames(frames: readonly BlastFrame[]): BlastFrame[] {
   let a = 0;
-  let b = frames.length;
-  while (a < b && OPENER_KINDS.includes(frames[a].kind)) a++;
-  while (b > a && CLOSER_KINDS.includes(frames[b - 1].kind)) b--;
-  return frames.slice(a, b);
+  while (a < frames.length && (FIXED_KINDS.includes(frames[a].kind) || OPENER_ONLY_KINDS.includes(frames[a].kind))) a++;
+  return frames.slice(a).filter((f) => !FIXED_KINDS.includes(f.kind));
 }
 
 /** Past the ceiling is "long" (worth a look); past the max is "over" (probably wants a split).
