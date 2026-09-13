@@ -662,6 +662,8 @@ interface SpineRowHandlers {
   /** FILM FROM HERE (Lee, 2026-09-10: "I'm sick of scrolling all the way through"). */
   filmFrom: (id: string) => void;
   toggleSkip: (id: string) => void;
+  /** ⚡ on a card's hover tools: this card — or every picked card, when it's one of several picked. */
+  speed: (id: string) => void;
   remove: (id: string, i: number) => void;
 }
 
@@ -810,6 +812,11 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
           <button style={tiny} title="Move this slide — pick a place in the zoomed-out order" onClick={(e) => { e.stopPropagation(); on.move(f.id); }}>⇅</button>
         )}
         <button style={tiny} title={f.kind === "ceq" ? "Duplicate — the SAME card, filmed twice. Editing either one edits the card." : "A copy right after this one"} onClick={(e) => { e.stopPropagation(); on.duplicate(f.id, i); }}>⧉</button>
+        {f.kind === "ceq" && f.ceqId && !foldered && (
+          <button style={{ ...tiny, color: f.pace === "speed" ? GOLD : undefined, opacity: f.pace === "speed" ? 1 : 0.8 }} aria-pressed={f.pace === "speed"}
+            title={f.pace === "speed" ? "Speed run (½ frame, ~4 s) — click to make it a normal card again. If several cards are picked, this changes them all." : "Speed run — a card you fly through: counts ½ frame and ~4 s. If several cards are picked, this marks them all."}
+            onClick={(e) => { e.stopPropagation(); on.speed(f.id); }}>⚡</button>
+        )}
         {f.kind === "ceq" && f.ceqId && (
           <button style={tiny} title="Clone as a NEW card — a real second card in the set, copied from this one, editable without touching the original" onClick={(e) => { e.stopPropagation(); on.cloneCard(f.id, i); }}>⧉+</button>
         )}
@@ -1282,6 +1289,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     filmFrom: (id) => live.current?.filmFrom(id),
     toggleSkip: (id) => live.current?.toggleSkip(id),
     remove: (id, i) => live.current?.remove(id, i),
+    speed: (id) => live.current?.speed(id),
   }), []);
   const dropGhost = () => { ghost.current?.remove(); ghost.current = null; };
   /** THE ZOOM-OUT (Lee's notes: zoom-out while dragging): after DRAG_ZOOM_AFTER_MS of dragging
@@ -1623,6 +1631,16 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     cloneCard: (id, i) => void cloneCard(id, i),
     toggleSkip: (id) => commit(toggleSkip(frames, id)),
     remove: removeAt,
+    // ⚡ SPEED RUN from the card itself (2026-09-13, Lee: "I'd prefer some kind of bolt icon on the
+    // tools we see on hover"). Part of a multi-pick → the whole pick; otherwise just this card.
+    speed: (id) => {
+      const ids = pickedSet.has(id) && pick.ids.length > 1 ? pick.ids : [id];
+      const next = toggleSpeedRun(frames, ids);
+      commit(next);
+      const n = next.filter((x) => ids.includes(x.id) && x.kind === "ceq").length;
+      const on = next.find((x) => x.id === id)?.pace === "speed";
+      flashNote(on ? `⚡ Speed run · ${n} card${n === 1 ? "" : "s"} (½ frame, ~4 s each)` : `Back to normal pace · ${n} card${n === 1 ? "" : "s"}`);
+    },
   };
   /** One spine row, shared by the running order and the folder — `number` is the
    *  row's place in the actual film order (undefined inside the folder, where a
