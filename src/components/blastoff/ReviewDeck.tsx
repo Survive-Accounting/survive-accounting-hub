@@ -102,7 +102,7 @@ import { SetCard } from "./SetCard";
 import { emptyTakes, nameTake, planTakes, takeLabel, type PlanTake } from "./plan";
 // A REEL (2026-09-12, reel.ts): what one run between cuts IS — its ranked callouts, the questions
 // it covers, and how long it is likely to run.
-import { FRAME_BUDGET, REEL_BUDGET, frameCountLabel, reelClock, reelTitle, setLead, takeSummary } from "./reel";
+import { FRAME_BUDGET, REEL_BUDGET, frameCountLabel, isCalloutKind, reelClock, reelTitle, setLead, takeSummary } from "./reel";
 // THE SPLIT RUN (2026-09-12): one Reel in, smaller Reels out — the panel proposes, this commits.
 import { SplitRunPanel, takeCards } from "./SplitRunPanel";
 import { replaceRun } from "./split-run";
@@ -392,6 +392,11 @@ const SPINE_CSS = `
 .sa-spine-h{scrollbar-width:thin}
 .sa-spine-card > span:first-child{position:absolute;top:5px;left:5px;z-index:1;border-right:0!important;min-width:0!important;padding:1px 5px!important;background:rgba(9,13,26,0.85);border-radius:4px}
 .sa-spine-card .sa-spine-thumb{align-self:center}
+.sa-reel-star{position:absolute;top:22px;left:50%;transform:translateX(-50%);z-index:3;font:900 30px/1 system-ui,sans-serif;width:40px;height:40px;display:grid;place-items:center;border-radius:999px;border:0;background:rgba(9,13,26,0.72);color:rgba(244,239,230,0.55);cursor:pointer;opacity:0.7;transition:transform .12s ease,opacity .12s ease,color .12s ease}
+.sa-reel-star:hover{opacity:1;color:${GOLD};transform:translateX(-50%) scale(1.12)}
+.sa-reel-star.is-lead{opacity:1;color:${GOLD};background:rgba(9,13,26,0.9);box-shadow:0 0 0 2px ${GOLD},0 0 18px ${GOLD}aa;text-shadow:0 0 10px ${GOLD}}
+.sa-reel-star:focus-visible{outline:2px solid ${GOLD};outline-offset:2px}
+@media (prefers-reduced-motion: reduce){.sa-reel-star{transition:none}}
 .sa-spine-card .sa-spine-tools{position:absolute;top:4px;right:4px;z-index:1;flex-wrap:wrap;justify-content:flex-end;max-width:76px;background:rgba(9,13,26,0.85);border-radius:6px;padding:2px}
 `;
 
@@ -1803,13 +1808,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                                 {r.questions > 0 && <span style={{ fontSize: 10, color: MUTED }}>{r.questions}Q</span>}
                                 <button onClick={() => setSplitHead(take.headId)} title="Talk this Reel down into smaller ones — nothing is written until you build it"
                                   style={{ ...chip(false, MINT), fontSize: 10, padding: "2px 8px", textTransform: "none", letterSpacing: 0 }}>✂ Split this</button>
-                                {r.callouts.map((c) => (
-                                  <button key={c.frameId} onClick={() => commit(setLead(frames, take.frames.map((x) => x.id), c.frameId))}
-                                    title={c.lead ? `This Reel is about this ${c.label.toLowerCase()} — click again to unstar it` : `Make this ${c.label.toLowerCase()} what the Reel is about`}
-                                    style={{ ...chip(c.lead, KIND_COLOR[c.kind] ?? GOLD), fontSize: 10, padding: "2px 8px", textTransform: "none", letterSpacing: 0, maxWidth: 210, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                    {c.lead ? "★ " : ""}{c.text || c.label}
-                                  </button>
-                                ))}
+                                {/* THE STAR lives on the callout slides themselves now (below). */}
                               </>
                             );
                           })()}
@@ -1829,9 +1828,23 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                       <div className="flex" style={{ gap: 2, alignItems: "stretch" }}>
                         {take.frames.map((f) => {
                           const i = indexOf.get(f.id) ?? -1;
+                          // THE STAR ON THE SLIDE (2026-09-13, Lee: "this should just be like a big star that
+                          // floats above the slide itself. More prominent."). Every callout slide carries one;
+                          // the starred one is what this Reel is about (reel.ts setLead — one per run).
+                          const starable = isCalloutKind(f.kind);
                           return (
                             <Fragment key={f.id}>
-                              {spineRow(f, i, { number: numberOf.get(f.id), thumb: true, card: true })}
+                              {starable ? (
+                                <div style={{ position: "relative", display: "flex" }}>
+                                  {spineRow(f, i, { number: numberOf.get(f.id), thumb: true, card: true })}
+                                  <button type="button" className={`sa-reel-star${f.lead ? " is-lead" : ""}`}
+                                    onClick={(e) => { e.stopPropagation(); commit(setLead(frames, take.frames.map((x) => x.id), f.id)); }}
+                                    title={f.lead ? `This Reel is about this ${FRAME_LABEL[f.kind].toLowerCase()} — click to unstar` : `Star it: make this ${FRAME_LABEL[f.kind].toLowerCase()} what the Reel is about`}
+                                    aria-pressed={!!f.lead} aria-label={f.lead ? "Starred: what this Reel is about" : "Star this callout"}>
+                                    {f.lead ? "★" : "☆"}
+                                  </button>
+                                </div>
+                              ) : spineRow(f, i, { number: numberOf.get(f.id), thumb: true, card: true })}
                               <GapTools vertical kinds={gapKinds(f)} onInsert={() => { setSelId(f.id); setInsertOpen(true); }} onClone={() => void cloneAfter(f, i)} onCut={() => cutAfter(f)} cut={!!f.cutAfter}
                                 onOver={() => setOver({ i, below: true })} onDrop={drop} />
                             </Fragment>

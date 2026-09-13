@@ -12,6 +12,10 @@
 // It lives in this browser (localStorage, slide-bank.ts) and never in the plan, so it cannot race
 // the autosave — and it reaches across sets, which is the point: a slide built here is a slide he
 // can use in any video later. A set card is the one exception (it belongs to its own set's bank).
+//
+// FOLDED BY DEFAULT (2026-09-13, Lee: "make the bank collapsible. It's a lot right now"): one
+// "▸ Bank · N" button and the blank slot, so saving never needs an unfold; the shelf opens on a
+// click and the choice is remembered in this browser.
 import { useEffect, useState } from "react";
 
 import { CREAM, EDGE, GOLD, MUTED, PANEL } from "./BlastOffEditor";
@@ -19,6 +23,7 @@ import { BANK_EVENT, addToBank, loadBank, pasteBlocker, removeFromBank, saveBank
 
 const MINT = "#3BF5A0";
 const RED = "#FF8B7E";
+const OPEN_KEY = "sa-slide-bank-open";
 
 export function SlideBank({ setId, pasteLabel, onPaste, takeClip }: {
   setId: string;
@@ -30,6 +35,10 @@ export function SlideBank({ setId, pasteLabel, onPaste, takeClip }: {
 }) {
   const [items, setItems] = useState<BankItem[]>(() => loadBank());
   const [err, setErr] = useState<string | null>(null);
+  // Closed on the server and on first paint; the remembered choice is read after mount.
+  const [open, setOpen] = useState(false);
+  useEffect(() => { try { setOpen(localStorage.getItem(OPEN_KEY) === "1"); } catch { /* storage blocked: stays folded */ } }, []);
+  const toggle = () => setOpen((v) => { const nx = !v; try { localStorage.setItem(OPEN_KEY, nx ? "1" : "0"); } catch { /* not remembered */ } return nx; });
   useEffect(() => {
     function reread() { setItems(loadBank()); }
     window.addEventListener(BANK_EVENT, reread);
@@ -46,8 +55,11 @@ export function SlideBank({ setId, pasteLabel, onPaste, takeClip }: {
 
   return (
     <div className="flex items-center" style={{ gap: 6, flexWrap: "wrap", padding: "4px 0 6px" }}>
-      <span title="Slides saved for later — they stay here across sets, in this browser" style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: MUTED, whiteSpace: "nowrap" }}>🗂 Bank</span>
-      {items.map((it) => {
+      <button type="button" onClick={toggle} aria-expanded={open} title={open ? "Fold the bank" : "Show the slides saved for later — they stay here across sets, in this browser"}
+        style={{ font: "inherit", fontSize: 9.5, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: MUTED, whiteSpace: "nowrap", background: "transparent", border: `1px solid ${EDGE}`, borderRadius: 7, padding: "4px 9px", cursor: "pointer" }}>
+        {open ? "▾" : "▸"} 🗂 Bank · {items.length}
+      </button>
+      {open && items.map((it) => {
         const blocked = pasteBlocker(it, setId);
         return (
           <span key={it.id} style={{ display: "inline-flex", alignItems: "stretch", border: `1px solid ${blocked ? EDGE : `${GOLD}66`}`, borderRadius: 8, background: PANEL, maxWidth: 210, opacity: blocked ? 0.55 : 1 }}>
@@ -67,7 +79,7 @@ export function SlideBank({ setId, pasteLabel, onPaste, takeClip }: {
           border: `1px dashed ${MINT}77`, background: "rgba(59,245,160,0.06)", color: MINT }}>
         ＋ paste here
       </button>
-      {items.length === 0 && !err && <span style={{ fontSize: 10.5, color: MUTED }}>Copy a slide (Ctrl+C), then click the slot to keep it for later.</span>}
+      {open && items.length === 0 && !err && <span style={{ fontSize: 10.5, color: MUTED }}>Copy a slide (Ctrl+C), then click the slot to keep it for later.</span>}
       {err && <span style={{ fontSize: 10.5, color: RED }}>{err}</span>}
     </div>
   );

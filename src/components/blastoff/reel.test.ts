@@ -118,6 +118,9 @@ describe("reels mode in the Editor", () => {
   test("the open Reel says what it is: its frame count (the split signal), the estimate, its questions, its callouts ranked", () => {
     expect(deck).toContain("reelClock(r.seconds)");
     expect(deck).toContain("frameCountLabel(r.frames)");
-    expect(deck).toContain("commit(setLead(frames, take.frames.map((x) => x.id), c.frameId))");
+    // the star floats on each callout slide itself (2026-09-13), not in a row of header chips
+    expect(deck).toContain("commit(setLead(frames, take.frames.map((x) => x.id), f.id))");
+    expect(deck).toContain("const starable = isCalloutKind(f.kind);");
+    expect(deck).not.toContain("r.callouts.map((c) =>");
   });
 });
