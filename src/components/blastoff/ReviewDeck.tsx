@@ -149,7 +149,7 @@ import { TOPIC_DONE_COPY, topicProgress, upNextFor } from "./end-of-topic";
 import { defaultSetLabel, examOutline, withLabel } from "./exam-outline";
 import { SURVIBES_PROPS } from "./survibes";
 // THE TYPES OF ACCOUNTS SLIDE and THE NOTE ON A SET CARD (2026-09-11): their Editor faces.
-import { LIST_LABEL, TYPE_INFO, TYPE_KEYS, TYPE_TABS, listOf, listsOfType, typesView, withList, withWord, type TypesSpec } from "./account-types";
+import { LIST_LABEL, TYPE_INFO, TYPE_KEYS, listOf, listsOfType, tabsOf, typesView, withList, withWord, type TypesSpec } from "./account-types";
 // THE TEASE (2026-09-12, canvas/inline-md.tsx): *word* films blurred until he clicks it.
 import { isTeased, toggleTease, wrapTease, wrapTeaseLines, wrapTeaseWords } from "@/components/canvas/inline-md";
 import type { CardNoteSpec } from "./card-note";
@@ -2576,13 +2576,16 @@ function TypesEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<B
       <div className="flex flex-col" style={{ gap: 6 }}>
         <span style={subhead}>Opens on</span>
         <div className="flex" style={{ gap: 6, flexWrap: "wrap" }}>
-          {TYPE_TABS.map((t) => <button key={t} style={{ ...chip(v.tab === t, GOLD), textTransform: "none", letterSpacing: 0 }} onClick={() => put({ tab: t })}>{t}</button>)}
+          {tabsOf(v).map((t) => <button key={t} style={{ ...chip(v.tab === t, GOLD), textTransform: "none", letterSpacing: 0 }} onClick={() => put({ tab: t })}>{t}</button>)}
         </div>
       </div>
       <div className="flex flex-col" style={{ gap: 6 }}>
         <span style={subhead}>Show</span>
         <div className="flex" style={{ gap: 6, flexWrap: "wrap" }}>
           {toggles.map((t) => <button key={t.key} style={{ ...chip(v[t.key], SKY), textTransform: "none", letterSpacing: 0 }} title={t.title} onClick={() => flip(t.key)}>{v[t.key] ? "✓ " : ""}{t.label}</button>)}
+          {/* 2026-09-13, Lee: "let me hide contra sometimes. Toggle." */}
+          <button style={{ ...chip(v.contraTab, SKY), textTransform: "none", letterSpacing: 0 }} title={v.contraTab ? "The Contra tab is on the slide — click to hide it" : "The Contra tab is hidden — click to show it"}
+            onClick={() => put({ hideContra: v.contraTab ? true : undefined })}>{v.contraTab ? "✓ " : ""}Contra tab</button>
         </div>
       </div>
       <label style={{ fontSize: 11, color: MUTED }}>Heading (blank = "Types of accounts")
@@ -2811,7 +2814,7 @@ function RubricEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<
       </div>
       <div className="flex" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
         <span style={subhead}>Rev / Exp</span>
-        <button style={chip(revExpShown(r), SKY)} title="The Revenue and Expense boxes under E — on camera, Tab flips them in and out for the take" onClick={() => set({ revExp: !revExpShown(r) })}>{revExpShown(r) ? "shown" : "hidden"}</button>
+        <button style={chip(revExpShown(r), SKY)} title="The Revenue and Expense boxes under E — on camera, X flips them in and out for the take" onClick={() => set({ revExp: !revExpShown(r) })}>{revExpShown(r) ? "shown" : "hidden"}</button>
         {r.revExp !== undefined && <button style={{ ...chip(false), fontSize: 10.5 }} title="Back to automatic: shown only when Rev or Exp has something in it" onClick={() => set({ revExp: undefined })}>↺ auto</button>}
       </div>
       <label style={{ fontSize: 11, color: MUTED }}>Heading over the boxes (blank = "{RUBRIC_HEADING}")
@@ -2843,7 +2846,7 @@ function RubricEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<
           ))}
         </div>
       </div>
-      <div style={{ fontSize: 11.5, color: MUTED }}>On camera, space reveals the boxes one at a time — A, then L, then E, then Rev/Exp. Click a box to change it for the take, Tab flips Rev/Exp, ~ clears. Here they're all shown.</div>
+      <div style={{ fontSize: 11.5, color: MUTED }}>On camera, space reveals the boxes one at a time — A, then L, then E, then Rev/Exp. Click a box to change it for the take, X flips Rev/Exp, ~ clears. Here they're all shown.</div>
     </div>
   );
 }

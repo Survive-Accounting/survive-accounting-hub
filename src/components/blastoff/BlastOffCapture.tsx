@@ -619,6 +619,16 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
         else scrapper.flash("⚠ couldn't reach the pop-out (browser storage is blocked) — press F3 in the pop-out itself");
         return;
       }
+      // TAB — THE OVERRIDE (2026-09-13, Lee: "let TAB be an override to move to a new slide at any time
+      // or shift tab to move backwards at anytime, just in case I get stuck"). Straight to the next /
+      // previous slide, whatever the slide's own walk (shots, reveals, space walk, teaser) is doing.
+      if (e.key === "Tab") {
+        e.preventDefault();
+        if (counting || preview) return;
+        if (e.shiftKey) setI((v) => Math.max(0, v - 1));
+        else setI((v) => Math.min(n - 1, v + 1));
+        return;
+      }
       if (e.key === "Escape" && scrapper.scrap) { e.preventDefault(); scrapper.cancel(); return; }
       if (e.key === "Escape" && remoteScrap) { e.preventDefault(); signalScrap(set.id, "cancel"); setRemoteScrap(false); scrapper.flash("Esc → pop-out: scrap cancelled"); return; }
       if (e.key === "?") { e.preventDefault(); setShowHotkeys(true); return; }
@@ -655,7 +665,8 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
       // same key code, same wipe. Nothing saved is touched: the arrows Lee set in the Editor stay.
       // TAB ON A RUBRIC SLIDE (Lee, 2026-09-11: "Let revenue/exp be toggleable with maybe the TAB
       // key? Tab again it goes away"): the Rev/Exp row in or out, for this take.
-      else if (e.key === "Tab" && rubric && !preview) {
+      // (Moved off Tab to X on 2026-09-13 — Tab is the slide override now, above.)
+      else if (e.key.toLowerCase() === "x" && !e.ctrlKey && !e.metaKey && !e.altKey && rubric && !preview) {
         e.preventDefault();
         setRubricTake((p) => { const cur = p.id === frameId ? p : { id: frameId ?? "", over: {} }; return { ...cur, id: frameId ?? "", revExp: !(cur.revExp ?? revExpShown(rubric)) }; });
       }

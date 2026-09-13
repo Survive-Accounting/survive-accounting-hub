@@ -23,7 +23,7 @@ import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
 import { renderInline } from "@/components/canvas/inline-md";
 
-import { CONTRA_INFO, TYPE_INFO, TYPE_TABS, sectionsFor, tabLabel, typesView, wordOf, type TypeTab } from "./account-types";
+import { CONTRA_INFO, TYPE_INFO, sectionsFor, tabLabel, tabsOf, typesView, wordOf, type TypeTab } from "./account-types";
 import type { BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
 import { BRAND_FONT, DISPLAY_FONT } from "./stage";
@@ -104,8 +104,9 @@ export function TypesFrame({ frame, k, live = false }: { frame: BlastFrame; k: n
         )}
       </div>
       {/* THE TABS */}
-      <div style={{ position: "absolute", left: 0, top: tabsTop * k, width: G.w * k, height: tabsH * k, display: "grid", gridTemplateColumns: v.full ? "1fr 1fr" : "1fr 1fr 1fr 1.3fr 1.3fr 1.75fr", gap: 4 * k }}>
-        {TYPE_TABS.map((t) => {
+      {/* Full words: two columns filled top to bottom — A · L · E on the left, Rev · Exp · Contra on the right. */}
+      <div style={{ position: "absolute", left: 0, top: tabsTop * k, width: G.w * k, height: tabsH * k, display: "grid", ...(v.full ? { gridTemplateColumns: "1fr 1fr", gridTemplateRows: "repeat(3, 1fr)", gridAutoFlow: "column" } : { gridTemplateColumns: v.contraTab ? "1fr 1fr 1fr 1.3fr 1.3fr 1.75fr" : "1fr 1fr 1fr 1.3fr 1.3fr" }), gap: 4 * k }}>
+        {tabsOf(v).map((t) => {
           const on = t === tab;
           return (
             <div key={t} role="button" data-types-tab={t} className="sa-types-tab" title={t === "Contra" ? CONTRA_INFO.name : TYPE_INFO[t].name}

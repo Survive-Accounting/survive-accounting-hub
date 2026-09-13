@@ -144,6 +144,7 @@ export const frameSchema = z.object({
     tab: z.enum(TYPE_TABS).optional(),
     term: z.boolean().optional(), contra: z.boolean().optional(), def: z.boolean().optional(), sign: z.boolean().optional(),
     full: z.boolean().optional(),
+    hideContra: z.boolean().optional(),
     words: z.record(z.enum(["A", "L", "E", "Rev", "Exp"]), z.string().max(40)).optional(),
     lists: z.record(z.enum(TYPE_LISTS), z.array(z.string().max(120)).max(30)).optional(),
   }).optional(),

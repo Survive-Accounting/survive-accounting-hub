@@ -17,6 +17,8 @@ export const HOTKEY_GROUPS: readonly Group[] = [
   { title: "Walking", keys: [
     ["space", "next slide (while rehearsing: also starts an armed round, and finishes it on the last slide)"],
     ["shift + space", "back a slide"],
+    // 2026-09-13, Lee: "let TAB be an override … just in case I get stuck."
+    ["tab / shift + tab", "next / previous slide NOW — skips whatever reveal, shot, space walk or teaser the slide is on"],
     // "Rehearse & Film" — the step's name since 2026-09-07 (StepBar.tsx); the page is the same.
     ["esc", "exit Rehearse & Film (closes the rehearsal review or this card first when one is up)"],
   ] },
@@ -40,6 +42,7 @@ export const HOTKEY_GROUPS: readonly Group[] = [
     ["0", "snap back to the shot's camera"],
     ["O", "the bird's-eye — the whole map (O again returns)"],
     ["click A / L / E", "cycle its arrow: ↑ → ↓ → ↑↓ → — (the take only; the map is not changed)"],
+    ["X", "on a rubric: the Rev/Exp row in or out for the take (was Tab)"],
   ] },
   { title: "Marks", keys: [
     ["click a choice", "emphasise it — click it again to resolve"],

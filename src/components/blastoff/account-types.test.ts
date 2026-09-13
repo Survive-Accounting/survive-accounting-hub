@@ -3,7 +3,7 @@
 // back — and the column fitting the safe area beside the corner camera.
 import { describe, expect, test } from "bun:test";
 
-import { DEFAULT_LISTS, TYPE_INFO, TYPE_KEYS, TYPE_LISTS, TYPE_TABS, listOf, sectionsFor, tabLabel, typesView, withList, withWord, wordOf } from "./account-types";
+import { DEFAULT_LISTS, TYPE_INFO, TYPE_KEYS, TYPE_LISTS, TYPE_TABS, listOf, sectionsFor, tabLabel, tabsOf, typesView, withList, withWord, wordOf } from "./account-types";
 import { camRect } from "./capture/webcam-spots";
 import { SAFE, camDefault, cardPlacement, isColumnKind } from "./layout";
 import { PHONE_W } from "./PhoneFrame";
@@ -23,7 +23,10 @@ describe("the types of accounts slide", () => {
   });
 
   test("defaults: opens on A, the split and the contras off, words and signs on", () => {
-    expect(typesView(undefined)).toEqual({ tab: "A", term: false, contra: false, def: true, sign: true, full: false });
+    expect(typesView(undefined)).toEqual({ tab: "A", term: false, contra: false, def: true, sign: true, full: false, contraTab: true });
+    // 2026-09-13: the Contra tab can be hidden — and a slide that opened on it opens on A instead
+    expect(typesView({ hideContra: true, tab: "Contra" })).toMatchObject({ tab: "A", contraTab: false });
+    expect(tabsOf(typesView({ hideContra: true }))).toEqual(["A", "L", "E", "Rev", "Exp"]);
     // 2026-09-12: the same slide with the words spelled out.
     expect(tabLabel("A", false)).toBe("A");
     expect(tabLabel("A", true)).toBe("Assets");

@@ -87,15 +87,26 @@ export interface TypesSpec {
   /** THE FULL WORDS (2026-09-12): "Assets", "Liabilities"… on the tabs and the header, instead of
    *  A · L · E · Rev · Exp. Lee: "Add a version of this that is the full words." Absent = letters. */
   full?: boolean;
+  /** NO CONTRA TAB (2026-09-13, Lee: "let me hide contra sometimes. Toggle."). Absent = shown. */
+  hideContra?: boolean;
   /** His words, per type. */
   words?: Partial<Record<TypeKey, string>>;
   lists?: Partial<Record<TypeListId, string[]>>;
 }
 
-export interface TypesView { tab: TypeTab; term: boolean; contra: boolean; def: boolean; sign: boolean; full: boolean }
+export interface TypesView { tab: TypeTab; term: boolean; contra: boolean; def: boolean; sign: boolean; full: boolean; contraTab: boolean }
 
 export function typesView(spec: TypesSpec | undefined): TypesView {
-  return { tab: spec?.tab ?? "A", term: spec?.term ?? false, contra: spec?.contra ?? false, def: spec?.def ?? true, sign: spec?.sign ?? true, full: spec?.full ?? false };
+  const contraTab = !spec?.hideContra;
+  const tab = spec?.tab === "Contra" && !contraTab ? "A" : spec?.tab ?? "A";
+  return { tab, term: spec?.term ?? false, contra: spec?.contra ?? false, def: spec?.def ?? true, sign: spec?.sign ?? true, full: spec?.full ?? false, contraTab };
+}
+
+/** THE TABS AS DRAWN (2026-09-13). Lee, on the full-words grid: "switch the order … A R / L E / E C" —
+ *  balance-sheet types down the left, the income-statement types and Contra down the right. With
+ *  letters they stay one row, A · L · E · Rev · Exp · Contra. Contra drops out when hidden. */
+export function tabsOf(view: Pick<TypesView, "contraTab">): TypeTab[] {
+  return TYPE_TABS.filter((t) => t !== "Contra" || view.contraTab);
 }
 
 /** A list as it draws: his edit (blank lines dropped), else the default. */
