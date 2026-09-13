@@ -88,6 +88,7 @@ import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
 // THE RUBRIC's reveal (2026-09-11): the same spacebar walk as a map's shots — the step lives
 // here, the block reads it through its own context (RubricFrame.tsx).
 import { FrameStepContext, type FrameStep } from "./frame-step";
+import { teaserSteps } from "./teaser";
 import { revExpShown, rubricSteps, type RubricArrow, type RubricKey } from "./rubric";
 // SURVIBES (2026-09-11): its props are steps too; the authoring-only 2:00 clock lives in the
 // main window's chrome (never the pop-out, never the shot).
@@ -227,11 +228,13 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   const survibes = frame?.kind === "survibes";
   // THE ACCOUNTING CYCLE (2026-09-12) roams like the map: one field, one set of gestures.
   const cycle = frame?.kind === "cycle";
+  // THE TEASER (2026-09-13, teaser.ts): the callout chips come in one per click — or space — as steps.
+  const teaser = frame?.kind === "teaser";
   // THE RUBRIC'S TAKE (2026-09-11): what a box click set and whether Tab has the Rev/Exp row in —
   // this take, this slide, never saved (frame-step.ts). A new slide starts clean.
   const [rubricTakeState, setRubricTake] = useState<{ id: string; over: Partial<Record<RubricKey, RubricArrow[]>>; revExp?: boolean }>({ id: "", over: {} });
   const rubricRevExp = rubric ? (rubricTakeState.id === frameId ? rubricTakeState.revExp : undefined) ?? revExpShown(rubric) : false;
-  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric, rubricRevExp) : survibes ? survibesSteps() : 0;
+  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric, rubricRevExp) : survibes ? survibesSteps() : teaser ? teaserSteps(frame!) : 0;
   const [shotState, setShotState] = useState<{ id: string; shot: number }>({ id: "", shot: 0 });
   const shot = steps > 0 && shotState.id === frameId ? Math.min(shotState.shot, Math.max(0, steps - 1)) : 0;
   const setShot = useCallback((f: (s: number) => number) => { const id = frameId ?? ""; setShotState((p) => ({ id, shot: Math.max(0, f(p.id === id ? p.shot : 0)) })); }, [frameId]);
@@ -563,7 +566,8 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     document.querySelectorAll(".sa-tease-open").forEach((n) => n.classList.remove("sa-tease-open"));
     if (rubric) setShot(() => 0);
     if (rubric) setRubricTake({ id: "", over: {} });
-  }, [resetTake, scratchTake, rubric, setShot]);
+    if (teaser) setShot(() => 0);
+  }, [resetTake, scratchTake, rubric, teaser, setShot]);
   // F3 SCRAP (capture/scrap.tsx): the pop-out owns it while a pop-out take is live; otherwise this
   // window does. A retake starts from the top, so the restart also walks a map back to shot one.
   const scrapOwner = popout.isPopout || take === null;
@@ -670,11 +674,12 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   const clusterFilm = useMemo<ClusterFilm | null>(() => (cluster || cycle ? { shot, roam: fieldRoam.roam, overview: preview, arrowOverrides, onArrowCycle } : null), [cluster, cycle, shot, fieldRoam.roam, preview, arrowOverrides, onArrowCycle]);
   // The rubric's step, the same way; in the NEXT preview the block is at rest with every arrow on.
   const rubricFilm = useMemo<FrameStep | null>(() => {
-    if (preview || (!rubric && !survibes)) return null;
+    if (preview || (!rubric && !survibes && !teaser)) return null;
+    if (teaser) return { step: shot, advance: (d: number) => setShot((s) => Math.max(0, Math.min(steps - 1, s + d))) };
     if (!rubric) return { step: shot };
     const mine = rubricTakeState.id === frameId ? rubricTakeState : { id: frameId ?? "", over: {} as Partial<Record<RubricKey, RubricArrow[]>>, revExp: undefined };
     return { step: shot, rubric: { over: mine.over, revExp: mine.revExp, set: (key: RubricKey, arrows: RubricArrow[]) => setRubricTake((p) => { const cur = p.id === frameId ? p : { id: frameId ?? "", over: {} }; return { ...cur, id: frameId ?? "", over: { ...cur.over, [key]: arrows } }; }) } };
-  }, [rubric, survibes, preview, shot, rubricTakeState, frameId]);
+  }, [rubric, survibes, teaser, steps, setShot, preview, shot, rubricTakeState, frameId]);
   // The frame the phone draws: Survibes' prop step places its small camera circle (never saved).
   const shownFrame = useMemo(() => (survibes && shot > 0 && frame ? { ...frame, camPos: { ...SURVIBES_PROP_CAM } } : frame), [survibes, shot, frame]);
 

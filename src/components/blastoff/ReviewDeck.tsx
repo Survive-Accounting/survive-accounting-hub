@@ -106,9 +106,10 @@ import { FRAME_BUDGET, REEL_BUDGET, frameCountLabel, isCalloutKind, reelClock, r
 // THE SPLIT RUN (2026-09-12): one Reel in, smaller Reels out — the panel proposes, this commits.
 import { SplitRunPanel, takeCards } from "./SplitRunPanel";
 import { replaceRun } from "./split-run";
+import { TEASER_DEFAULT, TEASER_MAX } from "./teaser";
 // THE END-OF-TOPIC AD (2026-09-12): his picks of the topic's best videos.
 import { TOPIC_AD_COPY, bestOf, toggleBest } from "./topic-ad";
-import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, canRemove, canZoomBehind, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, moveMany, newFrameId, pasteAfter, patchFrame, patchFramesOfKind, toggleSkip, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
+import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, canRemove, canZoomBehind, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, moveMany, newFrameId, pasteAfter, patchFrame, patchFramesOfKind, toggleSkip, toggleSpeedRun, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
 // THE MULTI-SELECT and THE DRAG (2026-09-09, Lee's notes: multi-select, range select, group
 // drag, copy/cut/paste, bundled ghost, zoom-out while dragging, auto-scroll). The pure parts
 // live beside the plan (spine-select.ts, spine-drag.ts); this file only wires them to rows.
@@ -182,7 +183,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4", outline: "#86EFAC", types: "#A3E635", cycle: "#FDBA74", topic_ad: "#F0ABFC" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4", outline: "#86EFAC", types: "#A3E635", cycle: "#FDBA74", topic_ad: "#F0ABFC", teaser: "#FCA311" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -752,6 +753,10 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
       <span style={{ color: MUTED, fontSize: 11, fontWeight: 800, minWidth: 18, borderRight: `1px solid ${EDGE}`, paddingRight: 6, fontVariantNumeric: "tabular-nums" }}>
         {p.number != null ? p.number : "⊘"}
       </span>
+      {/* ⚡ SPEED RUN (plan.ts `pace`): a card he flies through — ½ frame, ~4 s in the estimates. */}
+      {f.pace === "speed" && (
+        <span title="Speed run — counts as ½ frame and ~4 s" style={{ position: "absolute", top: 4, left: p.card ? 30 : undefined, right: p.card ? undefined : 8, zIndex: 2, fontSize: 12, lineHeight: 1, padding: "2px 4px", borderRadius: 4, background: "rgba(9,13,26,0.85)", color: GOLD, pointerEvents: "none" }}>⚡</span>
+      )}
       {/* THE SLIDE ITSELF, small — the same renderer the middle pane and the film use, so what
           he scans here is what films. Not interactive: pointer events off, so the row's own
           click and drag still own the whole area. */}
@@ -1626,6 +1631,8 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     { label: "Up next", color: KIND_COLOR.up_next ?? MUTED, add: () => insertAfter(f.id, "up_next", { segment: "skippable" }, true) },
     // 2026-09-12, Lee: "I need to end every topic like this." An ad, so it opens a skippable segment.
     { label: "End-of-topic ad", color: KIND_COLOR.topic_ad ?? MUTED, add: () => insertAfter(f.id, "topic_ad", { segment: "skippable" }, true) },
+    // 2026-09-13, Lee: "a teaser slide … the callouts stacked … reveal these one at a time via click."
+    { label: "Teaser", color: KIND_COLOR.teaser ?? MUTED, add: () => insertAfter(f.id, "teaser", {}, true) },
     { label: "Survibes", color: KIND_COLOR.survibes ?? MUTED, add: () => insertAfter(f.id, "survibes", {}, true) },
     // 2026-09-11, Lee: "include a + bio slide." An extra one can be removed while another stays.
     { label: "Bio", color: SKY, add: () => insertAfter(f.id, "bio", {}, true) },
@@ -1669,6 +1676,20 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
             {query && <span style={{ position: "absolute", right: 8, fontSize: 10.5, color: hits.length ? MINT : RED, pointerEvents: "none" }}>{hits.length ? `${hitAt + 1}/${hits.length}` : "0"}</span>}
           </span>
           <span style={{ fontSize: 11.5, color: MUTED }}>{filmed} slides{skipped ? ` · ${skipped} skipped` : ""}</span>
+          {/* ⚡ SPEED RUN (2026-09-13). Lee: "multi select a list of set cards and marking them as speed
+              run." Shift/ctrl-click cards on the strip, then this. It toggles: all speed → back to normal. */}
+          {(() => {
+            const pickedCards = pick.ids.map((id) => frames.find((f) => f.id === id)).filter((f): f is BlastFrame => !!f && f.kind === "ceq");
+            if (!pickedCards.length) return null;
+            const allSpeed = pickedCards.every((f) => f.pace === "speed");
+            return (
+              <button onClick={() => { commit(toggleSpeedRun(frames, pickedCards.map((f) => f.id))); flashNote(allSpeed ? `Back to normal pace · ${pickedCards.length} card${pickedCards.length === 1 ? "" : "s"}` : `⚡ Speed run · ${pickedCards.length} card${pickedCards.length === 1 ? "" : "s"} (½ frame, ~4 s each)`); }}
+                title={allSpeed ? "These are speed runs — click to count them as normal cards again" : "Mark the selected question cards as speed runs: each counts ½ frame and ~4 s. Shift/ctrl-click to pick several."}
+                style={{ ...chip(allSpeed, GOLD), fontSize: 10.5, padding: "3px 9px", textTransform: "none", letterSpacing: 0 }}>
+                {allSpeed ? `⚡ Normal pace · ${pickedCards.length}` : `⚡ Speed run · ${pickedCards.length}`}
+              </button>
+            );
+          })()}
           {knife}
           {cloning && <CloneBusy />}
           {(spineNote ?? saving) && (() => { const s = spineNote ?? saving!; return <span style={{ fontSize: 11, color: s === POPOUT_BLOCKED || s.startsWith("⚠") ? RED : s === "saved" || s === POPOUT_OPENED ? MINT : MUTED, marginLeft: "auto" }}>{s}</span>; })()}
@@ -2255,6 +2276,7 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
             typed line each has. */}
         {(sel.kind === "topic_done" || sel.kind === "up_next") && <EndOfTopicEditor sel={sel} set={set} onPatch={onPatch} />}
         {sel.kind === "topic_ad" && <TopicAdEditor sel={sel} set={set} onPatch={onPatch} />}
+        {sel.kind === "teaser" && <TeaserEditor sel={sel} onPatch={onPatch} />}
         {sel.kind === "outline" && <OutlineEditor sel={sel} set={set} onPatch={onPatch} />}
         {sel.kind === "types" && <TypesEditor sel={sel} onPatch={onPatch} />}
         {/* SURVIBES (2026-09-11): nothing to type — the flip is the slide. What the spacebar does is
@@ -2638,6 +2660,24 @@ function OutlineEditor({ sel, set, onPatch }: { sel: BlastFrame; set: BoothSetIn
 
 /** The ad that closes a topic: which videos are "the best ones", and the two lines around them.
  *  The topic and its videos come from the bank; the picks are his. */
+/** The teaser (teaser.ts): an optional heading and the chips, one per line, in reveal order. Empty
+ *  = Lee's five. A line naming a callout takes that callout's colour. */
+function TeaserEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<BlastFrame>) => void }) {
+  const own = (sel.bullets ?? []).length > 0;
+  const NL = String.fromCharCode(10);
+  return (
+    <div className="flex flex-col" style={{ gap: 10 }}>
+      <label style={{ fontSize: 11, color: MUTED }}>Heading (optional)
+        <input style={{ ...field, marginTop: 4 }} value={sel.title ?? ""} placeholder="e.g. In every video" onChange={(e) => onPatch({ title: e.target.value || undefined })} /></label>
+      <label style={{ fontSize: 11, color: MUTED }}>The chips — one per line, top to bottom, in the order they come in
+        <textarea style={{ ...field, minHeight: 120, marginTop: 4 }} value={(own ? sel.bullets! : TEASER_DEFAULT).join(NL)}
+          onChange={(e) => { const lines = e.target.value.split(NL); onPatch({ bullets: lines.some((l) => l.trim()) ? lines.slice(0, TEASER_MAX) : undefined }); }} /></label>
+      <div style={{ fontSize: 11, color: MUTED }}>On film: click the slide (or space) for the next chip, shift+click takes one back, ` puts them all away. A line that names a callout — cheat, memorize, tricky, deeper, exam question — is drawn in that callout's colour.</div>
+      {own && <button style={{ ...chip(false, MUTED), alignSelf: "flex-start", textTransform: "none", letterSpacing: 0 }} onClick={() => onPatch({ bullets: undefined })}>↺ back to the five</button>}
+    </div>
+  );
+}
+
 function TopicAdEditor({ sel, set, onPatch }: { sel: BlastFrame; set: BoothSetInfo; onPatch: (p: Partial<BlastFrame>) => void }) {
   const { topics, error } = useBank();
   const o = topics ? examOutline(topics, set.id) : null;

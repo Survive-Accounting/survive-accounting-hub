@@ -19,7 +19,7 @@ import { useDictation } from "@/lib/use-dictation";
 
 import { CREAM, EDGE, GOLD, MUTED, PANEL } from "./BlastOffEditor";
 import { FRAME_LABEL, type BlastFrame, type PlanTake } from "./plan";
-import { FRAME_BUDGET, REEL_BUDGET, frameCountLabel, frameFlag } from "./reel";
+import { FRAME_BUDGET, REEL_BUDGET, countText, frameCountLabel, frameFlag } from "./reel";
 import { SPLIT_PROMPT_VERSION, cardsIn, generationSlots, keyProposal, mergeSubSplit, pinSubCards, projectedCounts, proposalToFrames, reelCards, slideEdited, type SplitProposal, type SplitReel } from "./split-run";
 
 const MINT = "#3BF5A0";
@@ -36,7 +36,7 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
   /** The Reel's slides, in order, as the prompt and the list both read them. */
   slides: { kind: string; words: string }[];
   /** Its cards: the short id the model uses, and the question. */
-  cards: { id: string; stem: string }[];
+  cards: { id: string; stem: string; speed?: boolean }[];
   opener: () => BlastFrame[];
   closer: () => BlastFrame[];
   onBuild: (frames: BlastFrame[], summary: string) => void;
@@ -56,6 +56,9 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
   const [proposal, setProposal] = useState<SplitProposal | null>(null);
   const title = take.name.trim() || `Reel ${take.index + 1}`;
   const cardIds = cards.map((c) => c.id);
+  // ⚡ The cards he marked speed run in this Reel: half a frame each in the counts, told to the model,
+  // and kept as speed runs in whatever gets built.
+  const speedIds = new Set(take.frames.filter((f) => f.kind === "ceq" && f.pace === "speed" && f.ceqId).map((f) => f.ceqId!));
   const stemOf = (id: string) => cards.find((c) => c.id === id)?.stem ?? "";
 
   // THE LEDGER (frame-events): every pass is kept as a draft generation the moment it comes back —
@@ -117,8 +120,8 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
       const input = {
         topicName, setName, reelTitle: reel.title,
         slides: reel.slides.map((s) => ({ kind: s.kind, words: s.kind === "ceq" ? stemOf(reelCards({ title: "", slides: [s] }, cardIds)[0] ?? "") : s.needs ?? [s.text, ...(s.bullets ?? [])].filter(Boolean).join(" · ") })),
-        cards: subCards.map((id) => ({ id, stem: stemOf(id) })),
-        note: [`This is one candidate Reel from a larger split, projected at ${projectedCounts(proposal, cardIds)[ri]} frames. Split it into smaller Reels.`, note.trim()].filter(Boolean).join("\n"),
+        cards: subCards.map((id) => ({ id, stem: stemOf(id), ...(speedIds.has(id) ? { speed: true } : {}) })),
+        note: [`This is one candidate Reel from a larger split, projected at ${countText(projectedCounts(proposal, cardIds, speedIds)[ri] ?? 0)} frames. Split it into smaller Reels.`, note.trim()].filter(Boolean).join("\n"),
       };
       const r = await proposeSplitRun({ data: input });
       const keyed = keyProposal(pinSubCards(r.proposal, subCards), `p${pass.current++}.`);
@@ -143,7 +146,7 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
     const keptHead = take.frames.slice(0, headLen);
     const keptTail = take.frames.slice(headLen).filter((f, k, arr) => f.kind === "outro" && arr.slice(k).every((x) => x.kind === "outro"));
     const reuse = mode === "one" && proposal.reels.length === 1 && keptHead.length > 0;
-    const { frames, appended, sources } = proposalToFrames(proposal, { cards: cardIds, opener: reuse ? () => keptHead.map((f) => ({ ...f })) : opener, closer: reuse && keptTail.length ? () => keptTail.map((f) => ({ ...f })) : closer });
+    const { frames, appended, sources } = proposalToFrames(proposal, { cards: cardIds, speed: speedIds, opener: reuse ? () => keptHead.map((f) => ({ ...f })) : opener, closer: reuse && keptTail.length ? () => keptTail.map((f) => ({ ...f })) : closer });
     onBuild(frames, `${proposal.reels.length} Reels from ${title}${appended.length ? ` · ${appended.length} card${appended.length === 1 ? "" : "s"} kept on the last one` : ""}`);
     const pending = chain.current;
     chain.current = [];
@@ -164,7 +167,7 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
       }
     });
   };
-  const counts = proposal ? projectedCounts(proposal, cardIds) : [];
+  const counts = proposal ? projectedCounts(proposal, cardIds, speedIds) : [];
   const anyOver = counts.some((n) => frameFlag(n) !== "ok");
 
   const box: React.CSSProperties = { font: "inherit", fontSize: 12.5, width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 8, border: `1px solid ${EDGE}`, background: "rgba(255,255,255,0.05)", color: CREAM, outline: "none" };
@@ -279,5 +282,7 @@ export function SplitRunPanel({ setId, topicName, setName, take, slides, cards, 
 }
 
 /** The cards a take carries, as the panel and the prompt both name them. */
-export const takeCards = (take: PlanTake, stemOf: (ceqId: string) => string): { id: string; stem: string }[] =>
-  cardsIn(take.frames).map((ceqId, i) => ({ id: ceqId, stem: stemOf(ceqId) || `card ${i + 1}` }));
+export const takeCards = (take: PlanTake, stemOf: (ceqId: string) => string): { id: string; stem: string; speed?: boolean }[] => {
+  const speed = new Set(take.frames.filter((f) => f.kind === "ceq" && f.pace === "speed" && f.ceqId).map((f) => f.ceqId!));
+  return cardsIn(take.frames).map((ceqId, i) => ({ id: ceqId, stem: stemOf(ceqId) || `card ${i + 1}`, ...(speed.has(ceqId) ? { speed: true } : {}) }));
+};

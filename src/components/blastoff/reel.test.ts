@@ -124,3 +124,24 @@ describe("reels mode in the Editor", () => {
     expect(deck).not.toContain("r.callouts.map((c) =>");
   });
 });
+
+// ⚡ SPEED RUN (2026-09-13) — Lee's weighting: ½ frame and ~4 s for a card he flies through.
+describe("speed-run cards", () => {
+  test("count half a frame and four seconds; the label shows the half", async () => {
+    const { SPEED_RUN, contentCount, countText } = await import("./reel");
+    const { toggleSpeedRun } = await import("./plan");
+    const run: BlastFrame[] = [f("i", "intro"), f("q1", "ceq", { ceqId: "c1" }), f("q2", "ceq", { ceqId: "c2", pace: "speed" }), f("t", "tip"), f("o", "outro")];
+    expect(SPEED_RUN).toEqual({ frame: 0.5, seconds: 4 });
+    expect(contentCount(run)).toBe(2.5);
+    expect(reelSummary(run).frames).toBe(2.5);
+    expect(countText(2.5)).toBe("2½");
+    expect(countText(0.5)).toBe("½");
+    expect(frameCountLabel(8.5)).toBe("8½ frames");
+    expect(reelSummary([f("q", "ceq", { ceqId: "c", pace: "speed" })]).seconds).toBe(4);
+    // the toggle: mixed pick → all speed; all speed → all normal; non-cards untouched
+    const on = toggleSpeedRun(run, ["q1", "q2", "t"]);
+    expect(on.filter((x) => x.pace === "speed").map((x) => x.id)).toEqual(["q1", "q2"]);
+    const off = toggleSpeedRun(on, ["q1", "q2"]);
+    expect(off.some((x) => x.pace)).toBe(false);
+  });
+});

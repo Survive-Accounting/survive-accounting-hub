@@ -37,6 +37,14 @@ export const REEL_BUDGET = { target: 30, max: 45 } as const;
 // chip. Every frame counts as one: a card he flies through and a card he talks over are the same
 // frame here, which is exactly why the flag is loose. The seconds estimate stays, as a hint.
 export const FRAME_BUDGET = { ceiling: 10, max: 12 } as const;
+/** ⚡ SPEED RUN (2026-09-13, plan.ts `pace`): a card he flies through is half a frame and ~4 s. Lee
+ *  agreed the weighting: "½ frame and ~4 seconds" against a normal card's 1 and ~12. */
+export const SPEED_RUN = { frame: 0.5, seconds: 4 } as const;
+
+/** What a frame weighs in the count: 1, or ½ for a speed-run card. */
+export const frameWeight = (f: Pick<BlastFrame, "pace">): number => (f.pace === "speed" ? SPEED_RUN.frame : 1);
+/** The weighted count of a run's content. */
+export const contentCount = (frames: readonly BlastFrame[]): number => contentFrames(frames).reduce((n, f) => n + frameWeight(f), 0);
 export type FrameFlag = "ok" | "long" | "over";
 
 /** Fixed wherever they sit — a moved slide can put the opener's bio after a card, and it is still
@@ -58,9 +66,16 @@ export function contentFrames(frames: readonly BlastFrame[]): BlastFrame[] {
 export const frameFlag = (count: number): FrameFlag => (count > FRAME_BUDGET.max ? "over" : count > FRAME_BUDGET.ceiling ? "long" : "ok");
 
 /** The chip's words for a count. */
+/** "8", "8½", "½" — a count that may carry a speed-run half. */
+export const countText = (count: number): string => {
+  const whole = Math.floor(count + 1e-9);
+  const half = count - whole >= 0.25;
+  return half ? (whole ? `${whole}½` : "½") : String(whole);
+};
+
 export const frameCountLabel = (count: number): string => {
   const flag = frameFlag(count);
-  return `${count} frame${count === 1 ? "" : "s"}${flag === "over" ? " · split it?" : flag === "long" ? " · long" : ""}`;
+  return `${countText(count)} frame${count === 1 ? "" : "s"}${flag === "over" ? " · split it?" : flag === "long" ? " · long" : ""}`;
 };
 
 /** The six callout kinds — the thing a Reel is ABOUT. */
@@ -73,12 +88,14 @@ const SECONDS: Partial<Record<BlastFrameKind, number>> = {
   ceq: 12, rubric: 14, types: 12, outline: 12, cluster: 20, survibes: 20,
   topic_done: 6, up_next: 6, blank: 5, exhibit: 10,
   phrase: 8, cheat: 8, tip: 8, tricky: 8, found: 6, ask: 7,
+  teaser: 8,
 };
 const DEFAULT_SECONDS = 8;
 
 /** One slide's estimate. A note-only card is a breath, not a question, so it reads faster; a
  *  callout drawn BIG is a line on a wall, not a card to read. */
 export function frameSeconds(f: BlastFrame, noteOnly: (ceqId: string) => boolean): number {
+  if (f.pace === "speed") return SPEED_RUN.seconds;
   if (f.kind === "ceq" && f.ceqId && noteOnly(f.ceqId)) return 6;
   if (isBigCallout(f)) return 6;
   return SECONDS[f.kind] ?? DEFAULT_SECONDS;
@@ -103,7 +120,7 @@ export interface ReelSummary {
   /** Unique exam questions covered (cards and rubric slides; note-only cards are not questions). */
   questions: number;
   slides: number;
-  /** Content frames — the split signal (contentFrames). */
+  /** Content frames — the split signal (contentFrames), a speed-run card counting ½. */
   frames: number;
   frameFlag: FrameFlag;
   /** The estimate, in seconds. */
@@ -141,8 +158,8 @@ export function reelSummary(frames: readonly BlastFrame[], noteOnly: (ceqId: str
     lead: callouts[0] ?? null,
     questions: seen.size,
     slides: frames.length,
-    frames: contentFrames(frames).length,
-    frameFlag: frameFlag(contentFrames(frames).length),
+    frames: contentCount(frames),
+    frameFlag: frameFlag(contentCount(frames)),
     seconds: seconds_,
     over: seconds_ > REEL_BUDGET.max,
   };

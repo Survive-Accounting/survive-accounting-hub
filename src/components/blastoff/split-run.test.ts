@@ -200,3 +200,15 @@ describe("swapping the run in", () => {
     expect(replaceRun(plan, ["zz"], [{ id: "n", kind: "intro" }]).map((f) => f.id)).toEqual(plan.map((f) => f.id));
   });
 });
+
+describe("speed-run cards through a split", () => {
+  test("count half in the projection, are told to the model, and stay speed runs when built", () => {
+    const cards = ["ceq-1", "ceq-2"];
+    const p = parseSplitProposal({ reels: [{ title: "A", slides: [{ kind: "cheat", text: "x" }, { kind: "ceq", card: "c1" }, { kind: "ceq", card: "c2" }] }] });
+    expect(projectedCounts(p, cards, new Set(["ceq-2"]))).toEqual([2.5]);
+    const built = proposalToFrames(p, { cards, opener, closer, speed: new Set(["ceq-2"]) }).frames;
+    expect(built.filter((f) => f.pace === "speed").map((f) => f.ceqId)).toEqual(["ceq-2"]);
+    const { user } = buildSplitMessages({ topicName: "T", setName: "S", reelTitle: "R", slides: [], cards: [{ id: "ceq-2", stem: "Q?", speed: true }], note: "" });
+    expect(user).toContain("ceq-2: Q?  [speed run");
+  });
+});

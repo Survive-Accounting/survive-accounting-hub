@@ -18,5 +18,7 @@ export interface FrameStepRubric {
   set: (key: RubricKey, arrows: RubricArrow[]) => void;
 }
 
-export interface FrameStep { step: number; rubric?: FrameStepRubric }
+/** `advance` (2026-09-13, the teaser): a slide that reveals on a CLICK moves the walk itself — +1 forward,
+ *  -1 back — clamped by the capture to the slide's steps. */
+export interface FrameStep { step: number; rubric?: FrameStepRubric; advance?: (d: number) => void }
 export const FrameStepContext = createContext<FrameStep | null>(null);

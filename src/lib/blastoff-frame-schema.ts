@@ -130,6 +130,8 @@ export const frameSchema = z.object({
   // 2026-09-12: the callout this Reel is ABOUT (plan.ts `lead`, reel.ts), and a callout drawn with
   // no chip at all (plan.ts `chip`).
   lead: z.literal(true).optional(),
+  // 2026-09-13: a set card he flies through (plan.ts `pace`, reel.ts SPEED_RUN).
+  pace: z.enum(["speed"]).optional(),
   chip: z.enum(["off"]).optional(),
   chipText: z.string().max(40).optional(),
   // 2026-09-12: a placeholder slide's ask (plan.ts `needs`), and the end-of-topic ad's picks.

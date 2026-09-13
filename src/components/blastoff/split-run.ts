@@ -18,7 +18,7 @@
 //     "We can even instruct it to have placeholders for certain items if we need to build them
 //     later … we note it, and maybe we just film others in the meantime."
 import { BIG_CALLOUT_KINDS, newFrameId, type BlastFrame, type BlastFrameKind } from "./plan";
-import { FRAME_BUDGET, REEL_BUDGET } from "./reel";
+import { FRAME_BUDGET, REEL_BUDGET, SPEED_RUN } from "./reel";
 
 /** What a proposed Reel may contain. A callout, a blank, or one of the set's own cards. */
 export const SPLIT_SLIDE_KINDS: readonly BlastFrameKind[] = [...BIG_CALLOUT_KINDS, "blank", "slogan", "ceq"];
@@ -56,7 +56,7 @@ export interface SplitInput {
   /** The Reel's slides, in order — kind plus whatever words they carry. */
   slides: { kind: string; words: string }[];
   /** The set's cards in this Reel: the short id the model refers to, and the question. */
-  cards: { id: string; stem: string }[];
+  cards: { id: string; stem: string; speed?: boolean }[];
   /** What Lee just said about it. */
   note: string;
   /** "split" (default): smaller Reels out. "one": this Reel's own slides, rewritten or filled in —
@@ -104,7 +104,7 @@ export function buildSplitMessages(input: SplitInput): { system: string; user: s
     ...input.slides.map((s, i) => `${i + 1}. [${s.kind}] ${s.words || "(no words)"}`),
     "",
     input.cards.length ? "Its question cards (use these ids):" : "It has no question cards.",
-    ...input.cards.map((c) => `${c.id}: ${c.stem}`),
+    ...input.cards.map((c) => `${c.id}: ${c.stem}${c.speed ? "  [speed run: he flies through this one, it barely takes screen time]" : ""}`),
     "",
     one ? "What Lee says this video should be:" : "What Lee says about splitting it:",
     input.note.trim() || (one ? "(nothing — write it the way the formula says)" : "(nothing — split it the way the formula says)"),
@@ -166,7 +166,8 @@ export function generationSlots(p: SplitProposal): { key: string; reelIndex: num
  *  put between the opener and the sign-off, read the way proposalToFrames reads it: a card slide
  *  naming no card of this Reel, or a card already claimed, builds nothing; and every card the model
  *  left out rides on the LAST Reel, so it counts there. */
-export function projectedCounts(p: SplitProposal, cards: readonly string[]): number[] {
+export function projectedCounts(p: SplitProposal, cards: readonly string[], speed: ReadonlySet<string> = new Set()): number[] {
+  const weightOf = (id: string) => (speed.has(id) ? SPEED_RUN.frame : 1);
   const shortOf = new Map<string, string>();
   cards.forEach((id, i) => { shortOf.set(`c${i + 1}`, id); shortOf.set(id, id); });
   const placed = new Set<string>();
@@ -175,10 +176,10 @@ export function projectedCounts(p: SplitProposal, cards: readonly string[]): num
     const id = s.card ? shortOf.get(s.card.trim()) : undefined;
     if (!id || placed.has(id)) return n;
     placed.add(id);
-    return n + 1;
+    return n + weightOf(id);
   }, 0));
   // proposalToFrames drops a Reel that builds nothing; the leftovers then ride on the last one kept.
-  const missing = cards.filter((id) => !placed.has(id)).length;
+  const missing = cards.filter((id) => !placed.has(id)).reduce((n, id) => n + weightOf(id), 0);
   const last = counts.map((c, i) => (c > 0 ? i : -1)).filter((i) => i >= 0).pop();
   if (missing && last !== undefined) counts[last] += missing;
   return counts;
@@ -272,6 +273,8 @@ export function proposalToFrames(p: SplitProposal, opts: {
   opener: () => BlastFrame[];
   /** The slides that close one (the sign-off). */
   closer: () => BlastFrame[];
+  /** ⚡ The cards he marked speed run — they stay speed runs in the Reels built from them. */
+  speed?: ReadonlySet<string>;
 }): { frames: BlastFrame[]; placed: string[]; appended: string[]; sources: { frameId: string; slide: SplitSlide }[] } {
   const sources: { frameId: string; slide: SplitSlide }[] = [];
   const shortOf = new Map<string, string>();
@@ -313,7 +316,10 @@ export function proposalToFrames(p: SplitProposal, opts: {
   runs.forEach((run, i) => {
     frames.push(...run, ...opts.closer().map((f, k, arr) => (k === arr.length - 1 && i < runs.length - 1 ? { ...f, cutAfter: true as const } : f)));
   });
-  return { frames, placed, appended, sources };
+  // ⚡ A speed-run card stays one in every Reel it lands in.
+  const speed = opts.speed;
+  const paced = speed?.size ? frames.map((f) => (f.kind === "ceq" && f.ceqId && speed.has(f.ceqId) ? { ...f, pace: "speed" as const } : f)) : frames;
+  return { frames: paced, placed, appended, sources };
 }
 
 /** SWAP ONE RUN FOR THE BUILT ONES, in place. The new block lands exactly where the old Reel was,

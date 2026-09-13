@@ -30,6 +30,7 @@ import { SetCard, type CardOverride } from "./SetCard";
 import { BIO_CARD, bioCallout } from "./bio-card";
 import { DISPLAY_FONT, V } from "./stage";
 import { OUTRO_CTA_KEY, SurviveOutro } from "./SurviveOutro";
+import { TeaserFrame } from "./TeaserFrame";
 import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, showCampusBanner, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
 import { RubricSlide } from "./RubricSlide";
@@ -150,6 +151,8 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   // THE END-OF-TOPIC AD (2026-09-12, TopicAdFrame.tsx): the run's own count, his best ones, and how
   // the practice works — the one slide that may point at other videos.
   if (frame.kind === "topic_ad") return <TopicAdFrame w={fw} set={set} frame={frame} live={live} />;
+  // THE TEASER (2026-09-13, TeaserFrame.tsx): the callout chips, stacked; on film one per click.
+  if (frame.kind === "teaser") return <TeaserFrame w={fw} frame={frame} live={live} />;
   // SURVIBES (2026-09-11, SurvibesFrame.tsx): the flip runs on film only; the props follow the
   // capture's step (frame-step.ts); at rest it is the settled look, the camera alone.
   if (frame.kind === "survibes") return <SurvibesFrame w={fw} live={live} />;

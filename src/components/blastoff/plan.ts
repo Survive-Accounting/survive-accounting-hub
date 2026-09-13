@@ -80,6 +80,9 @@ export const BLAST_FRAME_KINDS = [
   // of videos for this topic. Here's the stats. Here's the best ones … Here's how the practice
   // works. I need to end every topic like this." The one slide allowed to point at other videos.
   "topic_ad",
+  // 2026-09-13: THE TEASER (TeaserFrame.tsx, teaser.ts). Lee: "a teaser slide … the callouts stacked
+  // on one another … reveal these one at a time via click." His lines ride in `bullets`.
+  "teaser",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -211,6 +214,10 @@ export interface BlastFrame {
    *  per run between cuts (reel.setLead keeps it one); absent everywhere else, and then the first
    *  callout in the Reel is what it is about. */
   lead?: true;
+  /** SPEED RUN (2026-09-13). Lee: "letting me multi select a list of set cards and marking them as
+   *  speed run or something would help with the frame count, time estimates." A question card he
+   *  flies through: it counts as half a frame and ~4 s (reel.ts SPEED_RUN). Only set cards take it. */
+  pace?: "speed";
   /** NO CHIP (2026-09-12). Lee: "sometimes I want a callout slide but with no callout. I just like
    *  the big text format. So just a 'none' option would be great." The slide stays whatever kind it
    *  is — so switching back brings the chip and its colour with it — and only the chip is dropped. */
@@ -241,7 +248,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline", "types", "cycle", "topic_ad"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline", "types", "cycle", "topic_ad", "teaser"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -256,7 +263,7 @@ import type { CardNoteSpec } from "./card-note";
 
 /** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
  *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
-export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next", "survibes", "outline", "cycle", "topic_ad"];
+export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next", "survibes", "outline", "cycle", "topic_ad", "teaser"];
 export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.includes(k);
 
 /** THE FOUR CALLOUTS that can be drawn either way (2026-09-08, `BlastFrame.display`). The
@@ -343,6 +350,7 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   types: "Types of accounts",
   cycle: "Accounting cycle",
   topic_ad: "End-of-topic ad",
+  teaser: "Teaser",
 };
 
 /** THE CAMPUS BANNER IS OFF (2026-09-12). Lee: "Turn off campus banner globally on the app. We're
@@ -503,7 +511,7 @@ export function canRemove(frames: readonly BlastFrame[], f: BlastFrame): boolean
  *  pair, whose shell is see-through. The brand slides, the slogan, a big callout and the map draw
  *  their own. */
 export function canZoomBehind(f: BlastFrame): boolean {
-  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next" || f.kind === "outline" || f.kind === "topic_ad";
+  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next" || f.kind === "outline" || f.kind === "topic_ad" || f.kind === "teaser";
 }
 
 /** THE STANDARD OPENER (2026-09-09), in Lee's words and in his own draft's order: "Hero camera,
@@ -617,6 +625,20 @@ export function nameTake(frames: readonly BlastFrame[], headId: string, name: st
 }
 
 /** Skip ↔ film again. */
+/** ⚡ SPEED RUN ON THE PICKED CARDS: if every picked set card is already a speed run, they all go
+ *  back to normal; otherwise they all become one. Non-card slides in the pick are left alone. */
+export function toggleSpeedRun(frames: readonly BlastFrame[], ids: readonly string[]): BlastFrame[] {
+  const pick = new Set(ids);
+  const cards = frames.filter((f) => pick.has(f.id) && f.kind === "ceq");
+  if (!cards.length) return [...frames];
+  const clear = cards.every((f) => f.pace === "speed");
+  return frames.map((f) => {
+    if (!pick.has(f.id) || f.kind !== "ceq") return f;
+    if (clear) { const { pace: _drop, ...rest } = f; return rest; }
+    return { ...f, pace: "speed" as const };
+  });
+}
+
 export const toggleSkip = (frames: readonly BlastFrame[], id: string): BlastFrame[] =>
   frames.map((x) => (x.id === id ? { ...x, skipped: !x.skipped } : x));
 

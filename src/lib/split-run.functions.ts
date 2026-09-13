@@ -32,7 +32,7 @@ const inputSchema = z.object({
   reelTitle: z.string().max(200),
   // Room for a whole unsplit set (5 Types of Accounts is 49 cards / 219 slides).
   slides: z.array(z.object({ kind: z.string().max(40), words: z.string().max(600) })).max(300),
-  cards: z.array(z.object({ id: z.string().max(40), stem: z.string().max(600) })).max(120),
+  cards: z.array(z.object({ id: z.string().max(40), stem: z.string().max(600), speed: z.boolean().optional() })).max(120),
   note: z.string().max(4000),
   mode: z.enum(["split", "one"]).optional(),
 });
