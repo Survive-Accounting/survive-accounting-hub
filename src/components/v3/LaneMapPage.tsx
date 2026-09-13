@@ -131,6 +131,9 @@ export function LaneMapPage() {
                 {layout.rows} on the path{branches > 0 ? ` · ${branches} to take it to an A` : ""}{open && bare.length ? ` · ${bare.length} with nothing deeper yet` : ""}
               </span>
               <span style={{ flex: 1 }} />
+              {/* THE CHAIN (D, 2026-09-13): every video in this topic, in play order, with Now / Later / Skip. */}
+              <Link to="/v3/$topic/chain" params={{ topic: slugOf(t.name) }} title="Every video in this topic, one list in play order — decide Now, Later or Skip"
+                style={{ ...small, borderColor: `${V3_GOLD}66`, color: V3_CREAM, textDecoration: "none" }}>⛓ Chain</Link>
               <button type="button" onClick={() => setOpenTopic(open ? null : t.id)} aria-pressed={open}
                 style={{ ...small, borderColor: open ? V3_GOLD : `${V3_GOLD}66`, color: V3_GOLD, background: open ? `${V3_GOLD}1A` : "transparent" }}
                 title={open ? "Back to just the cram path" : "Open the offshoots and pitches for this topic"}>

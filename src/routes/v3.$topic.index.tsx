@@ -39,7 +39,8 @@ function V3Topic() {
             {topic.name}
           </h1>
           <div style={{ color: V3_MUTED, fontSize: 13, marginBottom: 22 }}>
-            {topic.sets.length} set{topic.sets.length === 1 ? "" : "s"} — pick one to film
+            {topic.sets.length} set{topic.sets.length === 1 ? "" : "s"} — pick one to film ·{" "}
+            <Link to="/v3/$topic/chain" params={{ topic: slugOf(topic.name) }} style={{ color: V3_GOLD, fontWeight: 700, textDecoration: "none" }}>⛓ the whole chain — Now / Later / Skip</Link>
           </div>
 
           {topic.sets.length === 0 && <V3Note>No sets in this topic yet.</V3Note>}

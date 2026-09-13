@@ -128,6 +128,7 @@ import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.l
 import { Route as GoSchoolIndexRouteImport } from './routes/go.$school.index'
 import { Route as AdminRepsIndexRouteImport } from './routes/admin.reps.index'
 import { Route as AdminGrowthIndexRouteImport } from './routes/admin.growth.index'
+import { Route as V3TopicChainRouteImport } from './routes/v3.$topic.chain'
 import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
 import { Route as SCampusCouncilRouteImport } from './routes/s.$campus.council'
 import { Route as SCampusChapterRouteImport } from './routes/s.$campus.$chapter'
@@ -806,6 +807,11 @@ const AdminGrowthIndexRoute = AdminGrowthIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminGrowthRoute,
 } as any)
+const V3TopicChainRoute = V3TopicChainRouteImport.update({
+  id: '/v3/$topic/chain',
+  path: '/v3/$topic/chain',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StudyScenariosSlugRoute = StudyScenariosSlugRouteImport.update({
   id: '/study_/scenarios/$slug',
   path: '/study/scenarios/$slug',
@@ -1389,6 +1395,7 @@ export interface FileRoutesByFullPath {
   '/s/$campus/$chapter': typeof SCampusChapterRoute
   '/s/$campus/council': typeof SCampusCouncilRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
+  '/v3/$topic/chain': typeof V3TopicChainRoute
   '/admin/growth/': typeof AdminGrowthIndexRoute
   '/admin/reps/': typeof AdminRepsIndexRoute
   '/go/$school/': typeof GoSchoolIndexRoute
@@ -1584,6 +1591,7 @@ export interface FileRoutesByTo {
   '/s/$campus/$chapter': typeof SCampusChapterRoute
   '/s/$campus/council': typeof SCampusCouncilRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
+  '/v3/$topic/chain': typeof V3TopicChainRoute
   '/admin/growth': typeof AdminGrowthIndexRoute
   '/admin/reps': typeof AdminRepsIndexRoute
   '/go/$school': typeof GoSchoolIndexRoute
@@ -1784,6 +1792,7 @@ export interface FileRoutesById {
   '/s/$campus/$chapter': typeof SCampusChapterRoute
   '/s/$campus/council': typeof SCampusCouncilRoute
   '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
+  '/v3/$topic/chain': typeof V3TopicChainRoute
   '/admin/growth/': typeof AdminGrowthIndexRoute
   '/admin/reps/': typeof AdminRepsIndexRoute
   '/go/$school/': typeof GoSchoolIndexRoute
@@ -1985,6 +1994,7 @@ export interface FileRouteTypes {
     | '/s/$campus/$chapter'
     | '/s/$campus/council'
     | '/study/scenarios/$slug'
+    | '/v3/$topic/chain'
     | '/admin/growth/'
     | '/admin/reps/'
     | '/go/$school/'
@@ -2180,6 +2190,7 @@ export interface FileRouteTypes {
     | '/s/$campus/$chapter'
     | '/s/$campus/council'
     | '/study/scenarios/$slug'
+    | '/v3/$topic/chain'
     | '/admin/growth'
     | '/admin/reps'
     | '/go/$school'
@@ -2379,6 +2390,7 @@ export interface FileRouteTypes {
     | '/s/$campus/$chapter'
     | '/s/$campus/council'
     | '/study_/scenarios/$slug'
+    | '/v3/$topic/chain'
     | '/admin/growth/'
     | '/admin/reps/'
     | '/go/$school/'
@@ -2519,6 +2531,7 @@ export interface RootRouteChildren {
   SCampusChapterRoute: typeof SCampusChapterRoute
   SCampusCouncilRoute: typeof SCampusCouncilRoute
   StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
+  V3TopicChainRoute: typeof V3TopicChainRoute
   GoSchoolIndexRoute: typeof GoSchoolIndexRoute
   SCampusIndexRoute: typeof SCampusIndexRoute
   V3TopicIndexRoute: typeof V3TopicIndexRoute
@@ -3375,6 +3388,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/growth/'
       preLoaderRoute: typeof AdminGrowthIndexRouteImport
       parentRoute: typeof AdminGrowthRoute
+    }
+    '/v3/$topic/chain': {
+      id: '/v3/$topic/chain'
+      path: '/v3/$topic/chain'
+      fullPath: '/v3/$topic/chain'
+      preLoaderRoute: typeof V3TopicChainRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/study_/scenarios/$slug': {
       id: '/study_/scenarios/$slug'
@@ -4260,6 +4280,7 @@ const rootRouteChildren: RootRouteChildren = {
   SCampusChapterRoute: SCampusChapterRoute,
   SCampusCouncilRoute: SCampusCouncilRoute,
   StudyScenariosSlugRoute: StudyScenariosSlugRoute,
+  V3TopicChainRoute: V3TopicChainRoute,
   GoSchoolIndexRoute: GoSchoolIndexRoute,
   SCampusIndexRoute: SCampusIndexRoute,
   V3TopicIndexRoute: V3TopicIndexRoute,

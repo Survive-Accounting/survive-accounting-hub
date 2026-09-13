@@ -57,6 +57,10 @@ export interface PlanTakeRow {
   headId: string;
   /** Slides in this run (skipped ones excluded — a skipped slide is in no video). */
   frames: number;
+  /** The split signal (reel.ts contentCount): content frames, a speed-run card ½. */
+  content: number;
+  /** What the run is about when it has no name: its starred (else first) callout's words. "" = none. */
+  about: string;
   /** The set's own cards this run covers, in order. Post uses them to caption and to cover the
    *  right video rather than the whole set. */
   ceqIds: string[];
@@ -69,6 +73,7 @@ export const listBlastPlanSetIds = createServerFn({ method: "GET" })
     const db = await admin();
     const { loadDecksDeduped } = await import("./student.functions");
     const owned = await loadDecksDeduped(db as never);
+    const { contentCount, reelSummary } = await import("@/components/blastoff/reel");
     const out: { setId: string; frames: number; updatedAt: string | null; takes: PlanTakeRow[] }[] = [];
     // A raw frame, read defensively: this pass deliberately skips Zod (a malformed plan still
     // means someone reviewed) so nothing here may assume a shape.
@@ -88,6 +93,9 @@ export const listBlastPlanSetIds = createServerFn({ method: "GET" })
           name: typeof head?.takeName === "string" ? head.takeName.trim().slice(0, 80) : "",
           headId: typeof (head as { id?: unknown } | undefined)?.id === "string" ? String((head as { id: string }).id) : "",
           frames: run.length,
+          // Read defensively: a malformed frame is simply not content and names nothing.
+          content: (() => { try { return contentCount(run as never); } catch { return 0; } })(),
+          about: (() => { try { return reelSummary(run as never).lead?.text ?? ""; } catch { return ""; } })(),
           ceqIds: run.filter((r) => typeof r.ceqId === "string" && r.ceqId).map((r) => String(r.ceqId)),
         });
         run = [];
