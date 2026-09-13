@@ -122,9 +122,9 @@ describe("share activity mapping", () => {
 
 describe("flyer attribution", () => {
   const base = { schoolSlug: "auburn", schoolName: "Auburn", courseCode: "ACCT 2110" };
-  it("a rep-attributed flyer QR encodes /r/<code>, not /go", () => {
+  it("a rep-attributed flyer QR encodes /r/<code> stamped ?via=flyer, so the hop lands a member on /learn, not the chair's /go", () => {
     expect(flyerTarget({ ...base, chapterSlug: "phi-delta-theta", chapterName: "Phi Delta Theta", refCode: "abc1234" }))
-      .toBe("https://surviveaccounting.com/r/abc1234");
+      .toBe("https://surviveaccounting.com/r/abc1234?via=flyer");
   });
   it("without a ref the QR lands on the chapter's /learn page (2026-09-11 — /go is the chair's page) or the campus URL", () => {
     expect(flyerTarget({ ...base, chapterSlug: "phi-delta-theta" }))
