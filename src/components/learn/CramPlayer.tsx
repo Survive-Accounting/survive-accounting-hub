@@ -21,6 +21,7 @@ import type { PracticeQuestion, StudentSet, StudentTopic } from "@/lib/student.f
 import { LK, type LearnTheme } from "@/components/learn/learn-theme";
 import { DEMO_PLAYBACK, muxThumb, SOUND_KEY, type Prog } from "@/components/learn/cram-media";
 import { QUICK_ROUND_SIZE } from "@/components/learn/learn-gate";
+import { BreatherCard } from "@/components/learn/BreatherCard";
 
 /** ONE PART OF A SET (2026-09-11): a set filmed as five splits is five items in the player and
  *  five cards in the rail — Lee: "I've posted all 5 videos but only seeing first one." `key` is
@@ -62,6 +63,10 @@ export function CramPlayer({
   const [soundOn, setSoundOn] = useState(false);
   useEffect(() => { setSoundOn(readSound()); }, []);
   const [ask, setAsk] = useState(false);
+  // BREATHER (2026-09-14): a recap beat after this part, before the next one — only on the way
+  // forward at the end of a video. Tap skips; it never shows twice for the same part in a visit.
+  const [breather, setBreather] = useState<{ key: string; heading: string; body: string; position: string } | null>(null);
+  const seenBreathers = useRef(new Set<string>());
   // CRAM CARDS (2026-09-03): video → cards → practice. Same drawer as practice.
   const [cards, setCards] = useState(false);
   const [shareCard, setShareCard] = useState(true);
@@ -75,6 +80,8 @@ export function CramPlayer({
   // videos" (the exit).
   const nextTopicIndex = items.findIndex((it, j) => j > index && it.topic.id !== items[index]?.topic.id);
   const go = useCallback((d: 1 | -1) => { const j = index + d; if (j >= 0 && j < items.length) { onIndex(j); setAsk(false); } }, [index, items.length, onIndex]);
+  // A breather belongs to the part it follows: moving anywhere else clears it.
+  useEffect(() => { setBreather(null); }, [index]);
 
   // keys: ↑↓ / j k move, space toggles play (when the drawer isn't focused)
   useEffect(() => {
@@ -134,14 +141,28 @@ export function CramPlayer({
   // The caption: a multi-part set counts its parts ("Assets · 1 of 5"); a single video counts sets.
   const cap = part.of > 1 ? { n: part.index + 1, of: part.of, name: part.name || set.name } : { n, of, name: set.name };
 
+  const breatherCard = breather && (
+    <BreatherCard heading={breather.heading} body={breather.body} position={breather.position} onDone={() => { setBreather(null); go(1); }} />
+  );
   const video = (
     <Video
       key={part.key} set={set} part={part} locked={locked} demo={demo} soundOn={soundOn} onToggleSound={toggleSound}
       prog={progress[part.key]} narrow={narrow} shrink={!narrow && practice} theme={theme}
       onStarted={() => onStarted(part.key)} onComplete={() => onComplete(part.key)} onPosition={(p, d) => onPosition(part.key, p, d)}
-      onEnded={() => { if (!practice && !cards && !ask && hasNext) window.setTimeout(() => go(1), 1200); }}
+      onEnded={() => {
+        if (practice || cards || ask || !hasNext) return;
+        const b = set.breathers?.find((x) => x.afterIndex === part.index);
+        const nextSameSet = items[index + 1]?.set.id === set.id;
+        if (b && nextSameSet && !seenBreathers.current.has(part.key)) {
+          seenBreathers.current.add(part.key);
+          setBreather({ key: part.key, heading: b.heading, body: b.body, position: `${part.index + 1} of ${part.of}` });
+          return;
+        }
+        window.setTimeout(() => go(1), 1200);
+      }}
       onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask}
       caption={{ topic: topic.name, n: cap.n, of: cap.of, name: cap.name }}
+      overlay={breatherCard || null}
     />
   );
 
@@ -245,7 +266,9 @@ export function CramPlayer({
 // paused), a thin progress bar along the foot you can tap to seek, the sound pill at the top,
 // fullscreen bottom-right on a desk, and a check with "Crammed" when it ends. Autoplays muted
 // the moment it can (the browser rule), resumes where it left off, keeps writing its position.
-function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, shrink, theme, onStarted, onComplete, onPosition, onEnded, onLocked, resolvePlayback, paused, caption }: {
+function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, shrink, theme, onStarted, onComplete, onPosition, onEnded, onLocked, resolvePlayback, paused, caption, overlay }: {
+  /** Drawn over the picture — the breather between this video and the next. */
+  overlay?: React.ReactNode;
   set: StudentSet; part: PlayerPart; locked: boolean; demo: boolean; soundOn: boolean; onToggleSound: () => void; prog: Prog | undefined; narrow: boolean; shrink: boolean; theme: LearnTheme;
   onStarted: () => void; onComplete: () => void; onPosition: (p: number, d: number | null) => void; onEnded: () => void; onLocked: () => void;
   resolvePlayback: (set: StudentSet) => Promise<string | null>; paused: boolean;
@@ -314,7 +337,8 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
   const w = narrow ? "100%" : shrink ? "calc(min(533px, calc(100dvh - 48px)) * 9 / 16)" : "calc(min(900px, calc(100dvh - 48px)) * 9 / 16)";
   const pill = { background: "rgba(28,28,28,0.85)", color: "#F2EFE6", border: "1px solid rgba(255,255,255,0.18)", cursor: "pointer" } as const;
   return (
-    <div ref={box} className="relative overflow-hidden" style={{ width: w, height: h, borderRadius: narrow ? 0 : 16, background: "#000", flexShrink: 0, transition: "width 160ms ease, height 160ms ease" }}>
+    <div ref={box} className="relative overflow-hidden" style={{ width: w, height: h, borderRadius: narrow ? 0 : 16, background: "#000", flexShrink: 0, transition: "width 160ms ease, height 160ms ease", containerType: "inline-size" }}>
+      {overlay}
       {locked ? (
         <button type="button" onClick={onLocked} className="grid h-full w-full place-items-center text-center" style={{ background: LK.surface2, border: 0, color: LK.text, cursor: "pointer" }}>
           <div><Lock className="mx-auto h-7 w-7" style={{ color: LK.muted }} /><div className="mt-2 text-[13px] font-bold">{caption.topic} isn't open yet</div><div className="mt-0.5 text-[11.5px]" style={{ color: LK.muted }}>tap to get notified</div></div>

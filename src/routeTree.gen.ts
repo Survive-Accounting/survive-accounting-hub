@@ -61,6 +61,7 @@ import { Route as V3QueueRouteImport } from './routes/v3.queue'
 import { Route as V3PostRouteImport } from './routes/v3.post'
 import { Route as V3MapRouteImport } from './routes/v3.map'
 import { Route as V3LearnRouteImport } from './routes/v3.learn'
+import { Route as V3BreathersRouteImport } from './routes/v3.breathers'
 import { Route as UTokenRouteImport } from './routes/u.$token'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
@@ -476,6 +477,11 @@ const V3MapRoute = V3MapRouteImport.update({
 const V3LearnRoute = V3LearnRouteImport.update({
   id: '/v3/learn',
   path: '/v3/learn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V3BreathersRoute = V3BreathersRouteImport.update({
+  id: '/v3/breathers',
+  path: '/v3/breathers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UTokenRoute = UTokenRouteImport.update({
@@ -1394,6 +1400,7 @@ export interface FileRoutesByFullPath {
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/v3/breathers': typeof V3BreathersRoute
   '/v3/learn': typeof V3LearnRoute
   '/v3/map': typeof V3MapRoute
   '/v3/post': typeof V3PostRoute
@@ -1601,6 +1608,7 @@ export interface FileRoutesByTo {
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/v3/breathers': typeof V3BreathersRoute
   '/v3/learn': typeof V3LearnRoute
   '/v3/map': typeof V3MapRoute
   '/v3/post': typeof V3PostRoute
@@ -1811,6 +1819,7 @@ export interface FileRoutesById {
   '/study_/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/v3/breathers': typeof V3BreathersRoute
   '/v3/learn': typeof V3LearnRoute
   '/v3/map': typeof V3MapRoute
   '/v3/post': typeof V3PostRoute
@@ -2023,6 +2032,7 @@ export interface FileRouteTypes {
     | '/study/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/v3/breathers'
     | '/v3/learn'
     | '/v3/map'
     | '/v3/post'
@@ -2230,6 +2240,7 @@ export interface FileRouteTypes {
     | '/study/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/v3/breathers'
     | '/v3/learn'
     | '/v3/map'
     | '/v3/post'
@@ -2439,6 +2450,7 @@ export interface FileRouteTypes {
     | '/study_/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/v3/breathers'
     | '/v3/learn'
     | '/v3/map'
     | '/v3/post'
@@ -2620,6 +2632,7 @@ export interface RootRouteChildren {
   StudyFoundationsRoute: typeof StudyFoundationsRoute
   TSlugRoute: typeof TSlugRoute
   UTokenRoute: typeof UTokenRoute
+  V3BreathersRoute: typeof V3BreathersRoute
   V3LearnRoute: typeof V3LearnRoute
   V3MapRoute: typeof V3MapRoute
   V3PostRoute: typeof V3PostRoute
@@ -3048,6 +3061,13 @@ declare module '@tanstack/react-router' {
       path: '/v3/learn'
       fullPath: '/v3/learn'
       preLoaderRoute: typeof V3LearnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v3/breathers': {
+      id: '/v3/breathers'
+      path: '/v3/breathers'
+      fullPath: '/v3/breathers'
+      preLoaderRoute: typeof V3BreathersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/u/$token': {
@@ -4449,6 +4469,7 @@ const rootRouteChildren: RootRouteChildren = {
   StudyFoundationsRoute: StudyFoundationsRoute,
   TSlugRoute: TSlugRoute,
   UTokenRoute: UTokenRoute,
+  V3BreathersRoute: V3BreathersRoute,
   V3LearnRoute: V3LearnRoute,
   V3MapRoute: V3MapRoute,
   V3PostRoute: V3PostRoute,

@@ -21,6 +21,7 @@ import { cramCardsFromPlan, practiceIdsFromPlan, readLearnPlan } from "./learn-p
  *              none yet; `hasReview` is the flag, ids are never invented.
  *  Paid sets have ALL playback ids withheld (getSetPlayback re-checks the grant per stage). */
 import { partKey, shortsFrom, type StudentShort } from "./student-shorts";
+import { studentBreathers, type Breather, type StudentBreather } from "./breathers";
 import { coverOf } from "./publish-cover";
 
 export interface StudentSet {
@@ -54,6 +55,9 @@ export interface StudentSet {
    *  every part is the /learn side's (docs/DESIGN-SITE-PUBLISH.md §4.5). Optional, so nothing that
    *  builds a set by hand has to change. */
   shorts?: StudentShort[];
+  /** BREATHERS (2026-09-14, lib/breathers.ts): live recap beats between this set's parts, by the
+   *  part index they follow. Absent when there are none. */
+  breathers?: StudentBreather[];
 }
 export interface StudentTopic { id: string; name: string; shortLabel: string | null; number: number | null; sets: StudentSet[] }
 export interface StudentUnit { id: string; name: string; topics: StudentTopic[] }
@@ -244,7 +248,12 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     // lost their thumbnail and two wore the wrong one). A posted publication carries its own
     // coverUrl now; the seat-keyed row is only the fallback for videos posted before this.
     const shorts = shortsFrom(d.publications as never, paid).map((sh) => ({ ...sh, coverUrl: sh.coverUrl ?? coverBySet.get(partKey(d.id, sh.takeIndex)) ?? null }));
-    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: shorts.length ? "portrait" : "landscape", playbackId: paid ? null : (shorts[0]?.playbackId ?? cramPid), coverUrl: coverBySet.get(d.id) ?? null, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: shorts[0]?.runtimeSec ?? cramDur, shorts, hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id) });
+    // The sequence's order, the way shortsFrom orders it: posted Blast Off videos by takeIndex.
+    const seqKeys = ((d.publications ?? []) as Array<{ kind?: string; source?: string; state?: string; pubKey?: string; takeIndex?: number; render?: { muxPlaybackId?: string } }>)
+      .filter((p) => p?.kind === "blast" && p.source === "blastoff" && p.state === "shipped" && !!p.render?.muxPlaybackId && typeof p.pubKey === "string")
+      .sort((a, b) => (a.takeIndex ?? 0) - (b.takeIndex ?? 0)).map((p) => p.pubKey!);
+    const breathers = shorts.length === seqKeys.length ? studentBreathers(seqKeys, (d as { breathers?: Breather[] }).breathers) : [];
+    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: shorts.length ? "portrait" : "landscape", playbackId: paid ? null : (shorts[0]?.playbackId ?? cramPid), coverUrl: coverBySet.get(d.id) ?? null, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: shorts[0]?.runtimeSec ?? cramDur, shorts, ...(breathers.length ? { breathers } : {}), hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id) });
   }
 
   for (const t of topics.values()) t.sets.sort((a, b) => (setOrderKey.get(a.id) ?? 0) - (setOrderKey.get(b.id) ?? 0) || a.name.localeCompare(b.name));
