@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { DEST_UPLOAD_URL, looksLikeUrl, shouldAutoTick } from "./post-links";
+import { DEST_UPLOAD_URL, SOCIAL_DESTINATIONS, looksLikeUrl, shouldAutoTick, socialPick } from "./post-links";
+import { keepCover, socialSkipOf, withSocialSkip } from "@/lib/publish-cover";
 import { PUBLISH_DESTINATIONS } from "@/lib/publish-queue.functions";
 
 describe("DEST_UPLOAD_URL — one door per platform, none for the site", () => {
@@ -11,14 +12,40 @@ describe("DEST_UPLOAD_URL — one door per platform, none for the site", () => {
     expect(DEST_UPLOAD_URL.site).toBeNull();
   });
   test("the links are https and point at each platform's own host", () => {
-    expect(DEST_UPLOAD_URL.youtube).toBe("https://www.youtube.com/upload");
+    // Lee's own doors (2026-09-14).
+    expect(DEST_UPLOAD_URL.youtube).toBe("https://studio.youtube.com/");
     expect(DEST_UPLOAD_URL.tiktok).toBe("https://www.tiktok.com/tiktokstudio/upload");
-    // The root, deliberately — see the comment on the map.
-    expect(DEST_UPLOAD_URL.instagram).toBe("https://www.instagram.com/");
+    expect(DEST_UPLOAD_URL.instagram).toBe("https://www.instagram.com/surviveaccounting/");
     for (const d of PUBLISH_DESTINATIONS) {
       const u = DEST_UPLOAD_URL[d];
       if (u) expect(looksLikeUrl(u)).toBe(true);
     }
+  });
+});
+
+describe("socialPick — worth posting off the site?", () => {
+  test("a cheat-code video with questions: post", () => {
+    expect(socialPick({ name: "\"Receivable\" = Asset", about: "ANYTHING \"Receivable\"", cards: 4 }).pick).toBe("post");
+  });
+  test("the series flow stays on the site", () => {
+    for (const name of ["How Survive Works", "Intro to practice", "Recap + walkthrough", "Practice questions"]) expect(socialPick({ name, about: "x", cards: 3 }).pick).toBe("skip");
+  });
+  test("no questions: skip; questions but no callout: maybe", () => {
+    expect(socialPick({ name: "Hype", about: "5 Types of Accounts", cards: 0 }).pick).toBe("skip");
+    expect(socialPick({ name: "", about: "", cards: 2 }).pick).toBe("maybe");
+  });
+  test("only the three platforms can be skipped", () => {
+    expect([...SOCIAL_DESTINATIONS].sort()).toEqual(["instagram", "tiktok", "youtube"]);
+  });
+});
+
+describe("the social skip rides in the captions bag and survives a copy save", () => {
+  test("set, read, kept by keepCover, cleared", () => {
+    const bag = withSocialSkip({ youtube: { title: "t" } }, true);
+    expect(socialSkipOf(bag)).toBe(true);
+    expect(socialSkipOf(keepCover(bag, { youtube: { title: "new" } }))).toBe(true);
+    expect(socialSkipOf(withSocialSkip(bag, false))).toBe(false);
+    expect(withSocialSkip(null, false)).toBeNull();
   });
 });
 

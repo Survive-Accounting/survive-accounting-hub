@@ -10,7 +10,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { normalizeCaptions, type PublishCaptions } from "./caption-brief";
-import { coverOf, keepCover, withCover, type PublishCover } from "./publish-cover";
+import { coverOf, keepCover, socialSkipOf, withCover, withSocialSkip, type PublishCover } from "./publish-cover";
 import { isMissingSchema } from "./pg-errors";
 
 const isMissingTable = (e: { code?: string; message: string }) => isMissingSchema(e, /set_publish_status/i);
@@ -38,6 +38,9 @@ export type SetPublishStatus = Record<PublishDestination, DestinationStatus> & {
   /** YOUR OWN THUMBNAIL (2026-09-11, publish-cover.ts): the image Lee uploaded for this video,
    *  kept beside the copy in the same captions bag. Null = none. */
   cover: PublishCover | null;
+  /** NOT FOR THE SOCIALS (2026-09-14, publish-cover.ts socialSkipOf): YouTube / Instagram / TikTok
+   *  are struck through on the row. The site is unaffected. */
+  socialSkip: boolean;
 };
 
 export function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
@@ -53,6 +56,7 @@ export function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
     // captions yet", never broken. A row someone hand-edited into a shape we don't know → null.
     captions: normalizeCaptions(r.captions),
     cover: coverOf(r.captions),
+    socialSkip: socialSkipOf(r.captions),
   };
 }
 
@@ -201,6 +205,28 @@ export const setPublishCover = createServerFn({ method: "POST" })
         const { setPublicationCover } = await import("@/lib/site-publish.functions");
         await setPublicationCover(data.setId, cover?.url ?? null);
       } catch (e) { console.warn("publication cover write failed (row saved):", e instanceof Error ? e.message : e); }
+      return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };
+    } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+  });
+
+/** SKIP THE SOCIALS for one video (or un-skip). Kept in the captions bag; copy and cover stay. */
+export const setPublishSocialSkip = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(160), skip: z.boolean() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; status?: SetPublishStatus }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    try {
+      const db = await publishDb();
+      const { data: prev, error: readErr } = await db.from("set_publish_status").select("captions").eq("set_id", data.setId).maybeSingle();
+      if (readErr) {
+        if (isMissingTable(readErr)) return { ok: false, error: "Run migration/supabase-migrations/20260906_0200_set_publish_status.sql first." };
+        if (isMissingSchema(readErr, /captions/i)) return { ok: false, error: "Run migration/supabase-migrations/20260907_0600_set_publish_captions.sql first (adds captions)." };
+        return { ok: false, error: readErr.message };
+      }
+      const { data: row, error } = await db.from("set_publish_status")
+        .upsert({ set_id: data.setId, captions: withSocialSkip(prev?.captions, data.skip), updated_at: new Date().toISOString() }, { onConflict: "set_id" })
+        .select("*").single();
+      if (error) return { ok: false, error: error.message };
       return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };
     } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
   });

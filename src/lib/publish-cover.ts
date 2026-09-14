@@ -47,9 +47,28 @@ export function withCover(storedCaptions: unknown, cover: PublishCover | null): 
   return Object.keys(next).length ? next : null;
 }
 
-/** The bag to store when the COPY changes: the new copy (or none), plus the cover already saved. */
+/** The bag to store when the COPY changes: the new copy (or none), plus the cover and the social
+ *  skip already saved. */
 export function keepCover(storedCaptions: unknown, newCopy: Record<string, unknown> | null): Record<string, unknown> | null {
   const cover = coverOf(storedCaptions);
-  if (!cover) return newCopy;
-  return { ...(newCopy ?? {}), cover: { url: cover.url, name: cover.name, uploadedAt: cover.uploadedAt } };
+  const skip = socialSkipOf(storedCaptions);
+  if (!cover && !skip) return newCopy;
+  return { ...(newCopy ?? {}), ...(cover ? { cover: { url: cover.url, name: cover.name, uploadedAt: cover.uploadedAt } } : {}), ...(skip ? { socialSkip: true } : {}) };
+}
+
+// SKIP THE SOCIALS (2026-09-14). Lee: "a skip icon that strikes through all the social icons. I don't
+// want to post every single one to the platforms." Kept in the same bag as `captions.socialSkip`; the
+// site is never skipped by it — only YouTube, Instagram and TikTok.
+
+/** True when this video is marked not for the social platforms. */
+export function socialSkipOf(rawCaptions: unknown): boolean {
+  return isRecord(rawCaptions) && rawCaptions.socialSkip === true;
+}
+
+/** The bag to store when the SKIP changes: everything stored, with the flag set or removed. */
+export function withSocialSkip(storedCaptions: unknown, skip: boolean): Record<string, unknown> | null {
+  const next: Record<string, unknown> = isRecord(storedCaptions) ? { ...storedCaptions } : {};
+  if (skip) next.socialSkip = true;
+  else delete next.socialSkip;
+  return Object.keys(next).length ? next : null;
 }
