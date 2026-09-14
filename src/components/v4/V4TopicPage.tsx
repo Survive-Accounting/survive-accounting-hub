@@ -11,13 +11,11 @@ import { V3Note, V3Shell, V3_CREAM, V3_DISPLAY, V3_EDGE, V3_MUTED } from "@/comp
 import { useV3Set } from "@/components/v3/use-bank";
 import { loadV4Topic, startV4Topic } from "@/lib/v4.functions";
 
-import { V4Chain } from "./V4Chain";
+import { V4Build } from "./V4Build";
 import { V4Film } from "./V4Film";
 import { V4Questions } from "./V4Questions";
-import { V4Slides } from "./V4Slides";
-import { V4Split } from "./V4Split";
 import { V4StepBar, V4_AMBER, V4_RED, v4Button } from "./V4Chrome";
-import { V4_STEPS, type V4Step } from "./v4-topic";
+import { V4_STEPS, barStepOf, type V4BarStep } from "./v4-topic";
 
 export type V4TopicData = Awaited<ReturnType<typeof loadV4Topic>>;
 type Preview = Awaited<ReturnType<typeof startV4Topic>>["preview"];
@@ -37,10 +35,11 @@ export function V4TopicPage({ topicKey, setKey, step }: { topicKey: string; setK
 
   // No step in the URL → the step the topic is on.
   useEffect(() => {
-    if (!step && data?.state) void navigate({ to: "/v4/$topic/$set/$step", params: { topic: topicKey, set: setKey, step: data.state.step }, replace: true });
+    if (!step && data?.state) void navigate({ to: "/v4/$topic/$set/$step", params: { topic: topicKey, set: setKey, step: barStepOf(data.state.step) }, replace: true });
   }, [step, data, navigate, topicKey, setKey]);
 
-  const current = (V4_STEPS as readonly string[]).includes(step ?? "") ? (step as V4Step) : data?.state?.step ?? "questions";
+  // Old links (/slides, /chain, /split) open Build.
+  const current: V4BarStep = step && ([...V4_STEPS, "build"] as readonly string[]).includes(step) ? barStepOf(step) : barStepOf(data?.state?.step ?? "questions");
   return (
     <V3Shell wide crumbs={[{ label: "V4", to: "/v4" }, { label: set?.name ?? setKey }]}>
       {error && <V3Note tone="bad">Could not load the bank: {error}</V3Note>}
@@ -65,9 +64,7 @@ export function V4TopicPage({ topicKey, setKey, step }: { topicKey: string; setK
               Questions aren't marked final yet — you can work ahead, but <Link to="/v4/$topic/$set/$step" params={{ topic: topicKey, set: setKey, step: "questions" }} style={{ color: V4_AMBER }}>finish them</Link> so new questions go live.
             </div>
           )}
-          {data.state && current === "slides" && <V4Slides data={data} onData={setData} set={set} topic={topic} />}
-          {data.state && current === "chain" && <V4Chain data={data} onData={setData} set={set} topic={topic} />}
-          {data.state && current === "split" && <V4Split data={data} onData={setData} />}
+          {data.state && current === "build" && <V4Build data={data} onData={setData} set={set} topic={topic} />}
           {data.state && current === "film" && <V4Film data={data} set={set} topic={topic} topics={topics ?? []} topicKey={topicKey} setKey={setKey} />}
         </>
       )}

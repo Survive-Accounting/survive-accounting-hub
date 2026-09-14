@@ -17,6 +17,22 @@ export const V4_STEPS = ["questions", "slides", "chain", "split", "film"] as con
 export type V4Step = (typeof V4_STEPS)[number];
 export const V4_STEP_LABEL: Record<V4Step, string> = { questions: "Questions", slides: "Slides", chain: "Chain", split: "Split", film: "Film" };
 
+/** THE BAR SINCE 2026-09-14: Questions → Build → Film. Build is Slides, Chain and Split on one page (Lee:
+ *  "slides > chain > split should all exist together"). The stored step keeps its old names — the
+ *  learning record's proposals are per step — and the bar reads them as Build. */
+export const V4_BAR_STEPS = ["questions", "build", "film"] as const;
+export type V4BarStep = (typeof V4_BAR_STEPS)[number];
+export const V4_BAR_LABEL: Record<V4BarStep, string> = { questions: "Questions", build: "Build", film: "Film" };
+export function barStepOf(step: string | null | undefined): V4BarStep {
+  return step === "questions" || step === "film" ? step : "build";
+}
+/** A bar step is done when every stored step under it is final. */
+export function barStepDone(bar: V4BarStep, final: Partial<Record<V4Step, string>>): boolean {
+  if (bar === "questions") return !!final.questions;
+  if (bar === "build") return !!(final.slides && final.chain && final.split);
+  return !!final.film;
+}
+
 export interface V4Group { id: string; name: string }
 
 export interface V4State {

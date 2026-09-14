@@ -10,15 +10,17 @@ import { getAdminWho } from "@/components/AdminGate";
 import { ReviewDeck } from "@/components/blastoff/ReviewDeck";
 import { V3_CREAM, V3_EDGE, V3_MUTED } from "@/components/v3/Shell";
 import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
+import type { BlastFrame } from "@/components/blastoff/plan";
+import { rekeyAfterPlanChange } from "@/components/v3/publish-rekey";
 import { loadBlastPlan } from "@/lib/blastoff.functions";
-import { v4ArrangeChain, v4EnsureProposal, v4MarkFinal } from "@/lib/v4.functions";
+import { loadV4Splits, v4ApplySplits, v4ArrangeChain, v4EnsureProposal, v4MarkFinal } from "@/lib/v4.functions";
 
 import { V4_AMBER, V4_MINT, V4_RED, v4Button } from "./V4Chrome";
 import type { V4TopicData } from "./V4TopicPage";
 
 const wait = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
 
-export function V4Chain({ data, onData, set, topic }: { data: V4TopicData; onData: (d: V4TopicData) => void; set: BoothSetInfo; topic: BoothTopic }) {
+export function V4Chain({ data, onData, set, topic, embedded = false }: { data: V4TopicData; onData: (d: V4TopicData) => void; set: BoothSetInfo; topic: BoothTopic; embedded?: boolean }) {
   const state = data.state!;
   const [deckKey, setDeckKey] = useState(0);
   const [showDeck, setShowDeck] = useState(true);
@@ -36,6 +38,27 @@ export function V4Chain({ data, onData, set, topic }: { data: V4TopicData; onDat
       const r = await v4ArrangeChain({ data: { setId: data.setId, who: getAdminWho() } });
       setWarn(r.logWarning);
       setNote(`Arranged — ${r.slides} slides, group by group.`);
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setDeckKey((k) => k + 1); setShowDeck(true); setBusy(false); }
+  };
+
+  // A CUT, RIGHT IN THE CHAIN (2026-09-14): the ✂ in a gap toggles a cut after that slide. Same server path
+  // as the Split list (v4ApplySplits rebuilds the bookends), so the Editor comes down around the write.
+  // A bound outro's ✂ is the cut it closes (`v4out-<slide id>`). A new cut opens with no intro — Easy
+  // Points videos run back to back; the Split list swaps in the bio or a title card.
+  const toggleCut = async (frameId: string) => {
+    const id = frameId.startsWith("v4out-") ? frameId.slice("v4out-".length) : frameId;
+    setBusy(true); setErr(null); setNote(null);
+    try {
+      setShowDeck(false);
+      await wait(900);
+      const s = await loadV4Splits({ data: { setId: data.setId } });
+      const has = s.cuts.some((c) => c.after === id);
+      const next = { ...s, cuts: has ? s.cuts.filter((c) => c.after !== id) : [...s.cuts, { after: id, intro: "none" as const }] };
+      const r = await v4ApplySplits({ data: { setId: data.setId, splits: next, action: has ? "uncut" : "cut", who: getAdminWho() } });
+      setWarn(r.logWarning);
+      void rekeyAfterPlanChange(data.setId, r.before as BlastFrame[], r.frames as BlastFrame[]).catch((e) => setWarn(`post rows not re-keyed: ${e instanceof Error ? e.message : String(e)}`));
+      setNote(has ? "Cut removed — its outro went with it." : `Cut — ${r.splits.cuts.length + 1} videos now.`);
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setDeckKey((k) => k + 1); setShowDeck(true); setBusy(false); }
   };
@@ -61,16 +84,16 @@ export function V4Chain({ data, onData, set, topic }: { data: V4TopicData; onDat
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 14px", border: `1px solid ${V3_EDGE}`, borderRadius: 12, maxWidth: 1000 }}>
         <button type="button" onClick={() => void arrange()} disabled={busy} style={{ ...v4Button("gold"), opacity: busy ? 0.6 : 1 }}>Arrange the chain</button>
-        <span style={{ fontSize: 12.5, color: V3_MUTED }}>Group by group: teaching slides, then questions. Then drag to reorder and polish below.</span>
+        <span style={{ fontSize: 12.5, color: V3_MUTED }}>Group by group: teaching slides, then questions. Drag to reorder; ✂ in a gap cuts a new video there.</span>
         <span style={{ flex: 1 }} />
-        {state.final.chain && <span style={{ fontSize: 12.5, color: V4_MINT, fontWeight: 700 }}>✓ Final</span>}
-        <button type="button" onClick={() => void finalize()} disabled={busy} style={{ ...v4Button("gold"), fontSize: 13.5, padding: "8px 16px" }}>{state.final.chain ? "Mark final again" : "Chain final"}</button>
+        {!embedded && state.final.chain && <span style={{ fontSize: 12.5, color: V4_MINT, fontWeight: 700 }}>✓ Final</span>}
+        {!embedded && <button type="button" onClick={() => void finalize()} disabled={busy} style={{ ...v4Button("gold"), fontSize: 13.5, padding: "8px 16px" }}>{state.final.chain ? "Mark final again" : "Chain final"}</button>}
       </div>
       {note && <div style={{ marginTop: 8, fontSize: 13, color: V4_MINT }}>{note}</div>}
       {err && <div style={{ marginTop: 8, fontSize: 13, color: V4_RED }}>{err}</div>}
       {warn && <div style={{ marginTop: 8, fontSize: 12.5, color: V4_AMBER }}>Not recorded for learning — {warn}</div>}
       <div style={{ marginTop: 14 }}>
-        {showDeck ? <ReviewDeck key={deckKey} set={set} topic={topic} v4 /> : <div style={{ fontSize: 13, color: V3_CREAM }}>Working…</div>}
+        {showDeck ? <ReviewDeck key={deckKey} set={set} topic={topic} v4 onV4Cut={(id) => void toggleCut(id)} /> : <div style={{ fontSize: 13, color: V3_CREAM }}>Working…</div>}
       </div>
     </div>
   );

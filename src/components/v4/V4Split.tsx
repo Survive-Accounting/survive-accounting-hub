@@ -21,7 +21,7 @@ import type { V4TopicData } from "./V4TopicPage";
 import { INTRO_LABEL, contentOf, suggestCuts, type IntroChoice, type V4Splits } from "./v4-chain";
 import type { V4Card } from "./v4-topic";
 
-export function V4Split({ data, onData }: { data: V4TopicData; onData: (d: V4TopicData) => void }) {
+export function V4Split({ data, onData, embedded = false }: { data: V4TopicData; onData: (d: V4TopicData) => void; embedded?: boolean }) {
   const state = data.state!;
   const cards = data.cards as V4Card[];
   const [frames, setFrames] = useState<BlastFrame[] | null>(null);
@@ -118,8 +118,8 @@ export function V4Split({ data, onData }: { data: V4TopicData; onData: (d: V4Top
           </>
         )}
         <span style={{ flex: 1 }} />
-        {state.final.split && <span style={{ fontSize: 12.5, color: V4_MINT, fontWeight: 700 }}>✓ Final</span>}
-        <button type="button" onClick={() => void finalize()} disabled={busy} style={{ ...v4Button("gold"), fontSize: 13.5, padding: "8px 16px" }}>{state.final.split ? "Mark final again" : "Split final"}</button>
+        {!embedded && state.final.split && <span style={{ fontSize: 12.5, color: V4_MINT, fontWeight: 700 }}>✓ Final</span>}
+        {!embedded && <button type="button" onClick={() => void finalize()} disabled={busy} style={{ ...v4Button("gold"), fontSize: 13.5, padding: "8px 16px" }}>{state.final.split ? "Mark final again" : "Split final"}</button>}
       </div>
       <div style={{ marginTop: 6, fontSize: 12, color: V3_MUTED }}>Click ✂ between two slides to cut there; click it again to take the cut away — its intro and outro go with it. Loose ceiling {FRAME_BUDGET.ceiling} frames a video.</div>
       {err && <div style={{ marginTop: 8, fontSize: 13, color: V4_RED }}>{err}</div>}

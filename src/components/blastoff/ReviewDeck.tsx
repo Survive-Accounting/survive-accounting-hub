@@ -834,11 +834,14 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
 // slidePatchFor (a proofread phrase → the slide it becomes) left with the prompter face on
 // 2026-09-07 — it had no caller outside it.
 
-export function ReviewDeck({ set, topic, register, initialSelectedId = null, focusTake = null, knife = null, v4 = false }: {
+export function ReviewDeck({ set, topic, register, initialSelectedId = null, focusTake = null, knife = null, v4 = false, onV4Cut }: {
   set: BoothSetInfo; topic: BoothTopic;
-  /** V4 MODE (2026-09-13, components/v4): no cutting, no split tools — v4 cuts in its own Split step.
-   *  Off (every v3 mount) = exactly as before. */
+  /** V4 MODE (2026-09-13, components/v4): no v3 split tools. Off (every v3 mount) = exactly as before. */
   v4?: boolean;
+  /** V4 CUTS IN THE CHAIN (2026-09-14, Lee: "slides > chain > split should all exist together"): the ✂ in
+   *  a gap toggles a cut after that slide through the v4 Build page, which rebuilds the bookends on the
+   *  server. The id is the slide the gap follows (a bound outro's own id is mapped back by the caller). */
+  onV4Cut?: (frameId: string) => void;
   /** THE KNIFE (cut this set into sibling sets) — the route's button, shown small beside the
    *  slides toggle instead of on its own row (Lee, 2026-09-10: "not losing so much vertical space"). */
   knife?: ReactNode;
@@ -936,6 +939,30 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   const [stripOpen, setStripOpenState] = useState(true);
   useEffect(() => { try { setStripOpenState(localStorage.getItem("sa-review-strip") !== "hidden"); } catch { /* forgets */ } }, []);
   const setStripOpen = (v: boolean) => { setStripOpenState(v); try { localStorage.setItem("sa-review-strip", v ? "open" : "hidden"); } catch { /* forgets */ } };
+  // ZOOM THE SLIDE + EDITOR (2026-09-14). Lee: "I'm using CTRL mousewheel a lot to make the slides more
+  // viewable … if I'm in that editor zone, make the mousewheel let me zoom in and out … letting the slide
+  // AND EDITOR zoom out. So it's all usable more easily and doesn't require zoom out of the whole page."
+  // Ctrl+wheel over the two columns scales just them (CSS zoom — the camera's ResizeObserver still sees
+  // real boxes, which a transform would hide). Remembered on this browser.
+  const [editZoom, setEditZoom] = useState(1);
+  const zoomRef = useRef<HTMLDivElement | null>(null);
+  const setZoom = useCallback((z: number) => {
+    const v = Math.round(Math.min(1.6, Math.max(0.5, z)) * 20) / 20;
+    setEditZoom(v);
+    try { localStorage.setItem("sa-review-edit-zoom", String(v)); } catch { /* forgets */ }
+  }, []);
+  useEffect(() => { try { const v = Number(localStorage.getItem("sa-review-edit-zoom")); if (v >= 0.5 && v <= 1.6) setEditZoom(v); } catch { /* forgets */ } }, []);
+  useEffect(() => {
+    const el = zoomRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setEditZoom((z) => { const v = Math.round(Math.min(1.6, Math.max(0.5, z * (e.deltaY > 0 ? 0.93 : 1.07))) * 100) / 100; try { localStorage.setItem("sa-review-edit-zoom", String(v)); } catch { /* forgets */ } return v; });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  });
   // THE TAKES, ONCE (2026-09-09). Lee: "would be a huge help if I could collapse a split
   // group." The spine used to re-derive the grouping inline, per row, in O(n³); this is the one
   // planTakes the rest of the line uses — over filmFrames, so take N here IS /v3/post's
@@ -1781,8 +1808,11 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
             const firstReal = indexOf.get(take.frames[0]?.id ?? "") ?? 0;
             const empty = emptyHeads.has(take.headId);
             const count = take.frames.length;
+            // EACH VIDEO ITS OWN BAND (2026-09-14, Lee: "make it easier to see each grouping of videos … I want
+            // to see the splits clearly"): alternating gold / sky, a tinted ground, a thicker rule.
+            const band = take.index % 2 === 0 ? GOLD : SKY;
             return (
-              <div key={take.headId} style={{ display: "flex", flexDirection: "column", gap: 4, flex: "0 0 auto", borderLeft: `2px solid ${GOLD}`, paddingLeft: 6 }}>
+              <div key={take.headId} style={{ display: "flex", flexDirection: "column", gap: 4, flex: "0 0 auto", borderLeft: `3px solid ${hasCuts ? band : GOLD}`, paddingLeft: 6, paddingRight: hasCuts ? 6 : 0, paddingBlock: hasCuts ? 4 : 0, borderRadius: hasCuts ? "0 10px 10px 0" : 0, background: hasCuts ? `${band}0d` : "transparent" }}>
                 <div className="flex items-center" style={{ gap: 4 }}>
                   {hasCuts && !reelsMode && (
                     <button style={gutterBtn} title={isCollapsed ? "Expand this split" : "Collapse this split"} aria-expanded={!isCollapsed} onClick={() => toggleGroup(take.headId)}>{isCollapsed ? "▸" : "▾"}</button>
@@ -1823,6 +1853,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                           name, typed right here. */}
                       {hasCuts && (
                         <div className="flex items-center" style={{ gap: 8, margin: "0 0 2px", flexWrap: "nowrap" }}>
+                          <span style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.06em", color: take.index % 2 === 0 ? GOLD : SKY, whiteSpace: "nowrap" }}>VIDEO {take.index + 1}</span>
                           <span style={{ flex: 1, height: 1, background: `${GOLD}55`, minWidth: 6 }} />
                           {renamingHead === take.headId ? (
                             <input
@@ -1898,7 +1929,7 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
                                   </button>
                                 </div>
                               ) : spineRow(f, i, { number: numberOf.get(f.id), thumb: true, card: true })}
-                              <GapTools vertical kinds={gapKinds(f)} onInsert={() => { setSelId(f.id); setInsertOpen(true); }} onClone={() => void cloneAfter(f, i)} onCut={v4 ? undefined : () => cutAfter(f)} cut={!!f.cutAfter}
+                              <GapTools vertical kinds={gapKinds(f)} onInsert={() => { setSelId(f.id); setInsertOpen(true); }} onClone={() => void cloneAfter(f, i)} onCut={v4 ? (onV4Cut ? () => onV4Cut(f.id) : undefined) : () => cutAfter(f)} cut={!!f.cutAfter}
                                 onOver={() => setOver({ i, below: true })} onDrop={drop} />
                             </Fragment>
                           );
@@ -1979,7 +2010,13 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 18, alignItems: "start", width: "100%", maxWidth: 1180, margin: "0 auto" }}>
+      {editZoom !== 1 && (
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, alignItems: "center", fontSize: 11, color: MUTED, margin: "0 0 4px" }}>
+          Slide + editor at {Math.round(editZoom * 100)}% · Ctrl+wheel to zoom
+          <button style={{ ...chip(false, MUTED), fontSize: 10, padding: "1px 8px" }} onClick={() => setZoom(1)}>100%</button>
+        </div>
+      )}
+      <div ref={zoomRef} title="Ctrl+wheel zooms the slide and the editor" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 18, alignItems: "start", width: "100%", maxWidth: 1180, margin: "0 auto", zoom: editZoom } as React.CSSProperties}>
       {/* --------------------------------------------- MIDDLE: the slide
           IT FOLLOWS HIM DOWN (2026-09-09). Lee: "Let the slide preview follow me as I scroll
           down from the spine, so I don't have to scroll back and forth." The spine is sixty
