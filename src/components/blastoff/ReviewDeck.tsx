@@ -898,6 +898,17 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   }, [setSelId]);
   const sel = frames.find((f) => f.id === selId) ?? frames[0] ?? null;
   const selIdx = sel ? frames.indexOf(sel) : -1;
+  // After an undo / redo took the selected slide away, select whatever now sits in its spot — never slide 1.
+  const undoAnchor = useRef<{ id: string | null; idx: number } | null>(null);
+  useEffect(() => {
+    const a = undoAnchor.current;
+    if (!a || !frames.length) return;
+    if (a.id && frames.some((f) => f.id === a.id)) { undoAnchor.current = null; return; }
+    undoAnchor.current = null;
+    const k = Math.max(0, Math.min(frames.length - 1, a.idx));
+    setSelId(frames[k].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frames]);
   /** The spine's row order — the running order without the skipped folder — which a shift-click
    *  range is measured along (a folded run's slides included: they are still in the order). */
   const spineOrder = useMemo(() => frames.filter((f) => !f.skipped).map((f) => f.id), [frames]);
@@ -997,7 +1008,16 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
   /** What each run IS (reel.ts): ranked callouts, questions covered, the length estimate. */
   const reelOf = useMemo(() => new Map(takes.map((t) => [t.headId, takeSummary(t, (cid) => !!ceqById.get(cid)?.noteOnly)])), [takes, ceqById]);
   /** The open Reel: the selected slide's run, else the first. */
-  const openHead = useMemo(() => (selId ? takeOf.get(selId)?.take.headId ?? null : null) ?? takes[0]?.headId ?? null, [selId, takeOf, takes]);
+  // KEEP THE PLACE (2026-09-14, Lee: "CTRL Z is taking me all the way back to first split in /build. Makes me
+  // lose my place."): when the selected slide is gone (an undone insert), the Reel that was open stays open —
+  // not the first one.
+  const lastOpenHead = useRef<string | null>(null);
+  const openHead = useMemo(() => {
+    const fromSel = selId ? takeOf.get(selId)?.take.headId ?? null : null;
+    const kept = lastOpenHead.current && takes.some((t) => t.headId === lastOpenHead.current) ? lastOpenHead.current : null;
+    return fromSel ?? kept ?? takes[0]?.headId ?? null;
+  }, [selId, takeOf, takes]);
+  useEffect(() => { if (openHead) lastOpenHead.current = openHead; }, [openHead]);
   const focused = useRef<string | null>(null);
   useEffect(() => {
     if (!focusTake || collapsedState.setId !== set.id || takes.length < 2) return;
@@ -1243,6 +1263,9 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
       }
       if (mod && key === "z") {
         e.preventDefault();
+        // Keep the place: remember where the selection sat, so if the undo takes that slide away the
+        // neighbour at the same spot is selected instead of nothing (which opened the first split).
+        undoAnchor.current = { id: sel?.id ?? null, idx: selIdx };
         if (e.shiftKey) redo(); else undo();
         return;
       }

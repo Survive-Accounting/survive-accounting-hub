@@ -20,7 +20,8 @@ import type { BoothSetInfo, BoothTopic } from "@/lib/talkthrough.functions";
 
 import { V4_AMBER, V4_MINT, V4_RED, v4Button } from "./V4Chrome";
 import type { V4TopicData } from "./V4TopicPage";
-import { splitRows } from "./v4-chain";
+import { contentOf, splitRows, type V4Splits } from "./v4-chain";
+import { loadV4Splits } from "@/lib/v4.functions";
 import type { V4Card } from "./v4-topic";
 
 export function V4Film({ data, set, topic, topics, topicKey, setKey }: { data: V4TopicData; set: BoothSetInfo; topic: BoothTopic; topics: BoothTopic[]; topicKey: string; setKey: string }) {
@@ -28,13 +29,28 @@ export function V4Film({ data, set, topic, topics, topicKey, setKey }: { data: V
   const [frames, setFrames] = useState<BlastFrame[] | null>(null);
   const [publish, setPublish] = useState<Record<string, SetPublishStatus>>({});
   const [err, setErr] = useState<string | null>(null);
+  const [splits, setSplits] = useState<V4Splits | null>(null);
   useEffect(() => {
     loadBlastPlan({ data: { setId: data.setId } }).then((p) => setFrames((p?.frames ?? []) as BlastFrame[])).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+    loadV4Splits({ data: { setId: data.setId } }).then(setSplits).catch(() => { /* rows fall back to "Split N" */ });
     listPublishStatuses().then(setPublish).catch(() => { /* no filmed/posted chips */ });
   }, [data.setId]);
 
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
   const rows = useMemo(() => (frames ? splitRows(frames, (id) => { const c = byId.get(id); return c?.placeholder && !c.rejected ? { note: c.placeholder.note, stem: c.stem } : null; }) : []), [frames, byId]);
+  // THE VIDEOS' NAMES from the Split list (Lee, 2026-09-14: "Let me see the names here on /film"): a row's
+  // name is the name of the cut run its first content slide sits in.
+  const nameOf = useMemo(() => {
+    if (!frames || !splits) return (_: (typeof rows)[number]) => "";
+    const pos = new Map(contentOf(frames).map((f, k) => [f.id, k]));
+    const cuts = splits.cuts.filter((c) => pos.has(c.after)).sort((a, b) => pos.get(a.after)! - pos.get(b.after)!);
+    return (r: (typeof rows)[number]) => {
+      const first = r.frames.find((f) => !f.v4Bound && pos.has(f.id));
+      if (!first) return "";
+      const run = cuts.filter((c) => pos.get(c.after)! < pos.get(first.id)!).length;
+      return (run === 0 ? splits.startName : cuts[run - 1]?.name)?.trim() ?? "";
+    };
+  }, [frames, splits, rows]);
 
   // The next topic: the next cram set in this topic, else the first of the next topic.
   const next = useMemo(() => {
@@ -67,7 +83,7 @@ export function V4Film({ data, set, topic, topics, topicKey, setKey }: { data: V
           return (
             <div key={r.headId || r.index} style={{ border: `1px solid ${blocked ? `${V4_AMBER}88` : `${V4_MINT}55`}`, borderRadius: 12, padding: "10px 14px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 14.5, fontWeight: 900, color: V3_CREAM }}>{r.index + 1}. {r.name || `Split ${r.index + 1}`}</span>
+                <span style={{ fontSize: 14.5, fontWeight: 900, color: V3_CREAM }}>{r.index + 1}. {nameOf(r) || r.name || `Split ${r.index + 1}`}</span>
                 <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.1em", borderRadius: 999, padding: "2px 9px", color: "#0B0F1E", background: blocked ? V4_AMBER : V4_MINT }}>{blocked ? "BLOCKED" : "READY"}</span>
                 <span style={{ fontSize: 12, color: V3_MUTED }}>{frameCountLabel(contentCount(r.frames))}</span>
                 {posted ? <span style={{ fontSize: 12, color: V4_MINT, fontWeight: 700 }}>posted</span> : filmed ? <span style={{ fontSize: 12, color: V4_MINT }}>filmed</span> : null}
