@@ -417,7 +417,7 @@ export const v4ApplySplits = createServerFn({ method: "POST" })
     const before = (Array.isArray(deck.blastOff?.frames) ? deck.blastOff!.frames! : []) as import("@/components/blastoff/plan").BlastFrame[];
     const prevSplits = state.split ?? null;
     const { frames, splits } = applySplits(before, data.splits, deck.name ?? "");
-    const checked = z.array(frameSchema).max(400).parse(frames);
+    const checked = z.array(frameSchema).max(2000).parse(frames);
     const now = new Date().toISOString();
     deck.blastOff = { ...(deck.blastOff ?? {}), frames: checked, updatedAt: now };
     state.split = splits;
@@ -428,7 +428,7 @@ export const v4ApplySplits = createServerFn({ method: "POST" })
       const ins = await d.from("teach_edits").insert({ proposal_id: proposal.id, set_id: data.setId, step: "split", target: "cuts", action: data.action, before: prevSplits, after: splits, created_by: data.who ?? null });
       if (ins.error) logWarning = learningError(ins.error);
     }
-    return { ok: true as const, splits, frames: checked, before: z.array(frameSchema).max(400).parse(before), logWarning };
+    return { ok: true as const, splits, frames: checked, before: z.array(frameSchema).max(2000).parse(before), logWarning };
   });
 
 /** The topic's cuts (step 4), for the Split page. */
@@ -486,7 +486,7 @@ export const v4ArrangeChain = createServerFn({ method: "POST" })
     const before = (Array.isArray(deck.blastOff?.frames) ? deck.blastOff!.frames! : []) as import("@/components/blastoff/plan").BlastFrame[];
     const arranged = arrangeChain(before, state.groups.map((g) => g.id), (id) => groupOf.get(id) ?? null);
     const withSplits = state.split && state.split.cuts.length ? applySplits(arranged, state.split, deck.name ?? "").frames : arranged;
-    const checked = z.array(frameSchema).max(400).parse(withSplits);
+    const checked = z.array(frameSchema).max(2000).parse(withSplits);
     deck.blastOff = { ...(deck.blastOff ?? {}), frames: checked, updatedAt: new Date().toISOString() };
     await saveScene(d, sceneId, j);
     const ids = (fs: { id: string; kind: string }[]) => fs.map((f) => `${f.kind}:${f.id}`);

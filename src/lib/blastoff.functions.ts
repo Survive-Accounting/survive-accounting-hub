@@ -344,7 +344,7 @@ export const mintBranch = createServerFn({ method: "POST" })
 export const saveBlastPlan = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
     setId: z.string().min(1).max(120),
-    frames: z.array(frameSchema).min(1).max(400),
+    frames: z.array(frameSchema).min(1).max(2000),
     layout: z.enum(["pass1", "pass2"]).optional(),
   }).parse(d))
   .handler(async ({ data }) => {

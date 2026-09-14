@@ -168,7 +168,7 @@ const orderAt = (i: number) => (i + 1) * 10;
 export const syncBlastPlanToSet = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
     setId: z.string().min(1).max(120),
-    frames: z.array(frameIn).min(1).max(400),
+    frames: z.array(frameIn).min(1).max(2000),
     // THE FRAMES ARE THE SLIDES (Lee, 2026-09-03): v3 films vertical, so the
     // spine cards fill a 900×1600 frame edge to edge instead of sitting as a
     // 540×960 card at the landscape stage's centre.
