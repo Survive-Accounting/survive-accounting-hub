@@ -56,6 +56,7 @@ import { Route as VaTokenRouteImport } from './routes/va.$token'
 import { Route as V4TodoRouteImport } from './routes/v4.todo'
 import { Route as V3ValuesRouteImport } from './routes/v3.values'
 import { Route as V3TeleprompterRouteImport } from './routes/v3.teleprompter'
+import { Route as V3QuickPostRouteImport } from './routes/v3.quick-post'
 import { Route as V3QueueRouteImport } from './routes/v3.queue'
 import { Route as V3PostRouteImport } from './routes/v3.post'
 import { Route as V3MapRouteImport } from './routes/v3.map'
@@ -445,6 +446,11 @@ const V3ValuesRoute = V3ValuesRouteImport.update({
 const V3TeleprompterRoute = V3TeleprompterRouteImport.update({
   id: '/v3/teleprompter',
   path: '/v3/teleprompter',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V3QuickPostRoute = V3QuickPostRouteImport.update({
+  id: '/v3/quick-post',
+  path: '/v3/quick-post',
   getParentRoute: () => rootRouteImport,
 } as any)
 const V3QueueRoute = V3QueueRouteImport.update({
@@ -1359,6 +1365,7 @@ export interface FileRoutesByFullPath {
   '/v3/map': typeof V3MapRoute
   '/v3/post': typeof V3PostRoute
   '/v3/queue': typeof V3QueueRoute
+  '/v3/quick-post': typeof V3QuickPostRoute
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
   '/v4/todo': typeof V4TodoRoute
@@ -1560,6 +1567,7 @@ export interface FileRoutesByTo {
   '/v3/map': typeof V3MapRoute
   '/v3/post': typeof V3PostRoute
   '/v3/queue': typeof V3QueueRoute
+  '/v3/quick-post': typeof V3QuickPostRoute
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
   '/v4/todo': typeof V4TodoRoute
@@ -1764,6 +1772,7 @@ export interface FileRoutesById {
   '/v3/map': typeof V3MapRoute
   '/v3/post': typeof V3PostRoute
   '/v3/queue': typeof V3QueueRoute
+  '/v3/quick-post': typeof V3QuickPostRoute
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
   '/v4/todo': typeof V4TodoRoute
@@ -1970,6 +1979,7 @@ export interface FileRouteTypes {
     | '/v3/map'
     | '/v3/post'
     | '/v3/queue'
+    | '/v3/quick-post'
     | '/v3/teleprompter'
     | '/v3/values'
     | '/v4/todo'
@@ -2171,6 +2181,7 @@ export interface FileRouteTypes {
     | '/v3/map'
     | '/v3/post'
     | '/v3/queue'
+    | '/v3/quick-post'
     | '/v3/teleprompter'
     | '/v3/values'
     | '/v4/todo'
@@ -2374,6 +2385,7 @@ export interface FileRouteTypes {
     | '/v3/map'
     | '/v3/post'
     | '/v3/queue'
+    | '/v3/quick-post'
     | '/v3/teleprompter'
     | '/v3/values'
     | '/v4/todo'
@@ -2549,6 +2561,7 @@ export interface RootRouteChildren {
   V3MapRoute: typeof V3MapRoute
   V3PostRoute: typeof V3PostRoute
   V3QueueRoute: typeof V3QueueRoute
+  V3QuickPostRoute: typeof V3QuickPostRoute
   V3TeleprompterRoute: typeof V3TeleprompterRoute
   V3ValuesRoute: typeof V3ValuesRoute
   V4TodoRoute: typeof V4TodoRoute
@@ -2935,6 +2948,13 @@ declare module '@tanstack/react-router' {
       path: '/v3/teleprompter'
       fullPath: '/v3/teleprompter'
       preLoaderRoute: typeof V3TeleprompterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v3/quick-post': {
+      id: '/v3/quick-post'
+      path: '/v3/quick-post'
+      fullPath: '/v3/quick-post'
+      preLoaderRoute: typeof V3QuickPostRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/v3/queue': {
@@ -4329,6 +4349,7 @@ const rootRouteChildren: RootRouteChildren = {
   V3MapRoute: V3MapRoute,
   V3PostRoute: V3PostRoute,
   V3QueueRoute: V3QueueRoute,
+  V3QuickPostRoute: V3QuickPostRoute,
   V3TeleprompterRoute: V3TeleprompterRoute,
   V3ValuesRoute: V3ValuesRoute,
   V4TodoRoute: V4TodoRoute,
@@ -4389,7 +4410,6 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
 
 import type { getRouter } from './router.tsx'
 import type { startInstance } from './start.ts'

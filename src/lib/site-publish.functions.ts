@@ -57,6 +57,9 @@ export const resolveSitePost = createServerFn({ method: "POST" })
     takeName: z.string().max(200),
     title: z.string().max(300),
     videoUrl: z.string().url().max(800),
+    // QUICK POST (2026-09-13) posts videos that belong to the SET, not to a split of its plan — their
+    // positions don't line up with the plan's splits, so it skips marking plan frames as filmed.
+    ledger: z.boolean().optional(),
   }).parse(d))
   .handler(async ({ data }): Promise<SitePostResult> => {
     const { assertAdmin } = await import("@/lib/admin-session.functions");
@@ -99,7 +102,7 @@ export const resolveSitePost = createServerFn({ method: "POST" })
 
     // THE FRAME LEDGER: the posted split's frames are now FILMED (Lee's decision #1). Best-effort —
     // the post has landed; a ledger miss is a server log line naming the cause, never an error here.
-    try {
+    if (data.ledger !== false) try {
       const { filmedEvents } = await import("@/components/blastoff/frame-events");
       const frames = ((deck as { blastOff?: { frames?: unknown } }).blastOff?.frames ?? []) as import("@/components/blastoff/plan").BlastFrame[];
       const prior = await db.from("frame_events").select("frame_id").eq("event", "filmed").eq("take_ref", data.pubKey);
