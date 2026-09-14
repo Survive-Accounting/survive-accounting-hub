@@ -80,7 +80,7 @@ import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome
 import { HideChatWhile } from "@/components/site/SiteChat";
 import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
 import { ReviewSheet } from "@/components/learn/ReviewSheet";
-import { CHAPTER_JOINED_EVENT, LearnChapterModule, readJoined } from "@/components/learn/LearnChapterModule";
+import { CHAPTER_JOINED_EVENT, LearnChapterModule, openChapterFinder, readJoined } from "@/components/learn/LearnChapterModule";
 import { ChapterJoinGate } from "@/components/learn/ChapterJoinGate";
 import { pageShareUrl } from "@/lib/share-url";
 import { CramPlayer, type PlayerItem, type PlayerPart } from "@/components/learn/CramPlayer";
@@ -637,7 +637,7 @@ function LearnShell() {
         school={school} campusId={campusId} campusName={campusName}
         exams={examTabs} examNum={examNum} onPickExam={setExamNum}
         chapter={chapter.slug ? { slug: chapter.slug, name: chapter.name, letters: chapter.letters, members: chapter.members } : null}
-        onPickChapter={() => openLearnCta("pick")}
+        onPickChapter={() => openChapterFinder()}
         theme={theme}
         onPickSchool={() => setPickerOpen(true)}
         onShare={share} arrive={arrive}

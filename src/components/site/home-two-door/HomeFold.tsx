@@ -33,7 +33,9 @@ export function SoloBoltIcon() {
 // Once we know the visitor's OWN chapter the cycle stops and the card simply wears their letters.
 
 /** Chapter's icon: real chapter letters that boil and glow, cycling until we know your house. */
-export function GreekLettersIcon({ pinned, cycle, frozen, height = SOLO_ICON_H, ink }: {
+export function GreekLettersIcon({ pinned, cycle, frozen, height = SOLO_ICON_H, ink, still = false }: {
+  /** Plain letters: no boil or glow filter (the /learn band — Lee: "distracting and grainy"). They still rotate. */
+  still?: boolean;
   /** An explicit letter colour. /learn's room redefines --brand-cream, so the band passes its own. */
   ink?: string;
   /** Icon height in px — the home doors use SOLO_ICON_H; the /learn chapter band a small one. */
@@ -109,7 +111,7 @@ export function GreekLettersIcon({ pinned, cycle, frozen, height = SOLO_ICON_H, 
   return (
     <span aria-hidden style={{ display: "inline-block", width: height * 1.05, height }}>
       <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ display: "block", overflow: "visible" }}>
-        {!reduced && (
+        {!reduced && !still && (
           <defs>
             {/* The BOIL (feTurbulence + displacement, seed cycled discretely like the bolt's flipbook)
                 and a slow GLOW pulse. Unique id per instance. */}
@@ -128,7 +130,7 @@ export function GreekLettersIcon({ pinned, cycle, frozen, height = SOLO_ICON_H, 
             </filter>
           </defs>
         )}
-        <g fill={color} filter={reduced ? undefined : `url(#${fid})`}>
+        <g fill={color} filter={reduced || still ? undefined : `url(#${fid})`}>
           {reduced || pin || frozen ? (
             <text {...textProps(word)}>{word}</text>
           ) : (

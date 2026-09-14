@@ -192,10 +192,10 @@ export function LearnTop({
           <div className="flex min-w-0 flex-col justify-center" style={{ gap: 1 }}>
             {/* A PILL (King's notes, 2026-09-14: "Choose Your School needs to be much easier to see"): the
                 school's colours round it; with no school it fills with the accent and asks. */}
-            <button type="button" onClick={onPickSchool} className="flex min-w-0 items-center gap-1.5 self-start rounded-full text-left" title={schoolName ? "Change school" : "Choose your school"}
+            <button type="button" onClick={onPickSchool} className="ml-1 flex min-w-0 items-center gap-1.5 self-start rounded-full text-left" title={schoolName ? "Change school" : "Choose your school"}
               style={schoolName
-                ? { background: "rgba(245,239,230,0.14)", border: "1.5px solid rgba(245,239,230,0.7)", padding: narrow ? "3px 10px 3px 4px" : "4px 13px 4px 5px", cursor: "pointer", color: ink, fontSize: narrow ? 13.5 : 15.5, fontWeight: 900, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 28 : 32, maxWidth: "100%", boxShadow: "0 0 0 3px rgba(245,239,230,0.08)" }
-                : { background: LK.acc, border: `1.5px solid ${LK.acc}`, padding: narrow ? "3px 11px" : "4px 14px", cursor: "pointer", color: LK.accInk, fontSize: narrow ? 13 : 14.5, fontWeight: 900, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 28 : 32, maxWidth: "100%" }}>
+                ? { background: "rgba(245,239,230,0.14)", border: "1.5px solid rgba(245,239,230,0.7)", padding: narrow ? "5px 12px 5px 6px" : "6px 15px 6px 7px", cursor: "pointer", color: ink, fontSize: narrow ? 13.5 : 15.5, fontWeight: 900, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 28 : 32, maxWidth: "100%", boxShadow: "0 0 0 3px rgba(245,239,230,0.08)" }
+                : { background: LK.acc, border: `1.5px solid ${LK.acc}`, padding: narrow ? "5px 13px" : "6px 16px", cursor: "pointer", color: LK.accInk, fontSize: narrow ? 13 : 14.5, fontWeight: 900, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 28 : 32, maxWidth: "100%" }}>
               {schoolName && <span aria-hidden className="shrink-0 rounded-full" style={{ width: narrow ? 16 : 18, height: narrow ? 16 : 18, background: school?.c1 ?? LK.acc, border: `2px solid ${school?.c2 ?? ink}` }} />}
               <span className="truncate">{schoolName ?? "Choose your school"}</span>
               <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: schoolName ? ink : LK.accInk }} aria-hidden />

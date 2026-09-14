@@ -525,14 +525,7 @@ function TwoDoorHero({ code, schoolName }: {
         <span className="block">Cram what&apos;s on your exam.</span>
         <span className="block">Skip everything else.</span>
       </p>
-      {/* PRODUCT-EXPLANATION TAGLINE (2026-09-09) — one punchy line that says what Survive IS,
-          not what it does for your grade (the subhead above already owns that). Smaller than the
-          subhead and in body type, so it reads as its own quiet thought rather than a third line
-          competing with the headline. Deliberately far from "Exam 1 is free." below the doors —
-          that line is the OFFER; this one is the PRODUCT, and conflating them muddies both. */}
-      <p className="mt-2.5 text-[14px] font-bold sm:text-[15px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
-        Like <span style={{ color: "var(--accent)" }}>Reels</span> for exam prep.
-      </p>
+      {/* "Like Reels for exam prep." removed from the home hero 2026-09-14 (Lee). */}
     </section>
   );
 }
