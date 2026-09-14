@@ -22,11 +22,12 @@ import { LK, type LearnTheme } from "@/components/learn/learn-theme";
 import { DEMO_PLAYBACK, muxThumb, SOUND_KEY, type Prog } from "@/components/learn/cram-media";
 import { QUICK_ROUND_SIZE } from "@/components/learn/learn-gate";
 import { BreatherCard } from "@/components/learn/BreatherCard";
+import { PracticeEndCard } from "@/components/learn/PracticeEndCard";
 
 /** ONE PART OF A SET (2026-09-11): a set filmed as five splits is five items in the player and
  *  five cards in the rail — Lee: "I've posted all 5 videos but only seeing first one." `key` is
  *  the part's publish key (student-shorts' partKey) and the key its progress is kept under. */
-export type PlayerPart = { index: number; of: number; name: string; playbackId: string | null; coverUrl: string | null; key: string };
+export type PlayerPart = { index: number; of: number; name: string; playbackId: string | null; coverUrl: string | null; key: string; endCta?: "try" | "unlock" | null };
 export type PlayerItem = { set: StudentSet; topic: StudentTopic; n: number; of: number; locked: boolean; part: PlayerPart };
 
 const readSound = () => { try { return sessionStorage.getItem(SOUND_KEY) === "on"; } catch { return false; } };
@@ -66,6 +67,8 @@ export function CramPlayer({
   // BREATHER (2026-09-14): a recap beat after this part, before the next one — only on the way
   // forward at the end of a video. Tap skips; it never shows twice for the same part in a visit.
   const [breather, setBreather] = useState<{ key: string; heading: string; body: string; position: string } | null>(null);
+  /** The part whose practice end screen is up (PracticeEndCard), by key — moving to another part drops it. */
+  const [endCta, setEndCta] = useState<string | null>(null);
   const seenBreathers = useRef(new Set<string>());
   // CRAM CARDS (2026-09-03): video → cards → practice. Same drawer as practice.
   const [cards, setCards] = useState(false);
@@ -144,13 +147,20 @@ export function CramPlayer({
   const breatherCard = breather && (
     <BreatherCard heading={breather.heading} body={breather.body} position={breather.position} onDone={() => { setBreather(null); go(1); }} />
   );
+  // THE PRACTICE END SCREEN (2026-09-14, PracticeEndCard.tsx): a video that ends on a practice slide stops
+  // on it with the real buttons, and waits — practice or skip is the student's call.
+  const endCard = endCta === part.key && part.endCta && (
+    <PracticeEndCard variant={part.endCta} onPractice={() => { setEndCta(null); onPractice(true); }} onSkip={() => { setEndCta(null); if (hasNext) go(1); }} />
+  );
   const video = (
     <Video
       key={part.key} set={set} part={part} locked={locked} demo={demo} soundOn={soundOn} onToggleSound={toggleSound}
       prog={progress[part.key]} narrow={narrow} shrink={!narrow && practice} theme={theme}
       onStarted={() => onStarted(part.key)} onComplete={() => onComplete(part.key)} onPosition={(p, d) => onPosition(part.key, p, d)}
       onEnded={() => {
-        if (practice || cards || ask || !hasNext) return;
+        if (practice || cards || ask) return;
+        if (part.endCta) { setEndCta(part.key); return; }
+        if (!hasNext) return;
         const b = set.breathers?.find((x) => x.afterIndex === part.index);
         const nextSameSet = items[index + 1]?.set.id === set.id;
         if (b && nextSameSet && !seenBreathers.current.has(part.key)) {
@@ -162,7 +172,7 @@ export function CramPlayer({
       }}
       onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask}
       caption={{ topic: topic.name, n: cap.n, of: cap.of, name: cap.name }}
-      overlay={breatherCard || null}
+      overlay={breatherCard || endCard || null}
     />
   );
 

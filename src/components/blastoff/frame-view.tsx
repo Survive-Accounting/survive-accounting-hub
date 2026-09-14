@@ -32,6 +32,7 @@ import { DISPLAY_FONT, V } from "./stage";
 import { OUTRO_CTA_KEY, SurviveOutro } from "./SurviveOutro";
 import { outroLine } from "@/components/brand-cards/slogans";
 import { TeaserFrame } from "./TeaserFrame";
+import { PracticeFrame } from "./PracticeFrame";
 import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, showCampusBanner, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
 import { RubricSlide } from "./RubricSlide";
@@ -154,6 +155,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   if (frame.kind === "topic_ad") return <TopicAdFrame w={fw} set={set} frame={frame} live={live} />;
   // THE TEASER (2026-09-13, TeaserFrame.tsx): the callout chips, stacked; on film one per click.
   if (frame.kind === "teaser") return <TeaserFrame w={fw} frame={frame} live={live} />;
+  if (frame.kind === "practice") return <PracticeFrame w={fw} frame={frame} />;
   // SURVIBES (2026-09-11, SurvibesFrame.tsx): the flip runs on film only; the props follow the
   // capture's step (frame-step.ts); at rest it is the settled look, the camera alone.
   if (frame.kind === "survibes") return <SurvibesFrame w={fw} live={live} />;

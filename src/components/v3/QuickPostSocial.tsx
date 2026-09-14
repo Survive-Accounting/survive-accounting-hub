@@ -15,7 +15,7 @@ import { buildCaptionMessages, captionClipboardText, hasCaptions, parseCaptions,
 import { renderSvgToBlob } from "@/lib/brand-kit/export-png";
 import { SOCIAL_EXPORT } from "@/lib/brand-kit/thumbnail";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
-import { setPublishCaptions, setPublishSocialSkip, setPublishUrl, togglePublishDestination, type SetPublishStatus } from "@/lib/publish-queue.functions";
+import { setPublishCaptions, setPublishEndCta, setPublishSocialSkip, setPublishUrl, togglePublishDestination, type SetPublishStatus } from "@/lib/publish-queue.functions";
 import { runMicro } from "@/lib/talkthrough.functions";
 
 import { DEST_UPLOAD_URL, looksLikeUrl, socialPickForTitle } from "./post-links";
@@ -31,7 +31,7 @@ const PLATFORMS: { d: Social; short: string; label: string }[] = [
 
 export const EMPTY_STATUS: SetPublishStatus = {
   site: { postedAt: null, url: null }, youtube: { postedAt: null, url: null }, instagram: { postedAt: null, url: null }, tiktok: { postedAt: null, url: null },
-  filmedAt: null, captions: null, cover: null, socialSkip: false,
+  filmedAt: null, captions: null, cover: null, socialSkip: false, endCta: null,
 };
 
 const chip = (on: boolean, tone: string): React.CSSProperties => ({
@@ -126,6 +126,14 @@ export function QuickPostSocial({ pubKey, title, setName, topicName, stems, stat
           aria-pressed={skip} title={skip ? "Skipped on the socials — click to un-skip" : "Skip this one on Instagram, TikTok and YouTube"} style={chip(skip, RED)}>
           ⊘ {skip ? "skipped" : "skip"}
         </button>
+        {/* THE SITE END BUTTON (practice-cta.ts): what the player shows when this video ends. */}
+        <span style={{ fontSize: 11, color: V3_MUTED, marginLeft: 6 }}>Site end button</span>
+        {([[null, "none"], ["try", "Try practice"], ["unlock", "Start practice"]] as const).map(([v, label]) => (
+          <button key={label} type="button" aria-pressed={status.endCta === v}
+            title={v === "try" ? "Ends on [Try Practice Questions] · Keep watching" : v === "unlock" ? "Ends on [Start Practice →] · Skip practice" : "No end screen — the next video plays"}
+            onClick={() => void save(() => setPublishEndCta({ data: { setId: pubKey, cta: v } })).then((ok) => ok && say(v ? "End button saved" : "End button off"))}
+            style={chip(status.endCta === v, MINT)}>{label}</button>
+        ))}
         {note && <span role="status" style={{ fontSize: 11.5, fontWeight: 700, color: note.bad ? RED : MINT }}>{note.text}</span>}
       </div>
 

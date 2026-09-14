@@ -89,10 +89,13 @@ export const resolveSitePost = createServerFn({ method: "POST" })
     // THE COVER RIDES WITH THE VIDEO (2026-09-11): a thumbnail uploaded before the post (kept on
     // the row under this key) goes onto the publication, so the posted video owns it from here on.
     try {
-      const { coverOf } = await import("./publish-cover");
+      const { coverOf, endCtaOfBag } = await import("./publish-cover");
       const { data: st0 } = await db.from("set_publish_status").select("captions").eq("set_id", data.pubKey).maybeSingle();
       const c = coverOf(st0?.captions);
       if (c) pub.coverUrl = c.url;
+      // The end button rides along the same way (practice-cta.ts).
+      const cta = endCtaOfBag(st0?.captions);
+      if (cta) (pub as Record<string, unknown>).endCta = cta;
     } catch { /* the row is optional */ }
     deck.publications = upsertPublication(deck.publications, pub);
     // COMPARE-AND-SET on updated_at: zero rows back means someone saved the scene since the read.
@@ -126,6 +129,27 @@ export const resolveSitePost = createServerFn({ method: "POST" })
     if (st.error) return { state: "posted", playbackId, link, status: null, statusError: st.error.message };
     return { state: "posted", playbackId, link, status: rowToStatus((st.data ?? {}) as Record<string, unknown>) };
   });
+
+/** Write (or clear) the end button on the posted publication with this key — the cover's twin below. */
+export async function setPublicationEndCta(pubKey: string, cta: "try" | "unlock" | null): Promise<{ ok: boolean; changed: boolean }> {
+  const db = await admin();
+  const setId = pubKey.split("#")[0];
+  const { loadDecksDeduped } = await import("@/lib/student.functions");
+  const owned = await loadDecksDeduped(db as never);
+  const o = owned.get(setId);
+  if (!o) return { ok: true, changed: false };
+  const { data: row, error } = await db.from("canvas_scenes").select("id,nodes_json,updated_at").eq("id", o.sceneId).single();
+  if (error || !row) return { ok: false, changed: false };
+  const j = row.nodes_json as { decks?: { id: string; publications?: Record<string, unknown>[] }[] };
+  const deck = (j.decks ?? []).find((d2) => d2.id === setId);
+  const pub = deck?.publications?.find((p) => p?.pubKey === pubKey || p?.id === sitePublicationId(pubKey));
+  if (!pub) return { ok: true, changed: false };
+  if ((pub.endCta ?? null) === cta) return { ok: true, changed: false };
+  if (cta) pub.endCta = cta; else delete pub.endCta;
+  const up = await db.from("canvas_scenes").update({ nodes_json: j, updated_at: new Date().toISOString() }).eq("id", o.sceneId).eq("updated_at", row.updated_at).select("id");
+  if (up.error || !up.data?.length) return { ok: false, changed: false };
+  return { ok: true, changed: true };
+}
 
 /** Write (or clear) the cover on the posted publication that carries this publish key. Called by
  *  setPublishCover after the row write; a set with no such publication is a no-op. Compare-and-set

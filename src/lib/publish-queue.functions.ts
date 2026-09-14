@@ -10,7 +10,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { normalizeCaptions, type PublishCaptions } from "./caption-brief";
-import { coverOf, keepCover, socialSkipOf, withCover, withSocialSkip, type PublishCover } from "./publish-cover";
+import { coverOf, endCtaOfBag, keepCover, socialSkipOf, withCover, withEndCta, withSocialSkip, type PublishCover } from "./publish-cover";
 import { isMissingSchema } from "./pg-errors";
 
 const isMissingTable = (e: { code?: string; message: string }) => isMissingSchema(e, /set_publish_status/i);
@@ -41,6 +41,8 @@ export type SetPublishStatus = Record<PublishDestination, DestinationStatus> & {
   /** NOT FOR THE SOCIALS (2026-09-14, publish-cover.ts socialSkipOf): YouTube / Instagram / TikTok
    *  are struck through on the row. The site is unaffected. */
   socialSkip: boolean;
+  /** THE END BUTTON the site player shows when this video ends (publish-cover.ts endCtaOfBag). */
+  endCta: "try" | "unlock" | null;
 };
 
 export function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
@@ -57,6 +59,7 @@ export function rowToStatus(r: Record<string, unknown>): SetPublishStatus {
     captions: normalizeCaptions(r.captions),
     cover: coverOf(r.captions),
     socialSkip: socialSkipOf(r.captions),
+    endCta: endCtaOfBag(r.captions),
   };
 }
 
@@ -227,6 +230,27 @@ export const setPublishSocialSkip = createServerFn({ method: "POST" })
         .upsert({ set_id: data.setId, captions: withSocialSkip(prev?.captions, data.skip), updated_at: new Date().toISOString() }, { onConflict: "set_id" })
         .select("*").single();
       if (error) return { ok: false, error: error.message };
+      return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };
+    } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+  });
+
+/** THE END BUTTON for one video (or none). On the row, and onto the posted publication when there is one. */
+export const setPublishEndCta = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(160), cta: z.enum(["try", "unlock"]).nullable() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; status?: SetPublishStatus }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    try {
+      const db = await publishDb();
+      const { data: prev, error: readErr } = await db.from("set_publish_status").select("captions").eq("set_id", data.setId).maybeSingle();
+      if (readErr) return { ok: false, error: isMissingTable(readErr) ? "Run migration/supabase-migrations/20260906_0200_set_publish_status.sql first." : readErr.message };
+      const { data: row, error } = await db.from("set_publish_status")
+        .upsert({ set_id: data.setId, captions: withEndCta(prev?.captions, data.cta), updated_at: new Date().toISOString() }, { onConflict: "set_id" })
+        .select("*").single();
+      if (error) return { ok: false, error: error.message };
+      const { setPublicationEndCta } = await import("@/lib/site-publish.functions");
+      const pub = await setPublicationEndCta(data.setId, data.cta);
+      if (!pub.ok) return { ok: false, error: "Saved on the row, but the posted video didn't take it (the set changed while saving) — press it again." };
       return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };
     } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
   });

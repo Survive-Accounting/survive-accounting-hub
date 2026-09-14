@@ -83,7 +83,7 @@ const MINT = "#3BF5A0";
 const EMPTY: SetPublishStatus = {
   site: { postedAt: null, url: null }, youtube: { postedAt: null, url: null },
   instagram: { postedAt: null, url: null }, tiktok: { postedAt: null, url: null },
-  filmedAt: null, captions: null, cover: null, socialSkip: false,
+  filmedAt: null, captions: null, cover: null, socialSkip: false, endCta: null,
 };
 
 const FILTERS: { id: StageFilter; label: string }[] = [

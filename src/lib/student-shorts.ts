@@ -25,6 +25,8 @@ export interface ShortPub {
   /** The cover kept ON the publication (2026-09-11): a posted video's thumbnail travels with the
    *  video, not with a seat number that a later split can move. */
   coverUrl?: unknown;
+  /** The practice buttons the player shows when this part ends (2026-09-14, practice-cta.ts). */
+  endCta?: unknown;
 }
 
 export interface StudentShort {
@@ -37,6 +39,8 @@ export interface StudentShort {
   runtimeSec: number | null;
   /** The cover Lee uploaded for THIS part on /v3/post (publish-cover.ts), or null. */
   coverUrl: string | null;
+  /** "try" = practice first; "unlock" = finish practice to unlock the recap; null = no end screen. */
+  endCta: "try" | "unlock" | null;
 }
 
 /** THE PART'S KEY — the publish key /v3/post writes ("<setId>" is part 1, "<setId>#N" is part N)
@@ -66,6 +70,7 @@ export function shortsFrom(pubs: readonly ShortPub[] | undefined, paid: boolean)
       playbackId: paid ? null : pid,
       runtimeSec: p.render?.durationS != null ? Math.round(p.render.durationS) : null,
       coverUrl: typeof p.coverUrl === "string" && /^https?:\/\//i.test(p.coverUrl) ? p.coverUrl : null,
+      endCta: p.endCta === "try" || p.endCta === "unlock" ? p.endCta : null,
     });
   }
   return out.sort((a, b) => a.takeIndex - b.takeIndex);

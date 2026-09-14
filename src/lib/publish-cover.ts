@@ -52,8 +52,25 @@ export function withCover(storedCaptions: unknown, cover: PublishCover | null): 
 export function keepCover(storedCaptions: unknown, newCopy: Record<string, unknown> | null): Record<string, unknown> | null {
   const cover = coverOf(storedCaptions);
   const skip = socialSkipOf(storedCaptions);
-  if (!cover && !skip) return newCopy;
-  return { ...(newCopy ?? {}), ...(cover ? { cover: { url: cover.url, name: cover.name, uploadedAt: cover.uploadedAt } } : {}), ...(skip ? { socialSkip: true } : {}) };
+  const cta = endCtaOfBag(storedCaptions);
+  if (!cover && !skip && !cta) return newCopy;
+  return { ...(newCopy ?? {}), ...(cover ? { cover: { url: cover.url, name: cover.name, uploadedAt: cover.uploadedAt } } : {}), ...(skip ? { socialSkip: true } : {}), ...(cta ? { endCta: cta } : {}) };
+}
+
+// THE END BUTTON (2026-09-14, components/blastoff/practice-cta.ts): which practice buttons the site player
+// shows when this video ends — "try" (practice first) or "unlock" (finish to unlock the recap). Kept in the
+// same bag as `captions.endCta`, copied onto the publication when the video posts.
+
+export function endCtaOfBag(rawCaptions: unknown): "try" | "unlock" | null {
+  if (!isRecord(rawCaptions)) return null;
+  return rawCaptions.endCta === "try" || rawCaptions.endCta === "unlock" ? rawCaptions.endCta : null;
+}
+
+export function withEndCta(storedCaptions: unknown, cta: "try" | "unlock" | null): Record<string, unknown> | null {
+  const next: Record<string, unknown> = isRecord(storedCaptions) ? { ...storedCaptions } : {};
+  if (cta) next.endCta = cta;
+  else delete next.endCta;
+  return Object.keys(next).length ? next : null;
 }
 
 // SKIP THE SOCIALS (2026-09-14). Lee: "a skip icon that strikes through all the social icons. I don't

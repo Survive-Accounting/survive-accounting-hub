@@ -515,7 +515,7 @@ function LearnShell() {
       if (!s.set.playbackId && !s.locked) continue;
       const shorts = s.set.shorts?.length ? s.set.shorts : null;
       const list: PlayerPart[] = shorts
-        ? shorts.map((sh, i) => ({ index: i, of: shorts.length, name: sh.name, playbackId: sh.playbackId, coverUrl: sh.coverUrl, key: partKey(s.set.id, i) }))
+        ? shorts.map((sh, i) => ({ index: i, of: shorts.length, name: sh.name, playbackId: sh.playbackId, coverUrl: sh.coverUrl, key: partKey(s.set.id, i), endCta: sh.endCta ?? null }))
         : [{ index: 0, of: 1, name: s.set.name, playbackId: s.set.playbackId, coverUrl: s.set.coverUrl, key: s.set.id }];
       parts.set(s.set.id, list.map((p) => p.key));
       for (const part of list) out.push({ set: s.set, topic: s.topic, n: s.n, of: s.of, locked: s.locked, part });

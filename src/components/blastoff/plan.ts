@@ -83,6 +83,11 @@ export const BLAST_FRAME_KINDS = [
   // 2026-09-13: THE TEASER (TeaserFrame.tsx, teaser.ts). Lee: "a teaser slide … the callouts stacked
   // on one another … reveal these one at a time via click." His lines ride in `bullets`.
   "teaser",
+  // 2026-09-14: THE PRACTICE SLIDE (PracticeFrame.tsx, practice-cta.ts). Lee: "For practice first, I want
+  // a button there to try them first. Surviveaccounting.com underneath the button, so if it's on socials
+  // they know where." Filmed (and so on the socials) it says "Practice at surviveaccounting.com"; on the
+  // site the player puts the real buttons over it when the video ends.
+  "practice",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -244,6 +249,9 @@ export interface BlastFrame {
    *  in no particular order — the slide shows them in the topic's own order. Absent = the first
    *  three, so the slide is never empty before he has chosen. */
   best?: string[];
+  /** THE PRACTICE SLIDE's variant (2026-09-14, kind "practice", practice-cta.ts): "try" = practice first,
+   *  before the videos; "unlock" = finish the practice to unlock the recap. Absent = "try". */
+  practice?: "try" | "unlock";
 }
 
 export interface BlastPlan {
@@ -257,7 +265,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline", "types", "cycle", "topic_ad", "teaser"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline", "types", "cycle", "topic_ad", "teaser", "practice"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -272,7 +280,7 @@ import type { CardNoteSpec } from "./card-note";
 
 /** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
  *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
-export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next", "survibes", "outline", "cycle", "topic_ad", "teaser"];
+export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next", "survibes", "outline", "cycle", "topic_ad", "teaser", "practice"];
 export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.includes(k);
 
 /** THE FOUR CALLOUTS that can be drawn either way (2026-09-08, `BlastFrame.display`). The
@@ -361,6 +369,7 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   cycle: "Accounting cycle",
   topic_ad: "End-of-topic ad",
   teaser: "Teaser",
+  practice: "Practice",
 };
 
 /** THE CAMPUS BANNER IS OFF (2026-09-12). Lee: "Turn off campus banner globally on the app. We're
@@ -521,7 +530,7 @@ export function canRemove(frames: readonly BlastFrame[], f: BlastFrame): boolean
  *  pair, whose shell is see-through. The brand slides, the slogan, a big callout and the map draw
  *  their own. */
 export function canZoomBehind(f: BlastFrame): boolean {
-  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next" || f.kind === "outline" || f.kind === "topic_ad" || f.kind === "teaser";
+  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next" || f.kind === "outline" || f.kind === "topic_ad" || f.kind === "teaser" || f.kind === "practice";
 }
 
 /** THE STANDARD OPENER (2026-09-09), in Lee's words and in his own draft's order: "Hero camera,

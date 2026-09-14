@@ -107,6 +107,7 @@ import { FRAME_BUDGET, REEL_BUDGET, frameCountLabel, isCalloutKind, reelClock, r
 import { SplitRunPanel, takeCards } from "./SplitRunPanel";
 import { replaceRun } from "./split-run";
 import { TEASER_DEFAULT, TEASER_MAX } from "./teaser";
+import { PRACTICE_COPY, PRACTICE_FILMED_LINE, practiceVariantOf } from "./practice-cta";
 // THE END-OF-TOPIC AD (2026-09-12): his picks of the topic's best videos.
 import { TOPIC_AD_COPY, bestOf, toggleBest } from "./topic-ad";
 import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, canRemove, canZoomBehind, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, moveMany, newFrameId, pasteAfter, patchFrame, patchFramesOfKind, toggleSkip, toggleSpeedRun, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
@@ -1661,6 +1662,9 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     { label: "End-of-topic ad", color: KIND_COLOR.topic_ad ?? MUTED, add: () => insertAfter(f.id, "topic_ad", { segment: "skippable" }, true) },
     // 2026-09-13, Lee: "a teaser slide … the callouts stacked … reveal these one at a time via click."
     { label: "Teaser", color: KIND_COLOR.teaser ?? MUTED, add: () => insertAfter(f.id, "teaser", {}, true) },
+    // 2026-09-14, Lee: "a button there to try them first. Surviveaccounting.com underneath."
+    { label: "Practice · first", color: MINT, add: () => insertAfter(f.id, "practice", { practice: "try" }, true) },
+    { label: "Practice · unlock the recap", color: MINT, add: () => insertAfter(f.id, "practice", { practice: "unlock" }, true) },
     { label: "Survibes", color: KIND_COLOR.survibes ?? MUTED, add: () => insertAfter(f.id, "survibes", {}, true) },
     // 2026-09-11, Lee: "include a + bio slide." An extra one can be removed while another stays.
     { label: "Bio", color: SKY, add: () => insertAfter(f.id, "bio", {}, true) },
@@ -2309,6 +2313,7 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         {(sel.kind === "topic_done" || sel.kind === "up_next") && <EndOfTopicEditor sel={sel} set={set} onPatch={onPatch} />}
         {sel.kind === "topic_ad" && <TopicAdEditor sel={sel} set={set} onPatch={onPatch} />}
         {sel.kind === "teaser" && <TeaserEditor sel={sel} onPatch={onPatch} />}
+        {sel.kind === "practice" && <PracticeEditor sel={sel} onPatch={onPatch} />}
         {sel.kind === "outline" && <OutlineEditor sel={sel} set={set} onPatch={onPatch} />}
         {sel.kind === "types" && <TypesEditor sel={sel} onPatch={onPatch} />}
         {/* SURVIBES (2026-09-11): nothing to type — the flip is the slide. What the spacebar does is
@@ -2709,6 +2714,29 @@ function TeaserEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<
           onChange={(e) => { const lines = e.target.value.split(NL); onPatch({ bullets: lines.some((l) => l.trim()) ? lines.slice(0, TEASER_MAX) : undefined }); }} /></label>
       <div style={{ fontSize: 11, color: MUTED }}>On film: click the slide (or space) for the next chip, shift+click takes one back, ` puts them all away. A line that names a callout — cheat, memorize, tricky, deeper, exam question — is drawn in that callout's colour.</div>
       {own && <button style={{ ...chip(false, MUTED), alignSelf: "flex-start", textTransform: "none", letterSpacing: 0 }} onClick={() => onPatch({ bullets: undefined })}>↺ back to the five</button>}
+    </div>
+  );
+}
+
+/** The practice slide (practice-cta.ts): which one, and its words. Filmed, it says "Practice at
+ *  surviveaccounting.com"; the site shows the real buttons when the video ends. */
+function PracticeEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<BlastFrame>) => void }) {
+  const v = practiceVariantOf(sel);
+  const d = PRACTICE_COPY[v];
+  return (
+    <div className="flex flex-col" style={{ gap: 10 }}>
+      <div className="flex" style={{ gap: 6 }}>
+        {(["try", "unlock"] as const).map((k) => (
+          <button key={k} style={chip(v === k, GOLD)} onClick={() => onPatch({ practice: k })}>{k === "try" ? "Practice first" : "Finish to unlock the recap"}</button>
+        ))}
+      </div>
+      <label style={{ fontSize: 11, color: MUTED }}>Chip
+        <input style={{ ...field, marginTop: 4 }} value={sel.chipText ?? ""} placeholder={d.chip} onChange={(e) => onPatch({ chipText: e.target.value || undefined })} /></label>
+      <label style={{ fontSize: 11, color: MUTED }}>Heading
+        <input style={{ ...field, marginTop: 4 }} value={sel.text ?? ""} placeholder={d.heading} onChange={(e) => onPatch({ text: e.target.value || undefined })} /></label>
+      <label style={{ fontSize: 11, color: MUTED }}>The line under it
+        <input style={{ ...field, marginTop: 4 }} value={sel.bullets?.[0] ?? ""} placeholder={d.line} onChange={(e) => onPatch({ bullets: e.target.value ? [e.target.value] : undefined })} /></label>
+      <div style={{ fontSize: 11, color: MUTED }}>Filmed (and on the socials) it says <b style={{ color: CREAM }}>{PRACTICE_FILMED_LINE}</b> — no buttons to tap that don't work. On the site, when a video ending on this slide finishes, the player shows <b style={{ color: CREAM }}>[{d.primary}]</b> and a small "{d.secondary}" link.</div>
     </div>
   );
 }
