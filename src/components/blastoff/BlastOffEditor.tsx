@@ -86,6 +86,9 @@ export function usePlan(set: BoothSetInfo) {
 
   const adopt = useCallback((frames: BlastFrame[], updatedAt: string) => {
     serverStamp.current = updatedAt;
+    // UNDO NEVER CROSSES ANOTHER WINDOW'S SAVE (2026-09-14): Ctrl+Z after adopting newer slides used to
+    // pop this window's OLD order and save it over them — that is how a whole inserted video vanished.
+    past.current = []; future.current = [];
     const p = reconcilePlan({ frames, updatedAt }, ceqsRef.current);
     ledgerBase.current = p.frames;
     setPlan((prev) => ({ ...p, ...(prev?.layout ? { layout: prev.layout } : {}) }));
