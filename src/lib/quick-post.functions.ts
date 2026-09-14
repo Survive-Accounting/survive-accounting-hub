@@ -81,3 +81,26 @@ export const renameSetForPost = createServerFn({ method: "POST" })
     if (!up.data?.length) return { ok: false, error: "The set changed while renaming (an open editor saved it). Press Rename again." };
     return { ok: true };
   });
+
+/** TRIM (Lee, 2026-09-13: "I really need a trim tool to trim off the ends of each video"). Once the
+ *  full take is ready on Mux, make the kept part as its own public asset — that one is what posts.
+ *  Returns "processing" until the source is ready. */
+export const startTrimmedPost = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    sourceAssetId: z.string().min(1).max(120),
+    pubKey: z.string().min(1).max(160),
+    startS: z.number().min(0).max(36000),
+    endS: z.number().min(0).max(36000),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ state: "processing" } | { state: "started"; assetId: string } | { state: "error"; error: string }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const { createClipAsset, getAsset } = await import("@/lib/mux.server");
+    const src = await getAsset(data.sourceAssetId);
+    if (src.status === "errored") return { state: "error", error: `The video host couldn't process it: ${JSON.stringify(src.errors ?? "no reason given").slice(0, 300)}` };
+    if (src.status !== "ready") return { state: "processing" };
+    const end = Math.min(data.endS, src.duration ?? data.endS);
+    if (end - data.startS < 1) return { state: "error", error: "The trimmed part is under a second long — check the start and end." };
+    const clip = await createClipAsset(src.id, data.startS, end, { playbackPolicy: "public", passthrough: `blastoff:${data.pubKey}` });
+    return { state: "started", assetId: clip.id };
+  });

@@ -18,7 +18,7 @@ import { measureText } from "@/lib/brand-kit/measure";
 import { defaultThumbSpec, seriesTitleCap, SITE_EXPORT, TITLE_TRACKING, type ThumbSpec } from "@/lib/brand-kit/thumbnail";
 import { colorwayFor, KIT, NEUTRAL_COLORWAY_ID } from "@/lib/brand-kit/tokens";
 import { setPublishCover } from "@/lib/publish-queue.functions";
-import { listSitePosts, removeSitePosts, renameSetForPost, type SitePostView } from "@/lib/quick-post.functions";
+import { listSitePosts, removeSitePosts, renameSetForPost, startTrimmedPost, type SitePostView } from "@/lib/quick-post.functions";
 import { resolveSitePost, startSitePost } from "@/lib/site-publish.functions";
 
 import { clock, coverFor, EASY_POINTS_ORDER, EASY_POINTS_SET_ID, filmingOrder, leftovers, lengthStats, parseTitles, quickPubKey } from "./quick-post";
@@ -30,7 +30,15 @@ type RowState =
   | { s: "idle" } | { s: "cover" } | { s: "upload"; frac: number } | { s: "processing" }
   | { s: "posted" } | { s: "error"; error: string };
 
-interface Clip { file: File; url: string; duration: number | null }
+interface Clip { file: File; url: string; duration: number | null; start?: number; end?: number }
+
+/** The part of a clip that posts: [start, end) in seconds, and whether that's a real trim. */
+function keptOf(c: Clip): { start: number; end: number | null; trimmed: boolean; length: number | null } {
+  const start = c.start ?? 0;
+  const end = c.end ?? c.duration;
+  const trimmed = start > 0.05 || (c.end != null && c.duration != null && c.end < c.duration - 0.05);
+  return { start, end, trimmed, length: end != null ? Math.max(0, end - start) : null };
+}
 
 const btn = (strong = false): React.CSSProperties => ({
   padding: "7px 14px", borderRadius: 8, border: `1px solid ${strong ? V3_GOLD : V3_EDGE}`, cursor: "pointer",
@@ -60,6 +68,7 @@ export function QuickPost() {
   const [liveErr, setLiveErr] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
   const art = useRef<(SVGSVGElement | null)[]>([]);
+  const players = useRef<Record<string, HTMLVideoElement | null>>({});
 
   const listTitles = parseTitles(titlesText);
   const titles = listTitles.map((t, i) => rowTitles[i] ?? t);
@@ -97,6 +106,11 @@ export function QuickPost() {
     setClips((c) => { const n = c.slice(); while (n.length <= i) n.push(null); const old = n[i]; if (old) URL.revokeObjectURL(old.url); n[i] = { file, url: URL.createObjectURL(file), duration: null }; return n; });
     setStates([]);
   };
+  // TRIM: mark start / end from where the preview is playing.
+  const setTrim = (i: number, patch: { start?: number | undefined; end?: number | undefined }) => {
+    setClips((c) => { const n = c.slice(); const x = n[i]; if (!x) return c; n[i] = { ...x, ...patch }; return n; });
+    setStates([]);
+  };
   const setDuration = (url: string, d: number) => setClips((c) => c.map((x) => (x && x.url === url && x.duration == null ? { ...x, duration: d } : x)));
 
   // THE COVERS: one spec per title, one shared title size so the set reads as a set.
@@ -108,12 +122,13 @@ export function QuickPost() {
   const cw = colorwayFor(NEUTRAL_COLORWAY_ID);
 
   const rows = titles.length;
-  const stats = lengthStats(clips.slice(0, rows).map((c) => c?.duration));
+  const stats = lengthStats(clips.slice(0, rows).map((c) => (c ? keptOf(c).length : null)));
   const liveStats = lengthStats((live?.posts ?? []).map((p) => p.durationS));
   const extra = live ? leftovers(live.posts, rows) : [];
   const fileCount = clips.filter(Boolean).length;
   const missing = titles.map((_, i) => i).filter((i) => !skip.has(i) && !clips[i]);
-  const mismatch = missing.length ? `Video${missing.length === 1 ? "" : "s"} ${missing.map((i) => i + 1).join(", ")} ${missing.length === 1 ? "has" : "have"} no file — choose one, or untick post.` : null;
+  const badTrim = titles.map((_, i) => i).filter((i) => { const c = clips[i]; if (skip.has(i) || !c) return false; const k = keptOf(c); return k.length != null && k.length < 1; });
+  const mismatch = badTrim.length ? `Video ${badTrim.map((i) => i + 1).join(", ")}: the trim keeps under a second — fix start/end or undo trim.` : missing.length ? `Video${missing.length === 1 ? "" : "s"} ${missing.map((i) => i + 1).join(", ")} ${missing.length === 1 ? "has" : "have"} no file — choose one, or untick post.` : null;
   const setState = (i: number, st: RowState) => setStates((prev) => { const n = prev.slice(); n[i] = st; return n; });
 
   const postAll = async () => {
@@ -138,10 +153,24 @@ export function QuickPost() {
         if (!c.ok) throw new Error(`Thumbnail: ${c.error ?? "not saved"}`);
         setState(i, { s: "upload", frac: 0 });
         const videoUrl = await uploadTake(clip.file, (frac) => setState(i, { s: "upload", frac }));
-        const { assetId } = await startSitePost({ data: { videoUrl, pubKey } });
+        const { assetId: fullId } = await startSitePost({ data: { videoUrl, pubKey } });
+        const kept = keptOf(clip);
         setState(i, { s: "processing" });
         polls.push((async () => {
           const started = Date.now();
+          let assetId = fullId;
+          // A TRIMMED video: wait for the full take on Mux, then post the clip Mux cuts from it.
+          if (kept.trimmed) {
+            for (;;) {
+              if (Date.now() - started > 30 * 60_000) { setState(i, { s: "error", error: "Still processing after 30 minutes — press Post again for this one." }); return; }
+              await wait(5000);
+              try {
+                const t = await startTrimmedPost({ data: { sourceAssetId: fullId, pubKey, startS: kept.start, endS: kept.end ?? 36000 } });
+                if (t.state === "error") { setState(i, { s: "error", error: t.error }); return; }
+                if (t.state === "started") { assetId = t.assetId; break; }
+              } catch (e) { setState(i, { s: "error", error: e instanceof Error ? e.message : String(e) }); return; }
+            }
+          }
           while (Date.now() - started < 30 * 60_000) {
             await wait(5000);
             try {
@@ -273,8 +302,9 @@ export function QuickPost() {
               </div>
               <div style={{ flex: "0 0 auto" }}>
                 {clip ? (
-                  <video src={clip.url} preload="metadata" muted controls style={{ width: 96, height: 170, background: "#000", borderRadius: 6, objectFit: "cover" }}
-                    onLoadedMetadata={(e) => setDuration(clip.url, e.currentTarget.duration)} />
+                  <video ref={(el) => { players.current[clip.url] = el; }} src={clip.url} preload="metadata" controls style={{ width: 140, height: 249, background: "#000", borderRadius: 6, objectFit: "cover" }}
+                    onLoadedMetadata={(e) => setDuration(clip.url, e.currentTarget.duration)}
+                    onTimeUpdate={(e) => { const k = keptOf(clip); if (k.end != null && k.trimmed && e.currentTarget.currentTime > k.end && !e.currentTarget.paused) e.currentTarget.pause(); }} />
                 ) : (
                   <div style={{ width: 96, height: 170, borderRadius: 6, border: `1px dashed ${V3_EDGE}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: V3_MUTED, textAlign: "center" }}>no file</div>
                 )}
@@ -285,6 +315,24 @@ export function QuickPost() {
                 <div style={{ fontSize: 12, color: V3_MUTED, overflowWrap: "anywhere" }}>
                   {clip ? `${clip.file.name} · ${clock(clip.duration)} · ${(clip.file.size / 1048576).toFixed(0)} MB` : "Add a file for this one."}
                 </div>
+                {clip && (() => {
+                  const k = keptOf(clip);
+                  const now = () => players.current[clip.url]?.currentTime ?? 0;
+                  const small: React.CSSProperties = { ...btn(), fontSize: 11.5, padding: "3px 9px" };
+                  return (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 6, fontSize: 12 }}>
+                      <span style={{ color: V3_MUTED }}>Trim:</span>
+                      <button type="button" style={small} disabled={busy} title="Play to where the video should start, then press" onClick={() => setTrim(i, { start: now() })}>Start here</button>
+                      <button type="button" style={small} disabled={busy} title="Play to where the video should end, then press" onClick={() => setTrim(i, { end: now() })}>End here</button>
+                      {k.trimmed && <button type="button" style={small} disabled={busy} onClick={() => { const v = players.current[clip.url]; if (v) { v.currentTime = Math.max(k.start, (k.end ?? 0) - 3); void v.play(); } }}>▶ last 3 s</button>}
+                      {k.trimmed && <button type="button" style={small} disabled={busy} onClick={() => setTrim(i, { start: undefined, end: undefined })}>undo trim</button>}
+                      <span style={{ color: k.trimmed ? V3_GOLD : V3_MUTED }}>
+                        {k.trimmed ? `keeps ${clock(k.start)}–${clock(k.end)} (${clock(k.length)})` : "whole video"}
+                        {k.end != null && k.end <= k.start ? " — end is before start" : ""}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div style={{ fontSize: 12.5, marginTop: 4, color: st.s === "error" ? RED : st.s === "posted" ? MINT : V3_GOLD }}>
                   {st.s === "cover" && "Making the thumbnail…"}
                   {st.s === "upload" && `Uploading ${Math.round(st.frac * 100)}%`}

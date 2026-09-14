@@ -63,6 +63,20 @@ export async function createAssetFromUrl(url: string, opts: { playbackPolicy?: "
   return json.data as MuxAsset;
 }
 
+/** A CLIP of an asset Mux already holds — Mux only trims from mux://assets/<id> inputs, not a URL.
+ *  Quick post's trim (2026-09-13): the full take is ingested first, then this makes the kept part. */
+export async function createClipAsset(sourceAssetId: string, startS: number, endS: number, opts: { playbackPolicy?: "public" | "signed"; passthrough?: string } = {}): Promise<MuxAsset> {
+  const body = {
+    input: [{ url: `mux://assets/${sourceAssetId}`, start_time: startS, end_time: endS }],
+    playback_policy: [opts.playbackPolicy ?? "signed"],
+    max_resolution_tier: "1080p",
+    video_quality: "basic",
+    ...(opts.passthrough ? { passthrough: opts.passthrough } : {}),
+  };
+  const json = await muxFetch("/video/v1/assets", { method: "POST", body: JSON.stringify(body) });
+  return json.data as MuxAsset;
+}
+
 export async function getAsset(assetId: string): Promise<MuxAsset> {
   const json = await muxFetch(`/video/v1/assets/${assetId}`);
   return json.data as MuxAsset;
