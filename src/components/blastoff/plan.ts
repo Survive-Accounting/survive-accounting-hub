@@ -332,7 +332,8 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   intro: "Intro",
   bio: "Bio slot",
   outro: "Outro",
-  ceq: "Set card",
+  // Lee, 2026-09-14: "Set card also... let's just change that to 'CEQ' for common exam question."
+  ceq: "CEQ",
   // Lee's 09-03 standard kinds, one to one with the canvas callouts.
   phrase: "Memorize this",
   cheat: "Cheat code",

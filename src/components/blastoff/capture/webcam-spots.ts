@@ -26,7 +26,7 @@ import type { BlastFrame } from "../plan";
 
 export const CAM_SPOTS = ["home", "corner", "hero", "top", "left", "free", "off"] as const;
 export type CamSpot = (typeof CAM_SPOTS)[number];
-export const CAM_LABEL: Record<CamSpot, string> = { home: "home · bottom-left", corner: "corner · top-right", hero: "hero · big, top", top: "top · a big circle, centred", left: "left · a big rounded box, left (Survibes)", free: "free · anywhere", off: "off" };
+export const CAM_LABEL: Record<CamSpot, string> = { home: "home · bottom-right", corner: "corner · top-right", hero: "hero · big, top", top: "top · a big circle, centred", left: "left · a big rounded box, left (Survibes)", free: "free · anywhere", off: "off" };
 
 export function isCamSpot(v: unknown): v is CamSpot { return typeof v === "string" && (CAM_SPOTS as readonly string[]).includes(v); }
 
@@ -51,10 +51,13 @@ export interface CamRect { x: number; y: number; w: number; h: number; shape: "c
 /** Where the camera sits, in px, for a phone `w` × `h`. `size` is the
  *  diameter / width as a fraction of the phone width (free spot only, and an
  *  override for the fixed spots); `pos` the top-left fraction (free only). */
-export function camRect(spot: Exclude<CamSpot, "off">, w: number, h: number, size?: number, pos?: { x: number; y: number }): CamRect {
+export function camRect(spot: Exclude<CamSpot, "off">, w: number, h: number, size?: number, pos?: { x: number; y: number }, homeSide: "left" | "right" = "right"): CamRect {
   const r = (v: number) => Math.round(v);
   switch (spot) {
-    case "home": { const d = r(w * (size ?? 0.24)); return { x: r(w * 0.05), y: r(h * 0.8) - d, w: d, h: d, shape: "circle" }; }
+    // HOME IS BOTTOM-RIGHT since 2026-09-14 (Lee: "Bottom right 'home' for set cards") — its right edge on
+    // the safe column's (.84w), so the platforms' like/share rail (the right 16 %, .30–.80h) never covers him.
+    // The rubric keeps the left home: its circle sits in the L's crook (RubricFrame.tsx).
+    case "home": { const d = r(w * (size ?? 0.24)); return { x: homeSide === "left" ? r(w * 0.05) : r(w * 0.84) - d, y: r(h * 0.8) - d, w: d, h: d, shape: "circle" }; }
     // CORNER at .22w (Lee, 2026-09-05: "comically small on memorize this, cheat code" at .17w) — the home
     // circle's .28w less 20 %, so the two circles read as the same camera in two places, not two cameras.
     case "corner": { const d = r(w * (size ?? 0.22)); return { x: w - r(w * 0.05) - d, y: r(h * 0.105), w: d, h: d, shape: "circle" }; }
@@ -70,6 +73,12 @@ export function camRect(spot: Exclude<CamSpot, "off">, w: number, h: number, siz
   }
 }
 
+/** The top camera's bottom edge as a fraction of the height (a big callout starts its words below it). */
+export function topCamBottom(w: number, h: number, size?: number): number {
+  const c = camRect("top", w, h, size);
+  return (c.y + c.h) / h;
+}
+
 export interface Box { x: number; y: number; w: number; h: number }
 
 export function overlaps(a: Box, b: Box, pad = 0): boolean {
@@ -81,13 +90,13 @@ export function overlaps(a: Box, b: Box, pad = 0): boolean {
  *  belongs to (home: bottom-left · corner: top-right · hero: top-centre ·
  *  left: top-left · free: its own centre), until it clears the card — down to `min` of its
  *  size. Returns the rect it ends at and whether it cleared. */
-export function avoidCard(cam: CamRect, spot: Exclude<CamSpot, "off">, card: Box | null, min = 0.55, pad = 8): { rect: CamRect; scale: number; clear: boolean } {
+export function avoidCard(cam: CamRect, spot: Exclude<CamSpot, "off">, card: Box | null, min = 0.55, pad = 8, homeSide: "left" | "right" = "right"): { rect: CamRect; scale: number; clear: boolean } {
   if (!card || !overlaps(cam, card, pad)) return { rect: cam, scale: 1, clear: true };
   let k = 1;
   while (k > min) {
     k = Math.round(k * 0.92 * 1000) / 1000;
     const w = Math.round(cam.w * k), h = Math.round(cam.h * k);
-    const rect: CamRect = spot === "home" ? { ...cam, x: cam.x, y: cam.y + (cam.h - h), w, h }
+    const rect: CamRect = spot === "home" ? { ...cam, x: homeSide === "left" ? cam.x : cam.x + (cam.w - w), y: cam.y + (cam.h - h), w, h }
       : spot === "corner" ? { ...cam, x: cam.x + (cam.w - w), y: cam.y, w, h }
       : spot === "left" ? { ...cam, x: cam.x, y: cam.y, w, h }
       : spot === "hero" || spot === "top" ? { ...cam, x: cam.x + Math.round((cam.w - w) / 2), y: cam.y, w, h }

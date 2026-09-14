@@ -51,7 +51,7 @@ describe("the rubric frame", () => {
     }
     // The circle clears the top row (the only part the camera is told to keep off) and sits left
     // of the Rev/Exp column, whose left edge is the safe column's left plus E's x.
-    const ring = camRect("home", PHONE_W, H, 0.32);
+    const ring = camRect("home", PHONE_W, H, 0.32, undefined, "left");
     const rowBottom = top + CARD_EST.revExp + 8 + HEAD.revExp + 6 + RUBRIC_GEOM.top.h;
     expect(ring.y).toBeGreaterThan(rowBottom);
     expect(ring.x + ring.w).toBeLessThan(PHONE_W * SAFE.left + RUBRIC_GEOM.x.E);

@@ -23,7 +23,7 @@ import { SloganCard } from "@/components/brand-cards/SloganCard";
 import { SLOGANS } from "@/components/brand-cards/slogans";
 
 import { AdSlide } from "./AdSlide";
-import { watermarkSpot } from "./capture/webcam-spots";
+import { topCamBottom, watermarkSpot } from "./capture/webcam-spots";
 import { ClusterFilmContext, ClusterStage, EmptyMap } from "./cluster/ClusterStage";
 import { LeePortrait } from "./LeePortrait";
 import { SetCard, type CardOverride } from "./SetCard";
@@ -286,7 +286,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     const tag = INSERT_CALLOUT[frame.kind];
     const meta = tag ? calloutMeta(tag as Parameters<typeof calloutMeta>[0]) : { label: FRAME_LABEL[frame.kind].toUpperCase(), accent: GOLD };
     const customChip = frame.chipText?.trim();
-    return <BigCallout w={fw} h={fh} label={frame.chip === "off" ? "" : customChip ? customChip.toUpperCase() : meta.label} accent={customChip ? "#FF7A7A" : meta.accent} text={insertStem(frame)} bullets={frameBullets(frame)} art={!!frame.illustration?.assetUrl} live={live} />;
+    return <BigCallout w={fw} h={fh} label={frame.chip === "off" ? "" : customChip ? customChip.toUpperCase() : meta.label} accent={customChip ? "#FF7A7A" : meta.accent} text={insertStem(frame)} bullets={frameBullets(frame)} art={!!frame.illustration?.assetUrl} live={live} clearTop={frame.cam === "top" ? topCamBottom(fw, fh, frame.camSize) : null} />;
   }
 
   const kindTag = INSERT_CALLOUT[frame.kind];

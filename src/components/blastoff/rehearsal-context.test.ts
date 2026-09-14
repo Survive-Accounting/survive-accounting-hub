@@ -106,7 +106,7 @@ describe("the card and the next slide the brief sees", () => {
   test("the next slide skips a skipped one and carries its own context; the last has none", () => {
     expect(nextSlideFor(frames, frames[1], ceqs)).toEqual({ label: "Cheat code", context: "No paycheck → external" });
     expect(nextSlideFor(frames, frames[3], ceqs)).toEqual({ label: "Memorize this", context: "Internal = inside" });
-    expect(nextSlideFor(frames, frames[5], ceqs)).toEqual({ label: "Set card", context: "" });
+    expect(nextSlideFor(frames, frames[5], ceqs)).toEqual({ label: "CEQ", context: "" });
     expect(nextSlideFor(frames, frames[7], ceqs)).toBeUndefined();
     expect(nextSlideFor(frames, { id: "nope", kind: "blank" }, ceqs)).toBeUndefined();
   });

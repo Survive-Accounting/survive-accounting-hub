@@ -412,7 +412,7 @@ export const PhoneFrame = memo(function PhoneFrame({ frame, frames, index, set, 
       )}
       {cam !== "off" && (() => {
         const webcam = (
-          <WebcamFrame w={w} h={h} spot={cam} size={camSize} pos={frame.camPos} live={capture} cardBox={cardBox} moment={moment}
+          <WebcamFrame w={w} h={h} spot={cam} size={camSize} pos={frame.camPos} live={capture} cardBox={cardBox} moment={moment} homeSide={frame.kind === "rubric" ? "left" : "right"}
             onMoment={capture ? () => setMoment(!moment) : undefined} onReadyChange={setCameraReady}
             onFree={edit && !capture ? (p) => edit({ ...(p.pos ? { camPos: p.pos } : {}), ...(p.size ? { camSize: p.size } : {}) }) : undefined} />
         );

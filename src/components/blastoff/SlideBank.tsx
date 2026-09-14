@@ -43,10 +43,10 @@ export function SlideBank({ setId, set, pasteLabel, onPaste, takeClip }: {
   // THE PEEK (2026-09-13, Lee: "let me peek at the slides banked on hover, so I can know what it's
   // referring to"): the saved slide, drawn small under the chip, while the pointer is on it.
   const [peek, setPeek] = useState<{ id: string; x: number; y: number } | null>(null);
-  // Closed on the server and on first paint; the remembered choice is read after mount.
+  // ALWAYS STARTS FOLDED (2026-09-14, Lee: "I also prefer bank to be defaulted to collapsed"). Opening
+  // it lasts for the visit; it's no longer remembered across loads.
   const [open, setOpen] = useState(false);
-  useEffect(() => { try { setOpen(localStorage.getItem(OPEN_KEY) === "1"); } catch { /* storage blocked: stays folded */ } }, []);
-  const toggle = () => setOpen((v) => { const nx = !v; try { localStorage.setItem(OPEN_KEY, nx ? "1" : "0"); } catch { /* not remembered */ } return nx; });
+  const toggle = () => setOpen((v) => !v);
   useEffect(() => {
     function reread() { setItems(loadBank()); }
     window.addEventListener(BANK_EVENT, reread);

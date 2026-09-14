@@ -782,13 +782,8 @@ const SpineRow = memo(function SpineRow(p: SpineRowProps) {
           <PhoneFrame frame={f} frames={p.frames} index={i} set={p.set} topicName={p.topicName} w={220} live={false} rounded={false} progress={progress} layout={p.layout} backdrop={p.backdrop} />
         </span>
       )}
-      {/* SAME CARD, TWICE — say so on the row (2026-09-09). Lee duplicated Prepaid Rent
-          meaning to make the copy a different question, and could not see that the two slides
-          were one card until he edited one and both changed. A duplicate is a real thing he
-          wants (a callback before the outro); it just has to be legible as one. */}
-      {p.sameCardCount > 1 && (
-        <span title="The same card appears more than once in this running order — editing it changes every copy. Use ⧉+ for a card you can edit on its own." style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", color: SKY, border: `1px solid ${SKY}55`, borderRadius: 5, padding: "1px 4px", whiteSpace: "nowrap" }}>SAME CARD ×{p.sameCardCount}</span>
-      )}
+      {/* The SAME CARD ×n badge came off 2026-09-14 (Lee: "Same card X2 isn't helpful. Remove that.")
+          — reusing a card across videos (speed runs, the recap) is the normal case now. */}
       {/* Lines are made on Rehearse & Film (2026-09-07); the count still shows here so the spine says which slides have them. */}
       {p.prompterLines > 0 && <span title={`${p.prompterLines} teleprompter line${p.prompterLines > 1 ? "s" : ""} — made on Rehearse & Film`} style={{ fontSize: 10, color: MINT, fontWeight: 800 }}>🗒{p.prompterLines}</span>}
       {p.tightened && <span title="Tighten all: a proposal is waiting on this slide — open it to use or dismiss it" style={{ fontSize: 11 }}>🪄</span>}

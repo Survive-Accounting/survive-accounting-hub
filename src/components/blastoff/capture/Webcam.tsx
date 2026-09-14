@@ -45,8 +45,10 @@ const RING_ONLY_MASK: React.CSSProperties = {
   mask: "linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0)",
 };
 
-export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirror = true, moment = false, onMoment, onReadyChange }: {
+export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirror = true, moment = false, onMoment, onReadyChange, homeSide = "right" }: {
   w: number; h: number;
+  /** Which corner the home spot takes — left only for the rubric (webcam-spots camRect). */
+  homeSide?: "left" | "right";
   spot: Exclude<CamSpot, "off">;
   /** Free spot (and an override on the fixed spots): width as a fraction of the phone. */
   size?: number;
@@ -67,8 +69,8 @@ export function WebcamFrame({ w, h, spot, size, pos, live, cardBox, onFree, mirr
    *  arrival note by `ready` below). */
   onReadyChange?: (ready: boolean) => void;
 }) {
-  const base = camRect(spot, w, h, size, pos);
-  const fit = avoidCard(base, spot, cardBox ?? null);
+  const base = camRect(spot, w, h, size, pos, homeSide);
+  const fit = avoidCard(base, spot, cardBox ?? null, undefined, undefined, homeSide);
   const r: CamRect = moment ? heroCamRect(w, h) : fit.rect;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState<string | null>(null);

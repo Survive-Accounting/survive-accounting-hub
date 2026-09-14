@@ -76,11 +76,17 @@ export function bigCalloutSize(h: number, text: string, opts: { bullets?: number
 /** The band the words live in, as fractions of the height — the counterpart of
  *  SloganCard.sloganBand, and both run to the content floor since 2026-09-12. With a picture the
  *  words take the strip beneath it; without one they own the frame and sit optically above centre. */
-export function bigCalloutBand(art: boolean): { top: number; bottom: number } {
-  return { top: art ? 0.43 : 0.18, bottom: CONTENT_BOTTOM - 0.02 };
+export function bigCalloutBand(art: boolean, clearTop?: number | null): { top: number; bottom: number } {
+  // THE CAMERA ABOVE THE CHIP (2026-09-14). Lee: "Fix the camera location so it's never blocking text.
+  // On Callouts I love the top version, above the callout chip." With the top camera on, the words
+  // start under it (clearTop = the camera's bottom edge, as a fraction of the height).
+  const base = art ? 0.43 : 0.18;
+  return { top: clearTop != null ? Math.max(base, clearTop + 0.015) : base, bottom: CONTENT_BOTTOM - 0.02 };
 }
 
-export function BigCallout({ w, h, label, accent, text, bullets = [], art = false, live = true, style }: {
+export function BigCallout({ w, h, label, accent, text, bullets = [], art = false, live = true, clearTop = null, style }: {
+  /** The top camera's bottom edge, as a fraction of the height — the words start below it. */
+  clearTop?: number | null;
   /** The frame this fills, in px. */
   w: number; h: number;
   /** "CHEAT CODE", "MEMORIZE THIS", "TRICKY", "DEEP QUESTION" — the callout's own chip words. */
@@ -102,7 +108,7 @@ export function BigCallout({ w, h, label, accent, text, bullets = [], art = fals
   const walk = useContext(WalkLinesContext);
   const lines = bullets.map((b) => b.trim()).filter(Boolean);
   const size = bigCalloutSize(h, words, { bullets: lines.length, art });
-  const band = bigCalloutBand(art);
+  const band = bigCalloutBand(art, clearTop);
   const maxWidth = Math.round(w * (SAFE.right - SAFE.left));
   // The chip and the bullets are both derived from the heading's size, so the whole block scales
   // as one thing — a short heading gets a bigger chip and bigger bullets, which is right: the

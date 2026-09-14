@@ -13,10 +13,10 @@ describe("the camera's spots", () => {
     expect(camSpotOf({ kind: "ceq", cam: "hero" })).toBe("hero");
     expect(camSpotOf({ kind: "open" })).toBe("off");
   });
-  test("home sits bottom-left above the caption band; corner top-right under the status bar; hero big and centred", () => {
+  test("home sits bottom-right, inside the like/share rail; corner top-right under the status bar; hero big and centred", () => {
     const home = camRect("home", W, H);
     expect(home.shape).toBe("circle");
-    expect(home.x).toBe(Math.round(W * 0.05));
+    expect(home.x + home.w).toBe(Math.round(W * 0.84));
     expect(home.y + home.h).toBeLessThanOrEqual(H * 0.8);            // above the bottom 20 %
     const corner = camRect("corner", W, H);
     expect(corner.x + corner.w).toBe(W - Math.round(W * 0.05));
@@ -38,7 +38,7 @@ describe("the camera's spots", () => {
     const out = avoidCard(cam, "home", card);
     expect(out.clear).toBe(true);
     expect(out.scale).toBeLessThan(1);
-    expect(out.rect.x).toBe(cam.x);                                    // anchored left…
+    expect(out.rect.x + out.rect.w).toBe(cam.x + cam.w);               // anchored right…
     expect(out.rect.y + out.rect.h).toBe(cam.y + cam.h);               // …and to the bottom
     expect(overlaps(out.rect, card, 8)).toBe(false);
   });
