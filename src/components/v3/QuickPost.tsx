@@ -21,6 +21,7 @@ import { setPublishCover } from "@/lib/publish-queue.functions";
 import { listSitePosts, removeSitePosts, renameSetForPost, startTrimmedPost, type SitePostView } from "@/lib/quick-post.functions";
 import { resolveSitePost, startSitePost } from "@/lib/site-publish.functions";
 
+import { PostedTrim } from "./PostedTrim";
 import { clock, coverFor, EASY_POINTS_ORDER, EASY_POINTS_SET_ID, filmingOrder, leftovers, lengthStats, parseTitles, quickPubKey } from "./quick-post";
 
 const MINT = "#7BD3A8";
@@ -67,6 +68,7 @@ export function QuickPost() {
   const [live, setLive] = useState<{ setName: string; posts: SitePostView[] } | null>(null);
   const [liveErr, setLiveErr] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [mode, setMode] = useState<"post" | "trim">("post");
   const art = useRef<(SVGSVGElement | null)[]>([]);
   const players = useRef<Record<string, HTMLVideoElement | null>>({});
 
@@ -216,6 +218,12 @@ export function QuickPost() {
         Videos go onto a set in this order, each with a brand-kit thumbnail. No captions, no transcript, no splits.
         Video 1 replaces the set's old video 1, and so on.
       </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        {([["post", "Post new videos"], ["trim", "Trim posted videos"]] as const).map(([k, label]) => (
+          <button key={k} type="button" onClick={() => setMode(k)} style={{ ...btn(mode === k), padding: "7px 14px" }}>{label}</button>
+        ))}
+      </div>
+      {mode === "trim" ? <PostedTrim setId={setId} /> : (<>
 
       {/* THE SET + WHAT'S ON THE SITE NOW */}
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 16 }}>
@@ -376,6 +384,7 @@ export function QuickPost() {
         {!busy && done > 0 && <span style={{ fontSize: 13, color: MINT }}>{done} posted.</span>}
         {!busy && failed > 0 && <span style={{ fontSize: 13, color: RED }}>{failed} didn't post — untick the ones that did, then press Post again.</span>}
       </div>
+      </>)}
     </div>
   );
 }
