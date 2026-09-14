@@ -120,38 +120,101 @@ export function moveSlug(order: readonly string[], slug: string, to: number): st
 
 export const OUTREACH_ORIGIN = "https://surviveaccounting.com";
 
-/** The council DM — Lee's words (2026-09-14), "Hey y'all" so it's gender neutral. */
-export function councilDm(o: { courseCode: string | null; campusShort: string; link: string }): string {
-  const course = o.courseCode ?? "intro accounting";
-  return [
-    "Hey y’all! I’m Lee Ingram, a professor at Ole Miss and the tutor behind SurviveAccounting.com.",
+// ── THE DM TEMPLATES (Lee, 2026-09-14) ─────────────────────────────────────────────────────────
+// Two defaults, picked by recipient: a council gets the council ask, a chapter gets the chapter ask.
+// Tokens resolve from the recipient's own data; "a professor at Ole Miss" is Lee and never changes.
+// A template that can't be filled honestly (no campus, course code or link) is NOT copied — the
+// caller shows what's missing instead of pasting a placeholder or a guess.
+
+export const DM_TEMPLATES = {
+  council: [
+    "Hey y’all,",
     "",
-    `With the first ${course} exam coming up, I’m giving ${o.campusShort} students free Exam 1 prep—quick cram videos and practice exams.`,
+    "I’m Lee Ingram, a professor at Ole Miss and the tutor behind SurviveAccounting.com.",
     "",
-    "Could you help get this to your chapters’ scholarship chairs? This page has the details and a ready-to-forward message:",
+    "I help {{organizationTypePlural}} boost their GPAs by making accounting exams easier. With {{campusShorthand}}’s first {{courseCode}} exam coming up, my free Exam 1 prep is available now—quick cram videos and practice exams.",
     "",
-    o.link,
+    "Could you pass this along to your chapters’ scholarship chairs or presidents?",
     "",
-    "Thanks so much!",
+    "{{outreachLink}}",
+    "",
+    "Really appreciate it!",
     "Lee",
-  ].join("\n");
+  ].join("\n"),
+  chapter: [
+    "Hey y’all,",
+    "",
+    "I’m Lee Ingram, a professor at Ole Miss and the tutor behind SurviveAccounting.com.",
+    "",
+    "I help {{organizationTypePlural}} boost their GPAs by making accounting exams easier. With {{campusShorthand}}’s first {{courseCode}} exam coming up, my free Exam 1 prep is available now—quick cram videos and practice exams.",
+    "",
+    "Could you pass this along to {{chapterName}}’s scholarship chair or president?",
+    "",
+    "{{outreachLink}}",
+    "",
+    "Really appreciate it!",
+    "Lee",
+  ].join("\n"),
+} as const;
+export type DmKind = keyof typeof DM_TEMPLATES;
+
+export type OrgType = "fraternity" | "sorority" | null;
+
+/** {{organizationTypePlural}}: IFC → fraternities, Panhellenic → sororities, NPHC or mixed → both;
+ *  a chapter by its own organization's type (its council's when the org has none); unknown → chapters. */
+export function organizationTypePlural(o: { kind: DmKind; council: string | null; orgType?: OrgType }): string {
+  const council = (o.council ?? "").toLowerCase();
+  if (o.kind === "council") {
+    if (council === "ifc") return "fraternities";
+    if (council === "panhellenic") return "sororities";
+    if (council === "nphc" || council === "mgc") return "fraternities and sororities";
+    return "chapters";
+  }
+  if (o.orgType === "fraternity") return "fraternities";
+  if (o.orgType === "sorority") return "sororities";
+  if (council === "ifc") return "fraternities";
+  if (council === "panhellenic") return "sororities";
+  return "chapters";
 }
 
-/** The chapter DM — Lee's words (2026-09-14). */
-export function chapterDm(o: { courseCode: string | null; link: string }): string {
-  const course = o.courseCode ?? "intro accounting";
-  return [
-    "Hey y’all! I’m Lee Ingram, a professor at Ole Miss and the tutor behind SurviveAccounting.com.",
-    "",
-    `With the first ${course} exam coming up, I’m giving your members free Exam 1 prep—quick cram videos and practice exams.`,
-    "",
-    "Could you pass this along to your scholarship chair? It has the details and a ready-to-forward message for your chapter GroupMe:",
-    "",
-    o.link,
-    "",
-    "Thanks so much!",
-    "Lee",
-  ].join("\n");
+export interface DmRecipient {
+  kind: DmKind;
+  /** Campus shorthand ("Ole Miss"); the full campus name when there's no shorthand. */
+  campusShorthand: string | null;
+  campusName?: string | null;
+  courseCode: string | null;
+  /** Organization display name ("Sigma Chi"); chapters only. */
+  chapterName?: string | null;
+  council: string | null;
+  orgType?: OrgType;
+  outreachLink: string | null;
+}
+
+export type DmResult = { ok: true; text: string } | { ok: false; missing: string[] };
+
+/** Fill the recipient's template. Plain text, paragraph breaks kept, no Markdown. */
+export function renderOutreachDm(r: DmRecipient): DmResult {
+  const campus = (r.campusShorthand ?? "").trim() || (r.campusName ?? "").trim();
+  const course = (r.courseCode ?? "").trim();
+  const link = (r.outreachLink ?? "").trim();
+  const missing = [!campus && "campus name", !course && "course code", !link && "outreach link"].filter((x): x is string => !!x);
+  if (missing.length) return { ok: false, missing };
+  let t: string = DM_TEMPLATES[r.kind];
+  const chapter = (r.chapterName ?? "").trim();
+  if (r.kind === "chapter" && !chapter) t = t.replace("{{chapterName}}’s scholarship chair or president", "your scholarship chair or president");
+  const values: Record<string, string> = {
+    campusShorthand: campus, courseCode: course, chapterName: chapter, outreachLink: link,
+    organizationTypePlural: organizationTypePlural({ kind: r.kind, council: r.council, orgType: r.orgType ?? null }),
+  };
+  const text = t.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => values[k] ?? "");
+  if (/\{\{\w+\}\}/.test(text)) return { ok: false, missing: ["template field"] };
+  return { ok: true, text };
+}
+
+/** "Add the course code first." — what the copy button says when it can't copy. */
+export function missingMessage(missing: readonly string[]): string {
+  const list = missing.length > 1 ? `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}` : missing[0];
+  return `Can't copy yet — add the ${list} for this recipient first.`;
 }
 
 /** The link a slot carries: the contact's short tracked link when the contact exists, else the page. */

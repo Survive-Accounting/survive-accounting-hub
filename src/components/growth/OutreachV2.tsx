@@ -8,13 +8,13 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast, Toaster } from "sonner";
-import { Check, ChevronDown, ChevronRight, ClipboardPaste, Copy, Download, ExternalLink, Link as LinkIcon, Loader2, Upload } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, ClipboardPaste, Copy, Download, ExternalLink, Link as LinkIcon, Loader2, Upload, User } from "lucide-react";
 
 import { BottomSheet } from "@/components/growth/BottomSheet";
 import { dmConsoleSaveRoster } from "@/lib/king-dm.functions";
 import { ROSTER_HEADERS, bareIg, parseRoster, rosterTemplate } from "@/lib/king-dm";
 import { growthIgMarkSent } from "@/lib/growth-ig-dm.functions";
-import { chapterDm, chapterPage, councilDm, councilPage, moveSlug, slotLink, V2_SLOTS, type V2SlotKey } from "@/lib/outreach-v2";
+import { chapterPage, councilPage, missingMessage, moveSlug, renderOutreachDm, slotLink, V2_SLOTS, type V2SlotKey } from "@/lib/outreach-v2";
 import { v2Campus, v2Overview, v2SaveOrder, type V2CampusData, type V2CampusSummary, type V2Chapter, type V2Council, type V2Slot, type V2Slots } from "@/lib/outreach-v2.functions";
 import { cn } from "@/lib/utils";
 
@@ -152,7 +152,7 @@ function CampusSheet({ summary, onClose }: { summary: V2CampusSummary; onClose: 
       {liveChapter && d && (
         <BottomSheet open depth={1} onClose={() => setChapter(null)} onBack={() => setChapter(null)}
           title={<span className="text-[15px] font-semibold">{liveChapter.chapter.name}{liveChapter.chapter.letters ? ` · ${liveChapter.chapter.letters}` : ""}</span>}
-          subtitle={<span className="text-[11px] text-muted-foreground">{summary.label} · {liveChapter.council.label}{liveChapter.chapter.size ? ` · ${liveChapter.chapter.size} members` : ""}</span>}>
+          subtitle={<span className="text-[11px] text-muted-foreground">{summary.label} · {liveChapter.council.label} · {liveChapter.chapter.signups} signup{liveChapter.chapter.signups === 1 ? "" : "s"}</span>}>
           <div className="divide-y divide-border/60 overflow-y-auto p-2">
             {V2_SLOTS.map((s) => (
               <SlotRow key={s.key} data={d} council={liveChapter.council} chapter={liveChapter.chapter} slotKey={s.key} slot={liveChapter.chapter.slots[s.key]} onSaved={() => void q.refetch()} />
@@ -164,15 +164,30 @@ function CampusSheet({ summary, onClose }: { summary: V2CampusSummary; onClose: 
   );
 }
 
+/** A chapter row: three sent checks (org · president · scholarship chair), the name, link clicks since
+ *  sent, and signups. No size on the row — the list is already in size order. */
 function ChapterLine({ ch, onOpen }: { ch: V2Chapter; onOpen: () => void }) {
-  const sent = Object.values(ch.slots).filter((s) => s?.sentAt).length;
-  const filled = Object.values(ch.slots).filter(Boolean).length;
+  const clicks = Object.values(ch.slots).reduce((a, s) => a + (s?.clicksSinceSent ?? 0), 0);
   return (
     <button onClick={onOpen} className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/40">
+      <span className="flex shrink-0 items-center gap-0.5" aria-label={`${V2_SLOTS.filter((s) => ch.slots[s.key]?.sentAt).length} of 3 sent`}>
+        {V2_SLOTS.map((s) => {
+          const sent = !!ch.slots[s.key]?.sentAt;
+          return (
+            <span key={s.key} title={`${s.label}: ${sent ? "sent" : ch.slots[s.key] ? "not sent" : "no contact"}`}
+              className={cn("grid size-4 place-items-center rounded-full border", sent ? "border-emerald-500 bg-emerald-500 text-white" : "border-border text-transparent")}>
+              <Check className="size-2.5" strokeWidth={3} />
+            </span>
+          );
+        })}
+      </span>
       <span className="min-w-0 flex-1 truncate text-[13px]">{ch.name}{ch.letters ? <span className="text-muted-foreground"> · {ch.letters}</span> : null}</span>
-      {ch.size ? <span className="text-[11px] tabular-nums text-muted-foreground">{ch.size}</span> : null}
-      {sent > 0 && <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400">{sent} sent</span>}
-      {sent === 0 && filled > 0 && <span className="text-[10.5px] text-muted-foreground">{filled} handle{filled === 1 ? "" : "s"}</span>}
+      <span className={cn("inline-flex items-center gap-0.5 text-[11px] tabular-nums", clicks ? "text-sky-500" : "text-muted-foreground")} title="Link clicks after it was marked sent">
+        <LinkIcon className="size-3" /> {clicks}
+      </span>
+      <span className={cn("inline-flex items-center gap-0.5 text-[11px] tabular-nums", ch.signups ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")} title="Members who joined this chapter's page">
+        <User className="size-3" /> {ch.signups}
+      </span>
       <ChevronRight className="size-3.5 text-muted-foreground" />
     </button>
   );
@@ -184,9 +199,16 @@ function SlotRow({ data, council, chapter, slotKey, slot, onSaved }: { data: V2C
   const [name, setName] = useState(slot?.name ?? "");
   const label = V2_SLOTS.find((s) => s.key === slotKey)!.label;
   const dirty = bareIg(handle) !== (slot?.handle ?? "") || (slotKey !== "org" && name.trim() !== (slot?.name ?? ""));
-  const page = chapter ? (chapter.slug ? chapterPage(data.slug, chapter.slug) : `/s/${data.slug}`) : councilPage(data.slug, council.key);
-  const link = slotLink(page, slot?.code);
-  const dm = chapter ? chapterDm({ courseCode: data.courseCode, link }) : councilDm({ courseCode: data.courseCode, campusShort: data.campusShort, link });
+  // The recipient's informational page: the chapter's page, or the council's. A chapter with no page
+  // on the site has no link to send, and the DM says so rather than copying a campus page instead.
+  const page = chapter ? (chapter.slug ? chapterPage(data.slug, chapter.slug) : null) : councilPage(data.slug, council.key);
+  const link = page ? slotLink(page, slot?.code) : "";
+  const dm = renderOutreachDm({
+    kind: chapter ? "chapter" : "council",
+    campusShorthand: data.campusShort, campusName: data.campusName, courseCode: data.courseCode,
+    chapterName: chapter?.name ?? null, council: council.key, orgType: chapter?.orgType ?? null,
+    outreachLink: link || null,
+  });
 
   const save = useMutation({
     mutationFn: async () => {
@@ -228,8 +250,14 @@ function SlotRow({ data, council, chapter, slotKey, slot, onSaved }: { data: V2C
         </button>
       )}
       <span className="flex-1" />
-      <button className={btn} onClick={() => void copy(dm, "DM")}><Copy className="size-3.5" /> DM</button>
-      <button className={btn} onClick={() => void copy(link, "Link")} title={link}><LinkIcon className="size-3.5" /> Link</button>
+      {slot?.sentAt && (
+        <span className={cn("inline-flex items-center gap-0.5 text-[11px] tabular-nums", slot.clicksSinceSent ? "text-sky-500" : "text-muted-foreground")} title="Link clicks after it was marked sent">
+          <LinkIcon className="size-3" /> {slot.clicksSinceSent}
+        </span>
+      )}
+      <button className={cn(btn, !dm.ok && "border-amber-500/60 text-amber-600 dark:text-amber-400")} title={dm.ok ? "Copy the DM" : missingMessage(dm.missing)}
+        onClick={() => { if (dm.ok) void copy(dm.text, "DM"); else toast.error(missingMessage(dm.missing)); }}><Copy className="size-3.5" /> DM</button>
+      <button className={btn} disabled={!link} onClick={() => void copy(link, "Link")} title={link || "No page for this recipient yet"}><LinkIcon className="size-3.5" /> Link</button>
       <a className={cn(btn, !ig && "pointer-events-none opacity-40")} href={ig ? `https://ig.me/m/${ig}` : undefined} target="_blank" rel="noreferrer"><ExternalLink className="size-3.5" /> Open</a>
     </div>
   );

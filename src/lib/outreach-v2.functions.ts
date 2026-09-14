@@ -32,9 +32,13 @@ function slotOf(role: string | null, isOrg: boolean): V2SlotKey | null {
 }
 const isOrgRow = (c: any) => !!c.ig_role_account || c.contact_type === "organization_general" || c.contact_kind === "org_inbox" || !(String(c.name ?? c.full_name ?? "").trim());
 
-export interface V2Slot { contactId: string; code: string | null; name: string | null; handle: string; sentAt: string | null }
+export interface V2Slot {
+  contactId: string; code: string | null; name: string | null; handle: string; sentAt: string | null;
+  /** Clicks on this contact's link AFTER it was marked sent (bots excluded). 0 when unsent. */
+  clicksSinceSent: number;
+}
 export type V2Slots = Record<V2SlotKey, V2Slot | null>;
-export interface V2Chapter { id: string; slug: string | null; name: string; letters: string | null; size: number | null; slots: V2Slots }
+export interface V2Chapter { id: string; slug: string | null; name: string; letters: string | null; size: number | null; orgType: "fraternity" | "sorority" | null; slots: V2Slots; /** Members who joined the chapter's page. */ signups: number }
 export interface V2Council { key: V2CouncilKey; label: string; name: string; slots: V2Slots; chapters: V2Chapter[] }
 export interface V2CampusSummary { slug: string; label: string; cluster: string | null; campusId: string | null; slotsFilled: number; slotsSent: number; councilsSent: number }
 
@@ -85,7 +89,7 @@ export const v2SaveOrder = createServerFn({ method: "POST" })
   });
 
 export interface V2CampusData {
-  slug: string; label: string; campusId: string; courseCode: string | null; campusShort: string;
+  slug: string; label: string; campusId: string; courseCode: string | null; campusShort: string; campusName: string;
   councils: V2Council[];
 }
 
@@ -108,8 +112,23 @@ export const v2Campus = createServerFn({ method: "GET" })
       db.from("growth_contact_qc").select("id,contact_id,entity_type,entity_id,council_type,council,org_type,org_name,name,full_name,role,exec_title,instagram,org_ig,personal_ig,ig_role_account,contact_type,contact_kind,email,first_name").eq("campus_id", campus.id).limit(8000),
       db.from("growth_ig_dm").select("contact_qc_id,sent_at").eq("campus_id", campus.id).limit(8000),
     ]);
+    // CLICKS AND SIGNUPS (Lee, 2026-09-14: "show whether the link was clicked on the row … only count the
+    // clicks AFTER it has been marked sent … and a person icon and # of signups").
+    const [{ data: visits }, { data: shells }] = await Promise.all([
+      db.from("contact_ref_visit").select("contact_id,created_at,is_bot").eq("campus_id", campus.id).limit(20000),
+      db.from("greek_chapters").select("id,campus_greek_chapter_id").eq("campus_id", campus.id).limit(2000),
+    ]);
+    const visitsBy = new Map<string, string[]>();
+    for (const v of (visits ?? []) as any[]) { if (v.is_bot || !v.contact_id) continue; const l = visitsBy.get(v.contact_id) ?? []; l.push(v.created_at); visitsBy.set(v.contact_id, l); }
+    const rosterOfShell = new Map<string, string>(((shells ?? []) as any[]).filter((s) => s.campus_greek_chapter_id).map((s) => [s.id, s.campus_greek_chapter_id]));
+    const signupsBy = new Map<string, number>();
+    if (rosterOfShell.size) {
+      const { data: members } = await db.from("greek_chapter_members").select("chapter_id").in("chapter_id", [...rosterOfShell.keys()]).limit(20000);
+      for (const m of (members ?? []) as any[]) { const r = rosterOfShell.get(m.chapter_id); if (r) signupsBy.set(r, (signupsBy.get(r) ?? 0) + 1); }
+    }
+    const clicksSince = (contactId: string, sentAt: string | null) => (sentAt ? (visitsBy.get(contactId) ?? []).filter((t) => t >= sentAt).length : 0);
     const orgIds = Array.from(new Set(((chapters ?? []) as any[]).map((c) => c.greek_org_id).filter(Boolean)));
-    const { data: orgs } = orgIds.length ? await db.from("greek_orgs").select("id,name,letters").in("id", orgIds) : { data: [] };
+    const { data: orgs } = orgIds.length ? await db.from("greek_orgs").select("id,name,letters,org_type").in("id", orgIds) : { data: [] };
     const orgById = new Map<string, any>(((orgs ?? []) as any[]).map((o) => [o.id, o]));
     const sentBy = new Map<string, string | null>(((dms ?? []) as any[]).map((d) => [d.contact_qc_id, d.sent_at ?? null]));
 
@@ -129,7 +148,8 @@ export const v2Campus = createServerFn({ method: "GET" })
       if (!handle) continue;
       const slot = slotOf(c.role ?? c.exec_title, isOrgRow(c));
       if (!slot) continue;
-      const s: V2Slot = { contactId: c.id, code: c.contact_id ?? null, name: (c.name ?? c.full_name ?? null) || null, handle, sentAt: sentBy.get(c.id) ?? null };
+      const sentAt = sentBy.get(c.id) ?? null;
+      const s: V2Slot = { contactId: c.id, code: c.contact_id ?? null, name: (c.name ?? c.full_name ?? null) || null, handle, sentAt, clicksSinceSent: clicksSince(c.id, sentAt) };
       if (c.entity_type === "chapter" && c.entity_id) {
         const b = byChapter.get(c.entity_id) ?? empty();
         if (!b[slot]) b[slot] = s;
@@ -154,10 +174,12 @@ export const v2Campus = createServerFn({ method: "GET" })
             name: (org?.name as string) || (ch.nickname as string) || (ch.chapter_designation as string) || "Chapter",
             letters: (ch.letters as string) || (org?.letters as string) || null,
             size: (ch.chapter_size as number | null) ?? null,
+            orgType: org?.org_type === "fraternity" || org?.org_type === "sorority" ? (org.org_type as "fraternity" | "sorority") : null,
             slots: byChapter.get(ch.id) ?? empty(),
+            signups: signupsBy.get(ch.id) ?? 0,
           };
         })
         .sort((a, b) => (b.size ?? -1) - (a.size ?? -1) || a.name.localeCompare(b.name)),
     }));
-    return { slug: data.slug, label, campusId: campus.id as string, courseCode, campusShort: label, councils };
+    return { slug: data.slug, label, campusId: campus.id as string, courseCode, campusShort: label, campusName: (campus.name as string) ?? label, councils };
   });
