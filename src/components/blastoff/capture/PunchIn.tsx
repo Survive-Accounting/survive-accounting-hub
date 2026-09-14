@@ -31,7 +31,7 @@ import { partKey } from "@/lib/student-shorts";
 import type { BlastFrame } from "../plan";
 import { FRAME_LABEL } from "../plan";
 import { endCtaOf } from "../practice-cta";
-import { nextAfter, pickTakes, punchKey, readTakes, STITCH_MAX, uncovered, type PunchTake } from "../punch-in";
+import { chunks, nextAfter, pickTakes, punchKey, readTakes, uncovered, type PunchTake } from "../punch-in";
 
 const GOLD = "#FCA311", CREAM = "#F5EFE6", MUTED = "#8C9BBA", EDGE = "#2A3654", RED = "#FF7A6B", MINT = "#3BF5A0";
 export const PUNCH_ON_KEY = "sa-punch-on";
@@ -202,7 +202,6 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
       let dir = folder;
       if (!dir) { dir = (await pickTakesFolder()) as never; if (!dir) throw new Error("Choose the OBS recordings folder first."); setFolder(dir); }
       if (!picks.length) throw new Error("No kept takes in this split yet.");
-      if (picks.length > STITCH_MAX) throw new Error(`${picks.length} takes — the joiner takes ${STITCH_MAX} at most. Film a few neighbouring slides as one speed-run take, then preview.`);
       const urls: string[] = [];
       setStage({ s: "uploading", done: 0, of: picks.length });
       for (const p of picks) {
@@ -211,15 +210,30 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
         urls.push(await uploadTake(file));
         setStage({ s: "uploading", done: urls.length, of: picks.length });
       }
-      setStage({ s: "stitching", note: "trimming pauses and joining…" });
-      const job = await startDissectStitch({ data: { urls, gapMs: 220 } });
-      for (;;) {
-        await wait(3000);
-        const r = await resolveWorkerRender({ data: { jobId: job.jobId, path: job.path, machineId: job.machineId } });
-        if (r.state === "done" && r.fileUrl) { setStage({ s: "ready", fileUrl: r.fileUrl }); return; }
-        if (r.state === "error") throw new Error(r.error ?? "The joiner failed.");
-        setStage({ s: "stitching", note: `${r.state}${r.note ? ` · ${r.note}` : ""}` });
+      // One join, or batches of STITCH_CHUNK then a last join of the batches. The batches are already
+      // trimmed, so the last join keeps each whole (manual trims skip the silence pass) and only adds the gaps.
+      const join = async (list: string[], label: string, trims?: { start: number; end: number }[]) => {
+        const job = await startDissectStitch({ data: { urls: list, gapMs: 220, ...(trims ? { trims } : {}) } });
+        for (;;) {
+          await wait(3000);
+          const r = await resolveWorkerRender({ data: { jobId: job.jobId, path: job.path, machineId: job.machineId } });
+          if (r.state === "done" && r.fileUrl) return { fileUrl: r.fileUrl, totalS: r.result?.totalS ?? null };
+          if (r.state === "error") throw new Error(r.error ?? "The joiner failed.");
+          setStage({ s: "stitching", note: `${label} · ${r.state}${r.note ? ` · ${r.note}` : ""}` });
+        }
+      };
+      const batches = chunks(urls);
+      if (batches.length === 1) {
+        setStage({ s: "stitching", note: "trimming pauses and joining…" });
+        const one = await join(urls, "joining");
+        setStage({ s: "ready", fileUrl: one.fileUrl });
+        return;
       }
+      const parts: { fileUrl: string; totalS: number | null }[] = [];
+      for (let b = 0; b < batches.length; b++) parts.push(await join(batches[b], `batch ${b + 1} of ${batches.length}`));
+      if (parts.some((p) => p.totalS == null)) throw new Error("A batch came back without its length, so the batches can't be joined cleanly — press Preview again.");
+      const whole = await join(parts.map((p) => p.fileUrl), "joining the batches", parts.map((p) => ({ start: 0, end: p.totalS! })));
+      setStage({ s: "ready", fileUrl: whole.fileUrl });
     } catch (e) { setStage({ s: "error", error: e instanceof Error ? e.message : String(e) }); }
   };
 

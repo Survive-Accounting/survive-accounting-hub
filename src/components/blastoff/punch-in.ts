@@ -59,8 +59,17 @@ export function uncovered(frameIds: readonly string[], takes: readonly PunchTake
   return frameIds.map((_, k) => k).filter((k) => !covered.has(k));
 }
 
-/** The render worker joins at most this many clips per video. */
-export const STITCH_MAX = 12;
+/** HOW MANY TAKES ONE JOIN TAKES. Lee, 2026-09-14: "Let's increase that just in case. We will use this tool
+ *  for longer videos in the future." The worker decodes every clip of a join at once, so a long video is
+ *  joined in batches of this many, and the batches are joined last — no ceiling on takes per video. */
+export const STITCH_CHUNK = 20;
+
+/** The takes in joins of at most `size`, in order. */
+export function chunks<T>(items: readonly T[], size = STITCH_CHUNK): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
 
 /** Where a split's takes are kept on this browser. */
 export const punchKey = (setId: string, takeIndex: number): string => `sa-punch:${setId}#${takeIndex}`;

@@ -138,7 +138,10 @@ export interface DissectStitchResult {
 export const startDissectStitch = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
-      urls: z.array(z.string().url()).min(1).max(12),
+      // 63 = the worker's own input cap (worker/src/config.ts LIMITS.maxInputs 64, one kept for room
+      // tone). It was 12 when this stitched one CEQ's moments; punch-in films whole videos a slide at a
+      // time, and batches past STITCH_CHUNK anyway (components/blastoff/punch-in.ts).
+      urls: z.array(z.string().url()).min(1).max(63),
       roomToneUrl: z.string().url().optional(),
       silenceDb: z.number().min(-80).max(-10).optional(),
       heads: z.array(z.number().min(0).max(120).nullable()).optional(),

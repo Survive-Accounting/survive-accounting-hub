@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { nextAfter, pickTakes, rangeOf, readTakes, uncovered } from "./punch-in";
+import { chunks, nextAfter, pickTakes, rangeOf, readTakes, uncovered } from "./punch-in";
 
 const ids = ["a", "b", "c", "d", "e"];
 const t = (file: string, fromId: string, toId: string, at: number) => ({ file, fromId, toId, at });
@@ -22,6 +22,13 @@ describe("punch-in takes", () => {
     const redo = [...takes, t("5.mp4", "c", "c", 5)];
     expect(pickTakes(ids, redo).map((p) => p.take.file)).toEqual(["4.mp4", "5.mp4", "3.mp4"]);
     expect(uncovered(ids, redo)).toEqual([1, 3]);
+  });
+  test("a long video joins in batches, in order", () => {
+    const n = Array.from({ length: 45 }, (_, i) => i);
+    const parts = chunks(n, 20);
+    expect(parts.map((p) => p.length)).toEqual([20, 20, 5]);
+    expect(parts.flat()).toEqual(n);
+    expect(chunks([1, 2], 20)).toEqual([[1, 2]]);
   });
   test("stored takes read back defensively", () => {
     expect(readTakes(null)).toEqual([]);
