@@ -26,6 +26,15 @@ export const SOCIAL_DESTINATIONS: readonly PublishDestination[] = ["youtube", "i
 
 export interface SocialPick { pick: "post" | "maybe" | "skip"; why: string }
 
+/** The same suggestion from a title alone (Quick post has titles, not plans). */
+export function socialPickForTitle(title: string): SocialPick {
+  const t = title.trim();
+  if (!t) return { pick: "maybe", why: "No title yet" };
+  if (FLOW_RE.test(t)) return { pick: "skip", why: "Part of the series flow — it points at the site" };
+  return { pick: "post", why: "One idea with questions to play along with — stands alone" };
+}
+const FLOW_RE = /\b(intro|how survive|welcome|practice|recap|walkthrough|breather|outro|word problems class)\b/i;
+
 /** WORTH POSTING TO SHORTS / REELS / TIKTOK? A suggestion, never a gate. Lee, 2026-09-14: "for any of
  *  the videos in any series, I want to know which ones are worthy of posting."
  *
@@ -34,7 +43,7 @@ export interface SocialPick { pick: "post" | "maybe" | "skip"; why: string }
  *  hand-off, the recap of a practice exam — stay on the site. */
 export function socialPick(take: { name: string; about: string; cards: number }): SocialPick {
   const name = take.name.trim();
-  if (/\b(intro|how survive|welcome|practice|recap|walkthrough|breather|outro)\b/i.test(name)) return { pick: "skip", why: "Part of the series flow — it points at the site" };
+  if (FLOW_RE.test(name)) return { pick: "skip", why: "Part of the series flow — it points at the site" };
   if (take.cards === 0) return { pick: "skip", why: "No question to play along with" };
   if (take.about.trim()) return { pick: "post", why: `Stands alone: "${take.about.trim().slice(0, 60)}" plus ${take.cards} question${take.cards === 1 ? "" : "s"}` };
   return { pick: "maybe", why: "Has questions but no callout it's about — star its main callout to decide" };

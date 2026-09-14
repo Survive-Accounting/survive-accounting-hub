@@ -73,6 +73,30 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
     if (added) { undo.current.push({ kind: "cloned", cardId: added.id }); setOpenId(added.id); setUndoNote(`Cloned "${short(c)}"`); }
   };
 
+  // THE GROUP ON SCREEN, by id (so a rename or reorder keeps you where you are). Opening a question in
+  // another group — from the to-fix list, or a clone — brings its group up.
+  const [viewId, setViewId] = useState<string | null>(null);
+  const viewIdx = Math.max(0, grouped.findIndex((g) => g.group.id === viewId));
+  const step = (d: -1 | 1) => { const k = Math.min(grouped.length - 1, Math.max(0, viewIdx + d)); setViewId(grouped[k]?.group.id ?? null); setOpenId(null); };
+  useEffect(() => {
+    if (!openId) return;
+    const g = grouped.find((x) => x.cards.some((c) => c.id === openId));
+    if (g && g.group.id !== grouped[viewIdx]?.group.id) setViewId(g.group.id);
+  }, [openId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      e.preventDefault();
+      stepRef.current(e.key === "ArrowLeft" ? -1 : 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const busyRef = useRef(false);
   busyRef.current = busy;
   const runRef = useRef(run);
@@ -141,27 +165,43 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
         <div role="status" style={{ marginTop: 10, fontSize: 12.5, color: V3_MUTED }}>{undoNote} · <b style={{ color: V3_CREAM }}>Ctrl+Z</b> to undo</div>
       )}
 
-      {/* THE GROUPS — side by side, left to right. Lee, 2026-09-14: "scrolling left to right versus
-          scrolling up and down would help a lot." Drag a question onto another group to move it. */}
-      <div style={{ marginTop: 16, display: "flex", gap: 12, alignItems: "flex-start", overflowX: "auto", paddingBottom: 14 }}>
-        {grouped.map(({ group, cards: gc }) => {
-          const gi = state.groups.findIndex((g) => g.id === group.id);
-          const real = gi >= 0;
-          const wide = gc.some((c) => c.id === openId);
+      {/* THE GROUPS — ONE AT A TIME. Lee, 2026-09-14: "I'm picturing it more like where I view each group
+          one at a time. And have < > on either side." The tabs above jump to any group (and take a dragged
+          question); ‹ › and the ← → keys step through them. */}
+      <div role="tablist" aria-label="Groups" style={{ marginTop: 16, display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, alignItems: "center" }}>
+        {grouped.map(({ group, cards: gc }, k) => {
+          const on = k === viewIdx;
           const dropHere = dragging && dragOver === group.id;
           return (
-            <section key={group.id} aria-label={group.name}
+            <button key={group.id} type="button" role="tab" aria-selected={on} onClick={() => setViewId(group.id)}
               onDragOver={(e) => { if (!dragging) return; e.preventDefault(); setDragOver(group.id); }}
               onDragLeave={() => setDragOver((g) => (g === group.id ? null : g))}
               onDrop={(e) => {
                 e.preventDefault(); setDragOver(null);
                 const c = cards.find((x) => x.id === dragging);
                 setDragging(null);
-                const to = real ? group.id : null;
+                const to = state.groups.some((g) => g.id === group.id) ? group.id : null;
                 if (c && (c.group ?? null) !== to) void run({ type: "group", cardId: c.id, groupId: to }, `moved "${(c.stem || "a question").slice(0, 40)}" to ${group.name}`);
               }}
-              style={{ flex: "0 0 auto", width: wide ? 520 : 340, transition: "width 160ms ease", border: `1.5px solid ${dropHere ? V3_GOLD : V3_EDGE}`, borderRadius: 12, background: "rgba(255,255,255,0.02)" }}>
+              style={{ ...v4Button(on ? "gold" : "ghost"), flex: "0 0 auto", fontSize: 12, padding: "5px 11px", borderColor: dropHere ? V3_GOLD : on ? V3_GOLD : V3_EDGE, borderStyle: dropHere ? "dashed" : "solid", color: on ? V3_GOLD : k === grouped.length - 1 && group.id === UNGROUPED.id ? V3_MUTED : V3_CREAM }}>
+              {group.name} <span style={{ color: V3_MUTED, fontWeight: 700 }}>{gc.length}</span>
+            </button>
+          );
+        })}
+        <button type="button" disabled={busy} style={{ ...v4Button(), flex: "0 0 auto", fontSize: 12, padding: "5px 11px", borderStyle: "dashed", color: V3_MUTED }} onClick={() => { const name = window.prompt("Name the new group"); if (!name?.trim()) return; const id = nextGroupId(state.groups); void setGroups([...state.groups, { id, name: name.trim() }], `added the group "${name.trim()}"`).then(() => setViewId(id)); }}>+ Group</button>
+      </div>
+
+      <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "44px minmax(0, 760px) 44px", gap: 10, alignItems: "start" }}>
+        <button type="button" onClick={() => step(-1)} disabled={viewIdx <= 0} aria-label="Previous group" title="Previous group (←)"
+          style={{ ...v4Button(), position: "sticky", top: 90, height: 120, fontSize: 26, padding: 0, opacity: viewIdx <= 0 ? 0.3 : 1 }}>‹</button>
+        {grouped.filter((_, k) => k === viewIdx).map(({ group, cards: gc }) => {
+          const gi = state.groups.findIndex((g) => g.id === group.id);
+          const real = gi >= 0;
+          return (
+            <section key={group.id} aria-label={group.name}
+              style={{ border: `1.5px solid ${V3_EDGE}`, borderRadius: 12, background: "rgba(255,255,255,0.02)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 8px 6px 10px" }}>
+                <span style={{ fontSize: 11, color: V3_MUTED, whiteSpace: "nowrap" }}>{viewIdx + 1} of {grouped.length}</span>
                 {real ? (
                   <input defaultValue={group.name} key={group.name} aria-label="Group name"
                     onBlur={(e) => { const name = e.target.value.trim(); if (name && name !== group.name) void setGroups(state.groups.map((g) => (g.id === group.id ? { ...g, name } : g)), `renamed a group to "${name}"`); }}
@@ -169,8 +209,8 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
                 ) : <span style={{ flex: 1, fontSize: 14.5, fontWeight: 800, color: V3_MUTED, padding: "4px 6px" }}>{UNGROUPED.name}</span>}
                 <span style={{ fontSize: 12, color: V3_MUTED }}>{gc.length}</span>
                 {real && <>
-                  <button type="button" disabled={busy || gi === 0} style={{ ...v4Button(), padding: "3px 7px" }} title="Move this group left" onClick={() => { const g = [...state.groups]; [g[gi - 1], g[gi]] = [g[gi], g[gi - 1]]; void setGroups(g, `moved "${group.name}" left`); }}>←</button>
-                  <button type="button" disabled={busy || gi === state.groups.length - 1} style={{ ...v4Button(), padding: "3px 7px" }} title="Move this group right" onClick={() => { const g = [...state.groups]; [g[gi + 1], g[gi]] = [g[gi], g[gi + 1]]; void setGroups(g, `moved "${group.name}" right`); }}>→</button>
+                  <button type="button" disabled={busy || gi === 0} style={{ ...v4Button(), padding: "3px 7px", fontSize: 11 }} title="Move this group earlier in the order" onClick={() => { const g = [...state.groups]; [g[gi - 1], g[gi]] = [g[gi], g[gi - 1]]; void setGroups(g, `moved "${group.name}" earlier`); }}>Move earlier</button>
+                  <button type="button" disabled={busy || gi === state.groups.length - 1} style={{ ...v4Button(), padding: "3px 7px", fontSize: 11 }} title="Move this group later in the order" onClick={() => { const g = [...state.groups]; [g[gi + 1], g[gi]] = [g[gi], g[gi + 1]]; void setGroups(g, `moved "${group.name}" later`); }}>Move later</button>
                   <button type="button" disabled={busy} style={{ ...v4Button("red"), padding: "3px 7px" }} title="Remove the group — its questions move to Not grouped yet" onClick={() => { if (window.confirm(`Remove the group "${group.name}"? Its ${gc.length} question(s) stay, under Not grouped yet.`)) void setGroups(state.groups.filter((g) => g.id !== group.id), `removed the group "${group.name}"`); }}>✕</button>
                 </>}
               </div>
@@ -192,7 +232,8 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
             </section>
           );
         })}
-        <button type="button" disabled={busy} style={{ ...v4Button(), flex: "0 0 auto", alignSelf: "stretch", minHeight: 80, borderStyle: "dashed", color: V3_MUTED }} onClick={() => { const name = window.prompt("Name the new group"); if (name?.trim()) void setGroups([...state.groups, { id: nextGroupId(state.groups), name: name.trim() }], `added the group "${name.trim()}"`); }}>+ Group</button>
+        <button type="button" onClick={() => step(1)} disabled={viewIdx >= grouped.length - 1} aria-label="Next group" title="Next group (→)"
+          style={{ ...v4Button(), position: "sticky", top: 90, height: 120, fontSize: 26, padding: 0, opacity: viewIdx >= grouped.length - 1 ? 0.3 : 1 }}>›</button>
       </div>
 
       {rejected.length > 0 && (

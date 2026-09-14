@@ -17,11 +17,12 @@ import { renderSvgToBlob } from "@/lib/brand-kit/export-png";
 import { measureText } from "@/lib/brand-kit/measure";
 import { defaultThumbSpec, seriesTitleCap, SITE_EXPORT, TITLE_TRACKING, type ThumbSpec } from "@/lib/brand-kit/thumbnail";
 import { colorwayFor, KIT, NEUTRAL_COLORWAY_ID } from "@/lib/brand-kit/tokens";
-import { setPublishCover } from "@/lib/publish-queue.functions";
+import { listPublishStatuses, setPublishCover, type SetPublishStatus } from "@/lib/publish-queue.functions";
 import { listSitePosts, removeSitePosts, renameSetForPost, startTrimmedPost, type SitePostView } from "@/lib/quick-post.functions";
 import { resolveSitePost, startSitePost } from "@/lib/site-publish.functions";
 
 import { PostedTrim } from "./PostedTrim";
+import { EMPTY_STATUS, QuickPostSocial } from "./QuickPostSocial";
 import { clock, coverFor, EASY_POINTS_ORDER, EASY_POINTS_SET_ID, filmingOrder, leftovers, lengthStats, parseTitles, quickPubKey } from "./quick-post";
 
 const MINT = "#7BD3A8";
@@ -84,6 +85,16 @@ export function QuickPost() {
     } catch (e) { setLiveErr(e instanceof Error ? e.message : String(e)); }
   };
   useEffect(() => { void refreshLive(setId); }, [setId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // THE SOCIALS' STATE per video (set_publish_status, keyed like the site post: setId, setId#2, …).
+  const [pubStatus, setPubStatus] = useState<Record<string, SetPublishStatus>>({});
+  useEffect(() => { listPublishStatuses().then(setPubStatus).catch((e) => setLiveErr(e instanceof Error ? e.message : String(e))); }, []);
+  // The set's questions a title is about: stems sharing a word (4+ letters) with the title — else all.
+  const setStems = useMemo(() => (bank.topics ?? []).flatMap((t) => t.sets).find((s) => s.id === setId)?.ceqs.filter((c) => !c.draft && !c.noteOnly).map((c) => c.stem) ?? [], [bank.topics, setId]);
+  const stemsFor = (title: string): string[] => {
+    const words = title.toLowerCase().match(/[a-z]{4,}/g)?.filter((w) => !["cheat", "code", "what", "type"].includes(w)) ?? [];
+    const hit = setStems.filter((s) => words.some((w) => s.toLowerCase().includes(w.replace(/s$/, ""))));
+    return (hit.length ? hit : setStems).slice(0, 12);
+  };
   useEffect(() => () => clips.forEach((c) => c && URL.revokeObjectURL(c.url)), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addFiles = (list: FileList | null) => {
@@ -341,6 +352,9 @@ export function QuickPost() {
                     </div>
                   );
                 })()}
+                <QuickPostSocial pubKey={quickPubKey(setId, i)} title={title} setName={live?.setName ?? ""} topicName={part}
+                  stems={stemsFor(title)} status={pubStatus[quickPubKey(setId, i)] ?? EMPTY_STATUS}
+                  onStatus={(s) => setPubStatus((m) => ({ ...m, [quickPubKey(setId, i)]: s }))} coverSvg={() => art.current[i] ?? null} />
                 <div style={{ fontSize: 12.5, marginTop: 4, color: st.s === "error" ? RED : st.s === "posted" ? MINT : V3_GOLD }}>
                   {st.s === "cover" && "Making the thumbnail…"}
                   {st.s === "upload" && `Uploading ${Math.round(st.frac * 100)}%`}

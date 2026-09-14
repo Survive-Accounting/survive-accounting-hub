@@ -44,7 +44,7 @@ import { StageChip, stepLabel } from "@/components/v3/StageChip";
 import { CoverSheet } from "@/components/brand-kit/CoverSheet";
 import { cramNumbers } from "@/lib/brand-kit/thumbnail";
 import { PostProduction } from "@/components/v3/PostProduction";
-import { DEST_UPLOAD_URL, SOCIAL_DESTINATIONS, looksLikeUrl, shouldAutoTick, socialPick } from "@/components/v3/post-links";
+import { DEST_UPLOAD_URL, SOCIAL_DESTINATIONS, looksLikeUrl, shouldAutoTick } from "@/components/v3/post-links";
 import { isFilmedUnconfirmed, matchesFilter, stageOf, stageRank, talkStageOf, STAGE_SKY, type StageFilter, type StageInfo } from "@/components/v3/set-stage";
 import { listBlastPlanSetIds, loadBlastPlan, type PlanTakeRow } from "@/lib/blastoff.functions";
 import { cramPathGate, type CramGate } from "@/components/v3/cram-gate";
@@ -57,7 +57,7 @@ import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { logCostEvent } from "@/lib/cost-ledger.functions";
 import { productionBottleneckReport } from "@/lib/production-time.functions";
 import {
-  listPublishStatuses, togglePublishDestination, setPublishUrl, setFilmed, setPublishCaptions, setPublishSocialSkip,
+  listPublishStatuses, togglePublishDestination, setPublishUrl, setFilmed, setPublishCaptions,
   PUBLISH_DESTINATIONS, type PublishDestination, type SetPublishStatus,
 } from "@/lib/publish-queue.functions";
 import { runMicro, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
@@ -219,17 +219,6 @@ function PostQueue() {
     }).catch((e) => { setStatus((prev) => ({ ...(prev ?? {}), [setId]: before })); setSaveErr(e instanceof Error ? e.message : String(e)); });
   };
 
-  // Skip the socials — same optimistic + revert shape.
-  const onSkip = (setId: string, skip: boolean) => {
-    setSaveErr(null);
-    const before = statusFor(setId);
-    setStatus((prev) => ({ ...(prev ?? {}), [setId]: { ...((prev ?? {})[setId] ?? EMPTY), socialSkip: skip } }));
-    void setPublishSocialSkip({ data: { setId, skip } }).then((r) => {
-      if (r.ok && r.status) setStatus((prev) => ({ ...(prev ?? {}), [setId]: r.status! }));
-      else { setStatus((prev) => ({ ...(prev ?? {}), [setId]: before })); setSaveErr(r.error ?? "Could not save — try again."); }
-    }).catch((e) => { setStatus((prev) => ({ ...(prev ?? {}), [setId]: before })); setSaveErr(e instanceof Error ? e.message : String(e)); });
-  };
-
   // Resolves to whether the link landed, so a pasted link can tick the destination AFTER the
   // URL is saved rather than alongside it — two upserts on one row, in flight at once, each
   // answering with "the row as I saw it", would let the slower answer erase the faster one.
@@ -332,9 +321,9 @@ function PostQueue() {
             {visible.map((r) => (
               <SetRow
                 key={r.key} topic={r.topic} set={r.set} pubKey={r.key} takeName={r.take.name}
-                takeIndex={r.takeIndex} takeCount={r.takeCount} takeCards={r.take.ceqIds.length} takeAbout={r.take.about}
+                takeIndex={r.takeIndex} takeCount={r.takeCount} takeCards={r.take.ceqIds.length}
                 status={statusFor(r.key)} info={r.info} gate={gateFor(r.set, r.topic)}
-                onToggle={onToggle} onFilmed={onFilmed} onSaveUrl={onSaveUrl} onSkip={onSkip}
+                onToggle={onToggle} onFilmed={onFilmed} onSaveUrl={onSaveUrl}
                 onCaption={() => setCaptioning(r.key)} onThumb={() => setThumbing(r.key)} onProduce={() => setProducing(r.key)}
               />
             ))}
@@ -403,11 +392,8 @@ function urlsOf(status: SetPublishStatus): Record<PublishDestination, string> {
   return { site: status.site.url ?? "", youtube: status.youtube.url ?? "", instagram: status.instagram.url ?? "", tiktok: status.tiktok.url ?? "" };
 }
 
-function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards, takeAbout, status, info, gate, onToggle, onFilmed, onSaveUrl, onSkip, onCaption, onThumb, onProduce }: {
+function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards, status, info, gate, onToggle, onFilmed, onSaveUrl, onCaption, onThumb, onProduce }: {
   topic: BoothTopic; set: BoothSetInfo; status: SetPublishStatus; info: StageInfo;
-  /** The callout the video is about ("" = none) — what the socials suggestion reads. */
-  takeAbout: string;
-  onSkip: (setId: string, skip: boolean) => void;
   /** Non-null = post-production is shut for this branch until the topic's cram path is filmed. */
   gate: CramGate | null;
   /** The publish key for THIS video: the set's id for the first, "<setId>#N" after that. */
@@ -565,25 +551,7 @@ function SetRow({ topic, set, pubKey, takeName, takeIndex, takeCount, takeCards,
         🖼 {status.cover ? "Thumbnail ✓" : "Thumbnail"}
       </button>
 
-      {/* WORTH POSTING? A suggestion (post-links.ts socialPick), and the skip that strikes the three
-          social destinations through. The site is never skipped. */}
-      {(() => {
-        const s = socialPick({ name: takeName || set.name, about: takeAbout, cards: takeCards });
-        const tone = s.pick === "post" ? MINT : s.pick === "maybe" ? V3_GOLD : V3_MUTED;
-        return (
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <span title={s.why} style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.04em", color: tone, border: `1px solid ${tone}66`, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>
-              {s.pick === "post" ? "Suggest: post" : s.pick === "maybe" ? "Suggest: maybe" : "Suggest: site only"}
-            </span>
-            <button type="button" onClick={() => onSkip(pubKey, !status.socialSkip)} aria-pressed={status.socialSkip}
-              title={status.socialSkip ? "Skipped for YouTube, Instagram and TikTok — click to un-skip" : "Skip this one on YouTube, Instagram and TikTok (the site stays)"}
-              style={{ border: `1px solid ${status.socialSkip ? "#FF8B7E88" : V3_EDGE}`, background: status.socialSkip ? "rgba(255,139,126,0.12)" : "transparent", color: status.socialSkip ? "#FF8B7E" : V3_MUTED, borderRadius: 8, padding: "5px 9px", fontSize: 11.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
-              ⊘ {status.socialSkip ? "skipped" : "skip socials"}
-            </button>
-          </div>
-        );
-      })()}
-
+      {/* A video skipped on the socials (set on Quick post, QuickPostSocial.tsx) shows struck through. */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {PUBLISH_DESTINATIONS.map((d) => {
           const s = status[d];

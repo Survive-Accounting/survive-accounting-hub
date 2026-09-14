@@ -54,6 +54,7 @@ import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as SchoolIndexRouteImport } from './routes/$school.index'
 import { Route as VaTokenRouteImport } from './routes/va.$token'
 import { Route as V4TodoRouteImport } from './routes/v4.todo'
+import { Route as V4BreathersRouteImport } from './routes/v4.breathers'
 import { Route as V3ValuesRouteImport } from './routes/v3.values'
 import { Route as V3TeleprompterRouteImport } from './routes/v3.teleprompter'
 import { Route as V3QuickPostRouteImport } from './routes/v3.quick-post'
@@ -443,6 +444,11 @@ const VaTokenRoute = VaTokenRouteImport.update({
 const V4TodoRoute = V4TodoRouteImport.update({
   id: '/v4/todo',
   path: '/v4/todo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V4BreathersRoute = V4BreathersRouteImport.update({
+  id: '/v4/breathers',
+  path: '/v4/breathers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const V3ValuesRoute = V3ValuesRouteImport.update({
@@ -1415,6 +1421,7 @@ export interface FileRoutesByFullPath {
   '/v3/quick-post': typeof V3QuickPostRoute
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
+  '/v4/breathers': typeof V4BreathersRoute
   '/v4/todo': typeof V4TodoRoute
   '/va/$token': typeof VaTokenRoute
   '/$school/': typeof SchoolIndexRoute
@@ -1624,6 +1631,7 @@ export interface FileRoutesByTo {
   '/v3/quick-post': typeof V3QuickPostRoute
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
+  '/v4/breathers': typeof V4BreathersRoute
   '/v4/todo': typeof V4TodoRoute
   '/va/$token': typeof VaTokenRoute
   '/$school': typeof SchoolIndexRoute
@@ -1836,6 +1844,7 @@ export interface FileRoutesById {
   '/v3/quick-post': typeof V3QuickPostRoute
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
+  '/v4/breathers': typeof V4BreathersRoute
   '/v4/todo': typeof V4TodoRoute
   '/va/$token': typeof VaTokenRoute
   '/$school/': typeof SchoolIndexRoute
@@ -2050,6 +2059,7 @@ export interface FileRouteTypes {
     | '/v3/quick-post'
     | '/v3/teleprompter'
     | '/v3/values'
+    | '/v4/breathers'
     | '/v4/todo'
     | '/va/$token'
     | '/$school/'
@@ -2259,6 +2269,7 @@ export interface FileRouteTypes {
     | '/v3/quick-post'
     | '/v3/teleprompter'
     | '/v3/values'
+    | '/v4/breathers'
     | '/v4/todo'
     | '/va/$token'
     | '/$school'
@@ -2470,6 +2481,7 @@ export interface FileRouteTypes {
     | '/v3/quick-post'
     | '/v3/teleprompter'
     | '/v3/values'
+    | '/v4/breathers'
     | '/v4/todo'
     | '/va/$token'
     | '/$school/'
@@ -2653,6 +2665,7 @@ export interface RootRouteChildren {
   V3QuickPostRoute: typeof V3QuickPostRoute
   V3TeleprompterRoute: typeof V3TeleprompterRoute
   V3ValuesRoute: typeof V3ValuesRoute
+  V4BreathersRoute: typeof V4BreathersRoute
   V4TodoRoute: typeof V4TodoRoute
   VaTokenRoute: typeof VaTokenRoute
   SchoolIndexRoute: typeof SchoolIndexRoute
@@ -3026,6 +3039,13 @@ declare module '@tanstack/react-router' {
       path: '/v4/todo'
       fullPath: '/v4/todo'
       preLoaderRoute: typeof V4TodoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v4/breathers': {
+      id: '/v4/breathers'
+      path: '/v4/breathers'
+      fullPath: '/v4/breathers'
+      preLoaderRoute: typeof V4BreathersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/v3/values': {
@@ -4498,6 +4518,7 @@ const rootRouteChildren: RootRouteChildren = {
   V3QuickPostRoute: V3QuickPostRoute,
   V3TeleprompterRoute: V3TeleprompterRoute,
   V3ValuesRoute: V3ValuesRoute,
+  V4BreathersRoute: V4BreathersRoute,
   V4TodoRoute: V4TodoRoute,
   VaTokenRoute: VaTokenRoute,
   SchoolIndexRoute: SchoolIndexRoute,
