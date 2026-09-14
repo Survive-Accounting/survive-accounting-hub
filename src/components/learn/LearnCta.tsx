@@ -200,7 +200,7 @@ export function LearnCta({
     return (
       <button
         onClick={reopen}
-        className="fixed bottom-3 right-3 z-[90] flex items-center gap-1.5 rounded-full px-3.5 py-2 shadow-xl"
+        className="fixed bottom-3 left-3 z-[90] flex items-center gap-1.5 rounded-full px-3.5 py-2 shadow-xl"
         style={{ background: AMBER, color: "#0B1220", fontFamily: BRAND_SANS }}
       >
         <Users size={15} /> <span className="text-[12.5px] font-black">Your chapter</span>

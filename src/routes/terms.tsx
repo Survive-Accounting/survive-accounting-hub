@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import SiteNavbar from "@/components/landing/SiteNavbar";
+import { SiteHeader } from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/landing/SiteFooter";
 
 export const Route = createFileRoute("/terms")({
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/terms")({
 function TermsPage() {
   return (
     <div className="min-h-screen bg-background">
-      <SiteNavbar />
+      <SiteHeader />
       <div className="mx-auto max-w-2xl px-6 py-16 text-sm leading-relaxed text-foreground">
         <h1 className="mb-2 font-sans text-3xl font-bold tracking-tight">Terms of Service</h1>
         <p className="mb-8 text-muted-foreground">Last updated: June 11, 2026 · Survive Accounting / Earned Wisdom, LLC</p>

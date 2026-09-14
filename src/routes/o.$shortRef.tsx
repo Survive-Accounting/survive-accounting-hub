@@ -8,6 +8,7 @@
 import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { SiteHeader } from "@/components/site/SiteHeader";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { Check, CheckCircle2, Loader2, Search, Upload } from "lucide-react";
@@ -201,20 +202,7 @@ function OnboardingPage() {
     // Calmer, focused "flow" background — deliberately distinct from the
     // marketing homepage (soft tinted wash, lots of whitespace).
     <div className="min-h-screen" style={{ background: "linear-gradient(180deg, #EEF2F9 0%, #FAFAF7 240px)", fontFamily: "Inter, -apple-system, sans-serif" }}>
-      <header
-        className="sticky top-0 z-40 w-full border-b"
-        style={{
-          background: "linear-gradient(180deg, rgba(20,33,61,0.98) 0%, rgba(16,26,49,0.98) 100%)",
-          borderColor: "rgba(255,255,255,0.08)",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.25), 0 1px 0 rgba(255,255,255,0.04) inset",
-        }}
-      >
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center px-4 sm:px-6">
-          <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center">
-            <img src={LOGO_URL} alt="Survive Accounting" className="h-5 w-auto select-none sm:h-[22px]" draggable={false} />
-          </a>
-        </div>
-      </header>
+      <SiteHeader />
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 pb-16 pt-8 sm:pt-12 lg:grid-cols-[1fr_240px]">
         <div className="min-w-0">
           <StepBar current={step} />

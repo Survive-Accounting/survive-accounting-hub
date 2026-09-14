@@ -3,7 +3,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 
-import SiteNavbar from "@/components/landing/SiteNavbar";
+import { SiteHeader } from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/landing/SiteFooter";
 import FreeVideoCapture from "@/components/landing/FreeVideoCapture";
 
@@ -38,9 +38,9 @@ function BeyondPage() {
   const navigate = useNavigate();
   return (
     <div className="min-h-screen" style={{ background: "#F8FAFC" }}>
-      <SiteNavbar onBookTutoring={() => navigate({ to: "/onboard" })} />
+      <SiteHeader />
 
-      <section className="px-4 pt-28 pb-12 text-center sm:pt-32">
+      <section className="px-4 pt-12 pb-12 text-center sm:pt-16">
         <p className="text-sm font-semibold uppercase tracking-wide" style={{ color: RED }}>Beyond the exam</p>
         <h1 className="mx-auto mt-2 max-w-2xl text-3xl font-bold leading-tight sm:text-4xl" style={{ color: NAVY }}>
           Accounting is more than passing the test

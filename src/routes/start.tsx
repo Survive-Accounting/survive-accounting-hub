@@ -7,7 +7,7 @@ import { Loader2, Upload, CheckCircle2, FileText, X } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { z } from "zod";
 
-import SiteNavbar from "@/components/landing/SiteNavbar";
+import { SiteHeader } from "@/components/site/SiteHeader";
 import Hero from "@/components/landing/Hero";
 import SiteFooter from "@/components/landing/SiteFooter";
 
@@ -53,7 +53,7 @@ function StartPage() {
     <div className="min-h-screen bg-background">
       {/* Top-right "Book Tutoring" routes into the onboarding flow (/onboard
           creates the conversation and redirects to /o/{short_ref}). */}
-      <SiteNavbar onBookTutoring={() => navigate({ to: "/onboard" })} />
+      <SiteHeader />
       <Hero
         headline="Get help with your accounting course"
         subtext={`Upload your syllabus, and I'll respond within 1 business day if I'm a good fit to tutor you.`}

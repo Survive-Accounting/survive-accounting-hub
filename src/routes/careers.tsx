@@ -6,7 +6,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 
-import SiteNavbar from "@/components/landing/SiteNavbar";
+import { SiteHeader } from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/landing/SiteFooter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,7 +105,7 @@ function CareersPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <SiteNavbar />
+      <SiteHeader />
 
       <section className="mx-auto max-w-2xl px-6 pb-10 pt-16 text-center">
         <h1 className="font-sans text-4xl font-bold tracking-tight text-foreground text-balance">Build this with us</h1>

@@ -34,7 +34,6 @@ import {
   FeatureValueStrip, MARKETING_CSS, MARKETING_HERO_ID, SocialProofSection,
   TrustChips, TutorBioModal, TutorCard,
 } from "@/components/site/Marketing";
-import { LearnTextLee } from "@/components/learn/LearnTextLee";
 import { useNavigate } from "@tanstack/react-router";
 import { SiteHeader, useBlackDocument, useNavyDocument } from "@/components/site/SiteHeader";
 import { Footer } from "@/components/site/SiteFooter";
@@ -369,7 +368,6 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           on the way down. Framed photo above it: the same face you just read about, offering help. */}
       {/* /learn's Text Lee (Lee, 2026-09-11: "Change the / text Lee floating modal to match the one
           on /learn") — the same circle, badge and desktop card; the home's tokens through its fallbacks. */}
-      <LearnTextLee bottomOffset={16} />
       {waitlistOpen && (
         <Exam1LaunchModal
           campusId={schoolObj?.campusId ?? null}

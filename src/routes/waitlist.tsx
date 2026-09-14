@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Toaster } from "sonner";
+import { SiteHeader } from "@/components/site/SiteHeader";
 import { ImageIcon, Menu, X } from "lucide-react";
 
 import Hero from "@/components/landing/Hero";
@@ -92,61 +93,7 @@ function SiteNav() {
     setMenuOpen(false);
   };
   return (
-    <header
-      className="sticky top-0 z-50 w-full transition-shadow duration-300"
-      style={{
-        background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`,
-        boxShadow: scrolled
-          ? "0 10px 28px rgba(168,16,31,0.45)"
-          : "0 4px 16px rgba(168,16,31,0.30)",
-      }}
-    >
-      <div
-        className={`mx-auto flex w-full max-w-6xl items-center px-4 transition-all duration-300 sm:px-6 ${
-          scrolled ? "h-12 sm:h-14" : "h-14 sm:h-16"
-        }`}
-      >
-        <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center">
-          <img
-            src={LOGO_URL}
-            alt="Survive Accounting"
-            className={`w-auto select-none transition-all duration-300 ${scrolled ? "h-[18px] sm:h-5" : "h-5 sm:h-[22px]"}`}
-            draggable={false}
-          />
-        </a>
-
-        {/* Desktop links */}
-        <nav className="ml-auto hidden items-center gap-1 sm:flex">
-          {NAV_LINKS.map((l) => (
-            <a key={l.id} href={`/#${l.id}`} onClick={scrollTo(l.id)}
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition-colors hover:text-white sm:text-[15px]">
-              {l.label}
-            </a>
-          ))}
-        </nav>
-
-        {/* Mobile hamburger */}
-        <button type="button" aria-label="Menu" aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((v) => !v)}
-          className="ml-auto inline-flex items-center justify-center rounded-lg p-1.5 text-white transition-colors hover:bg-white/10 sm:hidden">
-          {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
-      </div>
-
-      {/* Mobile menu */}
-      {menuOpen && (
-        <div className="sm:hidden" style={{ background: "#A8101F", borderTop: "1px solid rgba(255,255,255,0.15)" }}>
-          <nav className="mx-auto flex max-w-6xl flex-col px-4 py-1.5">
-            {NAV_LINKS.map((l) => (
-              <a key={l.id} href={`/#${l.id}`} onClick={scrollTo(l.id)}
-                className="rounded-lg px-2 py-3 text-base font-semibold text-white/90 hover:text-white">
-                {l.label}
-              </a>
-            ))}
-          </nav>
-        </div>
-      )}
-    </header>
+    <SiteHeader />
   );
 }
 

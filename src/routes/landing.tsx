@@ -694,7 +694,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, chapterGa
       {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
       {/* One floating "Text Lee" pill replaces the full-width sticky bar (which repeated the
           navbar). Greek pages keep their own bottom CTA instead. */}
-      {!greekOrg && <FloatingContact heroId={MARKETING_HERO_ID} tel={TEL} phone={PHONE} />}
+      {/* FloatingContact retired 2026-09-14: the site-wide chat bubble (SiteChat) is on this page now. */}
 
       {syllabusOpen && <SyllabusModal school={school} framing={syllabusFraming} onClose={() => { setSyllabusOpen(false); setSyllabusFraming(null); }} />}
       {notifyReq && <NotifyModal req={notifyReq} school={school} professorName={professor ? (professor.last || professor.name) : null} isTest={outerTestMode.enabled} onClose={() => setNotifyReq(null)} />}

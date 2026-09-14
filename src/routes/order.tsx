@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { SiteHeader } from "@/components/site/SiteHeader";
 import { Toaster, toast } from "sonner";
 import { Check, ChevronLeft, ChevronRight, Loader2, Paperclip, Pencil, UploadCloud, X } from "lucide-react";
 
@@ -301,14 +302,7 @@ function Intro({ onStart }: { onStart: () => void }) {
 // ---------- chrome ----------
 function Header() {
   return (
-    <header className="sticky top-0 z-40 w-full border-b"
-      style={{ background: "linear-gradient(180deg, rgba(20,33,61,0.98) 0%, rgba(16,26,49,0.98) 100%)", borderColor: "rgba(255,255,255,0.08)" }}>
-      <div className="mx-auto flex h-20 w-full max-w-2xl items-center justify-center px-4">
-        <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center">
-          <img src={LOGO_URL} alt="Survive Accounting" className="h-10 w-auto select-none" draggable={false} />
-        </a>
-      </div>
-    </header>
+    <SiteHeader />
   );
 }
 function StepFooter() {

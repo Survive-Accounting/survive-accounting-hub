@@ -14,7 +14,7 @@
 // performance measure, per chapter or aggregated.
 import { createFileRoute } from "@tanstack/react-router";
 import { frameThemeVars } from "@/components/frames/frame-theme";
-import { useNavyDocument } from "@/components/site/SiteHeader";
+import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { useEffect, useState } from "react";
 
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -111,6 +111,7 @@ function CouncilPage({ page }: { page: CouncilPage }) {
         ["--sa-bolt-1" as string]: bolt.c1, ["--sa-bolt-2" as string]: bolt.c2,
       }}
     >
+      <SiteHeader />
       <main className="mx-auto w-full max-w-[760px] px-5 py-12">
         <header className="text-center">
           <div className="flex items-center justify-center gap-2.5">

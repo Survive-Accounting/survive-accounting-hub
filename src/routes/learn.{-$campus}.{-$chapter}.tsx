@@ -77,7 +77,7 @@ import { rememberCampus } from "@/lib/campus-prefs";
 import { chapterPickKey, LearnTop, usePickedChapter } from "@/components/learn/LearnTop";
 import type { RailKey } from "@/components/learn/LearnRail";
 import { LearnHome, type HomeSet, type Plan } from "@/components/learn/LearnHome";
-import { LearnTextLee } from "@/components/learn/LearnTextLee";
+import { HideChatWhile } from "@/components/site/SiteChat";
 import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
 import { ReviewSheet } from "@/components/learn/ReviewSheet";
 import { CHAPTER_JOINED_EVENT, LearnChapterModule, readJoined } from "@/components/learn/LearnChapterModule";
@@ -705,7 +705,8 @@ function LearnShell() {
       )}
       {/* TEXT LEE, floating bottom-right on every tier of the home (not over the player's own
           action column). */}
-      {!inPlayer && !isLoading && <LearnTextLee narrow={isNarrow} />}
+      {/* The site-wide chat (SiteChat, in __root) hides while the player covers the page. */}
+      <HideChatWhile on={inPlayer} />
 
       {pickerOpen && <LearnSchoolSheet current={school} onClose={() => setPickerOpen(false)} onPick={pickSchool} />}
       {search.looks && <LearnLookPicker look={look} onPick={pickLook} />}

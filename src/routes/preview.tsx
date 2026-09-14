@@ -9,6 +9,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Toaster, toast } from "sonner";
+import { SiteHeader } from "@/components/site/SiteHeader";
 import { Bell, BookOpen, FileText, Loader2, Lock, MessageSquarePlus, ThumbsUp, Video } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -66,15 +67,7 @@ function PreviewPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, sans-serif" }}>
-      <header className="sticky top-0 z-40 w-full border-b"
-        style={{ background: "linear-gradient(180deg, rgba(20,33,61,0.98) 0%, rgba(16,26,49,0.98) 100%)", borderColor: "rgba(255,255,255,0.08)" }}>
-        <div className="mx-auto flex h-14 w-full max-w-5xl items-center px-4 sm:px-6">
-          <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center">
-            <img src={LOGO_URL} alt="Survive Accounting" className="h-5 w-auto select-none sm:h-[22px]" draggable={false} />
-          </a>
-          {entered && <span className="ml-auto text-xs text-white/55">Preview · {email}</span>}
-        </div>
-      </header>
+      <SiteHeader />
 
       {!entered ? (
         <EmailGate

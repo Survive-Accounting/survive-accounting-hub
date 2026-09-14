@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import SiteNavbar from "@/components/landing/SiteNavbar";
+import { SiteHeader } from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/landing/SiteFooter";
 import { adsOptedOut, setAdsOptOut } from "@/lib/retargeting";
 
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/privacy")({
 function PrivacyPage() {
   return (
     <div className="min-h-screen bg-background">
-      <SiteNavbar />
+      <SiteHeader />
       <div className="mx-auto max-w-2xl px-6 py-16 text-sm leading-relaxed text-foreground">
         <h1 className="mb-2 font-sans text-3xl font-bold tracking-tight">Privacy Policy</h1>
         <p className="mb-8 text-muted-foreground">Last updated: September 11, 2026 · Survive Accounting / Earned Wisdom, LLC</p>

@@ -5,6 +5,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { SiteHeader } from "@/components/site/SiteHeader";
 import { INTRO_CALL_BOOKING_URL } from "@/lib/site-config";
 
 const NAVY = "#14213D";
@@ -29,13 +30,7 @@ function WelcomePage() {
 
   return (
     <div className="min-h-screen" style={{ background: "#FAFAF7", fontFamily: "Inter, sans-serif" }}>
-      <header className="w-full border-b" style={{ background: "linear-gradient(180deg, rgba(20,33,61,0.98) 0%, rgba(16,26,49,0.98) 100%)", borderColor: "rgba(255,255,255,0.08)" }}>
-        <div className="mx-auto flex h-16 w-full max-w-3xl items-center px-4">
-          <a href="/" aria-label="Survive Accounting — home">
-            <img src={LOGO_URL} alt="Survive Accounting" className="h-5 w-auto sm:h-[22px]" draggable={false} />
-          </a>
-        </div>
-      </header>
+      <SiteHeader />
 
       <div className="mx-auto w-full max-w-xl px-4 py-12 sm:py-16">
         <div className="rounded-3xl bg-white p-7 text-center shadow-[0_10px_40px_-15px_rgba(20,33,61,0.2)] sm:p-10">

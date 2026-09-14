@@ -335,7 +335,7 @@ const homeMenuLinks = (base: string): NavItem[] => [
   { label: "Contact", href: "", contact: true },
 ];
 
-export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = false }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. */ homeNav?: boolean; } = {}) {
+export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = true }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. DEFAULT since 2026-09-14 (Lee: "standardize nav bar across the app. Each should match the home page"); pass false for the old full bar. */ homeNav?: boolean; } = {}) {
   const bar = useRef<HTMLElement>(null);
   // The Greek link carries the known campus. One source (campus context), so the navbar can never
   // name a different school from the hero beside it; pages outside a provider get the bare link.
