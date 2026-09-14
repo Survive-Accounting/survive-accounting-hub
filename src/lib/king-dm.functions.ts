@@ -359,6 +359,9 @@ export interface ConsolePlan {
   entries: PlanEntry[];
   /** How much is left overall, so the day's list reads as a slice of something finite. */
   totals: { unsent: number; followUpsDue: number; sentToday: number };
+  /** MARK UNSENT (Lee, 2026-09-14: "We need to mark unsent"): today's sends, newest first, so a
+   *  mis-tick can be taken back — ticking Sent drops a row out of the list above. */
+  sentToday: Array<{ contactId: string; label: string; campusLabel: string; handle: string; at: string }>;
 }
 
 /** What King should send today, across the live campuses, newest-stale follow-ups first. Derived
@@ -376,7 +379,7 @@ export const dmConsolePlan = createServerFn({ method: "GET" })
     const ids = campuses.map((c) => c.id);
     const slugOf = new Map<string, string>(campuses.map((c) => [c.id, c.slug]));
     const labelOf = new Map<string, string>(TARGET_CAMPUSES.map((t) => [t.slug, t.label]));
-    if (!ids.length) return { date: now.toISOString().slice(0, 10), entries: [], totals: { unsent: 0, followUpsDue: 0, sentToday: 0 } };
+    if (!ids.length) return { date: now.toISOString().slice(0, 10), entries: [], totals: { unsent: 0, followUpsDue: 0, sentToday: 0 }, sentToday: [] };
 
     const [{ data: qc }, { data: dms }, { data: chapters }] = await Promise.all([
       db.from("growth_contact_qc").select("id,contact_id,campus_id,entity_type,entity_id,council_type,name,role,instagram,ig_role_account,contact_type,org_type,org_name,first_name").in("campus_id", ids).limit(20000),
@@ -443,5 +446,14 @@ export const dmConsolePlan = createServerFn({ method: "GET" })
       followUpsDue: items.filter((i) => i.reason === "follow_up").length,
       sentToday: ((dms ?? []) as any[]).filter((d) => d.sent_at && new Date(d.sent_at) >= midnight).length,
     };
-    return { date: now.toISOString().slice(0, 10), entries, totals };
+    const sentToday: ConsolePlan["sentToday"] = ((dms ?? []) as any[])
+      .filter((d) => d.sent_at && new Date(d.sent_at) >= midnight && meta.has(d.contact_qc_id))
+      .sort((a, b) => String(b.sent_at).localeCompare(String(a.sent_at)))
+      .map((d) => {
+        const m = meta.get(d.contact_qc_id);
+        const slug = slugOf.get(m.campusId) ?? "";
+        const label = m.chapterName ?? (!m.isOrg && m.name ? m.name : "Contact");
+        return { contactId: d.contact_qc_id, label: m.chapterName && !m.isOrg && m.name ? `${label} · ${m.name}` : label, campusLabel: labelOf.get(slug) ?? slug, handle: m.handle, at: d.sent_at };
+      });
+    return { date: now.toISOString().slice(0, 10), entries, totals, sentToday };
   });

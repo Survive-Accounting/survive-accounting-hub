@@ -175,7 +175,7 @@ function CampusRow({ c, greyed, onOpen, onBoard }: { c: ConsoleCampus; greyed?: 
 
 /** TODAY — the only list King has to work. Follow-ups first, then the biggest unsent chapters,
  *  interleaved so every live campus moves each day. */
-function TodayList({ q, target }: { q: ReturnType<typeof useQuery<{ date: string; entries: PlanEntry[]; totals: { unsent: number; followUpsDue: number; sentToday: number } }>>; target: number }) {
+function TodayList({ q, target }: { q: ReturnType<typeof useQuery<{ date: string; entries: PlanEntry[]; totals: { unsent: number; followUpsDue: number; sentToday: number }; sentToday: Array<{ contactId: string; label: string; campusLabel: string; handle: string; at: string }> }>>; target: number }) {
   const plan = q.data;
   const done = plan?.totals.sentToday ?? 0;
   const pct = Math.min(100, Math.round((done / Math.max(1, target)) * 100));
@@ -200,7 +200,41 @@ function TodayList({ q, target }: { q: ReturnType<typeof useQuery<{ date: string
       <div className="divide-y divide-border/60">
         {plan?.entries.map((e) => <PlanRow key={e.contactId} e={e} />)}
       </div>
+      {plan && plan.sentToday.length > 0 && <SentToday rows={plan.sentToday} />}
     </section>
+  );
+}
+
+/** SENT TODAY — each with Unsent, for a tick that went on by mistake (or a DM that didn't go through). */
+function SentToday({ rows }: { rows: Array<{ contactId: string; label: string; campusLabel: string; handle: string; at: string }> }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const unsend = useMutation({
+    mutationFn: (contactId: string) => growthIgMarkSent({ data: { contactId, sent: false } }),
+    onSuccess: () => { toast.success("Marked unsent — it's back on the list."); void qc.invalidateQueries({ queryKey: ["dm-plan"] }); void qc.invalidateQueries({ queryKey: ["dm-board"] }); },
+    onError: (err: Error) => toast.error(err.message),
+  });
+  return (
+    <div className="border-t border-border/60 pt-2">
+      <button onClick={() => setOpen((v) => !v)} className="text-[11px] font-medium text-muted-foreground hover:text-foreground">
+        {open ? "▾" : "▸"} Sent today ({rows.length})
+      </button>
+      {open && (
+        <div className="mt-1 divide-y divide-border/40">
+          {rows.map((r) => (
+            <div key={r.contactId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[12px]">{r.label}</div>
+                <div className="text-[10.5px] text-muted-foreground">{r.campusLabel} · @{r.handle} · {new Date(r.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</div>
+              </div>
+              <button onClick={() => unsend.mutate(r.contactId)} disabled={unsend.isPending && unsend.variables === r.contactId} className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11px] font-medium hover:bg-muted disabled:opacity-40">
+                {unsend.isPending && unsend.variables === r.contactId ? <Loader2 className="size-3.5 animate-spin" /> : null} Mark unsent
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -213,7 +247,9 @@ function PlanRow({ e }: { e: PlanEntry }) {
   const mark = useMutation({
     mutationFn: () => growthIgMarkSent({ data: { contactId: e.contactId, sent: true } }),
     onSuccess: () => {
-      toast.success("Marked sent.");
+      toast.success("Marked sent.", {
+        action: { label: "Undo", onClick: () => { void growthIgMarkSent({ data: { contactId: e.contactId, sent: false } }).then(() => { void qc.invalidateQueries({ queryKey: ["dm-plan"] }); void qc.invalidateQueries({ queryKey: ["dm-board"] }); }); } },
+      });
       void qc.invalidateQueries({ queryKey: ["dm-plan"] });
       void qc.invalidateQueries({ queryKey: ["dm-board"] });
     },
