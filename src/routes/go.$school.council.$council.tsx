@@ -28,7 +28,7 @@ import { isContactRef } from "@/lib/contact-ref";
 import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { notifyChairAction } from "@/lib/chair-alerts.functions";
 import { currentContactRef } from "@/lib/contact-ref";
-import { ogMeta } from "@/lib/og";
+import { ogMeta , councilOgImage } from "@/lib/og";
 
 export const Route = createFileRoute("/go/$school/council/$council")({
   // `k` is OPTIONAL in the type, not merely undefined-able: the public promo is navigated to with
@@ -57,6 +57,7 @@ export const Route = createFileRoute("/go/$school/council/$council")({
           title: p ? `Free ${p.courseCode ?? "intro accounting"} exam prep for every ${p.councilName} chapter at ${p.schoolName}.` : "Survive Accounting for your council",
           description: "Cram videos and practice exams for the members taking it. Exam 1 is free for every chapter.",
           path: `/go/${params.school}/council/${params.council}`,
+          image: councilOgImage(params.school, params.council),
         }),
         // UNLISTED. A DM destination; also excluded from the sitemap, which lists public routes only.
         { name: "robots", content: "noindex, nofollow" },

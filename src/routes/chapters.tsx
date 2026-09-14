@@ -22,6 +22,8 @@
 //
 // Navy/bolt/cream. Krug: one decision per screen, no field we don't need today.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 
 import { ALL_SCHOOLS, schoolById, schoolBySlug } from "@/lib/schools";
 import { councilBySlug } from "@/lib/greek-councils.functions";
@@ -31,7 +33,7 @@ import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { readCampusPrefs } from "@/lib/campus-prefs.functions";
-import { ogMeta } from "@/lib/og";
+import { councilOgImage, ogMeta } from "@/lib/og";
 
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
@@ -53,6 +55,7 @@ export const Route = createFileRoute("/chapters")({
           title: `${school.name} ${school.courseCode ?? "Accounting"} — Free Exam 1 Prep`,
           description: "Cram videos and practice exams created by a pro tutor. Get ready for your first accounting exam—for free.",
           path: `/chapters?school=${encodeURIComponent(school.slug)}&c=${encodeURIComponent(search.c!)}`,
+          image: councilOgImage(school.slug, search.c!),
         })
       : ogMeta({
           title: "Fraternities & sororities: find your chapter.",
@@ -134,10 +137,10 @@ function ChaptersPage() {
           <h1 className={`${council ? "mt-2" : "mt-5"} text-[26px] font-black sm:text-[32px]`} style={{ letterSpacing: "-0.01em" }}>Find your chapter.</h1>
           <p className="mt-2 max-w-md text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--brand-cream)", opacity: 0.88, fontFamily: BRAND_SANS }}>
             {council
-              ? `Pick your chapter to get your members' link, a GroupMe post and a flyer for the house${code ? ` — free ${code} Exam 1 for everyone.` : "."}`
+              ? "Pick your chapter to get your members' link, a GroupMe post and a flyer for the house."
               : code
-              ? `Free ${code} cram videos + practice exams for your whole chapter.`
-              : "Free Exam 1 cram videos for your whole chapter."}
+              ? `${code} cram videos + practice exams for your whole chapter.`
+              : "Exam 1 cram videos for your whole chapter."}
           </p>
           <div className="mt-6 w-full max-w-sm">
             <FindMyChapter />
@@ -166,6 +169,25 @@ function FindMyChapter() {
   // sent them here naming itself); failing that, the campus the visitor implied or picked on an
   // earlier visit, read from the cookie by the loader so server and client agree.
   const stored = storedSlug ?? undefined;
+  // THE LOADING STATE (Lee, 2026-09-14: "Need a loading animation once a scholarship chair chooses
+  // their chapter"): the pick swaps the finder for the boiling bolt and "Opening <chapter>'s page…",
+  // with a direct link if the page hasn't come up in 8 seconds.
+  const [opening, setOpening] = useState<{ name: string; href: string } | null>(null);
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { if (!opening) return; const t = window.setTimeout(() => setSlow(true), 8000); return () => window.clearTimeout(t); }, [opening]);
+  if (opening) {
+    return (
+      <div role="status" aria-live="polite" className="flex flex-col items-center gap-3 rounded-2xl px-5 py-7" style={{ background: "var(--bg-surface, rgba(22,34,61,0.9))", border: "1px solid var(--border-default, rgba(245,239,230,0.14))", fontFamily: BRAND_SANS }}>
+        <BoltBoil height={62} />
+        <div className="text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY }}>Opening {opening.name}&apos;s page…</div>
+        <div className="h-1 w-full max-w-[220px] overflow-hidden rounded-full" style={{ background: "rgba(245,239,230,0.14)" }}>
+          <div className="sa-open-bar h-full rounded-full" style={{ background: "var(--accent)" }} />
+        </div>
+        <style>{`@keyframes sa-open { from { transform: translateX(-100%); } to { transform: translateX(260%); } } .sa-open-bar { width: 40%; animation: sa-open 1.1s ease-in-out infinite; } @media (prefers-reduced-motion: reduce) { .sa-open-bar { animation: none; width: 100%; } }`}</style>
+        {slow && <a href={opening.href} className="text-[12.5px] font-bold underline underline-offset-4" style={{ color: "var(--brand-cream)" }}>Taking a while? Tap to open it</a>}
+      </div>
+    );
+  }
 
   return (
     <ChapterFinder
@@ -182,10 +204,17 @@ function FindMyChapter() {
       // was a third click that confirmed the second one.
       autoPick
       initialSchool={preselect ?? stored}
-      onPick={(school, chapter) => {
+      onPick={(school, chapter, chapterName) => {
         // The chair portal opens the chapter's CHAIR page; the member hallway opens /learn.
-        if (c) { void nav({ href: `/go/${encodeURIComponent(school)}/${encodeURIComponent(chapter)}?from=${encodeURIComponent(c)}` }); return; }
-        void nav({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: schoolBySlug(school)?.id ?? school, chapter } });
+        if (c) {
+          const href = `/go/${encodeURIComponent(school)}/${encodeURIComponent(chapter)}?from=${encodeURIComponent(c)}`;
+          setOpening({ name: chapterName, href });
+          void nav({ href });
+          return;
+        }
+        const campus = schoolBySlug(school)?.id ?? school;
+        setOpening({ name: chapterName, href: `/learn/${encodeURIComponent(campus)}/${encodeURIComponent(chapter)}` });
+        void nav({ to: "/learn/{-$campus}/{-$chapter}", params: { campus, chapter } });
       }}
     />
   );

@@ -201,6 +201,7 @@ import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.
 import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_.kit.$school.$chapter'
 import { Route as ApiPartnerKitSchoolCouncilRouteImport } from './routes/api.partner-kit.$school.$council'
 import { Route as ApiOgSchoolChapterRouteImport } from './routes/api.og.$school.$chapter'
+import { Route as ApiOgCouncilSchoolCouncilRouteImport } from './routes/api.og-council.$school.$council'
 import { Route as ApiFlyerSchoolChapterRouteImport } from './routes/api.flyer.$school.$chapter'
 import { Route as ApiChapterKitSchoolChapterRouteImport } from './routes/api.chapter-kit.$school.$chapter'
 import { Route as AdminRepsViewPartnerIdRouteImport } from './routes/admin.reps.view.$partnerId'
@@ -1196,6 +1197,12 @@ const ApiOgSchoolChapterRoute = ApiOgSchoolChapterRouteImport.update({
   path: '/api/og/$school/$chapter',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOgCouncilSchoolCouncilRoute =
+  ApiOgCouncilSchoolCouncilRouteImport.update({
+    id: '/api/og-council/$school/$council',
+    path: '/api/og-council/$school/$council',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiFlyerSchoolChapterRoute = ApiFlyerSchoolChapterRouteImport.update({
   id: '/api/flyer/$school/$chapter',
   path: '/api/flyer/$school/$chapter',
@@ -1486,6 +1493,7 @@ export interface FileRoutesByFullPath {
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/chapter-kit/$school/$chapter': typeof ApiChapterKitSchoolChapterRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
+  '/api/og-council/$school/$council': typeof ApiOgCouncilSchoolCouncilRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
@@ -1693,6 +1701,7 @@ export interface FileRoutesByTo {
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/chapter-kit/$school/$chapter': typeof ApiChapterKitSchoolChapterRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
+  '/api/og-council/$school/$council': typeof ApiOgCouncilSchoolCouncilRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
@@ -1905,6 +1914,7 @@ export interface FileRoutesById {
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/chapter-kit/$school/$chapter': typeof ApiChapterKitSchoolChapterRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
+  '/api/og-council/$school/$council': typeof ApiOgCouncilSchoolCouncilRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
   '/chapters_/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
@@ -2118,6 +2128,7 @@ export interface FileRouteTypes {
     | '/admin/reps/view/$partnerId'
     | '/api/chapter-kit/$school/$chapter'
     | '/api/flyer/$school/$chapter'
+    | '/api/og-council/$school/$council'
     | '/api/og/$school/$chapter'
     | '/api/partner-kit/$school/$council'
     | '/chapters/kit/$school/$chapter'
@@ -2325,6 +2336,7 @@ export interface FileRouteTypes {
     | '/admin/reps/view/$partnerId'
     | '/api/chapter-kit/$school/$chapter'
     | '/api/flyer/$school/$chapter'
+    | '/api/og-council/$school/$council'
     | '/api/og/$school/$chapter'
     | '/api/partner-kit/$school/$council'
     | '/chapters/kit/$school/$chapter'
@@ -2536,6 +2548,7 @@ export interface FileRouteTypes {
     | '/admin/reps/view/$partnerId'
     | '/api/chapter-kit/$school/$chapter'
     | '/api/flyer/$school/$chapter'
+    | '/api/og-council/$school/$council'
     | '/api/og/$school/$chapter'
     | '/api/partner-kit/$school/$council'
     | '/chapters_/kit/$school/$chapter'
@@ -2677,6 +2690,7 @@ export interface RootRouteChildren {
   V3TopicIndexRoute: typeof V3TopicIndexRoute
   ApiChapterKitSchoolChapterRoute: typeof ApiChapterKitSchoolChapterRoute
   ApiFlyerSchoolChapterRoute: typeof ApiFlyerSchoolChapterRoute
+  ApiOgCouncilSchoolCouncilRoute: typeof ApiOgCouncilSchoolCouncilRoute
   ApiOgSchoolChapterRoute: typeof ApiOgSchoolChapterRoute
   ApiPartnerKitSchoolCouncilRoute: typeof ApiPartnerKitSchoolCouncilRoute
   ChaptersKitSchoolChapterRoute: typeof ChaptersKitSchoolChapterRoute
@@ -4043,6 +4057,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOgSchoolChapterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/og-council/$school/$council': {
+      id: '/api/og-council/$school/$council'
+      path: '/api/og-council/$school/$council'
+      fullPath: '/api/og-council/$school/$council'
+      preLoaderRoute: typeof ApiOgCouncilSchoolCouncilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/flyer/$school/$chapter': {
       id: '/api/flyer/$school/$chapter'
       path: '/api/flyer/$school/$chapter'
@@ -4515,6 +4536,7 @@ const rootRouteChildren: RootRouteChildren = {
   V3TopicIndexRoute: V3TopicIndexRoute,
   ApiChapterKitSchoolChapterRoute: ApiChapterKitSchoolChapterRoute,
   ApiFlyerSchoolChapterRoute: ApiFlyerSchoolChapterRoute,
+  ApiOgCouncilSchoolCouncilRoute: ApiOgCouncilSchoolCouncilRoute,
   ApiOgSchoolChapterRoute: ApiOgSchoolChapterRoute,
   ApiPartnerKitSchoolCouncilRoute: ApiPartnerKitSchoolCouncilRoute,
   ChaptersKitSchoolChapterRoute: ChaptersKitSchoolChapterRoute,

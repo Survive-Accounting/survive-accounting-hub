@@ -23,7 +23,7 @@
 // re-fetches rarely anyway.
 import { createFileRoute } from "@tanstack/react-router";
 
-import { fetchBuf, rasterizePng } from "@/lib/rasterize.server";
+import { fetchBuf } from "@/lib/rasterize.server";
 
 const W = 1200, H = 630;
 const NAVY = "#14213D", CREAM = "#F5EFE6", GOLD = "#FCA311", WHITE = "#FFFFFF";
@@ -72,70 +72,11 @@ async function render(origin: string, school: string, chapter: string): Promise<
   const courseCode = ((codes?.intro_1 ?? "") as string).trim() || "Intro Accounting";
   const { c1, c2 } = schoolBySlug(school) ? boltForSlug(school) : { c1: "#006BA6", c2: "#00456E" };
 
-  const [inter800, inter600] = await Promise.all([
-    fetchBuf(`${origin}/fonts/Inter-ExtraBold.ttf`),
-    fetchBuf(`${origin}/fonts/Inter-SemiBold.ttf`),
-  ]);
-
-  // ── THE CARD ────────────────────────────────────────────────────────────────────────────────
-  // Read at THUMBNAIL size in a group chat, so the budget is about six words and the course code
-  // is what earns its space: it is the thing that proves this was built for the reader's class
-  // rather than posted at them. Hierarchy, largest first:
-  //
-  //     Κ Α              their letters — the only thing recognisable at a glance
-  //     KAPPA ALPHA · AUBURN     who it is for, small caps, muted
-  //     Free ACCT 2110 prep      the line that must survive GroupMe's ~350px card
-  //     survive ⚡               the bolt, in campus colours
-  const orgLine = `${orgName.toUpperCase()} · ${shortCampus.toUpperCase()}`;
-  const orgLineFit = orgLine.length > 40 ? `${orgLine.slice(0, 39)}…` : orgLine;
-  const freeLine = courseCode === "Intro Accounting" ? "Free intro accounting prep" : `Free ${courseCode} prep`;
-
-  const { default: satori } = await import("satori");
-  const svg = await satori(
-    (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", backgroundColor: NAVY, padding: 56 }}>
-        {/* The letters lead. Cream, not campus-coloured: the colour belongs to the campus and the
-            letters belong to the chapter, and tinting them says the chapter IS the school. */}
-        <div style={{ display: "flex", fontFamily: "InterX", fontSize: big.length > 6 ? 132 : 176, color: CREAM, lineHeight: 1 }}>
-          {big}
-        </div>
-        <div style={{ display: "flex", marginTop: 20, fontFamily: "Inter", fontSize: 32, letterSpacing: 4, color: CREAM, opacity: 0.62 }}>
-          {orgLineFit}
-        </div>
-        {/* THE LINE THAT HAS TO READ AT 350px. Gold, largest of the text, and never wrapped. */}
-        <div style={{ display: "flex", marginTop: 34, fontFamily: "InterX", fontSize: 62, color: GOLD, lineHeight: 1 }}>
-          {freeLine}
-        </div>
-        {/* survive ⚡ — the bolt in campus colours, small, as a signature rather than a headline. */}
-        <div style={{ display: "flex", alignItems: "center", marginTop: 40 }}>
-          <div style={{ display: "flex", fontFamily: "InterX", fontSize: 40, color: CREAM, opacity: 0.9 }}>survive</div>
-          <img src={boltDataUri(c1, c2)} width={34} height={46} style={{ marginLeft: 12 }} />
-        </div>
-      </div>
-    ),
-    {
-      width: W, height: H,
-      fonts: [
-        { name: "InterX", data: inter800, weight: 800, style: "normal" },
-        { name: "Inter", data: inter600, weight: 600, style: "normal" },
-      ],
-    },
-  );
-
-  const png = await rasterizePng(origin, svg, W);
-  return new Response(Buffer.from(png), {
-    headers: {
-      "content-type": "image/png",
-      // THE DEV BYPASS. Every platform caches previews by URL, some for weeks, and iMessage caches
-      // on the device with no purge at all — so iterating on the design means either bumping a
-      // query string forever or turning the cache off. With OG_NO_STORE set, reloading the image
-      // route straight in mobile Safari always shows the current render. Production keeps the long
-      // headers; the flag is read per request so it can be flipped without a redeploy of intent.
-      "cache-control": process.env.OG_NO_STORE
-        ? "no-store, no-cache, must-revalidate"
-        : "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
-    },
-  });
+  // THE CARD (redesigned 2026-09-14 — lib/share-card.server.tsx): letters · "Alpha Tau Omega - Ole
+  // Miss" · "Share ACCY 201 exam prep" · the surv⚡ve wordmark at the foot. No "free" on the card.
+  const { renderShareCard, shareAskLine, shareWhoLine, shareCardHeaders } = await import("@/lib/share-card.server");
+  const png = await renderShareCard(origin, { mark: big, who: shareWhoLine(orgName, shortCampus), ask: shareAskLine(courseCode === "Intro Accounting" ? null : courseCode), c1, c2 });
+  return new Response(Buffer.from(png), { headers: shareCardHeaders() });
 }
 
 /** Fallback chain: campus static card → default card. Never a 404. */

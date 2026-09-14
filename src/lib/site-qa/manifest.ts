@@ -648,6 +648,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "admin.illustrations_.styles.tsx": "internal (noindex) — the illustration style editor: the DB-backed style registry (versions, palette, suffix, BRIEF_SYSTEM) and the test panel that previews a draft on the phone stage (costs money)",
   "rep_.test.tsx": "redirect — the one-link tester entry for the rep flow (arms Test Mode, lands on the test campus apply page)",
   "api.og.$school.$chapter.tsx": "generated image endpoint",
+  "api.og-council.$school.$council.tsx": "generated image endpoint (council share card, 2026-09-14)",
   "api.thumb.$setId.tsx": "generated image endpoint — the short's cover, admin-gated",
   "v3.map.tsx": "V3 map (AdminGate, noindex) — alias of the /v3 home since 2026-09-10; cram path vs offshoots per topic (docs/DESIGN-CRAM-MAP.md)",
   "v3.$topic.chain.tsx": "V3 topic chain (AdminGate, noindex) — every video in a topic in play order with Now / Later / Skip (D, 2026-09-13)",
