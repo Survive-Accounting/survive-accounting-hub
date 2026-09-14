@@ -282,7 +282,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
         {/* EXAM 1 IS FREE — said ONCE, under both doors (p9 §3). It used to close each card, where
             it said the same thing twice and competed with the bold in the buttons above it. */}
         <p className="mt-6 text-center text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
-          Exam 1 is free.
+          Exam 1 is ready.
         </p>
 
         {/* COURSE SCOPE — one quiet line, because students have genuinely asked whether Survive
@@ -346,7 +346,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
                 border: "1.5px solid var(--accent)",
               }}
             >
-              Try Exam 1 free →
+              Start Exam 1 →
             </button>
           </div>
         </section>
@@ -621,7 +621,7 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo,
                 // the swap so the two read as one change rather than two.
                 ? <CardSwitcher label="for" name={stop.name.toUpperCase()} tail="students" color={readableCampusInk(stop.c1, stop.c2)} dim={!carousel.labelVis} onClick={onSwitchSchool} aria="Pick your school" />
                 // Reduced motion (or a one-campus run): the invitation is words, not movement.
-                : <CardSwitcher label="" name="pick your school" tail="" onClick={onSwitchSchool} aria="Pick your school" />
+                : <CardSwitcher label="" name="CHOOSE YOUR SCHOOL" tail="" onClick={onSwitchSchool} aria="Choose your school" />
           }
           button={
             soloHref ? (
@@ -776,14 +776,18 @@ function CardSwitcher({ label, name, tail, campusId, color, dim, onClick, aria }
 }) {
   const c = campusId ? boltFor(campusId) : null;
   const ink = color ?? (c ? readableCampusInk(c.c1, c.c2) : undefined);
+  const empty = !label && !tail;
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={aria}
       title={aria}
-      className="sa-card-switch inline-flex items-center gap-1 rounded-full focus-visible:ring-2"
-      style={{ background: "none", border: 0, cursor: "pointer", paddingInline: 6, minHeight: 30 }}
+      className="sa-card-switch inline-flex items-center gap-1.5 rounded-full focus-visible:ring-2"
+      // A PILL (King's notes, 2026-09-14: "Choose your school needs to be much easier to see").
+      style={empty
+        ? { background: "var(--accent)", border: "1.5px solid var(--accent)", cursor: "pointer", paddingInline: 14, minHeight: 34 }
+        : { background: "rgba(255,255,255,0.05)", border: `1.5px solid ${ink ?? "var(--border-default)"}`, cursor: "pointer", paddingInline: 12, minHeight: 34 }}
     >
       <span
         className="sa-campus-line"
@@ -792,10 +796,10 @@ function CardSwitcher({ label, name, tail, campusId, color, dim, onClick, aria }
         style={{ fontFamily: BRAND_DISPLAY, margin: 0, opacity: dim ? 0.15 : 1, transition: "opacity 210ms ease" }}
       >
         {label ? <span className="sa-campus-line-for">{label} </span> : null}
-        <span className="sa-campus-line-em" style={ink ? { color: ink } : undefined}>{name}</span>
+        <span className="sa-campus-line-em" style={empty ? { color: "#0B1220" } : ink ? { color: ink } : undefined}>{name}</span>
         {tail ? <span className="sa-campus-line-for"> {tail}</span> : null}
       </span>
-      <ArrowLeftRight size={12} aria-hidden style={{ color: "var(--text-muted)", flex: "none" }} />
+      <ArrowLeftRight size={12} aria-hidden style={{ color: empty ? "#0B1220" : "var(--text-muted)", flex: "none" }} />
     </button>
   );
 }
@@ -842,7 +846,7 @@ function Exam1LaunchModal({ campusId, campusName, courseCode, onClose }: {
     }
   };
   return (
-    <div className="fixed inset-0 z-[240] grid place-items-center overflow-y-auto p-4" style={{ background: "rgba(5,8,16,0.72)" }} role="dialog" aria-modal="true" aria-label={`Exam 1 — free, coming ${EXAM1_LAUNCH_LABEL.toLowerCase()}`}>
+    <div className="fixed inset-0 z-[240] grid place-items-center overflow-y-auto p-4" style={{ background: "rgba(5,8,16,0.72)" }} role="dialog" aria-modal="true" aria-label={`Exam 1 — coming ${EXAM1_LAUNCH_LABEL.toLowerCase()}`}>
       <div ref={panelRef} className="relative w-full max-w-[400px] rounded-3xl p-6 text-center sm:p-7" style={{ background: "var(--bg-page)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS, boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)" }}>
         <button
           type="button"
@@ -855,7 +859,7 @@ function Exam1LaunchModal({ campusId, campusName, courseCode, onClose }: {
         </button>
         <p className="text-[26px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Exam 1</p>
         <p className="mt-1 text-[13px] font-black" style={{ color: "var(--accent)", letterSpacing: "0.14em" }}>
-          FREE · COMING {EXAM1_LAUNCH_LABEL.toUpperCase()}
+          COMING {EXAM1_LAUNCH_LABEL.toUpperCase()}
         </p>
         {state === "sent" ? (
           <>

@@ -18,7 +18,7 @@ const asks = (campusName: string | null, council: boolean): Ask[] => [
   // A vs B: a council contact (the person we DM'd, or the one who forwarded) gets the chair's copy.
   council
     ? { key: "greek", title: "Get this to your chapter.", sub: "Pick yours — a link to send in about 30 seconds.", cta: "Pick your chapter →" }
-    : { key: "greek", title: "In a fraternity or sorority?", sub: "Exam 1 is free for your whole chapter.", cta: "Pick your chapter →" },
+    : { key: "greek", title: "In a fraternity or sorority?", sub: "Your chapter gets its own page for studying together.", cta: "Pick your chapter →" },
   { key: "rep", title: `Want to run Survive at ${campusName ?? "your campus"}?`, sub: "Campus reps get paid per chapter they sign.", cta: "Become a campus rep →" },
   { key: "syllabus", title: "Got your syllabus?", sub: "Send me the chapter list and I'll line these videos up with your professor.", cta: "Send my syllabus →" },
 ];

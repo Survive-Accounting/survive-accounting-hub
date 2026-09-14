@@ -235,7 +235,7 @@ export function LearnCta({
             {state === "F" && (
               <BarCopy
                 title={<span className="inline-flex items-center gap-1.5"><Check size={15} style={{ color: NEON.green }} /> You're in with {chapterName}.</span>}
-                sub={`${members} member${members === 1 ? "" : "s"} · study Exam 1 free, right now.`}
+                sub={`${members} member${members === 1 ? "" : "s"} studying Exam 1 right now.`}
               />
             )}
           </div>

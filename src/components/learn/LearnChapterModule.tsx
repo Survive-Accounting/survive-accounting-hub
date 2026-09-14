@@ -35,6 +35,9 @@ import { SEAT_MINIMUM } from "@/lib/terms";
 import { writeUnlocked } from "@/components/learn/learn-gate";
 import { readTestSession, TEST_CAMPUS_SLUG } from "@/lib/test-mode";
 import { ActivationTestProceed } from "@/components/site/ActivationTestProceed";
+import { GreekLettersIcon } from "@/components/site/home-two-door/HomeFold";
+import { buildGreekCycle, OLE_MISS_GREEK_CYCLE } from "@/lib/greek-cycle";
+import { X } from "lucide-react";
 
 export type PickedChapter = { slug: string; name: string | null; letters: string | null; members: number; council: string | null };
 
@@ -64,6 +67,7 @@ export async function joinChapter(school: School, chapterSlug: string, email: st
 }
 export const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const NAVY = "#14213D", CREAM = "#F5EFE6", GOLD = "#FCA311", NAVY_DEEP = "#0C1528";
+const GREEK_BAND_DISMISSED = "sa-learn-greek-band-dismissed";
 
 /** The funding threshold for a chapter, or null when there is none to compute from. */
 export function fundingThreshold(_chapterSlug: string): number | null { return SEAT_MINIMUM > 0 ? SEAT_MINIMUM : null; }
@@ -105,7 +109,12 @@ export function LearnChapterModule({ school, chapter, councilPreset, contactRef,
   const [expanded, setExpanded] = useState(!!councilPreset);
   const [council, setCouncil] = useState<string>(councilPreset && COUNCILS.some((c) => c.slug === councilPreset) ? councilPreset : "");
   const [slug, setSlug] = useState("");
-  const chaptersQ = useQuery({ queryKey: ["go-chapters", school.slug], queryFn: () => listGoChapters({ data: { schoolSlug: school.slug } }), staleTime: 300_000, networkMode: "always", enabled: expanded || !!chapter });
+  // Always fetched now: the band's letters rotate through THIS campus's real houses (as on the home page).
+  const chaptersQ = useQuery({ queryKey: ["go-chapters", school.slug], queryFn: () => listGoChapters({ data: { schoolSlug: school.slug } }), staleTime: 300_000, networkMode: "always" });
+  const greekCycle = useMemo(() => { const built = buildGreekCycle(chaptersQ.data ?? []); return built.length ? built : OLE_MISS_GREEK_CYCLE; }, [chaptersQ.data]);
+  // DISMISSIBLE (Lee, 2026-09-14): the ✕ hides the band on this browser for good.
+  const [dismissed, setDismissed] = useState(true);
+  useEffect(() => { try { setDismissed(localStorage.getItem(GREEK_BAND_DISMISSED) === "1"); } catch { setDismissed(false); } }, []);
   const inCouncil = useMemo<GoChapterListItem[]>(() => {
     const all = chaptersQ.data ?? [];
     const c = COUNCILS.find((x) => x.slug === council);
@@ -126,13 +135,26 @@ export function LearnChapterModule({ school, chapter, councilPreset, contactRef,
 
   const field: React.CSSProperties = { width: "100%", minHeight: 40, borderRadius: 8, border: `1px solid ${LK.border2}`, background: "#FBF9F5", color: LK.text, padding: "0 11px", fontFamily: BRAND_SANS, fontSize: 13.5, marginBottom: 8 };
   if (!expanded) {
-    // A — the one quiet line.
+    // A — THE BAND (King's testing notes, 2026-09-14: "these are important options, so they should be
+    // more noticeable"). Navy, the home page's rotating chapter letters, one button, and an ✕.
+    if (dismissed) return null;
+    const dismiss = () => { setDismissed(true); try { localStorage.setItem(GREEK_BAND_DISMISSED, "1"); } catch { /* ignore */ } };
     return (
-      <button type="button" onClick={() => setExpanded(true)} className="lk-card flex w-full items-center text-left" style={{ gap: 9, padding: "11px 13px", marginBottom: narrow ? 12 : 16, fontFamily: BRAND_SANS, fontSize: 13.5, fontWeight: 600, color: LK.text, cursor: "pointer" }} aria-expanded={false}>
-        <BoltBoil height={17} red={school.c1 ?? undefined} blue={school.c2 ?? undefined} />
-        <span>In a fraternity or sorority?</span>
-        <ChevronRight className="ml-auto h-4 w-4" style={{ color: LK.muted }} aria-hidden />
-      </button>
+      <section aria-label="In a fraternity or sorority?" className="flex w-full items-center" style={{ gap: narrow ? 10 : 14, padding: narrow ? "10px 10px 10px 12px" : "12px 12px 12px 16px", marginBottom: narrow ? 12 : 16, borderRadius: 14, background: NAVY, color: CREAM, fontFamily: BRAND_SANS, boxShadow: "0 10px 26px -16px rgba(12,21,40,0.9)" }}>
+        <span className="grid shrink-0 place-items-center" style={{ width: narrow ? 46 : 56, height: narrow ? 46 : 56, borderRadius: 12, background: NAVY_DEEP }}>
+          <GreekLettersIcon cycle={greekCycle} height={narrow ? 34 : 42} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: narrow ? 15 : 17, lineHeight: 1.2, letterSpacing: "-0.01em" }}>In a fraternity or sorority?</div>
+          <div style={{ fontSize: narrow ? 12 : 13, lineHeight: 1.35, color: "rgba(245,239,230,0.72)", marginTop: 2 }}>Your chapter gets its own page for studying together.</div>
+        </div>
+        <button type="button" onClick={() => setExpanded(true)} aria-expanded={false} className="shrink-0 rounded-full" style={{ background: GOLD, color: NAVY, border: 0, cursor: "pointer", fontWeight: 800, fontSize: narrow ? 12 : 13.5, padding: narrow ? "8px 12px" : "9px 16px", whiteSpace: "nowrap", fontFamily: BRAND_SANS }}>
+          {narrow ? "Find it" : "Find your chapter"}
+        </button>
+        <button type="button" onClick={dismiss} aria-label="Dismiss" className="grid shrink-0 place-items-center rounded-full" style={{ width: 30, height: 30, background: "rgba(255,255,255,0.08)", color: CREAM, border: 0, cursor: "pointer" }}>
+          <X className="h-4 w-4" />
+        </button>
+      </section>
     );
   }
   // B — expanded.

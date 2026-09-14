@@ -122,7 +122,7 @@ import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { CONTENT_MAX, LK, SIDE_PAD, type LearnTheme } from "@/components/learn/learn-theme";
 import { fmtRuntime, muxThumb } from "@/components/learn/cram-media";
-import { averageVideoCaption, EMAIL_RE, emailGateNeeded, isUuid, practiceGateNeeded, questionCount, topicRowDetail, waitlistNeeded, writeUnlocked, type GateSet } from "@/components/learn/learn-gate";
+import { EMAIL_RE, emailGateNeeded, isUuid, practiceGateNeeded, questionCount, topicRowDetail, waitlistNeeded, writeUnlocked, type GateSet } from "@/components/learn/learn-gate";
 import { LearnEntrance } from "@/components/learn/LearnEntrance";
 import type { RailKey } from "@/components/learn/LearnRail";
 import { CRAM_MACHINE_CSS } from "@/components/learn/CramMachine";
@@ -134,6 +134,7 @@ import { adEvent } from "@/lib/retargeting";
 import type { School } from "@/lib/schools";
 import type { StudentSet, StudentTopic } from "@/lib/student.functions";
 import { useDismiss } from "@/lib/use-dismiss";
+import { claimPreview, onPreview, previewMode, releasePreview, warmPreviewPlayer } from "@/components/learn/live-preview";
 
 export type HomeSet = {
   set: StudentSet; topic: StudentTopic; n: number; of: number; locked: boolean; done: boolean;
@@ -264,7 +265,6 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   const narrow = tier === "narrow";
   const wide = tier === "wide";
   const pad = SIDE_PAD[tier];
-  const averageCaption = useMemo(() => averageVideoCaption(sets.map((s) => s.set)), [sets]);
 
   // Later topics start collapsed; a tap opens one. (Easy Points is always open.)
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -307,7 +307,7 @@ export const LearnHome = forwardRef<HTMLDivElement, {
       <div style={{ background: LK.heroBg }}>
         <div className="mx-auto w-full" style={{ maxWidth: CONTENT_MAX, padding: `${narrow ? 10 : wide ? 16 : 14}px ${pad}px 0` }}>
           {kit}
-          <LearnEntrance tier={tier} averageCaption={averageCaption} onStart={startFirst} />
+          <LearnEntrance tier={tier} onStart={startFirst} />
         </div>
         <div aria-hidden style={{ height: narrow ? 8 : wide ? 26 : 22, background: `linear-gradient(${LK.heroBg}, ${LK.bg})` }} />
       </div>
@@ -485,7 +485,7 @@ function EmailGate({ variant, examLabel, topicName, campusId, chapterSlug, demo,
   return (
     <div className="absolute inset-0 grid place-items-center p-2">
       <div className="lk-card lk-in w-full" style={{ maxWidth: narrow ? 320 : 440, padding: narrow ? 16 : 22, boxShadow: "0 18px 50px -14px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }}>
-        <p className="lk-disp" style={{ fontSize: narrow ? 16 : 20, lineHeight: 1.2 }}>{waitlist ? "Get notified when these drop." : `Unlock the rest of ${examLabel} — free`}</p>
+        <p className="lk-disp" style={{ fontSize: narrow ? 16 : 20, lineHeight: 1.2 }}>{waitlist ? "Get notified when these drop." : `Unlock the rest of ${examLabel}`}</p>
         <input type="email" inputMode="email" autoComplete="email" placeholder="you@school.edu" className="lk-field mt-3" value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} aria-label="Your email" />
         {state === "error" && <p className="mt-1.5 text-[12px]" style={{ color: LK.red }}>{msg}</p>}
         <button type="button" onClick={() => void submit()} disabled={state === "busy"} className="lk-btn lk-btn-acc mt-2 w-full disabled:opacity-50" style={{ minHeight: 44 }}>
@@ -531,7 +531,7 @@ function cardsOf(s: HomeSet, progress: Record<string, Prog>): Card[] {
  *  same hls.js path the player uses; leaving the card tears it down. One card at a time by
  *  construction (each card owns its own element), nothing on a phone (no hover), nothing under
  *  reduced motion. */
-function HoverPreview({ pid }: { pid: string }) {
+function HoverPreview({ pid, onProgress }: { pid: string; onProgress?: (f: number) => void }) {
   const ref = useRef<HTMLVideoElement>(null);
   // A loading wheel until the first frame plays (Lee, 2026-09-11: "Show loading animation so
   // it's clear the video would be coming").
@@ -550,7 +550,10 @@ function HoverPreview({ pid }: { pid: string }) {
   }, [pid]);
   return (
     <>
-      <video ref={ref} muted playsInline loop preload="none" aria-hidden onPlaying={() => setReady(true)} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#000", opacity: ready ? 1 : 0, transition: "opacity 160ms" }} />
+      <video ref={ref} muted playsInline loop preload="auto" aria-hidden onPlaying={() => setReady(true)}
+        onTimeUpdate={(e) => { const v = e.currentTarget; if (onProgress && v.duration > 0) onProgress(v.currentTime / v.duration); }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#000", opacity: ready ? 1 : 0 }} />
+      {ready && <span aria-hidden className="absolute bottom-2 right-2 z-[2] rounded px-1.5 py-px text-[10px] font-bold" style={{ background: "rgba(0,0,0,0.6)", color: "#fff", fontFamily: BRAND_SANS }}>muted</span>}
       {!ready && (
         <span aria-hidden className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full" style={{ width: 44, height: 44, background: "rgba(0,0,0,0.5)", color: "#fff" }}>
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -566,15 +569,33 @@ function Short({ s, card, onOpen }: { s: HomeSet; card: Card; onOpen: () => void
   // THE THUMBNAIL (2026-09-11): the cover Lee uploaded for the video when there is one, else the
   // frame the host cuts at two seconds. Never for a paid (locked) set — its face is the lock.
   const thumb = s.locked ? null : (card.coverUrl ?? (pid && pid !== "__demo__" ? muxThumb(pid, 480) : null));
-  const [preview, setPreview] = useState(false);
-  const hoverT = useRef<number | null>(null);
+  // LIVE PREVIEW (King's notes, 2026-09-14 — live-preview.ts): a hover plays at once on a desk; on a
+  // phone the card in the middle of the screen plays as you scroll. One card at a time.
   const canPreview = !!pid && pid !== "__demo__" && !s.locked;
-  const enter = () => { if (!canPreview || !window.matchMedia?.("(hover: hover)").matches || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return; hoverT.current = window.setTimeout(() => setPreview(true), 350); };
-  const leave = () => { if (hoverT.current) window.clearTimeout(hoverT.current); hoverT.current = null; setPreview(false); };
+  const [preview, setPreview] = useState(false);
+  const [frac, setFrac] = useState(0);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => onPreview((k) => { setPreview(k === card.key); if (k !== card.key) setFrac(0); }), [card.key]);
+  useEffect(() => {
+    if (!canPreview) return;
+    warmPreviewPlayer();
+    if (previewMode() !== "scroll") return;
+    const el = btnRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    // The middle band of the screen, and the card fully across: that card plays.
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && e.intersectionRatio >= 0.95) claimPreview(card.key); else releasePreview(card.key);
+    }, { rootMargin: "-30% 0px -30% 0px", threshold: [0, 0.95] });
+    io.observe(el);
+    return () => { io.disconnect(); releasePreview(card.key); };
+  }, [canPreview, card.key]);
+  const enter = () => { if (canPreview && previewMode() === "hover") claimPreview(card.key); };
+  const leave = () => releasePreview(card.key);
   return (
-    <button type="button" onClick={onOpen} onMouseEnter={enter} onMouseLeave={leave} onBlur={leave} className="lk-short" data-on={false} data-rail="true" data-posted={posted} aria-label={card.name} style={{ opacity: s.locked ? 0.7 : undefined }} title={posted ? card.name : `${card.name} — not posted yet`}>
+    <button ref={btnRef} type="button" onClick={onOpen} onMouseEnter={enter} onMouseLeave={leave} onBlur={leave} className="lk-short" data-on={false} data-live={preview} data-rail="true" data-posted={posted} aria-label={card.name} style={{ opacity: s.locked ? 0.7 : undefined }} title={posted ? card.name : `${card.name} — not posted yet`}>
       {thumb && <img src={thumb} alt="" loading="lazy" />}
-      {preview && pid && <HoverPreview pid={pid} />}
+      {preview && pid && <HoverPreview pid={pid} onProgress={setFrac} />}
+      {preview && frac > 0 && <span aria-hidden className="absolute inset-x-0 bottom-0 z-[2] h-[3px]" style={{ background: "rgba(255,255,255,0.2)" }}><span className="block h-full" style={{ width: `${Math.round(frac * 100)}%`, background: LK.acc }} /></span>}
       {s.locked && <Lock className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2" style={{ color: "#B5B5B5" }} />}
       {card.runtimeSec != null && pid && <span className="lk-short-d">{fmtRuntime(card.runtimeSec)}</span>}
       {card.done && <span className="absolute left-2 top-2 z-[1] grid h-6 w-6 place-items-center rounded-full" title="Crammed" style={{ background: LK.green, color: "#111" }}><Check className="h-3.5 w-3.5" /></span>}

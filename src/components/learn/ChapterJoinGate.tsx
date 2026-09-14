@@ -69,7 +69,7 @@ export function ChapterJoinGate({ school, chapter, prefillEmail, onLeave }: {
           <p style={{ margin: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(245,239,230,0.6)" }}>{chapter.name ?? short} · {school.name}</p>
           <h2 id="cjg-title" style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: 23, margin: "6px 0 6px", letterSpacing: "-0.01em", lineHeight: 1.15 }}>Join {short}&apos;s page</h2>
           <p style={{ margin: "0 auto", maxWidth: "32ch", fontSize: 13.5, lineHeight: 1.5, color: "rgba(245,239,230,0.82)" }}>
-            Free {code ? `${code} ` : ""}Exam 1 cram videos and practice for {short} members.
+            {code ? `${code} ` : ""}Exam 1 cram videos and practice for {short} members.
           </p>
           {funding && <p style={{ margin: "10px auto 0", maxWidth: "34ch", fontSize: 12.5, lineHeight: 1.45, color: GOLD, fontWeight: 600 }}>{funding}</p>}
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, background: "rgba(0,107,166,0.24)", border: "1px solid rgba(125,211,252,0.3)", borderRadius: 999, padding: "4px 11px", fontSize: 12, fontWeight: 600, color: "#BFE4FA" }}>

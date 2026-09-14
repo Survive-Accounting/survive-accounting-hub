@@ -190,9 +190,15 @@ export function LearnTop({
           </span>
           {/* THE TWO-LINE BLOCK: campus over course · exam. */}
           <div className="flex min-w-0 flex-col justify-center" style={{ gap: 1 }}>
-            <button type="button" onClick={onPickSchool} className="flex min-w-0 items-center gap-1 text-left" title="Change school" style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", color: schoolName ? ink : LK.acc, fontSize: narrow ? 13.5 : 15, fontWeight: 800, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 22 : 24 }}>
-              <span className="truncate">{schoolName ?? "Pick your school"}</span>
-              <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: muted }} aria-hidden />
+            {/* A PILL (King's notes, 2026-09-14: "Choose Your School needs to be much easier to see"): the
+                school's colours round it; with no school it fills with the accent and asks. */}
+            <button type="button" onClick={onPickSchool} className="flex min-w-0 items-center gap-1.5 self-start rounded-full text-left" title={schoolName ? "Change school" : "Choose your school"}
+              style={schoolName
+                ? { background: "rgba(255,255,255,0.06)", border: `1.5px solid ${LK.acc}`, padding: narrow ? "2px 9px 2px 4px" : "3px 11px 3px 5px", cursor: "pointer", color: ink, fontSize: narrow ? 13 : 14.5, fontWeight: 800, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 26 : 30, maxWidth: "100%" }
+                : { background: LK.acc, border: `1.5px solid ${LK.acc}`, padding: narrow ? "3px 11px" : "4px 14px", cursor: "pointer", color: LK.accInk, fontSize: narrow ? 13 : 14.5, fontWeight: 900, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 28 : 32, maxWidth: "100%" }}>
+              {schoolName && <span aria-hidden className="shrink-0 rounded-full" style={{ width: narrow ? 16 : 18, height: narrow ? 16 : 18, background: school?.c1 ?? LK.acc, border: `2px solid ${school?.c2 ?? ink}` }} />}
+              <span className="truncate">{schoolName ?? "Choose your school"}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: schoolName ? LK.acc : LK.accInk }} aria-hidden />
             </button>
             <div className="flex min-w-0 items-center gap-1.5 truncate" style={{ fontSize: narrow ? 11.5 : 12.5, color: muted, fontWeight: 600, lineHeight: 1.2 }}>
               {courseCode && <><span className="truncate">{courseCode}</span><span aria-hidden>·</span></>}

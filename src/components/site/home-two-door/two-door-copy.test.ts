@@ -27,6 +27,6 @@ describe("left door", () => {
   test("support: muted sentence keeps the code + strong free line", () => {
     const s = soloSupport("ACCY 201");
     expect(s.muted).toBe(`Cram-style videos & practice for ACCY${NBSP}201.`);
-    expect(s.strong).toBe("Exam 1 is free.");
+    expect(s.strong).toBe("Exam 1 is ready.");
   });
 });

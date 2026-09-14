@@ -39,10 +39,8 @@ export const HERO_CSS = `
 @media (prefers-reduced-motion: no-preference) { .lk-hero .lk-btn-cta { transition: transform 160ms ease, box-shadow 160ms ease; } }
 `;
 
-export function LearnEntrance({ tier, averageCaption, onStart }: {
+export function LearnEntrance({ tier, onStart }: {
   tier: Tier;
-  /** "~2.4 min per video" from learn-gate's averageVideoCaption, or null when nothing has a runtime. */
-  averageCaption: string | null;
   onStart: () => void;
 }) {
   const narrow = tier === "narrow";
@@ -61,12 +59,11 @@ export function LearnEntrance({ tier, averageCaption, onStart }: {
         Cram what's on your exam. Skip everything else.
       </p>
       <div className="flex flex-col items-center" style={{ gap: 6, marginTop: narrow ? 4 : 6 }}>
+        {/* King's testing notes (2026-09-14): no "for free" on the button, and no "~0.6 min per video"
+            under it — every card already shows its own length. */}
         <button type="button" onClick={onStart} className="lk-btn-cta" style={{ minWidth: narrow ? 240 : 260, boxShadow: LK.shadow }}>
-          Start cramming for free
+          Start cramming
         </button>
-        {averageCaption && (
-          <span className="tabular-nums" style={{ fontSize: 13, fontWeight: 600, color: LK.heroMuted, fontFamily: SANS }}>{averageCaption}</span>
-        )}
       </div>
     </section>
   );

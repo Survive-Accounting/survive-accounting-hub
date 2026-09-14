@@ -74,7 +74,7 @@ export function GreekDoor({ campusId, campusName, courseCode }: {
           For fraternities &amp; sororities
         </p>
         <h2 className="mt-1.5 text-[19px] font-black leading-tight" style={{ color: "var(--lm-text)" }}>
-          Free Exam 1 for your whole chapter.
+          Exam 1 for your whole chapter.
         </h2>
 
         {done ? (

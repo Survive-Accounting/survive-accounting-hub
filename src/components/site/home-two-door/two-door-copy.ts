@@ -30,7 +30,7 @@ export const soloButtonLabel = (): string => "Start cramming →";
 /** Left door support line, two tones: muted sentence + cream "Exam 1 is free." */
 export const soloSupport = (resolvedCode: string | null): { muted: string; strong: string } => ({
   muted: `Cram-style videos & practice for ${homeCourseCode(resolvedCode)}.`,
-  strong: "Exam 1 is free.",
+  strong: "Exam 1 is ready.",
 });
 
 // The Greek-letter ticker helpers that lived here were removed with the ticker itself

@@ -90,7 +90,7 @@ export function anyTag(config: TagConfig): boolean {
 /** Every internal surface. A route file behind AdminGate must sit under one of these —
  *  retargeting.test.ts reads src/routes and fails if a new admin page doesn't. */
 export const INTERNAL_PREFIXES = [
-  "/admin", "/v3", "/outreach", "/branding", "/study", "/talkthrough", "/leeportal", "/ceq",
+  "/admin", "/v3", "/v4", "/outreach", "/branding", "/study", "/talkthrough", "/leeportal", "/ceq",
   "/buildqueue", "/blast-off", "/blastoff-demo", "/survive-bolt", "/shipped", "/exhibit-lab",
   "/exhibit-demo", "/callout-demo", "/logo-lab", "/intro-outro", "/practice-demo", "/lab",
   "/preview", "/api",

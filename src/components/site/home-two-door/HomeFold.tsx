@@ -33,7 +33,9 @@ export function SoloBoltIcon() {
 // Once we know the visitor's OWN chapter the cycle stops and the card simply wears their letters.
 
 /** Chapter's icon: real chapter letters that boil and glow, cycling until we know your house. */
-export function GreekLettersIcon({ pinned, cycle, frozen }: {
+export function GreekLettersIcon({ pinned, cycle, frozen, height = SOLO_ICON_H }: {
+  /** Icon height in px — the home doors use SOLO_ICON_H; the /learn chapter band a small one. */
+  height?: number;
   /** The visitor's own chapter letters. Present → the rotation stops and this stays. */
   pinned?: string | null;
   /** The letters to rotate through. Campus-specific where we have the roster. */
@@ -103,7 +105,7 @@ export function GreekLettersIcon({ pinned, cycle, frozen }: {
   });
 
   return (
-    <span aria-hidden style={{ display: "inline-block", width: SOLO_ICON_H * 1.05, height: SOLO_ICON_H }}>
+    <span aria-hidden style={{ display: "inline-block", width: height * 1.05, height }}>
       <svg viewBox="0 0 100 100" width="100%" height="100%" style={{ display: "block", overflow: "visible" }}>
         {!reduced && (
           <defs>
