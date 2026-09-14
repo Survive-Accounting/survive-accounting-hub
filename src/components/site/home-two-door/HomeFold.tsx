@@ -33,7 +33,9 @@ export function SoloBoltIcon() {
 // Once we know the visitor's OWN chapter the cycle stops and the card simply wears their letters.
 
 /** Chapter's icon: real chapter letters that boil and glow, cycling until we know your house. */
-export function GreekLettersIcon({ pinned, cycle, frozen, height = SOLO_ICON_H }: {
+export function GreekLettersIcon({ pinned, cycle, frozen, height = SOLO_ICON_H, ink }: {
+  /** An explicit letter colour. /learn's room redefines --brand-cream, so the band passes its own. */
+  ink?: string;
   /** Icon height in px — the home doors use SOLO_ICON_H; the /learn chapter band a small one. */
   height?: number;
   /** The visitor's own chapter letters. Present → the rotation stops and this stays. */
@@ -83,7 +85,7 @@ export function GreekLettersIcon({ pinned, cycle, frozen, height = SOLO_ICON_H }
 
   // CREAM, not campus-tinted: school colours belong to the campus; chapter letters belong to
   // chapters, and tinting them in school colours implies the chapter IS the school.
-  const color = "var(--brand-cream, #F5EFE6)";
+  const color = ink ?? "var(--brand-cream, #F5EFE6)";
   // CAP HEIGHT, NOT FONT SIZE (icon-alignment prompt §3). Type carries empty space above the cap
   // and below the baseline inside its em box, so a font-size picked to "look like" the bolt's
   // height always undershoots — the glyphs come out smaller than the bolt and, because the extra

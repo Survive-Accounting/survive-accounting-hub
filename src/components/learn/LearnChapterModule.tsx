@@ -142,7 +142,7 @@ export function LearnChapterModule({ school, chapter, councilPreset, contactRef,
     return (
       <section aria-label="In a fraternity or sorority?" className="flex w-full items-center" style={{ gap: narrow ? 10 : 14, padding: narrow ? "10px 10px 10px 12px" : "12px 12px 12px 16px", marginBottom: narrow ? 12 : 16, borderRadius: 14, background: NAVY, color: CREAM, fontFamily: BRAND_SANS, boxShadow: "0 10px 26px -16px rgba(12,21,40,0.9)" }}>
         <span className="grid shrink-0 place-items-center" style={{ width: narrow ? 46 : 56, height: narrow ? 46 : 56, borderRadius: 12, background: NAVY_DEEP }}>
-          <GreekLettersIcon cycle={greekCycle} height={narrow ? 34 : 42} />
+          <GreekLettersIcon cycle={greekCycle} height={narrow ? 34 : 42} ink={CREAM} />
         </span>
         <div className="min-w-0 flex-1">
           <div style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: narrow ? 15 : 17, lineHeight: 1.2, letterSpacing: "-0.01em" }}>In a fraternity or sorority?</div>
