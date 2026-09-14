@@ -32,14 +32,60 @@ const STEP_EMAIL: Record<ChapterStep, string> = {
 
 type DB = { from: (t: string) => any; auth: { getUser: (jwt: string) => Promise<{ data: { user: { email?: string | null } | null }; error: unknown }> } };
 
-async function chapterFor(accessToken: string): Promise<{ db: DB; ch: Record<string, any> } | null> {
+/** Who is asking: a chair's session, or an admin opening the permanent TEST exec dashboard. */
+const authShape = { accessToken: z.string().min(10).optional(), preview: z.literal(true).optional() };
+type Auth = { accessToken?: string; preview?: true };
+
+// THE EXEC TEST CHAPTER (Lee, 2026-09-14: "Can you give me a test exec dashboard I can use for
+// testing? Like, that I can access at any time?"). A second chapter on Test University, apart from
+// the lifecycle fixture (test-chapter) so Reset fixture never touches it. Created on first open and
+// re-created if a purge ever removes it — admin-only, and the dashboard opened this way sends no
+// email or text.
+export const EXEC_TEST_CHAPTER_SLUG = "test-exec-chapter";
+async function execTestChapter(db: DB): Promise<Record<string, any>> {
+  const { TEST_CAMPUS_NAME, TEST_CAMPUS_SLUG, TEST_COURSE_CODE } = await import("@/lib/test-mode");
+  let { data: campus } = await db.from("campuses").select("id,name,short_name").eq("slug", TEST_CAMPUS_SLUG).maybeSingle();
+  if (!campus?.id) {
+    const r = await db.from("campuses").insert({ slug: TEST_CAMPUS_SLUG, name: TEST_CAMPUS_NAME, short_name: TEST_CAMPUS_NAME, course_family_codes_json: { intro_1: TEST_COURSE_CODE } }).select("id,name,short_name").maybeSingle();
+    if (r.error || !r.data?.id) throw new Error(`Couldn't create Test University: ${r.error?.message ?? "no row"}`);
+    campus = r.data;
+  }
+  let { data: roster } = await db.from("campus_greek_chapters").select("id").eq("campus_id", campus.id).eq("slug", EXEC_TEST_CHAPTER_SLUG).maybeSingle();
+  if (!roster?.id) {
+    const r = await db.from("campus_greek_chapters").insert({ campus_id: campus.id, slug: EXEC_TEST_CHAPTER_SLUG, council: "IFC", letters: "ΕΧΕΚ", nickname: "Exec Test", claim_status: "claimed", chapter_designation: null }).select("id").maybeSingle();
+    if (r.error || !r.data?.id) throw new Error(`Couldn't create the exec test chapter: ${r.error?.message ?? "no row"}`);
+    roster = r.data;
+  }
+  const { data: shell } = await db.from("greek_chapters").select("*").eq("campus_greek_chapter_id", roster.id).maybeSingle();
+  if (shell?.id) {
+    if (shell.status !== "active") await db.from("greek_chapters").update({ status: "active" }).eq("id", shell.id);
+    return { ...shell, status: "active" };
+  }
+  const r = await db.from("greek_chapters").insert({
+    slug: `${TEST_CAMPUS_SLUG}-${EXEC_TEST_CHAPTER_SLUG}`, campus_id: campus.id, campus_greek_chapter_id: roster.id,
+    school_name: (campus.short_name as string) || (campus.name as string) || TEST_CAMPUS_NAME, chapter_name: "Exec Test Chapter",
+    admin_name_role: "Test Exec, Scholarship chair", admin_email: null, admin_phone: null,
+    claim_status: "claimed", status: "active", phone_verified_at: new Date().toISOString(),
+  }).select("*").maybeSingle();
+  if (r.error || !r.data?.id) throw new Error(`Couldn't create the exec test dashboard: ${r.error?.message ?? "no row"}`);
+  return r.data;
+}
+
+async function chapterFor(auth: Auth): Promise<{ db: DB; ch: Record<string, any>; preview: boolean } | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const db = supabaseAdmin as unknown as DB;
+  if (auth.preview) {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    return { db, ch: await execTestChapter(db), preview: true };
+  }
+  if (!auth.accessToken) return null;
+  const accessToken = auth.accessToken;
   const { data } = await db.auth.getUser(accessToken);
   const email = (data.user?.email ?? "").trim().toLowerCase();
   if (!email) return null;
   const { data: row } = await db.from("greek_chapters").select("*").ilike("admin_email", email).eq("status", "active").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  return row ? { db, ch: row } : null;
+  return row ? { db, ch: row, preview: false } : null;
 }
 
 export interface ChapterHome {
@@ -61,14 +107,16 @@ export interface ChapterHome {
   steps: Record<ChapterStep, string | null>;
   seatRequest: { seats: number; at: string } | null;
   isTest: boolean;
+  /** Opened by an admin as the permanent exec test dashboard — nothing it does notifies anyone. */
+  preview: boolean;
 }
 
 export const getChapterHome = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ accessToken: z.string().min(10) }).parse(d))
+  .inputValidator((d: unknown) => z.object(authShape).parse(d))
   .handler(async ({ data }): Promise<ChapterHome | null> => {
-    const found = await chapterFor(data.accessToken);
+    const found = await chapterFor(data);
     if (!found) return null;
-    const { db, ch } = found;
+    const { db, ch, preview } = found;
 
     let schoolSlug: string | null = null;
     let courseCode: string | null = null;
@@ -89,7 +137,7 @@ export const getChapterHome = createServerFn({ method: "POST" })
       letters = ((roster?.letters as string) ?? "").trim() || null;
     }
     const { TEST_CAMPUS_SLUG } = await import("@/lib/test-mode");
-    const isTest = schoolSlug === TEST_CAMPUS_SLUG;
+    const isTest = preview || schoolSlug === TEST_CAMPUS_SLUG;
 
     const { data: mem } = await db.from("greek_chapter_members").select("id,name,phone,joined_at").eq("chapter_id", ch.id).order("joined_at", { ascending: false }).limit(1000);
     const rows = (mem ?? []) as Array<{ id: string; name: string | null; phone: string | null; joined_at: string }>;
@@ -141,24 +189,24 @@ export const getChapterHome = createServerFn({ method: "POST" })
       schoolSlug, chapterSlug, letters, courseCode,
       membersJoined: rows.length,
       joinedThisWeek: rows.filter((r) => new Date(r.joined_at).getTime() >= weekAgo).length,
-      roster, usage, steps, seatRequest, isTest,
+      roster, usage, steps, seatRequest, isTest, preview,
     };
   });
 
 /** Tick (or un-tick) one action step. The FIRST tick of a step emails Lee and King. */
 export const markChapterStep = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ accessToken: z.string().min(10), step: z.enum(CHAPTER_STEPS), done: z.boolean() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ ...authShape, step: z.enum(CHAPTER_STEPS), done: z.boolean() }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; at: string | null }> => {
-    const found = await chapterFor(data.accessToken);
+    const found = await chapterFor(data);
     if (!found) return { ok: false, at: null };
-    const { db, ch } = found;
+    const { db, ch, preview } = found;
     const key = `chapter_step:${ch.id}#${data.step}`;
     const { count } = data.done
       ? await db.from("expand_events").select("id", { count: "exact", head: true }).eq("event", key)
       : { count: 1 };
     const at = new Date().toISOString();
     await db.from("expand_events").insert({ event: data.done ? key : `${key}:undo` });
-    if (data.done && (count ?? 0) === 0) {
+    if (data.done && (count ?? 0) === 0 && !preview) {
       const { emailTeam, escHtml } = await import("@/lib/team-alerts.server");
       const who = String(ch.admin_name_role ?? "The scholarship chair");
       const line = `${ch.chapter_name} at ${ch.school_name} ${STEP_EMAIL[data.step]}.`;
@@ -174,14 +222,15 @@ export const markChapterStep = createServerFn({ method: "POST" })
 /** "Request seats" — a request, not a purchase. Pings Lee (email to Lee + King, and a text to Lee). */
 export const requestChapterSeats = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
-    accessToken: z.string().min(10),
+    ...authShape,
     seats: z.number().int().min(SEAT_REQUEST_MIN).max(500).refine((n) => n % SEAT_REQUEST_STEP === 0, { message: "Seats come in tens." }),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; at?: string; error?: string }> => {
-    const found = await chapterFor(data.accessToken);
+    const found = await chapterFor(data);
     if (!found) return { ok: false, error: "Sign in again to request seats." };
-    const { db, ch } = found;
+    const { db, ch, preview } = found;
     await db.from("expand_events").insert({ event: `chapter_seat_request:${ch.id}#${data.seats}` });
+    if (preview) return { ok: true, at: new Date().toISOString() };
     // From lib/terms, NOT components/site/ChapterAccess: a component file imported from a server
     // handler drags its whole UI tree into the nitro bundle (that is what timed out a deploy).
     const { SEAT_PRICE_CENTS } = await import("@/lib/terms");

@@ -124,6 +124,7 @@ import { Route as AdminProductionRouteImport } from './routes/admin.production'
 import { Route as AdminIllustrationsRouteImport } from './routes/admin.illustrations'
 import { Route as AdminIdeasRouteImport } from './routes/admin.ideas'
 import { Route as AdminGrowthRouteImport } from './routes/admin.growth'
+import { Route as AdminChapterTestRouteImport } from './routes/admin.chapter-test'
 import { Route as SchoolRepRouteImport } from './routes/$school.rep'
 import { Route as V3TopicIndexRouteImport } from './routes/v3.$topic.index'
 import { Route as SCampusIndexRouteImport } from './routes/s.$campus.index'
@@ -794,6 +795,11 @@ const AdminGrowthRoute = AdminGrowthRouteImport.update({
   path: '/admin/growth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminChapterTestRoute = AdminChapterTestRouteImport.update({
+  id: '/admin/chapter-test',
+  path: '/admin/chapter-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SchoolRepRoute = SchoolRepRouteImport.update({
   id: '/$school/rep',
   path: '/$school/rep',
@@ -1310,6 +1316,7 @@ export interface FileRoutesByFullPath {
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
+  '/admin/chapter-test': typeof AdminChapterTestRoute
   '/admin/growth': typeof AdminGrowthRouteWithChildren
   '/admin/ideas': typeof AdminIdeasRoute
   '/admin/illustrations': typeof AdminIllustrationsRoute
@@ -1516,6 +1523,7 @@ export interface FileRoutesByTo {
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
+  '/admin/chapter-test': typeof AdminChapterTestRoute
   '/admin/ideas': typeof AdminIdeasRoute
   '/admin/illustrations': typeof AdminIllustrationsRoute
   '/admin/production': typeof AdminProductionRoute
@@ -1721,6 +1729,7 @@ export interface FileRoutesById {
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
+  '/admin/chapter-test': typeof AdminChapterTestRoute
   '/admin/growth': typeof AdminGrowthRouteWithChildren
   '/admin/ideas': typeof AdminIdeasRoute
   '/admin/illustrations': typeof AdminIllustrationsRoute
@@ -1930,6 +1939,7 @@ export interface FileRouteTypes {
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
+    | '/admin/chapter-test'
     | '/admin/growth'
     | '/admin/ideas'
     | '/admin/illustrations'
@@ -2136,6 +2146,7 @@ export interface FileRouteTypes {
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
+    | '/admin/chapter-test'
     | '/admin/ideas'
     | '/admin/illustrations'
     | '/admin/production'
@@ -2340,6 +2351,7 @@ export interface FileRouteTypes {
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
+    | '/admin/chapter-test'
     | '/admin/growth'
     | '/admin/ideas'
     | '/admin/illustrations'
@@ -2548,6 +2560,7 @@ export interface RootRouteChildren {
   WaitlistRoute: typeof WaitlistRoute
   WelcomeRoute: typeof WelcomeRoute
   SchoolRepRoute: typeof SchoolRepRoute
+  AdminChapterTestRoute: typeof AdminChapterTestRoute
   AdminGrowthRoute: typeof AdminGrowthRouteWithChildren
   AdminIdeasRoute: typeof AdminIdeasRoute
   AdminIllustrationsRoute: typeof AdminIllustrationsRoute
@@ -3449,6 +3462,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/growth'
       fullPath: '/admin/growth'
       preLoaderRoute: typeof AdminGrowthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/chapter-test': {
+      id: '/admin/chapter-test'
+      path: '/admin/chapter-test'
+      fullPath: '/admin/chapter-test'
+      preLoaderRoute: typeof AdminChapterTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$school/rep': {
@@ -4353,6 +4373,7 @@ const rootRouteChildren: RootRouteChildren = {
   WaitlistRoute: WaitlistRoute,
   WelcomeRoute: WelcomeRoute,
   SchoolRepRoute: SchoolRepRoute,
+  AdminChapterTestRoute: AdminChapterTestRoute,
   AdminGrowthRoute: AdminGrowthRouteWithChildren,
   AdminIdeasRoute: AdminIdeasRoute,
   AdminIllustrationsRoute: AdminIllustrationsRoute,
