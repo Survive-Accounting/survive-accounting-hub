@@ -2140,6 +2140,8 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
   // flat FrameView preview and its toggle left with that; every video is vertical.
   const [safe, setSafe] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => { setCtx(null); }, [sel.id]);
   return (
     <>
       <div className="flex items-center" style={{ gap: 6, marginBottom: 10, flexWrap: "wrap", ...HEAD_RULE }}>
@@ -2159,9 +2161,34 @@ function SlidePane({ sel, idx, count, label, viewSet, topic, progress, backdrop,
 
       {/* CLICK THE WORDS (Lee, 2026-09-04): the tagline, the tutor line, the domain,
           an ad's every line — editable on the slide itself. Cards keep the Editor tab. */}
-      <SlideEditContext.Provider value={onPatch}>
-        <PhoneFrame frame={sel} frames={frames} index={idx} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} w={STAGE_W} layout={layout} />
-      </SlideEditContext.Provider>
+      {/* RIGHT-CLICK THE SLIDE (2026-09-14, Lee: "let me right click slide and insert a note, versus
+          scrolling down to click"): a note on a question card, and the add-after choices, right here. */}
+      <div style={{ position: "relative", width: STAGE_W }}
+        onContextMenu={(e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setCtx({ x: e.clientX - r.left, y: e.clientY - r.top }); }}>
+        <SlideEditContext.Provider value={onPatch}>
+          <PhoneFrame frame={sel} frames={frames} index={idx} set={viewSet} topicName={topic.name} progress={progress} safe={safe} dim={!!sel.skipped} w={STAGE_W} layout={layout} />
+        </SlideEditContext.Provider>
+        {ctx && (
+          <div role="menu" onMouseLeave={() => setCtx(null)}
+            style={{ position: "absolute", left: Math.min(ctx.x, STAGE_W - 190), top: ctx.y, zIndex: 40, background: PANEL, border: `1px solid ${GOLD}88`, borderRadius: 9, padding: 6, display: "flex", flexDirection: "column", gap: 3, minWidth: 180, maxHeight: 360, overflowY: "auto", boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}>
+            {sel.kind === "ceq" && !sel.note && (
+              <button role="menuitem" style={{ ...chip(false, GOLD), textAlign: "left", textTransform: "none", letterSpacing: 0 }}
+                onClick={() => { onPatch({ note: { text: "", dim: true } }); setCtx(null); window.setTimeout(() => document.getElementById("sa-card-note")?.scrollIntoView({ block: "center", behavior: "smooth" }), 80); }}>＋ Note on this card</button>
+            )}
+            {sel.kind === "ceq" && sel.note && (
+              <>
+                <button role="menuitem" style={{ ...chip(false, GOLD), textAlign: "left", textTransform: "none", letterSpacing: 0 }} onClick={() => { setCtx(null); document.getElementById("sa-card-note")?.scrollIntoView({ block: "center", behavior: "smooth" }); }}>✎ Edit the note</button>
+                <button role="menuitem" style={{ ...chip(false, RED), textAlign: "left", textTransform: "none", letterSpacing: 0 }} onClick={() => { onPatch({ note: undefined }); setCtx(null); }}>Remove the note</button>
+              </>
+            )}
+            <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.14em", color: MUTED, padding: "4px 6px 2px" }}>ADD AFTER SLIDE {idx + 1}</span>
+            {addAfter.map((k) => (
+              <button key={k.label} role="menuitem" onClick={() => { k.add(); setCtx(null); }}
+                style={{ ...chip(false, k.color), textAlign: "left", textTransform: "none", letterSpacing: 0 }}>{k.label}</button>
+            ))}
+          </div>
+        )}
+      </div>
       {/* ＋ ADD AFTER THIS (2026-09-11) — the gap's chooser, under the preview. */}
       <div style={{ position: "relative", marginTop: 8, width: STAGE_W }}>
         <button style={{ ...chip(adding, MUTED), textTransform: "none", letterSpacing: 0 }} title="Add a slide right after this one — same choices as the + in the strip" aria-expanded={adding}
@@ -2586,7 +2613,7 @@ function CardNoteEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partia
   const box = { marginTop: 10, padding: 10, border: `1px solid ${GOLD}55`, borderRadius: 9, background: "rgba(252,163,17,0.05)" };
   if (!n) {
     return (
-      <div style={box}>
+      <div id="sa-card-note" style={box}>
         <button style={chip(false, GOLD)} onClick={() => onPatch({ note: { text: "", dim: true } })}>＋ Note on this card</button>
         <div style={{ fontSize: 11.5, color: MUTED, marginTop: 6 }}>A box over the card, to define a word in the stem. Drag it and resize it on the slide; on camera, F1 draws the arrow from it to the word.</div>
       </div>
@@ -2595,7 +2622,7 @@ function CardNoteEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partia
   const put = (p: Partial<CardNoteSpec>) => onPatch({ note: { ...n, ...p } });
   const placed = n.x !== undefined || n.y !== undefined || n.w !== undefined || n.h !== undefined;
   return (
-    <div className="flex flex-col" style={{ ...box, gap: 8 }}>
+    <div id="sa-card-note" className="flex flex-col" style={{ ...box, gap: 8 }}>
       <span style={subhead}>Note on this card</span>
       <textarea style={{ ...field, minHeight: 60 }} value={n.text} placeholder="e.g. Prepaid = paid in advance. It's an asset until it's used up." onChange={(e) => put({ text: e.target.value })} />
       <div style={{ fontSize: 10.5, color: MUTED, marginTop: -4 }}>Enter or Shift+Enter for a new line. ==highlight== and **bold** work. The words shrink to fit the box.</div>
