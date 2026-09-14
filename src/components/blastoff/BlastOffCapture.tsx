@@ -79,7 +79,8 @@ import { useFieldRoam } from "./capture/field-roam";
 import { CYCLE_FIELD, cycleHome } from "./cycle-field";
 import { HotkeysModal } from "./capture/HotkeysModal";
 import { COUNTDOWN_SECONDS, countdownCue, countdownTone, useCapturePopout, useCountdown } from "./capture/popout";
-import { previewIndex, signalRoll, useCapturePrompterSyncFrame, usePopoutTake, useRollSignal } from "./capture/prompter-sync";
+import { popoutTake, previewIndex, readFilmActive, signalRoll, useCapturePrompterSyncFrame, usePopoutTake, useRollSignal } from "./capture/prompter-sync";
+import { PUNCH_ON_KEY, PunchIn, readPunchOn, relayPunchKey } from "./capture/PunchIn";
 import { fmtClock, historyLabel, initialRounds, opensReview, prompterEditable, reduceRounds, roundLabel, roundMode, roundSegments, showsPrompterInRound } from "./capture/rehearsal-rounds";
 import { useTeleprompterPopout } from "./capture/teleprompter-popout";
 import { ScrapBar, signalScrap, useScrap } from "./capture/scrap";
@@ -284,6 +285,18 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   const idx = preview ? Math.min(previewIdx, Math.max(0, n - 1)) : Math.min(i, Math.max(0, n - 1));
   const frame = frames[idx];
   const frameId = frame?.id ?? null;
+  // PUNCH-IN (capture/PunchIn.tsx): on in this browser until closed.
+  const [punchOn, setPunchOn] = useState(false);
+  useEffect(() => { setPunchOn(readPunchOn()); }, []);
+  const setPunch = useCallback((v: boolean) => { setPunchOn(v); try { localStorage.setItem(PUNCH_ON_KEY, v ? "1" : "0"); } catch { /* this visit */ } }, []);
+  /** The slide the pop-out has up at this instant (its live record, not the once-a-second tick). */
+  const framesRef = useRef(frames); framesRef.current = frames;
+  const popoutFrameId = useCallback((): string | null => {
+    const t = popoutTake(readFilmActive(), set.id, Date.now());
+    if (!t || t.countdown) return null;
+    const k = previewIndex(framesRef.current, t);
+    return k != null && k > 0 ? framesRef.current[k - 1]?.id ?? null : null;
+  }, [set.id]);
   const ceq = frame?.kind === "ceq" && frame.ceqId ? ceqById.get(frame.ceqId) : undefined;
 
   // ---- THE MAP (header): the shot being walked, per frame — a new frame is shot 0 with no
@@ -675,6 +688,9 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
         if (e.key === "Escape" || e.key === "?") { e.preventDefault(); setShowHotkeys(false); }
         return;
       }
+      // PUNCH-IN (2026-09-14, capture/PunchIn.tsx): the pop-out hands F3 and Ctrl+Z to the main window's
+      // panel; the main window's own panel takes them before this handler ever runs.
+      if (popout.isPopout && relayPunchKey(set.id, e)) { e.preventDefault(); return; }
       // F3 — SCRAP. Handled before everything else so Esc cancels a scrap rather than leaving Film.
       if (e.key === "F3") {
         e.preventDefault();
@@ -868,6 +884,11 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
       <ScrapBar scrap={scrapper.scrap} note={scrapper.note} listening={scrapper.listening} supported={scrapper.supported} inShot={popout.isPopout} />
       {/* THE SCRAP LIGHT (2026-09-13): red ✗ → amber → green, in THIS window only while a pop-out films. */}
       {!popout.isPopout && <ScrapLight setId={set.id} />}
+      {/* PUNCH-IN (2026-09-14): one slide at a time with OBS, then Preview and Post — main window only. */}
+      {!popout.isPopout && punchOn && (
+        <PunchIn setId={set.id} setName={set.name} topicName={topicName ?? ""} frames={frames} takeIndex={takeInfo?.index ?? 0} takeName={takeInfo ? takeLabel(takeInfo) : ""}
+          popoutFrameId={popoutFrameId} onClose={() => setPunch(false)} />
+      )}
       {/* THE BRAND CURSOR — the bolt, as on the canvas popout. The native
           cursor is hidden; turn "Capture Cursor" off on the OBS source. */}
       {/* Lee, 2026-09-06: "don't show the bolt cursor on intro 1 and intro 2 slides" — the
@@ -1008,6 +1029,12 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
               fill behind a removed background. Main window only — the pop-out hears the change and
               is the one that cuts, and its client area is the shot. */}
           {!popout.isPopout && <CameraBgPicker compact />}
+          {!popout.isPopout && (
+            <button onClick={() => setPunch(!punchOn)} title="Punch-in: film one slide at a time with OBS (F4), then Preview and Post the video"
+              style={{ color: punchOn ? "#000" : GOLD, background: punchOn ? GOLD : "none", border: `1px solid ${GOLD}${punchOn ? "" : "66"}`, borderRadius: 6, padding: "2px 8px", fontWeight: 800, cursor: "pointer", fontSize: 11 }}>
+              🎯 punch-in{punchOn ? " on" : ""}
+            </button>
+          )}
           {/* REHEARSAL (2026-09-06, second pass): the toggle lives right here, in the same chrome
               bar as everything else about this take — Lee: "I'd prefer to see it somewhere on
               film." Third pass: the chip is the same R the key is — arm, cancel, or finish. */}

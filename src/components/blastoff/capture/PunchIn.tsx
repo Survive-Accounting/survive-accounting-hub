@@ -1,0 +1,347 @@
+// PUNCH-IN — film one slide at a time with OBS, then Preview and Post the video (punch-in.ts has the rules
+// and Lee's words). This panel lives in the MAIN /film window only; the pop-out is what OBS captures, so
+// it gets nothing but the key relay at the bottom.
+//
+//   F4 (OBS)  starts / stops a recording — the app hears it over OBS WebSocket and keeps the file's name
+//             with the slides on screen from start to stop (walk slides while recording = a speed run).
+//             On stop, the pop-out goes to the next slide.
+//   F3        "scrap?" — F3 again scraps: the file moves to _trash in the recordings folder, the pop-out goes
+//             back to that slide. While recording, the take is scrapped when it stops. Esc cancels.
+//   Ctrl+Z    brings the last scrapped take back.
+//   Preview   the kept takes in slide order (a newer take overwrites the slides it covers), uploaded,
+//             pauses trimmed and joined on the render worker, played with the site's end buttons.
+//   Post      a brand thumbnail, the end button, and the site post — then on to the next split.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { ThumbnailArt } from "@/components/brand-kit/ThumbnailArt";
+import { baseName, connectObs, OBS_DEFAULT_ADDRESS, type ObsStatus } from "@/components/canvas/obs-bridge";
+import { fsaSupported, getFile, moveToRecycle, pickTakesFolder, restoreFromRecycle, savedTakesFolder } from "@/components/canvas/takes-folder";
+import { PracticeEndCard } from "@/components/learn/PracticeEndCard";
+import { coverFor } from "@/components/v3/quick-post";
+import { uploadCover, uploadTake } from "@/components/v3/take-burn";
+import { renderSvgToBlob } from "@/lib/brand-kit/export-png";
+import { measureText } from "@/lib/brand-kit/measure";
+import { defaultThumbSpec, seriesTitleCap, SITE_EXPORT, TITLE_TRACKING, type ThumbSpec } from "@/lib/brand-kit/thumbnail";
+import { colorwayFor, KIT, NEUTRAL_COLORWAY_ID } from "@/lib/brand-kit/tokens";
+import { setPublishCover, setPublishEndCta } from "@/lib/publish-queue.functions";
+import { resolveWorkerRender, startDissectStitch } from "@/lib/render-worker.functions";
+import { resolveSitePost, startSitePost } from "@/lib/site-publish.functions";
+import { partKey } from "@/lib/student-shorts";
+
+import type { BlastFrame } from "../plan";
+import { FRAME_LABEL } from "../plan";
+import { endCtaOf } from "../practice-cta";
+import { nextAfter, pickTakes, punchKey, readTakes, STITCH_MAX, uncovered, type PunchTake } from "../punch-in";
+
+const GOLD = "#FCA311", CREAM = "#F5EFE6", MUTED = "#8C9BBA", EDGE = "#2A3654", RED = "#FF7A6B", MINT = "#3BF5A0";
+export const PUNCH_ON_KEY = "sa-punch-on";
+const relayKey = (setId: string) => `sa-punch-key:${setId}`;
+const wait = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+
+export function readPunchOn(): boolean { try { return localStorage.getItem(PUNCH_ON_KEY) === "1"; } catch { return false; } }
+
+/** THE POP-OUT'S KEYS, sent to the main window while punch-in is on (the pop-out has the focus while he
+ *  films, and must draw nothing). Returns true when it took the key. */
+export function relayPunchKey(setId: string, e: KeyboardEvent): boolean {
+  if (!readPunchOn()) return false;
+  const undo = (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z";
+  if (e.key !== "F3" && !undo) return false;
+  try { localStorage.setItem(relayKey(setId), JSON.stringify({ key: undo ? "undo" : e.key, at: Date.now() })); } catch { return false; }
+  return true;
+}
+
+type Stage =
+  | { s: "idle" }
+  | { s: "uploading"; done: number; of: number }
+  | { s: "stitching"; note: string }
+  | { s: "ready"; fileUrl: string }
+  | { s: "posting"; note: string }
+  | { s: "posted"; link: string }
+  | { s: "error"; error: string; fileUrl?: string };
+
+export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName, popoutFrameId, onClose }: {
+  setId: string; setName: string; topicName: string;
+  /** The split being filmed, as the pop-out walks it. */
+  frames: readonly BlastFrame[];
+  takeIndex: number;
+  takeName: string;
+  /** The slide the pop-out has up right now (read at the moment it's asked), or null with no pop-out. */
+  popoutFrameId: () => string | null;
+  onClose: () => void;
+}) {
+  const ids = useMemo(() => frames.map((f) => f.id), [frames]);
+  const key = punchKey(setId, takeIndex);
+  const pubKey = partKey(setId, takeIndex);
+  const [takes, setTakes] = useState<PunchTake[]>(() => { try { return readTakes(localStorage.getItem(key)); } catch { return []; } });
+  useEffect(() => { try { setTakes(readTakes(localStorage.getItem(key))); } catch { setTakes([]); } }, [key]);
+  const save = useCallback((next: PunchTake[]) => { setTakes(next); try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* this visit only */ } }, [key]);
+  const takesRef = useRef(takes); takesRef.current = takes;
+
+  const [obs, setObs] = useState<{ status: ObsStatus; detail?: string }>({ status: "off" });
+  const [addr, setAddr] = useState(() => { try { return localStorage.getItem("sa-obs-addr") ?? OBS_DEFAULT_ADDRESS; } catch { return OBS_DEFAULT_ADDRESS; } });
+  const [pass, setPass] = useState(() => { try { return localStorage.getItem("sa-obs-pass") ?? ""; } catch { return ""; } });
+  const [connectTick, setConnectTick] = useState(0);
+  const [folder, setFolder] = useState<FileSystemDirectoryHandle | null>(null);
+  const [recording, setRecording] = useState<{ fromId: string } | null>(null);
+  const recRef = useRef(recording); recRef.current = recording;
+  const [armed, setArmed] = useState<"last" | "live" | null>(null);
+  const armedRef = useRef(armed); armedRef.current = armed;
+  const scrapLive = useRef(false);
+  const [trash, setTrash] = useState<PunchTake[]>([]);
+  const trashRef = useRef(trash); trashRef.current = trash;
+  const [flash, setFlash] = useState<{ text: string; tone: "good" | "warn" | "bad" } | null>(null);
+  const say = (text: string, tone: "good" | "warn" | "bad" = "good") => setFlash({ text, tone });
+  const [stage, setStage] = useState<Stage>({ s: "idle" });
+  const [title, setTitle] = useState(takeName || setName);
+  useEffect(() => { setTitle(takeName || setName); setStage({ s: "idle" }); }, [takeName, setName, takeIndex]);
+  const [ended, setEnded] = useState(false);
+  const cta = endCtaOf(frames);
+  const artRef = useRef<SVGSVGElement | null>(null);
+
+  const goto = useCallback((frameId: string | null) => {
+    if (!frameId) return;
+    try { localStorage.setItem(`sa-film-goto:${setId}`, JSON.stringify({ frameId, at: Date.now() })); } catch { /* the pop-out stays */ }
+  }, [setId]);
+  const label = (id: string) => { const k = ids.indexOf(id); const f = frames[k]; return k < 0 || !f ? "a slide" : `slide ${k + 1} (${FRAME_LABEL[f.kind]})`; };
+
+  // THE FOLDER, if it was granted before.
+  useEffect(() => { void savedTakesFolder(false).then((h) => { if (h) setFolder(h); }); }, []);
+
+  // OBS — connected while the panel is open.
+  useEffect(() => {
+    if (!connectTick) return;
+    return connectObs(addr, pass, {
+      onStatus: (status, detail) => setObs({ status, detail }),
+      onRecord: (e) => {
+        if (e.kind === "started") {
+          const from = popoutFrameId();
+          if (!from) { say("Recording, but no pop-out is open — open the 9:16 window so the take knows its slide.", "bad"); setRecording({ fromId: "" }); return; }
+          setRecording({ fromId: from }); scrapLive.current = false; setArmed(null);
+          say(`● recording ${label(from)}`, "warn");
+          return;
+        }
+        if (e.kind === "stopped") {
+          const rec = recRef.current;
+          setRecording(null);
+          const to = popoutFrameId();
+          if (!rec?.fromId || !to || !e.path) { say("Stopped — the take couldn't be matched to a slide, so it wasn't kept.", "bad"); return; }
+          const take: PunchTake = { file: baseName(e.path), fromId: rec.fromId, toId: to, at: Date.now() };
+          if (scrapLive.current) {
+            scrapLive.current = false;
+            setTrash((t) => [...t, take]);
+            if (folder) void moveToRecycle(folder as never, take.file);
+            goto(take.fromId);
+            say(`Scrapped — back on ${label(take.fromId)}. Ctrl+Z brings it back.`, "warn");
+            return;
+          }
+          save([...takesRef.current, take]);
+          const next = nextAfter(ids, take);
+          goto(next);
+          say(next ? `✓ kept ${label(take.fromId)}${take.toId !== take.fromId ? ` → ${label(take.toId)}` : ""} — up next: ${label(next)}` : "✓ kept — that's the last slide. Preview the video.", "good");
+        }
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reconnect only on an explicit Connect
+  }, [connectTick]);
+
+  // F3 · F3 · Ctrl+Z · Esc — here, and from the pop-out through the relay.
+  const onPunchKey = useCallback((k: string) => {
+    if (k === "Escape") { if (armedRef.current) { setArmed(null); say("Scrap cancelled"); return true; } return false; }
+    if (k === "undo") {
+      const last = trashRef.current[trashRef.current.length - 1];
+      if (!last) { say("Nothing scrapped to bring back", "warn"); return true; }
+      setTrash((t) => t.slice(0, -1));
+      if (folder) void restoreFromRecycle(folder as never, last.file);
+      save([...takesRef.current, last]);
+      say(`Brought back ${label(last.fromId)}`, "good");
+      return true;
+    }
+    if (k !== "F3") return false;
+    if (recRef.current) {
+      if (armedRef.current === "live") { scrapLive.current = true; setArmed(null); say("This take will be scrapped when you punch out (F4)", "warn"); }
+      else { setArmed("live"); say("Scrap this take? F3 again", "warn"); }
+      return true;
+    }
+    const last = [...takesRef.current].sort((a, b) => b.at - a.at)[0];
+    if (!last) { say("No take to scrap yet", "warn"); return true; }
+    if (armedRef.current === "last") {
+      setArmed(null);
+      save(takesRef.current.filter((t) => t !== last));
+      setTrash((t) => [...t, last]);
+      if (folder) void moveToRecycle(folder as never, last.file);
+      goto(last.fromId);
+      say(`Scrapped ${label(last.fromId)} — go again. Ctrl+Z brings it back.`, "warn");
+    } else { setArmed("last"); say(`Scrap the last take (${label(last.fromId)})? F3 again`, "warn"); }
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folder, save, goto, ids]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const undo = (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z";
+      const k = undo ? "undo" : e.key;
+      if (k !== "F3" && k !== "undo" && !(k === "Escape" && armedRef.current)) return;
+      if (onPunchKey(k)) { e.preventDefault(); e.stopImmediatePropagation(); }
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== relayKey(setId) || !e.newValue) return;
+      try { const m = JSON.parse(e.newValue) as { key?: string }; if (m.key) onPunchKey(m.key); } catch { /* not ours */ }
+    };
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("storage", onStorage);
+    return () => { window.removeEventListener("keydown", onKey, true); window.removeEventListener("storage", onStorage); };
+  }, [onPunchKey, setId]);
+
+  // PREVIEW: upload the kept takes, trim + join on the worker, play it here.
+  const picks = pickTakes(ids, takes);
+  const gaps = uncovered(ids, takes);
+  const preview = async () => {
+    setEnded(false);
+    try {
+      let dir = folder;
+      if (!dir) { dir = (await pickTakesFolder()) as never; if (!dir) throw new Error("Choose the OBS recordings folder first."); setFolder(dir); }
+      if (!picks.length) throw new Error("No kept takes in this split yet.");
+      if (picks.length > STITCH_MAX) throw new Error(`${picks.length} takes — the joiner takes ${STITCH_MAX} at most. Film a few neighbouring slides as one speed-run take, then preview.`);
+      const urls: string[] = [];
+      setStage({ s: "uploading", done: 0, of: picks.length });
+      for (const p of picks) {
+        const file = await getFile(dir as never, p.take.file);
+        if (!file) throw new Error(`${p.take.file} isn't in the recordings folder (moved, or OBS still writing it) — wait a moment and preview again.`);
+        urls.push(await uploadTake(file));
+        setStage({ s: "uploading", done: urls.length, of: picks.length });
+      }
+      setStage({ s: "stitching", note: "trimming pauses and joining…" });
+      const job = await startDissectStitch({ data: { urls, gapMs: 220 } });
+      for (;;) {
+        await wait(3000);
+        const r = await resolveWorkerRender({ data: { jobId: job.jobId, path: job.path, machineId: job.machineId } });
+        if (r.state === "done" && r.fileUrl) { setStage({ s: "ready", fileUrl: r.fileUrl }); return; }
+        if (r.state === "error") throw new Error(r.error ?? "The joiner failed.");
+        setStage({ s: "stitching", note: `${r.state}${r.note ? ` · ${r.note}` : ""}` });
+      }
+    } catch (e) { setStage({ s: "error", error: e instanceof Error ? e.message : String(e) }); }
+  };
+
+  // POST: thumbnail → end button → the site.
+  const thumb: ThumbSpec = useMemo(() => {
+    const c = coverFor(title);
+    const base = defaultThumbSpec({ exam: 1, part: topicName || "Easy Points", kicker: "", visualType: "concept", concept: { kind: "bolt", text: "" } });
+    const spec = { ...base, title: c.title, variant: c.variant };
+    const cap = seriesTitleCap([spec], (t: string, s: number) => measureText(t, s, 900, KIT.display, TITLE_TRACKING));
+    return { ...spec, titleCap: cap };
+  }, [title, topicName]);
+  const post = async (fileUrl: string) => {
+    try {
+      setStage({ s: "posting", note: "making the thumbnail…" });
+      const svg = artRef.current;
+      if (!svg) throw new Error("The thumbnail isn't drawn yet.");
+      const blob = await renderSvgToBlob(svg, { width: SITE_EXPORT.w, height: SITE_EXPORT.h, type: SITE_EXPORT.type, quality: SITE_EXPORT.quality });
+      const name = `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "video"}.webp`;
+      const coverUrl = await uploadCover(new File([blob], name, { type: SITE_EXPORT.type }));
+      const c = await setPublishCover({ data: { setId: pubKey, cover: { url: coverUrl, name } } });
+      if (!c.ok) throw new Error(`Thumbnail: ${c.error ?? "not saved"}`);
+      const e = await setPublishEndCta({ data: { setId: pubKey, cta } });
+      if (!e.ok) throw new Error(`End button: ${e.error ?? "not saved"}`);
+      setStage({ s: "posting", note: "sending to the video host…" });
+      const { assetId } = await startSitePost({ data: { videoUrl: fileUrl, pubKey } });
+      const started = Date.now();
+      while (Date.now() - started < 30 * 60_000) {
+        await wait(5000);
+        const r = await resolveSitePost({ data: { assetId, setId, pubKey, takeIndex, takeName: title, title, videoUrl: fileUrl } });
+        if (r.state === "posted") { setStage({ s: "posted", link: r.link }); return; }
+        if (r.state === "error") { if (/changed while posting/i.test(r.error)) { await wait(2000); continue; } throw new Error(r.error); }
+        setStage({ s: "posting", note: "processing on the video host…" });
+      }
+      throw new Error("Still processing after 30 minutes — press Post again.");
+    } catch (err) { setStage({ s: "error", error: err instanceof Error ? err.message : String(err), fileUrl }); }
+  };
+
+  const btn = (strong = false): React.CSSProperties => ({ font: "inherit", fontSize: 12, fontWeight: 800, padding: "5px 10px", borderRadius: 7, cursor: "pointer", border: `1px solid ${strong ? GOLD : EDGE}`, background: strong ? GOLD : "transparent", color: strong ? "#14213D" : CREAM, whiteSpace: "nowrap" });
+  const field: React.CSSProperties = { font: "inherit", fontSize: 12, background: "rgba(0,0,0,0.35)", color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 6, padding: "4px 6px", width: "100%", boxSizing: "border-box" };
+  const obsTone = obs.status === "connected" ? MINT : obs.status === "error" ? RED : MUTED;
+  const fileUrlOf = stage.s === "ready" ? stage.fileUrl : stage.s === "error" ? stage.fileUrl : undefined;
+
+  return (
+    <aside aria-label="Punch-in filming" style={{ position: "fixed", top: 12, right: 12, bottom: 12, width: 330, zIndex: 40, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, background: "rgba(7,11,20,0.94)", border: `1px solid ${EDGE}`, borderRadius: 12, padding: 12, fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 12, color: CREAM }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <b style={{ fontSize: 14, color: GOLD }}>Punch-in</b>
+        <span style={{ color: MUTED }}>Video {takeIndex + 1}{takeName ? ` · ${takeName}` : ""}</span>
+        <span style={{ flex: 1 }} />
+        <button type="button" style={btn()} onClick={onClose} title="Close punch-in (F3 goes back to the normal scrap)">✕</button>
+      </div>
+
+      {/* SETUP */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: `1px solid ${EDGE}`, paddingTop: 8 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <span style={{ width: 8, height: 8, borderRadius: 999, background: obsTone }} />
+          <span>OBS {obs.status}{obs.detail ? ` — ${obs.detail}` : ""}</span>
+        </div>
+        {obs.status !== "connected" && (<>
+          <input style={field} value={addr} aria-label="OBS WebSocket address" onChange={(e) => { setAddr(e.target.value); try { localStorage.setItem("sa-obs-addr", e.target.value); } catch { /* */ } }} placeholder={OBS_DEFAULT_ADDRESS} />
+          <input style={field} type="password" value={pass} aria-label="OBS WebSocket password" onChange={(e) => { setPass(e.target.value); try { localStorage.setItem("sa-obs-pass", e.target.value); } catch { /* */ } }} placeholder="OBS WebSocket password (Tools ▸ WebSocket Server Settings)" />
+          <button type="button" style={btn(true)} onClick={() => setConnectTick((n) => n + 1)}>Connect OBS</button>
+        </>)}
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <span style={{ width: 8, height: 8, borderRadius: 999, background: folder ? MINT : MUTED }} />
+          <span style={{ flex: 1 }}>{folder ? `Recordings folder: ${folder.name}` : fsaSupported() ? "Recordings folder not chosen" : "This browser can't open folders — use Chrome"}</span>
+          {fsaSupported() && <button type="button" style={btn(!folder)} onClick={() => void pickTakesFolder().then((h) => h && setFolder(h as never))}>{folder ? "Change" : "Choose"}</button>}
+        </div>
+      </div>
+
+      {/* NOW */}
+      <div style={{ borderTop: `1px solid ${EDGE}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ fontWeight: 800, color: recording ? RED : CREAM }}>{recording ? `● REC — ${recording.fromId ? label(recording.fromId) : "no pop-out"}` : "F4 in OBS to punch in"}</div>
+        <div style={{ color: MUTED }}>Space in the pop-out while recording = a speed run over those slides. F3 scrap · F3 again to confirm · Ctrl+Z undo.</div>
+        {armed && <div style={{ color: GOLD, fontWeight: 800 }}>{armed === "live" ? "Scrap this take? F3 again (Esc cancels)" : "Scrap the last take? F3 again (Esc cancels)"}</div>}
+        {flash && <div role="status" style={{ color: flash.tone === "good" ? MINT : flash.tone === "warn" ? GOLD : RED, fontWeight: 700 }}>{flash.text}</div>}
+      </div>
+
+      {/* THE SLIDES AND THEIR TAKES */}
+      <div style={{ borderTop: `1px solid ${EDGE}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 2 }}>
+        {frames.map((f, k) => {
+          const p = picks.find((x) => k >= x.from && k <= x.to);
+          return (
+            <button key={f.id} type="button" onClick={() => goto(f.id)} title="Put this slide up in the pop-out — punch in again to overwrite it"
+              style={{ all: "unset", cursor: "pointer", display: "flex", gap: 6, alignItems: "center", padding: "2px 4px", borderRadius: 5, color: p ? CREAM : MUTED }}>
+              <span style={{ width: 18, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{k + 1}</span>
+              <span style={{ color: p ? MINT : MUTED }}>{p ? "✓" : "○"}</span>
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{FRAME_LABEL[f.kind]}{f.pace === "speed" ? " · speed" : ""}</span>
+              {p && p.to > p.from && k === p.from && <span style={{ color: MUTED }}>→ {p.to + 1}</span>}
+            </button>
+          );
+        })}
+        <div style={{ color: MUTED, marginTop: 4 }}>{picks.length} take{picks.length === 1 ? "" : "s"} kept{gaps.length ? ` · ${gaps.length} slide${gaps.length === 1 ? "" : "s"} not filmed` : " · every slide filmed"}</div>
+      </div>
+
+      {/* PREVIEW → POST */}
+      <div style={{ borderTop: `1px solid ${EDGE}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+        <button type="button" style={btn(true)} disabled={stage.s === "uploading" || stage.s === "stitching" || stage.s === "posting" || !picks.length} onClick={() => void preview()}>
+          {stage.s === "ready" || stage.s === "posted" ? "Preview again" : "▶ Preview this video"}
+        </button>
+        {stage.s === "uploading" && <div style={{ color: GOLD }}>Uploading takes {stage.done} / {stage.of}…</div>}
+        {stage.s === "stitching" && <div style={{ color: GOLD }}>{stage.note}</div>}
+        {stage.s === "error" && <div style={{ color: RED }}>{stage.error}</div>}
+        {fileUrlOf && (
+          <div style={{ position: "relative", width: 270, maxWidth: "100%", aspectRatio: "9 / 16", background: "#000", borderRadius: 10, overflow: "hidden", alignSelf: "center" }}>
+            <video src={fileUrlOf} controls playsInline onPlay={() => setEnded(false)} onEnded={() => setEnded(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            {ended && cta && <PracticeEndCard variant={cta} onPractice={() => setEnded(false)} onSkip={() => setEnded(false)} />}
+          </div>
+        )}
+        {fileUrlOf && (<>
+          <label style={{ color: MUTED }}>Title
+            <input style={{ ...field, marginTop: 3 }} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ borderRadius: 6, overflow: "hidden", border: `1px solid ${EDGE}` }}>
+              <ThumbnailArt ref={(el) => { artRef.current = el; }} spec={thumb} colorway={colorwayFor(NEUTRAL_COLORWAY_ID)} mode="social" width={72} />
+            </div>
+            <div style={{ color: MUTED, flex: 1 }}>End button on the site: <b style={{ color: CREAM }}>{cta === "try" ? "Try Practice Questions" : cta === "unlock" ? "Start Practice" : "none"}</b></div>
+          </div>
+          <button type="button" style={btn(true)} onClick={() => void post(fileUrlOf)}>Post to the site</button>
+        </>)}
+        {stage.s === "posting" && <div style={{ color: GOLD }}>{stage.note}</div>}
+        {stage.s === "posted" && <div style={{ color: MINT, fontWeight: 800 }}>✓ Posted — <a href={stage.link} target="_blank" rel="noreferrer" style={{ color: MINT }}>see it</a>. ] for the next video.</div>}
+      </div>
+    </aside>
+  );
+}
