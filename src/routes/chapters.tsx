@@ -43,16 +43,24 @@ const FINDER_SCHOOLS = ALL_SCHOOLS.map((x) => ({ slug: x.slug, name: x.name }));
 export const Route = createFileRoute("/chapters")({
   // noindex is deliberate (outreach funnel, not an SEO surface) and does NOT affect link
   // previews — iMessage/GroupMe read og tags regardless of robots.
-  head: () => ({
-    meta: [
-      ...ogMeta({
-        title: "Fraternities & sororities: find your chapter.",
-        description: "Chapter seats for every member who needs intro accounting help. Find your chapter and claim it in 30 seconds.",
-        path: "/chapters",
-      }),
-      { name: "robots", content: "noindex" },
-    ],
-  }),
+  head: ({ match }) => {
+    // THE CHAIR PORTAL'S CARD (Lee, 2026-09-14): the link a council exec shares with scholarship
+    // chairs (school + council) previews as "[campus] [course] — Free Exam 1 Prep".
+    const search = (match?.search ?? {}) as { school?: string; c?: string };
+    const school = search.c && search.school ? (schoolBySlug(search.school) ?? schoolById(search.school)) : undefined;
+    const meta = school
+      ? ogMeta({
+          title: `${school.name} ${school.courseCode ?? "Accounting"} — Free Exam 1 Prep`,
+          description: "Cram videos and practice exams created by a pro tutor. Get ready for your first accounting exam—for free.",
+          path: `/chapters?school=${encodeURIComponent(school.slug)}&c=${encodeURIComponent(search.c!)}`,
+        })
+      : ogMeta({
+          title: "Fraternities & sororities: find your chapter.",
+          description: "Chapter seats for every member who needs intro accounting help. Find your chapter and claim it in 30 seconds.",
+          path: "/chapters",
+        });
+    return { meta: [...meta, { name: "robots", content: "noindex" }] };
+  },
   // ?school=<campus-slug> pre-selects the school in the finder — campus pages link here with
   // their own slug so a visitor never re-finds a school the link already named.
   //

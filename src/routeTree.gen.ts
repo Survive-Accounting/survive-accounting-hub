@@ -187,6 +187,7 @@ import { Route as AdminGrowthChaptersRouteImport } from './routes/admin.growth.c
 import { Route as AdminGrowthCampusesRouteImport } from './routes/admin.growth.campuses'
 import { Route as AdminGrowthCampaignsRouteImport } from './routes/admin.growth.campaigns'
 import { Route as AdminGrowthActivityRouteImport } from './routes/admin.growth.activity'
+import { Route as SchoolCouncilChar123RChar125RouteImport } from './routes/$school.$council.{-$r}'
 import { Route as V4TopicSetIndexRouteImport } from './routes/v4.$topic.$set.index'
 import { Route as V3TopicSetIndexRouteImport } from './routes/v3.$topic.$set.index'
 import { Route as AdminGrowthColdoutreachIndexRouteImport } from './routes/admin.growth.coldoutreach.index'
@@ -1117,6 +1118,12 @@ const AdminGrowthActivityRoute = AdminGrowthActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => AdminGrowthRoute,
 } as any)
+const SchoolCouncilChar123RChar125Route =
+  SchoolCouncilChar123RChar125RouteImport.update({
+    id: '/$school/$council/{-$r}',
+    path: '/$school/$council/{-$r}',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const V4TopicSetIndexRoute = V4TopicSetIndexRouteImport.update({
   id: '/v4/$topic/$set/',
   path: '/v4/$topic/$set/',
@@ -1394,6 +1401,7 @@ export interface FileRoutesByFullPath {
   '/u/': typeof UIndexRoute
   '/v3/': typeof V3IndexRoute
   '/v4/': typeof V4IndexRoute
+  '/$school/$council/{-$r}': typeof SchoolCouncilChar123RChar125Route
   '/admin/growth/activity': typeof AdminGrowthActivityRoute
   '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
@@ -1599,6 +1607,7 @@ export interface FileRoutesByTo {
   '/u': typeof UIndexRoute
   '/v3': typeof V3IndexRoute
   '/v4': typeof V4IndexRoute
+  '/$school/$council/{-$r}': typeof SchoolCouncilChar123RChar125Route
   '/admin/growth/activity': typeof AdminGrowthActivityRoute
   '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
@@ -1807,6 +1816,7 @@ export interface FileRoutesById {
   '/u/': typeof UIndexRoute
   '/v3/': typeof V3IndexRoute
   '/v4/': typeof V4IndexRoute
+  '/$school/$council/{-$r}': typeof SchoolCouncilChar123RChar125Route
   '/admin/growth/activity': typeof AdminGrowthActivityRoute
   '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
@@ -2017,6 +2027,7 @@ export interface FileRouteTypes {
     | '/u/'
     | '/v3/'
     | '/v4/'
+    | '/$school/$council/{-$r}'
     | '/admin/growth/activity'
     | '/admin/growth/campaigns'
     | '/admin/growth/campuses'
@@ -2222,6 +2233,7 @@ export interface FileRouteTypes {
     | '/u'
     | '/v3'
     | '/v4'
+    | '/$school/$council/{-$r}'
     | '/admin/growth/activity'
     | '/admin/growth/campaigns'
     | '/admin/growth/campuses'
@@ -2429,6 +2441,7 @@ export interface FileRouteTypes {
     | '/u/'
     | '/v3/'
     | '/v4/'
+    | '/$school/$council/{-$r}'
     | '/admin/growth/activity'
     | '/admin/growth/campaigns'
     | '/admin/growth/campuses'
@@ -2607,6 +2620,7 @@ export interface RootRouteChildren {
   UIndexRoute: typeof UIndexRoute
   V3IndexRoute: typeof V3IndexRoute
   V4IndexRoute: typeof V4IndexRoute
+  SchoolCouncilChar123RChar125Route: typeof SchoolCouncilChar123RChar125Route
   AdminIdeasStrategyRoute: typeof AdminIdeasStrategyRoute
   AdminIllustrationsStylesRoute: typeof AdminIllustrationsStylesRoute
   AdminRepsOnboardingVideosRoute: typeof AdminRepsOnboardingVideosRoute
@@ -3905,6 +3919,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGrowthActivityRouteImport
       parentRoute: typeof AdminGrowthRoute
     }
+    '/$school/$council/{-$r}': {
+      id: '/$school/$council/{-$r}'
+      path: '/$school/$council/{-$r}'
+      fullPath: '/$school/$council/{-$r}'
+      preLoaderRoute: typeof SchoolCouncilChar123RChar125RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/v4/$topic/$set/': {
       id: '/v4/$topic/$set/'
       path: '/v4/$topic/$set'
@@ -4420,6 +4441,7 @@ const rootRouteChildren: RootRouteChildren = {
   UIndexRoute: UIndexRoute,
   V3IndexRoute: V3IndexRoute,
   V4IndexRoute: V4IndexRoute,
+  SchoolCouncilChar123RChar125Route: SchoolCouncilChar123RChar125Route,
   AdminIdeasStrategyRoute: AdminIdeasStrategyRoute,
   AdminIllustrationsStylesRoute: AdminIllustrationsStylesRoute,
   AdminRepsOnboardingVideosRoute: AdminRepsOnboardingVideosRoute,

@@ -48,8 +48,18 @@ const withRefParam = (base: string, ref?: string | null) =>
  *  is the chair portal: /chapters with the campus and council preset. Picking a chapter opens that
  *  chapter's chair page (/go), where the chapter's own funnel starts. */
 export function chairShareUrl(kind: ChairKind, schoolId: string, slug: string, ref?: string | null): string {
-  if (kind === "council") return withRefParam(councilPortalUrl(schoolId, slug), ref);
+  if (kind === "council") return councilShortUrl(schoolId, slug, ref);
   return withRefParam(buildShareUrl({ campus: schoolId, chapter: slug }), ref);
+}
+
+/** THE SHORT COUNCIL LINK (Lee, 2026-09-14: "make these links shorter … and prettier. It's the link a
+ *  council exec would share with scholarship chairs"): surviveaccounting.com/ole-miss/ifc, plus the
+ *  first 8 characters of the contact ref when there is one (…/ole-miss/ifc/0e54a9c2). The route
+ *  ($school.$council.{-$r}) resolves it and redirects to the chair portal below with the full ref. */
+export function councilShortUrl(school: string, council: string, ref?: string | null): string {
+  const id = schoolByAny(school)?.id ?? school;
+  const r = ref && /^[0-9a-f]{8}/i.test(ref) ? `/${ref.slice(0, 8).toLowerCase()}` : "";
+  return `${SHARE_ORIGIN}/${encodeURIComponent(id)}/${encodeURIComponent(council)}${r}`;
 }
 
 /** /chapters?school=<campus slug>&c=<council> — the council's one link (and its slide QR). The

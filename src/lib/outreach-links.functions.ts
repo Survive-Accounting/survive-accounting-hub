@@ -231,6 +231,19 @@ export const outreachRetireContact = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** THE SHORT COUNCIL LINK's ref: the first 8 hex of a growth_contact_qc uuid → the full uuid, when
+ *  exactly one contact starts that way. Public — whoever opens a chair's shared link calls it. */
+export const resolveRefPrefix = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ prefix: z.string().regex(/^[0-9a-f]{8}$/i) }).parse(d))
+  .handler(async ({ data }): Promise<{ ref: string | null }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as DB;
+    const p = data.prefix.toLowerCase();
+    const { data: rows, error } = await db.from("growth_contact_qc").select("id").gte("id", `${p}-0000-0000-0000-000000000000`).lte("id", `${p}-ffff-ffff-ffff-ffffffffffff`).limit(2);
+    if (error || !rows || rows.length !== 1) return { ref: null };
+    return { ref: String(rows[0].id) };
+  });
+
 /** /l/<code> → the contact's page with ?ref=. Public (no admin gate): a DM recipient hits this.
  *  Looks the contact up by the 12-hex contact_id (or, as a fallback, the row uuid). */
 export const resolveDmLink = createServerFn({ method: "GET" })

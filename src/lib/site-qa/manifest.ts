@@ -565,6 +565,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "je.tsx": "redirect → /study",
   "je.$.tsx": "redirect → /study",
   "c.$slug.tsx": "legacy redirect → /go/…",
+  "$school.$council.{-$r}.tsx": "redirect (2026-09-14) — the short council link /<school>/<council>/<ref8> → /chapters portal",
   // Internal dev labs (noindex, not user-facing)
   "callout-demo.tsx": "dev lab (noindex)",
   "admin.ideas.tsx": "internal (noindex) — Ideas to Save prompt vault",

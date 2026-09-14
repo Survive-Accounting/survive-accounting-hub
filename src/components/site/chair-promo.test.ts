@@ -30,8 +30,9 @@ describe("links", () => {
     expect(chairLearnPath("chapter", "tennessee", "alpha-tau-omega")).toBe("/learn/tennessee/alpha-tau-omega");
   });
   test("a council shares ONE link — the chair portal, campus + council preset; its left door still shows members' /learn", () => {
-    expect(chairShareUrl("council", "tennessee", "ifc")).toBe("https://surviveaccounting.com/chapters?school=university-of-tennessee-knoxville&c=ifc");
-    expect(chairShareUrl("council", "tennessee", "ifc", "11111111-2222-3333-4444-555555555555")).toBe("https://surviveaccounting.com/chapters?school=university-of-tennessee-knoxville&c=ifc&ref=11111111-2222-3333-4444-555555555555");
+    // The short, pretty form (2026-09-14); the route redirects it to the portal with the full ref.
+    expect(chairShareUrl("council", "tennessee", "ifc")).toBe("https://surviveaccounting.com/tennessee/ifc");
+    expect(chairShareUrl("council", "university-of-tennessee-knoxville", "ifc", "0E54A9C2-2222-3333-4444-555555555555")).toBe("https://surviveaccounting.com/tennessee/ifc/0e54a9c2");
     expect(chairLearnPath("council", "tennessee", "ifc")).toBe("/learn/tennessee?c=ifc");
   });
   test("nothing the chair hands out points at /go", () => {
