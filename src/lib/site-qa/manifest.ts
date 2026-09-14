@@ -502,6 +502,7 @@ export const TEMPLATES: TemplateDef[] = [
       "admin.reps.roster.tsx",
       "admin.reps.view.$partnerId.tsx",
       "admin.chapter-test.tsx",
+      "admin.dm-v2.tsx",
     ],
     countKey: "static",
     trafficPaths: ["/admin/reps"],

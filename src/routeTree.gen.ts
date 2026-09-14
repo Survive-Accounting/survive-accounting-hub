@@ -124,6 +124,7 @@ import { Route as AdminProductionRouteImport } from './routes/admin.production'
 import { Route as AdminIllustrationsRouteImport } from './routes/admin.illustrations'
 import { Route as AdminIdeasRouteImport } from './routes/admin.ideas'
 import { Route as AdminGrowthRouteImport } from './routes/admin.growth'
+import { Route as AdminDmV2RouteImport } from './routes/admin.dm-v2'
 import { Route as AdminChapterTestRouteImport } from './routes/admin.chapter-test'
 import { Route as SchoolRepRouteImport } from './routes/$school.rep'
 import { Route as V3TopicIndexRouteImport } from './routes/v3.$topic.index'
@@ -796,6 +797,11 @@ const AdminGrowthRoute = AdminGrowthRouteImport.update({
   path: '/admin/growth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminDmV2Route = AdminDmV2RouteImport.update({
+  id: '/admin/dm-v2',
+  path: '/admin/dm-v2',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminChapterTestRoute = AdminChapterTestRouteImport.update({
   id: '/admin/chapter-test',
   path: '/admin/chapter-test',
@@ -1324,6 +1330,7 @@ export interface FileRoutesByFullPath {
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
   '/admin/chapter-test': typeof AdminChapterTestRoute
+  '/admin/dm-v2': typeof AdminDmV2Route
   '/admin/growth': typeof AdminGrowthRouteWithChildren
   '/admin/ideas': typeof AdminIdeasRoute
   '/admin/illustrations': typeof AdminIllustrationsRoute
@@ -1532,6 +1539,7 @@ export interface FileRoutesByTo {
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
   '/admin/chapter-test': typeof AdminChapterTestRoute
+  '/admin/dm-v2': typeof AdminDmV2Route
   '/admin/ideas': typeof AdminIdeasRoute
   '/admin/illustrations': typeof AdminIllustrationsRoute
   '/admin/production': typeof AdminProductionRoute
@@ -1739,6 +1747,7 @@ export interface FileRoutesById {
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
   '/admin/chapter-test': typeof AdminChapterTestRoute
+  '/admin/dm-v2': typeof AdminDmV2Route
   '/admin/growth': typeof AdminGrowthRouteWithChildren
   '/admin/ideas': typeof AdminIdeasRoute
   '/admin/illustrations': typeof AdminIllustrationsRoute
@@ -1950,6 +1959,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/$school/rep'
     | '/admin/chapter-test'
+    | '/admin/dm-v2'
     | '/admin/growth'
     | '/admin/ideas'
     | '/admin/illustrations'
@@ -2158,6 +2168,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/$school/rep'
     | '/admin/chapter-test'
+    | '/admin/dm-v2'
     | '/admin/ideas'
     | '/admin/illustrations'
     | '/admin/production'
@@ -2364,6 +2375,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/$school/rep'
     | '/admin/chapter-test'
+    | '/admin/dm-v2'
     | '/admin/growth'
     | '/admin/ideas'
     | '/admin/illustrations'
@@ -2574,6 +2586,7 @@ export interface RootRouteChildren {
   WelcomeRoute: typeof WelcomeRoute
   SchoolRepRoute: typeof SchoolRepRoute
   AdminChapterTestRoute: typeof AdminChapterTestRoute
+  AdminDmV2Route: typeof AdminDmV2Route
   AdminGrowthRoute: typeof AdminGrowthRouteWithChildren
   AdminIdeasRoute: typeof AdminIdeasRoute
   AdminIllustrationsRoute: typeof AdminIllustrationsRoute
@@ -3476,6 +3489,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/growth'
       fullPath: '/admin/growth'
       preLoaderRoute: typeof AdminGrowthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/dm-v2': {
+      id: '/admin/dm-v2'
+      path: '/admin/dm-v2'
+      fullPath: '/admin/dm-v2'
+      preLoaderRoute: typeof AdminDmV2RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/chapter-test': {
@@ -4395,6 +4415,7 @@ const rootRouteChildren: RootRouteChildren = {
   WelcomeRoute: WelcomeRoute,
   SchoolRepRoute: SchoolRepRoute,
   AdminChapterTestRoute: AdminChapterTestRoute,
+  AdminDmV2Route: AdminDmV2Route,
   AdminGrowthRoute: AdminGrowthRouteWithChildren,
   AdminIdeasRoute: AdminIdeasRoute,
   AdminIllustrationsRoute: AdminIllustrationsRoute,
