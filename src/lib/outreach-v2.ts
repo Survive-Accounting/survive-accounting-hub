@@ -91,6 +91,14 @@ export const V2_PRIORITY: readonly { slug: string; label: string; cluster?: stri
   { slug: "university-of-southern-california", label: "USC" },
   { slug: "university-of-pittsburgh", label: "Pittsburgh" },
   { slug: "syracuse-university", label: "Syracuse" },
+  { slug: "indiana-university-bloomington", label: "Indiana" },
+  { slug: "university-of-michigan", label: "Michigan" },
+  { slug: "university-of-california-los-angeles-r", label: "UCLA" },
+  { slug: "university-of-california-berkeley", label: "Cal" },
+  { slug: "stanford-university", label: "Stanford" },
+  { slug: "duke-university", label: "Duke" },
+  { slug: "wake-forest-university", label: "Wake Forest" },
+  // Not listed: Boston College, Notre Dame and BYU have no recognized fraternity/sorority life.
 ];
 
 /** A saved order, with any priority campus it doesn't mention appended in the default order. */
