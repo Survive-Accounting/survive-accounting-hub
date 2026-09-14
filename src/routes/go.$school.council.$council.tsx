@@ -54,8 +54,14 @@ export const Route = createFileRoute("/go/$school/council/$council")({
     return {
       meta: [
         ...ogMeta({
-          title: p ? `Free ${p.courseCode ?? "intro accounting"} exam prep for every ${p.councilName} chapter at ${p.schoolName}.` : "Survive Accounting for your council",
-          description: "Cram videos and practice exams for the members taking it. Exam 1 is free for every chapter.",
+          // The chair portal's wording (Lee, 2026-09-14): "[campus] [course code] — Free Exam 1 Prep".
+          title: (() => {
+            const sch = schoolBySlug(params.school);
+            const name = p?.schoolName ?? sch?.name;
+            const code = p?.courseCode ?? sch?.courseCode ?? null;
+            return name ? `${name} ${code ?? "Accounting"} — Free Exam 1 Prep` : "Survive Accounting for your council";
+          })(),
+          description: "Cram videos and practice exams created by a pro tutor. Get ready for your first accounting exam—for free.",
           path: `/go/${params.school}/council/${params.council}`,
           image: councilOgImage(params.school, params.council),
         }),
