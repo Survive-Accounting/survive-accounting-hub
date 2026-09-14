@@ -572,14 +572,16 @@ function Short({ s, card, onOpen }: { s: HomeSet; card: Card; onOpen: () => void
   const enter = () => { if (!canPreview || !window.matchMedia?.("(hover: hover)").matches || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return; hoverT.current = window.setTimeout(() => setPreview(true), 350); };
   const leave = () => { if (hoverT.current) window.clearTimeout(hoverT.current); hoverT.current = null; setPreview(false); };
   return (
-    <button type="button" onClick={onOpen} onMouseEnter={enter} onMouseLeave={leave} onBlur={leave} className="lk-short" data-on={false} data-rail="true" data-posted={posted} style={{ opacity: s.locked ? 0.7 : undefined }} title={posted ? card.name : `${card.name} — not posted yet`}>
+    <button type="button" onClick={onOpen} onMouseEnter={enter} onMouseLeave={leave} onBlur={leave} className="lk-short" data-on={false} data-rail="true" data-posted={posted} aria-label={card.name} style={{ opacity: s.locked ? 0.7 : undefined }} title={posted ? card.name : `${card.name} — not posted yet`}>
       {thumb && <img src={thumb} alt="" loading="lazy" />}
       {preview && pid && <HoverPreview pid={pid} />}
       {s.locked && <Lock className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2" style={{ color: "#B5B5B5" }} />}
       {card.runtimeSec != null && pid && <span className="lk-short-d">{fmtRuntime(card.runtimeSec)}</span>}
       {card.done && <span className="absolute left-2 top-2 z-[1] grid h-6 w-6 place-items-center rounded-full" title="Crammed" style={{ background: LK.green, color: "#111" }}><Check className="h-3.5 w-3.5" /></span>}
       {!card.done && card.watched > 0 && <span className="absolute inset-x-0 bottom-0 z-[1] h-[3px]" style={{ background: "rgba(255,255,255,0.2)" }}><span className="block h-full" style={{ width: `${Math.round(card.watched * 100)}%`, background: LK.acc }} /></span>}
-      <span className="lk-short-t" style={{ zIndex: 1 }}>{card.name}</span>
+      {/* A cover Lee made already carries the title (Lee, 2026-09-13: "this is showing titles twice …
+          only show the thumbnail one"), so the caption shows only over the host's plain frame. */}
+      {!card.coverUrl && <span className="lk-short-t" style={{ zIndex: 1 }}>{card.name}</span>}
     </button>
   );
 }
