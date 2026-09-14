@@ -77,6 +77,34 @@ function Where({ crumbs }: { crumbs: Crumb[] }) {
   const params = useParams({ strict: false }) as { topic?: string; set?: string };
   const { pathname } = useLocation();
   const { topics } = useBank();
+  // V4 HAS ITS OWN STEPS (2026-09-14, Lee: "Navbar at top is going back to v3. We don't want that in v4").
+  if (pathname.startsWith("/v4") && params.topic && params.set) {
+    const topic = topics ? findTopic(topics, params.topic) : undefined;
+    const set = topic ? findSet(topic, params.set) : undefined;
+    const base = `/v4/${params.topic}/${params.set}`;
+    const v4steps = [
+      { label: "Questions", to: `${base}/questions`, on: pathname.endsWith("/questions") },
+      { label: "Build", to: `${base}/build`, on: /\/(build|slides|chain|split)$/.test(pathname) },
+      { label: "Film", to: `${base}/film`, on: pathname.endsWith("/film") },
+      { label: "🎬 Studio", to: `${base}/studio`, on: pathname.endsWith("/studio") },
+    ];
+    return (
+      <>
+        {SEP}
+        <span style={{ color: V3_MUTED, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" }}>{topic?.name ?? params.topic.replace(/-/g, " ")}</span>
+        {SEP}
+        <Link to={base as never} style={{ color: V3_CREAM, fontSize: 12.5, fontWeight: 700, textDecoration: "none", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{set?.name ?? params.set.replace(/-/g, " ")}</Link>
+        <nav aria-label="Steps" className="flex items-center gap-1.5" style={{ marginLeft: 6, flexWrap: "wrap" }}>
+          {v4steps.map((st) => (
+            <Link key={st.label} to={st.to as never} aria-current={st.on ? "page" : undefined}
+              style={{ fontSize: 11.5, fontWeight: 800, padding: "3px 10px", borderRadius: 999, textDecoration: "none", whiteSpace: "nowrap", border: `1px solid ${st.on ? V3_GOLD : V3_EDGE}`, background: st.on ? "rgba(252,163,17,0.14)" : "transparent", color: st.on ? V3_GOLD : V3_MUTED }}>
+              {st.label}
+            </Link>
+          ))}
+        </nav>
+      </>
+    );
+  }
   if (!params.topic || !params.set) {
     const here = crumbs[crumbs.length - 1];
     if (!here) return null;
@@ -127,6 +155,7 @@ function Where({ crumbs }: { crumbs: Crumb[] }) {
  *  comment) and their body. `wide` is for a working surface (the Review deck's three columns —
  *  originally the Blast Off editor's list + frame preview side by side) rather than a menu column. */
 export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; children: ReactNode; wide?: boolean }) {
+  const v4 = useLocation().pathname.startsWith("/v4");
   return (
     <div style={{ minHeight: "100vh", background: V3_NAVY, color: V3_CREAM, fontFamily: V3_BODY }}>
       {/* position: relative — the ⚙ popover is absolute against the navbar's right edge.
@@ -136,10 +165,16 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
         className="flex items-center gap-2"
         style={{ minHeight: 40, padding: "5px 20px", borderBottom: `1px solid ${V3_EDGE}`, background: "#05070D", flexWrap: "wrap", position: "relative" }}
       >
-        <Link to="/v3" title="Home — the map"
+        <Link to={v4 ? "/v4" : "/v3"} title={v4 ? "Home — the v4 topics" : "Home — the map"}
           style={{ color: V3_GOLD, fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none", whiteSpace: "nowrap" }}>
-          🏠 Home
+          🏠 {v4 ? "V4" : "Home"}
         </Link>
+        {v4 && (
+          <>
+            <Link to="/v4/breathers" style={{ color: V3_MUTED, fontSize: 11, fontWeight: 800, textDecoration: "none", whiteSpace: "nowrap" }}>Breathers</Link>
+            <Link to="/v3/quick-post" style={{ color: V3_MUTED, fontSize: 11, fontWeight: 800, textDecoration: "none", whiteSpace: "nowrap" }}>Quick post</Link>
+          </>
+        )}
         <Where crumbs={crumbs} />
 
         <div className="ml-auto flex items-center gap-2">

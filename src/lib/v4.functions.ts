@@ -162,6 +162,7 @@ const opSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("add"), groupId: z.string().max(40).nullable(), stem: z.string().max(8000), choices: z.array(choiceSchema).max(12), format: z.enum(["mc", "select_all"]), placeholder: placeholderSchema.nullable().optional() }),
   z.object({ type: z.literal("groups"), groups: z.array(groupSchema).max(60) }),
   z.object({ type: z.literal("clone"), cardId: z.string().min(1).max(200) }),
+  z.object({ type: z.literal("reorder"), cardIds: z.array(z.string().min(1).max(200)).min(2).max(200) }),
 ]);
 
 export type V4QuestionsOp = z.infer<typeof opSchema>;
@@ -208,6 +209,18 @@ export const v4QuestionsChange = createServerFn({ method: "POST" })
       (j.nodes ??= []).push(node);
       target = id;
       after = { stem: op.stem, choices: op.choices, format: op.format, group: op.groupId, placeholder: op.placeholder ?? null };
+    } else if (op.type === "reorder") {
+      // Lee, 2026-09-14: "Let me reorder MC questions in each group. Drag and drop reorder." The cards keep
+      // the same order SLOTS they held between them (so nothing outside the group moves); only who sits in
+      // which slot changes.
+      const nodes = op.cardIds.map((id) => find(id));
+      const slots = nodes.map((n) => (typeof n.data!.stageOrder === "number" ? n.data!.stageOrder : 0)).sort((a, b) => a - b);
+      before = [...nodes].sort((a, b) => ((a.data!.stageOrder as number) ?? 0) - ((b.data!.stageOrder as number) ?? 0)).map((n) => n.id);
+      nodes.forEach((n, k) => { n.data!.stageOrder = slots[k]; });
+      // Two cards that shared a slot would still tie; spread any tie by a hair so the order holds.
+      for (let k = 1; k < nodes.length; k++) if ((nodes[k].data!.stageOrder as number) <= (nodes[k - 1].data!.stageOrder as number)) nodes[k].data!.stageOrder = (nodes[k - 1].data!.stageOrder as number) + 0.001;
+      target = "group-order";
+      after = op.cardIds;
     } else if (op.type === "clone") {
       // Lee, 2026-09-14: "let me clone a question … it would save a lot of time versus making a new one
       // from scratch." A copy of everything on the card, as a fresh draft, right after the original.

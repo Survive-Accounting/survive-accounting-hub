@@ -60,6 +60,7 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
   const [undoNote, setUndoNote] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [rowOver, setRowOver] = useState<{ id: string; below: boolean } | null>(null);
   const short = (c: V4Card) => (c.stem || "a question").slice(0, 40);
 
   const remove = async (c: V4Card) => {
@@ -219,7 +220,24 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
                 {gc.map((c, i) => (
                   <QuestionRow key={c.id} card={c} first={i === 0} open={openId === c.id} onToggle={() => setOpenId(openId === c.id ? null : c.id)}
                     groups={state.groups} busy={busy} run={run} onClone={() => void clone(c)} onRemove={() => void remove(c)}
-                    onDragStart={() => setDragging(c.id)} onDragEnd={() => { setDragging(null); setDragOver(null); }} />
+                    onDragStart={() => setDragging(c.id)} onDragEnd={() => { setDragging(null); setDragOver(null); setRowOver(null); }}
+                    dropLine={dragging && dragging !== c.id && rowOver?.id === c.id ? (rowOver.below ? "below" : "above") : null}
+                    onRowOver={(below) => { if (dragging && dragging !== c.id) setRowOver((r) => (r?.id === c.id && r.below === below ? r : { id: c.id, below })); }}
+                    onRowDrop={() => {
+                      const moving = cards.find((x) => x.id === dragging);
+                      const over = rowOver;
+                      setDragging(null); setRowOver(null); setDragOver(null);
+                      if (!moving || !over || moving.id === c.id) return;
+                      // DRAG TO REORDER (Lee, 2026-09-14). Dropped on a row in ANOTHER group, it moves there first.
+                      const ids = gc.map((x) => x.id).filter((id) => id !== moving.id);
+                      const at = ids.indexOf(c.id) + (over.below ? 1 : 0);
+                      ids.splice(at, 0, moving.id);
+                      const to = state.groups.some((g) => g.id === group.id) ? group.id : null;
+                      void (async () => {
+                        if ((moving.group ?? null) !== to) await run({ type: "group", cardId: moving.id, groupId: to }, `moved "${(moving.stem || "a question").slice(0, 40)}" to ${group.name}`);
+                        await run({ type: "reorder", cardIds: ids }, `reordered "${group.name}"`);
+                      })();
+                    }} />
                 ))}
               </div>
               <div style={{ padding: 8, borderTop: `1px solid ${V3_EDGE}` }}>
@@ -255,10 +273,14 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
   );
 }
 
-function QuestionRow({ card, first, open, onToggle, groups, busy, run, onClone, onRemove, onDragStart, onDragEnd }: {
+function QuestionRow({ card, first, open, onToggle, groups, busy, run, onClone, onRemove, onDragStart, onDragEnd, dropLine, onRowOver, onRowDrop }: {
   card: V4Card; first: boolean; open: boolean; onToggle: () => void; groups: V4Group[]; busy: boolean;
   run: (op: Op, label: string, why?: string | null) => Promise<unknown>;
   onClone: () => void; onRemove: () => void; onDragStart: () => void; onDragEnd: () => void;
+  /** A question being dragged over this row: where it would land. */
+  dropLine: "above" | "below" | null;
+  onRowOver: (below: boolean) => void;
+  onRowDrop: () => void;
 }) {
   const [hover, setHover] = useState(false);
   const spec = formatOf(card);
@@ -267,12 +289,16 @@ function QuestionRow({ card, first, open, onToggle, groups, busy, run, onClone, 
   const tool: React.CSSProperties = { all: "unset", cursor: busy ? "default" : "pointer", width: 24, height: 24, display: "grid", placeItems: "center", borderRadius: 6, fontSize: 13, color: V3_MUTED, border: `1px solid ${V3_EDGE}`, background: "#0e1629" };
   return (
     <div id={`v4q-${card.id}`} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-      style={{ borderTop: first ? "none" : `1px solid ${V3_EDGE}`, background: open ? "rgba(255,255,255,0.04)" : hover ? "rgba(255,255,255,0.025)" : "transparent" }}>
+      onDragOver={(e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); onRowOver(e.clientY > r.top + r.height / 2); }}
+      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onRowDrop(); }}
+      style={{ borderTop: first ? "none" : `1px solid ${V3_EDGE}`, background: open ? "rgba(255,255,255,0.04)" : hover ? "rgba(255,255,255,0.025)" : "transparent",
+        boxShadow: dropLine === "above" ? `inset 0 3px 0 0 ${V3_GOLD}` : dropLine === "below" ? `inset 0 -3px 0 0 ${V3_GOLD}` : "none" }}>
       <div style={{ position: "relative" }}>
         <div role="button" tabIndex={0} draggable={!open} onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", card.id); onDragStart(); }} onDragEnd={onDragEnd}
           onClick={onToggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }}
           style={{ cursor: "pointer", display: "flex", flexDirection: "column", gap: 3, padding: "9px 64px 9px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {!open && <span aria-hidden title="Drag to reorder, or onto a group tab to move it" style={{ fontSize: 12, lineHeight: 1, color: hover ? V3_CREAM : "transparent", cursor: "grab", marginLeft: -4 }}>⠿</span>}
             <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: spec.id === "mc" ? V3_MUTED : "#7DD3FC" }}>{spec.short}</span>
             {card.placeholder && <span style={{ fontSize: 9.5, fontWeight: 900, letterSpacing: "0.1em", color: "#0B0F1E", background: V4_AMBER, borderRadius: 5, padding: "0 5px" }}>PLACEHOLDER</span>}
             {card.draft && !card.placeholder && <span style={{ fontSize: 10, color: V3_MUTED }}>draft</span>}
