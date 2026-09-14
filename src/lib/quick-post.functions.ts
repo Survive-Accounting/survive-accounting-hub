@@ -58,3 +58,26 @@ export const removeSitePosts = createServerFn({ method: "POST" })
     if (cleared.error) console.warn("[quick-post] removed from the set, but the post rows kept their site tick:", cleared.error.message);
     return { ok: true, removed };
   });
+
+/** Rename a set — the name students see (Lee, 2026-09-13: "instead of 5 types of accounts, let's call
+ *  this Know your accounts"). Compare-and-set like the rest. */
+export const renameSetForPost = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(160), name: z.string().trim().min(1).max(120) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const db = await admin();
+    const { loadDecksDeduped } = await import("@/lib/student.functions");
+    const o = (await loadDecksDeduped(db as never)).get(data.setId);
+    if (!o) return { ok: false, error: `There's no set "${data.setId}" in the bank.` };
+    const { data: row, error } = await db.from("canvas_scenes").select("id,nodes_json,updated_at").eq("id", o.sceneId).single();
+    if (error) return { ok: false, error: error.message };
+    const j = row.nodes_json as { decks?: { id: string; name?: string; updatedAt?: string }[] };
+    const deck = (j.decks ?? []).find((d2) => d2.id === data.setId);
+    if (!deck) return { ok: false, error: "The set vanished from its scene." };
+    deck.name = data.name;
+    const up = await db.from("canvas_scenes").update({ nodes_json: j, updated_at: new Date().toISOString() }).eq("id", o.sceneId).eq("updated_at", row.updated_at).select("id");
+    if (up.error) return { ok: false, error: up.error.message };
+    if (!up.data?.length) return { ok: false, error: "The set changed while renaming (an open editor saved it). Press Rename again." };
+    return { ok: true };
+  });

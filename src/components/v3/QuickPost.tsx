@@ -18,7 +18,7 @@ import { measureText } from "@/lib/brand-kit/measure";
 import { defaultThumbSpec, seriesTitleCap, SITE_EXPORT, TITLE_TRACKING, type ThumbSpec } from "@/lib/brand-kit/thumbnail";
 import { colorwayFor, KIT, NEUTRAL_COLORWAY_ID } from "@/lib/brand-kit/tokens";
 import { setPublishCover } from "@/lib/publish-queue.functions";
-import { listSitePosts, removeSitePosts, type SitePostView } from "@/lib/quick-post.functions";
+import { listSitePosts, removeSitePosts, renameSetForPost, type SitePostView } from "@/lib/quick-post.functions";
 import { resolveSitePost, startSitePost } from "@/lib/site-publish.functions";
 
 import { clock, coverFor, EASY_POINTS_ORDER, EASY_POINTS_SET_ID, filmingOrder, leftovers, lengthStats, parseTitles, quickPubKey } from "./quick-post";
@@ -44,7 +44,13 @@ export function QuickPost() {
   const bank = useBank();
   const [setId, setSetId] = useState(EASY_POINTS_SET_ID);
   const [titlesText, setTitlesText] = useState(EASY_POINTS_ORDER.join("\n"));
-  const [kicker, setKicker] = useState("TYPES OF ACCOUNTS");
+  const [kicker, setKicker] = useState("KNOW YOUR ACCOUNTS");
+  const [showKicker, setShowKicker] = useState(false);
+  // PER-ROW TITLES (Lee: "let me edit each video title, because the files are definitely mixed up").
+  // A row's title starts as the list line at its position; typing one pins it to the row.
+  const [rowTitles, setRowTitles] = useState<Record<number, string>>({});
+  const [newName, setNewName] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
   const [part, setPart] = useState("Easy Points");
   const [clips, setClips] = useState<Clip[]>([]);
   const [states, setStates] = useState<RowState[]>([]);
@@ -55,7 +61,8 @@ export function QuickPost() {
   const [removing, setRemoving] = useState(false);
   const art = useRef<(SVGSVGElement | null)[]>([]);
 
-  const titles = parseTitles(titlesText);
+  const listTitles = parseTitles(titlesText);
+  const titles = listTitles.map((t, i) => rowTitles[i] ?? t);
   const sets = useMemo(() => (bank.topics ?? []).flatMap((t) => t.sets.filter((s) => !s.lane).map((s) => ({ id: s.id, label: `${t.name} · ${s.name}` }))), [bank.topics]);
 
   const refreshLive = async (id = setId) => {
@@ -86,7 +93,7 @@ export function QuickPost() {
   const setDuration = (url: string, d: number) => setClips((c) => c.map((x) => (x.url === url && x.duration == null ? { ...x, duration: d } : x)));
 
   // THE COVERS: one spec per title, one shared title size so the set reads as a set.
-  const base = defaultThumbSpec({ exam: 1, part, kicker, visualType: "concept", concept: { kind: "bolt", text: "" } });
+  const base = defaultThumbSpec({ exam: 1, part, kicker: showKicker ? kicker : "", visualType: "concept", concept: { kind: "bolt", text: "" } });
   const measure = (t: string, s: number) => measureText(t, s, 900, KIT.display, TITLE_TRACKING);
   const covers = titles.map((t) => coverFor(t));
   const cap = seriesTitleCap(covers.map((c) => ({ ...base, title: c.title })), measure);
@@ -179,6 +186,15 @@ export function QuickPost() {
             {!sets.some((s) => s.id === setId) && <option value={setId}>{live?.setName ?? setId}</option>}
             {sets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
+          <span style={{ display: "flex", gap: 6, marginTop: 4 }}>
+            <input value={newName ?? live?.setName ?? ""} onChange={(e) => setNewName(e.target.value)} style={{ ...field, flex: 1 }} aria-label="Set name" disabled={busy || renaming} />
+            <button type="button" style={btn()} disabled={busy || renaming || !newName?.trim() || newName.trim() === live?.setName} onClick={async () => {
+              setRenaming(true);
+              try { const r = await renameSetForPost({ data: { setId, name: newName!.trim() } }); if (!r.ok) setLiveErr(r.error); else { setNewName(null); await refreshLive(); } }
+              catch (e) { setLiveErr(e instanceof Error ? e.message : String(e)); }
+              finally { setRenaming(false); }
+            }}>{renaming ? "Renaming…" : "Rename set"}</button>
+          </span>
         </label>
         <div style={{ flex: "1 1 360px", fontSize: 12.5, border: `1px solid ${V3_EDGE}`, borderRadius: 10, padding: "8px 12px" }}>
           <div style={{ fontWeight: 800, marginBottom: 4 }}>On the site now{live ? ` · ${live.posts.length} video${live.posts.length === 1 ? "" : "s"}` : ""}{liveStats.average != null ? ` · average ${clock(liveStats.average)}` : ""}</div>
@@ -206,8 +222,10 @@ export function QuickPost() {
         </label>
         <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: "0 0 240px" }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: V3_MUTED }}>
-            Cover kicker
-            <input value={kicker} onChange={(e) => setKicker(e.target.value)} style={field} disabled={busy} />
+            <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input type="checkbox" checked={showKicker} onChange={(e) => setShowKicker(e.target.checked)} disabled={busy} /> Kicker line over the title
+            </span>
+            {showKicker && <input value={kicker} onChange={(e) => setKicker(e.target.value)} style={field} disabled={busy} />}
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: V3_MUTED }}>
             Series (EXAM 1 · …)
@@ -252,7 +270,8 @@ export function QuickPost() {
                 )}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 16, fontWeight: 800 }}>{title}</div>
+                <input value={title} onChange={(e) => { const v = e.target.value; setRowTitles((r) => ({ ...r, [i]: v })); setStates([]); }} disabled={busy}
+                  list="qp-titles" aria-label={`Title for video ${i + 1}`} style={{ ...field, fontSize: 16, fontWeight: 800, width: "100%", maxWidth: 420, boxSizing: "border-box" }} />
                 <div style={{ fontSize: 12, color: V3_MUTED, overflowWrap: "anywhere" }}>
                   {clip ? `${clip.file.name} · ${clock(clip.duration)} · ${(clip.file.size / 1048576).toFixed(0)} MB` : "Add a file for this one."}
                 </div>
@@ -285,6 +304,7 @@ export function QuickPost() {
         ))}
       </div>
 
+      <datalist id="qp-titles">{listTitles.map((t) => <option key={t} value={t} />)}</datalist>
       {/* POST */}
       <div style={{ position: "sticky", bottom: 0, marginTop: 16, padding: "12px 0", background: "linear-gradient(transparent, #14213D 30%)", display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
         <button type="button" onClick={() => void postAll()} disabled={busy || !!blocked} style={{ ...btn(true), fontSize: 15, padding: "10px 20px", opacity: busy || blocked ? 0.55 : 1 }}>
