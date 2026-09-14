@@ -161,6 +161,7 @@ const opSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("placeholder"), cardId: z.string().min(1).max(200), placeholder: placeholderSchema.nullable() }),
   z.object({ type: z.literal("add"), groupId: z.string().max(40).nullable(), stem: z.string().max(8000), choices: z.array(choiceSchema).max(12), format: z.enum(["mc", "select_all"]), placeholder: placeholderSchema.nullable().optional() }),
   z.object({ type: z.literal("groups"), groups: z.array(groupSchema).max(60) }),
+  z.object({ type: z.literal("clone"), cardId: z.string().min(1).max(200) }),
 ]);
 
 export type V4QuestionsOp = z.infer<typeof opSchema>;
@@ -207,6 +208,22 @@ export const v4QuestionsChange = createServerFn({ method: "POST" })
       (j.nodes ??= []).push(node);
       target = id;
       after = { stem: op.stem, choices: op.choices, format: op.format, group: op.groupId, placeholder: op.placeholder ?? null };
+    } else if (op.type === "clone") {
+      // Lee, 2026-09-14: "let me clone a question … it would save a lot of time versus making a new one
+      // from scratch." A copy of everything on the card, as a fresh draft, right after the original.
+      const nodes = cardNodes(j, data.setId);
+      const src = find(op.cardId);
+      const at = typeof src.data!.stageOrder === "number" ? src.data!.stageOrder : 0;
+      // Halfway to the next card, the way the bank's other clones sit (2.5, 2.75…) — no other card moves.
+      const later = nodes.map((n) => n.data?.stageOrder).filter((o): o is number => typeof o === "number" && o > at);
+      const order = later.length ? (at + Math.min(...later)) / 2 : at + 1;
+      const id = `ceq-v4-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      const { bankArchived: _a, editHistory: _h, editedAt: _e, editedVia: _v, ...rest } = structuredClone(src.data!) as Record<string, unknown>;
+      const node: Node = { id, type: "ceq", position: { x: src.position?.x ?? 520, y: (src.position?.y ?? 210) + 40 }, data: { ...rest, stageOrder: order, draft: true, provenance: "v4", clonedFrom: src.id } };
+      (j.nodes ??= []).push(node);
+      target = id;
+      before = { clonedFrom: src.id };
+      after = { stem: rest.prompt ?? "", group: rest.v4Group ?? null };
     } else {
       const n = find(op.cardId);
       target = n.id;

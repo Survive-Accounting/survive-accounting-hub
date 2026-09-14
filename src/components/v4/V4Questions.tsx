@@ -7,7 +7,7 @@
 // type WHY I changed something." And on placeholders: "I can mark any question as a placeholder: either
 // a format the app can't build yet, or one that's half-done and needs polish. It stays in the list with
 // my notes on what it should be, and it doesn't block 'Questions final.'"
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { getAdminWho } from "@/components/AdminGate";
 import { V3_CREAM, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
@@ -51,6 +51,48 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
   };
 
   const setGroups = (groups: V4Group[], label: string) => run({ type: "groups", groups }, label);
+
+  // REMOVE / CLONE, UNDOABLE. Lee, 2026-09-14: "a hover to the right of it that lets me just exit out
+  // no confirmation either just like X and then I can control Z if I want to bring it back."
+  // A removed question is rejected (it stays under Rejected); Ctrl+Z restores it. Ctrl+Z after a clone
+  // or an added question takes that one back out.
+  const undo = useRef<{ kind: "removed" | "cloned" | "added"; cardId: string }[]>([]);
+  const [undoNote, setUndoNote] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null);
+  const short = (c: V4Card) => (c.stem || "a question").slice(0, 40);
+
+  const remove = async (c: V4Card) => {
+    if (openId === c.id) setOpenId(null);
+    const r = await run({ type: "reject", cardId: c.id }, `removed "${short(c)}"`);
+    if (r) { undo.current.push({ kind: "removed", cardId: c.id }); setUndoNote(`Removed "${short(c)}"`); }
+  };
+  const clone = async (c: V4Card) => {
+    const r = await run({ type: "clone", cardId: c.id }, `cloned "${short(c)}"`);
+    const added = r?.cards.find((x) => !cards.some((y) => y.id === x.id));
+    if (added) { undo.current.push({ kind: "cloned", cardId: added.id }); setOpenId(added.id); setUndoNote(`Cloned "${short(c)}"`); }
+  };
+
+  const busyRef = useRef(false);
+  busyRef.current = busy;
+  const runRef = useRef(run);
+  runRef.current = run;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== "z") return;
+      const t = e.target as HTMLElement | null;
+      // Inside a text box, Ctrl+Z is the text box's own undo.
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      const last = undo.current[undo.current.length - 1];
+      if (!last || busyRef.current) return;
+      e.preventDefault();
+      undo.current.pop();
+      if (last.kind === "removed") { void runRef.current({ type: "restore", cardId: last.cardId }, "brought a question back"); setUndoNote("Brought it back"); }
+      else { setOpenId((o) => (o === last.cardId ? null : o)); void runRef.current({ type: "reject", cardId: last.cardId }, "took back a new question"); setUndoNote("Took it back out"); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const finalize = async () => {
     setBusy(true); setErr(null); setFinalNote(null);
     try {
@@ -64,9 +106,9 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
   };
 
   return (
-    <div style={{ maxWidth: 980 }}>
+    <div>
       {/* TALK → PROPOSE (phase 3) */}
-      <V4ProposeQuestions data={data} onData={onData} topicName={topicName} />
+      <div style={{ maxWidth: 980 }}><V4ProposeQuestions data={data} onData={onData} topicName={topicName} /></div>
       {/* THE SUMMARY + FINAL */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 14px", border: `1px solid ${V3_EDGE}`, borderRadius: 12 }}>
         <span style={{ fontSize: 13.5, color: V3_CREAM }}>
@@ -85,7 +127,7 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
         <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 12.5, color: V3_CREAM }}>
           {summary.problems.slice(0, 12).map((p, i) => {
             const c = cards.find((x) => x.id === p.cardId);
-            return <li key={i}><button type="button" onClick={() => { setOpenId(p.cardId); document.getElementById(`v4q-${p.cardId}`)?.scrollIntoView({ block: "center", behavior: "smooth" }); }} style={{ all: "unset", cursor: "pointer", textDecoration: "underline" }}>{(c?.stem || "(no words)").slice(0, 70)}</button> — {p.problem}</li>;
+            return <li key={i}><button type="button" onClick={() => { setOpenId(p.cardId); document.getElementById(`v4q-${p.cardId}`)?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" }); }} style={{ all: "unset", cursor: "pointer", textDecoration: "underline" }}>{(c?.stem || "(no words)").slice(0, 70)}</button> — {p.problem}</li>;
           })}
         </ul>
       )}
@@ -95,44 +137,62 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
       {/* WHY, after any change */}
       {lastEdit && <WhyBar key={lastEdit.editId} label={lastEdit.label} onSave={async (why) => { const r = await v4EditWhy({ data: { editId: lastEdit.editId, why } }); if (!r.ok) setWarn(r.error ?? "why not saved"); setLastEdit(null); }} onDismiss={() => setLastEdit(null)} />}
 
-      {/* THE GROUPS */}
-      {grouped.map(({ group, cards: gc }) => {
-        const gi = state.groups.findIndex((g) => g.id === group.id);
-        const real = gi >= 0;
-        return (
-          <section key={group.id} style={{ marginTop: 18 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              {real ? (
-                <input defaultValue={group.name} key={group.name} aria-label="Group name"
-                  onBlur={(e) => { const name = e.target.value.trim(); if (name && name !== group.name) void setGroups(state.groups.map((g) => (g.id === group.id ? { ...g, name } : g)), `renamed a group to "${name}"`); }}
-                  style={{ ...v4Field, width: 280, fontSize: 15, fontWeight: 800, background: "transparent" }} />
-              ) : <span style={{ fontSize: 15, fontWeight: 800, color: V3_MUTED }}>{UNGROUPED.name}</span>}
-              <span style={{ fontSize: 12, color: V3_MUTED }}>{gc.length}</span>
-              <span style={{ flex: 1 }} />
-              {real && <>
-                <button type="button" disabled={busy || gi === 0} style={v4Button()} title="Move this group up" onClick={() => { const g = [...state.groups]; [g[gi - 1], g[gi]] = [g[gi], g[gi - 1]]; void setGroups(g, `moved "${group.name}" up`); }}>↑</button>
-                <button type="button" disabled={busy || gi === state.groups.length - 1} style={v4Button()} title="Move this group down" onClick={() => { const g = [...state.groups]; [g[gi + 1], g[gi]] = [g[gi], g[gi + 1]]; void setGroups(g, `moved "${group.name}" down`); }}>↓</button>
-                <button type="button" disabled={busy} style={v4Button("red")} title="Remove the group — its questions move to Not grouped yet" onClick={() => { if (window.confirm(`Remove the group "${group.name}"? Its ${gc.length} question(s) stay, under Not grouped yet.`)) void setGroups(state.groups.filter((g) => g.id !== group.id), `removed the group "${group.name}"`); }}>Remove group</button>
-              </>}
-              <button type="button" disabled={busy} style={v4Button("gold")} onClick={async () => {
-                const r = await run({ type: "add", groupId: real ? group.id : null, stem: "", choices: [{ text: "", correct: true }, { text: "", correct: false }, { text: "", correct: false }], format: "mc" }, `added a question to "${group.name}"`);
-                const added = r?.cards.find((c) => !cards.some((x) => x.id === c.id));
-                if (added) setOpenId(added.id);
-              }}>+ Question</button>
-            </div>
-            <div style={{ marginTop: 8, border: `1px solid ${V3_EDGE}`, borderRadius: 12, overflow: "hidden" }}>
-              {gc.length === 0 && <div style={{ padding: 12, fontSize: 12.5, color: V3_MUTED }}>No questions here yet.</div>}
-              {gc.map((c, i) => (
-                <QuestionRow key={c.id} card={c} first={i === 0} open={openId === c.id} onToggle={() => setOpenId(openId === c.id ? null : c.id)}
-                  groups={state.groups} busy={busy} run={run} />
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      {undoNote && (
+        <div role="status" style={{ marginTop: 10, fontSize: 12.5, color: V3_MUTED }}>{undoNote} · <b style={{ color: V3_CREAM }}>Ctrl+Z</b> to undo</div>
+      )}
 
-      <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
-        <button type="button" disabled={busy} style={v4Button()} onClick={() => { const name = window.prompt("Name the new group"); if (name?.trim()) void setGroups([...state.groups, { id: nextGroupId(state.groups), name: name.trim() }], `added the group "${name.trim()}"`); }}>+ Group</button>
+      {/* THE GROUPS — side by side, left to right. Lee, 2026-09-14: "scrolling left to right versus
+          scrolling up and down would help a lot." Drag a question onto another group to move it. */}
+      <div style={{ marginTop: 16, display: "flex", gap: 12, alignItems: "flex-start", overflowX: "auto", paddingBottom: 14 }}>
+        {grouped.map(({ group, cards: gc }) => {
+          const gi = state.groups.findIndex((g) => g.id === group.id);
+          const real = gi >= 0;
+          const wide = gc.some((c) => c.id === openId);
+          const dropHere = dragging && dragOver === group.id;
+          return (
+            <section key={group.id} aria-label={group.name}
+              onDragOver={(e) => { if (!dragging) return; e.preventDefault(); setDragOver(group.id); }}
+              onDragLeave={() => setDragOver((g) => (g === group.id ? null : g))}
+              onDrop={(e) => {
+                e.preventDefault(); setDragOver(null);
+                const c = cards.find((x) => x.id === dragging);
+                setDragging(null);
+                const to = real ? group.id : null;
+                if (c && (c.group ?? null) !== to) void run({ type: "group", cardId: c.id, groupId: to }, `moved "${(c.stem || "a question").slice(0, 40)}" to ${group.name}`);
+              }}
+              style={{ flex: "0 0 auto", width: wide ? 520 : 340, transition: "width 160ms ease", border: `1.5px solid ${dropHere ? V3_GOLD : V3_EDGE}`, borderRadius: 12, background: "rgba(255,255,255,0.02)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 8px 6px 10px" }}>
+                {real ? (
+                  <input defaultValue={group.name} key={group.name} aria-label="Group name"
+                    onBlur={(e) => { const name = e.target.value.trim(); if (name && name !== group.name) void setGroups(state.groups.map((g) => (g.id === group.id ? { ...g, name } : g)), `renamed a group to "${name}"`); }}
+                    style={{ ...v4Field, flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 800, background: "transparent", border: "1px solid transparent", padding: "4px 6px" }} />
+                ) : <span style={{ flex: 1, fontSize: 14.5, fontWeight: 800, color: V3_MUTED, padding: "4px 6px" }}>{UNGROUPED.name}</span>}
+                <span style={{ fontSize: 12, color: V3_MUTED }}>{gc.length}</span>
+                {real && <>
+                  <button type="button" disabled={busy || gi === 0} style={{ ...v4Button(), padding: "3px 7px" }} title="Move this group left" onClick={() => { const g = [...state.groups]; [g[gi - 1], g[gi]] = [g[gi], g[gi - 1]]; void setGroups(g, `moved "${group.name}" left`); }}>←</button>
+                  <button type="button" disabled={busy || gi === state.groups.length - 1} style={{ ...v4Button(), padding: "3px 7px" }} title="Move this group right" onClick={() => { const g = [...state.groups]; [g[gi + 1], g[gi]] = [g[gi], g[gi + 1]]; void setGroups(g, `moved "${group.name}" right`); }}>→</button>
+                  <button type="button" disabled={busy} style={{ ...v4Button("red"), padding: "3px 7px" }} title="Remove the group — its questions move to Not grouped yet" onClick={() => { if (window.confirm(`Remove the group "${group.name}"? Its ${gc.length} question(s) stay, under Not grouped yet.`)) void setGroups(state.groups.filter((g) => g.id !== group.id), `removed the group "${group.name}"`); }}>✕</button>
+                </>}
+              </div>
+              <div style={{ borderTop: `1px solid ${V3_EDGE}` }}>
+                {gc.length === 0 && <div style={{ padding: 12, fontSize: 12.5, color: V3_MUTED }}>No questions here yet.</div>}
+                {gc.map((c, i) => (
+                  <QuestionRow key={c.id} card={c} first={i === 0} open={openId === c.id} onToggle={() => setOpenId(openId === c.id ? null : c.id)}
+                    groups={state.groups} busy={busy} run={run} onClone={() => void clone(c)} onRemove={() => void remove(c)}
+                    onDragStart={() => setDragging(c.id)} onDragEnd={() => { setDragging(null); setDragOver(null); }} />
+                ))}
+              </div>
+              <div style={{ padding: 8, borderTop: `1px solid ${V3_EDGE}` }}>
+                <button type="button" disabled={busy} style={{ ...v4Button("gold"), width: "100%" }} onClick={async () => {
+                  const r = await run({ type: "add", groupId: real ? group.id : null, stem: "", choices: [{ text: "", correct: true }, { text: "", correct: false }, { text: "", correct: false }], format: "mc" }, `added a question to "${group.name}"`);
+                  const added = r?.cards.find((c) => !cards.some((x) => x.id === c.id));
+                  if (added) { setOpenId(added.id); undo.current.push({ kind: "added", cardId: added.id }); }
+                }}>+ Question</button>
+              </div>
+            </section>
+          );
+        })}
+        <button type="button" disabled={busy} style={{ ...v4Button(), flex: "0 0 auto", alignSelf: "stretch", minHeight: 80, borderStyle: "dashed", color: V3_MUTED }} onClick={() => { const name = window.prompt("Name the new group"); if (name?.trim()) void setGroups([...state.groups, { id: nextGroupId(state.groups), name: name.trim() }], `added the group "${name.trim()}"`); }}>+ Group</button>
       </div>
 
       {rejected.length > 0 && (
@@ -154,31 +214,47 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
   );
 }
 
-function QuestionRow({ card, first, open, onToggle, groups, busy, run }: {
+function QuestionRow({ card, first, open, onToggle, groups, busy, run, onClone, onRemove, onDragStart, onDragEnd }: {
   card: V4Card; first: boolean; open: boolean; onToggle: () => void; groups: V4Group[]; busy: boolean;
   run: (op: Op, label: string, why?: string | null) => Promise<unknown>;
+  onClone: () => void; onRemove: () => void; onDragStart: () => void; onDragEnd: () => void;
 }) {
+  const [hover, setHover] = useState(false);
   const spec = formatOf(card);
   const problems = card.placeholder ? [] : cardProblems(card);
   const correct = card.choices.filter((c) => c.correct && c.text.trim()).map((c) => c.text.trim());
+  const tool: React.CSSProperties = { all: "unset", cursor: busy ? "default" : "pointer", width: 24, height: 24, display: "grid", placeItems: "center", borderRadius: 6, fontSize: 13, color: V3_MUTED, border: `1px solid ${V3_EDGE}`, background: "#0e1629" };
   return (
-    <div id={`v4q-${card.id}`} style={{ borderTop: first ? "none" : `1px solid ${V3_EDGE}`, background: open ? "rgba(255,255,255,0.03)" : "transparent" }}>
-      <button type="button" onClick={onToggle} style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", width: "100%", boxSizing: "border-box" }}>
-        <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: spec.id === "mc" ? V3_MUTED : "#7DD3FC", minWidth: 62 }}>{spec.short}</span>
-        {card.placeholder && <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.1em", color: "#0B0F1E", background: V4_AMBER, borderRadius: 5, padding: "1px 6px" }}>PLACEHOLDER</span>}
-        <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: card.stem ? V3_CREAM : V3_MUTED, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.stem || (card.placeholder ? card.placeholder.note || "(placeholder)" : "(no words yet)")}</span>
-        {!card.placeholder && correct.length > 0 && <span style={{ fontSize: 12, color: V4_MINT, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>✓ {correct.join(", ")}</span>}
-        {problems.length > 0 && <span title={problems.join(" ")} style={{ fontSize: 12, color: V4_RED }}>● {problems.length}</span>}
-        {card.draft && !card.placeholder && <span style={{ fontSize: 10.5, color: V3_MUTED }}>draft</span>}
-        <span style={{ color: V3_MUTED, fontSize: 11 }}>{open ? "▾" : "▸"}</span>
-      </button>
-      {open && <QuestionEditor key={card.id + JSON.stringify(card.choices) + card.stem + card.format} card={card} groups={groups} busy={busy} run={run} onClose={onToggle} />}
+    <div id={`v4q-${card.id}`} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{ borderTop: first ? "none" : `1px solid ${V3_EDGE}`, background: open ? "rgba(255,255,255,0.04)" : hover ? "rgba(255,255,255,0.025)" : "transparent" }}>
+      <div style={{ position: "relative" }}>
+        <div role="button" tabIndex={0} draggable={!open} onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", card.id); onDragStart(); }} onDragEnd={onDragEnd}
+          onClick={onToggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }}
+          style={{ cursor: "pointer", display: "flex", flexDirection: "column", gap: 3, padding: "9px 64px 9px 12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: spec.id === "mc" ? V3_MUTED : "#7DD3FC" }}>{spec.short}</span>
+            {card.placeholder && <span style={{ fontSize: 9.5, fontWeight: 900, letterSpacing: "0.1em", color: "#0B0F1E", background: V4_AMBER, borderRadius: 5, padding: "0 5px" }}>PLACEHOLDER</span>}
+            {card.draft && !card.placeholder && <span style={{ fontSize: 10, color: V3_MUTED }}>draft</span>}
+            {problems.length > 0 && <span title={problems.join(" ")} style={{ fontSize: 11.5, color: V4_RED }}>● {problems.length}</span>}
+          </div>
+          <span style={{ fontSize: 13.5, lineHeight: 1.35, color: card.stem ? V3_CREAM : V3_MUTED, display: "-webkit-box", WebkitLineClamp: open ? 6 : 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+            {card.stem || (card.placeholder ? card.placeholder.note || "(placeholder)" : "(no words yet)")}
+          </span>
+          {!card.placeholder && correct.length > 0 && <span style={{ fontSize: 12, color: V4_MINT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>✓ {correct.join(", ")}</span>}
+        </div>
+        {/* Clone and ✕ on hover (always there for the keyboard). No confirm — Ctrl+Z brings it back. */}
+        <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 4, opacity: hover || open ? 1 : 0, transition: "opacity 100ms" }}>
+          <button type="button" disabled={busy} onClick={onClone} title="Clone this question" aria-label="Clone this question" style={tool}>⧉</button>
+          <button type="button" disabled={busy} onClick={onRemove} title="Remove (Ctrl+Z brings it back)" aria-label="Remove this question" style={{ ...tool, color: V4_RED }}>✕</button>
+        </div>
+      </div>
+      {open && <QuestionEditor key={card.id + JSON.stringify(card.choices) + card.stem + card.format} card={card} groups={groups} busy={busy} run={run} onClone={onClone} />}
     </div>
   );
 }
 
-function QuestionEditor({ card, groups, busy, run, onClose }: {
-  card: V4Card; groups: V4Group[]; busy: boolean; run: (op: Op, label: string, why?: string | null) => Promise<unknown>; onClose: () => void;
+function QuestionEditor({ card, groups, busy, run, onClone }: {
+  card: V4Card; groups: V4Group[]; busy: boolean; run: (op: Op, label: string, why?: string | null) => Promise<unknown>; onClone: () => void;
 }) {
   const [stem, setStem] = useState(card.stem);
   const [format, setFormat] = useState<QuestionFormat>(card.format);
@@ -199,14 +275,18 @@ function QuestionEditor({ card, groups, busy, run, onClose }: {
           <button key={f} type="button" onClick={() => { setFormat(f); setChoices((c) => switchFormat(c, f)); }} aria-pressed={format === f}
             style={{ ...v4Button(format === f ? "gold" : "ghost"), fontSize: 11.5, padding: "4px 10px" }}>{FORMATS[f].label}</button>
         ))}
-        <span style={{ flex: 1 }} />
-        <label style={{ fontSize: 12, color: V3_MUTED, display: "flex", alignItems: "center", gap: 6 }}>Group
-          <select value={card.group ?? ""} disabled={busy} onChange={(e) => void run({ type: "group", cardId: card.id, groupId: e.target.value || null }, `moved "${short}" to ${groups.find((g) => g.id === e.target.value)?.name ?? UNGROUPED.name}`)}
-            style={{ ...v4Field, width: 200, padding: "4px 8px", colorScheme: "dark" }}>
-            <option value="">{UNGROUPED.name}</option>
-            {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </select>
-        </label>
+      </div>
+      {/* The group, as chips you can see all at once (the dropdown was hard to read). */}
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 11.5, color: V3_MUTED, marginRight: 2 }}>Group</span>
+        {[...groups, UNGROUPED].map((g) => {
+          const on = (card.group ?? UNGROUPED.id) === g.id || (g.id === UNGROUPED.id && !!card.group && !groups.some((x) => x.id === card.group));
+          return (
+            <button key={g.id} type="button" disabled={busy || on} aria-pressed={on}
+              onClick={() => void run({ type: "group", cardId: card.id, groupId: g.id === UNGROUPED.id ? null : g.id }, `moved "${short}" to ${g.name}`)}
+              style={{ ...v4Button(on ? "gold" : "ghost"), fontSize: 11, padding: "3px 9px", cursor: on ? "default" : "pointer", color: on ? V3_GOLD : g.id === UNGROUPED.id ? V3_MUTED : V3_CREAM }}>{g.name}</button>
+          );
+        })}
       </div>
       <textarea value={stem} onChange={(e) => setStem(e.target.value)} rows={2} placeholder="The question" style={{ ...v4Field, fontSize: 14, fontWeight: 600, resize: "vertical" }} />
       {format === "select_all" && <div style={{ fontSize: 12, color: "#7DD3FC" }}>Select all that apply — tick every correct answer; keep at least one tricky wrong one.</div>}
@@ -241,7 +321,7 @@ function QuestionEditor({ card, groups, busy, run, onClose }: {
         {dirty && <button type="button" style={v4Button()} onClick={() => { setStem(card.stem); setFormat(card.format); setChoices(card.choices); setWhy(""); }}>Undo changes</button>}
         <span style={{ flex: 1 }} />
         <button type="button" style={{ ...v4Button(), color: V4_AMBER, borderColor: `${V4_AMBER}88` }} onClick={() => setPhOpen((v) => !v)}>{card.placeholder ? "Placeholder ▾" : "Mark placeholder"}</button>
-        <button type="button" disabled={busy} style={v4Button("red")} onClick={() => { void run({ type: "reject", cardId: card.id }, `rejected "${short}"`); onClose(); }}>Reject</button>
+        <button type="button" disabled={busy || dirty} title={dirty ? "Save or undo your changes first" : "A copy of this question, right after it"} style={v4Button()} onClick={onClone}>Clone</button>
       </div>
 
       {phOpen && (
