@@ -473,6 +473,7 @@ export const TEMPLATES: TemplateDef[] = [
       "admin.growth.coldoutreach.va-preview.tsx",
       "admin.growth.coldoutreach.engaged.tsx",
       "admin.growth.dm.tsx",
+      "admin.growth.chat.tsx",
       "admin.growth.links.tsx",
       "links.tsx",
       "l.$code.tsx",
