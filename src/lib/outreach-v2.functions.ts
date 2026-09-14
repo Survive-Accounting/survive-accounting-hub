@@ -6,7 +6,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { mergeOrder, V2_COUNCILS, V2_PRIORITY, v2CouncilOf, type V2CouncilKey, type V2SlotKey } from "./outreach-v2";
+import { isRealSignup, mergeOrder, V2_COUNCILS, V2_PRIORITY, v2CouncilOf, type V2CouncilKey, type V2SlotKey } from "./outreach-v2";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped-table convention
 type DB = { from: (t: string) => any };
@@ -123,8 +123,12 @@ export const v2Campus = createServerFn({ method: "GET" })
     const rosterOfShell = new Map<string, string>(((shells ?? []) as any[]).filter((s) => s.campus_greek_chapter_id).map((s) => [s.id, s.campus_greek_chapter_id]));
     const signupsBy = new Map<string, number>();
     if (rosterOfShell.size) {
-      const { data: members } = await db.from("greek_chapter_members").select("chapter_id").in("chapter_id", [...rosterOfShell.keys()]).limit(20000);
-      for (const m of (members ?? []) as any[]) { const r = rosterOfShell.get(m.chapter_id); if (r) signupsBy.set(r, (signupsBy.get(r) ?? 0) + 1); }
+      const { data: members } = await db.from("greek_chapter_members").select("chapter_id,name,phone,user_id").in("chapter_id", [...rosterOfShell.keys()]).limit(20000);
+      const { isTestEmail } = await import("@/lib/growth-testdata");
+      for (const m of (members ?? []) as any[]) {
+        if (!isRealSignup(m, isTestEmail)) continue;
+        const r = rosterOfShell.get(m.chapter_id); if (r) signupsBy.set(r, (signupsBy.get(r) ?? 0) + 1);
+      }
     }
     const clicksSince = (contactId: string, sentAt: string | null) => (sentAt ? (visitsBy.get(contactId) ?? []).filter((t) => t >= sentAt).length : 0);
     const orgIds = Array.from(new Set(((chapters ?? []) as any[]).map((c) => c.greek_org_id).filter(Boolean)));

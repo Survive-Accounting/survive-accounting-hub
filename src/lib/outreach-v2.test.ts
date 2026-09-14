@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { mergeOrder, missingMessage, moveSlug, organizationTypePlural, renderOutreachDm, slotLink, V2_PRIORITY, v2CouncilOf, type DmRecipient } from "./outreach-v2";
+import { isRealSignup, mergeOrder, missingMessage, moveSlug, organizationTypePlural, renderOutreachDm, slotLink, V2_PRIORITY, v2CouncilOf, type DmRecipient } from "./outreach-v2";
 
 describe("outreach v2", () => {
   test("priority starts with Lee's order", () => {
@@ -60,6 +60,14 @@ describe("outreach v2", () => {
     if (!r.ok) { expect(r.missing).toEqual(["course code", "outreach link"]); expect(missingMessage(r.missing)).toBe("Can't copy yet — add the course code and outreach link for this recipient first."); }
     expect(renderOutreachDm({ ...olemissIfc, campusShorthand: "", campusName: "University of Mississippi" }).ok).toBe(true);
     expect(organizationTypePlural({ kind: "council", council: null })).toBe("chapters");
+  });
+  test("signups: blank and test rows don't count", () => {
+    expect(isRealSignup({ name: null, phone: null, user_id: null })).toBe(false);
+    expect(isRealSignup({ name: "Hook Test", phone: "(555) 111-2222" })).toBe(false);
+    expect(isRealSignup({ name: "Jordan", phone: "(555) 111-2222" })).toBe(false);
+    expect(isRealSignup({ name: null, phone: "email:someone@test.com" }, (e) => e.endsWith("@test.com"))).toBe(false);
+    expect(isRealSignup({ name: null, phone: "email:jordan@go.olemiss.edu" })).toBe(true);
+    expect(isRealSignup({ name: "Jordan Ellis", phone: "(662) 555-0000" })).toBe(true);
   });
   test("links: tracked short link when the contact exists", () => {
     expect(slotLink("/go/a/b", "123456789abc")).toBe("https://surviveaccounting.com/l/123456789abc");

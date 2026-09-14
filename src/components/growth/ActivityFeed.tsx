@@ -27,6 +27,9 @@ const KIND_TONE: Record<ActivityKind, "neutral" | "good" | "warn" | "bad" | "inf
   seat: "good",
   enrichment: "neutral",
   submission: "info",
+  signup: "good",
+  dm: "neutral",
+  click: "info",
 };
 
 const ALL_KINDS: ActivityKind[] = [
@@ -38,6 +41,9 @@ const ALL_KINDS: ActivityKind[] = [
   "claim",
   "seat",
   "submission",
+  "signup",
+  "dm",
+  "click",
 ];
 
 export function ActivityFeed({

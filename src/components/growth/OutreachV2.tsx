@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast, Toaster } from "sonner";
 import { Check, ChevronDown, ChevronRight, ClipboardPaste, Copy, Download, ExternalLink, Link as LinkIcon, Loader2, Upload, User } from "lucide-react";
 
+import { ActivityFeed } from "@/components/growth/ActivityFeed";
 import { BottomSheet } from "@/components/growth/BottomSheet";
 import { dmConsoleSaveRoster } from "@/lib/king-dm.functions";
 import { ROSTER_HEADERS, bareIg, parseRoster, rosterTemplate } from "@/lib/king-dm";
@@ -29,6 +30,7 @@ export function OutreachV2() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["dm-v2"], queryFn: () => v2Overview(), staleTime: 30_000 });
   const [open, setOpen] = useState<V2CampusSummary | null>(null);
+  const [tab, setTab] = useState<"campuses" | "activity">("campuses");
   const order = useMutation({
     mutationFn: (slugs: string[]) => v2SaveOrder({ data: { order: slugs } }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["dm-v2"] }),
@@ -49,7 +51,21 @@ export function OutreachV2() {
       <div className="flex flex-wrap items-baseline gap-3">
         <h1 className="text-xl font-semibold">Outreach</h1>
         <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">V2</span>
+        <div className="ml-auto flex gap-1 rounded-lg border border-border p-0.5">
+          {(["campuses", "activity"] as const).map((k) => (
+            <button key={k} onClick={() => setTab(k)} className={cn("rounded-md px-3 py-1 text-[12.5px] font-medium", tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+              {k === "campuses" ? "Campuses" : "Activity"}
+            </button>
+          ))}
+        </div>
       </div>
+      {tab === "activity" && (
+        <div className="space-y-2">
+          <p className="text-[11.5px] text-muted-foreground">Every student action, outreach event, map approval and chapter claim across all campuses. Test data is excluded.</p>
+          <div className="rounded-xl border border-border bg-card p-3"><ActivityFeed showFilters /></div>
+        </div>
+      )}
+      {tab === "campuses" && (<>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
@@ -93,6 +109,7 @@ export function OutreachV2() {
         })}
       </div>
 
+      </>)}
       {open && <CampusSheet summary={open} onClose={() => { setOpen(null); void qc.invalidateQueries({ queryKey: ["dm-v2"] }); }} />}
     </div>
   );

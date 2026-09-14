@@ -31,7 +31,10 @@ export type ActivityKind =
   | "claim"
   | "seat"
   | "enrichment"
-  | "submission";
+  | "submission"
+  | "signup"
+  | "dm"
+  | "click";
 
 export interface ActivityItem {
   id: string;
@@ -56,6 +59,9 @@ const KIND_LABEL: Record<ActivityKind, string> = {
   seat: "Seats",
   enrichment: "Research",
   submission: "Syllabus",
+  signup: "Signup",
+  dm: "DM sent",
+  click: "Link click",
 };
 export const activityKindLabel = (k: ActivityKind): string => KIND_LABEL[k] ?? k;
 
@@ -304,6 +310,76 @@ async function gather(db: DB, opts: GatherOpts): Promise<ActivityItem[]> {
         who: s.email ?? null,
         detail: s.status ?? null,
       });
+    }
+  }
+
+  // ── chapter signups, DMs marked sent, outreach link clicks (Outreach V2, 2026-09-14) ────────
+  // Lee: "I'm seeing a signup from KA and also from ATO at Ole Miss … I don't see anything in activity
+  // about those signups?" Signups were never in this feed. They are now — real ones only (a blank row
+  // or a "Hook Test" 555 number isn't a signup; outreach-v2.isRealSignup).
+  if (want("signup") || want("dm") || want("click")) {
+    const { isRealSignup } = await import("@/lib/outreach-v2");
+    const { isTestEmail } = await import("@/lib/growth-testdata");
+    const orgNameOfRoster = async (rosterIds: string[]) => {
+      const out = new Map<string, { campusId: string; name: string }>();
+      if (!rosterIds.length) return out;
+      const { data: chs } = await db.from("campus_greek_chapters").select("id,campus_id,greek_org_id,nickname").in("id", rosterIds);
+      const orgIds = [...new Set(((chs ?? []) as any[]).map((c) => c.greek_org_id).filter(Boolean))];
+      const { data: orgs } = orgIds.length ? await db.from("greek_orgs").select("id,name").in("id", orgIds) : { data: [] };
+      const on = new Map(((orgs ?? []) as any[]).map((o) => [o.id, o.name]));
+      for (const c of (chs ?? []) as any[]) out.set(c.id, { campusId: c.campus_id, name: on.get(c.greek_org_id) ?? c.nickname ?? "A chapter" });
+      return out;
+    };
+    if (want("signup")) {
+      const { data: members } = await db.from("greek_chapter_members").select("id,chapter_id,name,phone,user_id,joined_at,source").order("joined_at", { ascending: false }).limit(opts.limit);
+      const real = ((members ?? []) as any[]).filter((m) => isRealSignup(m, isTestEmail));
+      if (real.length) {
+        const { data: shells } = await db.from("greek_chapters").select("id,campus_greek_chapter_id,campus_id,chapter_name").in("id", [...new Set(real.map((m) => m.chapter_id))]);
+        const shellBy = new Map(((shells ?? []) as any[]).map((s) => [s.id, s]));
+        const roster = await orgNameOfRoster([...new Set(((shells ?? []) as any[]).map((s) => s.campus_greek_chapter_id).filter(Boolean))]);
+        for (const m of real) {
+          const sh = shellBy.get(m.chapter_id);
+          const r = sh?.campus_greek_chapter_id ? roster.get(sh.campus_greek_chapter_id) : null;
+          const campusId = r?.campusId ?? sh?.campus_id ?? null;
+          if (opts.campusId && campusId !== opts.campusId) continue;
+          const email = String(m.phone ?? "").startsWith("email:") ? String(m.phone).slice(6) : null;
+          items.push({ id: `signup:${m.id}`, at: m.joined_at, kind: "signup", campusId, campusName: campusName(campusId), text: `A member joined ${r?.name ?? sh?.chapter_name ?? "a chapter"}'s page`, who: m.name ?? email ?? null, detail: m.source ?? null });
+        }
+      }
+    }
+    if (want("dm") || want("click")) {
+      const [{ data: dms }, { data: visits }] = await Promise.all([
+        want("dm") ? db.from("growth_ig_dm").select("contact_qc_id,campus_id,sent_at,sent_by").not("sent_at", "is", null).order("sent_at", { ascending: false }).limit(opts.limit) : { data: [] },
+        want("click") ? db.from("contact_ref_visit").select("id,contact_id,campus_id,created_at,is_bot,path").eq("is_bot", false).not("contact_id", "is", null).order("created_at", { ascending: false }).limit(opts.limit) : { data: [] },
+      ]);
+      const contactIds = [...new Set([...((dms ?? []) as any[]).map((d) => d.contact_qc_id), ...((visits ?? []) as any[]).map((v) => v.contact_id)])];
+      const contactBy = new Map<string, any>();
+      for (let i = 0; i < contactIds.length; i += 200) {
+        const { data: cs } = await db.from("growth_contact_qc").select("id,name,full_name,role,exec_title,org_name,entity_type,entity_id,council_type,council,instagram,org_ig,personal_ig").in("id", contactIds.slice(i, i + 200));
+        for (const c of (cs ?? []) as any[]) contactBy.set(c.id, c);
+      }
+      const roster = await orgNameOfRoster([...new Set([...contactBy.values()].filter((c) => c.entity_type === "chapter" && c.entity_id).map((c) => c.entity_id))]);
+      const COUNCIL: Record<string, string> = { ifc: "IFC", panhellenic: "Panhellenic", nphc: "NPHC", mgc: "MGC" };
+      const whoOf = (c: any) => {
+        const org = c.entity_type === "chapter" && c.entity_id ? roster.get(c.entity_id)?.name : c.org_name || COUNCIL[String(c.council_type ?? c.council ?? "").toLowerCase()] || null;
+        const person = (c.name ?? c.full_name ?? "").trim();
+        const handle = c.instagram || c.personal_ig || c.org_ig;
+        return { org: org ?? "a contact", label: [person || (handle ? `@${String(handle).replace(/^@/, "")}` : ""), c.role ?? c.exec_title].filter(Boolean).join(", ") };
+      };
+      for (const d of (dms ?? []) as any[]) {
+        const c = contactBy.get(d.contact_qc_id);
+        if (!c) continue;
+        if (opts.campusId && d.campus_id !== opts.campusId) continue;
+        const w = whoOf(c);
+        items.push({ id: `dm:${d.contact_qc_id}`, at: d.sent_at, kind: "dm", campusId: d.campus_id ?? null, campusName: campusName(d.campus_id ?? null), text: `DM sent to ${w.org}`, who: d.sent_by ?? null, detail: w.label || null });
+      }
+      for (const v of (visits ?? []) as any[]) {
+        const c = contactBy.get(v.contact_id);
+        if (!c) continue;
+        if (opts.campusId && v.campus_id !== opts.campusId) continue;
+        const w = whoOf(c);
+        items.push({ id: `click:${v.id}`, at: v.created_at, kind: "click", campusId: v.campus_id ?? null, campusName: campusName(v.campus_id ?? null), text: `${w.org} opened their outreach link`, who: w.label || null, detail: v.path ?? null });
+      }
     }
   }
 

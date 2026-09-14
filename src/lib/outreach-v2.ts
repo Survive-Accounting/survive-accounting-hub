@@ -120,6 +120,20 @@ export function moveSlug(order: readonly string[], slug: string, to: number): st
 
 export const OUTREACH_ORIGIN = "https://surviveaccounting.com";
 
+/** A signup worth counting (2026-09-14: the Ole Miss KA and ATO "signups" were an August test row
+ *  with no name or contact, and "Hook Test" on a 555 number). Needs a name, a contact or an account,
+ *  and none of it may look like a test. */
+export function isRealSignup(m: { name?: string | null; phone?: string | null; user_id?: string | null }, isTestEmail: (e: string) => boolean = () => false): boolean {
+  const name = (m.name ?? "").trim();
+  const phone = (m.phone ?? "").trim();
+  if (!name && !phone && !m.user_id) return false;
+  if (/\btest\b|hook test|qa\b/i.test(name)) return false;
+  const email = phone.startsWith("email:") ? phone.slice(6) : null;
+  if (email && isTestEmail(email)) return false;
+  if (!email && /\(?555\)?[\s.-]?\d{3}[\s.-]?\d{4}|^\+?1?555/.test(phone)) return false;
+  return true;
+}
+
 // ── THE DM TEMPLATES (Lee, 2026-09-14) ─────────────────────────────────────────────────────────
 // Two defaults, picked by recipient: a council gets the council ask, a chapter gets the chapter ask.
 // Tokens resolve from the recipient's own data; "a professor at Ole Miss" is Lee and never changes.
