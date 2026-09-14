@@ -52,7 +52,7 @@ export function QuickPost() {
   const [newName, setNewName] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [part, setPart] = useState("Easy Points");
-  const [clips, setClips] = useState<Clip[]>([]);
+  const [clips, setClips] = useState<(Clip | null)[]>([]);
   const [states, setStates] = useState<RowState[]>([]);
   const [skip, setSkip] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -73,15 +73,16 @@ export function QuickPost() {
     } catch (e) { setLiveErr(e instanceof Error ? e.message : String(e)); }
   };
   useEffect(() => { void refreshLive(setId); }, [setId]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => clips.forEach((c) => URL.revokeObjectURL(c.url)), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => clips.forEach((c) => c && URL.revokeObjectURL(c.url)), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addFiles = (list: FileList | null) => {
     if (!list?.length) return;
     const vids = [...list].filter((f) => /^video\//.test(f.type) || /\.(mp4|mov|mkv|webm)$/i.test(f.name));
     setClips((prev) => {
-      const have = new Set(prev.map((c) => `${c.file.name}|${c.file.size}`));
+      const kept = prev.filter((c): c is Clip => !!c);
+      const have = new Set(kept.map((c) => `${c.file.name}|${c.file.size}`));
       const fresh = vids.filter((f) => !have.has(`${f.name}|${f.size}`)).map((file) => ({ file, url: URL.createObjectURL(file), duration: null }));
-      return filmingOrder([...prev.map((c) => ({ ...c, name: c.file.name })), ...fresh.map((c) => ({ ...c, name: c.file.name }))]).map(({ file, url, duration }) => ({ file, url, duration }));
+      return filmingOrder([...kept.map((c) => ({ ...c, name: c.file.name })), ...fresh.map((c) => ({ ...c, name: c.file.name }))]).map(({ file, url, duration }) => ({ file, url, duration }));
     });
     setStates([]);
   };
@@ -89,8 +90,14 @@ export function QuickPost() {
     const j = i + d; if (j < 0 || j >= c.length) return c;
     const n = c.slice(); [n[i], n[j]] = [n[j], n[i]]; return n;
   });
-  const drop = (i: number) => setClips((c) => { URL.revokeObjectURL(c[i].url); return c.filter((_, k) => k !== i); });
-  const setDuration = (url: string, d: number) => setClips((c) => c.map((x) => (x.url === url && x.duration == null ? { ...x, duration: d } : x)));
+  const drop = (i: number) => setClips((c) => { const x = c[i]; if (x) URL.revokeObjectURL(x.url); const n = c.slice(); n[i] = null; return n; });
+  // ONE FILE INTO ONE SLOT (Lee: "let me deposit the video file to an individual video slot").
+  const putFile = (i: number, file: File | undefined) => {
+    if (!file) return;
+    setClips((c) => { const n = c.slice(); while (n.length <= i) n.push(null); const old = n[i]; if (old) URL.revokeObjectURL(old.url); n[i] = { file, url: URL.createObjectURL(file), duration: null }; return n; });
+    setStates([]);
+  };
+  const setDuration = (url: string, d: number) => setClips((c) => c.map((x) => (x && x.url === url && x.duration == null ? { ...x, duration: d } : x)));
 
   // THE COVERS: one spec per title, one shared title size so the set reads as a set.
   const base = defaultThumbSpec({ exam: 1, part, kicker: showKicker ? kicker : "", visualType: "concept", concept: { kind: "bolt", text: "" } });
@@ -101,10 +108,12 @@ export function QuickPost() {
   const cw = colorwayFor(NEUTRAL_COLORWAY_ID);
 
   const rows = titles.length;
-  const stats = lengthStats(clips.slice(0, rows).map((c) => c.duration));
+  const stats = lengthStats(clips.slice(0, rows).map((c) => c?.duration));
   const liveStats = lengthStats((live?.posts ?? []).map((p) => p.durationS));
   const extra = live ? leftovers(live.posts, rows) : [];
-  const mismatch = clips.length && clips.length !== rows ? `${clips.length} file${clips.length === 1 ? "" : "s"} and ${rows} title${rows === 1 ? "" : "s"} — every title needs a file.` : null;
+  const fileCount = clips.filter(Boolean).length;
+  const missing = titles.map((_, i) => i).filter((i) => !skip.has(i) && !clips[i]);
+  const mismatch = missing.length ? `Video${missing.length === 1 ? "" : "s"} ${missing.map((i) => i + 1).join(", ")} ${missing.length === 1 ? "has" : "have"} no file — choose one, or untick post.` : null;
   const setState = (i: number, st: RowState) => setStates((prev) => { const n = prev.slice(); n[i] = st; return n; });
 
   const postAll = async () => {
@@ -115,6 +124,7 @@ export function QuickPost() {
     for (let i = 0; i < rows; i++) {
       if (skip.has(i)) continue;
       const clip = clips[i];
+      if (!clip) continue;
       const title = titles[i];
       const pubKey = quickPubKey(setId, i);
       try {
@@ -168,7 +178,7 @@ export function QuickPost() {
 
   const done = states.filter((s) => s?.s === "posted").length;
   const failed = states.filter((s) => s?.s === "error").length;
-  const blocked = !rows ? "Add at least one title." : !clips.length ? "Drop the video files in." : mismatch;
+  const blocked = !rows ? "Add at least one title." : !fileCount ? "Add the video files." : mismatch;
 
   return (
     <div style={{ color: V3_CREAM, maxWidth: 1100 }}>
@@ -243,9 +253,9 @@ export function QuickPost() {
           style={{ flex: "1 1 260px", minHeight: 150, border: `2px dashed ${V3_EDGE}`, borderRadius: 12, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 13, color: V3_MUTED, textAlign: "center", padding: 12 }}
         >
           <div style={{ fontSize: 15, fontWeight: 800, color: V3_CREAM }}>Drop the videos here</div>
-          <div>{clips.length} file{clips.length === 1 ? "" : "s"}{stats.count ? ` · ${clock(stats.total)} total` : ""}</div>
+          <div>{fileCount} file{fileCount === 1 ? "" : "s"}{stats.count ? ` · ${clock(stats.total)} total` : ""}</div>
           <div style={{ fontSize: 22, fontFamily: V3_DISPLAY, color: V3_GOLD }}>{stats.average != null ? `average ${clock(stats.average)}` : "average —"}</div>
-          {stats.count > 0 && stats.count < Math.min(rows, clips.length) && <div>reading lengths… {stats.count} of {Math.min(rows, clips.length)}</div>}
+          {stats.count > 0 && stats.count < Math.min(rows, fileCount) && <div>reading lengths… {stats.count} of {Math.min(rows, fileCount)}</div>}
         </div>
       </div>
 
@@ -291,12 +301,16 @@ export function QuickPost() {
                 <label style={{ fontSize: 12, color: V3_MUTED, display: "flex", gap: 5, alignItems: "center" }}>
                   <input type="checkbox" checked={!off} disabled={busy} onChange={() => setSkip((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; })} /> post
                 </label>
+                <label style={{ ...btn(clip ? false : true), fontSize: 12, padding: "5px 10px", textAlign: "center", opacity: busy ? 0.5 : 1 }}>
+                  {clip ? "change file" : "choose file"}
+                  <input type="file" accept="video/*" hidden disabled={busy} onChange={(e) => { putFile(i, e.target.files?.[0]); e.target.value = ""; }} />
+                </label>
                 {clip && <button type="button" style={{ ...btn(), fontSize: 11, padding: "3px 8px" }} onClick={() => drop(i)} disabled={busy}>remove file</button>}
               </div>
             </div>
           );
         })}
-        {clips.slice(rows).map((c, k) => (
+        {clips.slice(rows).map((c, k) => c && (
           <div key={c.url} style={{ fontSize: 12.5, color: RED, border: `1px dashed ${RED}`, borderRadius: 10, padding: 8, display: "flex", gap: 10, alignItems: "center" }}>
             Extra file with no title: {c.file.name} · {clock(c.duration)}
             <button type="button" style={{ ...btn(), fontSize: 11, padding: "3px 8px" }} onClick={() => drop(rows + k)} disabled={busy}>remove file</button>
