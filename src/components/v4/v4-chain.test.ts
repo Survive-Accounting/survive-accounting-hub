@@ -22,6 +22,11 @@ describe("slides and the chain", () => {
     expect(arrangeChain(frames, ["g1", "g2"], cardGroup).map((x) => x.id)).toEqual(["t1", "q1", "q2", "t2", "q3", "loose"]);
   });
 
+  test("an opening video of ungrouped slides (with a speed run of any group's cards) stays first", () => {
+    const frames = [f("hype", "found"), f("q3", "ceq", { ceqId: "c3" }), f("q1", "ceq", { ceqId: "c1" }), f("tease", "teaser"), f("t2", "cheat", { v4Group: "g2" }), f("t1", "phrase", { v4Group: "g1" }), f("q1b", "ceq", { ceqId: "c1" }), f("practice", "blank")];
+    expect(arrangeChain(frames, ["g1", "g2"], cardGroup).map((x) => x.id)).toEqual(["hype", "q3", "q1", "tease", "t1", "q1b", "t2", "practice"]);
+  });
+
   test("a placeholder slide says what to build and is listable", () => {
     expect(placeholderSlide("p1", "journal entry for prepaid rent", "g1")).toEqual({ id: "p1", kind: "blank", text: "⚠ BUILD THIS LATER — journal entry for prepaid rent", needs: "journal entry for prepaid rent", v4Group: "g1" });
   });

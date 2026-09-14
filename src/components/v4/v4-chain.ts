@@ -54,12 +54,22 @@ export function inferSlideGroups(frames: readonly BlastFrame[], cardGroup: (ceqI
 
 /** THE DEFAULT CHAIN: group by group, its teaching slides (in their order) then its questions (in
  *  theirs); anything without a group keeps its place at the end. Bound bookends are left out — the
- *  Split step puts them back. */
+ *  Split step puts them back.
+ *
+ *  THE OPENER STAYS FIRST (2026-09-14): the ungrouped run before the first grouped slide — the topic's
+ *  opening video (the hype, the series teaser, a shuffled speed run of cards from every group) — keeps
+ *  its place at the front. A card in that run is there on purpose, so it isn't pulled into its group. */
 export function arrangeChain(frames: readonly BlastFrame[], groupIds: readonly string[], cardGroup: (ceqId: string) => string | null): BlastFrame[] {
-  const content = frames.filter((f) => !f.v4Bound);
+  const all = frames.filter((f) => !f.v4Bound);
   const groupOf = (f: BlastFrame): string | null => (f.kind === "ceq" ? (f.ceqId ? cardGroup(f.ceqId) : null) : f.v4Group ?? null);
   const known = new Set(groupIds);
-  const out: BlastFrame[] = [];
+  const firstGrouped = all.findIndex((f) => f.kind !== "ceq" && !!f.v4Group && known.has(f.v4Group));
+  // An opener starts with an ungrouped SLIDE; a chain that starts with cards is just unarranged.
+  const opens = all.length > 0 && all[0].kind !== "ceq" && !(all[0].v4Group && known.has(all[0].v4Group));
+  const lead = opens && firstGrouped > 0 ? all.slice(0, firstGrouped) : [];
+  const leadIds = new Set(lead.map((f) => f.id));
+  const content = all.filter((f) => !leadIds.has(f.id));
+  const out: BlastFrame[] = [...lead];
   for (const g of groupIds) {
     out.push(...content.filter((f) => f.kind !== "ceq" && groupOf(f) === g));
     out.push(...content.filter((f) => f.kind === "ceq" && groupOf(f) === g));
