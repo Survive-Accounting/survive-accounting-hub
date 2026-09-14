@@ -50,6 +50,14 @@ export function usePlan(set: BoothSetInfo) {
   /** The frames as last saved (or loaded) — what the ledger diffs the next save against. */
   const ledgerBase = useRef<BlastFrame[] | null>(null);
   const deletedIds = useRef(new Set<string>());
+  /** The stored plan's updatedAt as this window last saw it — the stale-window guard's base. */
+  const serverStamp = useRef<string | undefined>(undefined);
+  /** LIVE PLAN (2026-09-13, Lee: "I've wasted a ton of time clicking between results and film,
+   *  reopening the film window"). Every window on this set (Editor, /film, the pop-out, v4) shares
+   *  a BroadcastChannel: a landed save is posted, and the others take it at once — unless they have
+   *  their own edit waiting, which then saves over it (and the guard below catches a real clash). */
+  const channel = useRef<BroadcastChannel | null>(null);
+  const me = useRef(Math.random().toString(36).slice(2));
 
   // FETCH ONCE PER SET. Until 2026-09-10 this re-fetched on every ceqs change too — and every
   // card save, clone or bank refresh changes ceqs. The fetch raced the debounced plan save: the
@@ -61,7 +69,7 @@ export function usePlan(set: BoothSetInfo) {
   useEffect(() => {
     let live = true;
     loadBlastPlan({ data: { setId: set.id } })
-      .then((stored) => { if (live) { const s = stored as BlastPlan | null; const p = reconcilePlan(s, set.ceqs); ledgerBase.current = p.frames; setPlan({ ...p, ...(s?.layout ? { layout: s.layout } : {}) }); } })
+      .then((stored) => { if (live) { const s = stored as BlastPlan | null; serverStamp.current = s?.updatedAt || undefined; const p = reconcilePlan(s, set.ceqs); ledgerBase.current = p.frames; setPlan({ ...p, ...(s?.layout ? { layout: s.layout } : {}) }); } })
       .catch(() => { if (live) { const p = reconcilePlan(null, set.ceqs); ledgerBase.current = p.frames; setPlan(p); } });
     return () => { live = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -76,6 +84,26 @@ export function usePlan(set: BoothSetInfo) {
     setPlan((prev) => (prev ? { ...prev, ...reconcilePlan(prev, set.ceqs), ...(prev.layout ? { layout: prev.layout } : {}) } : prev));
   }, [set.ceqs]);
 
+  const adopt = useCallback((frames: BlastFrame[], updatedAt: string) => {
+    serverStamp.current = updatedAt;
+    const p = reconcilePlan({ frames, updatedAt }, ceqsRef.current);
+    ledgerBase.current = p.frames;
+    setPlan((prev) => ({ ...p, ...(prev?.layout ? { layout: prev.layout } : {}) }));
+  }, []);
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const ch = new BroadcastChannel(`sa-plan:${set.id}`);
+    channel.current = ch;
+    ch.onmessage = (ev: MessageEvent) => {
+      const m = ev.data as { from?: string; frames?: BlastFrame[]; updatedAt?: string } | null;
+      if (!m || m.from === me.current || !Array.isArray(m.frames) || !m.updatedAt) return;
+      if (serverStamp.current && m.updatedAt <= serverStamp.current) return;
+      if (pendingFrames.current) return; // this window's own edit is about to save
+      adopt(m.frames, m.updatedAt);
+    };
+    return () => { ch.close(); channel.current = null; };
+  }, [set.id, adopt]);
+
   // DEBOUNCED SAVE (2026-09-03, the review deck types into frames): the
   // screen updates on every keystroke; the server gets the plan once the
   // typing pauses. Whatever is pending is flushed when the screen unmounts.
@@ -89,8 +117,16 @@ export function usePlan(set: BoothSetInfo) {
     // THE LEDGER (frame-events.ts saveEvents): what this save deleted, restored or skipped, logged
     // once the save lands — fire-and-forget; a failed log never fails the save.
     const base = ledgerBase.current;
-    saveBlastPlan({ data: { setId: set.id, frames } })
-      .then(() => {
+    saveBlastPlan({ data: { setId: set.id, frames, baseUpdatedAt: serverStamp.current } })
+      .then((r) => {
+        if (!r.ok) {
+          // ANOTHER WINDOW SAVED NEWER SLIDES: take theirs rather than overwrite them.
+          adopt(r.plan.frames as BlastFrame[], r.updatedAt);
+          setSaving("⚠ another window saved newer slides — loaded them; redo your last change");
+          return;
+        }
+        serverStamp.current = r.updatedAt;
+        try { channel.current?.postMessage({ from: me.current, frames, updatedAt: r.updatedAt }); } catch { /* a closed channel */ }
         setSaving("saved");
         if (!base) return;
         ledgerBase.current = frames;
@@ -99,7 +135,7 @@ export function usePlan(set: BoothSetInfo) {
         if (events.length) void logFrameEvents({ data: { events, who: getAdminWho() } }).catch((err) => console.warn("[frame-ledger] save events:", err));
       })
       .catch((e) => setSaving(`⚠ ${e instanceof Error ? e.message : String(e)}`));
-  }, [set.id]);
+  }, [set.id, adopt]);
   // UNDO (Lee, 2026-09-10: "Ctrl Z undo needs to work on the slide editor. I moved a slide, and
   // lost it."). Every commit pushes the order it replaced; undo pops it back through the same
   // commit path (so it saves like any other change) without pushing; redo is the mirror. Fifty
@@ -144,7 +180,7 @@ export function usePlan(set: BoothSetInfo) {
       if (!prev) return prev;
       setSaving("saving…");
       saveBlastPlan({ data: { setId: set.id, frames: prev.frames, layout } })
-        .then(() => setSaving("saved"))
+        .then((r) => { if (r.ok) serverStamp.current = r.updatedAt; setSaving("saved"); })
         .catch((e) => setSaving(`⚠ ${e instanceof Error ? e.message : String(e)}`));
       return { ...prev, layout };
     });

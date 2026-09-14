@@ -346,8 +346,12 @@ export const saveBlastPlan = createServerFn({ method: "POST" })
     setId: z.string().min(1).max(120),
     frames: z.array(frameSchema).min(1).max(2000),
     layout: z.enum(["pass1", "pass2"]).optional(),
+    // STALE-WINDOW GUARD (2026-09-13): the updatedAt this window last loaded or saved. When the stored
+    // plan is NEWER — another window saved since — nothing is written and the stored plan comes back,
+    // so an old Editor or /film tab can't silently undo newer slides. Absent = the old behaviour.
+    baseUpdatedAt: z.string().max(40).optional(),
   }).parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<{ ok: true; frames: number; updatedAt: string } | { ok: false; conflict: true; updatedAt: string; plan: { frames: import("@/components/blastoff/plan").BlastFrame[]; updatedAt: string } }> => {
     const db = await admin();
     const { loadDecksDeduped } = await import("./student.functions");
     const owned = await loadDecksDeduped(db as never);
@@ -360,6 +364,10 @@ export const saveBlastPlan = createServerFn({ method: "POST" })
     const deck = (j.decks ?? []).find((d) => d.id === data.setId);
     if (!deck) throw new Error("set not found in its scene — nothing written");
 
+    const stored = deck.blastOff?.updatedAt;
+    if (data.baseUpdatedAt && stored && stored > data.baseUpdatedAt && Array.isArray(deck.blastOff?.frames)) {
+      return { ok: false as const, conflict: true as const, updatedAt: stored, plan: { frames: deck.blastOff!.frames as import("@/components/blastoff/plan").BlastFrame[], updatedAt: stored } };
+    }
     const updatedAt = new Date().toISOString();
     // The template rides with the plan; a save that does not name it keeps the one stored.
     const layout = data.layout ?? (deck.blastOff?.layout === "pass2" ? "pass2" : deck.blastOff?.layout === "pass1" ? "pass1" : undefined);

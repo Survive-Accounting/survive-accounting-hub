@@ -68,6 +68,7 @@ export const HOTKEY_GROUPS: readonly Group[] = [
     // the take." C is the key that goes to the top.
     ["F4", "records in OBS. On slide 1 it also assembles the cold open; anywhere else it leaves you where you are."],
     // 2026-09-13 (capture/scrap.tsx): the abandoned attempt, marked for the cut.
+    ["] / [", "next / previous split, right here — the pop-out follows; no reopening"],
     ["F3", "scrap: say why, walk to the slide you want to restart from (or stay), F3 again restarts there — Post cuts from when you first reached that slide · Esc cancels"],
     // THE ASSEMBLY COLD OPEN (2026-09-08). Lee: "this is a machine being put together… you're
     // about to get your system shocked. It's like a defibrillator."

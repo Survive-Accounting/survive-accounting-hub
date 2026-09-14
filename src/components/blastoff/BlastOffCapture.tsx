@@ -192,11 +192,55 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // them (lib/blastoff.functions.ts), so "Split 2" here is "Split 2" there. The pop-out inherits
   // the URL, so both windows compute the same list — previewIndex depends on that.
   const takes = useMemo(() => planTakes(all), [all]);
-  const takeInfo = takeParam != null ? takes[takeParam] : undefined;
+  // NEXT SPLIT IN PLACE (2026-09-13, Lee: "Next split would be great when in film mode. I've wasted a
+  // ton of time clicking between results and film, reopening film window"). The split is this
+  // window's state, seeded from ?take; ] / [ (or the chip) move it, the URL follows without a
+  // reload, and the other window (main ↔ pop-out) follows through a storage signal.
+  const [takeSel, setTakeSel] = useState<number | undefined>(takeParam ?? undefined);
+  useEffect(() => { setTakeSel(takeParam ?? undefined); }, [takeParam]);
+  const takeInfo = takeSel != null ? takes[takeSel] : undefined;
   /** ?take=N named a split the plan does not have — film the whole set, and say so in the chrome. */
-  const takeMissing = takeParam != null && !takeInfo;
+  const takeMissing = takeSel != null && !takeInfo;
   const frames = takeInfo ? takeInfo.frames : all;
   const n = frames.length;
+  // LIVE SLIDES: when the plan changes under an open window (another window saved), stay on the
+  // slide that was up — found by id — rather than on whatever now sits at the old position.
+  const onId = useRef<string | null>(null);
+  const seenFrames = useRef(frames);
+  useEffect(() => {
+    if (seenFrames.current !== frames) {
+      seenFrames.current = frames;
+      const was = onId.current;
+      if (was && frames[i]?.id !== was) {
+        const k = frames.findIndex((f) => f.id === was);
+        if (k >= 0) { setI(k); return; }
+      }
+    }
+    onId.current = frames[Math.min(i, Math.max(0, frames.length - 1))]?.id ?? null;
+  }, [frames, i]);
+  const splitKey = `sa-film-split:${set.id}`;
+  const goSplit = useCallback((k: number, signal = true) => {
+    if (!takes.length) return;
+    const to = Math.max(0, Math.min(takes.length - 1, k));
+    setTakeSel(to);
+    setI(0);
+    onId.current = null;
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set("take", String(to));
+      u.searchParams.delete("frame");
+      window.history.replaceState(window.history.state, "", u.toString());
+    } catch { /* URL untouched */ }
+    if (signal) { try { window.localStorage.setItem(splitKey, JSON.stringify({ take: to, at: Date.now() })); } catch { /* storage blocked */ } }
+  }, [takes.length, splitKey]);
+  useEffect(() => {
+    const on = (e: StorageEvent) => {
+      if (e.key !== splitKey || !e.newValue) return;
+      try { const m = JSON.parse(e.newValue) as { take?: number }; if (typeof m.take === "number") goSplit(m.take, false); } catch { /* not ours */ }
+    };
+    window.addEventListener("storage", on);
+    return () => window.removeEventListener("storage", on);
+  }, [splitKey, goSplit]);
   // FILM FROM HERE (2026-09-10, startIndexOf above). The plan arrives after mount, so `i` cannot
   // be seeded in useState — it is seeded ONCE, the first render that has a plan, and set DURING
   // that render (React re-renders before committing, so no paint and no effect — in particular
@@ -520,7 +564,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // than to a kind: F4 rolls the video, and the video starts wherever he starts it.
   // ONE CONTINUOUS TAKE (G, 2026-09-13): filming the whole set in one recording, every LATER split's
   // opening slide assembles too — each split is its own video once Post slices the file.
-  const laterHead = takeParam == null && idx > 0 && !!frame && takes.some((t) => t.index > 0 && t.headId === frame.id);
+  const laterHead = takeSel == null && idx > 0 && !!frame && takes.some((t) => t.index > 0 && t.headId === frame.id);
   const isOpenFrame = !!frame && (idx === 0 || laterHead) && (frame.kind === "open" || frame.kind === "intro");
   const lastOpenId = useRef<string | null>(null);
   useEffect(() => {
@@ -631,6 +675,14 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
         else setI((v) => Math.min(n - 1, v + 1));
         return;
       }
+      // ] / [ — NEXT / PREVIOUS SPLIT, in place; the other window follows.
+      if ((e.key === "]" || e.key === "[") && !e.ctrlKey && !e.metaKey && !e.altKey && takeSel != null) {
+        e.preventDefault();
+        if (counting) return;
+        goSplit((takeInfo?.index ?? takeSel) + (e.key === "]" ? 1 : -1));
+        scrapper.flash(e.key === "]" ? "] next split" : "[ previous split");
+        return;
+      }
       if (e.key === "Escape" && scrapper.scrap) { e.preventDefault(); scrapper.cancel(); return; }
       if (e.key === "Escape" && remoteScrap) { e.preventDefault(); signalScrap(set.id, "cancel"); setRemoteScrap(false); scrapper.flash("Esc → pop-out: scrap cancelled"); return; }
       if (e.key === "?") { e.preventDefault(); setShowHotkeys(true); return; }
@@ -704,7 +756,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [wipeSlide, scrapOwner, scrapper, remoteScrap, n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, steps, shot, setShot, rubric, frameId, roll, set.id]);
+  }, [wipeSlide, scrapOwner, scrapper, remoteScrap, n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, steps, shot, setShot, rubric, frameId, roll, set.id, takeSel, takeInfo, goSplit]);
 
   // What FrameView's map draws from (cluster/ClusterStage.tsx): in the main window's NEXT
   // preview the map is its bird's-eye with everything revealed — honest about what comes next.
@@ -889,8 +941,16 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
             <span style={{ color: GOLD, fontWeight: 800 }}>{idx + 1} / {n}</span>
           )}
           {takeMissing && (
-            <span title={`The plan has ${takes.length} split${takes.length === 1 ? "" : "s"}; ?take=${takeParam} names none of them`} style={{ color: "#FF9F43", fontWeight: 800 }}>
-              split {(takeParam ?? 0) + 1} not found — filming the whole set
+            <span title={`The plan has ${takes.length} split${takes.length === 1 ? "" : "s"}; ?take=${takeSel} names none of them`} style={{ color: "#FF9F43", fontWeight: 800 }}>
+              split {(takeSel ?? 0) + 1} not found — filming the whole set
+            </span>
+          )}
+          {takeInfo && takes.length > 1 && (
+            <span style={{ display: "inline-flex", gap: 4 }}>
+              <button type="button" onClick={() => goSplit(takeInfo.index - 1)} disabled={takeInfo.index === 0} title="Previous split — [ (the pop-out follows)"
+                style={{ background: "transparent", color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 6, padding: "1px 7px", cursor: "pointer", opacity: takeInfo.index === 0 ? 0.4 : 1 }}>[ prev</button>
+              <button type="button" onClick={() => goSplit(takeInfo.index + 1)} disabled={takeInfo.index >= takes.length - 1} title="Next split — ] (the pop-out follows)"
+                style={{ background: idx >= n - 1 ? GOLD : "transparent", color: idx >= n - 1 ? "#14213D" : CREAM, border: `1px solid ${idx >= n - 1 ? GOLD : EDGE}`, borderRadius: 6, padding: "1px 7px", fontWeight: 800, cursor: "pointer", opacity: takeInfo.index >= takes.length - 1 ? 0.4 : 1 }}>next split ]</button>
             </span>
           )}
           <span>{atEnd ? "— end —" : FRAME_LABEL[frame.kind]}</span>
