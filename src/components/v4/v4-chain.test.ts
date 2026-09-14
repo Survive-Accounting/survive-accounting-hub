@@ -35,17 +35,18 @@ describe("slides and the chain", () => {
 describe("splits", () => {
   const chain = [f("a", "cheat"), f("q1", "ceq", { ceqId: "c1" }), f("b", "tip"), f("q3", "ceq", { ceqId: "c3" })];
 
-  test("no cuts: one video, bio intro first, outro last", () => {
+  test("no cuts: one video, no intro added (only the outro), outro last", () => {
     const { frames } = applySplits(chain, NO_SPLITS, "Equation effects");
-    expect(frames.map((x) => `${x.id}${x.cutAfter ? "|" : ""}`)).toEqual(["v4in-start", "a", "q1", "b", "q3", "v4out-end"]);
-    expect(frames[0]).toMatchObject({ kind: "bio", v4Bound: "intro" });
+    expect(frames.map((x) => `${x.id}${x.cutAfter ? "|" : ""}`)).toEqual(["a", "q1", "b", "q3", "v4out-end"]);
+    // a saved bio intro still draws
+    expect(applySplits(chain, { startIntro: "bio", cuts: [] }, "E").frames[0]).toMatchObject({ kind: "bio", v4Bound: "intro" });
   });
 
   test("a cut: outro just before it, the next run's intro after it — and un-cutting leaves nothing", () => {
     const cut = applySplits(chain, { startIntro: "bio", cuts: [{ after: "q1", intro: "title", name: "Part 2" }] }, "Equation effects");
     expect(cut.frames.map((x) => `${x.id}${x.cutAfter ? "|" : ""}`)).toEqual(["v4in-start", "a", "q1", "v4out-q1|", "v4in-q1", "b", "q3", "v4out-end"]);
     expect(cut.frames.find((x) => x.id === "v4in-q1")).toMatchObject({ kind: "intro", text: "Equation effects", takeName: "Part 2" });
-    const uncut = applySplits(cut.frames, NO_SPLITS, "Equation effects");
+    const uncut = applySplits(cut.frames, { startIntro: "bio", cuts: [] }, "Equation effects");
     expect(uncut.frames.map((x) => x.id)).toEqual(["v4in-start", "a", "q1", "b", "q3", "v4out-end"]);
     expect(contentOf(uncut.frames).map((x) => x.id)).toEqual(chain.map((x) => x.id));
   });

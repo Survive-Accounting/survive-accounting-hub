@@ -87,7 +87,10 @@ export const INTRO_LABEL: Record<IntroChoice, string> = { bio: "Bio", title: "Ti
 
 export interface V4Cut { after: string; intro: IntroChoice; name?: string }
 export interface V4Splits { startIntro: IntroChoice; startName?: string; cuts: V4Cut[] }
-export const NO_SPLITS: V4Splits = { startIntro: "bio", cuts: [] };
+/** No intro is added by default since 2026-09-14 (Lee: "I don't need to auto-add anything other than the
+ *  outro slide … no intro dropdown needed. I'll pick my own intros or create one."). A saved "bio" / "title"
+ *  still draws, so nothing already filmed changes. */
+export const NO_SPLITS: V4Splits = { startIntro: "none", cuts: [] };
 
 const introId = (key: string) => `v4in-${key}`;
 const outroId = (key: string) => `v4out-${key}`;

@@ -28,7 +28,7 @@ export const loadBlastPlan = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(120) }).parse(d))
   .handler(async ({ data }): Promise<{ frames: BlastFrameRow[]; updatedAt: string; layout?: "pass1" | "pass2" } | null> => {
     const db = await admin();
-    const { loadDecksDeduped } = await import("./student.functions");
+    const { loadDeckOwners: loadDecksDeduped } = await import("./student.functions");
     const owned = await loadDecksDeduped(db as never);
     const o = owned.get(data.setId);
     if (!o) throw new Error("set not found");
@@ -71,7 +71,7 @@ export const listBlastPlanSetIds = createServerFn({ method: "GET" })
     const { assertAdmin } = await import("@/lib/admin-session.functions");
     await assertAdmin();
     const db = await admin();
-    const { loadDecksDeduped } = await import("./student.functions");
+    const { loadDeckOwners: loadDecksDeduped } = await import("./student.functions");
     const owned = await loadDecksDeduped(db as never);
     const { contentCount, reelSummary } = await import("@/components/blastoff/reel");
     const out: { setId: string; frames: number; updatedAt: string | null; takes: PlanTakeRow[] }[] = [];
@@ -133,7 +133,7 @@ export const setDeckLane = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("@/lib/admin-session.functions");
     await assertAdmin();
     const db = await admin();
-    const { loadDecksDeduped } = await import("./student.functions");
+    const { loadDeckOwners: loadDecksDeduped } = await import("./student.functions");
     const owned = await loadDecksDeduped(db as never);
     const o = owned.get(data.setId);
     if (!o) throw new Error("set not found");
@@ -197,7 +197,7 @@ export const updateDeckMeta = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("@/lib/admin-session.functions");
     await assertAdmin();
     const db = await admin();
-    const { loadDecksDeduped } = await import("./student.functions");
+    const { loadDeckOwners: loadDecksDeduped } = await import("./student.functions");
     const owned = await loadDecksDeduped(db as never);
     const o = owned.get(data.setId);
     if (!o) throw new Error("set not found");
@@ -241,7 +241,7 @@ export const setBranchOrders = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("@/lib/admin-session.functions");
     await assertAdmin();
     const db = await admin();
-    const { loadDecksDeduped } = await import("./student.functions");
+    const { loadDeckOwners: loadDecksDeduped } = await import("./student.functions");
     const owned = await loadDecksDeduped(db as never);
     // Group by scene: a scene holds one branch deck today, but the write is per scene regardless.
     const byScene = new Map<string, { setId: string; branchOrder: number }[]>();
@@ -290,7 +290,7 @@ export const mintBranch = createServerFn({ method: "POST" })
     const { assertAdmin } = await import("@/lib/admin-session.functions");
     await assertAdmin();
     const db = await admin();
-    const { loadDecksDeduped } = await import("./student.functions");
+    const { loadDeckOwners: loadDecksDeduped } = await import("./student.functions");
     const { laneOf } = await import("@/lib/deck-lane");
     const owned = await loadDecksDeduped(db as never);
     const parent = owned.get(data.parentId);
@@ -353,7 +353,7 @@ export const saveBlastPlan = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true; frames: number; updatedAt: string } | { ok: false; conflict: true; updatedAt: string; plan: { frames: import("@/components/blastoff/plan").BlastFrame[]; updatedAt: string } }> => {
     const db = await admin();
-    const { loadDecksDeduped } = await import("./student.functions");
+    const { loadDeckOwners: loadDecksDeduped } = await import("./student.functions");
     const owned = await loadDecksDeduped(db as never);
     const o = owned.get(data.setId);
     if (!o) throw new Error("set not found");

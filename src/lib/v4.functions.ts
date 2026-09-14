@@ -28,8 +28,9 @@ type SceneJson = { nodes?: Node[]; decks?: Deck[] };
 
 /** The set's owning scene, read fresh for a write. */
 async function openScene(d: DB, setId: string): Promise<{ sceneId: string; j: SceneJson; deck: Deck }> {
-  const { loadDecksDeduped } = await import("./student.functions");
-  const owned = await loadDecksDeduped(d as never);
+  // The light owner lookup (decks only), then the one scene's row — see student.functions loadDeckOwners.
+  const { loadDeckOwners } = await import("./student.functions");
+  const owned = await loadDeckOwners(d as never);
   const o = owned.get(setId);
   if (!o) throw new Error("That set isn't in the bank.");
   const { data: row, error } = await d.from("canvas_scenes").select("id,nodes_json").eq("id", o.sceneId).single();
@@ -94,8 +95,8 @@ export const loadV4Topic = createServerFn({ method: "POST" })
 /** Which sets are already v4 topics, and on which step — for the /v4 list. */
 export const listV4Topics = createServerFn({ method: "GET" }).handler(async (): Promise<{ setId: string; step: string }[]> => {
   const d = await db();
-  const { loadDecksDeduped } = await import("./student.functions");
-  const owned = await loadDecksDeduped(d as never);
+  const { loadDeckOwners } = await import("./student.functions");
+  const owned = await loadDeckOwners(d as never);
   const out: { setId: string; step: string }[] = [];
   for (const [setId, o] of owned) {
     const v4 = (o.deck as { v4?: { step?: unknown } }).v4;

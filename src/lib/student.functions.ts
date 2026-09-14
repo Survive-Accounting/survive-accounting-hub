@@ -101,6 +101,26 @@ export async function loadDecksDeduped(admin: { from: (t: string) => any }): Pro
   }
   return owned;
 }
+/** WHO OWNS EACH SET, FAST (2026-09-14, Lee: "Loading a bit slow on /slides and /v4 in general … like
+ *  saving a video title"). The same ownership rule as loadDecksDeduped, read from the decks alone
+ *  (`nodes_json->decks`) — about 0.16 s against 0.9 s for every scene's whole JSON, which every save and
+ *  every v4 step used to pay before doing its real read. No card nodes: callers that need the cards read
+ *  the owning scene's row, as the writers already do. */
+export async function loadDeckOwners(admin: { from: (t: string) => any }): Promise<Map<string, Omit<OwnedDeck, "nodes">>> {
+  const { data: scenes, error } = await admin.from("canvas_scenes").select("id,updated_at,decks:nodes_json->decks").order("updated_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  const owned = new Map<string, Omit<OwnedDeck, "nodes">>();
+  const rows = ((scenes ?? []) as { id: string; decks?: RawDeck[] | null }[]);
+  const cardDecks = (s: { decks?: RawDeck[] | null }) => (s.decks ?? []).filter((d) => d?.payloadType === "cards").length;
+  const ordered = rows.slice().sort((a, b) => (cardDecks(a) === 1 ? 0 : 1) - (cardDecks(b) === 1 ? 0 : 1));
+  for (const s of ordered) {
+    for (const d of s.decks ?? []) {
+      if (d?.payloadType !== "cards" || owned.has(d.id)) continue;
+      owned.set(d.id, { deck: d, sceneId: s.id });
+    }
+  }
+  return owned;
+}
 /** Live, unparked card decks only — the student visibility gate, after dedupe. */
 export const liveDecks = (owned: Map<string, OwnedDeck>): OwnedDeck[] =>
   [...owned.values()].filter((o) => o.deck.status === "live" && o.deck.parked !== true);

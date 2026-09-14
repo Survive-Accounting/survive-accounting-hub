@@ -73,7 +73,7 @@ export function V4Split({ data, onData, embedded = false }: { data: V4TopicData;
 
   const toggleCut = (id: string) => {
     const has = cutAt.has(id);
-    void apply({ ...splits, cuts: has ? splits.cuts.filter((c) => c.after !== id) : [...splits.cuts, { after: id, intro: "bio" }] }, has ? "uncut" : "cut");
+    void apply({ ...splits, cuts: has ? splits.cuts.filter((c) => c.after !== id) : [...splits.cuts, { after: id, intro: "none" }] }, has ? "uncut" : "cut");
   };
   const setCut = (id: string, patch: { intro?: IntroChoice; name?: string }) => void apply({ ...splits, cuts: splits.cuts.map((c) => (c.after === id ? { ...c, ...patch } : c)) }, patch.intro ? "intro" : "name");
 
@@ -94,11 +94,12 @@ export function V4Split({ data, onData, embedded = false }: { data: V4TopicData;
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", background: "rgba(252,163,17,0.07)", borderTop: `2px solid ${V3_GOLD}`, borderBottom: `1px solid ${V3_EDGE}` }}>
         <span style={{ fontSize: 13, fontWeight: 900, color: V3_GOLD }}>Split {index + 1}</span>
         <input defaultValue={name ?? ""} key={`${index}:${name ?? ""}`} placeholder="Name this video" onBlur={(e) => { if ((e.target.value.trim() || undefined) !== (name?.trim() || undefined)) onName(e.target.value.trim()); }} style={{ ...v4Field, width: 220, padding: "4px 8px" }} />
-        <label style={{ fontSize: 12, color: V3_MUTED, display: "flex", gap: 6, alignItems: "center" }}>Intro
-          <select value={intro} disabled={busy} onChange={(e) => onIntro(e.target.value as IntroChoice)} style={{ ...v4Field, width: 130, padding: "4px 8px", colorScheme: "dark" }}>
-            {(Object.keys(INTRO_LABEL) as IntroChoice[]).map((k) => <option key={k} value={k}>{INTRO_LABEL[k]}</option>)}
-          </select>
-        </label>
+        {/* No intro dropdown (Lee, 2026-09-14): he adds his own intro slides. An old cut that still carries a
+            bio / title intro says so, with one click to take it off. */}
+        {intro !== "none" && (
+          <button type="button" disabled={busy} onClick={() => onIntro("none")} title="This cut still adds an intro slide — take it off"
+            style={{ ...v4Button(), padding: "2px 8px", fontSize: 11.5, color: V3_MUTED }}>{INTRO_LABEL[intro]} intro ✕</button>
+        )}
         <span style={{ fontSize: 12, color: flag === "over" ? V4_RED : flag === "long" ? V4_AMBER : V3_MUTED }}>{frameCountLabel(count)}</span>
         <span style={{ fontSize: 11.5, color: V3_MUTED }}>· outro added at the end</span>
       </div>
@@ -113,7 +114,7 @@ export function V4Split({ data, onData, embedded = false }: { data: V4TopicData;
         {suggested && (
           <>
             <span style={{ fontSize: 12.5, color: V3_MUTED }}>{suggested.length} suggested (dashed below)</span>
-            <button type="button" disabled={busy} style={v4Button("gold")} onClick={() => { void apply({ ...splits, cuts: suggested.map((after) => cutAt.get(after) ?? { after, intro: "bio" as const }) }, "use-suggested"); setSuggested(null); }}>Use these cuts</button>
+            <button type="button" disabled={busy} style={v4Button("gold")} onClick={() => { void apply({ ...splits, cuts: suggested.map((after) => cutAt.get(after) ?? { after, intro: "none" as const }) }, "use-suggested"); setSuggested(null); }}>Use these cuts</button>
             <button type="button" style={{ ...v4Button(), color: V3_MUTED }} onClick={() => setSuggested(null)}>✕</button>
           </>
         )}
