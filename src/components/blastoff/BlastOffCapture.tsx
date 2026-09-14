@@ -241,6 +241,24 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     window.addEventListener("storage", on);
     return () => window.removeEventListener("storage", on);
   }, [splitKey, goSplit]);
+  // FILM FROM HERE, remotely (v4 Studio's "▶ film from here"): jump to that slide, in its split.
+  useEffect(() => {
+    const key = `sa-film-goto:${set.id}`;
+    const on = (e: StorageEvent) => {
+      if (e.key !== key || !e.newValue) return;
+      let id: string | undefined;
+      try { id = (JSON.parse(e.newValue) as { frameId?: string }).frameId; } catch { return; }
+      if (!id) return;
+      const t = takes.find((x) => x.frames.some((f) => f.id === id));
+      if (!t) return;
+      if (takeSel != null && t.index !== takeSel) goSplit(t.index, false);
+      const list = takeSel != null ? t.frames : all;
+      const k = list.findIndex((f) => f.id === id);
+      if (k >= 0) { onId.current = id; setI(k); }
+    };
+    window.addEventListener("storage", on);
+    return () => window.removeEventListener("storage", on);
+  }, [set.id, takes, takeSel, all, goSplit]);
   // FILM FROM HERE (2026-09-10, startIndexOf above). The plan arrives after mount, so `i` cannot
   // be seeded in useState — it is seeded ONCE, the first render that has a plan, and set DURING
   // that render (React re-renders before committing, so no paint and no effect — in particular

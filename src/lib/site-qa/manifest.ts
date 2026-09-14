@@ -647,6 +647,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "api.thumb.$setId.tsx": "generated image endpoint — the short's cover, admin-gated",
   "v3.map.tsx": "V3 map (AdminGate, noindex) — alias of the /v3 home since 2026-09-10; cram path vs offshoots per topic (docs/DESIGN-CRAM-MAP.md)",
   "v3.$topic.chain.tsx": "V3 topic chain (AdminGate, noindex) — every video in a topic in play order with Now / Later / Skip (D, 2026-09-13)",
+  "v4.$topic.$set.studio.tsx": "V4 Studio (AdminGate, noindex) — build a split and film it on one screen; drives the film window live (2026-09-13)",
   "v4.todo.tsx": "V4 to-do (AdminGate, noindex) — every placeholder question and slide across v4 topics (2026-09-13)",
   "v4.index.tsx": "V4 topics (AdminGate, noindex) — one topic, five steps; v3 untouched (2026-09-13)",
   "v4.$topic.$set.index.tsx": "V4 topic (AdminGate, noindex) — Start in v4 panel, or redirect to its step (2026-09-13)",

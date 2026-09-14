@@ -188,6 +188,7 @@ import { Route as AdminGrowthActivityRouteImport } from './routes/admin.growth.a
 import { Route as V4TopicSetIndexRouteImport } from './routes/v4.$topic.$set.index'
 import { Route as V3TopicSetIndexRouteImport } from './routes/v3.$topic.$set.index'
 import { Route as AdminGrowthColdoutreachIndexRouteImport } from './routes/admin.growth.coldoutreach.index'
+import { Route as V4TopicSetStudioRouteImport } from './routes/v4.$topic.$set.studio'
 import { Route as V4TopicSetStepRouteImport } from './routes/v4.$topic.$set.$step'
 import { Route as RepReviewPartnerIdDecisionRouteImport } from './routes/rep_.review.$partnerId.$decision'
 import { Route as PartnersCouncilSchoolCouncilRouteImport } from './routes/partners.council.$school.$council'
@@ -1120,6 +1121,11 @@ const AdminGrowthColdoutreachIndexRoute =
     path: '/',
     getParentRoute: () => AdminGrowthColdoutreachRoute,
   } as any)
+const V4TopicSetStudioRoute = V4TopicSetStudioRouteImport.update({
+  id: '/v4/$topic/$set/studio',
+  path: '/v4/$topic/$set/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const V4TopicSetStepRoute = V4TopicSetStepRouteImport.update({
   id: '/v4/$topic/$set/$step',
   path: '/v4/$topic/$set/$step',
@@ -1451,6 +1457,7 @@ export interface FileRoutesByFullPath {
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
   '/rep/review/$partnerId/$decision': typeof RepReviewPartnerIdDecisionRoute
   '/v4/$topic/$set/$step': typeof V4TopicSetStepRoute
+  '/v4/$topic/$set/studio': typeof V4TopicSetStudioRoute
   '/admin/growth/coldoutreach/': typeof AdminGrowthColdoutreachIndexRoute
   '/v3/$topic/$set/': typeof V3TopicSetIndexRoute
   '/v4/$topic/$set/': typeof V4TopicSetIndexRoute
@@ -1652,6 +1659,7 @@ export interface FileRoutesByTo {
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
   '/rep/review/$partnerId/$decision': typeof RepReviewPartnerIdDecisionRoute
   '/v4/$topic/$set/$step': typeof V4TopicSetStepRoute
+  '/v4/$topic/$set/studio': typeof V4TopicSetStudioRoute
   '/admin/growth/coldoutreach': typeof AdminGrowthColdoutreachIndexRoute
   '/v3/$topic/$set': typeof V3TopicSetIndexRoute
   '/v4/$topic/$set': typeof V4TopicSetIndexRoute
@@ -1858,6 +1866,7 @@ export interface FileRoutesById {
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
   '/rep_/review/$partnerId/$decision': typeof RepReviewPartnerIdDecisionRoute
   '/v4/$topic/$set/$step': typeof V4TopicSetStepRoute
+  '/v4/$topic/$set/studio': typeof V4TopicSetStudioRoute
   '/admin/growth/coldoutreach/': typeof AdminGrowthColdoutreachIndexRoute
   '/v3/$topic/$set/': typeof V3TopicSetIndexRoute
   '/v4/$topic/$set/': typeof V4TopicSetIndexRoute
@@ -2065,6 +2074,7 @@ export interface FileRouteTypes {
     | '/partners/council/$school/$council'
     | '/rep/review/$partnerId/$decision'
     | '/v4/$topic/$set/$step'
+    | '/v4/$topic/$set/studio'
     | '/admin/growth/coldoutreach/'
     | '/v3/$topic/$set/'
     | '/v4/$topic/$set/'
@@ -2266,6 +2276,7 @@ export interface FileRouteTypes {
     | '/partners/council/$school/$council'
     | '/rep/review/$partnerId/$decision'
     | '/v4/$topic/$set/$step'
+    | '/v4/$topic/$set/studio'
     | '/admin/growth/coldoutreach'
     | '/v3/$topic/$set'
     | '/v4/$topic/$set'
@@ -2471,6 +2482,7 @@ export interface FileRouteTypes {
     | '/partners/council/$school/$council'
     | '/rep_/review/$partnerId/$decision'
     | '/v4/$topic/$set/$step'
+    | '/v4/$topic/$set/studio'
     | '/admin/growth/coldoutreach/'
     | '/v3/$topic/$set/'
     | '/v4/$topic/$set/'
@@ -2607,6 +2619,7 @@ export interface RootRouteChildren {
   PartnersCouncilSchoolCouncilRoute: typeof PartnersCouncilSchoolCouncilRoute
   RepReviewPartnerIdDecisionRoute: typeof RepReviewPartnerIdDecisionRoute
   V4TopicSetStepRoute: typeof V4TopicSetStepRoute
+  V4TopicSetStudioRoute: typeof V4TopicSetStudioRoute
   V3TopicSetIndexRoute: typeof V3TopicSetIndexRoute
   V4TopicSetIndexRoute: typeof V4TopicSetIndexRoute
   ApiSlideSchoolCouncilCouncilRoute: typeof ApiSlideSchoolCouncilCouncilRoute
@@ -3874,6 +3887,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGrowthColdoutreachIndexRouteImport
       parentRoute: typeof AdminGrowthColdoutreachRoute
     }
+    '/v4/$topic/$set/studio': {
+      id: '/v4/$topic/$set/studio'
+      path: '/v4/$topic/$set/studio'
+      fullPath: '/v4/$topic/$set/studio'
+      preLoaderRoute: typeof V4TopicSetStudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/v4/$topic/$set/$step': {
       id: '/v4/$topic/$set/$step'
       path: '/v4/$topic/$set/$step'
@@ -4396,6 +4416,7 @@ const rootRouteChildren: RootRouteChildren = {
   PartnersCouncilSchoolCouncilRoute: PartnersCouncilSchoolCouncilRoute,
   RepReviewPartnerIdDecisionRoute: RepReviewPartnerIdDecisionRoute,
   V4TopicSetStepRoute: V4TopicSetStepRoute,
+  V4TopicSetStudioRoute: V4TopicSetStudioRoute,
   V3TopicSetIndexRoute: V3TopicSetIndexRoute,
   V4TopicSetIndexRoute: V4TopicSetIndexRoute,
   ApiSlideSchoolCouncilCouncilRoute: ApiSlideSchoolCouncilCouncilRoute,

@@ -53,6 +53,7 @@ export function V4TopicPage({ topicKey, setKey, step }: { topicKey: string; setK
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
             <h1 style={{ fontFamily: V3_DISPLAY, fontSize: 30, fontWeight: 900, letterSpacing: "-0.01em", margin: 0 }}>{set.name}</h1>
             <span style={{ fontSize: 12.5, color: V3_MUTED }}>{topic.name}</span>
+            <Link to="/v4/$topic/$set/studio" params={{ topic: topicKey, set: setKey }} style={{ ...v4Button("gold"), textDecoration: "none" }}>🎬 Studio — build &amp; film</Link>
           </div>
           {data.state && <V4StepBar topicKey={topicKey} setKey={setKey} state={data.state} current={current} />}
           {data.learningError && <V3Note tone="bad">The learning record isn't saving yet — {data.learningError}</V3Note>}
