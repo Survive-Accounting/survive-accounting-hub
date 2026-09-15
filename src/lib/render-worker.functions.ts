@@ -28,10 +28,12 @@ const cfg = (): { state: "off" } | { state: "partial"; missing: string } | { sta
 };
 
 const workerFetch = async (c: { url: string; token: string }, path: string, init?: RequestInit) => {
+  // 50 s, not 20 (2026-09-14, Lee: "Operation was aborted due to timeout when I tried to preview"): the Fly
+  // machine stops itself after 5 idle minutes, and a cold start answers the first request late.
   const res = await fetch(`${c.url}${path}`, {
     ...init,
     headers: { ...(init?.headers ?? {}), authorization: `Bearer ${c.token}`, "content-type": "application/json" },
-    signal: AbortSignal.timeout(20_000),
+    signal: AbortSignal.timeout(50_000),
   });
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) throw new Error(`render worker ${path}: HTTP ${res.status} ${String(body.error ?? "")}`.trim());
@@ -48,7 +50,7 @@ export const workerPreflight = createServerFn({ method: "POST" }).handler(
     if (c.state === "off") return { configured: false, healthy: false, detail: "not configured — publishes use the legacy Mux concat" };
     if (c.state === "partial") return { configured: true, healthy: false, detail: `half-configured — ${c.missing} is missing; set both env vars (or unset both)` };
     try {
-      const res = await fetch(`${c.url}/healthz`, { signal: AbortSignal.timeout(6000) });
+      const res = await fetch(`${c.url}/healthz`, { signal: AbortSignal.timeout(45_000) }); // a cold start wakes here
       const body = (await res.json().catch(() => ({}))) as { ok?: boolean; ffmpeg?: string };
       if (!res.ok || !body.ok) return { configured: true, healthy: false, detail: `worker unhealthy: ${body.ffmpeg ?? `HTTP ${res.status}`}` };
       // TOKEN probe — /healthz is unauthenticated, so also hit an authed route:

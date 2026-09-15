@@ -24,7 +24,7 @@ import { measureText } from "@/lib/brand-kit/measure";
 import { defaultThumbSpec, seriesTitleCap, SITE_EXPORT, TITLE_TRACKING, type ThumbSpec } from "@/lib/brand-kit/thumbnail";
 import { colorwayFor, KIT, NEUTRAL_COLORWAY_ID } from "@/lib/brand-kit/tokens";
 import { setPublishCover, setPublishEndCta } from "@/lib/publish-queue.functions";
-import { resolveWorkerRender, startDissectStitch } from "@/lib/render-worker.functions";
+import { resolveWorkerRender, startDissectStitch, workerPreflight } from "@/lib/render-worker.functions";
 import { resolveSitePost, startSitePost } from "@/lib/site-publish.functions";
 import { partKey } from "@/lib/student-shorts";
 
@@ -96,6 +96,11 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   useEffect(() => { setTitle(takeName || setName); setStage({ s: "idle" }); }, [takeName, setName, takeIndex]);
   const [ended, setEnded] = useState(false);
   const cta = endCtaOf(frames);
+  /** Takes already uploaded this visit, by file name → their URL. */
+  const uploaded = useRef(new Map<string, string>());
+  /** START OVER (Lee, 2026-09-14: "a start over button being useful with punch in"): the takes it cleared,
+   *  so Ctrl+Z brings them back. The files stay in the recordings folder. */
+  const cleared = useRef<PunchTake[] | null>(null);
   const artRef = useRef<SVGSVGElement | null>(null);
 
   const goto = useCallback((frameId: string | null) => {
@@ -148,6 +153,13 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   const onPunchKey = useCallback((k: string) => {
     if (k === "Escape") { if (armedRef.current) { setArmed(null); say("Scrap cancelled"); return true; } return false; }
     if (k === "undo") {
+      if (cleared.current) {
+        const back = cleared.current;
+        cleared.current = null;
+        save([...back, ...takesRef.current]);
+        say(`Brought back ${back.length} take${back.length === 1 ? "" : "s"}`, "good");
+        return true;
+      }
       const last = trashRef.current[trashRef.current.length - 1];
       if (!last) { say("Nothing scrapped to bring back", "warn"); return true; }
       setTrash((t) => t.slice(0, -1));
@@ -205,18 +217,38 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
       const urls: string[] = [];
       setStage({ s: "uploading", done: 0, of: picks.length });
       for (const p of picks) {
+        // A take already uploaded this visit isn't sent again (a second Preview after a failure starts fast).
+        const known = uploaded.current.get(p.take.file);
+        if (known) { urls.push(known); setStage({ s: "uploading", done: urls.length, of: picks.length }); continue; }
         const file = await getFile(dir as never, p.take.file);
         if (!file) throw new Error(`${p.take.file} isn't in the recordings folder (moved, or OBS still writing it) — wait a moment and preview again.`);
-        urls.push(await uploadTake(file));
+        const url = await uploadTake(file);
+        uploaded.current.set(p.take.file, url);
+        urls.push(url);
         setStage({ s: "uploading", done: urls.length, of: picks.length });
+      }
+      // WAKE THE WORKER FIRST: it sleeps after 5 idle minutes, and a cold start is slow to answer.
+      setStage({ s: "stitching", note: "waking the video joiner…" });
+      for (let tries = 0; ; tries++) {
+        const h = await workerPreflight().catch((e) => ({ configured: true, healthy: false, detail: e instanceof Error ? e.message : String(e) }));
+        if (!h.configured) throw new Error("The video joiner isn't set up on the site (RENDER_WORKER_URL / RENDER_WORKER_TOKEN).");
+        if (h.healthy) break;
+        if (tries >= 5) throw new Error(`The video joiner didn't wake up: ${h.detail}. Press Preview again in a minute.`);
+        await wait(5000);
       }
       // One join, or batches of STITCH_CHUNK then a last join of the batches. The batches are already
       // trimmed, so the last join keeps each whole (manual trims skip the silence pass) and only adds the gaps.
       const join = async (list: string[], label: string, trims?: { start: number; end: number }[]) => {
         const job = await startDissectStitch({ data: { urls: list, gapMs: 220, ...(trims ? { trims } : {}) } });
+        let misses = 0;
         for (;;) {
           await wait(3000);
-          const r = await resolveWorkerRender({ data: { jobId: job.jobId, path: job.path, machineId: job.machineId } });
+          // A slow or dropped check is retried, not fatal — the job keeps running on the worker.
+          const r = await resolveWorkerRender({ data: { jobId: job.jobId, path: job.path, machineId: job.machineId } }).catch((e) => {
+            if (++misses > 8) throw e;
+            return { state: "rendering" as const, note: "checking again…", fileUrl: null, error: null, result: null };
+          });
+          if (r.state !== "rendering" || r.note !== "checking again…") misses = 0;
           if (r.state === "done" && r.fileUrl) return { fileUrl: r.fileUrl, totalS: r.result?.totalS ?? null };
           if (r.state === "error") throw new Error(r.error ?? "The joiner failed.");
           setStage({ s: "stitching", note: `${label} · ${r.state}${r.note ? ` · ${r.note}` : ""}` });
@@ -325,7 +357,12 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
             </button>
           );
         })}
-        <div style={{ color: MUTED, marginTop: 4 }}>{picks.length} take{picks.length === 1 ? "" : "s"} kept{gaps.length ? ` · ${gaps.length} slide${gaps.length === 1 ? "" : "s"} not filmed` : " · every slide filmed"}</div>
+        <div style={{ color: MUTED, marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ flex: 1 }}>{picks.length} take{picks.length === 1 ? "" : "s"} kept{gaps.length ? ` · ${gaps.length} slide${gaps.length === 1 ? "" : "s"} not filmed` : " · every slide filmed"}</span>
+          <button type="button" style={btn()} disabled={!takes.length || !!recording}
+            title="Clear this video's takes and film it again from the first slide. The files stay in the folder; Ctrl+Z brings the takes back."
+            onClick={() => { cleared.current = takes; save([]); setStage({ s: "idle" }); goto(ids[0] ?? null); say(`Started over — ${takes.length} take${takes.length === 1 ? "" : "s"} cleared. Ctrl+Z brings them back.`, "warn"); }}>↺ Start over</button>
+        </div>
       </div>
 
       {/* PREVIEW → POST */}
