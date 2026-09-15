@@ -29,7 +29,7 @@ describe("the teaser", () => {
   test("on film a click reveals the next chip, ` puts them away, and space walks it too", () => {
     const capture = readFileSync(join(import.meta.dir, "BlastOffCapture.tsx"), "utf8");
     expect(capture).toContain("teaser ? teaserSteps(frame!) :");
-    expect(capture).toContain("if (teaser) setShot(() => 0);");
+    expect(capture).toContain("if (teaser || ledger) setShot(() => 0);");
     expect(capture).toContain("advance: (d: number) => setShot((s) => Math.max(0, Math.min(steps - 1, s + d)))");
   });
 });

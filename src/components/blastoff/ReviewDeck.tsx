@@ -108,6 +108,7 @@ import { SplitRunPanel, takeCards } from "./SplitRunPanel";
 import { replaceRun } from "./split-run";
 import { TEASER_DEFAULT, TEASER_MAX } from "./teaser";
 import { PRACTICE_COPY, PRACTICE_FILMED_LINE, practiceVariantOf } from "./practice-cta";
+import { DC_KEYS, DC_NAME, DC_ORANGE, DC_YELLOW, dcColor, formatTLines, isDcKey, parseTLines, tPickOf } from "./ledger";
 // THE END-OF-TOPIC AD (2026-09-12): his picks of the topic's best videos.
 import { TOPIC_AD_COPY, bestOf, toggleBest } from "./topic-ad";
 import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, canRemove, canZoomBehind, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, moveMany, newFrameId, pasteAfter, patchFrame, patchFramesOfKind, toggleSkip, toggleSpeedRun, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
@@ -184,7 +185,7 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
-const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4", outline: "#86EFAC", types: "#A3E635", cycle: "#FDBA74", topic_ad: "#F0ABFC", teaser: "#FCA311" };
+const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4", outline: "#86EFAC", types: "#A3E635", cycle: "#FDBA74", topic_ad: "#F0ABFC", teaser: "#FCA311", dcrule: "#FACC15", taccount: "#FB923C" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
 // continuing to ONLY make vertical videos"). 9:16, with the zones TikTok and
@@ -1715,6 +1716,9 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     // 2026-09-14, Lee: "a button there to try them first. Surviveaccounting.com underneath."
     { label: "Practice · first", color: MINT, add: () => insertAfter(f.id, "practice", { practice: "try" }, true) },
     { label: "Practice · unlock the recap", color: MINT, add: () => insertAfter(f.id, "practice", { practice: "unlock" }, true) },
+    // 2026-09-15, the ledger slides (LedgerFrames.tsx): the ± rule, and a T-account walked on space.
+    { label: "Debit / credit rule", color: KIND_COLOR.dcrule ?? MUTED, add: () => insertAfter(f.id, "dcrule", {}, true) },
+    { label: "T-account", color: KIND_COLOR.taccount ?? MUTED, add: () => insertAfter(f.id, "taccount", { tacct: { name: "Cash", normal: "debit", lines: [{ side: "L", amount: "100", label: "Beg." }] } }, true) },
     { label: "Survibes", color: KIND_COLOR.survibes ?? MUTED, add: () => insertAfter(f.id, "survibes", {}, true) },
     // 2026-09-11, Lee: "include a + bio slide." An extra one can be removed while another stays.
     { label: "Bio", color: SKY, add: () => insertAfter(f.id, "bio", {}, true) },
@@ -2291,6 +2295,12 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         {sel.kind === "ceq" && ceq && <CeqEditor key={ceq.id} ceq={ceq} setId={set.id} shortenApplied={shortenApplied} onSaved={onSaved} />}
         {/* THE NOTE ON A SET CARD (2026-09-11) — a question card only. */}
         {sel.kind === "ceq" && ceq && !ceq.noteOnly && <CardNoteEditor sel={sel} onPatch={onPatch} />}
+        {sel.kind === "ceq" && ceq && !ceq.noteOnly && tPickOf(ceq.stem, ceq.choices) && (
+          <div className="flex items-center" style={{ gap: 8, fontSize: 11, color: MUTED }}>
+            <button style={chip(!!sel.tpick, GOLD)} onClick={() => onPatch({ tpick: sel.tpick ? undefined : true })}>Blank T</button>
+            <span>Draw this normal-balance question as a blank T; space lights the + side. Practice keeps the choices.</span>
+          </div>
+        )}
         {/* THE A = L + E CONVERT (2026-09-11). Lee: "For all the A = L + E ones, I think we don't do
             the MCQ version." Offered on any A = L + E question slide that hasn't been turned yet. */}
         {sel.kind === "ceq" && aleConvert?.candidates.has(sel.id) && (
@@ -2401,6 +2411,8 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         {sel.kind === "topic_ad" && <TopicAdEditor sel={sel} set={set} onPatch={onPatch} />}
         {sel.kind === "teaser" && <TeaserEditor sel={sel} onPatch={onPatch} />}
         {sel.kind === "practice" && <PracticeEditor sel={sel} onPatch={onPatch} />}
+        {sel.kind === "dcrule" && <DcRuleEditor sel={sel} onPatch={onPatch} />}
+        {sel.kind === "taccount" && <TAccountEditor key={sel.id} sel={sel} onPatch={onPatch} />}
         {sel.kind === "outline" && <OutlineEditor sel={sel} set={set} onPatch={onPatch} />}
         {sel.kind === "types" && <TypesEditor sel={sel} onPatch={onPatch} />}
         {/* SURVIBES (2026-09-11): nothing to type — the flip is the slide. What the spacebar does is
@@ -2807,6 +2819,40 @@ function TeaserEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<
 
 /** The practice slide (practice-cta.ts): which one, and its words. Filmed, it says "Practice at
  *  surviveaccounting.com"; the site shows the real buttons when the video ends. */
+function DcRuleEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<BlastFrame>) => void }) {
+  const focus = isDcKey(sel.dcFocus) ? sel.dcFocus : null;
+  return (
+    <div className="flex flex-col" style={{ gap: 10 }}>
+      <div className="flex flex-wrap" style={{ gap: 6 }}>
+        <button style={chip(!focus, GOLD)} onClick={() => onPatch({ dcFocus: undefined })}>All</button>
+        {DC_KEYS.map((k) => <button key={k} style={chip(focus === k, dcColor(k))} onClick={() => onPatch({ dcFocus: k })}>{DC_NAME[k]}</button>)}
+      </div>
+      <label style={{ fontSize: 11, color: MUTED }}>Chip
+        <input style={{ ...field, marginTop: 4 }} value={sel.chipText ?? ""} placeholder="Memorize this" onChange={(e) => onPatch({ chipText: e.target.value || undefined })} /></label>
+      <label style={{ fontSize: 11, color: MUTED }}>Heading (blank = the lit type's rule)
+        <input style={{ ...field, marginTop: 4 }} value={sel.title ?? ""} onChange={(e) => onPatch({ title: e.target.value || undefined })} /></label>
+    </div>
+  );
+}
+
+function TAccountEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<BlastFrame>) => void }) {
+  const t = sel.tacct ?? { name: "Cash", normal: "debit" as const, lines: [] };
+  const [text, setText] = useState(() => formatTLines(t));
+  return (
+    <div className="flex flex-col" style={{ gap: 10 }}>
+      <label style={{ fontSize: 11, color: MUTED }}>Account
+        <input style={{ ...field, marginTop: 4 }} value={t.name} onChange={(e) => onPatch({ tacct: { ...t, name: e.target.value } })} /></label>
+      <div className="flex" style={{ gap: 6 }}>
+        {(["debit", "credit"] as const).map((n) => <button key={n} style={chip(t.normal === n, n === "debit" ? DC_YELLOW : DC_ORANGE)} onClick={() => onPatch({ tacct: { ...t, normal: n } })}>{n === "debit" ? "Increases with a debit (+/-)" : "Increases with a credit (-/+)"}</button>)}
+      </div>
+      <label style={{ fontSize: 11, color: MUTED }}>Entries, one a line: side, amount, label. L = debit, R = credit; "= L 1,300" is the ending balance.
+        <textarea rows={6} style={{ ...field, marginTop: 4, resize: "vertical", fontFamily: "ui-monospace, monospace" }} value={text} placeholder={"L 1,000 Beg.\nR 200 Pay rent\n= L 800"}
+          onChange={(e) => { setText(e.target.value); const r = parseTLines(e.target.value); onPatch({ tacct: { ...t, lines: r.lines, ending: r.ending } }); }} /></label>
+      <div style={{ fontSize: 11, color: MUTED }}>On film, space brings in each entry, then the ending balance.</div>
+    </div>
+  );
+}
+
 function PracticeEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<BlastFrame>) => void }) {
   const v = practiceVariantOf(sel);
   const d = PRACTICE_COPY[v];

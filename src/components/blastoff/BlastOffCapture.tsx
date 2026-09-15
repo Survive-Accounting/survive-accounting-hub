@@ -93,6 +93,7 @@ import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
 // here, the block reads it through its own context (RubricFrame.tsx).
 import { FrameStepContext, type FrameStep } from "./frame-step";
 import { teaserSteps } from "./teaser";
+import { tAccountSteps, tPickOf } from "./ledger";
 import { revExpShown, rubricSteps, type RubricArrow, type RubricKey } from "./rubric";
 // SURVIBES (2026-09-11): its props are steps too; the authoring-only 2:00 clock lives in the
 // main window's chrome (never the pop-out, never the shot).
@@ -309,12 +310,15 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // A, L, E, Rev/Exp as the spacebar walks them (rubric.ts revealGroups). `steps` is the one
   // count both kinds share; every other slide has none and space leaves the frame at once.
   const rubric = frame?.kind === "rubric" ? frame.rubric ?? null : null;
-  const walkOn = !!frame?.walk && frame.kind !== "rubric" && frame.kind !== "cluster" && frame.kind !== "survibes" && frame.kind !== "teaser";
+  const walkOn = !!frame?.walk && frame.kind !== "rubric" && frame.kind !== "cluster" && frame.kind !== "survibes" && frame.kind !== "teaser" && frame.kind !== "taccount";
   const survibes = frame?.kind === "survibes";
   // THE ACCOUNTING CYCLE (2026-09-12) roams like the map: one field, one set of gestures.
   const cycle = frame?.kind === "cycle";
   // THE TEASER (2026-09-13, teaser.ts): the callout chips come in one per click — or space — as steps.
   const teaser = frame?.kind === "teaser";
+  // THE LEDGER WALKS (2026-09-15, ledger.ts): a T-account's lines, then its ending; a T pick's reveal.
+  const ledgerSteps = frame?.kind === "taccount" ? tAccountSteps(frame.tacct) : frame?.kind === "ceq" && frame.tpick && ceq && tPickOf(ceq.stem, ceq.choices) ? 2 : 0;
+  const ledger = ledgerSteps > 0;
   // SPACE WALK (2026-09-13, plan.ts `walk`): any text slide's lines come in one per space. The count is
   // read off the rendered slide (every [data-sa-walk] line), so it follows whatever the text is.
   const [walkCount, setWalkCount] = useState(0);
@@ -322,7 +326,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   // this take, this slide, never saved (frame-step.ts). A new slide starts clean.
   const [rubricTakeState, setRubricTake] = useState<{ id: string; over: Partial<Record<RubricKey, RubricArrow[]>>; revExp?: boolean }>({ id: "", over: {} });
   const rubricRevExp = rubric ? (rubricTakeState.id === frameId ? rubricTakeState.revExp : undefined) ?? revExpShown(rubric) : false;
-  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric, rubricRevExp) : survibes ? survibesSteps() : teaser ? teaserSteps(frame!) : walkOn ? walkCount + 1 : 0;
+  const steps = cluster ? shots.length : rubric ? rubricSteps(rubric, rubricRevExp) : survibes ? survibesSteps() : teaser ? teaserSteps(frame!) : ledger ? ledgerSteps : walkOn ? walkCount + 1 : 0;
   const [shotState, setShotState] = useState<{ id: string; shot: number }>({ id: "", shot: 0 });
   const shot = steps > 0 && shotState.id === frameId ? Math.min(shotState.shot, Math.max(0, steps - 1)) : 0;
   const setShot = useCallback((f: (s: number) => number) => { const id = frameId ?? ""; setShotState((p) => ({ id, shot: Math.max(0, f(p.id === id ? p.shot : 0)) })); }, [frameId]);
@@ -659,9 +663,9 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     document.querySelectorAll(".sa-tease-open").forEach((n) => n.classList.remove("sa-tease-open"));
     if (rubric) setShot(() => 0);
     if (rubric) setRubricTake({ id: "", over: {} });
-    if (teaser) setShot(() => 0);
+    if (teaser || ledger) setShot(() => 0);
     if (walkOn) setShot(() => 0);
-  }, [resetTake, scratchTake, rubric, teaser, walkOn, setShot]);
+  }, [resetTake, scratchTake, rubric, teaser, ledger, walkOn, setShot]);
   // F3 SCRAP (capture/scrap.tsx): the pop-out owns it while a pop-out take is live; otherwise this
   // window does. A retake starts from the top, so the restart also walks a map back to shot one.
   const scrapOwner = popout.isPopout || take === null;
@@ -838,12 +842,12 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   const clusterFilm = useMemo<ClusterFilm | null>(() => (cluster || cycle ? { shot, roam: fieldRoam.roam, overview: preview, arrowOverrides, onArrowCycle } : null), [cluster, cycle, shot, fieldRoam.roam, preview, arrowOverrides, onArrowCycle]);
   // The rubric's step, the same way; in the NEXT preview the block is at rest with every arrow on.
   const rubricFilm = useMemo<FrameStep | null>(() => {
-    if (preview || (!rubric && !survibes && !teaser)) return null;
-    if (teaser) return { step: shot, advance: (d: number) => setShot((s) => Math.max(0, Math.min(steps - 1, s + d))) };
+    if (preview || (!rubric && !survibes && !teaser && !ledger)) return null;
+    if (teaser || ledger) return { step: shot, advance: (d: number) => setShot((s) => Math.max(0, Math.min(steps - 1, s + d))) };
     if (!rubric) return { step: shot };
     const mine = rubricTakeState.id === frameId ? rubricTakeState : { id: frameId ?? "", over: {} as Partial<Record<RubricKey, RubricArrow[]>>, revExp: undefined };
     return { step: shot, rubric: { over: mine.over, revExp: mine.revExp, set: (key: RubricKey, arrows: RubricArrow[]) => setRubricTake((p) => { const cur = p.id === frameId ? p : { id: frameId ?? "", over: {} }; return { ...cur, id: frameId ?? "", over: { ...cur.over, [key]: arrows } }; }) } };
-  }, [rubric, survibes, teaser, steps, setShot, preview, shot, rubricTakeState, frameId]);
+  }, [rubric, survibes, teaser, ledger, steps, setShot, preview, shot, rubricTakeState, frameId]);
   // The frame the phone draws: Survibes' prop step places its small camera circle (never saved).
   const shownFrame = useMemo(() => (survibes && shot > 0 && frame ? { ...frame, camPos: { ...SURVIBES_PROP_CAM } } : frame), [survibes, shot, frame]);
 

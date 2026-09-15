@@ -144,6 +144,15 @@ export const frameSchema = z.object({
   best: z.array(z.string().max(130)).max(12).optional(),
   // 2026-09-14: the practice slide's variant (plan.ts `practice`).
   practice: z.enum(["try", "unlock"]).optional(),
+  // 2026-09-15: the ledger slides (plan.ts `dcFocus`, `tacct`, `tpick`; ledger.ts).
+  dcFocus: z.string().max(8).optional(),
+  tacct: z.object({
+    name: z.string().max(80),
+    normal: z.enum(["debit", "credit"]),
+    lines: z.array(z.object({ side: z.enum(["L", "R"]), amount: z.string().max(24), label: z.string().max(60).optional() })).max(12),
+    ending: z.object({ side: z.enum(["L", "R"]), amount: z.string().max(24) }).optional(),
+  }).optional(),
+  tpick: z.literal(true).optional(),
   // 2026-09-11: the Types of accounts slide (plan.ts `types`, account-types.ts TypesSpec).
   types: z.object({
     tab: z.enum(TYPE_TABS).optional(),

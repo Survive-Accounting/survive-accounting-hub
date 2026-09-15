@@ -162,7 +162,7 @@ export function suggestCuts(frames: readonly BlastFrame[], cardGroup: (ceqId: st
   let lastCard: string | null = null;
   content.forEach((f, i) => {
     const next = content[i + 1];
-    if (isCalloutKind(f.kind) || f.kind === "ceq" || f.kind === "rubric" || f.kind === "types" || f.kind === "teaser" || f.kind === "blank") weight += frameWeight(f);
+    if (isCalloutKind(f.kind) || f.kind === "ceq" || f.kind === "rubric" || f.kind === "types" || f.kind === "teaser" || f.kind === "dcrule" || f.kind === "taccount" || f.kind === "blank") weight += frameWeight(f);
     if (f.kind === "ceq") lastCard = f.id;
     if (!next) return;
     const g = groupOf(f), ng = groupOf(next);

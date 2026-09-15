@@ -88,7 +88,7 @@ const SECONDS: Partial<Record<BlastFrameKind, number>> = {
   ceq: 12, rubric: 14, types: 12, outline: 12, cluster: 20, survibes: 20,
   topic_done: 6, up_next: 6, blank: 5, exhibit: 10,
   phrase: 8, cheat: 8, tip: 8, tricky: 8, found: 6, ask: 7,
-  teaser: 8,
+  teaser: 8, dcrule: 10, taccount: 14,
 };
 const DEFAULT_SECONDS = 8;
 

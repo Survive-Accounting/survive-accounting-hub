@@ -88,6 +88,11 @@ export const BLAST_FRAME_KINDS = [
   // they know where." Filmed (and so on the socials) it says "Practice at surviveaccounting.com"; on the
   // site the player puts the real buttons over it when the video ends.
   "practice",
+  // 2026-09-15: THE LEDGER SLIDES (LedgerFrames.tsx, ledger.ts), from Lee's Chapter 2 deck. "dcrule" = his
+  // memorization trick, A = L + E with the + / − under each word, ADE / LER; "taccount" = a T-account whose
+  // entries come in on space, beginning to ending balance.
+  "dcrule",
+  "taccount",
 ] as const;
 
 export type BlastFrameKind = (typeof BLAST_FRAME_KINDS)[number];
@@ -252,6 +257,14 @@ export interface BlastFrame {
   /** THE PRACTICE SLIDE's variant (2026-09-14, kind "practice", practice-cta.ts): "try" = practice first,
    *  before the videos; "unlock" = finish the practice to unlock the recap. Absent = "try". */
   practice?: "try" | "unlock";
+  /** THE ± RULE's focus (2026-09-15, kind "dcrule", ledger.ts DcKey): the one account type lit, the rest
+   *  dimmed. Absent = all lit. */
+  dcFocus?: string;
+  /** THE T-ACCOUNT (2026-09-15, kind "taccount", ledger.ts TAccountSpec). */
+  tacct?: TAccountSpec;
+  /** THE T PICK (2026-09-15, kind "ceq"): a "What is the normal balance of ____?" card drawn as a blank T,
+   *  the + side lighting on space. The practice keeps the card's Debit / Credit choices. */
+  tpick?: true;
 }
 
 export interface BlastPlan {
@@ -265,7 +278,7 @@ export interface BlastPlan {
 /** Frames Lee inserted here, as opposed to cards the set already owns. Only
  *  these can be deleted from a plan — removing a card the set owns would mean
  *  not filming it, which is a set edit, not a running-order edit. */
-export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline", "types", "cycle", "topic_ad", "teaser", "practice"];
+export const INSERT_KINDS: readonly BlastFrameKind[] = ["phrase", "cheat", "tip", "tricky", "found", "exhibit", "blank", "bolt", "ad", "cluster", "slogan", "rubric", "topic_done", "up_next", "survibes", "ask", "outline", "types", "cycle", "topic_ad", "teaser", "practice", "dcrule", "taccount"];
 
 /** THE ADS (Lee, 2026-09-04: "similar ones we have in /learn already — for
  *  sharing with fraternity and sorority, for campus reps, for sending in
@@ -277,10 +290,11 @@ import type { FrameIllustration } from "./illustration";
 import type { RubricSpec } from "./rubric";
 import type { TypesSpec } from "./account-types";
 import type { CardNoteSpec } from "./card-note";
+import type { TAccountSpec } from "./ledger";
 
 /** Frames that ARE the whole 9:16 slide (no card on a stage): the brand
  *  slides, the bolt detour and the ads. The bio is standard but it is a card. */
-export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next", "survibes", "outline", "cycle", "topic_ad", "teaser", "practice"];
+export const FULL_FRAME_KINDS: readonly BlastFrameKind[] = ["open", "intro", "outro", "bolt", "ad", "cluster", "slogan", "topic_done", "up_next", "survibes", "outline", "cycle", "topic_ad", "teaser", "practice", "dcrule", "taccount"];
 export const isFullFrame = (k: BlastFrameKind): boolean => FULL_FRAME_KINDS.includes(k);
 
 /** THE FOUR CALLOUTS that can be drawn either way (2026-09-08, `BlastFrame.display`). The
@@ -296,7 +310,7 @@ export const isBigCallout = (f: BlastFrame): boolean => f.display === "big" && c
 /** Does this FRAME own the whole 9:16 — by its kind, or by being a callout turned big? The
  *  frame-level question; `isFullFrame` answers the kind-level one and stays the right call
  *  wherever only a kind is at hand. */
-export const framesFullFrame = (f: BlastFrame): boolean => isFullFrame(f.kind) || isBigCallout(f);
+export const framesFullFrame = (f: BlastFrame): boolean => isFullFrame(f.kind) || isBigCallout(f) || (f.kind === "ceq" && !!f.tpick);
 
 export const isInsert = (k: BlastFrameKind): boolean => INSERT_KINDS.includes(k);
 
@@ -372,6 +386,8 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   topic_ad: "End-of-topic ad",
   teaser: "Teaser",
   practice: "Practice",
+  dcrule: "Debit / credit rule",
+  taccount: "T-account",
 };
 
 /** THE CAMPUS BANNER IS OFF (2026-09-12). Lee: "Turn off campus banner globally on the app. We're
@@ -532,7 +548,7 @@ export function canRemove(frames: readonly BlastFrame[], f: BlastFrame): boolean
  *  pair, whose shell is see-through. The brand slides, the slogan, a big callout and the map draw
  *  their own. */
 export function canZoomBehind(f: BlastFrame): boolean {
-  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next" || f.kind === "outline" || f.kind === "topic_ad" || f.kind === "teaser" || f.kind === "practice";
+  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next" || f.kind === "outline" || f.kind === "topic_ad" || f.kind === "teaser" || f.kind === "practice" || f.kind === "dcrule" || f.kind === "taccount" || (f.kind === "ceq" && !!f.tpick);
 }
 
 /** THE STANDARD OPENER (2026-09-09), in Lee's words and in his own draft's order: "Hero camera,
