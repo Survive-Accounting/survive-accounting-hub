@@ -24,7 +24,7 @@ import { measureText } from "@/lib/brand-kit/measure";
 import { defaultThumbSpec, seriesTitleCap, SITE_EXPORT, TITLE_TRACKING, type ThumbSpec } from "@/lib/brand-kit/thumbnail";
 import { colorwayFor, KIT, NEUTRAL_COLORWAY_ID } from "@/lib/brand-kit/tokens";
 import { setPublishCover, setPublishEndCta } from "@/lib/publish-queue.functions";
-import { resolveWorkerRender, startDissectStitch, workerPreflight } from "@/lib/render-worker.functions";
+import { resolveWorkerRender, startDissectStitch, startWorkerRender, workerPreflight } from "@/lib/render-worker.functions";
 import { resolveSitePost, startSitePost } from "@/lib/site-publish.functions";
 import { partKey } from "@/lib/student-shorts";
 
@@ -106,6 +106,8 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   useEffect(() => { setTitle(takeName || setName); setStage({ s: "idle" }); }, [takeName, setName, takeIndex]);
   const [ended, setEnded] = useState(false);
   const cta = endCtaOf(frames);
+  /** True when this preview had to use the worker's plain join (pauses not trimmed). */
+  const plainJoin = useRef(false);
   /** Takes already uploaded this visit, by file name → their URL. */
   const uploaded = useRef(new Map<string, string>());
   // THE OUTRO CLIP (Lee, 2026-09-14: "just append the outro to each video automatically, with the animation
@@ -265,6 +267,7 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
         urls.push(url);
         setStage({ s: "uploading", done: urls.length, of: picks.length });
       }
+      plainJoin.current = false;
       // WAKE THE WORKER FIRST: it sleeps after 5 idle minutes, and a cold start is slow to answer.
       setStage({ s: "stitching", note: "waking the video joiner…" });
       for (let tries = 0; ; tries++) {
@@ -277,7 +280,14 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
       // One join, or batches of STITCH_CHUNK then a last join of the batches. The batches are already
       // trimmed, so the last join keeps each whole (manual trims skip the silence pass) and only adds the gaps.
       const join = async (list: string[], label: string, trims?: ({ start: number; end: number } | null)[]) => {
-        const job = await startDissectStitch({ data: { urls: list, gapMs: 220, ...(trims ? { trims } : {}) } });
+        // THE FALLBACK (2026-09-14): the deployed worker predates the pause-trimming join ("unknown stage kind
+        // dissect_stitch" until it's redeployed). Then join the takes as they are with the worker's plain
+        // concat, and say that the pauses stayed in.
+        const job = await startDissectStitch({ data: { urls: list, gapMs: 220, ...(trims ? { trims } : {}) } }).catch(async (e) => {
+          if (!/unknown stage/i.test(e instanceof Error ? e.message : String(e))) throw e;
+          plainJoin.current = true;
+          return startWorkerRender({ data: { urls: list, mode: "full" } });
+        });
         let misses = 0;
         for (;;) {
           await wait(3000);
@@ -287,7 +297,7 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
             return { state: "rendering" as const, note: "checking again…", fileUrl: null, error: null, result: null };
           });
           if (r.state !== "rendering" || r.note !== "checking again…") misses = 0;
-          if (r.state === "done" && r.fileUrl) return { fileUrl: r.fileUrl, totalS: r.result?.totalS ?? null };
+          if (r.state === "done" && r.fileUrl) return { fileUrl: r.fileUrl, totalS: r.result?.totalS ?? (plainJoin.current ? -1 : null) };
           if (r.state === "error") throw new Error(r.error ?? "The joiner failed.");
           setStage({ s: "stitching", note: `${label} · ${r.state}${r.note ? ` · ${r.note}` : ""}` });
         }
@@ -301,17 +311,19 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
           ? await join([...urls, outro.url], "joining", [...urls.map(() => null), outro.trim])
           : await join(urls, "joining");
         setStage({ s: "ready", fileUrl: one.fileUrl });
+        if (plainJoin.current) say("Joined without trimming the pauses — the video joiner needs its update deployed for that.", "warn");
         return;
       }
       const parts: { fileUrl: string; totalS: number | null }[] = [];
       for (let b = 0; b < batches.length; b++) parts.push(await join(batches[b], `batch ${b + 1} of ${batches.length}`));
-      if (parts.some((p) => p.totalS == null)) throw new Error("A batch came back without its length, so the batches can't be joined cleanly — press Preview again.");
+      if (!plainJoin.current && parts.some((p) => p.totalS == null)) throw new Error("A batch came back without its length, so the batches can't be joined cleanly — press Preview again.");
       const whole = await join(
         [...parts.map((p) => p.fileUrl), ...(outro ? [outro.url] : [])],
         "joining the batches",
-        [...parts.map((p) => ({ start: 0, end: p.totalS! })), ...(outro ? [outro.trim] : [])],
+        plainJoin.current ? undefined : [...parts.map((p) => ({ start: 0, end: p.totalS! })), ...(outro ? [outro.trim] : [])],
       );
       setStage({ s: "ready", fileUrl: whole.fileUrl });
+      if (plainJoin.current) say("Joined without trimming the pauses — the video joiner needs its update deployed for that.", "warn");
     } catch (e) { setStage({ s: "error", error: e instanceof Error ? e.message : String(e) }); }
   };
 

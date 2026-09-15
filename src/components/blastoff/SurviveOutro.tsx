@@ -118,10 +118,13 @@ export function SurviveOutro({
   useEffect(() => {
     if (!animating) return;
     const reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) { const t = window.setTimeout(() => setAutoLit(true), 1600); return () => window.clearTimeout(t); }
-    const t1 = window.setTimeout(() => setCursor("in"), 1300);
-    const t2 = window.setTimeout(() => { setCursor("click"); setAutoLit(true); }, 2450);
-    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
+    // All inside ~2 s (Lee: "Make that animation happen like WAY faster. Like 2 seconds. and make cursor
+    // disappear after the click"): in at 0.6 s, click at 1.15 s, gone by 1.5 s.
+    if (reduced) { const t = window.setTimeout(() => setAutoLit(true), 700); return () => window.clearTimeout(t); }
+    const t1 = window.setTimeout(() => setCursor("in"), 600);
+    const t2 = window.setTimeout(() => { setCursor("click"); setAutoLit(true); }, 1150);
+    const t3 = window.setTimeout(() => setCursor("off"), 1500);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); window.clearTimeout(t3); };
   }, [animating]);
   const lit = ctaSpot?.state === "spot" || autoLit;
   const flamed = !!ctaSpot?.flamed && lit;
@@ -200,9 +203,9 @@ export function SurviveOutro({
               <style>{`@keyframes sa-outro-cursor-in { from { transform: translate(${Math.round(V.w * 0.92 - tx)}px, ${Math.round(V.h * 0.9 - ty)}px); opacity: 0; } 15% { opacity: 1; } to { transform: translate(0, 0); opacity: 1; } }
 @keyframes sa-outro-click { 0% { transform: scale(1); } 40% { transform: scale(0.8); } 100% { transform: scale(1); } }
 @keyframes sa-outro-ripple { from { transform: translate(-50%, -50%) scale(0.2); opacity: 0.85; } to { transform: translate(-50%, -50%) scale(1.6); opacity: 0; } }`}</style>
-              {cursor === "click" && <div aria-hidden style={{ position: "absolute", left: tx, top: ty, width: size * 1.6, height: size * 1.6, borderRadius: "50%", border: `${Math.max(3, Math.round(size * 0.06))}px solid #FFFFFF`, animation: "sa-outro-ripple 520ms ease-out forwards", pointerEvents: "none", zIndex: 7 }} />}
-              <div aria-hidden style={{ position: "absolute", left: tx, top: ty, zIndex: 8, pointerEvents: "none", animation: cursor === "in" ? "sa-outro-cursor-in 1050ms cubic-bezier(.2,.75,.25,1) both" : undefined }}>
-                <div style={{ transformOrigin: "0 0", animation: cursor === "click" ? "sa-outro-click 260ms ease-out" : undefined }}>
+              {cursor === "click" && <div aria-hidden style={{ position: "absolute", left: tx, top: ty, width: size * 1.6, height: size * 1.6, borderRadius: "50%", border: `${Math.max(3, Math.round(size * 0.06))}px solid #FFFFFF`, animation: "sa-outro-ripple 340ms ease-out forwards", pointerEvents: "none", zIndex: 7 }} />}
+              <div aria-hidden style={{ position: "absolute", left: tx, top: ty, zIndex: 8, pointerEvents: "none", animation: cursor === "in" ? "sa-outro-cursor-in 520ms cubic-bezier(.2,.75,.25,1) both" : undefined }}>
+                <div style={{ transformOrigin: "0 0", animation: cursor === "click" ? "sa-outro-click 200ms ease-out" : undefined }}>
                   <svg width={size} height={Math.round(size * 1.4)} viewBox="0 0 20 28" style={{ display: "block", filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.55))" }}>
                     <path d="M1 1 L1 22 L6.5 16.8 L10.2 26 L14 24.4 L10.4 15.4 L18 15.4 Z" fill="#FFFFFF" stroke="#0B0F1E" strokeWidth="1.6" strokeLinejoin="round" />
                   </svg>
