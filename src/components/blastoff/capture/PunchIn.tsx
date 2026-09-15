@@ -69,7 +69,9 @@ type Stage =
   | { s: "posted"; link: string }
   | { s: "error"; error: string; fileUrl?: string };
 
-export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName, popoutFrameId, onClose }: {
+export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName, popoutFrameId, onClose, onNext }: {
+  /** Move this window (and the pop-out) to the next video; null on the last one. */
+  onNext?: (() => void) | null;
   setId: string; setName: string; topicName: string;
   /** The split being filmed, as the pop-out walks it. */
   frames: readonly BlastFrame[];
@@ -504,7 +506,10 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
           {social.s === "error" && <div style={{ color: RED }}>{social.error}</div>}
         </>)}
         {stage.s === "posting" && <div style={{ color: GOLD }}>{stage.note}</div>}
-        {stage.s === "posted" && <div style={{ color: MINT, fontWeight: 800 }}>✓ Posted — <a href={stage.link} target="_blank" rel="noreferrer" style={{ color: MINT }}>see it</a>. ] for the next video.</div>}
+        {stage.s === "posted" && <div style={{ color: MINT, fontWeight: 800 }}>✓ Posted — <a href={stage.link} target="_blank" rel="noreferrer" style={{ color: MINT }}>see it</a>.</div>}
+        {/* NEXT VIDEO, right here (Lee: "once I finish one split, it will just let me navigate to the next one
+            right away and keep filming"). The pop-out follows. */}
+        {onNext && <button type="button" style={btn(stage.s === "posted")} onClick={onNext} title="The next video — the pop-out follows (same as ])">Next video →</button>}
       </div>
     </aside>
   );

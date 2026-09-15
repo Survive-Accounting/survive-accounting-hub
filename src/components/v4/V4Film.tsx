@@ -90,7 +90,8 @@ export function V4Film({ data, set, topic, topics, topicKey, setKey }: { data: V
                 <span style={{ flex: 1 }} />
                 {blocked
                   ? <span title="Resolve the placeholders below to film this split" style={{ ...v4Button(), opacity: 0.45, cursor: "not-allowed" }}>🎬 Film</span>
-                  : <a href={`${blastOffPath(topic, set, "film")}?take=${r.index}${r.headId ? `&frame=${encodeURIComponent(r.headId)}` : ""}`} target="_blank" rel="noreferrer" style={{ ...v4Button("gold"), textDecoration: "none" }}>🎬 Film</a>}
+                  // SAME TAB, v4's film tool (Lee, 2026-09-14: "so many tabs open") — ] / Next video walk on from there.
+                  : <Link to="/v4/$topic/$set/shoot" params={{ topic: topicKey, set: setKey }} search={{ take: r.index, ...(r.headId ? { frame: r.headId } : {}) }} style={{ ...v4Button("gold"), textDecoration: "none" }}>🎬 Film</Link>}
                 <a href={`/v3/post?open=${encodeURIComponent(publishKey(set.id, r.index))}`} style={{ ...v4Button(), textDecoration: "none", color: V3_MUTED }}>Post →</a>
               </div>
               {blocked && (

@@ -909,7 +909,8 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
       {/* PUNCH-IN (2026-09-14): one slide at a time with OBS, then Preview and Post — main window only. */}
       {!popout.isPopout && punchOn && (
         <PunchIn setId={set.id} setName={set.name} topicName={topicName ?? ""} frames={frames} takeIndex={takeInfo?.index ?? 0} takeName={takeInfo ? takeLabel(takeInfo) : ""}
-          popoutFrameId={popoutFrameId} onClose={() => setPunch(false)} />
+          popoutFrameId={popoutFrameId} onClose={() => setPunch(false)}
+          onNext={takeInfo && takeInfo.index < takes.length - 1 ? () => goSplit(takeInfo.index + 1) : null} />
       )}
       {/* THE BRAND CURSOR — the bolt, as on the canvas popout. The native
           cursor is hidden; turn "Capture Cursor" off on the OBS source. */}
