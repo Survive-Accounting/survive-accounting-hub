@@ -8,6 +8,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AdminGate } from "@/components/AdminGate";
 import { BlastOffCapture } from "@/components/blastoff/BlastOffCapture";
 import { useV3Set } from "@/components/v3/use-bank";
+import { FilmTopLinks } from "@/components/v4/stitch-room/FilmTopLinks";
 import { V3Note, V3Shell } from "@/components/v3/Shell";
 
 export const Route = createFileRoute("/v4/$topic/$set/shoot")({
@@ -35,7 +36,7 @@ function V4Shoot() {
   ];
   if (set && topic) {
     const exit = () => void navigate({ to: "/v4/$topic/$set/$step", params: { topic: topicKey, set: setKey, step: "film" } });
-    return <BlastOffCapture set={set} topicName={topic.name} onExit={exit} crumbs={crumbs} take={take ?? 0} startFrameId={frame} />;
+    return <BlastOffCapture set={set} topicName={topic.name} onExit={exit} crumbs={crumbs} topLinks={<FilmTopLinks />} take={take ?? 0} startFrameId={frame} />;
   }
   return (
     <V3Shell crumbs={crumbs}>

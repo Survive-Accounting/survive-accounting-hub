@@ -156,11 +156,13 @@ export function startIndexOf(frames: readonly { id: string }[], startFrameId: st
   return k < 0 ? 0 : k;
 }
 
-export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takeParam, startFrameId }: {
+export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take: takeParam, startFrameId }: {
   set: BoothSetInfo; topicName?: string; onExit: () => void;
   /** The V3 breadcrumb (Lee, 2026-09-07: "Show navigation breadcrumbs on /film") — drawn small,
    *  top-left, only with the chrome and only in the main window, so it never films. */
   crumbs?: Crumb[];
+  /** Links drawn after the breadcrumbs (v4: Stats and the Stitch Room). Main window, chrome only. */
+  topLinks?: React.ReactNode;
   /** ?take=N (2026-09-09): film ONE split — the Nth run between cuts, 0-based, numbered the way
    *  /v3/post's rows are. Undefined films the whole set. Lee: "I only did account classification
    *  > assets. Not the full thing." */
@@ -984,6 +986,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
                 : c.to ? <Link to={c.to} style={{ color: MUTED, fontWeight: 600, textDecoration: "none" }}>{c.label}</Link> : <span style={{ color: CREAM, fontWeight: 700 }}>{c.label}</span>}
             </span>
           ))}
+          {topLinks}
         </nav>
       )}
       {chrome && (
