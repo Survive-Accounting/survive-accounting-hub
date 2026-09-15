@@ -163,7 +163,7 @@ export interface DeckApi { addSlide: (kind: BlastFrameKind, patch: Partial<Blast
 const QUICK: readonly { kind: BlastFrameKind; label: string; patch?: Partial<BlastFrame> }[] = [
   { kind: "phrase", label: "Memorize this" },
   { kind: "cheat", label: "Cheat code" },
-  { kind: "tip", label: "Go deeper" },
+  { kind: "tip", label: "Think like an accountant" },
   // 2026-09-08, Lee: "Also, I'm not seeing a '+Tricky' type slide. Haven't we discussed this?"
   // The fourth of the family the September strategy doc asked for, and the last one built.
   { kind: "tricky", label: "Tricky question" },

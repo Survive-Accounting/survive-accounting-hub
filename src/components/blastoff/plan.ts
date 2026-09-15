@@ -348,7 +348,9 @@ export const FRAME_LABEL: Record<BlastFrameKind, string> = {
   // Lee, 2026-09-06: "Deep Question seems a bit better" — it tells the student what to DO (stop
   // and reason it out), where "Deeper idea" didn't. The internal kind stays "tip" everywhere.
   // Lee, 2026-09-08: "Deep question should be 'Go deeper'." Third name for this kind, same key.
-  tip: "Go deeper",
+  // Lee, 2026-09-15: "Think like an accountant could be a fun callout … I'm preference to Think like an
+  // accountant, it's longer, but more in line with what I want to teach when we go deeper." Fourth name, same key.
+  tip: "Think like an accountant",
   // Lee, 2026-09-08: "I am not seeing a '+Tricky' type slide. Haven't we discussed this?" We had.
   tricky: "Tricky question",
   // Renamed 2026-09-12: "Change name of found on your exam to Common Exam Question." Key unchanged.

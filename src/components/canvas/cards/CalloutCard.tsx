@@ -27,7 +27,9 @@ export const CALLOUT_KINDS: Record<Exclude<CalloutKind, "tutor" | "found-on-exam
   "memorize-this": { label: "MEMORIZE THIS", accent: "#C77D0A", tint: "rgba(199,125,10,0.10)" },
   // Display only — the key stays "deeper-idea" (Lee, 2026-09-06: "Deep Question seems a bit
   // better" — it tells the student what to DO, stop and reason it out).
-  "deeper-idea": { label: "GO DEEPER", accent: "#1D7FA8", tint: "rgba(29,127,168,0.10)" },
+  // 2026-09-15: THINK LIKE AN ACCOUNTANT (Lee: "even if they hate this course, thinking like an accountant
+  // for just one semester will help them tremendously"). Teal, so it no longer reads as a memorize/cheat colour.
+  "deeper-idea": { label: "THINK LIKE AN ACCOUNTANT", accent: "#14B8A6", tint: "rgba(20,184,166,0.10)" },
   recap: { label: "RECAP", accent: "#6D5BB8", tint: "rgba(109,91,184,0.10)" },
   // Display only — the key stays "distractor". Lee, 2026-09-08: "I'm not seeing a '+Tricky' type
   // slide. Haven't we discussed this?" We had: the September strategy doc asks for a fourth

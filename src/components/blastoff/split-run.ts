@@ -97,7 +97,7 @@ export function buildSplitMessages(input: SplitInput): { system: string; user: s
     "· Cramming, not teaching everything: only what gets marks on the exam.",
     "",
     "SLIDE KINDS you may use, and nothing else:",
-    "· phrase (Memorize this) · cheat (Cheat code) · tip (Go deeper) · tricky (Tricky question) · found (Common exam question) · ask (Ask yourself)",
+    "· phrase (Memorize this) · cheat (Cheat code) · tip (Think like an accountant — the why, briefly) · tricky (Tricky question) · found (Common exam question) · ask (Ask yourself)",
     "· ceq — one of the set's OWN question cards. Refer to it by its id; never invent a question.",
     "· blank — use ONLY for something that has to be built before it can be filmed (a journal-entry card, a T-account, a diagram). Put what it needs in `needs`.",
     "· keep — one of his EXISTING slides, exactly as it is: { \"kind\": \"keep\", \"ref\": \"s3\" }. A slide marked LOCKED must appear exactly once, as keep, in the Reel where it belongs. Unlocked ones you may keep, rewrite, or leave out.",

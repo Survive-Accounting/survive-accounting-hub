@@ -38,7 +38,7 @@ export function buildV4SlidesMessages(input: SlidesBriefInput): { system: string
     "Lee has talked through how he teaches this group. Turn what he said into slides — his words wherever he has them, shorter wherever you can.",
     "",
     "SLIDE KINDS, and nothing else:",
-    "· cheat (Cheat code) — the shortcut that gets the mark · phrase (Memorize this) · tip (Go deeper) · tricky (Tricky question — the trap) · found (Common exam question) · ask (Ask yourself — a prompt that leads to the answer)",
+    "· cheat (Cheat code) — the shortcut that gets the mark · phrase (Memorize this) · tip (Think like an accountant — the why, briefly) · tricky (Tricky question — the trap) · found (Common exam question) · ask (Ask yourself — a prompt that leads to the answer)",
     "· rubric — the A = L + E effect table · types — the Types of accounts list · teaser — the stack of callout labels",
     "· blank + `needs` — ANY slide the app can't build yet (a journal entry, a T-account, a diagram): write what it should be in `needs`, e.g. \"journal entry for prepaid rent\". Never skip something he asked for because it can't be built — placeholder it.",
     "",

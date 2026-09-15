@@ -41,7 +41,7 @@ const CARD = "rgba(255,255,255,0.035)";
 const ADD_KINDS: { kind: BlastFrameKind; label: string }[] = [
   { kind: "phrase", label: "Memorize this" },
   { kind: "cheat", label: "Cheat code" },
-  { kind: "tip", label: "Go deeper" },
+  { kind: "tip", label: "Think like an accountant" },
   { kind: "tricky", label: "Tricky" },
   { kind: "found", label: "Exam question" },
   { kind: "ask", label: "Ask yourself" },
