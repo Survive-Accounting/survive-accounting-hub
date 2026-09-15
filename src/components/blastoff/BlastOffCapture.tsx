@@ -285,6 +285,8 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
   const idx = preview ? Math.min(previewIdx, Math.max(0, n - 1)) : Math.min(i, Math.max(0, n - 1));
   const frame = frames[idx];
   const frameId = frame?.id ?? null;
+  /** Slides skipped with S this visit, newest last — Shift+S pops one back. */
+  const skippedHere = useRef<string[]>([]);
   // PUNCH-IN (capture/PunchIn.tsx): on in this browser until closed.
   const [punchOn, setPunchOn] = useState(false);
   useEffect(() => { setPunchOn(readPunchOn()); }, []);
@@ -717,6 +719,26 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
         scrapper.flash(e.key === "]" ? "] next split" : "[ previous split");
         return;
       }
+      // S — SKIP THIS SLIDE, right now (2026-09-14, Lee: "Skipping a slide while filming would be great.
+      // Sometimes I realize I don't need it."). It's marked skipped in the plan (both windows follow), so the
+      // walk moves on to the next slide; Shift+S brings back the last one skipped this visit.
+      if (e.key.toLowerCase() === "s" && !e.ctrlKey && !e.metaKey && !e.altKey && !counting) {
+        e.preventDefault();
+        const all = plan?.frames;
+        if (!all) return;
+        if (e.shiftKey) {
+          const back = skippedHere.current.pop();
+          if (!back) { if (!popout.isPopout) scrapper.flash("nothing skipped to bring back"); return; }
+          commit(all.map((f) => (f.id === back ? (({ skipped: _s, ...rest }) => rest)(f) : f)));
+          if (!popout.isPopout) scrapper.flash("↩ slide brought back");
+          return;
+        }
+        if (!frame || frame.v4Bound) return;
+        skippedHere.current.push(frame.id);
+        commit(all.map((f) => (f.id === frame.id ? { ...f, skipped: true as const } : f)));
+        if (!popout.isPopout) scrapper.flash(`skipped this ${FRAME_LABEL[frame.kind].toLowerCase()} — Shift+S brings it back`);
+        return;
+      }
       if (e.key === "Escape" && scrapper.scrap) { e.preventDefault(); scrapper.cancel(); return; }
       if (e.key === "Escape" && remoteScrap) { e.preventDefault(); signalScrap(set.id, "cancel"); setRemoteScrap(false); scrapper.flash("Esc → pop-out: scrap cancelled"); return; }
       if (e.key === "?") { e.preventDefault(); setShowHotkeys(true); return; }
@@ -790,7 +812,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, take: takePara
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [wipeSlide, scrapOwner, scrapper, remoteScrap, n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, steps, shot, setShot, rubric, frameId, roll, set.id, takeSel, takeInfo, goSplit]);
+  }, [wipeSlide, scrapOwner, scrapper, remoteScrap, n, idx, onExit, resetTake, camNow, showReview, closeReview, showHotkeys, rounds.phase, startRound, finishRound, pressR, startOver, scratchTake, counting, startCountdown, cancelCountdown, preview, popout.isPopout, steps, shot, setShot, rubric, frameId, roll, set.id, takeSel, takeInfo, goSplit, plan, commit, frame]);
 
   // What FrameView's map draws from (cluster/ClusterStage.tsx): in the main window's NEXT
   // preview the map is its bird's-eye with everything revealed — honest about what comes next.

@@ -19,6 +19,9 @@ export const HOTKEY_GROUPS: readonly Group[] = [
     ["shift + space", "back a slide"],
     // 2026-09-13, Lee: "let TAB be an override … just in case I get stuck."
     ["tab / shift + tab", "next / previous slide NOW — skips whatever reveal, shot, space walk or teaser the slide is on"],
+    // 2026-09-14, Lee: "Skipping a slide while filming would be great."
+    ["s", "skip this slide — it's marked skipped in the plan and the walk moves on"],
+    ["shift + s", "bring back the last slide skipped with S"],
     // "Rehearse & Film" — the step's name since 2026-09-07 (StepBar.tsx); the page is the same.
     ["esc", "exit Rehearse & Film (closes the rehearsal review or this card first when one is up)"],
   ] },
