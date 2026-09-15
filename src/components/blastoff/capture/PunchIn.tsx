@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ThumbnailArt } from "@/components/brand-kit/ThumbnailArt";
 import { baseName, connectObs, OBS_DEFAULT_ADDRESS, type ObsStatus } from "@/components/canvas/obs-bridge";
-import { fsaSupported, getFile, moveToRecycle, pickTakesFolder, restoreFromRecycle, savedTakesFolder } from "@/components/canvas/takes-folder";
+import { fsaSupported, getFile, moveToRecycle, pickTakesFolder, probeDuration, restoreFromRecycle, savedTakesFolder } from "@/components/canvas/takes-folder";
 import { PracticeEndCard } from "@/components/learn/PracticeEndCard";
 import { coverFor } from "@/components/v3/quick-post";
 import { uploadCover, uploadTake } from "@/components/v3/take-burn";
@@ -39,6 +39,16 @@ const relayKey = (setId: string) => `sa-punch-key:${setId}`;
 const wait = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
 
 export function readPunchOn(): boolean { try { return localStorage.getItem(PUNCH_ON_KEY) === "1"; } catch { return false; } }
+
+/** The one filmed outro every video ends on (this browser). */
+interface OutroClip { url: string; durationS: number; file: string; at: number }
+const OUTRO_CLIP_KEY = "sa-punch-outro-clip";
+function readOutroClip(): OutroClip | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(OUTRO_CLIP_KEY) ?? "null") as OutroClip | null;
+    return v && typeof v.url === "string" && typeof v.durationS === "number" && v.durationS > 0 ? v : null;
+  } catch { return null; }
+}
 
 /** THE POP-OUT'S KEYS, sent to the main window while punch-in is on (the pop-out has the focus while he
  *  films, and must draw nothing). Returns true when it took the key. */
@@ -98,6 +108,12 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   const cta = endCtaOf(frames);
   /** Takes already uploaded this visit, by file name → their URL. */
   const uploaded = useRef(new Map<string, string>());
+  // THE OUTRO CLIP (Lee, 2026-09-14: "just append the outro to each video automatically, with the animation
+  // and everything"). Film the outro slide once (its entrance, the cursor clicking Start Cramming for Free),
+  // keep that take as the outro, and every Preview ends on it — no outro slide to film per video.
+  const [outroClip, setOutroClip] = useState<OutroClip | null>(() => readOutroClip());
+  const [savingOutro, setSavingOutro] = useState(false);
+  const isOutro = (id: string) => frames.find((f) => f.id === id)?.kind === "outro";
   /** START OVER (Lee, 2026-09-14: "a start over button being useful with punch in"): the takes it cleared,
    *  so Ctrl+Z brings them back. The files stay in the recordings folder. */
   const cleared = useRef<PunchTake[] | null>(null);
@@ -206,14 +222,36 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   }, [onPunchKey, setId]);
 
   // PREVIEW: upload the kept takes, trim + join on the worker, play it here.
-  const picks = pickTakes(ids, takes);
-  const gaps = uncovered(ids, takes);
+  // With an outro clip kept, the video's outro slide isn't filmed per video: its takes and its gap drop out,
+  // and the clip is joined on at the end.
+  const filmIds = outroClip ? ids.filter((id) => !isOutro(id)) : ids;
+  const picks = pickTakes(filmIds, takes);
+  const gaps = uncovered(filmIds, takes);
+  const lastOutroTake = [...takes].sort((a, b) => b.at - a.at).find((t) => t.fromId === t.toId && isOutro(t.fromId)) ?? null;
+  const keepOutro = async (t: PunchTake) => {
+    setSavingOutro(true);
+    try {
+      let dir = folder;
+      if (!dir) { dir = (await pickTakesFolder()) as never; if (!dir) throw new Error("Choose the OBS recordings folder first."); setFolder(dir); }
+      const file = await getFile(dir as never, t.file);
+      if (!file) throw new Error(`${t.file} isn't in the recordings folder.`);
+      const durationS = await probeDuration(file);
+      if (!(durationS > 0)) throw new Error("Couldn't read the outro take's length.");
+      const url = await uploadTake(file);
+      const clip: OutroClip = { url, durationS, file: t.file, at: Date.now() };
+      try { localStorage.setItem(OUTRO_CLIP_KEY, JSON.stringify(clip)); } catch { /* this visit only */ }
+      setOutroClip(clip);
+      say(`Outro kept (${durationS.toFixed(1)} s) — every video's Preview ends on it now.`, "good");
+    } catch (e) { say(e instanceof Error ? e.message : String(e), "bad"); }
+    finally { setSavingOutro(false); }
+  };
   const preview = async () => {
     setEnded(false);
     try {
       let dir = folder;
       if (!dir) { dir = (await pickTakesFolder()) as never; if (!dir) throw new Error("Choose the OBS recordings folder first."); setFolder(dir); }
       if (!picks.length) throw new Error("No kept takes in this split yet.");
+      if (!outroClip) say("No outro clip kept yet — this preview ends without one. Film the outro slide once and press “Use as the outro”.", "warn");
       const urls: string[] = [];
       setStage({ s: "uploading", done: 0, of: picks.length });
       for (const p of picks) {
@@ -238,7 +276,7 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
       }
       // One join, or batches of STITCH_CHUNK then a last join of the batches. The batches are already
       // trimmed, so the last join keeps each whole (manual trims skip the silence pass) and only adds the gaps.
-      const join = async (list: string[], label: string, trims?: { start: number; end: number }[]) => {
+      const join = async (list: string[], label: string, trims?: ({ start: number; end: number } | null)[]) => {
         const job = await startDissectStitch({ data: { urls: list, gapMs: 220, ...(trims ? { trims } : {}) } });
         let misses = 0;
         for (;;) {
@@ -254,17 +292,25 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
           setStage({ s: "stitching", note: `${label} · ${r.state}${r.note ? ` · ${r.note}` : ""}` });
         }
       };
+      // The outro clip goes on the end whole (a manual trim: no silence pass eats its music or its click).
+      const outro = outroClip ? { url: outroClip.url, trim: { start: 0, end: outroClip.durationS } } : null;
       const batches = chunks(urls);
       if (batches.length === 1) {
         setStage({ s: "stitching", note: "trimming pauses and joining…" });
-        const one = await join(urls, "joining");
+        const one = outro
+          ? await join([...urls, outro.url], "joining", [...urls.map(() => null), outro.trim])
+          : await join(urls, "joining");
         setStage({ s: "ready", fileUrl: one.fileUrl });
         return;
       }
       const parts: { fileUrl: string; totalS: number | null }[] = [];
       for (let b = 0; b < batches.length; b++) parts.push(await join(batches[b], `batch ${b + 1} of ${batches.length}`));
       if (parts.some((p) => p.totalS == null)) throw new Error("A batch came back without its length, so the batches can't be joined cleanly — press Preview again.");
-      const whole = await join(parts.map((p) => p.fileUrl), "joining the batches", parts.map((p) => ({ start: 0, end: p.totalS! })));
+      const whole = await join(
+        [...parts.map((p) => p.fileUrl), ...(outro ? [outro.url] : [])],
+        "joining the batches",
+        [...parts.map((p) => ({ start: 0, end: p.totalS! })), ...(outro ? [outro.trim] : [])],
+      );
       setStage({ s: "ready", fileUrl: whole.fileUrl });
     } catch (e) { setStage({ s: "error", error: e instanceof Error ? e.message : String(e) }); }
   };
@@ -345,15 +391,27 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
 
       {/* THE SLIDES AND THEIR TAKES */}
       <div style={{ borderTop: `1px solid ${EDGE}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 2 }}>
+        {/* THE OUTRO CLIP: kept once, added to every video's Preview. */}
+        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, color: outroClip ? MINT : MUTED }}>
+          <span style={{ flex: 1 }}>{outroClip ? `✓ Outro clip kept (${outroClip.durationS.toFixed(1)} s) — added to every video` : "No outro clip yet — film the outro slide once"}</span>
+          {lastOutroTake && lastOutroTake.file !== outroClip?.file && (
+            <button type="button" style={btn(true)} disabled={savingOutro} onClick={() => void keepOutro(lastOutroTake)}
+              title="Keep your latest outro take as the outro every video ends on">{savingOutro ? "Keeping…" : "Use as the outro"}</button>
+          )}
+        </div>
         {frames.map((f, k) => {
-          const p = picks.find((x) => k >= x.from && k <= x.to);
+          const fk = filmIds.indexOf(f.id);
+          const p = fk < 0 ? undefined : picks.find((x) => fk >= x.from && fk <= x.to);
+          if (outroClip && f.kind === "outro") {
+            return <div key={f.id} style={{ display: "flex", gap: 6, padding: "2px 4px", color: MINT }}><span style={{ width: 18, textAlign: "right" }}>{k + 1}</span><span>✓</span><span>Outro · the kept clip</span></div>;
+          }
           return (
             <button key={f.id} type="button" onClick={() => goto(f.id)} title="Put this slide up in the pop-out — punch in again to overwrite it"
               style={{ all: "unset", cursor: "pointer", display: "flex", gap: 6, alignItems: "center", padding: "2px 4px", borderRadius: 5, color: p ? CREAM : MUTED }}>
               <span style={{ width: 18, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{k + 1}</span>
               <span style={{ color: p ? MINT : MUTED }}>{p ? "✓" : "○"}</span>
               <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{FRAME_LABEL[f.kind]}{f.pace === "speed" ? " · speed" : ""}</span>
-              {p && p.to > p.from && k === p.from && <span style={{ color: MUTED }}>→ {p.to + 1}</span>}
+              {p && p.to > p.from && fk === p.from && <span style={{ color: MUTED }}>→ {ids.indexOf(filmIds[p.to]) + 1}</span>}
             </button>
           );
         })}

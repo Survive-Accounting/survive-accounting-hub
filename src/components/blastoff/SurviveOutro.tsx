@@ -28,7 +28,7 @@
 // bolts, gold. Lit, the wordmark's bolt blasts chain lightning into the pill; measured
 // with refs relative to this stage and recomputed on resize, always at rest (the pill
 // is scaled while lit). In the Review preview (`live` false) the lit state is static.
-import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { SurviveWordmark, BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
 import { CampusBanner } from "@/components/brand-cards/BoltZoom";
@@ -109,7 +109,21 @@ export function SurviveOutro({
   // pane. `cls` is the whole switch — off, every piece renders exactly as it always did.
   const animating = entrance && progress === undefined && live;
   const cls = (k: Parameters<typeof outroClass>[0]) => (animating ? `${OUTRO_CLASS} ${outroClass(k)}` : undefined);
-  const lit = ctaSpot?.state === "spot";
+  // THE CLICK (2026-09-14, Lee: "append the outro to each video automatically, with the animation and
+  // everything. And have a mouse cursor click the start cramming for free button"). On the live entrance,
+  // once the lockup has landed, a cursor glides in from the bottom right, clicks the pill, and the click
+  // lights it — the same chain lightning the ctrl+click spotlight fires. Reduced motion: no glide, it lights.
+  const [cursor, setCursor] = useState<"off" | "in" | "click">("off");
+  const [autoLit, setAutoLit] = useState(false);
+  useEffect(() => {
+    if (!animating) return;
+    const reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) { const t = window.setTimeout(() => setAutoLit(true), 1600); return () => window.clearTimeout(t); }
+    const t1 = window.setTimeout(() => setCursor("in"), 1300);
+    const t2 = window.setTimeout(() => { setCursor("click"); setAutoLit(true); }, 2450);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
+  }, [animating]);
+  const lit = ctaSpot?.state === "spot" || autoLit;
   const flamed = !!ctaSpot?.flamed && lit;
   // No wall-clock motion on a pinned frame (stage.tsx's rule) and none in an authoring pane.
   const still = !live || progress !== undefined;
@@ -178,6 +192,25 @@ export function SurviveOutro({
           </div>
         </div>
         <ChainLightning active={lit} flamed={flamed} still={still} from={rects?.bolt ?? null} to={rects?.btn ?? null} w={V.w} h={V.h} />
+        {animating && cursor !== "off" && rects && (() => {
+          const size = Math.round(V.w * 0.085);
+          const tx = rects.btn.x + rects.btn.w * 0.62, ty = rects.btn.y + rects.btn.h * 0.12;
+          return (
+            <>
+              <style>{`@keyframes sa-outro-cursor-in { from { transform: translate(${Math.round(V.w * 0.92 - tx)}px, ${Math.round(V.h * 0.9 - ty)}px); opacity: 0; } 15% { opacity: 1; } to { transform: translate(0, 0); opacity: 1; } }
+@keyframes sa-outro-click { 0% { transform: scale(1); } 40% { transform: scale(0.8); } 100% { transform: scale(1); } }
+@keyframes sa-outro-ripple { from { transform: translate(-50%, -50%) scale(0.2); opacity: 0.85; } to { transform: translate(-50%, -50%) scale(1.6); opacity: 0; } }`}</style>
+              {cursor === "click" && <div aria-hidden style={{ position: "absolute", left: tx, top: ty, width: size * 1.6, height: size * 1.6, borderRadius: "50%", border: `${Math.max(3, Math.round(size * 0.06))}px solid #FFFFFF`, animation: "sa-outro-ripple 520ms ease-out forwards", pointerEvents: "none", zIndex: 7 }} />}
+              <div aria-hidden style={{ position: "absolute", left: tx, top: ty, zIndex: 8, pointerEvents: "none", animation: cursor === "in" ? "sa-outro-cursor-in 1050ms cubic-bezier(.2,.75,.25,1) both" : undefined }}>
+                <div style={{ transformOrigin: "0 0", animation: cursor === "click" ? "sa-outro-click 260ms ease-out" : undefined }}>
+                  <svg width={size} height={Math.round(size * 1.4)} viewBox="0 0 20 28" style={{ display: "block", filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.55))" }}>
+                    <path d="M1 1 L1 22 L6.5 16.8 L10.2 26 L14 24.4 L10.4 15.4 L18 15.4 Z" fill="#FFFFFF" stroke="#0B0F1E" strokeWidth="1.6" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </div>
       {banner && <CampusBanner w={V.w} h={V.h} live={progress === undefined} />}
       {/* THE ARRIVAL FLASH — Lee, 2026-09-06: "like this came out of heaven". Two drivers, never
