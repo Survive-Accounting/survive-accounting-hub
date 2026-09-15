@@ -89,13 +89,16 @@ export const resolveSitePost = createServerFn({ method: "POST" })
     // THE COVER RIDES WITH THE VIDEO (2026-09-11): a thumbnail uploaded before the post (kept on
     // the row under this key) goes onto the publication, so the posted video owns it from here on.
     try {
-      const { coverOf, endCtaOfBag } = await import("./publish-cover");
+      const { coverOf, endCtaOfBag, gateOfBag } = await import("./publish-cover");
       const { data: st0 } = await db.from("set_publish_status").select("captions").eq("set_id", data.pubKey).maybeSingle();
       const c = coverOf(st0?.captions);
       if (c) pub.coverUrl = c.url;
       // The end button rides along the same way (practice-cta.ts).
       const cta = endCtaOfBag(st0?.captions);
       if (cta) (pub as Record<string, unknown>).endCta = cta;
+      // …and the recap lock (practice-score.ts)
+      const gate = gateOfBag(st0?.captions);
+      if (gate) (pub as Record<string, unknown>).gate = gate;
     } catch { /* the row is optional */ }
     deck.publications = upsertPublication(deck.publications, pub);
     // COMPARE-AND-SET on updated_at: zero rows back means someone saved the scene since the read.
@@ -129,6 +132,27 @@ export const resolveSitePost = createServerFn({ method: "POST" })
     if (st.error) return { state: "posted", playbackId, link, status: null, statusError: st.error.message };
     return { state: "posted", playbackId, link, status: rowToStatus((st.data ?? {}) as Record<string, unknown>) };
   });
+
+/** Write (or clear) the recap lock on the posted publication with this key. */
+export async function setPublicationGate(pubKey: string, gate: "practice80" | null): Promise<{ ok: boolean; changed: boolean }> {
+  const db = await admin();
+  const setId = pubKey.split("#")[0];
+  const { loadDecksDeduped } = await import("@/lib/student.functions");
+  const owned = await loadDecksDeduped(db as never);
+  const o = owned.get(setId);
+  if (!o) return { ok: true, changed: false };
+  const { data: row } = await db.from("canvas_scenes").select("id,nodes_json,updated_at").eq("id", o.sceneId).single();
+  if (!row) return { ok: true, changed: false };
+  const j = row.nodes_json as { decks?: { id: string; publications?: { id?: string; pubKey?: string; gate?: unknown }[] }[] };
+  const deck = (j.decks ?? []).find((d2) => d2.id === setId);
+  const pub = deck?.publications?.find((p) => p?.pubKey === pubKey || p?.id === sitePublicationId(pubKey));
+  if (!pub) return { ok: true, changed: false };
+  if ((pub.gate ?? null) === gate) return { ok: true, changed: false };
+  if (gate) pub.gate = gate; else delete pub.gate;
+  const up = await db.from("canvas_scenes").update({ nodes_json: j, updated_at: new Date().toISOString() }).eq("id", o.sceneId).eq("updated_at", row.updated_at).select("id");
+  if (up.error || !up.data?.length) return { ok: false, changed: false };
+  return { ok: true, changed: true };
+}
 
 /** Write (or clear) the end button on the posted publication with this key — the cover's twin below. */
 export async function setPublicationEndCta(pubKey: string, cta: "try" | "unlock" | null): Promise<{ ok: boolean; changed: boolean }> {

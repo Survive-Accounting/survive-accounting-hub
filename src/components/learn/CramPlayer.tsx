@@ -10,7 +10,7 @@
 // takes the centre with the real PracticeStage. ASK LEE: the video pauses and a compose card pops
 // beside the column; it files a `question` intake with the set and the timestamp. On a phone the
 // video is the screen, actions sit bottom-right, practice and ask are sheets.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useMemo, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, Check, ChevronLeft, Loader2, Lock, Maximize2, Play, Volume2, VolumeX, X } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
@@ -23,11 +23,15 @@ import { DEMO_PLAYBACK, muxThumb, SOUND_KEY, type Prog } from "@/components/lear
 import { QUICK_ROUND_SIZE } from "@/components/learn/learn-gate";
 import { BreatherCard } from "@/components/learn/BreatherCard";
 import { PracticeEndCard } from "@/components/learn/PracticeEndCard";
+import { RecapLock } from "@/components/learn/RecapLock";
+import { gateOpen, practiceScoreOf, type GateState } from "@/lib/practice-score";
 
 /** ONE PART OF A SET (2026-09-11): a set filmed as five splits is five items in the player and
  *  five cards in the rail — Lee: "I've posted all 5 videos but only seeing first one." `key` is
  *  the part's publish key (student-shorts' partKey) and the key its progress is kept under. */
-export type PlayerPart = { index: number; of: number; name: string; playbackId: string | null; coverUrl: string | null; key: string; endCta?: "try" | "unlock" | null };
+export type PlayerPart = { index: number; of: number; name: string; playbackId: string | null; coverUrl: string | null; key: string; endCta?: "try" | "unlock" | null;
+  /** "practice80" — the recap: it waits for the other videos and an 80% practice run (lib/practice-score.ts). */
+  gate?: "practice80" | null };
 export type PlayerItem = { set: StudentSet; topic: StudentTopic; n: number; of: number; locked: boolean; part: PlayerPart };
 
 const readSound = () => { try { return sessionStorage.getItem(SOUND_KEY) === "on"; } catch { return false; } };
@@ -69,6 +73,15 @@ export function CramPlayer({
   const [breather, setBreather] = useState<{ key: string; heading: string; body: string; position: string } | null>(null);
   /** The part whose practice end screen is up (PracticeEndCard), by key — moving to another part drops it. */
   const [endCta, setEndCta] = useState<string | null>(null);
+  // THE RECAP'S LOCK (2026-09-15). Lee: "lock the recap video at the end (video #11) until they have completed
+  // all videos and all practice questions and earned at least an 80% on it. Give them the option to skip to the
+  // next topic if they'd like." Re-read whenever practice or progress moves.
+  const [scoreTick, setScoreTick] = useState(0);
+  useEffect(() => {
+    const bump = () => setScoreTick((n) => n + 1);
+    window.addEventListener("sa-coverage", bump);
+    return () => window.removeEventListener("sa-coverage", bump);
+  }, []);
   const seenBreathers = useRef(new Set<string>());
   // CRAM CARDS (2026-09-03): video → cards → practice. Same drawer as practice.
   const [cards, setCards] = useState(false);
@@ -144,13 +157,29 @@ export function CramPlayer({
   // The caption: a multi-part set counts its parts ("Assets · 1 of 5"); a single video counts sets.
   const cap = part.of > 1 ? { n: part.index + 1, of: part.of, name: part.name || set.name } : { n, of, name: set.name };
 
+  // the gate for THIS part, when it has one
+  const gateNow: GateState | null = useMemo(() => {
+    if (part.gate !== "practice80") return null;
+    const mine = items.filter((it) => it.set.id === set.id && it.part.key !== part.key);
+    const done = mine.filter((it) => progress[it.part.key]?.state === "complete").length;
+    void scoreTick;
+    return { videosDone: done, videosOf: mine.length, score: practiceScoreOf(set.id), total: set.ceqCount ?? 0 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [part.gate, part.key, items, set.id, set.ceqCount, progress, scoreTick]);
+  const gateShut = !!gateNow && !gateOpen(gateNow);
+  const gateCard = gateShut && gateNow && (
+    <RecapLock state={gateNow} onPractice={() => onPractice(true)} onSkipTopic={nextTopicIndex >= 0 ? () => onIndex(nextTopicIndex) : onExit} lastTopic={nextTopicIndex < 0} />
+  );
+
   const breatherCard = breather && (
     <BreatherCard heading={breather.heading} body={breather.body} position={breather.position} onDone={() => { setBreather(null); go(1); }} />
   );
   // THE PRACTICE END SCREEN (2026-09-14, PracticeEndCard.tsx): a video that ends on a practice slide stops
   // on it with the real buttons, and waits — practice or skip is the student's call.
+  // "try" is an offer, not a stop: it stands for five seconds, then the next video rolls (Lee, 2026-09-15).
   const endCard = endCta === part.key && part.endCta && (
-    <PracticeEndCard variant={part.endCta} onPractice={() => { setEndCta(null); onPractice(true); }} onSkip={() => { setEndCta(null); if (hasNext) go(1); }} />
+    <PracticeEndCard variant={part.endCta} countdown={part.endCta === "try" && hasNext ? 5 : undefined}
+      onPractice={() => { setEndCta(null); onPractice(true); }} onSkip={() => { setEndCta(null); if (hasNext) go(1); }} />
   );
   const video = (
     <Video
@@ -170,9 +199,9 @@ export function CramPlayer({
         }
         window.setTimeout(() => go(1), 1200);
       }}
-      onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask}
+      onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask || gateShut}
       caption={{ topic: topic.name, n: cap.n, of: cap.of, name: cap.name }}
-      overlay={breatherCard || endCard || null}
+      overlay={gateCard || breatherCard || endCard || null}
     />
   );
 

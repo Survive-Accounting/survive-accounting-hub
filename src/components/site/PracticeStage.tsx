@@ -17,6 +17,7 @@ import { askAboutQuestion, logPracticeEvents, type AttemptEvent } from "@/lib/pr
 import { readStudentEmail, rememberStudentEmail } from "@/lib/student-email";
 import { supabase } from "@/integrations/supabase/client";
 import { track } from "@/lib/analytics";
+import { recordPracticeAnswer } from "@/lib/practice-score";
 
 const C = { text: "#E8ECF5", muted: "#93A0B4", yellow: "#FCA311", green: "#3BF5A0", red: "#FF5C6E", border: "rgba(148,163,190,0.16)", panel: "rgba(9,14,26,0.6)" };
 const SWAP_MS = 120;
@@ -181,6 +182,8 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
     setResults((r) => ({ ...r, [cur.id]: !!choice.correct }));
     setSeen((s) => new Set(s).add(cur.id));
     addCoverage(setId, cur.id);
+    // …and whether they got it right, for the recap gate (lib/practice-score.ts)
+    recordPracticeAnswer(setId, cur.id, !!choice.correct);
     log({ setId, ceqId: cur.id, event: "answer", choiceId, correct: !!choice.correct, ms, attemptNumber: pass });
     // Auto-advance ONLY after a correct answer — a wrong one sits with the right answer showing.
     if (choice.correct && autoAdvance) window.setTimeout(() => goTo(pos + 1), 900);

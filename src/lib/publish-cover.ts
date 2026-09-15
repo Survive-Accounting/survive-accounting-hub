@@ -53,8 +53,9 @@ export function keepCover(storedCaptions: unknown, newCopy: Record<string, unkno
   const cover = coverOf(storedCaptions);
   const skip = socialSkipOf(storedCaptions);
   const cta = endCtaOfBag(storedCaptions);
+  const gate = gateOfBag(storedCaptions);
   if (!cover && !skip && !cta) return newCopy;
-  return { ...(newCopy ?? {}), ...(cover ? { cover: { url: cover.url, name: cover.name, uploadedAt: cover.uploadedAt } } : {}), ...(skip ? { socialSkip: true } : {}), ...(cta ? { endCta: cta } : {}) };
+  return { ...(newCopy ?? {}), ...(cover ? { cover: { url: cover.url, name: cover.name, uploadedAt: cover.uploadedAt } } : {}), ...(skip ? { socialSkip: true } : {}), ...(cta ? { endCta: cta } : {}), ...(gate ? { gate } : {}) };
 }
 
 // THE END BUTTON (2026-09-14, components/blastoff/practice-cta.ts): which practice buttons the site player
@@ -64,6 +65,20 @@ export function keepCover(storedCaptions: unknown, newCopy: Record<string, unkno
 export function endCtaOfBag(rawCaptions: unknown): "try" | "unlock" | null {
   if (!isRecord(rawCaptions)) return null;
   return rawCaptions.endCta === "try" || rawCaptions.endCta === "unlock" ? rawCaptions.endCta : null;
+}
+
+/** THE RECAP LOCK (2026-09-15). Lee: "we want to lock the recap video at the end (video #11) until they have
+ *  completed all videos and all practice questions and earned at least an 80% on it." One flag on the part,
+ *  kept beside the end button and copied onto the publication the same way. */
+export function gateOfBag(rawCaptions: unknown): "practice80" | null {
+  if (!isRecord(rawCaptions)) return null;
+  return rawCaptions.gate === "practice80" ? "practice80" : null;
+}
+export function withGate(storedCaptions: unknown, gate: "practice80" | null): Record<string, unknown> | null {
+  const next: Record<string, unknown> = isRecord(storedCaptions) ? { ...storedCaptions } : {};
+  if (gate) next.gate = gate;
+  else delete next.gate;
+  return Object.keys(next).length ? next : null;
 }
 
 export function withEndCta(storedCaptions: unknown, cta: "try" | "unlock" | null): Record<string, unknown> | null {

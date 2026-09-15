@@ -27,6 +27,8 @@ export interface ShortPub {
   coverUrl?: unknown;
   /** The practice buttons the player shows when this part ends (2026-09-14, practice-cta.ts). */
   endCta?: unknown;
+  /** "practice80" = the recap: locked until the other parts are watched and practice is 80% (2026-09-15). */
+  gate?: unknown;
 }
 
 export interface StudentShort {
@@ -41,6 +43,8 @@ export interface StudentShort {
   coverUrl: string | null;
   /** "try" = practice first; "unlock" = finish practice to unlock the recap; null = no end screen. */
   endCta: "try" | "unlock" | null;
+  /** "practice80" = this part waits for the videos and an 80% practice run (lib/practice-score.ts). */
+  gate: "practice80" | null;
 }
 
 /** THE PART'S KEY — the publish key /v3/post writes ("<setId>" is part 1, "<setId>#N" is part N)
@@ -71,6 +75,7 @@ export function shortsFrom(pubs: readonly ShortPub[] | undefined, paid: boolean)
       runtimeSec: p.render?.durationS != null ? Math.round(p.render.durationS) : null,
       coverUrl: typeof p.coverUrl === "string" && /^https?:\/\//i.test(p.coverUrl) ? p.coverUrl : null,
       endCta: p.endCta === "try" || p.endCta === "unlock" ? p.endCta : null,
+      gate: p.gate === "practice80" ? "practice80" : null,
     });
   }
   return out.sort((a, b) => a.takeIndex - b.takeIndex);

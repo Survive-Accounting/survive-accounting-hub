@@ -328,3 +328,26 @@ export const rekeyPublishRows = createServerFn({ method: "POST" })
     }
     return { moved: incoming.length };
   });
+
+/** THE RECAP LOCK on this part (2026-09-15, practice-score.ts): kept beside the end button and copied onto the
+ *  posted publication, so a video already up can be locked (or freed) without re-posting. */
+export const setPublishGate = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(160), gate: z.enum(["practice80"]).nullable() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; status?: SetPublishStatus }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    try {
+      const db = await publishDb();
+      const { data: prev, error: readErr } = await db.from("set_publish_status").select("captions").eq("set_id", data.setId).maybeSingle();
+      if (readErr) return { ok: false, error: isMissingTable(readErr) ? "Run migration/supabase-migrations/20260906_0200_set_publish_status.sql first." : readErr.message };
+      const { withGate } = await import("./publish-cover");
+      const { data: row, error } = await db.from("set_publish_status")
+        .upsert({ set_id: data.setId, captions: withGate(prev?.captions, data.gate), updated_at: new Date().toISOString() }, { onConflict: "set_id" })
+        .select("*").single();
+      if (error) return { ok: false, error: error.message };
+      const { setPublicationGate } = await import("@/lib/site-publish.functions");
+      const pub = await setPublicationGate(data.setId, data.gate);
+      if (!pub.ok) return { ok: false, error: "Saved here, but the posted video didn't take it — try again." };
+      return { ok: true, status: rowToStatus((row ?? {}) as Record<string, unknown>) };
+    } catch (e) { return { ok: false, error: e instanceof Error ? e.message : String(e) }; }
+  });
