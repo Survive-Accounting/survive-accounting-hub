@@ -100,6 +100,9 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   const armedRef = useRef(armed); armedRef.current = armed;
   const scrapLive = useRef(false);
   const [trash, setTrash] = useState<PunchTake[]>([]);
+  /** The take the next recording replaces, whole (a speed run included). */
+  const [replacing, setReplacing] = useState<PunchTake | null>(null);
+  const replacingRef = useRef(replacing); replacingRef.current = replacing;
   const trashRef = useRef(trash); trashRef.current = trash;
   const [flash, setFlash] = useState<{ text: string; tone: "good" | "warn" | "bad" } | null>(null);
   const say = (text: string, tone: "good" | "warn" | "bad" = "good") => setFlash({ text, tone });
@@ -159,7 +162,12 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
             say(`Scrapped — back on ${label(take.fromId)}. Ctrl+Z brings it back.`, "warn");
             return;
           }
-          save([...takesRef.current, take]);
+          // REPLACE (Lee, 2026-09-14: "If I hit replace, it lets me film a new version that overwrites it. If I
+          // try to replace a speed, it replaces it in its entirety."): the take being replaced goes, whole.
+          const replaced = replacingRef.current;
+          replacingRef.current = null; setReplacing(null);
+          save([...takesRef.current.filter((t) => t !== replaced && !(replaced && t.file === replaced.file)), take]);
+          if (replaced) say(`✓ replaced — the new take is in`, "good");
           const next = nextAfter(ids, take);
           goto(next);
           say(next ? `✓ kept ${label(take.fromId)}${take.toId !== take.fromId ? ` → ${label(take.toId)}` : ""} — up next: ${label(next)}` : "✓ kept — that's the last slide. Preview the video.", "good");
@@ -484,6 +492,10 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
                   <span>Take {n + 1}</span>
                   <span style={{ color: MUTED, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{p.take.file}</span>
                   <button type="button" title="Play this take" style={{ ...btn(), padding: "0 6px", fontSize: 11 }} onClick={() => void playTake(p.take)}>▶</button>
+                  <button type="button" aria-pressed={replacing === p.take}
+                    title={replacing === p.take ? "Replacing — punch in (F4). Click to cancel." : "Replace: puts its first slide up; your next take replaces this whole take"}
+                    style={{ ...btn(replacing === p.take), padding: "0 6px", fontSize: 11 }}
+                    onClick={() => { if (replacing === p.take) { setReplacing(null); say("Replace cancelled"); return; } setReplacing(p.take); goto(p.take.fromId); say(`Replacing take ${n + 1} — punch in (F4); the new take replaces it whole`, "warn"); }}>↻</button>
                   <button type="button" title="Take this take out of the video (Ctrl+Z brings it back). The file stays." style={{ ...btn(), padding: "0 6px", fontSize: 11, color: RED }}
                     onClick={() => { save(takes.filter((t) => t !== p.take)); setTrash((t) => [...t, p.take]); setStage({ s: "idle" }); say(`Removed take ${n + 1} — Ctrl+Z brings it back`, "warn"); }}>✕</button>
                 </div>
