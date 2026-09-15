@@ -56,7 +56,7 @@
 // the named slide (startIndexOf, seeded once when the plan lands) — main window and, because the
 // pop-out copies the URL, the pop-out too. Nothing else moved: F4 still never moves the slide, C
 // still counts in from slide 0, and the rounds' "from slide 1" is still slide 1.
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
@@ -87,6 +87,8 @@ import { ScrapBar, signalScrap, useScrap } from "./capture/scrap";
 import { ScrapLight } from "./capture/ScrapLight";
 import { useTakeLog } from "./capture/take-log";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
+import { FILM_NAV_KEY, FILM_REDO_KEY, obsCheckDone, obsCheckDue, parsePlace, writeFilmAlive, writeFilmNav } from "./capture/film-nav";
+import { filmPopoutHref, isPopoutSearch } from "./capture/popout";
 import { camDefault, layoutOf } from "./layout";
 import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
 // THE RUBRIC's reveal (2026-09-11): the same spacebar walk as a map's shots — the step lives
@@ -251,6 +253,48 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
     window.addEventListener("storage", on);
     return () => window.removeEventListener("storage", on);
   }, [splitKey, goSplit]);
+  // THE WINDOWS STAY TOGETHER (capture/film-nav.ts, Lee 2026-09-15: "When I move to next video, don't make me reopen
+  // the film popout"). The main page says where it is; a pop-out on another page moves there, on this page it
+  // follows the video. A Redo from the Stitch Room moves the main page.
+  const navigate = useNavigate();
+  const inPopout = typeof window !== "undefined" && isPopoutSearch(window.location.search);
+  const takeSelRef = useRef(takeSel); takeSelRef.current = takeSel;
+  useEffect(() => {
+    if (inPopout) return;
+    writeFilmNav(window.location.pathname, takeSel ?? null);
+    writeFilmAlive(window.location.pathname, takeSel ?? null);
+    const t = window.setInterval(() => writeFilmAlive(window.location.pathname, takeSelRef.current ?? null), 2000);
+    return () => window.clearInterval(t);
+  }, [inPopout, set.id, takeSel]);
+  useEffect(() => {
+    const on = (e: StorageEvent) => {
+      if (!e.newValue) return;
+      if (inPopout && e.key === FILM_NAV_KEY) {
+        const p = parsePlace(e.newValue);
+        if (!p) return;
+        if (p.path !== window.location.pathname) { window.location.replace(filmPopoutHref(p.path, p.take ?? undefined)); return; }
+        if (p.take != null && p.take !== takeSelRef.current) goSplit(p.take, false);
+      } else if (!inPopout && e.key === FILM_REDO_KEY) {
+        const p = parsePlace(e.newValue);
+        if (!p) return;
+        if (p.path === window.location.pathname) { if (p.take != null) goSplit(p.take); }
+        else void navigate({ href: `${p.path}${p.take != null ? `?take=${p.take}` : ""}` });
+        try { window.focus(); } catch { /* the browser decides */ }
+      }
+    };
+    window.addEventListener("storage", on);
+    return () => window.removeEventListener("storage", on);
+  }, [inPopout, goSplit, navigate]);
+  // THE OBS CHECK, in the pop-out as it opens: "Doublecheck! Is window capture in OBS correct?"
+  const [obsCheck, setObsCheck] = useState(false);
+  useEffect(() => { if (inPopout) setObsCheck(obsCheckDue()); }, [inPopout]);
+  useEffect(() => {
+    if (!obsCheck) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); e.stopPropagation(); obsCheckDone(false); setObsCheck(false); } };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [obsCheck]);
+
   // FILM FROM HERE, remotely (v4 Studio's "▶ film from here"): jump to that slide, in its split.
   useEffect(() => {
     const key = `sa-film-goto:${set.id}`;
@@ -915,6 +959,19 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
         </div>
       )}
       <CaptureArrows hostRef={hostRef} frameId={frame.id} />
+      {obsCheck && (
+        <div role="dialog" aria-label="Check OBS" style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(3,6,14,0.92)", display: "grid", placeItems: "center", padding: 24, fontFamily: "'Rubik', system-ui, sans-serif" }}>
+          <div style={{ maxWidth: 420, display: "flex", flexDirection: "column", gap: 16, textAlign: "center", color: CREAM }}>
+            <div style={{ fontSize: 44, fontWeight: 900, lineHeight: 1, color: GOLD, fontFamily: "'League Spartan', 'Rubik', sans-serif" }}>Doublecheck!</div>
+            <div style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.25 }}>Is window capture in OBS correct?</div>
+            <div style={{ fontSize: 14, color: MUTED }}>OBS should be capturing this window — the one titled “Film”.</div>
+            <button type="button" autoFocus onClick={() => { obsCheckDone(false); setObsCheck(false); }}
+              style={{ font: "inherit", fontSize: 16, fontWeight: 800, padding: "12px 18px", borderRadius: 10, cursor: "pointer", border: `1px solid ${GOLD}`, background: GOLD, color: "#14213D" }}>Yes, it's right (Enter)</button>
+            <button type="button" onClick={() => { obsCheckDone(true); setObsCheck(false); }}
+              style={{ font: "inherit", fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 8, cursor: "pointer", border: `1px solid ${MUTED}66`, background: "transparent", color: MUTED }}>Don't tell me again today</button>
+          </div>
+        </div>
+      )}
       <ScrapBar scrap={scrapper.scrap} note={scrapper.note} listening={scrapper.listening} supported={scrapper.supported} inShot={popout.isPopout} />
       {/* THE SCRAP LIGHT (2026-09-13): red ✗ → amber → green, in THIS window only while a pop-out films. */}
       {!popout.isPopout && <ScrapLight setId={set.id} />}
@@ -922,7 +979,9 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
       {!popout.isPopout && punchOn && (
         <PunchIn setId={set.id} setName={set.name} topicName={topicName ?? ""} frames={frames} takeIndex={takeInfo?.index ?? 0} takeName={takeInfo ? takeLabel(takeInfo) : ""}
           popoutFrameId={popoutFrameId} onClose={() => setPunch(false)}
-          onNext={takeInfo && takeInfo.index < takes.length - 1 ? () => goSplit(takeInfo.index + 1) : null} />
+          onNext={takeInfo && takeInfo.index < takes.length - 1 ? () => goSplit(takeInfo.index + 1) : null}
+          onPrev={takeInfo && takeInfo.index > 0 ? () => goSplit(takeInfo.index - 1) : null}
+          videoOf={(id) => takes.find((t) => t.frames.some((f) => f.id === id))?.index ?? null} />
       )}
       {/* THE BRAND CURSOR — the bolt, as on the canvas popout. The native
           cursor is hidden; turn "Capture Cursor" off on the OBS source. */}

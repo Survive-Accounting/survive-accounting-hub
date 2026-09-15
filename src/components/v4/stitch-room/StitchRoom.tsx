@@ -139,7 +139,8 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
           {tab === "videos" && (
             <>
               {showBuild && job && <StitchBuild job={{ ...job, name: nameFor(job) }} animate={anim} />}
-              {!showBuild && record && <VideoDesk record={record} onChange={(r) => upsert(r)} />}
+              {!showBuild && record && <VideoDesk record={record} onChange={(r) => upsert(r)}
+                onDeleted={(r) => { qc.setQueryData<StitchRecord[]>(["film-stitches"], (old) => (old ?? []).filter((x) => x.id !== r.id)); setSel(null); }} />}
               {!showBuild && !record && <div style={{ color: ROOM.muted, fontSize: 14 }}>{records.length || jobs.length ? "Pick a video on the left." : "No stitched videos yet. In punch-in, press ⚡ Stitch — it opens here."}</div>}
               {job && job.state === "done" && record && (
                 <div style={{ marginTop: 16, fontSize: 12.5, color: ROOM.mint }}>

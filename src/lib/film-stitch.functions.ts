@@ -122,3 +122,14 @@ export const markFilmStitchPosted = createServerFn({ method: "POST" })
     if (error) fail(error);
     return toRecord(saved);
   });
+
+/** DELETE A STITCH (Lee, 2026-09-15: "let me delete a stitch from stitch room so I can start over"). The row goes —
+ *  its pay comes off the ledger; the files stay on storage and the takes stay in punch-in. */
+export const deleteFilmStitch = createServerFn({ method: "POST" })
+  .inputValidator((x: unknown) => z.object({ id: z.string().uuid() }).parse(x))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { d } = await db();
+    const { error } = await d.from("film_stitches").delete().eq("id", data.id);
+    if (error) fail(error);
+    return { ok: true };
+  });

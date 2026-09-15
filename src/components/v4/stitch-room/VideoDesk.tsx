@@ -8,12 +8,13 @@
 import { useEffect, useRef, useState } from "react";
 
 import { clampTrim, clock, isTrimmed, money, videoTitle, type StitchRecord } from "@/lib/film-stitch";
-import { queueFilmStitch } from "@/lib/film-stitch.functions";
+import { deleteFilmStitch, queueFilmStitch } from "@/lib/film-stitch.functions";
+import { redoInFilm } from "../../blastoff/capture/film-nav";
 
 import { ROOM } from "./room-theme";
 import { applyTrims, downloadVideo, readOutroClip } from "./stitch-render";
 
-export function VideoDesk({ record, onChange }: { record: StitchRecord; onChange: (r: StitchRecord) => void }) {
+export function VideoDesk({ record, onChange, onDeleted }: { record: StitchRecord; onChange: (r: StitchRecord) => void; onDeleted?: (r: StitchRecord) => void }) {
   const video = useRef<HTMLVideoElement | null>(null);
   const [view, setView] = useState<"site" | "social">("site");
   const [dur, setDur] = useState<number>(record.durationS ?? 0);
@@ -50,6 +51,22 @@ export function VideoDesk({ record, onChange }: { record: StitchRecord; onChange
       setWork({ note: outro ? "✓ trims saved — site and social versions made" : "✓ trims saved", tone: "good" });
     } catch (e) { setWork({ note: e instanceof Error ? e.message : String(e), tone: "bad" }); }
   };
+  // REDO (Lee, 2026-09-15: "I click it, it opens that exact point with film pop out opened (or if film pop out already
+  // open, then navigate there) and I can just roll right in.") and DELETE (click twice).
+  const [armedDelete, setArmedDelete] = useState(false);
+  useEffect(() => { if (!armedDelete) return; const t = window.setTimeout(() => setArmedDelete(false), 3000); return () => window.clearTimeout(t); }, [armedDelete]);
+  const redo = () => {
+    if (!record.topicKey || !record.setKey) { setWork({ note: "This video was stitched before Redo knew its page — open it from the Film list.", tone: "bad" }); return; }
+    const r = redoInFilm({ topicKey: record.topicKey, setKey: record.setKey, setId: record.setId, takeIndex: record.takeIndex });
+    setWork(r === "blocked" ? { note: "The browser blocked the new tab — allow pop-ups for this site.", tone: "bad" } : { note: r === "sent" ? `Film is on #${record.takeIndex + 1} — roll right in.` : "Opened the film page on this video — pop out from there.", tone: "good" });
+  };
+  const remove = async () => {
+    if (!armedDelete) { setArmedDelete(true); return; }
+    setArmedDelete(false);
+    try { await deleteFilmStitch({ data: { id: record.id } }); onDeleted?.(record); }
+    catch (e) { setWork({ note: e instanceof Error ? e.message : String(e), tone: "bad" }); }
+  };
+
   // QUEUEING, with something to watch (Lee, 2026-09-15: "Better loading animation for Add to post queue").
   const [queueing, setQueueing] = useState<null | "adding" | "removing">(null);
   const [landed, setLanded] = useState(0);
@@ -134,6 +151,9 @@ export function VideoDesk({ record, onChange }: { record: StitchRecord; onChange
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button type="button" style={btn()} onClick={() => void downloadVideo(record.fileUrl, record.name, false)} title={dirty ? "Downloads the last saved trim" : undefined}>⬇ Download</button>
           <button type="button" style={btn()} disabled={!record.socialUrl} onClick={() => record.socialUrl && void downloadVideo(record.socialUrl, record.name, true)}>⬇ Download social</button>
+          <button type="button" style={{ ...btn(), color: ROOM.sky, borderColor: `${ROOM.sky}88` }} onClick={redo} title="Film this video again: the film page and the pop-out go straight to it">↺ Redo in film</button>
+          <button type="button" style={{ ...btn(armedDelete, ROOM.red), ...(armedDelete ? {} : { color: ROOM.red }) }} onClick={() => void remove()}
+            title="Delete this stitch (its pay comes off the ledger). The takes stay in punch-in.">{armedDelete ? "Click again to delete" : "Delete stitch"}</button>
           <span style={{ flex: 1 }} />
           {record.status !== "posted" && (
             <button type="button" disabled={busy || !!queueing} onClick={() => void toggleQueue()}

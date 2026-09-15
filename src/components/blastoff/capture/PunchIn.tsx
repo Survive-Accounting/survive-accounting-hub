@@ -63,9 +63,13 @@ type Stage =
   | { s: "posted"; link: string }
   | { s: "error"; error: string; fileUrl?: string };
 
-export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName, popoutFrameId, onClose, onNext }: {
+export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName, popoutFrameId, onClose, onNext, onPrev, videoOf }: {
   /** Move this window (and the pop-out) to the next video; null on the last one. */
   onNext?: (() => void) | null;
+  /** …and back one; null on the first. */
+  onPrev?: (() => void) | null;
+  /** Which video of the set a slide is in (a take filmed on another video's slide goes there). */
+  videoOf?: (frameId: string) => number | null;
   setId: string; setName: string; topicName: string;
   /** The split being filmed, as the pop-out walks it. */
   frames: readonly BlastFrame[];
@@ -145,6 +149,19 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
           const to = popoutFrameId();
           if (!rec?.fromId || !to || !e.path) { say("Stopped — the take couldn't be matched to a slide, so it wasn't kept.", "bad"); return; }
           const take: PunchTake = { file: baseName(e.path), fromId: rec.fromId, toId: to, at: Date.now() };
+          // THE WRONG VIDEO (Lee, 2026-09-15: "I accidentally stitched in wrong place"): the pop-out was on a
+          // slide of another video. The take belongs to that video, so it's kept there, not here.
+          if (!ids.includes(rec.fromId) && !scrapLive.current) {
+            const other = videoOf?.(rec.fromId) ?? null;
+            if (other != null && other !== takeIndex) {
+              try {
+                const k = punchKey(setId, other);
+                localStorage.setItem(k, JSON.stringify([...readTakes(localStorage.getItem(k)), take]));
+              } catch { /* not kept */ }
+              say(`That take was on video #${other + 1}'s slide — kept with #${other + 1}, not this video. Next video / Previous video to line the windows up.`, "bad");
+              return;
+            }
+          }
           if (scrapLive.current) {
             scrapLive.current = false;
             setTrash((t) => [...t, take]);
@@ -271,9 +288,22 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   const jobLive = !!job && job.state !== "done" && job.state !== "error";
   useEffect(() => { if (job?.state === "done") void qc.invalidateQueries({ queryKey: ["film-stitches"] }); }, [job?.state, qc]);
   const vKey = videoKey(setId, takeIndex);
-  const stitch = async () => {
-    // the popout first, inside the click (a window opened after an await is blocked)
-    openStitchRoom(vKey);
+  const briefTitle = cutName || (isPlaceholderName(takeName) ? "" : takeName);
+  const brief = useMemo(() => {
+    const real = frames.filter((f) => f.kind !== "outro" && !f.skipped);
+    const ceqs = real.filter((f) => f.kind === "ceq");
+    const speed = ceqs.filter((f) => f.pace === "speed").length;
+    const out: { n: number; label: string; tone: string }[] = [{ n: real.length, label: real.length === 1 ? "slide" : "slides", tone: CREAM }];
+    if (ceqs.length) out.push({ n: ceqs.length, label: `CEQ${ceqs.length === 1 ? "" : "s"}${speed ? ` (${speed} speed)` : ""}`, tone: "#7DD3FC" });
+    const byKind = new Map<string, number>();
+    for (const f of real) if (f.kind !== "ceq") byKind.set(FRAME_LABEL[f.kind], (byKind.get(FRAME_LABEL[f.kind]) ?? 0) + 1);
+    for (const [label, n] of byKind) out.push({ n, label, tone: GOLD });
+    return out;
+  }, [frames]);
+  const stitch = async (o: { andNext?: boolean } = {}) => {
+    // the Stitch Room first, inside the click (a window opened after an await is blocked) — not on Stitch & next,
+    // where the filming keeps the focus
+    if (!o.andNext) openStitchRoom(vKey);
     try {
       let dir = folder;
       if (!dir) { dir = (await pickTakesFolder()) as never; if (!dir) throw new Error("Choose the OBS recordings folder first."); setFolder(dir); }
@@ -288,6 +318,7 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
       }
       enqueueStitch({ setId, takeIndex, name: title.trim() || defaultTitle, setName, topicName, slides: slidesFilmed, fingerprint, endCta: cta ?? null, clips });
       say(`⚡ Stitching ${clips.length} clip${clips.length === 1 ? "" : "s"} in the background — keep filming`, "good");
+      if (o.andNext) onNext?.();
     } catch (e) { say(e instanceof Error ? e.message : String(e), "bad"); }
   };
 
@@ -299,9 +330,21 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
     <aside aria-label="Punch-in filming" style={{ position: "fixed", top: 12, right: 12, bottom: 12, width: 330, zIndex: 40, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, background: "rgba(7,11,20,0.94)", border: `1px solid ${EDGE}`, borderRadius: 12, padding: 12, fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 12, color: CREAM }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <b style={{ fontSize: 14, color: GOLD }}>Punch-in</b>
-        <span style={{ color: MUTED }}>Video {takeIndex + 1}{takeName ? ` · ${takeName}` : ""}</span>
+        <span style={{ color: MUTED }}>Video {takeIndex + 1}</span>
         <span style={{ flex: 1 }} />
         <button type="button" style={btn()} onClick={onClose} title="Close punch-in (F3 goes back to the normal scrap)">✕</button>
+      </div>
+
+      {/* AT A GLANCE (Lee, 2026-09-15: "When I switch to a new video. I want to see some things that help me quickly get
+          caught up … # - Title, # of slides, # of CEQ's, how many callouts and of each type") */}
+      <div key={`brief-${takeIndex}`} className="sa-brief" style={{ borderRadius: 10, padding: "9px 10px", background: "rgba(252,163,17,0.07)", border: `1px solid ${GOLD}55`, display: "flex", flexDirection: "column", gap: 6 }}>
+        <style>{`@keyframes sa-brief-in { 0% { box-shadow: 0 0 0 0 rgba(252,163,17,.6); transform: translateY(-4px); opacity: .4 } 100% { box-shadow: 0 0 0 10px rgba(252,163,17,0); transform: none; opacity: 1 } } .sa-brief { animation: sa-brief-in 520ms ease-out; } @media (prefers-reduced-motion: reduce) { .sa-brief { animation: none } }`}</style>
+        <div style={{ fontSize: 15, fontWeight: 900, lineHeight: 1.2, color: CREAM }}>#{takeIndex + 1}{briefTitle ? ` - ${briefTitle}` : ""}</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+          {brief.map((b) => (
+            <span key={b.label} style={{ fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 999, border: `1px solid ${b.tone}66`, color: b.tone, whiteSpace: "nowrap" }}>{b.n} {b.label}</span>
+          ))}
+        </div>
       </div>
 
       {/* SETUP */}
@@ -420,9 +463,15 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
           </div>
         )}
         <button type="button" style={btn()} onClick={() => openStitchRoom(saved || job ? vKey : undefined)}>Open the Stitch Room</button>
-        {/* NEXT VIDEO, right here (Lee: "once I finish one split, it will just let me navigate to the next one
-            right away and keep filming"). The pop-out follows. */}
-        {onNext && <button type="button" style={btn(jobLive || sameAsSaved)} onClick={onNext} title="The next video — the pop-out follows (same as ])">Next video →</button>}
+        {/* STITCH & NEXT (Lee, 2026-09-15: "Even a 'stitch and next' would be great"): stitch in the background,
+            straight on to the next video — the pop-out follows. */}
+        {onNext && !jobLive && !sameAsSaved && picks.length > 0 && (
+          <button type="button" style={{ ...btn(true), background: MINT, borderColor: MINT }} onClick={() => void stitch({ andNext: true })}>⚡ Stitch &amp; next video →</button>
+        )}
+        <div style={{ display: "flex", gap: 6 }}>
+          <button type="button" style={{ ...btn(), flex: 1 }} disabled={!onPrev} onClick={() => onPrev?.()} title="The previous video — the pop-out follows (same as [)">← Previous video</button>
+          <button type="button" style={{ ...btn(jobLive || sameAsSaved), flex: 1 }} disabled={!onNext} onClick={() => onNext?.()} title="The next video — the pop-out follows (same as ])">Next video →</button>
+        </div>
       </div>
     </aside>
   );
