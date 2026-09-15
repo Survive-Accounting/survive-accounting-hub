@@ -8,6 +8,7 @@
 // The Stitch Room popout watches it live over a BroadcastChannel and plays what's done. Closing the film tab
 // mid-stitch stops the job — the page asks first.
 import { uploadTake } from "@/components/v3/take-burn";
+import { track } from "@/lib/analytics";
 import { MISSING_FILM_STITCHES_HINT, videoKey, type StitchRecord } from "@/lib/film-stitch";
 import { saveFilmStitch } from "@/lib/film-stitch.functions";
 import { resolveWorkerRender, startDissectStitch, startWorkerRender, workerPreflight } from "@/lib/render-worker.functions";
@@ -120,6 +121,7 @@ export function enqueueStitch(input: StitchInput): StitchJob {
   };
   jobs.set(key, job);
   files.set(key, input.clips.map((c) => c.file));
+  track("stitch_started", { set_id: input.setId, video: input.takeIndex + 1, slides: input.slides, clips: input.clips.length });
   broadcast();
   void pump();
   return job;
@@ -227,8 +229,12 @@ async function runJob(key: string) {
     } catch (e) { saveError = e instanceof Error ? e.message : String(e); }
     patch(key, { state: "done", finishedAt: Date.now(), record, note: plain ? "stitched — the pauses stayed in (the joiner needs its update)" : "stitched", error: saveError ? `Stitched, but not saved: ${saveError}${/film_stitches/.test(saveError) ? "" : ` (${MISSING_FILM_STITCHES_HINT} if the table is missing)`}` : null });
     if (record) chan()?.postMessage({ type: "saved", record } satisfies StitchMessage);
+    const fin = jobs.get(key)!;
+    track("stitch_done", { set_id: fin.setId, video: fin.takeIndex + 1, slides: fin.slides, clips: fin.segments.length, seconds: fin.startedAt ? Math.round((Date.now() - fin.startedAt) / 1000) : null, video_seconds: whole.totalS, saved: !!record });
   } catch (e) {
     patch(key, { state: "error", finishedAt: Date.now(), error: e instanceof Error ? e.message : String(e), note: "stopped" });
+    const bad = jobs.get(key);
+    track("stitch_failed", { set_id: bad?.setId, video: bad ? bad.takeIndex + 1 : null, error: (e instanceof Error ? e.message : String(e)).slice(0, 200) });
   } finally {
     files.delete(key);
   }

@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { clampTrim, clock, isTrimmed, money, videoTitle, type StitchRecord } from "@/lib/film-stitch";
 import { deleteFilmStitch, queueFilmStitch } from "@/lib/film-stitch.functions";
 import { redoInFilm } from "../../blastoff/capture/film-nav";
+import { track } from "@/lib/analytics";
 
 import { ROOM } from "./room-theme";
 import { applyTrims, downloadVideo, readOutroClip } from "./stitch-render";
@@ -58,12 +59,13 @@ export function VideoDesk({ record, onChange, onDeleted }: { record: StitchRecor
   const redo = () => {
     if (!record.topicKey || !record.setKey) { setWork({ note: "This video was stitched before Redo knew its page — open it from the Film list.", tone: "bad" }); return; }
     const r = redoInFilm({ topicKey: record.topicKey, setKey: record.setKey, setId: record.setId, takeIndex: record.takeIndex });
+    track("stitch_redo", { set_id: record.setId, video: record.takeIndex + 1, how: r });
     setWork(r === "blocked" ? { note: "The browser blocked the new tab — allow pop-ups for this site.", tone: "bad" } : { note: r === "sent" ? `Film is on #${record.takeIndex + 1} — roll right in.` : "Opened the film page on this video — pop out from there.", tone: "good" });
   };
   const remove = async () => {
     if (!armedDelete) { setArmedDelete(true); return; }
     setArmedDelete(false);
-    try { await deleteFilmStitch({ data: { id: record.id } }); onDeleted?.(record); }
+    try { await deleteFilmStitch({ data: { id: record.id } }); track("stitch_deleted", { set_id: record.setId, video: record.takeIndex + 1 }); onDeleted?.(record); }
     catch (e) { setWork({ note: e instanceof Error ? e.message : String(e), tone: "bad" }); }
   };
 
@@ -78,7 +80,7 @@ export function VideoDesk({ record, onChange, onDeleted }: { record: StitchRecor
       const saved = await queueFilmStitch({ data: { id: record.id, queued: adding } });
       await new Promise((r) => setTimeout(r, Math.max(0, 650 - (Date.now() - started)))); // long enough to see it fly
       onChange(saved);
-      if (adding) setLanded((n) => n + 1);
+      if (adding) { setLanded((n) => n + 1); track("stitch_queued", { set_id: record.setId, video: record.takeIndex + 1 }); }
     } catch (e) { setWork({ note: e instanceof Error ? e.message : String(e), tone: "bad" }); }
     finally { setQueueing(null); }
   };

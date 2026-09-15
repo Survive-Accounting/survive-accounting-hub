@@ -111,6 +111,22 @@ export const SA_EVENTS = [
   "topic_depth_added",
   "syllabus_upload_clicked",
   "map_browsed",
+  // THE PRODUCTION PIPELINE (09-15, /v4). Lee: "track my movements around the site and learn how to make it
+  // faster". Properties: {set_id, video (1-based), slides, clips, seconds, status, ...}.
+  "v4_question_saved",
+  "v4_questions_final",
+  "film_opened",
+  "film_popout_opened",
+  "film_video_changed",
+  "take_kept",
+  "take_scrapped",
+  "stitch_started",
+  "stitch_done",
+  "stitch_failed",
+  "stitch_queued",
+  "stitch_posted",
+  "stitch_redo",
+  "stitch_deleted",
 ] as const;
 
 export type SaEvent = (typeof SA_EVENTS)[number];
@@ -163,8 +179,13 @@ export async function initAnalytics(): Promise<void> {
       // Only create person profiles once a user is identified, to keep anonymous
       // volume (and cost) down.
       person_profiles: "identified_only",
+      // SESSION REPLAY (09-15): off until a page it is for — syncReplay turns it on for /v4 and /learn only.
+      // Every typed value is masked.
+      disable_session_recording: true,
+      session_recording: { maskAllInputs: true },
     });
     ph = posthog;
+    tagProduction();
   } catch {
     ph = null; // stay silent — analytics is best-effort
   }
@@ -196,6 +217,7 @@ export function capturePageview(pathname: string): void {
   if (!ph) return; // not ready yet — a later call (post-init) will capture it
   if (pathname === lastPath) return;
   lastPath = pathname;
+  syncReplay(pathname);
   try {
     ph.capture("$pageview", { $current_url: window.location.origin + pathname });
   } catch {
@@ -219,4 +241,41 @@ export function resetAnalytics(): void {
   } catch {
     /* ignore */
   }
+}
+
+// ── SESSION REPLAY (Lee, 2026-09-15: "/v4 and /learn") ───────────────────────────────────────────
+// Recording runs on the production pipeline (/v4) and the student study pages (/learn), nowhere else. On /learn
+// it honours the same signals the ad tags do: Global Privacy Control and the /privacy opt-out. The project's own
+// "Record user sessions" switch in PostHog has to be on too.
+const REPLAY_PATHS = /^\/(v4|learn)(\/|$)/;
+function replayAllowed(pathname: string): boolean {
+  if (!REPLAY_PATHS.test(pathname)) return false;
+  if (pathname.startsWith("/v4")) return true;
+  try {
+    const nav = navigator as Navigator & { globalPrivacyControl?: boolean };
+    if (nav.globalPrivacyControl === true) return false;
+    if (localStorage.getItem("sa-ads-optout") === "1") return false;
+  } catch { /* allowed */ }
+  return true;
+}
+function syncReplay(pathname: string): void {
+  if (!ph) return;
+  try {
+    const want = replayAllowed(pathname);
+    const on = ph.sessionRecordingStarted();
+    if (want && !on) ph.startSessionRecording();
+    else if (!want && on) ph.stopSessionRecording();
+  } catch { /* ignore */ }
+}
+
+/** YOUR SESSIONS, TAGGED. An admin device (the AdminGate unlock) is identified as its operator, with
+ *  sa_internal on every event, so production sessions are one filter away and never mix with students. */
+function tagProduction(): void {
+  if (!ph) return;
+  try {
+    if (localStorage.getItem("sa-admin-unlocked") !== "yes") return;
+    const who = localStorage.getItem("sa-admin-who");
+    ph.register({ sa_internal: true, sa_operator: who ?? "admin" });
+    if (who === "lee" || who === "king") ph.identify(`operator:${who}`, { role: "production", operator: who });
+  } catch { /* ignore */ }
 }

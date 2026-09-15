@@ -14,6 +14,7 @@ import { queueFilmStitch, reorderFilmStitchQueue } from "@/lib/film-stitch.funct
 
 import { ROOM } from "./room-theme";
 import { postStitch } from "./stitch-render";
+import { track } from "@/lib/analytics";
 
 function thumbFor(r: StitchRecord) {
   const c = coverFor(r.name);
@@ -49,6 +50,7 @@ export function PostQueue({ records, onChange, onOpen }: { records: readonly Sti
         if (!svg) throw new Error("The thumbnail isn't drawn yet.");
         const done = await postStitch(r, svg, say);
         setStatus((s) => ({ ...s, [r.id]: { note: "✓ posted", tone: "good" } }));
+        track("stitch_posted", { set_id: r.setId, video: r.takeIndex + 1, slides: r.slides });
         onChange(done);
       } catch (e) {
         setStatus((s) => ({ ...s, [r.id]: { note: e instanceof Error ? e.message : String(e), tone: "bad" } }));

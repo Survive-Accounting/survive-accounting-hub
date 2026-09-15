@@ -89,6 +89,7 @@ import { useTakeLog } from "./capture/take-log";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { FILM_NAV_KEY, FILM_REDO_KEY, obsCheckDone, obsCheckDue, parsePlace, writeFilmAlive, writeFilmNav } from "./capture/film-nav";
 import { filmPopoutHref, isPopoutSearch } from "./capture/popout";
+import { track } from "@/lib/analytics";
 import { camDefault, layoutOf } from "./layout";
 import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
 // THE RUBRIC's reveal (2026-09-11): the same spacebar walk as a map's shots — the step lives
@@ -259,6 +260,13 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
   const navigate = useNavigate();
   const inPopout = typeof window !== "undefined" && isPopoutSearch(window.location.search);
   const takeSelRef = useRef(takeSel); takeSelRef.current = takeSel;
+  useEffect(() => { track(inPopout ? "film_popout_opened" : "film_opened", { set_id: set.id }); }, [inPopout, set.id]);
+  const seenTake = useRef<number | undefined>(takeSel);
+  useEffect(() => {
+    if (inPopout || seenTake.current === takeSel) return;
+    seenTake.current = takeSel;
+    track("film_video_changed", { set_id: set.id, video: takeSel != null ? takeSel + 1 : null });
+  }, [inPopout, set.id, takeSel]);
   useEffect(() => {
     if (inPopout) return;
     writeFilmNav(window.location.pathname, takeSel ?? null);

@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { getAdminWho } from "@/components/AdminGate";
+import { track } from "@/lib/analytics";
 import { V3_CREAM, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 import { finalizeV4Questions, v4QuestionsChange, type V4QuestionsOp } from "@/lib/v4.functions";
 
@@ -63,6 +64,7 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
     const patch = { ...edit, choices: edit.choices.map((c) => ({ ...c, feedback: c.feedback ?? null })) };
     onData({ ...cur, cards: cur.cards.map((c) => (c.id === cardId ? { ...c, ...patch } : c)) });
     setSaveState((s) => ({ ...s, [cardId]: "saving" }));
+    track("v4_question_saved", { set_id: cur.setId });
     setErr(null);
     pending.current++;
     chain.current = chain.current.then(async () => {
@@ -156,6 +158,7 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
       if (!r.ok) { setFinalNote(`${r.summary.problems.length} question${r.summary.problems.length === 1 ? "" : "s"} still need work — fix them, or mark them placeholders.`); return; }
       onData({ ...data, state: r.state });
       setWarn(r.logWarning);
+      track("v4_questions_final", { set_id: data.setId, questions: r.summary.questions, placeholders: r.summary.placeholders });
       setFinalNote(`Questions final — ${r.summary.questions - r.summary.placeholders} live, ${r.summary.placeholders} placeholder${r.summary.placeholders === 1 ? "" : "s"}. On to Slides.`);
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }

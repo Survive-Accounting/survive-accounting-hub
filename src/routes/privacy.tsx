@@ -63,6 +63,7 @@ function PrivacyPage() {
         <Section title="7. Analytics and advertising cookies">
           <p>We use a few measurement and advertising tools so we can see which videos actually help, and so we can show Survive Accounting to students who have already visited: Google (including YouTube), Meta (Instagram and Facebook), TikTok, PostHog, and Vercel Analytics.</p>
           <p className="mt-2">These tools may set cookies or similar identifiers in your browser. They receive the pages you view and actions such as opening a campus or chapter page, starting a video, or joining a waitlist, along with the campus or chapter involved. <strong>We never send them your name, email address, or phone number.</strong></p>
+          <p className="mt-2">On our study pages, PostHog may also record how the page is used (scrolling, clicks, and what appears on screen) so we can find what is confusing or slow. Anything you type is hidden from those recordings. Turning off the advertising tools below, or sending Global Privacy Control, turns these recordings off too.</p>
           <p className="mt-2">You can turn off the advertising tools (Google, Meta, and TikTok) on this device below. We also honor the Global Privacy Control signal if your browser sends one.</p>
           <AdsOptOut />
         </Section>

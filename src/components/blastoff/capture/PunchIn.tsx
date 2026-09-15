@@ -20,12 +20,13 @@ import { uploadTake } from "@/components/v3/take-burn";
 import { isPlaceholderName, splitNameOf, takesFingerprint, videoKey } from "@/lib/film-stitch";
 import { loadV4Splits } from "@/lib/v4.functions";
 import { listFilmStitches } from "@/lib/film-stitch.functions";
+import { track } from "@/lib/analytics";
 import { enqueueStitch, openStitchRoom, stitchJob, subscribeStitches, type StitchInput } from "./stitch-queue";
 
 import type { BlastFrame } from "../plan";
 import { FRAME_LABEL } from "../plan";
 import { endCtaOf } from "../practice-cta";
-import { chunks, nextAfter, pickTakes, punchKey, readTakes, STITCH_CHUNK, uncovered, type PunchTake } from "../punch-in";
+import { chunks, nextAfter, pickTakes, punchKey, rangeOf, readTakes, STITCH_CHUNK, uncovered, type PunchTake } from "../punch-in";
 
 const GOLD = "#FCA311", CREAM = "#F5EFE6", MUTED = "#8C9BBA", EDGE = "#2A3654", RED = "#FF7A6B", MINT = "#3BF5A0";
 export const PUNCH_ON_KEY = "sa-punch-on";
@@ -165,6 +166,7 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
           if (scrapLive.current) {
             scrapLive.current = false;
             setTrash((t) => [...t, take]);
+            track("take_scrapped", { set_id: setId, video: takeIndex + 1, live: true });
             if (folder) void moveToRecycle(folder as never, take.file);
             goto(take.fromId);
             say(`Scrapped — back on ${label(take.fromId)}. Ctrl+Z brings it back.`, "warn");
@@ -175,6 +177,7 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
           const replaced = replacingRef.current;
           replacingRef.current = null; setReplacing(null);
           save([...takesRef.current.filter((t) => t !== replaced && !(replaced && t.file === replaced.file)), take]);
+          { const r = rangeOf(ids, take); track("take_kept", { set_id: setId, video: takeIndex + 1, slides: r ? r.to - r.from + 1 : 1, replaced: !!replaced }); }
           if (replaced) say(`✓ replaced — the new take is in`, "good");
           const next = nextAfter(ids, take);
           goto(next);
