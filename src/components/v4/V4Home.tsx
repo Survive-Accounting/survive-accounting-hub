@@ -19,6 +19,12 @@ export function V4Home() {
   useEffect(() => { listV4Topics().then((rows) => setV4(new Map(rows.map((r) => [r.setId, r.step])))).catch((e) => setErr(e instanceof Error ? e.message : String(e))); }, []);
 
   const exam = (topics ?? []).filter((t) => t.kind !== "strategy");
+  // #topic-<slug> from the navbar's topic breadcrumb: scroll there once the list is drawn
+  const ready = !!topics && !!v4;
+  useEffect(() => {
+    if (!ready || typeof window === "undefined" || !window.location.hash.startsWith("#topic-")) return;
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "start" });
+  }, [ready]);
   return (
     <V3Shell crumbs={[{ label: "V4" }]}>
       <h1 style={{ fontFamily: V3_DISPLAY, fontSize: 32, fontWeight: 900, letterSpacing: "-0.01em", margin: "0 0 4px" }}>v4 · one topic, five steps</h1>
@@ -37,7 +43,7 @@ export function V4Home() {
         const sets = t.sets.filter((s) => laneOf(s) === "cram");
         if (!sets.length) return null;
         return (
-          <section key={t.id} style={{ marginTop: 22 }}>
+          <section key={t.id} id={`topic-${slugOf(t.name)}`} style={{ marginTop: 22, scrollMarginTop: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: V3_MUTED, marginBottom: 6 }}>{t.name}</div>
             <div style={{ border: `1px solid ${V3_EDGE}`, borderRadius: 12, overflow: "hidden" }}>
               {sets.map((s, i) => {

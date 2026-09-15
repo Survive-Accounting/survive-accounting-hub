@@ -91,7 +91,9 @@ function Where({ crumbs }: { crumbs: Crumb[] }) {
     return (
       <>
         {SEP}
-        <span style={{ color: V3_MUTED, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" }}>{topic?.name ?? params.topic.replace(/-/g, " ")}</span>
+        {/* A BREADCRUMB (Lee, 2026-09-15: "Clicking \"easy points\" at top should be like breadcrumb links"): the
+            topic on /v4, scrolled to. */}
+        <a href={`/v4#topic-${params.topic}`} title="This topic on the v4 list" style={{ color: V3_MUTED, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", textDecoration: "none" }}>{topic?.name ?? params.topic.replace(/-/g, " ")}</a>
         {SEP}
         <Link to={base as never} style={{ color: V3_CREAM, fontSize: 12.5, fontWeight: 700, textDecoration: "none", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{set?.name ?? params.set.replace(/-/g, " ")}</Link>
         <nav aria-label="Steps" className="flex items-center gap-1.5" style={{ marginLeft: 6, flexWrap: "wrap" }}>
@@ -169,15 +171,16 @@ export function V3Shell({ crumbs, children, wide = false }: { crumbs: Crumb[]; c
           style={{ color: V3_GOLD, fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none", whiteSpace: "nowrap" }}>
           🏠 {v4 ? "V4" : "Home"}
         </Link>
-        {v4 && (
-          <>
-            <Link to="/v4/breathers" style={{ color: V3_MUTED, fontSize: 11, fontWeight: 800, textDecoration: "none", whiteSpace: "nowrap" }}>Breathers</Link>
-            <Link to="/v3/quick-post" style={{ color: V3_MUTED, fontSize: 11, fontWeight: 800, textDecoration: "none", whiteSpace: "nowrap" }}>Quick post</Link>
-          </>
-        )}
         <Where crumbs={crumbs} />
 
         <div className="ml-auto flex items-center gap-2">
+          {/* top right in v4 (Lee, 2026-09-15: "\"Breathers\" and \"Quick Post\" can go to the top right") */}
+          {v4 && (
+            <>
+              <Link to="/v4/breathers" style={{ color: V3_MUTED, fontSize: 11, fontWeight: 800, textDecoration: "none", whiteSpace: "nowrap" }}>Breathers</Link>
+              <Link to="/v3/quick-post" style={{ color: V3_MUTED, fontSize: 11, fontWeight: 800, textDecoration: "none", whiteSpace: "nowrap" }}>Quick post</Link>
+            </>
+          )}
           <QueueChip />
           {/* A NEW TAB, not a navigation: Exhibit Lab is its own surface, and leaving V3 for it
               lost the way back (Lee got stuck). The booth's Exhibit Mode is where exhibits get

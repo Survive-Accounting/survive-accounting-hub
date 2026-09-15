@@ -11,8 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { getAdminWho } from "@/components/AdminGate";
 import { V3_CREAM, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
-import { useDictation } from "@/lib/use-dictation";
-import { finalizeV4Questions, v4EditWhy, v4QuestionsChange, type V4QuestionsOp } from "@/lib/v4.functions";
+import { finalizeV4Questions, v4QuestionsChange, type V4QuestionsOp } from "@/lib/v4.functions";
 
 import { FORMATS, QUESTION_FORMATS, cardProblems, formatOf, markCorrect, switchFormat, type Choice, type QuestionFormat } from "./formats";
 import { V4_AMBER, V4_MINT, V4_RED, v4Button, v4Field } from "./V4Chrome";
@@ -29,7 +28,6 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
   const [err, setErr] = useState<string | null>(null);
   const [warn, setWarn] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [lastEdit, setLastEdit] = useState<{ editId: string; label: string } | null>(null);
   const [showRejected, setShowRejected] = useState(false);
   const [finalNote, setFinalNote] = useState<string | null>(null);
 
@@ -38,16 +36,49 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
   const rejected = cards.filter((c) => c.rejected && !c.noteOnly);
   const isFinal = !!state.final.questions;
 
-  const run = async (op: Op, label: string, why?: string | null) => {
+  // No "why" any more (Lee, 2026-09-15: "remove the 'add why' stuff. Just save edits in background and we can
+  // infer later the 'why'"). Every change still lands in teach_edits with before / after.
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const run = async (op: Op, _label: string) => {
     setBusy(true); setErr(null);
     try {
-      const r = await v4QuestionsChange({ data: { setId: data.setId, op, why: why ?? null, who: getAdminWho() } });
-      onData({ ...data, state: r.state, cards: r.cards });
+      const r = await v4QuestionsChange({ data: { setId: data.setId, op, why: null, who: getAdminWho() } });
+      onData({ ...dataRef.current, state: r.state, cards: r.cards });
       setWarn(r.logWarning);
-      setLastEdit(r.editId && !why ? { editId: r.editId, label } : null);
       return r;
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); return null; }
     finally { setBusy(false); }
+  };
+
+  // SAVE IN THE BACKGROUND (Lee, 2026-09-15: "Saving work … is slow and feels clunky … save edits in background
+  // … just the text changing to Saved!"). The edit shows at once; saves go out one after another; the button
+  // says Saving… then Saved!. The server's answer is taken only when nothing newer is waiting behind it.
+  const [saveState, setSaveState] = useState<Record<string, "saving" | "saved" | "error">>({});
+  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const pending = useRef(0);
+  const saveEdit = (cardId: string, edit: { stem: string; choices: Choice[]; format: QuestionFormat }) => {
+    const cur = dataRef.current;
+    // the choices the way the server hands them back (feedback null, not missing), so nothing reads as unsaved
+    const patch = { ...edit, choices: edit.choices.map((c) => ({ ...c, feedback: c.feedback ?? null })) };
+    onData({ ...cur, cards: cur.cards.map((c) => (c.id === cardId ? { ...c, ...patch } : c)) });
+    setSaveState((s) => ({ ...s, [cardId]: "saving" }));
+    setErr(null);
+    pending.current++;
+    chain.current = chain.current.then(async () => {
+      try {
+        const r = await v4QuestionsChange({ data: { setId: cur.setId, op: { type: "edit", cardId, ...patch }, why: null, who: getAdminWho() } });
+        pending.current--;
+        if (pending.current === 0) onData({ ...dataRef.current, state: r.state, cards: r.cards });
+        setWarn(r.logWarning);
+        setSaveState((s) => ({ ...s, [cardId]: "saved" }));
+        window.setTimeout(() => setSaveState((s) => (s[cardId] === "saved" ? (({ [cardId]: _gone, ...rest }) => rest)(s) : s)), 2500);
+      } catch (e) {
+        pending.current--;
+        setSaveState((s) => ({ ...s, [cardId]: "error" }));
+        setErr(`Not saved: ${e instanceof Error ? e.message : String(e)} — refresh to see what's saved.`);
+      }
+    });
   };
 
   const setGroups = (groups: V4Group[], label: string) => run({ type: "groups", groups }, label);
@@ -159,9 +190,6 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
       {err && <div style={{ marginTop: 8, fontSize: 13, color: V4_RED }}>{err}</div>}
       {warn && <div style={{ marginTop: 8, fontSize: 12.5, color: V4_AMBER }}>Saved, but not recorded for learning — {warn}</div>}
 
-      {/* WHY, after any change */}
-      {lastEdit && <WhyBar key={lastEdit.editId} label={lastEdit.label} onSave={async (why) => { const r = await v4EditWhy({ data: { editId: lastEdit.editId, why } }); if (!r.ok) setWarn(r.error ?? "why not saved"); setLastEdit(null); }} onDismiss={() => setLastEdit(null)} />}
-
       {undoNote && (
         <div role="status" style={{ marginTop: 10, fontSize: 12.5, color: V3_MUTED }}>{undoNote} · <b style={{ color: V3_CREAM }}>Ctrl+Z</b> to undo</div>
       )}
@@ -219,7 +247,7 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
                 {gc.length === 0 && <div style={{ padding: 12, fontSize: 12.5, color: V3_MUTED }}>No questions here yet.</div>}
                 {gc.map((c, i) => (
                   <QuestionRow key={c.id} card={c} first={i === 0} open={openId === c.id} onToggle={() => setOpenId(openId === c.id ? null : c.id)}
-                    groups={state.groups} busy={busy} run={run} onClone={() => void clone(c)} onRemove={() => void remove(c)}
+                    groups={state.groups} busy={busy} run={run} saveEdit={saveEdit} saving={saveState[c.id]} onClone={() => void clone(c)} onRemove={() => void remove(c)}
                     onDragStart={() => setDragging(c.id)} onDragEnd={() => { setDragging(null); setDragOver(null); setRowOver(null); }}
                     dropLine={dragging && dragging !== c.id && rowOver?.id === c.id ? (rowOver.below ? "below" : "above") : null}
                     onRowOver={(below) => { if (dragging && dragging !== c.id) setRowOver((r) => (r?.id === c.id && r.below === below ? r : { id: c.id, below })); }}
@@ -273,9 +301,11 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
   );
 }
 
-function QuestionRow({ card, first, open, onToggle, groups, busy, run, onClone, onRemove, onDragStart, onDragEnd, dropLine, onRowOver, onRowDrop }: {
+function QuestionRow({ card, first, open, onToggle, groups, busy, run, saveEdit, saving, onClone, onRemove, onDragStart, onDragEnd, dropLine, onRowOver, onRowDrop }: {
   card: V4Card; first: boolean; open: boolean; onToggle: () => void; groups: V4Group[]; busy: boolean;
-  run: (op: Op, label: string, why?: string | null) => Promise<unknown>;
+  run: (op: Op, label: string) => Promise<unknown>;
+  saveEdit: (cardId: string, patch: { stem: string; choices: Choice[]; format: QuestionFormat }) => void;
+  saving: "saving" | "saved" | "error" | undefined;
   onClone: () => void; onRemove: () => void; onDragStart: () => void; onDragEnd: () => void;
   /** A question being dragged over this row: where it would land. */
   dropLine: "above" | "below" | null;
@@ -315,24 +345,37 @@ function QuestionRow({ card, first, open, onToggle, groups, busy, run, onClone, 
           <button type="button" disabled={busy} onClick={onRemove} title="Remove (Ctrl+Z brings it back)" aria-label="Remove this question" style={{ ...tool, color: V4_RED }}>✕</button>
         </div>
       </div>
-      {open && <QuestionEditor key={card.id + JSON.stringify(card.choices) + card.stem + card.format} card={card} groups={groups} busy={busy} run={run} onClone={onClone} />}
+      {open && <QuestionEditor key={card.id} card={card} groups={groups} busy={busy} run={run} saveEdit={saveEdit} saving={saving} onClone={onClone} />}
     </div>
   );
 }
 
-function QuestionEditor({ card, groups, busy, run, onClone }: {
-  card: V4Card; groups: V4Group[]; busy: boolean; run: (op: Op, label: string, why?: string | null) => Promise<unknown>; onClone: () => void;
+function QuestionEditor({ card, groups, busy, run, saveEdit, saving, onClone }: {
+  card: V4Card; groups: V4Group[]; busy: boolean; run: (op: Op, label: string) => Promise<unknown>; onClone: () => void;
+  saveEdit: (cardId: string, patch: { stem: string; choices: Choice[]; format: QuestionFormat }) => void;
+  saving: "saving" | "saved" | "error" | undefined;
 }) {
   const [stem, setStem] = useState(card.stem);
   const [format, setFormat] = useState<QuestionFormat>(card.format);
   const [choices, setChoices] = useState<Choice[]>(card.choices.length ? card.choices : [{ text: "", correct: true }, { text: "", correct: false }]);
-  const [why, setWhy] = useState("");
   const [ph, setPh] = useState<V4Placeholder | null>(card.placeholder);
   const [phOpen, setPhOpen] = useState(!!card.placeholder);
   const [showFeedback, setShowFeedback] = useState(false);
   const spec = FORMATS[format];
   const problems = cardProblems({ format, stem, choices });
-  const dirty = stem !== card.stem || format !== card.format || JSON.stringify(choices) !== JSON.stringify(card.choices);
+  const dirty = stem !== card.stem || format !== card.format || choiceKey(choices) !== choiceKey(card.choices);
+  // THE CARD CHANGED UNDER THE EDITOR (a saved edit coming back, a group move): take it, unless there are
+  // unsaved changes here — those stay put.
+  const seen = useRef({ stem: card.stem, format: card.format, choices: choiceKey(card.choices) });
+  useEffect(() => {
+    const prev = seen.current;
+    const now = { stem: card.stem, format: card.format, choices: choiceKey(card.choices) };
+    if (prev.stem === now.stem && prev.format === now.format && prev.choices === now.choices) return;
+    const untouched = stem === prev.stem && format === prev.format && choiceKey(choices) === prev.choices;
+    const savedMine = stem === now.stem && format === now.format;
+    seen.current = now;
+    if (untouched || savedMine) { setStem(card.stem); setFormat(card.format); setChoices(card.choices.length ? card.choices : choices); }
+  }, [card.stem, card.format, card.choices]); // eslint-disable-line react-hooks/exhaustive-deps
   const short = (card.stem || "a question").slice(0, 40);
 
   return (
@@ -380,12 +423,13 @@ function QuestionEditor({ card, groups, busy, run, onClone }: {
       </div>
       {problems.length > 0 && !card.placeholder && <div style={{ fontSize: 12, color: V4_RED }}>{problems.join(" ")}</div>}
 
-      {/* SAVE, WITH AN OPTIONAL WHY */}
-      {dirty && <WhyInput value={why} onChange={setWhy} />}
+      {/* SAVE — in the background; the button says how it went */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <button type="button" disabled={busy || !dirty} style={{ ...v4Button("gold"), opacity: busy || !dirty ? 0.5 : 1 }}
-          onClick={() => void run({ type: "edit", cardId: card.id, stem, choices, format }, `edited "${short}"`, why || null)}>Save changes</button>
-        {dirty && <button type="button" style={v4Button()} onClick={() => { setStem(card.stem); setFormat(card.format); setChoices(card.choices); setWhy(""); }}>Undo changes</button>}
+        <button type="button" disabled={!dirty} style={{ ...v4Button(dirty ? "gold" : "ghost"), opacity: dirty || saving ? 1 : 0.5, minWidth: 116, color: !dirty && saving === "saved" ? V4_MINT : !dirty && saving === "error" ? V4_RED : undefined, borderColor: !dirty && saving === "saved" ? `${V4_MINT}88` : undefined }}
+          onClick={() => saveEdit(card.id, { stem, choices, format })}>
+          {dirty ? "Save changes" : saving === "saving" ? "Saving…" : saving === "saved" ? "Saved!" : saving === "error" ? "Not saved" : "Saved"}
+        </button>
+        {dirty && <button type="button" style={v4Button()} onClick={() => { setStem(card.stem); setFormat(card.format); setChoices(card.choices); }}>Undo changes</button>}
         <span style={{ flex: 1 }} />
         <button type="button" style={{ ...v4Button(), color: V4_AMBER, borderColor: `${V4_AMBER}88` }} onClick={() => setPhOpen((v) => !v)}>{card.placeholder ? "Placeholder ▾" : "Mark placeholder"}</button>
         <button type="button" disabled={busy || dirty} title={dirty ? "Save or undo your changes first" : "A copy of this question, right after it"} style={v4Button()} onClick={onClone}>Clone</button>
@@ -413,31 +457,5 @@ function QuestionEditor({ card, groups, busy, run, onClone }: {
   );
 }
 
-/** The optional why — typed, or talked (browser dictation fills the box). */
-function WhyInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [interim, setInterim] = useState("");
-  const mic = useDictation((final, live) => { setInterim(live); if (final.trim()) onChange(`${value} ${final}`.trim()); });
-  return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-      <input value={mic.on && interim ? `${value} ${interim}`.trim() : value} onChange={(e) => onChange(e.target.value)} placeholder="Why? (optional — helps the AI learn how you teach)" style={{ ...v4Field, fontSize: 12.5 }} />
-      {mic.supported && (
-        <button type="button" onClick={() => { if (mic.on) { mic.stop(); setInterim(""); } else mic.start(); }} aria-pressed={mic.on}
-          style={{ ...v4Button(), padding: "5px 10px", color: mic.on ? V4_RED : V3_CREAM, borderColor: mic.on ? V4_RED : V3_EDGE }}>{mic.on ? "● stop" : "🎙"}</button>
-      )}
-    </div>
-  );
-}
-
-/** After a change that didn't carry a why: ask once, quietly. */
-function WhyBar({ label, onSave, onDismiss }: { label: string; onSave: (why: string) => Promise<void>; onDismiss: () => void }) {
-  const [why, setWhy] = useState("");
-  const [saving, setSaving] = useState(false);
-  return (
-    <div style={{ position: "sticky", top: 8, zIndex: 5, marginTop: 10, display: "flex", gap: 8, alignItems: "center", padding: "8px 12px", borderRadius: 10, border: `1px solid ${V3_GOLD}55`, background: "#101a30" }}>
-      <span style={{ fontSize: 12.5, color: V3_MUTED, whiteSpace: "nowrap" }}>Saved: {label}</span>
-      <div style={{ flex: 1 }}><WhyInput value={why} onChange={setWhy} /></div>
-      <button type="button" disabled={!why.trim() || saving} style={{ ...v4Button("gold"), opacity: !why.trim() || saving ? 0.5 : 1 }} onClick={async () => { setSaving(true); await onSave(why); setSaving(false); }}>Add why</button>
-      <button type="button" style={{ ...v4Button(), color: V3_MUTED }} onClick={onDismiss}>✕</button>
-    </div>
-  );
-}
+/** Choices compared by what they say (a missing feedback and a null one are the same). */
+const choiceKey = (cs: readonly Choice[]): string => JSON.stringify(cs.map((c) => ({ text: c.text, correct: c.correct, feedback: c.feedback || null })));
