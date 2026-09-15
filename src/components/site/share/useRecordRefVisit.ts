@@ -13,6 +13,15 @@ import { useEffect, useRef } from "react";
 import { currentContactRef, rememberContactRef } from "@/lib/contact-ref";
 import { deviceAnonId } from "@/lib/device-id";
 import { recordContactRefVisit } from "@/lib/engaged-contacts.functions";
+import { ADMIN_UNLOCK_STORAGE_KEY, TEST_SESSION_STORAGE_KEY } from "@/lib/retargeting-core";
+
+function internalDevice(): boolean {
+  try {
+    return localStorage.getItem(ADMIN_UNLOCK_STORAGE_KEY) === "yes" || !!sessionStorage.getItem(TEST_SESSION_STORAGE_KEY);
+  } catch {
+    return false;
+  }
+}
 
 // The anon id moved to lib/device-id.ts (2026-08-31): the member gate de-duplicates on the
 // same cookie, and two implementations of "which browser is this" would drift apart silently.
@@ -28,6 +37,10 @@ export function useRecordRefVisit(campusId?: string | null): void {
 
     const ref = currentContactRef();
     if (!ref) return;
+    // NOT OUR OWN CLICKS (Lee, 2026-09-15: "remove my device … so I don't intermingle with the #'s"). A
+    // device that has unlocked an admin page, or is in a test session, opens links to check them — never
+    // counted. The same device rules the retargeting tags use (lib/retargeting-core.ts).
+    if (internalDevice()) return;
     // Persist first: the tag must survive the next hop even if the write below fails.
     rememberContactRef(ref);
 
