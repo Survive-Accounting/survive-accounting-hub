@@ -232,7 +232,16 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   const filmIds = ids.filter((id) => !isOutro(id));
   const picks = pickTakes(filmIds, takes);
   const gaps = uncovered(filmIds, takes);
-  const lastOutroTake = [...takes].sort((a, b) => b.at - a.at).find((t) => t.fromId === t.toId && isOutro(t.fromId)) ?? null;
+  // PLAY A TAKE straight from the recordings folder — no upload.
+  const [playing, setPlaying] = useState<{ file: string; url: string } | null>(null);
+  const playTake = async (t: PunchTake) => {
+    let dir = folder;
+    if (!dir) { dir = (await pickTakesFolder()) as never; if (!dir) return; setFolder(dir); }
+    const file = await getFile(dir as never, t.file);
+    if (!file) { say(`${t.file} isn't in the recordings folder`, "bad"); return; }
+    setPlaying((prev) => { if (prev) URL.revokeObjectURL(prev.url); return { file: t.file, url: URL.createObjectURL(file) }; });
+  };
+  const lastOutroTake =[...takes].sort((a, b) => b.at - a.at).find((t) => t.fromId === t.toId && isOutro(t.fromId)) ?? null;
   const keepOutro = async (t: PunchTake) => {
     setSavingOutro(true);
     try {
@@ -454,16 +463,37 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
               </button>
             );
           }
+          // THE TAKE BRACKETS (Lee, 2026-09-14: "let me pick a take and remove it from the chain before I preview
+          // … a bracket around each slide that is covering a take. Take 1, take 2, take 3"). Each kept take's
+          // slides share a coloured rule; its first row names it, plays it, and ✕ takes it out (Ctrl+Z back).
+          const n = p ? picks.indexOf(p) : -1;
+          const tone = n % 2 === 0 ? GOLD : "#7DD3FC";
           return (
-            <button key={f.id} type="button" onClick={() => goto(f.id)} title="Put this slide up in the pop-out — punch in again to overwrite it"
-              style={{ all: "unset", cursor: "pointer", display: "flex", gap: 6, alignItems: "center", padding: "2px 4px", borderRadius: 5, color: p ? CREAM : MUTED }}>
-              <span style={{ width: 18, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{k + 1}</span>
-              <span style={{ color: p ? MINT : MUTED }}>{p ? "✓" : "○"}</span>
-              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{FRAME_LABEL[f.kind]}{f.pace === "speed" ? " · speed" : ""}</span>
-              {p && p.to > p.from && fk === p.from && <span style={{ color: MUTED }}>→ {ids.indexOf(filmIds[p.to]) + 1}</span>}
-            </button>
+            <div key={f.id} style={{ display: "flex", flexDirection: "column", borderLeft: `3px solid ${p ? tone : "transparent"}`, paddingLeft: 4, marginTop: p && fk === p.from && n > 0 ? 4 : 0 }}>
+              {p && fk === p.from && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0 1px", fontSize: 11, fontWeight: 800, color: tone }}>
+                  <span>Take {n + 1}</span>
+                  <span style={{ color: MUTED, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{p.take.file}</span>
+                  <button type="button" title="Play this take" style={{ ...btn(), padding: "0 6px", fontSize: 11 }} onClick={() => void playTake(p.take)}>▶</button>
+                  <button type="button" title="Take this take out of the video (Ctrl+Z brings it back). The file stays." style={{ ...btn(), padding: "0 6px", fontSize: 11, color: RED }}
+                    onClick={() => { save(takes.filter((t) => t !== p.take)); setTrash((t) => [...t, p.take]); setStage({ s: "idle" }); say(`Removed take ${n + 1} — Ctrl+Z brings it back`, "warn"); }}>✕</button>
+                </div>
+              )}
+              <button type="button" onClick={() => goto(f.id)} title="Put this slide up in the pop-out — punch in again to overwrite it"
+                style={{ all: "unset", cursor: "pointer", display: "flex", gap: 6, alignItems: "center", padding: "2px 4px", borderRadius: 5, color: p ? CREAM : MUTED }}>
+                <span style={{ width: 18, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{k + 1}</span>
+                <span style={{ color: p ? MINT : MUTED }}>{p ? "✓" : "○"}</span>
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{FRAME_LABEL[f.kind]}{f.pace === "speed" ? " · speed" : ""}</span>
+              </button>
+            </div>
           );
         })}
+        {playing && (
+          <div style={{ position: "relative", marginTop: 6, alignSelf: "center", width: 200, maxWidth: "100%" }}>
+            <video key={playing.url} src={playing.url} controls autoPlay playsInline style={{ width: "100%", aspectRatio: "9 / 16", objectFit: "cover", background: "#000", borderRadius: 8 }} />
+            <button type="button" style={{ ...btn(), position: "absolute", top: 4, right: 4, padding: "0 6px" }} onClick={() => { URL.revokeObjectURL(playing.url); setPlaying(null); }}>✕</button>
+          </div>
+        )}
         <div style={{ color: MUTED, marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ flex: 1 }}>{picks.length} take{picks.length === 1 ? "" : "s"} kept{gaps.length ? ` · ${gaps.length} slide${gaps.length === 1 ? "" : "s"} not filmed` : " · every slide filmed"}</span>
           <button type="button" style={btn()} disabled={!takes.length || !!recording}
