@@ -50,9 +50,20 @@ export function VideoDesk({ record, onChange }: { record: StitchRecord; onChange
       setWork({ note: outro ? "✓ trims saved — site and social versions made" : "✓ trims saved", tone: "good" });
     } catch (e) { setWork({ note: e instanceof Error ? e.message : String(e), tone: "bad" }); }
   };
+  // QUEUEING, with something to watch (Lee, 2026-09-15: "Better loading animation for Add to post queue").
+  const [queueing, setQueueing] = useState<null | "adding" | "removing">(null);
+  const [landed, setLanded] = useState(0);
   const toggleQueue = async () => {
-    try { onChange(await queueFilmStitch({ data: { id: record.id, queued: record.status !== "queued" } })); }
-    catch (e) { setWork({ note: e instanceof Error ? e.message : String(e), tone: "bad" }); }
+    const adding = record.status !== "queued";
+    setQueueing(adding ? "adding" : "removing");
+    const started = Date.now();
+    try {
+      const saved = await queueFilmStitch({ data: { id: record.id, queued: adding } });
+      await new Promise((r) => setTimeout(r, Math.max(0, 650 - (Date.now() - started)))); // long enough to see it fly
+      onChange(saved);
+      if (adding) setLanded((n) => n + 1);
+    } catch (e) { setWork({ note: e instanceof Error ? e.message : String(e), tone: "bad" }); }
+    finally { setQueueing(null); }
   };
 
   const btn = (strong = false, tone: string = ROOM.gold): React.CSSProperties => ({ font: "inherit", fontSize: 12, fontWeight: 800, padding: "6px 11px", borderRadius: 8, cursor: "pointer", border: `1px solid ${strong ? tone : ROOM.edge}`, background: strong ? tone : "transparent", color: strong ? "#14213D" : ROOM.cream, whiteSpace: "nowrap" });
@@ -125,9 +136,16 @@ export function VideoDesk({ record, onChange }: { record: StitchRecord; onChange
           <button type="button" style={btn()} disabled={!record.socialUrl} onClick={() => record.socialUrl && void downloadVideo(record.socialUrl, record.name, true)}>⬇ Download social</button>
           <span style={{ flex: 1 }} />
           {record.status !== "posted" && (
-            <button type="button" style={btn(record.status !== "queued")} disabled={busy} onClick={() => void toggleQueue()}
+            <button type="button" disabled={busy || !!queueing} onClick={() => void toggleQueue()}
+              className={queueing === "adding" ? "sa-q-going" : landed && record.status === "queued" ? "sa-q-landed" : undefined}
+              key={`q-${landed}`}
+              style={{ ...btn(record.status !== "queued" && !queueing), position: "relative", overflow: "hidden", minWidth: 190, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                ...(record.status === "queued" && !queueing ? { color: ROOM.mint, borderColor: `${ROOM.mint}88` } : {}) }}
               title={dirty ? "Save the trims first, or it posts the last saved version" : undefined}>
-              {record.status === "queued" ? "Take out of the post queue" : "Queue to post →"}
+              <style>{QUEUE_CSS}</style>
+              {queueing === "adding" && <><span className="sa-q-bar" /><span className="sa-q-card" aria-hidden /> Adding to the queue…</>}
+              {queueing === "removing" && <><span className="sa-q-spin" aria-hidden /> Taking it out…</>}
+              {!queueing && (record.status === "queued" ? <>✓ In the post queue <span style={{ color: ROOM.muted, fontWeight: 600 }}>· remove</span></> : "Queue to post →")}
             </button>
           )}
         </div>
@@ -135,3 +153,15 @@ export function VideoDesk({ record, onChange }: { record: StitchRecord; onChange
     </div>
   );
 }
+
+const QUEUE_CSS = `
+@keyframes sa-q-bar { from { transform: translateX(-100%) } to { transform: translateX(100%) } }
+.sa-q-bar { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(252,163,17,0.35), transparent); animation: sa-q-bar 700ms ease-in-out infinite; pointer-events: none; }
+@keyframes sa-q-card { 0% { transform: translate(0, 0) scale(1) rotate(0); opacity: 1 } 70% { transform: translate(26px, -14px) scale(0.7) rotate(12deg); opacity: 1 } 100% { transform: translate(34px, -18px) scale(0.5) rotate(16deg); opacity: 0 } }
+.sa-q-card { width: 10px; height: 14px; border-radius: 2px; background: #FCA311; box-shadow: 0 0 10px rgba(252,163,17,0.8); animation: sa-q-card 650ms cubic-bezier(0.3, 0.7, 0.4, 1) infinite; }
+@keyframes sa-q-spin { to { transform: rotate(360deg) } }
+.sa-q-spin { width: 12px; height: 12px; border-radius: 999px; border: 2px solid currentColor; border-top-color: transparent; animation: sa-q-spin 700ms linear infinite; }
+@keyframes sa-q-land { 0% { transform: scale(0.94); box-shadow: 0 0 0 0 rgba(59,245,160,0.7) } 60% { transform: scale(1.04); box-shadow: 0 0 0 10px rgba(59,245,160,0) } 100% { transform: scale(1); box-shadow: none } }
+.sa-q-landed { animation: sa-q-land 520ms cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+@media (prefers-reduced-motion: reduce) { .sa-q-bar, .sa-q-card, .sa-q-landed { animation: none; } }
+`;

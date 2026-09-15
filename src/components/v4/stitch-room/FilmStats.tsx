@@ -1,20 +1,42 @@
 // STATS AND THE LEDGER — pay per filmed slide. Lee, 2026-09-15: "videos completed today, this week, this month,
 // all time … If I click one, it can show the today by default … if I click 'View ledger', it can show a log of
 // each video, # of slides, pay amount, with a total at bottom."
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { clock, ledgerRows, money, videoTitle, PERIOD_LABEL, PERIODS, PAY_PER_SLIDE_CENTS, inPeriod, statsFor, type Period, type StitchRecord } from "@/lib/film-stitch";
 
 import { ROOM } from "./room-theme";
 
-export function FilmStats({ records, onOpen }: { records: readonly StitchRecord[]; onOpen?: (r: StitchRecord) => void }) {
+/** THE RATE PICKER (Lee, 2026-09-15: "$0.25, $0.50, $1, $1.50, $2, $2.50, $5, $10 a slide picker from stats &
+ *  ledger will help me explore options"). A what-if over the same slides — nothing saved changes. */
+export const RATE_OPTIONS_CENTS = [25, 50, 100, 150, 200, 250, 500, 1000] as const;
+const RATE_KEY = "sa-film-rate-explore";
+
+export function FilmStats({ records: saved, onOpen }: { records: readonly StitchRecord[]; onOpen?: (r: StitchRecord) => void }) {
   const [period, setPeriod] = useState<Period>("today");
   const [ledger, setLedger] = useState(false);
+  const [rate, setRate] = useState<number>(PAY_PER_SLIDE_CENTS);
+  useEffect(() => { try { const v = Number(localStorage.getItem(RATE_KEY)); if (RATE_OPTIONS_CENTS.includes(v as never)) setRate(v); } catch { /* the default rate */ } }, []);
+  const pick = (c: number) => { setRate(c); try { localStorage.setItem(RATE_KEY, String(c)); } catch { /* this visit only */ } };
+  const records = useMemo(() => saved.map((r) => ({ ...r, rateCents: rate, payCents: r.slides * rate })), [saved, rate]);
   const s = statsFor(records, period);
   const rows = ledgerRows(records.filter((r) => inPeriod(r, period)));
   const total = rows.reduce((n, r) => n + r.payCents, 0);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, color: ROOM.cream, fontFamily: ROOM.font }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, color: ROOM.muted, fontWeight: 700, marginRight: 4 }}>Pay per slide</span>
+        {RATE_OPTIONS_CENTS.map((c) => {
+          const on = c === rate;
+          return (
+            <button key={c} type="button" aria-pressed={on} onClick={() => pick(c)}
+              style={{ font: "inherit", fontSize: 12.5, fontWeight: 800, padding: "4px 10px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? ROOM.mint : ROOM.edge}`, background: on ? "rgba(59,245,160,0.14)" : "transparent", color: on ? ROOM.mint : ROOM.cream, fontVariantNumeric: "tabular-nums" }}>
+              {money(c)}
+            </button>
+          );
+        })}
+        {rate !== PAY_PER_SLIDE_CENTS && <span style={{ fontSize: 11.5, color: ROOM.muted }}>what-if · the saved rate is {money(PAY_PER_SLIDE_CENTS)}</span>}
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 }}>
         {PERIODS.map((p) => {
           const x = statsFor(records, p);
@@ -33,7 +55,7 @@ export function FilmStats({ records, onOpen }: { records: readonly StitchRecord[
         <div style={{ fontSize: 13, color: ROOM.muted }}>{PERIOD_LABEL[period]}</div>
         <div><b style={{ fontSize: 20 }}>{s.videos}</b> <span style={{ color: ROOM.muted }}>videos</span></div>
         <div><b style={{ fontSize: 20 }}>{s.slides}</b> <span style={{ color: ROOM.muted }}>slides filmed</span></div>
-        <div><b style={{ fontSize: 20, color: ROOM.mint }}>{money(s.payCents)}</b> <span style={{ color: ROOM.muted }}>at {money(PAY_PER_SLIDE_CENTS)} a slide</span></div>
+        <div><b style={{ fontSize: 20, color: ROOM.mint }}>{money(s.payCents)}</b> <span style={{ color: ROOM.muted }}>at {money(rate)} a slide{s.videos ? ` · ${money(Math.round(s.payCents / s.videos))} a video` : ""}</span></div>
         <span style={{ flex: 1 }} />
         <button type="button" onClick={() => setLedger((v) => !v)} style={{ font: "inherit", fontSize: 12, fontWeight: 800, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: `1px solid ${ROOM.gold}`, background: ledger ? ROOM.gold : "transparent", color: ledger ? "#14213D" : ROOM.gold }}>
           {ledger ? "Hide ledger" : "View ledger"}
