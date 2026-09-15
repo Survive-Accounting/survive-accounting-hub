@@ -83,6 +83,12 @@ function keyOf(word: string): RubricKey | null {
 export function arrowsFromAnswer(text: string): RubricArrows | null {
   const t = norm(text).toLowerCase();
   const out = emptyArrows();
+  // ONE ASSET FOR ANOTHER (2026-09-15): his own wording, Assets ↑ ↓, so no effect — both arrows on Assets,
+  // which is what he draws, rather than NE across the row.
+  if (/assets?\s*↑\s*↓|one asset\s*↑\s*and another asset\s*↓/.test(t)) {
+    out.A = ["up", "down"];
+    return out;
+  }
   if (/\bno (?:part|effect|change)\b|nothing changes/.test(t)) {
     out.A = ["ne"]; out.L = ["ne"]; out.E = ["ne"];
     return out;
@@ -109,13 +115,15 @@ export function rubricFromCard(card: AleCard): RubricSpec {
   };
 }
 
-/** The slides a convert would turn: live (not skipped) set-card slides whose card is an A = L + E
- *  question and has no rubric slide yet. Idempotent by construction. */
+/** The slides a convert would turn: live (not skipped) set-card slides whose card is an A = L + E question.
+ *  Idempotent: a converted MCQ slide is skipped, and skipped slides are never candidates. A card filmed twice
+ *  (a speed run and its group) converts BOTH slides — Lee, 2026-09-15: "change all of the slides with the CEQ's
+ *  for A = L + E to take the scenario / stem and show it with the rubric underneath instead". */
 export function aleCandidates(frames: readonly BlastFrame[], cards: readonly AleCard[]): BlastFrame[] {
   const byId = new Map(cards.map((c) => [c.id, c]));
-  const done = new Set(frames.filter((f) => f.kind === "rubric" && f.ceqId).map((f) => f.ceqId as string));
+  const nextIsRubric = new Set(frames.filter((f, i) => f.kind === "ceq" && frames[i + 1]?.kind === "rubric" && frames[i + 1]?.ceqId === f.ceqId).map((f) => f.id));
   return frames.filter((f) => {
-    if (f.kind !== "ceq" || f.skipped || !f.ceqId || done.has(f.ceqId)) return false;
+    if (f.kind !== "ceq" || f.skipped || !f.ceqId || nextIsRubric.has(f.id)) return false;
     const c = byId.get(f.ceqId);
     return !!c && !c.noteOnly && isAleStem(c.stem);
   });
