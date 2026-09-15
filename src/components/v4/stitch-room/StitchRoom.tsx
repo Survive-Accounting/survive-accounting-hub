@@ -26,7 +26,25 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["film-stitches"], queryFn: () => listFilmStitches(), staleTime: 10_000, retry: false });
   const records = q.data ?? [];
-  const [jobs, setJobs] = useState<StitchJob[]>([]);
+  // EVERY FILM WINDOW'S JOBS, kept apart (one window's empty list never wipes another's), newest word per video.
+  const [byTab, setByTab] = useState<Record<string, { at: number; jobs: StitchJob[] }>>({});
+  const [clockTick, setClockTick] = useState(0);
+  useEffect(() => { const t = window.setInterval(() => setClockTick((n) => n + 1), 4000); return () => window.clearInterval(t); }, []);
+  const jobs = useMemo(() => {
+    const now = Date.now();
+    const best = new Map<string, StitchJob & { _at: number }>();
+    for (const { at, jobs: list } of Object.values(byTab)) {
+      const gone = now - at > 12_000;
+      for (const j of list) {
+        // a film window that went quiet mid-stitch was closed or reloaded: that stitch stopped
+        const job = gone && j.state !== "done" && j.state !== "error" ? { ...j, state: "error" as const, error: "The film tab closed before this finished — stitch it again from punch-in.", note: "stopped" } : j;
+        const prev = best.get(j.key);
+        if (!prev || at >= prev._at) best.set(j.key, { ...job, _at: at });
+      }
+    }
+    return [...best.values()].sort((a, b) => a.queuedAt - b.queuedAt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [byTab, clockTick]);
   const [heard, setHeard] = useState(false);
   const [sel, setSel] = useState<string | null>(initialKey ?? null);
   const [tab, setTab] = useState<Tab>("videos");
@@ -40,7 +58,7 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
     const ch = new BroadcastChannel(STITCH_CHANNEL);
     ch.onmessage = (e: MessageEvent<StitchMessage>) => {
       const m = e.data;
-      if (m?.type === "state") { setJobs(m.jobs); setHeard(true); }
+      if (m?.type === "state") { setByTab((s) => ({ ...s, [m.tab ?? "legacy"]: { at: m.at ?? Date.now(), jobs: m.jobs } })); setHeard(true); }
       if (m?.type === "focus") { setSel(m.key); setTab("videos"); }
       if (m?.type === "saved") void qc.invalidateQueries({ queryKey: ["film-stitches"] });
     };
@@ -143,7 +161,32 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
         <main style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: 20 }}>
           {tab === "videos" && (
             <>
-              {showBuild && job && <StitchBuild job={{ ...job, name: nameFor(job) }} animate={anim} />}
+              {/* IN LINE (Lee, 2026-09-15: "showing each in a line"): every stitch still going, one row each */}
+              {jobs.filter((j) => j.state !== "done" && j.state !== "error").length > 1 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+                  <div style={{ fontSize: 10.5, letterSpacing: "0.14em", fontWeight: 800, color: ROOM.gold }}>IN LINE · {jobs.filter((j) => j.state !== "done" && j.state !== "error").length}</div>
+                  {jobs.filter((j) => j.state !== "done" && j.state !== "error").map((j, i) => {
+                    const joined = j.segments.filter((s) => s.state === "joined").length;
+                    const sent = j.segments.filter((s) => s.state !== "waiting" && s.state !== "uploading").length;
+                    const frac = j.segments.length ? (sent + joined) / (2 * j.segments.length) : 0;
+                    const on = sel === j.key;
+                    return (
+                      <button key={j.key} type="button" onClick={() => setSel(j.key)}
+                        style={{ all: "unset", cursor: "pointer", display: "grid", gridTemplateColumns: "22px 1fr auto", gap: 10, alignItems: "center", padding: "8px 10px", borderRadius: 10, background: on ? "rgba(252,163,17,0.08)" : ROOM.panel, border: `1px solid ${on ? `${ROOM.gold}88` : ROOM.edge}` }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: ROOM.muted, textAlign: "right" }}>{i + 1}</span>
+                        <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span style={{ fontSize: 13, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{titleFor(j)}</span>
+                          <span style={{ height: 4, borderRadius: 4, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+                            <span style={{ display: "block", height: "100%", width: `${Math.round(frac * 100)}%`, background: j.state === "waiting" ? ROOM.muted : ROOM.sky, transition: "width 500ms" }} />
+                          </span>
+                        </span>
+                        <span style={{ fontSize: 11.5, color: j.state === "waiting" ? ROOM.muted : ROOM.sky, whiteSpace: "nowrap" }}>{j.state === "waiting" ? "waiting its turn" : j.note}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {showBuild && job &&<StitchBuild job={{ ...job, name: nameFor(job) }} animate={anim} />}
               {!showBuild && record && <VideoDesk record={record} onChange={(r) => upsert(r)}
                 onDeleted={(r) => { qc.setQueryData<StitchRecord[]>(["film-stitches"], (old) => (old ?? []).filter((x) => x.id !== r.id)); setSel(null); }} />}
               {!showBuild && !record && <div style={{ color: ROOM.muted, fontSize: 14 }}>{records.length || jobs.length ? "Pick a video on the left." : "No stitched videos yet. In punch-in, press ⚡ Stitch — it opens here."}</div>}

@@ -50,7 +50,7 @@ export interface StitchInput {
 
 export type StitchMessage =
   | { type: "hello" }
-  | { type: "state"; jobs: StitchJob[] }
+  | { type: "state"; tab: string; at: number; jobs: StitchJob[] }
   | { type: "focus"; key: string }
   | { type: "saved"; record: StitchRecord };
 
@@ -62,6 +62,9 @@ const uploaded = new Map<string, string>();
 let running = false;
 let channel: BroadcastChannel | null = null;
 let snapshot: StitchJob[] = [];
+/** THIS WINDOW, so the Stitch Room can tell film windows apart (one with nothing stitching must not wipe another's). */
+const TAB = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `tab-${Math.random().toString(36).slice(2)}`;
+let beat: ReturnType<typeof setInterval> | null = null;
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -69,7 +72,7 @@ function chan(): BroadcastChannel | null {
   if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return null;
   if (!channel) {
     channel = new BroadcastChannel(STITCH_CHANNEL);
-    channel.onmessage = (e: MessageEvent<StitchMessage>) => { if (e.data?.type === "hello") broadcast(); };
+    channel.onmessage = (e: MessageEvent<StitchMessage>) => { if (e.data?.type === "hello" && jobs.size) broadcast(); };
     window.addEventListener("beforeunload", (e) => {
       if (![...jobs.values()].some((j) => j.state !== "done" && j.state !== "error")) return;
       e.preventDefault();
@@ -81,8 +84,12 @@ function chan(): BroadcastChannel | null {
 
 function broadcast() {
   snapshot = [...jobs.values()].sort((a, b) => a.queuedAt - b.queuedAt);
-  chan()?.postMessage({ type: "state", jobs: snapshot } satisfies StitchMessage);
+  chan()?.postMessage({ type: "state", tab: TAB, at: Date.now(), jobs: snapshot } satisfies StitchMessage);
   for (const l of listeners) l();
+  // a heartbeat while anything is still going, so the room knows this window is alive
+  const going = snapshot.some((j) => j.state !== "done" && j.state !== "error");
+  if (going && !beat) beat = setInterval(() => chan()?.postMessage({ type: "state", tab: TAB, at: Date.now(), jobs: snapshot } satisfies StitchMessage), 3000);
+  if (!going && beat) { clearInterval(beat); beat = null; }
 }
 
 function patch(key: string, p: Partial<StitchJob> | ((j: StitchJob) => Partial<StitchJob>)) {
