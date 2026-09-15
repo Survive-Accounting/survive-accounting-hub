@@ -156,7 +156,9 @@ export function startIndexOf(frames: readonly { id: string }[], startFrameId: st
   return k < 0 ? 0 : k;
 }
 
-export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take: takeParam, startFrameId }: {
+export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take: takeParam, startFrameId, skipOutro = false }: {
+  /** v4: the outro isn't filmed — the walk ends on the last real slide. */
+  skipOutro?: boolean;
   set: BoothSetInfo; topicName?: string; onExit: () => void;
   /** The V3 breadcrumb (Lee, 2026-09-07: "Show navigation breadcrumbs on /film") — drawn small,
    *  top-left, only with the chrome and only in the main window, so it never films. */
@@ -205,7 +207,11 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
   const takeInfo = takeSel != null ? takes[takeSel] : undefined;
   /** ?take=N named a split the plan does not have — film the whole set, and say so in the chrome. */
   const takeMissing = takeSel != null && !takeInfo;
-  const frames = takeInfo ? takeInfo.frames : all;
+  // NO OUTRO ON FILM (v4, Lee 2026-09-15: "just don't let me get to the outro at all. For outro, we will be reusing
+  // same one to append to each social video"). Cut AFTER the takes are planned — the outro carries the cut —
+  // so the splits number the same; only the walk loses it. Both windows share the route, so both agree.
+  const walk = useCallback((fs: BlastFrame[]) => (skipOutro ? fs.filter((f) => f.kind !== "outro") : fs), [skipOutro]);
+  const frames = useMemo(() => walk(takeInfo ? takeInfo.frames : all), [walk, takeInfo, all]);
   const n = frames.length;
   // LIVE SLIDES: when the plan changes under an open window (another window saved), stay on the
   // slide that was up — found by id — rather than on whatever now sits at the old position.
@@ -256,13 +262,13 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
       const t = takes.find((x) => x.frames.some((f) => f.id === id));
       if (!t) return;
       if (takeSel != null && t.index !== takeSel) goSplit(t.index, false);
-      const list = takeSel != null ? t.frames : all;
+      const list = walk(takeSel != null ? t.frames : all);
       const k = list.findIndex((f) => f.id === id);
       if (k >= 0) { onId.current = id; setI(k); }
     };
     window.addEventListener("storage", on);
     return () => window.removeEventListener("storage", on);
-  }, [set.id, takes, takeSel, all, goSplit]);
+  }, [set.id, takes, takeSel, all, goSplit, walk]);
   // FILM FROM HERE (2026-09-10, startIndexOf above). The plan arrives after mount, so `i` cannot
   // be seeded in useState — it is seeded ONCE, the first render that has a plan, and set DURING
   // that render (React re-renders before committing, so no paint and no effect — in particular

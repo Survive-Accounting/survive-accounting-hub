@@ -36,7 +36,7 @@ function V4Shoot() {
   ];
   if (set && topic) {
     const exit = () => void navigate({ to: "/v4/$topic/$set/$step", params: { topic: topicKey, set: setKey, step: "film" } });
-    return <BlastOffCapture set={set} topicName={topic.name} onExit={exit} crumbs={crumbs} topLinks={<FilmTopLinks />} take={take ?? 0} startFrameId={frame} />;
+    return <BlastOffCapture set={set} topicName={topic.name} onExit={exit} crumbs={crumbs} topLinks={<FilmTopLinks />} skipOutro take={take ?? 0} startFrameId={frame} />;
   }
   return (
     <V3Shell crumbs={crumbs}>
