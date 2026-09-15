@@ -49,8 +49,10 @@ html.gm .lk-short[data-gm-card] {
   transition: transform 110ms ease-out, filter 220ms ease, box-shadow 220ms ease;
   box-shadow: 0 12px 30px -14px rgba(0,0,0,.85);
 }
-html.gm .lk-short[data-gm-card] img { filter: brightness(.42) saturate(1.2) blur(1.2px); transform: scale(1.1) translate(var(--gm-px, 0px), var(--gm-py, 0px)); transition: transform 110ms ease-out, filter 220ms ease; }
-html.gm .lk-short[data-gm-card]:hover img { filter: brightness(.6) saturate(1.3) blur(.4px); }
+html.gm .lk-short[data-gm-card] img { filter: brightness(.3) saturate(1.2) blur(3px); transform: scale(1.1) translate(var(--gm-px, 0px), var(--gm-py, 0px)); transition: transform 110ms ease-out, filter 220ms ease; }
+html.gm .lk-short[data-gm-card]:hover img { filter: brightness(.45) saturate(1.3) blur(2px); }
+/* Playing: the title lifts to a nameplate at the top so the video shows through. */
+html.gm .lk-short[data-gm-card][data-live="true"]::before { top: 8px; left: 8px; right: 8px; padding: 6px 8px; border-radius: 8px; font-size: 13px; background: rgba(6,12,28,.78); box-shadow: 0 0 0 1px rgba(140,210,255,.55), 0 0 14px rgba(80,170,255,.45); }
 html.gm .lk-short[data-gm-card] .lk-short-t { display: none; }
 html.gm .lk-short[data-gm-card]::before {
   content: attr(data-gm-title); position: absolute; left: 9px; right: 9px; top: 30%; z-index: 3; pointer-events: none;
@@ -96,7 +98,8 @@ export function GamerLayer() {
     const draw = (paths: { d: string; w: number; o: number }[]) => {
       const s = svg.current; if (!s) return;
       const g = s.querySelector("g[data-strands]"); if (!g) return;
-      g.innerHTML = paths.map((p) => `<path d="${p.d}" stroke="#E8F7FF" stroke-width="${p.w}" stroke-opacity="${p.o}" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#gm-glow)"/>`).join("");
+      // Two passes per strand: a wide blue halo, then the white-hot core.
+      g.innerHTML = paths.map((p) => `<path d="${p.d}" stroke="#58B8FF" stroke-width="${p.w * 3.2}" stroke-opacity="${p.o * 0.45}" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#gm-glow)"/><path d="${p.d}" stroke="#F4FBFF" stroke-width="${p.w}" stroke-opacity="${p.o}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`).join("");
     };
     const clear = () => draw([]);
 
@@ -111,11 +114,11 @@ export function GamerLayer() {
         if (i === frames.length - 1) { clear(); bolt.classList.remove("gm-firing"); return; }
         const f = center(bolt); const dest = strikePoint(f, cta.getBoundingClientRect());
         const main = boltPath(f, dest, 0.24, 5);
-        const strands = [{ d: toPathD(main), w: i % 2 ? 2.2 : 3.4, o: i === 3 ? 0.35 : 1 }];
+        const strands = [{ d: toPathD(main), w: i % 2 ? 3 : 4.6, o: i === 3 ? 0.35 : 1 }];
         for (let k = 0; k < 2; k++) {
           const at = main[Math.floor(main.length * (0.25 + Math.random() * 0.5))];
           const end = { x: at.x + (Math.random() - 0.5) * 120, y: at.y + (Math.random() - 0.2) * 90 };
-          strands.push({ d: toPathD(boltPath(at, end, 0.3, 3)), w: 1.2, o: 0.7 });
+          strands.push({ d: toPathD(boltPath(at, end, 0.3, 3)), w: 1.8, o: 0.8 });
         }
         draw(strands);
         if (i === 1) { cta.classList.remove("gm-hit"); void (cta as HTMLElement).offsetWidth; cta.classList.add("gm-hit"); later(() => cta.classList.remove("gm-hit"), 450); }
@@ -159,7 +162,7 @@ export function GamerLayer() {
             const p = side === 0 ? { x: r.left + Math.random() * r.width, y: r.top } : side === 1 ? { x: r.right, y: r.top + Math.random() * r.height } : side === 2 ? { x: r.left + Math.random() * r.width, y: r.bottom } : { x: r.left, y: r.top + Math.random() * r.height };
             const ang = Math.atan2(p.y - (r.top + r.height / 2), p.x - (r.left + r.width / 2)) + (Math.random() - 0.5);
             const len = 14 + Math.random() * 30;
-            arcs.push({ d: toPathD(boltPath(p, { x: p.x + Math.cos(ang) * len, y: p.y + Math.sin(ang) * len }, 0.5, 3)), w: 1.4, o: 0.9 });
+            arcs.push({ d: toPathD(boltPath(p, { x: p.x + Math.cos(ang) * len, y: p.y + Math.sin(ang) * len }, 0.5, 3)), w: 1.8, o: 0.95 });
           }
           draw(arcs);
         }, 70);
