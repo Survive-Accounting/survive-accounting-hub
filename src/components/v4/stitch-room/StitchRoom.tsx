@@ -19,6 +19,7 @@ import { readAnimOn, ROOM, writeAnimOn } from "./room-theme";
 import { StitchBuild } from "./StitchBuild";
 import { VideoDesk } from "./VideoDesk";
 import { openDemoLens } from "../DemoLens";
+import { redoInFilm } from "../../blastoff/capture/film-nav";
 
 type Tab = "videos" | "queue" | "stats";
 
@@ -28,6 +29,8 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
   const records = q.data ?? [];
   // EVERY FILM WINDOW'S JOBS, kept apart (one window's empty list never wipes another's), newest word per video.
   const [byTab, setByTab] = useState<Record<string, { at: number; jobs: StitchJob[] }>>({});
+  /** Stopped stitches cleared from this window (the film tab that owned them may be gone). */
+  const [cleared, setCleared] = useState<string[]>([]);
   const [clockTick, setClockTick] = useState(0);
   useEffect(() => { const t = window.setInterval(() => setClockTick((n) => n + 1), 4000); return () => window.clearInterval(t); }, []);
   const jobs = useMemo(() => {
@@ -42,9 +45,9 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
         if (!prev || at >= prev._at) best.set(j.key, { ...job, _at: at });
       }
     }
-    return [...best.values()].sort((a, b) => a.queuedAt - b.queuedAt);
+    return [...best.values()].filter((j) => !cleared.includes(j.key)).sort((a, b) => a.queuedAt - b.queuedAt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [byTab, clockTick]);
+  }, [byTab, clockTick, cleared]);
   const [heard, setHeard] = useState(false);
   const [sel, setSel] = useState<string | null>(initialKey ?? null);
   const [tab, setTab] = useState<Tab>("videos");
@@ -187,6 +190,19 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
                 </div>
               )}
               {showBuild && job &&<StitchBuild job={{ ...job, name: nameFor(job) }} animate={anim} />}
+              {job && job.state === "error" && (
+                <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+                  <button type="button" onClick={() => { if (job.topicKey && job.setKey) redoInFilm({ topicKey: job.topicKey, setKey: job.setKey, setId: job.setId, takeIndex: job.takeIndex }); }}
+                    disabled={!job.topicKey || !job.setKey}
+                    style={{ font: "inherit", fontSize: 13, fontWeight: 800, padding: "9px 14px", borderRadius: 9, cursor: "pointer", border: `1px solid ${ROOM.gold}`, background: ROOM.gold, color: "#14213D" }}>
+                    ↺ Stitch it again in film
+                  </button>
+                  <button type="button" onClick={() => { setCleared((c) => [...c, job.key]); setSel(null); }}
+                    style={{ font: "inherit", fontSize: 13, fontWeight: 800, padding: "9px 14px", borderRadius: 9, cursor: "pointer", border: `1px solid ${ROOM.edge}`, background: "transparent", color: ROOM.muted }}>
+                    Clear it from the list
+                  </button>
+                </div>
+              )}
               {!showBuild && record && <VideoDesk record={record} onChange={(r) => upsert(r)}
                 onDeleted={(r) => { qc.setQueryData<StitchRecord[]>(["film-stitches"], (old) => (old ?? []).filter((x) => x.id !== r.id)); setSel(null); }} />}
               {!showBuild && !record && <div style={{ color: ROOM.muted, fontSize: 14 }}>{records.length || jobs.length ? "Pick a video on the left." : "No stitched videos yet. In punch-in, press ⚡ Stitch — it opens here."}</div>}

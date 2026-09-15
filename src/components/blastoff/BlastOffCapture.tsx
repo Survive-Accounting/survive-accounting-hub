@@ -57,7 +57,7 @@
 // pop-out copies the URL, the pop-out too. Nothing else moved: F4 still never moves the slide, C
 // still counts in from slide 0, and the rounds' "from slide 1" is still slide 1.
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
@@ -88,6 +88,7 @@ import { ScrapLight } from "./capture/ScrapLight";
 import { useTakeLog } from "./capture/take-log";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { FILM_NAV_KEY, FILM_REDO_KEY, obsCheckDone, obsCheckDue, parsePlace, writeFilmAlive, writeFilmNav } from "./capture/film-nav";
+import { stitchingNow, subscribeStitches } from "./capture/stitch-queue";
 import { filmPopoutHref, isPopoutSearch } from "./capture/popout";
 import { track } from "@/lib/analytics";
 import { camDefault, layoutOf } from "./layout";
@@ -293,6 +294,10 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
     window.addEventListener("storage", on);
     return () => window.removeEventListener("storage", on);
   }, [inPopout, goSplit, navigate]);
+  // DON'T CLOSE THIS TAB (2026-09-15): while a stitch is running in this window, a red badge says so — the
+  // browser's own "leave site?" is easy to click past, and closing the tab stops the stitch.
+  const stitching = useSyncExternalStore(subscribeStitches, stitchingNow, () => 0);
+
   // THE OBS CHECK, in the pop-out as it opens: "Doublecheck! Is window capture in OBS correct?"
   const [obsCheck, setObsCheck] = useState(false);
   useEffect(() => { if (inPopout) setObsCheck(obsCheckDue()); }, [inPopout]);
@@ -967,6 +972,12 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
         </div>
       )}
       <CaptureArrows hostRef={hostRef} frameId={frame.id} />
+      {!popout.isPopout && chrome && stitching > 0 && (
+        <div role="status" style={{ position: "fixed", left: 12, bottom: 12, zIndex: 45, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 999,
+          background: "rgba(255,122,107,0.14)", border: "1px solid #FF7A6B", color: "#FF7A6B", fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap" }}>
+          ⚡ Stitching {stitching} video{stitching === 1 ? "" : "s"} — keep this tab open
+        </div>
+      )}
       {obsCheck && (
         <div role="dialog" aria-label="Check OBS" style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(3,6,14,0.92)", display: "grid", placeItems: "center", padding: 24, fontFamily: "'Rubik', system-ui, sans-serif" }}>
           <div style={{ maxWidth: 420, display: "flex", flexDirection: "column", gap: 16, textAlign: "center", color: CREAM }}>

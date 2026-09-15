@@ -74,7 +74,7 @@ function chan(): BroadcastChannel | null {
     channel = new BroadcastChannel(STITCH_CHANNEL);
     channel.onmessage = (e: MessageEvent<StitchMessage>) => { if (e.data?.type === "hello" && jobs.size) broadcast(); };
     window.addEventListener("beforeunload", (e) => {
-      if (![...jobs.values()].some((j) => j.state !== "done" && j.state !== "error")) return;
+      if (!stitchingNow()) return;
       e.preventDefault();
       e.returnValue = "A video is still stitching — leaving stops it.";
     });
@@ -82,10 +82,25 @@ function chan(): BroadcastChannel | null {
   return channel;
 }
 
+export const stitchingNow = (): number => [...jobs.values()].filter((j) => j.state !== "done" && j.state !== "error").length;
+
+/** THE TAB ITSELF WARNS (Lee, 2026-09-15: "I accidentally closed film tab"): its name says a stitch is running. */
+let titleWas: string | null = null;
+function markTitle() {
+  if (typeof document === "undefined") return;
+  const n = stitchingNow();
+  if (n > 0) {
+    if (titleWas == null) titleWas = document.title;
+    const t = `⚡ STITCHING ${n} — keep open`;
+    if (document.title !== t) document.title = t;
+  } else if (titleWas != null) { document.title = titleWas; titleWas = null; }
+}
+
 function broadcast() {
   snapshot = [...jobs.values()].sort((a, b) => a.queuedAt - b.queuedAt);
   chan()?.postMessage({ type: "state", tab: TAB, at: Date.now(), jobs: snapshot } satisfies StitchMessage);
   for (const l of listeners) l();
+  markTitle();
   // a heartbeat while anything is still going, so the room knows this window is alive
   const going = snapshot.some((j) => j.state !== "done" && j.state !== "error");
   if (going && !beat) beat = setInterval(() => chan()?.postMessage({ type: "state", tab: TAB, at: Date.now(), jobs: snapshot } satisfies StitchMessage), 3000);
