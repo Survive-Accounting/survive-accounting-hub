@@ -26,6 +26,8 @@ const CSS = `
 @keyframes gm-idle { 0%, 100% { filter: drop-shadow(0 0 4px rgba(120,200,255,.45)); } 50% { filter: drop-shadow(0 0 10px rgba(140,215,255,.85)); } }
 
 html.gm [data-gm-bolt] { animation: gm-idle 2.8s ease-in-out infinite; }
+/* Home doors in gamer mode: taller icon envelope, more air between the bolt and the school picker. */
+html.gm .sa-home-door-icon { height: 138px !important; padding-bottom: 18px; }
 html.gm [data-gm-bolt].gm-firing { animation: gm-zap 700ms ease-out; }
 
 html.gm .gm-charged { position: relative; isolation: isolate; animation: gm-glow 2.4s ease-in-out infinite; }
@@ -99,17 +101,48 @@ export function GamerLayer() {
       const s = svg.current; if (!s) return;
       const g = s.querySelector("g[data-strands]"); if (!g) return;
       // Two passes per strand: a wide blue halo, then the white-hot core.
+      shield(s);
       g.innerHTML = paths.map((p) => `<path d="${p.d}" stroke="#58B8FF" stroke-width="${p.w * 3.2}" stroke-opacity="${p.o * 0.45}" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#gm-glow)"/><path d="${p.d}" stroke="#F4FBFF" stroke-width="${p.w}" stroke-opacity="${p.o}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`).join("");
     };
     const clear = () => draw([]);
+    // Cut holes in the lightning wherever a shield sits, so the bolt reads as running behind it.
+    function shield(s: SVGSVGElement) {
+      const holes = s.querySelector("g[data-holes]"); if (!holes) return;
+      holes.innerHTML = [...document.querySelectorAll("[data-gm-shield]")].map((slot) => {
+        const el = slot.firstElementChild ?? slot; const r = el.getBoundingClientRect();
+        if (!r.width || !r.height) return "";
+        return `<rect x="${(r.left - 6).toFixed(1)}" y="${(r.top - 5).toFixed(1)}" width="${(r.width + 12).toFixed(1)}" height="${(r.height + 10).toFixed(1)}" rx="${((r.height + 10) / 2).toFixed(1)}" fill="#000"/>`;
+      }).join("");
+    }
+    // THE CURRENT: once a wired button (data-gm-wire) has been struck, a thin live arc keeps running
+    // from its bolt to it. Redrawn a few times a second so it flickers and follows scroll.
+    const wired = new Set<Element>();
+    const current = window.setInterval(() => {
+      const s = svg.current; if (!s || reduced) return;
+      const g = s.querySelector("g[data-current]"); if (!g) return;
+      shield(s);
+      let out = "";
+      for (const cta of wired) {
+        if (!cta.isConnected) { wired.delete(cta); continue; }
+        const bolt = boltFor(cta); if (!bolt || !visible(cta) || !visible(bolt)) continue;
+        const b = bolt.getBoundingClientRect();
+        const from = { x: b.left + b.width / 2, y: b.bottom - 4 };
+        const to = strikePoint(from, cta.getBoundingClientRect());
+        const hot = cta.matches(":hover");
+        const d = toPathD(boltPath(from, to, hot ? 0.34 : 0.2, 4));
+        out += `<path d="${d}" stroke="#58B8FF" stroke-width="${hot ? 7 : 4.5}" stroke-opacity="${hot ? 0.5 : 0.28}" fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#gm-glow)"/><path d="${d}" stroke="#EAF7FF" stroke-width="${hot ? 2.2 : 1.3}" stroke-opacity="${hot ? 1 : 0.7}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+      }
+      g.innerHTML = out;
+    }, 90);
 
     const strike = (bolt: Element, cta: Element) => {
       const from = center(bolt);
       const to = strikePoint(from, cta.getBoundingClientRect());
       cta.classList.add("gm-charged");
       if (reduced) return;
+      if (cta.hasAttribute("data-gm-wire")) later(() => wired.add(cta), 200);
       bolt.classList.add("gm-firing");
-      const frames = [0, 50, 100, 150, 230, 290, 360];
+      const frames = [0, 35, 70, 110, 160, 210];
       frames.forEach((t, i) => later(() => {
         if (i === frames.length - 1) { clear(); bolt.classList.remove("gm-firing"); return; }
         const f = center(bolt); const dest = strikePoint(f, cta.getBoundingClientRect());
@@ -138,7 +171,7 @@ export function GamerLayer() {
         if (!e.isIntersecting || struck.has(e.target)) continue;
         struck.add(e.target);
         const cta = e.target;
-        later(() => { const b = boltFor(cta); if (b) strike(b, cta); else cta.classList.add("gm-charged"); }, 520);
+        later(() => { const b = boltFor(cta); if (b) strike(b, cta); else cta.classList.add("gm-charged"); }, 140);
       }
     }, { threshold: 0.6 });
 
@@ -227,6 +260,7 @@ export function GamerLayer() {
     return () => {
       root.classList.remove("gm");
       mo.disconnect(); io.disconnect();
+      window.clearInterval(current);
       timers.forEach((t) => window.clearTimeout(t));
       if (crackle != null) window.clearInterval(crackle);
       if (scanT != null) window.clearTimeout(scanT);
@@ -251,8 +285,15 @@ export function GamerLayer() {
             <feColorMatrix in="b2" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.7  0 0 0 0 1  0 0 0 1.6 0" result="blue" />
             <feMerge><feMergeNode in="blue" /><feMergeNode in="b1" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
+          <mask id="gm-shield" maskUnits="userSpaceOnUse" x="0" y="0" width="100%" height="100%">
+            <rect x="-50" y="-50" width="10000" height="10000" fill="#fff" />
+            <g data-holes="" />
+          </mask>
         </defs>
-        <g data-strands="" />
+        <g mask="url(#gm-shield)">
+          <g data-current="" />
+          <g data-strands="" />
+        </g>
       </svg>
       <button type="button" onClick={() => setGamerMode(false)} title="Turn gamer mode off"
         style={{ position: "fixed", left: 12, bottom: "calc(58px + env(safe-area-inset-bottom, 0px))", zIndex: 9991, padding: "6px 12px", borderRadius: 999, border: "1px solid rgba(150,220,255,.7)", background: "rgba(8,14,30,.88)", color: "#CFEFFF", font: "800 11px/1 'Rubik', system-ui, sans-serif", letterSpacing: ".12em", cursor: "pointer", boxShadow: "0 0 14px rgba(80,170,255,.45)" }}>

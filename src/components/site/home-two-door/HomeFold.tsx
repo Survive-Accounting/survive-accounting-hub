@@ -175,7 +175,7 @@ export function HomeDoorCard({ icon, switcher, button, support }: {
           while the other does not is normal here (the solo door cycles campuses before you have
           picked one), and a collapsing slot would drop that card's button half a line below its
           neighbour's — the two buttons have to sit on one line to read as two equal choices. */}
-      <div className="grid w-full place-items-center" style={{ minHeight: 30 }}>{switcher}</div>
+      <div className="grid w-full place-items-center" data-gm-shield="" style={{ minHeight: 30 }}>{switcher}</div>
       <div className="mt-4 w-full">{button}</div>
       <div className="sa-door-support mt-3 grid w-full place-items-center" style={{ minHeight: 34, fontFamily: BRAND_SANS }}>{support}</div>
       <div className="flex-1" />
