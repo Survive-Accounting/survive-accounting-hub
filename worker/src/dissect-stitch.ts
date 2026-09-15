@@ -123,11 +123,13 @@ export function dissectStitchArgs(
   files: StagedFile[],
   trims: DissectTrim[],
   outPath: string,
-  o?: { gapsS?: number[]; roomTone?: StagedFile; loudI?: number; jointFadeS?: number; toneBlendS?: number },
+  o?: { gapsS?: number[]; roomTone?: StagedFile; loudI?: number; jointFadeS?: number; toneBlendS?: number; vertical?: boolean },
 ): DissectPlan {
   if (files.length === 0) throw new Error("dissect_stitch: no clips");
   if (trims.length !== files.length) throw new Error("dissect_stitch: trims must match clips");
-  const { width: w, height: h, fps, audioHz: hz } = RENDER;
+  const { fps, audioHz: hz } = RENDER;
+  // 9:16 for the v4 punch-in videos; the canvas lessons keep RENDER's landscape.
+  const w = o?.vertical ? 1080 : RENDER.width, h = o?.vertical ? 1920 : RENDER.height;
   const loudI = o?.loudI ?? DISSECT_DEFAULTS.loudI;
   const fadeS = o?.jointFadeS ?? DISSECT_DEFAULTS.jointFadeS;
   const blendS = o?.toneBlendS ?? DISSECT_DEFAULTS.toneBlendS;
@@ -189,7 +191,9 @@ export function dissectStitchArgs(
     "-filter_complex", parts.join(";"),
     "-map", vOut, "-map", aOut,
     "-r", String(fps),
-    "-c:v", "libx264", "-crf", String(RENDER.crf), "-preset", RENDER.preset, "-pix_fmt", "yuv420p",
+    // MEMORY (2026-09-14: "ffmpeg exited 137" — killed out of memory on the 2 GB machine with nine 1080p
+    // takes): a short lookahead and capped threads keep x264's frame buffers small.
+    "-c:v", "libx264", "-crf", String(RENDER.crf), "-preset", RENDER.preset, "-pix_fmt", "yuv420p", "-rc-lookahead", "15", "-threads", "2", "-filter_threads", "1",
     "-c:a", "aac", "-b:a", `${RENDER.audioKbps}k`, "-ar", String(hz),
     "-movflags", "+faststart",
     outPath,

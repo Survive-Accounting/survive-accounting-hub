@@ -18,7 +18,7 @@ primary_region = 'ord'
   policy = 'on-failure'
 
 [[vm]]
-  memory = '2gb'
+  memory = '4gb'
   cpu_kind = 'shared'
   cpus = 2
-  memory_mb = 2048
+  memory_mb = 4096

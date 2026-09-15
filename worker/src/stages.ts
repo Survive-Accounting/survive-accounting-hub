@@ -47,6 +47,8 @@ export interface LoopBuilderStage {
  *  the job's result carries the chapters manifest. */
 export interface DissectStitchStage {
   kind: "dissect_stitch";
+  /** VERTICAL (2026-09-14, the v4 punch-in): 1080×1920 output for 9:16 videos. Absent = RENDER's landscape. */
+  vertical?: boolean;
   /** Clip ids in moment order. */
   inputs: string[];
   /** Optional room-tone input id (Lee's few seconds of recorded silence). */

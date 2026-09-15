@@ -62,7 +62,8 @@ export function uncovered(frameIds: readonly string[], takes: readonly PunchTake
 /** HOW MANY TAKES ONE JOIN TAKES. Lee, 2026-09-14: "Let's increase that just in case. We will use this tool
  *  for longer videos in the future." The worker decodes every clip of a join at once, so a long video is
  *  joined in batches of this many, and the batches are joined last — no ceiling on takes per video. */
-export const STITCH_CHUNK = 20;
+// 4 since 2026-09-14: nine 1080p takes in one join ran the 2 GB worker out of memory ("ffmpeg exited 137").
+export const STITCH_CHUNK = 4;
 
 /** The takes in joins of at most `size`, in order. */
 export function chunks<T>(items: readonly T[], size = STITCH_CHUNK): T[][] {

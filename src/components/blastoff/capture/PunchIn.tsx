@@ -31,7 +31,7 @@ import { partKey } from "@/lib/student-shorts";
 import type { BlastFrame } from "../plan";
 import { FRAME_LABEL } from "../plan";
 import { endCtaOf } from "../practice-cta";
-import { chunks, nextAfter, pickTakes, punchKey, readTakes, uncovered, type PunchTake } from "../punch-in";
+import { chunks, nextAfter, pickTakes, punchKey, readTakes, STITCH_CHUNK, uncovered, type PunchTake } from "../punch-in";
 
 const GOLD = "#FCA311", CREAM = "#F5EFE6", MUTED = "#8C9BBA", EDGE = "#2A3654", RED = "#FF7A6B", MINT = "#3BF5A0";
 export const PUNCH_ON_KEY = "sa-punch-on";
@@ -295,7 +295,7 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
         // THE FALLBACK (2026-09-14): the deployed worker predates the pause-trimming join ("unknown stage kind
         // dissect_stitch" until it's redeployed). Then join the takes as they are with the worker's plain
         // concat, and say that the pauses stayed in.
-        const job = await startDissectStitch({ data: { urls: list, gapMs: 220, ...(trims ? { trims } : {}) } }).catch(async (e) => {
+        const job = await startDissectStitch({ data: { urls: list, gapMs: 220, vertical: true, ...(trims ? { trims } : {}) } }).catch(async (e) => {
           if (!/unknown stage/i.test(e instanceof Error ? e.message : String(e))) throw e;
           plainJoin.current = true;
           return startWorkerRender({ data: { urls: list, mode: "full" } });
@@ -323,9 +323,18 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
         if (plainJoin.current) say("Joined without trimming the pauses — the video joiner needs its update deployed for that.", "warn");
         return;
       }
-      const parts: { fileUrl: string; totalS: number | null }[] = [];
+      let parts: { fileUrl: string; totalS: number | null }[] = [];
       for (let b = 0; b < batches.length; b++) parts.push(await join(batches[b], `batch ${b + 1} of ${batches.length}`));
       if (!plainJoin.current && parts.some((p) => p.totalS == null)) throw new Error("A batch came back without its length, so the batches can't be joined cleanly — press Preview again.");
+      // Batches of batches, so no single join ever holds more than STITCH_CHUNK videos.
+      while (parts.length > STITCH_CHUNK) {
+        const groups = chunks(parts);
+        const next: typeof parts = [];
+        for (let g = 0; g < groups.length; g++) {
+          next.push(await join(groups[g].map((p) => p.fileUrl), `joining batches ${g + 1} of ${groups.length}`, plainJoin.current ? undefined : groups[g].map((p) => ({ start: 0, end: p.totalS! }))));
+        }
+        parts = next;
+      }
       const whole = await join(
         parts.map((p) => p.fileUrl),
         "joining the batches",
