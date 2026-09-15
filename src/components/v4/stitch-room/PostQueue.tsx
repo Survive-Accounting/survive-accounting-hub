@@ -9,7 +9,7 @@ import { coverFor } from "@/components/v3/quick-post";
 import { measureText } from "@/lib/brand-kit/measure";
 import { defaultThumbSpec, seriesTitleCap, TITLE_TRACKING } from "@/lib/brand-kit/thumbnail";
 import { colorwayFor, KIT, NEUTRAL_COLORWAY_ID } from "@/lib/brand-kit/tokens";
-import { clock, money, queueOf, type StitchRecord } from "@/lib/film-stitch";
+import { clock, money, queueOf, videoTitle, type StitchRecord } from "@/lib/film-stitch";
 import { queueFilmStitch, reorderFilmStitchQueue } from "@/lib/film-stitch.functions";
 
 import { ROOM } from "./room-theme";
@@ -79,8 +79,8 @@ export function PostQueue({ records, onChange, onOpen }: { records: readonly Sti
               <ThumbnailArt ref={(el) => { arts.current.set(r.id, el); }} spec={thumbFor(r)} colorway={colorwayFor(NEUTRAL_COLORWAY_ID)} mode="social" width={54} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              {onOpen ? <button type="button" onClick={() => onOpen(r)} style={{ all: "unset", cursor: "pointer", fontWeight: 800 }}>{r.name || `Video ${r.takeIndex + 1}`}</button> : <b>{r.name}</b>}
-              <div style={{ fontSize: 11.5, color: ROOM.muted }}>{r.setName} · Video {r.takeIndex + 1} · {clock(r.durationS)} · {r.slides} slides · {money(r.payCents)}</div>
+              {onOpen ? <button type="button" onClick={() => onOpen(r)} style={{ all: "unset", cursor: "pointer", fontWeight: 800 }}>{videoTitle(r.takeIndex, r.name)}</button> : <b>{videoTitle(r.takeIndex, r.name)}</b>}
+              <div style={{ fontSize: 11.5, color: ROOM.muted }}>{r.setName} · {clock(r.durationS)} · {r.slides} slides · {money(r.payCents)}</div>
               {st && <div style={{ fontSize: 11.5, color: st.tone === "good" ? ROOM.mint : st.tone === "bad" ? ROOM.red : ROOM.gold }}>{st.note}</div>}
             </div>
             <button type="button" style={btn()} disabled={busy || i === 0} onClick={() => void move(i, -1)} title="Earlier">↑</button>
@@ -95,7 +95,7 @@ export function PostQueue({ records, onChange, onOpen }: { records: readonly Sti
           {posted.map((r) => (
             <div key={r.id} style={{ fontSize: 12.5, display: "flex", gap: 8 }}>
               <span style={{ color: ROOM.mint }}>✓</span>
-              <span style={{ flex: 1 }}>{r.name} <span style={{ color: ROOM.muted }}>· {r.setName}</span></span>
+              <span style={{ flex: 1 }}>{videoTitle(r.takeIndex, r.name)} <span style={{ color: ROOM.muted }}>· {r.setName}</span></span>
               {r.postedLink && <a href={r.postedLink} target="_blank" rel="noreferrer" style={{ color: ROOM.sky }}>see it</a>}
             </div>
           ))}

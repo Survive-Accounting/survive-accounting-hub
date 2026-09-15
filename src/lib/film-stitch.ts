@@ -5,8 +5,8 @@
 // The table is migration/supabase-migrations/20260915_1900_film_stitches.sql; lib/film-stitch.functions.ts
 // reads and writes it.
 
-/** $5 a filmed slide (Lee: "Every slide a tutor makes, let's say it's $5?"). */
-export const PAY_PER_SLIDE_CENTS = 500;
+/** $2 a filmed slide (Lee: "Every slide a tutor makes, let's say it's $5?"; 2026-09-15: "Switch to $2 per slide"). */
+export const PAY_PER_SLIDE_CENTS = 200;
 
 export const MISSING_FILM_STITCHES_HINT = "run migration/supabase-migrations/20260915_1900_film_stitches.sql";
 
@@ -113,6 +113,18 @@ export function clock(s: number | null | undefined): string {
   const m = Math.floor(s / 60);
   const r = s - m * 60;
   return `${m}:${r.toFixed(1).padStart(4, "0")}`;
+}
+
+/** A VIDEO'S NAME, the way the v4 Film list numbers it (Lee, 2026-09-15: "#1 - [title]"). "Split N" is a
+ *  placeholder, not a name. */
+export const isPlaceholderName = (name: string | null | undefined): boolean => !name?.trim() || /^split \d+$/i.test(name.trim());
+export function videoTitle(takeIndex: number, name: string | null | undefined): string {
+  return isPlaceholderName(name) ? `#${takeIndex + 1}` : `#${takeIndex + 1} - ${name!.trim()}`;
+}
+/** The name the Build step's cuts give video `takeIndex`: the start name, then each cut's, in chain order. */
+export function splitNameOf(splits: { startName?: string; cuts: { name?: string }[] } | null | undefined, takeIndex: number): string {
+  if (!splits) return "";
+  return ((takeIndex === 0 ? splits.startName : splits.cuts[takeIndex - 1]?.name) ?? "").trim();
 }
 
 /** The file name a download gets. */

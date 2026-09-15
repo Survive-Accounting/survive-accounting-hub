@@ -9,8 +9,8 @@ const rec = (o: Partial<StitchRecord>): StitchRecord => ({
 });
 
 describe("film stitches", () => {
-  test("pay is $5 a filmed slide", () => {
-    expect(payFor(12)).toBe(6000);
+  test("pay is $2 a filmed slide", () => {
+    expect(payFor(12)).toBe(2400);
     expect(money(6000)).toBe("$60");
     expect(money(250)).toBe("$2.50");
   });

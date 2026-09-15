@@ -17,7 +17,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { baseName, connectObs, OBS_DEFAULT_ADDRESS, type ObsStatus } from "@/components/canvas/obs-bridge";
 import { fsaSupported, getFile, moveToRecycle, pickTakesFolder, probeDuration, restoreFromRecycle, savedTakesFolder } from "@/components/canvas/takes-folder";
 import { uploadTake } from "@/components/v3/take-burn";
-import { takesFingerprint, videoKey } from "@/lib/film-stitch";
+import { isPlaceholderName, splitNameOf, takesFingerprint, videoKey } from "@/lib/film-stitch";
+import { loadV4Splits } from "@/lib/v4.functions";
 import { listFilmStitches } from "@/lib/film-stitch.functions";
 import { enqueueStitch, openStitchRoom, stitchJob, subscribeStitches, type StitchInput } from "./stitch-queue";
 
@@ -99,8 +100,12 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   const [flash, setFlash] = useState<{ text: string; tone: "good" | "warn" | "bad" } | null>(null);
   const say = (text: string, tone: "good" | "warn" | "bad" = "good") => setFlash({ text, tone });
   const [stage, setStage] = useState<Stage>({ s: "idle" });
-  const [title, setTitle] = useState(takeName || setName);
-  useEffect(() => { setTitle(takeName || setName); setStage({ s: "idle" }); }, [takeName, setName, takeIndex]);
+  // THE VIDEO'S NAME from the Build step's cuts, as the v4 Film list shows it (Lee, 2026-09-15: "#1 - [title]").
+  const splitsQ = useQuery({ queryKey: ["v4-splits", setId], queryFn: () => loadV4Splits({ data: { setId } }), staleTime: 60_000, retry: false });
+  const cutName = splitNameOf(splitsQ.data, takeIndex);
+  const defaultTitle = cutName || (isPlaceholderName(takeName) ? "" : takeName) || setName;
+  const [title, setTitle] = useState(defaultTitle);
+  useEffect(() => { setTitle(defaultTitle); setStage({ s: "idle" }); }, [defaultTitle, takeIndex]);
   const cta = endCtaOf(frames);
   // THE OUTRO CLIP (Lee, 2026-09-14: "just append the outro to each video automatically, with the animation
   // and everything"). Film the outro slide once (its entrance, the cursor clicking Start Cramming for Free),
@@ -281,7 +286,7 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
         const a = ids.indexOf(filmIds[p.from]) + 1, b = ids.indexOf(filmIds[p.to]) + 1;
         clips.push({ file, label: a === b ? `Slide ${a}` : `Slides ${a}–${b}`, slides: p.to - p.from + 1 });
       }
-      enqueueStitch({ setId, takeIndex, name: title.trim() || takeName || setName, setName, topicName, slides: slidesFilmed, fingerprint, endCta: cta ?? null, clips });
+      enqueueStitch({ setId, takeIndex, name: title.trim() || defaultTitle, setName, topicName, slides: slidesFilmed, fingerprint, endCta: cta ?? null, clips });
       say(`⚡ Stitching ${clips.length} clip${clips.length === 1 ? "" : "s"} in the background — keep filming`, "good");
     } catch (e) { say(e instanceof Error ? e.message : String(e), "bad"); }
   };

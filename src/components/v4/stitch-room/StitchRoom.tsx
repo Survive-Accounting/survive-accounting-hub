@@ -8,8 +8,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import { money, statsFor, videoKey, type StitchRecord } from "@/lib/film-stitch";
+import { isPlaceholderName, money, splitNameOf, statsFor, videoKey, videoTitle, type StitchRecord } from "@/lib/film-stitch";
 import { listFilmStitches } from "@/lib/film-stitch.functions";
+import { loadV4Splits } from "@/lib/v4.functions";
 
 import { STITCH_CHANNEL, type StitchJob, type StitchMessage } from "../../blastoff/capture/stitch-queue";
 import { FilmStats } from "./FilmStats";
@@ -51,7 +52,21 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
     else void qc.invalidateQueries({ queryKey: ["film-stitches"] });
   };
 
-  const byKey = useMemo(() => new Map(records.map((r) => [videoKey(r.setId, r.takeIndex), r])), [records]);
+  // NAMES: a video saved as "Split N" (or nothing) takes its name from the Build step's cuts.
+  const [cutNames, setCutNames] = useState<Record<string, Awaited<ReturnType<typeof loadV4Splits>> | null>>({});
+  const needNames = useMemo(() => [...new Set([...records, ...jobs].filter((x) => isPlaceholderName(x.name)).map((x) => x.setId))], [records, jobs]);
+  useEffect(() => {
+    for (const setId of needNames) {
+      if (setId in cutNames) continue;
+      setCutNames((m) => ({ ...m, [setId]: null }));
+      loadV4Splits({ data: { setId } }).then((s) => setCutNames((m) => ({ ...m, [setId]: s }))).catch(() => { /* stays #N */ });
+    }
+  }, [needNames]); // eslint-disable-line react-hooks/exhaustive-deps
+  const nameFor = (x: { setId: string; takeIndex: number; name: string }) => (isPlaceholderName(x.name) ? splitNameOf(cutNames[x.setId], x.takeIndex) : x.name);
+  const titleFor = (x: { setId: string; takeIndex: number; name: string }) => videoTitle(x.takeIndex, nameFor(x));
+  const named = useMemo(() => records.map((r) => (isPlaceholderName(r.name) ? { ...r, name: splitNameOf(cutNames[r.setId], r.takeIndex) } : r)), [records, cutNames]);
+
+  const byKey = useMemo(() => new Map(named.map((r) => [videoKey(r.setId, r.takeIndex), r])), [named]);
   const inProgress = jobs.filter((j) => j.state !== "done" || !byKey.has(j.key));
   // default: the newest job still going, else the newest video
   useEffect(() => {
@@ -103,7 +118,7 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
             {inProgress.length > 0 && <div style={{ fontSize: 10.5, letterSpacing: "0.14em", fontWeight: 800, color: ROOM.gold, padding: "4px 6px" }}>STITCHING</div>}
             {inProgress.map((j) => (
               <MenuRow key={j.key} on={sel === j.key} onClick={() => { setSel(j.key); setTab("videos"); }}
-                title={j.name || j.setName} sub={`${j.setName} · ${j.state === "error" ? "stopped" : j.state === "waiting" ? "waiting" : j.note}`}
+                title={titleFor(j)} sub={`${j.setName} · ${j.state === "error" ? "stopped" : j.state === "waiting" ? "waiting" : j.note}`}
                 tone={j.state === "error" ? ROOM.red : ROOM.gold} spinning={j.state !== "done" && j.state !== "error"} />
             ))}
             <div style={{ fontSize: 10.5, letterSpacing: "0.14em", fontWeight: 800, color: ROOM.muted, padding: "10px 6px 4px" }}>STITCHED · {records.length}</div>
@@ -112,7 +127,7 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
               const k = videoKey(r.setId, r.takeIndex);
               return (
                 <MenuRow key={r.id} on={sel === k} onClick={() => { setSel(k); setTab("videos"); }}
-                  title={r.name || `Video ${r.takeIndex + 1}`} sub={`${r.setName ?? ""} · ${r.slides} slides`}
+                  title={titleFor(r)} sub={`${r.setName ?? ""} · ${r.slides} slides`}
                   tone={r.status === "posted" ? ROOM.mint : r.status === "queued" ? ROOM.gold : ROOM.muted}
                   badge={r.status === "posted" ? "posted" : r.status === "queued" ? "queued" : undefined} />
               );
@@ -123,7 +138,7 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
         <main style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: 20 }}>
           {tab === "videos" && (
             <>
-              {showBuild && job && <StitchBuild job={job} animate={anim} />}
+              {showBuild && job && <StitchBuild job={{ ...job, name: nameFor(job) }} animate={anim} />}
               {!showBuild && record && <VideoDesk record={record} onChange={(r) => upsert(r)} />}
               {!showBuild && !record && <div style={{ color: ROOM.muted, fontSize: 14 }}>{records.length || jobs.length ? "Pick a video on the left." : "No stitched videos yet. In punch-in, press ⚡ Stitch — it opens here."}</div>}
               {job && job.state === "done" && record && (
@@ -133,8 +148,8 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
               )}
             </>
           )}
-          {tab === "queue" && <PostQueue records={records} onChange={upsert} onOpen={(r) => { setSel(videoKey(r.setId, r.takeIndex)); setTab("videos"); }} />}
-          {tab === "stats" && <FilmStats records={records} onOpen={(r) => { setSel(videoKey(r.setId, r.takeIndex)); setTab("videos"); }} />}
+          {tab === "queue" && <PostQueue records={named} onChange={upsert} onOpen={(r) => { setSel(videoKey(r.setId, r.takeIndex)); setTab("videos"); }} />}
+          {tab === "stats" && <FilmStats records={named} onOpen={(r) => { setSel(videoKey(r.setId, r.takeIndex)); setTab("videos"); }} />}
         </main>
       </div>
       <style>{`@keyframes sa-room-spin { to { transform: rotate(360deg) } } .sa-room-spin { animation: sa-room-spin 900ms linear infinite; }`}</style>

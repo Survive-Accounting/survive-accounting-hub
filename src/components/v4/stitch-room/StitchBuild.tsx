@@ -9,7 +9,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { ChainLightning } from "@/components/brand-cards/ChainLightning";
 import type { Rect } from "@/components/brand-cards/chain-lightning";
-import { money, PAY_PER_SLIDE_CENTS } from "@/lib/film-stitch";
+import { money, PAY_PER_SLIDE_CENTS, videoTitle } from "@/lib/film-stitch";
 
 import type { StitchJob } from "../../blastoff/capture/stitch-queue";
 import { ROOM } from "./room-theme";
@@ -82,8 +82,8 @@ export function StitchBuild({ job, animate }: { job: StitchJob; animate: boolean
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
           <div style={{ fontSize: 12, letterSpacing: "0.18em", fontWeight: 800, color: job.state === "error" ? ROOM.red : ROOM.gold }}>{STATE_WORDS[job.state].toUpperCase()}</div>
-          <div style={{ fontSize: 30, fontWeight: 900, lineHeight: 1.05, color: ROOM.cream }}>{job.name || job.setName}</div>
-          <div style={{ fontSize: 13, color: ROOM.muted }}>{job.setName} · Video {job.takeIndex + 1} · {job.segments.length} clip{job.segments.length === 1 ? "" : "s"} · {job.slides} slide{job.slides === 1 ? "" : "s"}</div>
+          <div style={{ fontSize: 30, fontWeight: 900, lineHeight: 1.05, color: ROOM.cream }}>{videoTitle(job.takeIndex, job.name)}</div>
+          <div style={{ fontSize: 13, color: ROOM.muted }}>{job.setName} · {job.segments.length} clip{job.segments.length === 1 ? "" : "s"} · {job.slides} slide{job.slides === 1 ? "" : "s"}</div>
           <div style={{ fontSize: 13, color: ROOM.sky, fontVariantNumeric: "tabular-nums" }}>{job.note}{live && job.startedAt ? ` · ${Math.floor(elapsed / 60)}:${String(Math.floor(elapsed % 60)).padStart(2, "0")}` : ""}</div>
         </div>
       </div>

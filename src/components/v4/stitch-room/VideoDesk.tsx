@@ -7,7 +7,7 @@
 // the real files on the worker (the site video, and the social one with the outro).
 import { useEffect, useRef, useState } from "react";
 
-import { clampTrim, clock, isTrimmed, money, type StitchRecord } from "@/lib/film-stitch";
+import { clampTrim, clock, isTrimmed, money, videoTitle, type StitchRecord } from "@/lib/film-stitch";
 import { queueFilmStitch } from "@/lib/film-stitch.functions";
 
 import { ROOM } from "./room-theme";
@@ -73,8 +73,8 @@ export function VideoDesk({ record, onChange }: { record: StitchRecord; onChange
 
       <div style={{ flex: 1, minWidth: 300, display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
-          <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1 }}>{record.name || `Video ${record.takeIndex + 1}`}</div>
-          <div style={{ color: ROOM.muted, fontSize: 13, marginTop: 3 }}>{record.setName} · Video {record.takeIndex + 1} · {record.slides} slides · <span style={{ color: ROOM.mint, fontWeight: 800 }}>{money(record.payCents)}</span> · stitched {new Date(record.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+          <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1 }}>{videoTitle(record.takeIndex, record.name)}</div>
+          <div style={{ color: ROOM.muted, fontSize: 13, marginTop: 3 }}>{record.setName} · {record.slides} slides · <span style={{ color: ROOM.mint, fontWeight: 800 }}>{money(record.payCents)}</span> · stitched {new Date(record.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
           <div style={{ marginTop: 6, fontSize: 12, fontWeight: 800, color: record.status === "posted" ? ROOM.mint : record.status === "queued" ? ROOM.gold : ROOM.muted }}>
             {record.status === "posted" ? <>✓ Posted{record.postedLink && <> — <a href={record.postedLink} target="_blank" rel="noreferrer" style={{ color: ROOM.mint }}>see it</a></>}</> : record.status === "queued" ? "In the post queue" : "Not queued"}
           </div>

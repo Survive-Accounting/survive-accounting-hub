@@ -20,7 +20,7 @@ create table if not exists public.film_stitches (
   topic_name    text null check (char_length(topic_name) <= 300),
   -- the filmed slides in the video (the outro excluded) and what they paid
   slides        integer not null default 0 check (slides >= 0),
-  rate_cents    integer not null default 500 check (rate_cents >= 0),
+  rate_cents    integer not null default 200 check (rate_cents >= 0),
   pay_cents     integer not null default 0 check (pay_cents >= 0),
   -- which takes made it: a changed take means a new stitch, the same takes mean "watch it again"
   fingerprint   text not null default '' check (char_length(fingerprint) <= 8000),

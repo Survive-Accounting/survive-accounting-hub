@@ -3,7 +3,7 @@
 // each video, # of slides, pay amount, with a total at bottom."
 import { useState } from "react";
 
-import { clock, ledgerRows, money, PERIOD_LABEL, PERIODS, PAY_PER_SLIDE_CENTS, inPeriod, statsFor, type Period, type StitchRecord } from "@/lib/film-stitch";
+import { clock, ledgerRows, money, videoTitle, PERIOD_LABEL, PERIODS, PAY_PER_SLIDE_CENTS, inPeriod, statsFor, type Period, type StitchRecord } from "@/lib/film-stitch";
 
 import { ROOM } from "./room-theme";
 
@@ -53,7 +53,7 @@ export function FilmStats({ records, onOpen }: { records: readonly StitchRecord[
                 <tr key={r.id} style={{ borderBottom: `1px solid ${ROOM.edge}55` }}>
                   <td style={{ padding: "7px 10px", color: ROOM.muted, whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
                   <td style={{ padding: "7px 10px" }}>
-                    {onOpen ? <button type="button" onClick={() => onOpen(r)} style={{ all: "unset", cursor: "pointer", fontWeight: 700 }}>{r.name || `Video ${r.takeIndex + 1}`}</button> : <b>{r.name || `Video ${r.takeIndex + 1}`}</b>}
+                    {onOpen ? <button type="button" onClick={() => onOpen(r)} style={{ all: "unset", cursor: "pointer", fontWeight: 700 }}>{videoTitle(r.takeIndex, r.name)}</button> : <b>{videoTitle(r.takeIndex, r.name)}</b>}
                     <div style={{ fontSize: 11, color: ROOM.muted }}>{r.setName ?? r.setId}</div>
                   </td>
                   <td style={{ padding: "7px 10px", color: ROOM.muted }}>{clock(r.durationS)}</td>
