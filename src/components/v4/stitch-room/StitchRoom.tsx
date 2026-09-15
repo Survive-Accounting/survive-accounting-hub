@@ -18,6 +18,7 @@ import { PostQueue } from "./PostQueue";
 import { readAnimOn, ROOM, writeAnimOn } from "./room-theme";
 import { StitchBuild } from "./StitchBuild";
 import { VideoDesk } from "./VideoDesk";
+import { openDemoLens } from "../DemoLens";
 
 type Tab = "videos" | "queue" | "stats";
 
@@ -105,6 +106,9 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
           <button type="button" style={chip(tab === "stats")} onClick={() => setTab("stats")}>Stats & ledger</button>
         </nav>
         <span style={{ flex: 1 }} />
+        {typeof window !== "undefined" && window.self === window.top && (
+          <button type="button" onClick={() => openDemoLens("/v4/stitch-room")} style={chip(false)} title="The Stitch Room in a vertical window you can zoom and swim around — for filming a demo">▯ Vertical demo</button>
+        )}
         <span style={{ fontSize: 12.5, color: ROOM.muted }}>Today: <b style={{ color: ROOM.cream }}>{today.videos}</b> videos · <b style={{ color: ROOM.mint }}>{money(today.payCents)}</b></span>
       </header>
 

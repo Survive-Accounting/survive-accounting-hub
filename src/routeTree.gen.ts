@@ -56,6 +56,7 @@ import { Route as SchoolIndexRouteImport } from './routes/$school.index'
 import { Route as VaTokenRouteImport } from './routes/va.$token'
 import { Route as V4TodoRouteImport } from './routes/v4.todo'
 import { Route as V4StitchRoomRouteImport } from './routes/v4.stitch-room'
+import { Route as V4DemoLensRouteImport } from './routes/v4.demo-lens'
 import { Route as V4BreathersRouteImport } from './routes/v4.breathers'
 import { Route as V3ValuesRouteImport } from './routes/v3.values'
 import { Route as V3TeleprompterRouteImport } from './routes/v3.teleprompter'
@@ -457,6 +458,11 @@ const V4TodoRoute = V4TodoRouteImport.update({
 const V4StitchRoomRoute = V4StitchRoomRouteImport.update({
   id: '/v4/stitch-room',
   path: '/v4/stitch-room',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const V4DemoLensRoute = V4DemoLensRouteImport.update({
+  id: '/v4/demo-lens',
+  path: '/v4/demo-lens',
   getParentRoute: () => rootRouteImport,
 } as any)
 const V4BreathersRoute = V4BreathersRouteImport.update({
@@ -1441,6 +1447,7 @@ export interface FileRoutesByFullPath {
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
   '/v4/breathers': typeof V4BreathersRoute
+  '/v4/demo-lens': typeof V4DemoLensRoute
   '/v4/stitch-room': typeof V4StitchRoomRoute
   '/v4/todo': typeof V4TodoRoute
   '/va/$token': typeof VaTokenRoute
@@ -1654,6 +1661,7 @@ export interface FileRoutesByTo {
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
   '/v4/breathers': typeof V4BreathersRoute
+  '/v4/demo-lens': typeof V4DemoLensRoute
   '/v4/stitch-room': typeof V4StitchRoomRoute
   '/v4/todo': typeof V4TodoRoute
   '/va/$token': typeof VaTokenRoute
@@ -1870,6 +1878,7 @@ export interface FileRoutesById {
   '/v3/teleprompter': typeof V3TeleprompterRoute
   '/v3/values': typeof V3ValuesRoute
   '/v4/breathers': typeof V4BreathersRoute
+  '/v4/demo-lens': typeof V4DemoLensRoute
   '/v4/stitch-room': typeof V4StitchRoomRoute
   '/v4/todo': typeof V4TodoRoute
   '/va/$token': typeof VaTokenRoute
@@ -2088,6 +2097,7 @@ export interface FileRouteTypes {
     | '/v3/teleprompter'
     | '/v3/values'
     | '/v4/breathers'
+    | '/v4/demo-lens'
     | '/v4/stitch-room'
     | '/v4/todo'
     | '/va/$token'
@@ -2301,6 +2311,7 @@ export interface FileRouteTypes {
     | '/v3/teleprompter'
     | '/v3/values'
     | '/v4/breathers'
+    | '/v4/demo-lens'
     | '/v4/stitch-room'
     | '/v4/todo'
     | '/va/$token'
@@ -2516,6 +2527,7 @@ export interface FileRouteTypes {
     | '/v3/teleprompter'
     | '/v3/values'
     | '/v4/breathers'
+    | '/v4/demo-lens'
     | '/v4/stitch-room'
     | '/v4/todo'
     | '/va/$token'
@@ -2703,6 +2715,7 @@ export interface RootRouteChildren {
   V3TeleprompterRoute: typeof V3TeleprompterRoute
   V3ValuesRoute: typeof V3ValuesRoute
   V4BreathersRoute: typeof V4BreathersRoute
+  V4DemoLensRoute: typeof V4DemoLensRoute
   V4StitchRoomRoute: typeof V4StitchRoomRoute
   V4TodoRoute: typeof V4TodoRoute
   VaTokenRoute: typeof VaTokenRoute
@@ -3092,6 +3105,13 @@ declare module '@tanstack/react-router' {
       path: '/v4/stitch-room'
       fullPath: '/v4/stitch-room'
       preLoaderRoute: typeof V4StitchRoomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/v4/demo-lens': {
+      id: '/v4/demo-lens'
+      path: '/v4/demo-lens'
+      fullPath: '/v4/demo-lens'
+      preLoaderRoute: typeof V4DemoLensRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/v4/breathers': {
@@ -4580,6 +4600,7 @@ const rootRouteChildren: RootRouteChildren = {
   V3TeleprompterRoute: V3TeleprompterRoute,
   V3ValuesRoute: V3ValuesRoute,
   V4BreathersRoute: V4BreathersRoute,
+  V4DemoLensRoute: V4DemoLensRoute,
   V4StitchRoomRoute: V4StitchRoomRoute,
   V4TodoRoute: V4TodoRoute,
   VaTokenRoute: VaTokenRoute,

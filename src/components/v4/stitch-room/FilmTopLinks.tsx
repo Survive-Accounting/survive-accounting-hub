@@ -7,6 +7,7 @@ import { money, statsFor } from "@/lib/film-stitch";
 import { listFilmStitches } from "@/lib/film-stitch.functions";
 
 import { openStitchRoom } from "../../blastoff/capture/stitch-queue";
+import { openDemoLens } from "../DemoLens";
 import { FilmStats } from "./FilmStats";
 import { ROOM } from "./room-theme";
 
@@ -29,6 +30,9 @@ export function FilmTopLinks() {
       </button>
       <span>·</span>
       <button type="button" style={link} onClick={() => openStitchRoom()} title="The popout: stitched videos, trims, downloads, the post queue">⚡ Stitch Room</button>
+      <span>·</span>
+      <button type="button" style={link} onClick={() => { const u = new URL(window.location.href); u.searchParams.delete("popout"); openDemoLens(u.pathname + u.search); }}
+        title="This page in a vertical window you can zoom and swim around — for filming a demo">🎥 Demo</button>
       {open && (
         <div role="dialog" aria-label="Filming stats" onClick={() => setOpen(false)}
           style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.6)", display: "grid", placeItems: "center", padding: 16, whiteSpace: "normal" }}>
