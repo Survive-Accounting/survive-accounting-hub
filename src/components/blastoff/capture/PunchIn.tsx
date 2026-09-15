@@ -224,9 +224,10 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   }, [onPunchKey, setId]);
 
   // PREVIEW: upload the kept takes, trim + join on the worker, play it here.
-  // With an outro clip kept, the video's outro slide isn't filmed per video: its takes and its gap drop out,
-  // and the clip is joined on at the end.
-  const filmIds = outroClip ? ids.filter((id) => !isOutro(id)) : ids;
+  // THE OUTRO IS FOR SOCIALS ONLY (Lee, 2026-09-14: "We will only show the outro in social posts. Not on the
+  // site … too repetitive and redundant."). The site video never has one, so no video films its outro slide:
+  // it drops out of the takes and the gaps. The kept clip goes on the social version only.
+  const filmIds = ids.filter((id) => !isOutro(id));
   const picks = pickTakes(filmIds, takes);
   const gaps = uncovered(filmIds, takes);
   const lastOutroTake = [...takes].sort((a, b) => b.at - a.at).find((t) => t.fromId === t.toId && isOutro(t.fromId)) ?? null;
@@ -253,7 +254,7 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
       let dir = folder;
       if (!dir) { dir = (await pickTakesFolder()) as never; if (!dir) throw new Error("Choose the OBS recordings folder first."); setFolder(dir); }
       if (!picks.length) throw new Error("No kept takes in this split yet.");
-      if (!outroClip) say("No outro clip kept yet — this preview ends without one. Film the outro slide once and press “Use as the outro”.", "warn");
+      setSocial({ s: "idle" });
       const urls: string[] = [];
       setStage({ s: "uploading", done: 0, of: picks.length });
       for (const p of picks) {
@@ -302,14 +303,11 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
           setStage({ s: "stitching", note: `${label} · ${r.state}${r.note ? ` · ${r.note}` : ""}` });
         }
       };
-      // The outro clip goes on the end whole (a manual trim: no silence pass eats its music or its click).
-      const outro = outroClip ? { url: outroClip.url, trim: { start: 0, end: outroClip.durationS } } : null;
+      // The site video: the takes only (the outro goes on the social version).
       const batches = chunks(urls);
       if (batches.length === 1) {
         setStage({ s: "stitching", note: "trimming pauses and joining…" });
-        const one = outro
-          ? await join([...urls, outro.url], "joining", [...urls.map(() => null), outro.trim])
-          : await join(urls, "joining");
+        const one = await join(urls, "joining");
         setStage({ s: "ready", fileUrl: one.fileUrl });
         if (plainJoin.current) say("Joined without trimming the pauses — the video joiner needs its update deployed for that.", "warn");
         return;
@@ -318,13 +316,45 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
       for (let b = 0; b < batches.length; b++) parts.push(await join(batches[b], `batch ${b + 1} of ${batches.length}`));
       if (!plainJoin.current && parts.some((p) => p.totalS == null)) throw new Error("A batch came back without its length, so the batches can't be joined cleanly — press Preview again.");
       const whole = await join(
-        [...parts.map((p) => p.fileUrl), ...(outro ? [outro.url] : [])],
+        parts.map((p) => p.fileUrl),
         "joining the batches",
-        plainJoin.current ? undefined : [...parts.map((p) => ({ start: 0, end: p.totalS! })), ...(outro ? [outro.trim] : [])],
+        plainJoin.current ? undefined : parts.map((p) => ({ start: 0, end: p.totalS! })),
       );
       setStage({ s: "ready", fileUrl: whole.fileUrl });
       if (plainJoin.current) say("Joined without trimming the pauses — the video joiner needs its update deployed for that.", "warn");
     } catch (e) { setStage({ s: "error", error: e instanceof Error ? e.message : String(e) }); }
+  };
+
+  // THE SOCIAL VERSION: the site video + the kept outro clip, joined whole (the worker's plain join — no
+  // trimming wanted, and it works on the deployed worker), then saved to this computer for Reels / TikTok /
+  // Shorts.
+  const [social, setSocial] = useState<{ s: "idle" } | { s: "working"; note: string } | { s: "ready"; url: string } | { s: "error"; error: string }>({ s: "idle" });
+  const makeSocial = async (siteUrl: string) => {
+    if (!outroClip) { setSocial({ s: "error", error: "Keep an outro clip first: film the outro slide once and press “Use as the outro”." }); return; }
+    try {
+      setSocial({ s: "working", note: "adding the outro…" });
+      const job = await startWorkerRender({ data: { urls: [siteUrl, outroClip.url], mode: "full" } });
+      let misses = 0;
+      for (;;) {
+        await wait(3000);
+        const r = await resolveWorkerRender({ data: { jobId: job.jobId, path: job.path, machineId: job.machineId } }).catch((e) => { if (++misses > 8) throw e; return null; });
+        if (!r) continue;
+        misses = 0;
+        if (r.state === "done" && r.fileUrl) { setSocial({ s: "ready", url: r.fileUrl }); return; }
+        if (r.state === "error") throw new Error(r.error ?? "Adding the outro failed.");
+        setSocial({ s: "working", note: `adding the outro · ${r.state}` });
+      }
+    } catch (e) { setSocial({ s: "error", error: e instanceof Error ? e.message : String(e) }); }
+  };
+  const saveSocial = async (url: string) => {
+    try {
+      const blob = await (await fetch(url)).blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "video"}-social.mp4`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+    } catch { window.open(url, "_blank", "noopener"); }
   };
 
   // POST: thumbnail → end button → the site.
@@ -405,7 +435,7 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
       <div style={{ borderTop: `1px solid ${EDGE}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 2 }}>
         {/* THE OUTRO CLIP: kept once, added to every video's Preview. */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, color: outroClip ? MINT : MUTED }}>
-          <span style={{ flex: 1 }}>{outroClip ? `✓ Outro clip kept (${outroClip.durationS.toFixed(1)} s) — added to every video` : "No outro clip yet — film the outro slide once"}</span>
+          <span style={{ flex: 1 }}>{outroClip ? `✓ Outro clip kept (${outroClip.durationS.toFixed(1)} s) — for the social versions` : "No outro clip yet — film the outro slide once (socials only)"}</span>
           {lastOutroTake && lastOutroTake.file !== outroClip?.file && (
             <button type="button" style={btn(true)} disabled={savingOutro} onClick={() => void keepOutro(lastOutroTake)}
               title="Keep your latest outro take as the outro every video ends on">{savingOutro ? "Keeping…" : "Use as the outro"}</button>
@@ -414,8 +444,13 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
         {frames.map((f, k) => {
           const fk = filmIds.indexOf(f.id);
           const p = fk < 0 ? undefined : picks.find((x) => fk >= x.from && fk <= x.to);
-          if (outroClip && f.kind === "outro") {
-            return <div key={f.id} style={{ display: "flex", gap: 6, padding: "2px 4px", color: MINT }}><span style={{ width: 18, textAlign: "right" }}>{k + 1}</span><span>✓</span><span>Outro · the kept clip</span></div>;
+          if (f.kind === "outro") {
+            return (
+              <button key={f.id} type="button" onClick={() => goto(f.id)} title="Put the outro up to film it once for the social versions"
+                style={{ all: "unset", cursor: "pointer", display: "flex", gap: 6, padding: "2px 4px", color: MUTED }}>
+                <span style={{ width: 18, textAlign: "right" }}>{k + 1}</span><span>—</span><span>Outro · socials only, not in the site video</span>
+              </button>
+            );
           }
           return (
             <button key={f.id} type="button" onClick={() => goto(f.id)} title="Put this slide up in the pop-out — punch in again to overwrite it"
@@ -459,6 +494,14 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
             <div style={{ color: MUTED, flex: 1 }}>End button on the site: <b style={{ color: CREAM }}>{cta === "try" ? "Try Practice Questions" : cta === "unlock" ? "Start Practice" : "none"}</b></div>
           </div>
           <button type="button" style={btn(true)} onClick={() => void post(fileUrlOf)}>Post to the site</button>
+          {/* SOCIAL VERSION — the same video with the outro on the end, saved for Reels / TikTok / Shorts. */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <button type="button" style={btn()} disabled={social.s === "working"} onClick={() => void makeSocial(fileUrlOf)}
+              title="The same video with your outro clip on the end — for Reels, TikTok and Shorts">{social.s === "ready" ? "Make social version again" : "Make social version (+ outro)"}</button>
+            {social.s === "ready" && <button type="button" style={btn(true)} onClick={() => void saveSocial(social.url)}>⬇ Save social video</button>}
+          </div>
+          {social.s === "working" && <div style={{ color: GOLD }}>{social.note}</div>}
+          {social.s === "error" && <div style={{ color: RED }}>{social.error}</div>}
         </>)}
         {stage.s === "posting" && <div style={{ color: GOLD }}>{stage.note}</div>}
         {stage.s === "posted" && <div style={{ color: MINT, fontWeight: 800 }}>✓ Posted — <a href={stage.link} target="_blank" rel="noreferrer" style={{ color: MINT }}>see it</a>. ] for the next video.</div>}
