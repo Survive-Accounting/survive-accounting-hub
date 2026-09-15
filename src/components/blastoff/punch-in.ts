@@ -82,3 +82,49 @@ export function readTakes(raw: string | null): PunchTake[] {
     return Array.isArray(v) ? v.filter((t): t is PunchTake => !!t && typeof t.file === "string" && typeof t.fromId === "string" && typeof t.toId === "string" && typeof t.at === "number") : [];
   } catch { return []; }
 }
+
+// ── RECOVERY (Lee, 2026-09-15: "I think that scrapping removed takes I liked just now? Can you check that?") ──
+// The take lists live in this browser; the recordings and the pop-out's per-roll slide log (take_logs) don't. A
+// kept recording is matched to its roll by start time (OBS names files by it), and the roll's arrivals — the
+// slides the pop-out walked while it recorded — give back the take's first and last slide.
+
+/** OBS's default file name, "2026-09-15 14-40-16.mp4", as a local time in ms; null for any other name. */
+export function obsFileTime(name: string): number | null {
+  const m = /(\d{4})-(\d{2})-(\d{2})[ _](\d{2})-(\d{2})-(\d{2})/.exec(name);
+  if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  return Number.isNaN(d.getTime()) ? null : d.getTime();
+}
+
+export interface RollLog { rolled_at: string; arrivals: { frameId: string; atMs: number }[] }
+
+/** Takes for one video, rebuilt from its recordings and the roll logs. A file with no roll within `slackMs`, or a
+ *  roll that didn't start on one of this video's slides, gives nothing. `durationS` (when known) drops the slide
+ *  the pop-out moved to after the recording stopped. */
+export function recoverTakes(frameIds: readonly string[], logs: readonly RollLog[], files: readonly { name: string; durationS: number | null }[], slackMs = 3000): PunchTake[] {
+  const inVideo = new Set(frameIds);
+  // rolls that share a start (a split change mid-roll writes two rows) are one roll
+  const rolls = new Map<number, { frameId: string; atMs: number }[]>();
+  for (const l of logs) {
+    const at = Date.parse(l.rolled_at);
+    if (!Number.isFinite(at)) continue;
+    rolls.set(at, [...(rolls.get(at) ?? []), ...l.arrivals]);
+  }
+  const starts = [...rolls.keys()];
+  const out: PunchTake[] = [];
+  for (const f of files) {
+    const t = obsFileTime(f.name);
+    if (t == null) continue;
+    let best: number | null = null;
+    for (const s of starts) if (Math.abs(s - t) <= slackMs && (best == null || Math.abs(s - t) < Math.abs(best - t))) best = s;
+    if (best == null) continue;
+    const endMs = f.durationS != null ? f.durationS * 1000 - 400 : Infinity;
+    const walked = [...rolls.get(best)!].sort((a, b) => a.atMs - b.atMs).filter((a) => a.atMs < Math.max(endMs, 1));
+    if (!walked.length || walked[0].atMs > 2500 || !inVideo.has(walked[0].frameId)) continue;
+    const mine = walked.filter((a) => inVideo.has(a.frameId));
+    const order = (id: string) => frameIds.indexOf(id);
+    const last = mine.reduce((m, a) => (order(a.frameId) > order(m.frameId) ? a : m), mine[0]);
+    out.push({ file: f.name, fromId: walked[0].frameId, toId: order(last.frameId) >= order(walked[0].frameId) ? last.frameId : walked[0].frameId, at: best });
+  }
+  return out;
+}

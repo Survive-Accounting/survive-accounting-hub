@@ -26,7 +26,8 @@ import { enqueueStitch, openStitchRoom, stitchJob, subscribeStitches, type Stitc
 import type { BlastFrame } from "../plan";
 import { FRAME_LABEL } from "../plan";
 import { endCtaOf } from "../practice-cta";
-import { chunks, nextAfter, pickTakes, punchKey, rangeOf, readTakes, STITCH_CHUNK, uncovered, type PunchTake } from "../punch-in";
+import { chunks, nextAfter, obsFileTime, pickTakes, punchKey, rangeOf, readTakes, recoverTakes, STITCH_CHUNK, uncovered, type PunchTake } from "../punch-in";
+import { listTakeLogsSince } from "@/lib/take-log.functions";
 
 const GOLD = "#FCA311", CREAM = "#F5EFE6", MUTED = "#8C9BBA", EDGE = "#2A3654", RED = "#FF7A6B", MINT = "#3BF5A0";
 export const PUNCH_ON_KEY = "sa-punch-on";
@@ -83,7 +84,31 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   const ids = useMemo(() => frames.map((f) => f.id), [frames]);
   const key = punchKey(setId, takeIndex);
   const [takes, setTakes] = useState<PunchTake[]>(() => { try { return readTakes(localStorage.getItem(key)); } catch { return []; } });
-  useEffect(() => { try { setTakes(readTakes(localStorage.getItem(key))); } catch { setTakes([]); } }, [key]);
+  // A NEW VIDEO (2026-09-15): its own takes — and any take in its list that belongs to another video (a Ctrl+Z of
+  // another video's Start over, the old stale-save bug) goes home to that video. Scrap / undo / replace state is
+  // per video, so Ctrl+Z never brings another video's takes in.
+  useEffect(() => {
+    let list: PunchTake[] = [];
+    try { list = readTakes(localStorage.getItem(key)); } catch { list = []; }
+    const here = new Set(frames.map((f) => f.id));
+    let moved = 0;
+    const keep: PunchTake[] = [];
+    for (const t of list) {
+      const other = here.has(t.fromId) ? takeIndex : videoOf?.(t.fromId) ?? null;
+      if (other == null || other === takeIndex) { keep.push(t); continue; }
+      try {
+        const k = punchKey(setId, other);
+        const there = readTakes(localStorage.getItem(k));
+        if (!there.some((x) => x.file === t.file)) localStorage.setItem(k, JSON.stringify([...there, t]));
+        moved++;
+      } catch { keep.push(t); }
+    }
+    if (moved) { try { localStorage.setItem(key, JSON.stringify(keep)); } catch { /* shown, not saved */ } }
+    setTakes(keep);
+    setTrash([]); cleared.current = null; setArmed(null); setReplacing(null); replacingRef.current = null;
+    if (moved) setFlash({ text: `Moved ${moved} take${moved === 1 ? "" : "s"} back to the video${moved === 1 ? "" : "s"} they were filmed for.`, tone: "warn" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
   const save = useCallback((next: PunchTake[]) => { setTakes(next); try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* this visit only */ } }, [key]);
   const takesRef = useRef(takes); takesRef.current = takes;
 
@@ -127,16 +152,21 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
     try { localStorage.setItem(`sa-film-goto:${setId}`, JSON.stringify({ frameId, at: Date.now() })); } catch { /* the pop-out stays */ }
   }, [setId]);
   const label = (id: string) => { const k = ids.indexOf(id); const f = frames[k]; return k < 0 || !f ? "a slide" : `slide ${k + 1} (${FRAME_LABEL[f.kind]})`; };
+  // (the live ref is declared with the OBS effect below; refreshed every render once it exists)
 
   // THE FOLDER, if it was granted before.
   useEffect(() => { void savedTakesFolder(false).then((h) => { if (h) setFolder(h); }); }, []);
 
+  // THE LIVE VIDEO for the OBS handler. The handler is made once, on Connect — it must never keep the video that
+  // was up then (Lee, 2026-09-15: takes kept after Next video were written over the first video's list).
+  const live = useRef({ setId, ids, takeIndex, videoOf, save, goto: (id: string | null) => { void id; }, label: (id: string) => id, folder });
   // OBS — connected while the panel is open.
   useEffect(() => {
     if (!connectTick) return;
     return connectObs(addr, pass, {
       onStatus: (status, detail) => setObs({ status, detail }),
       onRecord: (e) => {
+        const { setId, ids, takeIndex, videoOf, save, goto, label, folder } = live.current;
         if (e.kind === "started") {
           const from = popoutFrameId();
           if (!from) { say("Recording, but no pop-out is open — open the 9:16 window so the take knows its slide.", "bad"); setRecording({ fromId: "" }); return; }
@@ -187,6 +217,8 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reconnect only on an explicit Connect
   }, [connectTick]);
+
+  live.current = { setId, ids, takeIndex, videoOf, save, goto, label, folder };
 
   // F3 · F3 · Ctrl+Z · Esc — here, and from the pop-out through the relay.
   const onPunchKey = useCallback((k: string) => {
@@ -259,6 +291,42 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
     const file = await getFile(dir as never, t.file);
     if (!file) { say(`${t.file} isn't in the recordings folder`, "bad"); return; }
     setPlaying((prev) => { if (prev) URL.revokeObjectURL(prev.url); return { file: t.file, url: URL.createObjectURL(file) }; });
+  };
+  // RECOVER TAKES (Lee, 2026-09-15: "scrapping removed takes I liked"): this video's recordings from the last day and
+  // a half, matched to the pop-out's roll logs — tick the ones to put back.
+  const [recover, setRecover] = useState<null | { busy: string } | { error: string } | { list: { take: PunchTake; on: boolean; had: boolean }[] }>(null);
+  const findLost = async () => {
+    try {
+      let dir = folder;
+      if (!dir) { dir = (await pickTakesFolder()) as never; if (!dir) return; setFolder(dir); }
+      setRecover({ busy: "reading the recordings folder…" });
+      const since = Date.now() - 36 * 3600_000;
+      const names: string[] = [];
+      for await (const [name, h] of (dir as unknown as { entries: () => AsyncIterable<[string, { kind: string }]> }).entries()) {
+        if (h.kind !== "file" || !/\.(mp4|mkv|mov|m4v|flv)$/i.test(name)) continue;
+        const t = obsFileTime(name);
+        if (t != null && t >= since) names.push(name);
+      }
+      setRecover({ busy: `matching ${names.length} recordings to the slide logs…` });
+      const r = await listTakeLogsSince({ data: { setId, since: new Date(since - 3600_000).toISOString() } });
+      if (!r.ok) throw new Error(r.error);
+      const rough = recoverTakes(filmIds, r.logs, names.map((name) => ({ name, durationS: null })));
+      const files: { name: string; durationS: number | null }[] = [];
+      for (const c of rough) {
+        const f = await getFile(dir as never, c.file);
+        files.push({ name: c.file, durationS: f ? await probeDuration(f).catch(() => null) : null });
+      }
+      const found = recoverTakes(filmIds, r.logs, files);
+      const had = new Set(takes.map((t) => t.file));
+      setRecover({ list: found.map((t) => ({ take: t, on: !had.has(t.file), had: had.has(t.file) })) });
+    } catch (e) { setRecover({ error: e instanceof Error ? e.message : String(e) }); }
+  };
+  const putBack = () => {
+    if (!recover || !("list" in recover)) return;
+    const add = recover.list.filter((x) => x.on && !x.had).map((x) => x.take);
+    save([...takes, ...add]);
+    say(`Put back ${add.length} take${add.length === 1 ? "" : "s"}`, "good");
+    setRecover(null);
   };
   const lastOutroTake =[...takes].sort((a, b) => b.at - a.at).find((t) => t.fromId === t.toId && isOutro(t.fromId)) ?? null;
   const keepOutro = async (t: PunchTake) => {
@@ -434,11 +502,38 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
         )}
         <div style={{ color: MUTED, marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ flex: 1 }}>{picks.length} take{picks.length === 1 ? "" : "s"} kept{gaps.length ? ` · ${gaps.length} slide${gaps.length === 1 ? "" : "s"} not filmed` : " · every slide filmed"}</span>
+          <button type="button" style={btn()} disabled={!!recording} onClick={() => void findLost()}
+            title="Find this video's recordings from the last day and a half and put takes back">Recover takes</button>
           <button type="button" style={btn()} disabled={!takes.length || !!recording}
             title="Clear this video's takes and film it again from the first slide. The files stay in the folder; Ctrl+Z brings the takes back."
             onClick={() => { cleared.current = takes; save([]); setStage({ s: "idle" }); goto(ids[0] ?? null); say(`Started over — ${takes.length} take${takes.length === 1 ? "" : "s"} cleared. Ctrl+Z brings them back.`, "warn"); }}>↺ Start over</button>
         </div>
       </div>
+
+      {recover && (
+        <div style={{ border: `1px solid ${GOLD}66`, borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 6, background: "rgba(252,163,17,0.05)" }}>
+          <div style={{ display: "flex", alignItems: "center" }}><b style={{ color: GOLD }}>Recover takes</b><span style={{ flex: 1 }} /><button type="button" style={{ ...btn(), padding: "0 6px" }} onClick={() => setRecover(null)}>✕</button></div>
+          {"busy" in recover && <div style={{ color: MUTED }}>{recover.busy}</div>}
+          {"error" in recover && <div style={{ color: RED }}>{recover.error}</div>}
+          {"list" in recover && (recover.list.length === 0
+            ? <div style={{ color: MUTED }}>No recordings from this video in the last day and a half matched a slide log. Scrapped files sit in the folder's _trash; Ctrl+Z (right after a scrap) brings those back.</div>
+            : <>
+                {recover.list.map((x, k) => {
+                  const a = filmIds.indexOf(x.take.fromId) + 1, b = filmIds.indexOf(x.take.toId) + 1;
+                  return (
+                    <label key={x.take.file} style={{ display: "flex", gap: 6, alignItems: "center", cursor: x.had ? "default" : "pointer", color: x.had ? MUTED : CREAM }}>
+                      <input type="checkbox" disabled={x.had} checked={x.on && !x.had} onChange={() => setRecover({ list: recover.list.map((y, j) => (j === k ? { ...y, on: !y.on } : y)) })} />
+                      <span style={{ flex: 1 }}>{a === b ? `Slide ${a}` : `Slides ${a}–${b}`} · {x.take.file.replace(/\.\w+$/, "").slice(11)}</span>
+                      {x.had && <span style={{ fontSize: 10.5 }}>already in</span>}
+                      <button type="button" style={{ ...btn(), padding: "0 6px", fontSize: 11 }} onClick={(e) => { e.preventDefault(); void playTake(x.take); }}>▶</button>
+                    </label>
+                  );
+                })}
+                <div style={{ color: MUTED, fontSize: 11 }}>Newer takes win where two cover the same slide — untick the ones you don't want.</div>
+                <button type="button" style={btn(true)} disabled={!recover.list.some((x) => x.on && !x.had)} onClick={putBack}>Put back {recover.list.filter((x) => x.on && !x.had).length} take{recover.list.filter((x) => x.on && !x.had).length === 1 ? "" : "s"}</button>
+              </>)}
+        </div>
+      )}
 
       {/* STITCH → the Stitch Room (trim, download, queue to post) */}
       <div style={{ borderTop: `1px solid ${EDGE}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>

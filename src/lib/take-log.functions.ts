@@ -49,3 +49,13 @@ export const listTakeLogs = createServerFn({ method: "POST" })
     const r = await d.from("take_logs").select("take_ref,set_id,rolled_at,arrivals").eq("set_id", data.setId).order("rolled_at", { ascending: false }).limit(40);
     return r.error ? failed(r.error) : { ok: true, logs: (r.data ?? []) as TakeLogRow[] };
   });
+
+/** Every roll of a set since a time — the recovery reads a day's worth (Lee, 2026-09-15: "scrapping removed takes
+ *  I liked"). */
+export const listTakeLogsSince = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(200), since: z.string().max(40) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true; logs: TakeLogRow[] } | { ok: false; error: string }> => {
+    const d = await db();
+    const r = await d.from("take_logs").select("take_ref,set_id,rolled_at,arrivals").eq("set_id", data.setId).gte("rolled_at", data.since).order("rolled_at", { ascending: true }).limit(3000);
+    return r.error ? failed(r.error) : { ok: true, logs: (r.data ?? []) as TakeLogRow[] };
+  });
