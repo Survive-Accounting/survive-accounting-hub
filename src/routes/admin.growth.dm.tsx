@@ -13,7 +13,7 @@
 // TODAY'S LIST IS DERIVED, NEVER STORED. The old Upcoming Sends laid out a semester in advance and
 // went stale the first week it slipped. This rebuilds every load out of what is unsent and what has
 // gone quiet, so a missed day just means the work is still here tomorrow.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -33,6 +33,9 @@ import { boltForSlug, schoolBySlug } from "@/lib/schools";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/growth/dm")({
+  // RETIRED 2026-09-15 (Lee: "We're switching everything to dm-v2" … "redirect to dm-v2"). The page below
+  // stays in the file for reference; nobody lands on it.
+  beforeLoad: () => { throw redirect({ href: "/admin/dm-v2", statusCode: 302 }); },
   head: () => ({ meta: [{ title: "DM console — Survive Growth" }, { name: "robots", content: "noindex" }] }),
   component: DmConsole,
 });

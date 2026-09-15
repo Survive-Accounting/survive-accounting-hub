@@ -48,7 +48,7 @@ export const Route = createFileRoute("/admin/growth")({
 // It comes back when it's wired to real sends, not before.
 const TABS = [
   // First, because it is the one page King works from every day.
-  { to: "/admin/growth/dm", label: "DM Console", icon: MessageSquare },
+  { to: "/admin/dm-v2", label: "DM Console", icon: MessageSquare },
   // The site chat inbox (2026-09-13, King's idea): conversations from the floating Lee button.
   { to: "/admin/growth/chat", label: "Chat", icon: MessagesSquare },
   // The per-contact link + DM lookup Lee works from for manual outreach (2026-09-11). Also /links.
