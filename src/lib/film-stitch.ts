@@ -87,7 +87,15 @@ export function ledgerRows(records: readonly StitchRecord[]): (StitchRecord & { 
   return [...records].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map((r) => ({ ...r, runningCents: (run += r.payCents) }));
 }
 
-/** THE POST QUEUE, in the order he sent them. */
+/** VIDEO ORDER (Lee, 2026-09-15: "I did #7 out of order. Reorder it … Ensure it always builds queue in order"): the
+ *  sets in the order they were first stitched, and each set's videos by number. */
+export function inVideoOrder<T extends { setId: string; takeIndex: number; createdAt: string }>(rows: readonly T[]): T[] {
+  const firstOf = new Map<string, string>();
+  for (const r of rows) { const f = firstOf.get(r.setId); if (!f || r.createdAt < f) firstOf.set(r.setId, r.createdAt); }
+  return [...rows].sort((a, b) => (a.setId === b.setId ? a.takeIndex - b.takeIndex : (firstOf.get(a.setId) ?? "").localeCompare(firstOf.get(b.setId) ?? "")));
+}
+
+/** THE POST QUEUE, in its saved order (the server keeps it in video order). */
 export function queueOf(records: readonly StitchRecord[]): StitchRecord[] {
   return records.filter((r) => r.status === "queued").sort((a, b) => (a.queuePos ?? 0) - (b.queuePos ?? 0) || (a.queuedAt ?? "").localeCompare(b.queuedAt ?? ""));
 }

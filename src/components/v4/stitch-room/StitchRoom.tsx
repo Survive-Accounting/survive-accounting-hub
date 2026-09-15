@@ -8,7 +8,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import { isPlaceholderName, money, splitNameOf, statsFor, videoKey, videoTitle, type StitchRecord } from "@/lib/film-stitch";
+import { inVideoOrder, isPlaceholderName, money, splitNameOf, statsFor, videoKey, videoTitle, type StitchRecord } from "@/lib/film-stitch";
 import { listFilmStitches } from "@/lib/film-stitch.functions";
 import { loadV4Splits } from "@/lib/v4.functions";
 
@@ -50,7 +50,8 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
 
   const upsert = (r?: StitchRecord) => {
     if (r) qc.setQueryData<StitchRecord[]>(["film-stitches"], (old) => { const list = old ?? []; return list.some((x) => x.id === r.id) ? list.map((x) => (x.id === r.id ? r : x)) : [r, ...list]; });
-    else void qc.invalidateQueries({ queryKey: ["film-stitches"] });
+    // a queue change can move other videos' places too
+    void qc.invalidateQueries({ queryKey: ["film-stitches"] });
   };
 
   // NAMES: a video saved as "Split N" (or nothing) takes its name from the Build step's cuts.
@@ -127,7 +128,7 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
             ))}
             <div style={{ fontSize: 10.5, letterSpacing: "0.14em", fontWeight: 800, color: ROOM.muted, padding: "10px 6px 4px" }}>STITCHED · {records.length}</div>
             {q.isLoading && <div style={{ fontSize: 12, color: ROOM.muted, padding: 6 }}>Loading…</div>}
-            {records.map((r) => {
+            {inVideoOrder(named).map((r) => {
               const k = videoKey(r.setId, r.takeIndex);
               return (
                 <MenuRow key={r.id} on={sel === k} onClick={() => { setSel(k); setTab("videos"); }}

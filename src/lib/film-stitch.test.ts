@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { clampTrim, downloadName, isTrimmed, ledgerRows, money, payFor, periodStart, queueOf, statsFor, takesFingerprint, type StitchRecord } from "./film-stitch";
+import { clampTrim, downloadName, inVideoOrder, isTrimmed, ledgerRows, money, payFor, periodStart, queueOf, statsFor, takesFingerprint, type StitchRecord } from "./film-stitch";
 
 const rec = (o: Partial<StitchRecord>): StitchRecord => ({
   id: "x", setId: "s", takeIndex: 0, name: "V", topicKey: null, setKey: null, setName: null, topicName: null, slides: 4, rateCents: 500, payCents: 2000,
@@ -34,6 +34,10 @@ describe("film stitches", () => {
     expect(statsFor(records, "today", now)).toEqual({ videos: 1, slides: 3, payCents: 1500 });
     expect(statsFor(records, "all", now)).toEqual({ videos: 2, slides: 13, payCents: 6500 });
     expect(ledgerRows(records).map((r) => [r.id, r.runningCents])).toEqual([["b", 5000], ["a", 6500]]);
+  });
+  test("videos sort by number within a set, sets by when they were first stitched", () => {
+    const rows = [rec({ id: "s1-8", setId: "a", takeIndex: 7, createdAt: "2026-09-15T22:09:00Z" }), rec({ id: "s2-1", setId: "b", takeIndex: 0, createdAt: "2026-09-15T23:00:00Z" }), rec({ id: "s1-7", setId: "a", takeIndex: 6, createdAt: "2026-09-15T22:13:00Z" }), rec({ id: "s1-1", setId: "a", takeIndex: 0, createdAt: "2026-09-15T19:26:00Z" })];
+    expect(inVideoOrder(rows).map((r) => r.id)).toEqual(["s1-1", "s1-7", "s1-8", "s2-1"]);
   });
   test("the post queue keeps the order he sent them", () => {
     const q = queueOf([rec({ id: "late", status: "queued", queuePos: 3 }), rec({ id: "posted", status: "posted" }), rec({ id: "first", status: "queued", queuePos: 1 })]);

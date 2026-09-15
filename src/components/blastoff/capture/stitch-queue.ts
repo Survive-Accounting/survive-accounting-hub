@@ -140,7 +140,11 @@ async function pump() {
   running = true;
   try {
     for (;;) {
-      const next = [...jobs.values()].filter((j) => j.state === "waiting").sort((a, b) => a.queuedAt - b.queuedAt)[0];
+      // in video order within a set (a #8 queued before #7 waits for it); sets in the order they were queued
+      const waiting = [...jobs.values()].filter((j) => j.state === "waiting");
+      const setFirst = new Map<string, number>();
+      for (const j of waiting) setFirst.set(j.setId, Math.min(setFirst.get(j.setId) ?? Infinity, j.queuedAt));
+      const next = waiting.sort((a, b) => (a.setId === b.setId ? a.takeIndex - b.takeIndex : setFirst.get(a.setId)! - setFirst.get(b.setId)!))[0];
       if (!next) break;
       await runJob(next.key);
     }

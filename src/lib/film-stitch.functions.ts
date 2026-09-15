@@ -4,7 +4,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { MISSING_FILM_STITCHES_HINT, PAY_PER_SLIDE_CENTS, payFor, type StitchRecord } from "./film-stitch";
+import { inVideoOrder, MISSING_FILM_STITCHES_HINT, PAY_PER_SLIDE_CENTS, payFor, type StitchRecord } from "./film-stitch";
 import { isMissingSchema } from "./pg-errors";
 
 type DB = { from: (t: string) => any };
@@ -99,7 +99,17 @@ export const queueFilmStitch = createServerFn({ method: "POST" })
     const { data: saved, error } = await d.from("film_stitches").update(patch).eq("id", data.id).neq("status", "posted").select("*").maybeSingle();
     if (error) fail(error);
     if (!saved) throw new Error("That video is already posted.");
-    return toRecord(saved);
+    // THE QUEUE STAYS IN VIDEO ORDER, whatever order they were queued in
+    const { data: queued, error: e2 } = await d.from("film_stitches").select("*").eq("status", "queued");
+    if (e2) fail(e2);
+    const ordered = inVideoOrder(((queued ?? []) as any[]).map(toRecord));
+    for (let i = 0; i < ordered.length; i++) {
+      if (ordered[i].queuePos === i + 1) continue;
+      const { error: e3 } = await d.from("film_stitches").update({ queue_pos: i + 1 }).eq("id", ordered[i].id);
+      if (e3) fail(e3);
+    }
+    const mine = ordered.findIndex((r) => r.id === saved.id);
+    return toRecord(mine >= 0 ? { ...saved, queue_pos: mine + 1 } : saved);
   });
 
 export const reorderFilmStitchQueue = createServerFn({ method: "POST" })
