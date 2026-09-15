@@ -459,7 +459,8 @@ export const v4ApplySplits = createServerFn({ method: "POST" })
       const ins = await d.from("teach_edits").insert({ proposal_id: proposal.id, set_id: data.setId, step: "split", target: "cuts", action: data.action, before: prevSplits, after: splits, created_by: data.who ?? null });
       if (ins.error) logWarning = learningError(ins.error);
     }
-    return { ok: true as const, splits, frames: checked, before: z.array(frameSchema).max(2000).parse(before), logWarning };
+    // `updatedAt` so the open Editor can take the new slides in place instead of reloading (V4Chain's cut).
+    return { ok: true as const, splits, frames: checked, updatedAt: now, before: z.array(frameSchema).max(2000).parse(before), logWarning };
   });
 
 /** The topic's cuts (step 4), for the Split page. */

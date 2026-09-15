@@ -25,6 +25,8 @@ export function V4Chain({ data, onData, set, topic, embedded = false }: { data: 
   const [deckKey, setDeckKey] = useState(0);
   const [showDeck, setShowDeck] = useState(true);
   const [busy, setBusy] = useState(false);
+  /** The gaps whose cut is being applied — the deck stays up while they are. */
+  const [cutting, setCutting] = useState<string[]>([]);
   const [note, setNote] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [warn, setWarn] = useState<string | null>(null);
@@ -46,21 +48,28 @@ export function V4Chain({ data, onData, set, topic, embedded = false }: { data: 
   // as the Split list (v4ApplySplits rebuilds the bookends), so the Editor comes down around the write.
   // A bound outro's ✂ is the cut it closes (`v4out-<slide id>`). A new cut opens with no intro — Easy
   // Points videos run back to back; the Split list swaps in the bio or a title card.
+  // A CUT IS ONE CLICK (2026-09-15). Lee: "when I cut between slides? it's a lot to refresh it right now and
+  // then lose my place. Loses time." The Editor stays up: the new slides reach it on its own plan channel
+  // (BlastOffEditor's `sa-plan:<setId>` adopt), so the spine keeps its place, its zoom and its scroll.
   const toggleCut = async (frameId: string) => {
     const id = frameId.startsWith("v4out-") ? frameId.slice("v4out-".length) : frameId;
-    setBusy(true); setErr(null); setNote(null);
+    setErr(null); setNote(null);
+    setCutting((c) => [...c, id]);
     try {
-      setShowDeck(false);
-      await wait(900);
+      await wait(550); // the Editor's 500 ms debounced save lands first, so the cut is applied over it
       const s = await loadV4Splits({ data: { setId: data.setId } });
       const has = s.cuts.some((c) => c.after === id);
       const next = { ...s, cuts: has ? s.cuts.filter((c) => c.after !== id) : [...s.cuts, { after: id, intro: "none" as const }] };
       const r = await v4ApplySplits({ data: { setId: data.setId, splits: next, action: has ? "uncut" : "cut", who: getAdminWho() } });
       setWarn(r.logWarning);
+      // hand the new slides straight to the open Editor (and again in a moment, in case it was mid-save)
+      const tell = () => { try { const ch = new BroadcastChannel(`sa-plan:${data.setId}`); ch.postMessage({ from: "v4-cut", frames: r.frames, updatedAt: r.updatedAt }); ch.close(); } catch { /* the deck reloads on its own next visit */ } };
+      tell();
+      window.setTimeout(tell, 900);
       void rekeyAfterPlanChange(data.setId, r.before as BlastFrame[], r.frames as BlastFrame[]).catch((e) => setWarn(`post rows not re-keyed: ${e instanceof Error ? e.message : String(e)}`));
       setNote(has ? "Cut removed — its outro went with it." : `Cut — ${r.splits.cuts.length + 1} videos now.`);
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
-    finally { setDeckKey((k) => k + 1); setShowDeck(true); setBusy(false); }
+    finally { setCutting((c) => c.filter((x) => x !== id)); }
   };
 
   const finalize = async () => {
@@ -94,6 +103,7 @@ export function V4Chain({ data, onData, set, topic, embedded = false }: { data: 
       {warn && <div style={{ marginTop: 8, fontSize: 12.5, color: V4_AMBER }}>Not recorded for learning — {warn}</div>}
       <div style={{ marginTop: 14 }}>
         {showDeck ? <ReviewDeck key={deckKey} set={set} topic={topic} v4 onV4Cut={(id) => void toggleCut(id)} /> : <div style={{ fontSize: 13, color: V3_CREAM }}>Working…</div>}
+        {cutting.length > 0 && <div role="status" style={{ position: "fixed", right: 18, bottom: 18, zIndex: 40, padding: "7px 12px", borderRadius: 999, background: "rgba(7,11,20,0.92)", border: "1px solid #FCA31166", color: "#FCA311", fontSize: 12, fontWeight: 800 }}>✂ cutting…</div>}
       </div>
     </div>
   );
