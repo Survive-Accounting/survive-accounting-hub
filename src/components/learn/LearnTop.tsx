@@ -180,7 +180,7 @@ export function LearnTop({
           <a href="/" aria-label="Survive Accounting home" className="lk-disp shrink-0" style={{ fontSize: narrow ? 15 : 21, letterSpacing: "-0.01em", lineHeight: 1, color: ink, textDecoration: "none" }}>survive</a>
           <span aria-hidden className="shrink-0 self-stretch" style={{ width: 1, background: rule, minHeight: boltH }} />
           {/* THE BIG BOLT, with the chapter's letters held still over it. It catches the drop. */}
-          <span key={arrive} id={NAV_BOLT_ID} className={`relative inline-block shrink-0${arrive > 0 ? " lk-bolt-arrive" : ""}`} style={{ lineHeight: 0 }} title={schoolName ?? undefined}>
+          <span key={arrive} id={NAV_BOLT_ID} data-gm-bolt="start" className={`relative inline-block shrink-0${arrive > 0 ? " lk-bolt-arrive" : ""}`} style={{ lineHeight: 0 }} title={schoolName ?? undefined}>
             <BoltBoil height={boltH} red={school?.c1 ?? undefined} blue={school?.c2 ?? undefined} cream={ink} boilSeconds={1.2} />
             {/* NO LETTERS ON THE NAV BOLT (Lee, 2026-09-11): illegible at this size on a desk and
                 unreadable on a phone. The chapter's identity lives in the chapter module, large. */}

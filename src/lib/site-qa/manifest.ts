@@ -659,6 +659,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "v4.$topic.$set.$step.tsx": "V4 topic step (AdminGate, noindex) — questions / slides / chain / split / film (2026-09-13)",
   "v4.$topic.$set.shoot.tsx": "V4 film tool (AdminGate, noindex) — the punch-in film surface for one split, same tab as /v4 (2026-09-14)",
   "v4.breathers.tsx": "V4 Breathers (AdminGate, noindex) — the same breather authoring, reached from /v4 (2026-09-14)",
+  "playground.tsx": "internal (noindex) — turns gamer mode on in this browser and links into the site (2026-09-15)",
   "v3.breathers.tsx":"V3 Breathers (AdminGate, noindex) — author recap beats between a set's videos, phone preview, live toggle (2026-09-14)",
   "v3.quick-post.tsx": "V3 Quick post (AdminGate, noindex) — a batch of finished videos onto a set with brand-kit thumbnails, no captions or splits (2026-09-13)",
   "v3.queue.tsx": "V3 queue list (AdminGate, noindex) — the former /v3 home, moved 2026-09-10 when the map became the home",

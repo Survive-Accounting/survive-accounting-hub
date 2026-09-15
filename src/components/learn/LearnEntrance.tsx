@@ -61,7 +61,7 @@ export function LearnEntrance({ tier, onStart }: {
       <div className="flex flex-col items-center" style={{ gap: 6, marginTop: narrow ? 4 : 6 }}>
         {/* King's testing notes (2026-09-14): no "for free" on the button, and no "~0.6 min per video"
             under it — every card already shows its own length. */}
-        <button type="button" onClick={onStart} className="lk-btn-cta" style={{ minWidth: narrow ? 240 : 260, boxShadow: LK.shadow }}>
+        <button type="button" onClick={onStart} data-gm-cta="start" className="lk-btn-cta" style={{ minWidth: narrow ? 240 : 260, boxShadow: LK.shadow }}>
           Start cramming
         </button>
       </div>

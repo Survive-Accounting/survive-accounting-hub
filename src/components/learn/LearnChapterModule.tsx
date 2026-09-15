@@ -168,14 +168,14 @@ export function LearnChapterModule({ school, chapter, councilPreset, contactRef,
     return (
       <>
       <section ref={bandRef} aria-label="In a fraternity or sorority?" className="flex w-full items-center" style={{ gap: narrow ? 10 : 14, padding: narrow ? "10px 10px 10px 12px" : "12px 12px 12px 16px", marginBottom: narrow ? 12 : 16, borderRadius: 14, background: NAVY, color: CREAM, fontFamily: BRAND_SANS, boxShadow: "0 10px 26px -16px rgba(12,21,40,0.9)" }}>
-        <span className="grid shrink-0 place-items-center" style={{ width: narrow ? 46 : 56, height: narrow ? 46 : 56, borderRadius: 12, background: NAVY_DEEP }}>
+        <span data-gm-bolt="band" className="grid shrink-0 place-items-center" style={{ width: narrow ? 46 : 56, height: narrow ? 46 : 56, borderRadius: 12, background: NAVY_DEEP }}>
           <GreekLettersIcon cycle={greekCycle} height={narrow ? 34 : 42} ink={CREAM} still />
         </span>
         <div className="min-w-0 flex-1">
           <div style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: narrow ? 15 : 17, lineHeight: 1.2, letterSpacing: "-0.01em" }}>In a fraternity or sorority?</div>
           <div style={{ fontSize: narrow ? 12 : 13, lineHeight: 1.35, color: "rgba(245,239,230,0.72)", marginTop: 2 }}>Your chapter gets its own page for studying together.</div>
         </div>
-        <button type="button" onClick={() => setExpanded(true)} aria-expanded={false} className="shrink-0 rounded-full" style={{ background: GOLD, color: NAVY, border: 0, cursor: "pointer", fontWeight: 800, fontSize: narrow ? 12 : 13.5, padding: narrow ? "8px 12px" : "9px 16px", whiteSpace: "nowrap", fontFamily: BRAND_SANS }}>
+        <button type="button" onClick={() => setExpanded(true)} aria-expanded={false} data-gm-cta="band" className="shrink-0 rounded-full" style={{ background: GOLD, color: NAVY, border: 0, cursor: "pointer", fontWeight: 800, fontSize: narrow ? 12 : 13.5, padding: narrow ? "8px 12px" : "9px 16px", whiteSpace: "nowrap", fontFamily: BRAND_SANS }}>
           {narrow ? "Find it" : "Find your chapter"}
         </button>
         <button type="button" onClick={dismiss} aria-label="Dismiss" className="grid shrink-0 place-items-center rounded-full" style={{ width: 30, height: 30, background: "rgba(255,255,255,0.08)", color: CREAM, border: 0, cursor: "pointer" }}>

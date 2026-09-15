@@ -592,7 +592,7 @@ function Short({ s, card, onOpen }: { s: HomeSet; card: Card; onOpen: () => void
   const enter = () => { if (canPreview && previewMode() === "hover") claimPreview(card.key); };
   const leave = () => releasePreview(card.key);
   return (
-    <button ref={btnRef} type="button" onClick={onOpen} onMouseEnter={enter} onMouseLeave={leave} onBlur={leave} className="lk-short" data-on={false} data-live={preview} data-rail="true" data-posted={posted} aria-label={card.name} style={{ opacity: s.locked ? 0.7 : undefined }} title={posted ? card.name : `${card.name} — not posted yet`}>
+    <button ref={btnRef} type="button" onClick={onOpen} onMouseEnter={enter} onMouseLeave={leave} onBlur={leave} className="lk-short" data-gm-card="" data-gm-title={card.name} data-gm-done={card.done ? "1" : "0"} data-gm-watched={card.watched.toFixed(2)} data-on={false} data-live={preview} data-rail="true" data-posted={posted} aria-label={card.name} style={{ opacity: s.locked ? 0.7 : undefined }} title={posted ? card.name : `${card.name} — not posted yet`}>
       {thumb && <img src={thumb} alt="" loading="lazy" />}
       {preview && pid && <HoverPreview pid={pid} onProgress={setFrac} />}
       {preview && frac > 0 && <span aria-hidden className="absolute inset-x-0 bottom-0 z-[2] h-[3px]" style={{ background: "rgba(255,255,255,0.2)" }}><span className="block h-full" style={{ width: `${Math.round(frac * 100)}%`, background: LK.acc }} /></span>}

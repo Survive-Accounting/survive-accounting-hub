@@ -142,7 +142,7 @@ function ChaptersPage() {
               ? `${code} cram videos + practice exams for your whole chapter.`
               : "Exam 1 cram videos for your whole chapter."}
           </p>
-          <div className="mt-6 w-full max-w-sm">
+          <div className="mt-6 w-full max-w-sm rounded-2xl" data-gm-cta="finder">
             <FindMyChapter />
           </div>
         </section>

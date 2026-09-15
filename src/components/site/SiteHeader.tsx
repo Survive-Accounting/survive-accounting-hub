@@ -393,7 +393,7 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
             so the small one is pure duplication. Every OTHER page keeps it, because there
             it is the only route home. */}
         {wordmark
-          ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup size={27} animate /></a>
+          ? <a href="/" aria-label="Survive Accounting — home" data-gm-bolt="auto" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup size={27} animate /></a>
           : <span style={{ minHeight: 44, display: "inline-flex" }} />}
         <span className="flex-1" />
 

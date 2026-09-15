@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SiteChat } from "@/components/site/SiteChat";
+import { GamerLayer } from "@/components/gamer/GamerLayer";
 import {
   Outlet,
   Link,
@@ -174,6 +175,8 @@ function RootComponent() {
       <CopyEdit />
       {/* THE CHAT on every page (Lee, 2026-09-14) — SiteChat decides where it stays off. */}
       <SiteChat />
+      {/* GAMER MODE (2026-09-15) — nothing renders unless /playground or ?gamer=1 turned it on in this browser. */}
+      <GamerLayer />
       {/* THE PRODUCTION TIMER pill (Lee, 2026-09-05) is UNMOUNTED here since 2026-09-10 — Lee:
           no admin pills anywhere a student can see. components/v3/ProductionTimer.tsx keeps the
           component and SettingsGear (Shell.tsx's ⚙) intact; only this mount is gone. */}

@@ -585,6 +585,7 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo,
               type="button"
               onClick={onSwitchSchool}
               className="sa-bolt-target"
+              data-gm-bolt="solo"
               aria-label={known ? "Change school" : "Pick your school"}
               title={known ? "Change school" : "Pick your school"}
             >
@@ -616,11 +617,11 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo,
           }
           button={
             soloHref ? (
-              <a href={soloHref} onClick={onSolo} className={`inline-flex items-center justify-center ${btnCls("solo")}`} style={SOLO_BTN}>
+              <a href={soloHref} onClick={onSolo} data-gm-cta="solo" className={`inline-flex items-center justify-center ${btnCls("solo")}`} style={SOLO_BTN}>
                 {soloButtonLabel()}
               </a>
             ) : (
-              <button type="button" onClick={onSolo} className={btnCls("solo")} style={SOLO_BTN}>
+              <button type="button" onClick={onSolo} data-gm-cta="solo" className={btnCls("solo")} style={SOLO_BTN}>
                 {soloButtonLabel()}
               </button>
             )
@@ -648,6 +649,7 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo,
             // short name the /go chapter page's doors use (chapterShortName: nickname, else initials).
             <span
               key={chapter?.slug ?? "none"}
+              data-gm-bolt="chapter"
               className={`sa-door-bolt${chapter ? " sa-door-bolt--arrive" : ""}`}
               style={{ display: "inline-block" }}
             >
@@ -665,7 +667,7 @@ function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo,
               : undefined
           }
           button={
-            <button type="button" onClick={onChapter} className={btnCls("chapter")} style={CHAPTER_BTN}>
+            <button type="button" onClick={onChapter} data-gm-cta="chapter" className={btnCls("chapter")} style={CHAPTER_BTN}>
               Study with your chapter →
             </button>
           }
