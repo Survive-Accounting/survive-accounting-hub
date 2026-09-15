@@ -29,7 +29,7 @@ export function teaserKindOf(line: string): BlastFrameKind | null {
   if (/cheat/.test(t)) return "cheat";
   if (/memori[sz]e/.test(t)) return "phrase";
   if (/tricky|trick question/.test(t)) return "tricky";
-  if (/deep(er)?\b|go deeper/.test(t)) return "tip";
+  if (/deep(er)?\b|go deeper|think like an accountant/.test(t)) return "tip";
   if (/ask yourself/.test(t)) return "ask";
   return null;
 }
