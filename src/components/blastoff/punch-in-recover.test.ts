@@ -1,6 +1,6 @@
 ﻿import { describe, expect, test } from "bun:test";
 
-import { obsFileTime, recoverTakes } from "./punch-in";
+import { furthestForward, obsFileTime, recoverTakes } from "./punch-in";
 
 const local = (y: number, mo: number, d: number, h: number, mi: number, s: number, ms = 0) => new Date(y, mo - 1, d, h, mi, s, ms).toISOString();
 
@@ -26,5 +26,17 @@ describe("recovering punch-in takes", () => {
       ["2026-09-15 14-40-16.mp4", "a", "a"],
       ["2026-09-15 14-41-00.mp4", "b", "c"],
     ]);
+  });
+});
+
+describe("a look back while recording", () => {
+  test("the take reaches only as far forward as it got", () => {
+    const ids = ["a", "b", "c", "d", "e"];
+    // started on c, went forward to d, looked back at a, stopped on a
+    expect(furthestForward(ids, "c", ["c", "d", "a"])).toBe("d");
+    // started on c, only looked back, stopped on b → just c
+    expect(furthestForward(ids, "c", ["c", "b"])).toBe("c");
+    // a plain speed run c → e
+    expect(furthestForward(ids, "c", ["c", "d", "e"])).toBe("e");
   });
 });

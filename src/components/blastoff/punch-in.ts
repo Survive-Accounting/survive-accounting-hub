@@ -28,6 +28,18 @@ export function nextAfter(frameIds: readonly string[], take: Pick<PunchTake, "to
   return k >= 0 && k + 1 < frameIds.length ? frameIds[k + 1] : null;
 }
 
+/** WHERE A TAKE REACHES (2026-09-16). Lee: "sometimes I will go backwards with a take to recall something. It's
+ *  screwing up the takes." The take covers its first slide through the furthest slide FORWARD of it that the
+ *  pop-out showed while recording; slides behind the start (a look back) are never covered. Stopping on a look-back
+ *  leaves the take on the slides it actually filmed. */
+export function furthestForward(frameIds: readonly string[], fromId: string, walked: readonly string[]): string {
+  const a = frameIds.indexOf(fromId);
+  if (a < 0) return fromId;
+  let best = a;
+  for (const id of walked) { const k = frameIds.indexOf(id); if (k > best) best = k; }
+  return frameIds[best];
+}
+
 /** A take's slide range as indexes (from ≤ to), or null when either end is no longer in the split. */
 export function rangeOf(frameIds: readonly string[], take: Pick<PunchTake, "fromId" | "toId">): { from: number; to: number } | null {
   const a = frameIds.indexOf(take.fromId), b = frameIds.indexOf(take.toId);

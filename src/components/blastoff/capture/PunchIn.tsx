@@ -26,7 +26,7 @@ import { enqueueStitch, openStitchRoom, stitchJob, subscribeStitches, type Stitc
 import type { BlastFrame } from "../plan";
 import { FRAME_LABEL } from "../plan";
 import { endCtaOf } from "../practice-cta";
-import { chunks, nextAfter, obsFileTime, pickTakes, punchKey, rangeOf, readTakes, recoverTakes, STITCH_CHUNK, uncovered, type PunchTake } from "../punch-in";
+import { chunks, furthestForward, nextAfter, obsFileTime, pickTakes, punchKey, rangeOf, readTakes, recoverTakes, STITCH_CHUNK, uncovered, type PunchTake } from "../punch-in";
 import { listTakeLogsSince } from "@/lib/take-log.functions";
 
 const GOLD = "#FCA311", CREAM = "#F5EFE6", MUTED = "#8C9BBA", EDGE = "#2A3654", RED = "#FF7A6B", MINT = "#3BF5A0";
@@ -118,7 +118,10 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   const [connectTick, setConnectTick] = useState(0);
   const [folder, setFolder] = useState<FileSystemDirectoryHandle | null>(null);
   const [recording, setRecording] = useState<{ fromId: string } | null>(null);
-  const recRef = useRef(recording); recRef.current = recording;
+    const recRef = useRef(recording); recRef.current = recording;
+  /** Every slide the pop-out showed during the recording, in order (see the OBS "started" handler). */
+  const walked = useRef<string[]>([]);
+  const walkTimer = useRef<number | null>(null);
   const [armed, setArmed] = useState<"last" | "live" | null>(null);
   const armedRef = useRef(armed); armedRef.current = armed;
   const scrapLive = useRef(false);
@@ -170,14 +173,24 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
         if (e.kind === "started") {
           const from = popoutFrameId();
           if (!from) { say("Recording, but no pop-out is open — open the 9:16 window so the take knows its slide.", "bad"); setRecording({ fromId: "" }); return; }
-          setRecording({ fromId: from }); scrapLive.current = false; setArmed(null);
+                    setRecording({ fromId: from }); scrapLive.current = false; setArmed(null);
+          // THE WALK while recording (2026-09-16). Lee: "sometimes I will go backwards with a take to recall
+          // something. It's screwing up the takes." A take used to cover start→stop, so stopping three slides back
+          // wrote over slides already filmed. Now every slide the pop-out shows while recording is noted, and the
+          // take reaches only as far FORWARD as it got — a look back is never part of it.
+          walked.current = [from];
+          if (walkTimer.current) window.clearInterval(walkTimer.current);
+          walkTimer.current = window.setInterval(() => { const id = popoutFrameId(); if (id && walked.current[walked.current.length - 1] !== id) walked.current.push(id); }, 200);
           say(`● recording ${label(from)}`, "warn");
           return;
         }
         if (e.kind === "stopped") {
-          const rec = recRef.current;
+                    const rec = recRef.current;
+          if (walkTimer.current) { window.clearInterval(walkTimer.current); walkTimer.current = null; }
           setRecording(null);
-          const to = popoutFrameId();
+                    const stoppedOn = popoutFrameId();
+          if (stoppedOn && walked.current[walked.current.length - 1] !== stoppedOn) walked.current.push(stoppedOn);
+          const to = rec?.fromId ? furthestForward(ids, rec.fromId, walked.current) : stoppedOn;
           if (!rec?.fromId || !to || !e.path) { say("Stopped — the take couldn't be matched to a slide, so it wasn't kept.", "bad"); return; }
           const take: PunchTake = { file: baseName(e.path), fromId: rec.fromId, toId: to, at: Date.now() };
           // THE WRONG VIDEO (Lee, 2026-09-15: "I accidentally stitched in wrong place"): the pop-out was on a
