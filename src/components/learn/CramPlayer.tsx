@@ -184,6 +184,7 @@ export function CramPlayer({
       onStarted={() => onStarted(part.key)} onComplete={() => onComplete(part.key)} onPosition={(p, d) => onPosition(part.key, p, d)}
       onEnded={() => {
         if (practice || cards || ask) return;
+        if (endCta === part.key) return; // the offer is up — hold here until they choose
                 // THE PRACTICE OFFER shows once per part — at its slide (onCta), or here if the slide's moment wasn't
         // known. Once it's been answered, the end of the video rolls straight on (Lee, 2026-09-16: "We want it to
         // automatically go to the next video in series").
@@ -199,7 +200,7 @@ export function CramPlayer({
         window.setTimeout(() => go(1), 1200);
       }}
             onCta={() => { offered.current.add(part.key); setEndCta(part.key); }}
-            onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask || endCta === part.key}
+            onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask}
       caption={{ topic: topic.name, n: cap.n, of: cap.of, name: cap.name }}
       overlay={breatherCard || endCard || null}
     />
@@ -415,7 +416,9 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
                 // arrives. The picture holds there until they choose — the offer is a gate, not a countdown.
                 if (onCta && part.endCta && !ctaDone.current && v.duration) {
                   const mark = part.ctaAtS != null && part.ctaAtS > 0 && part.ctaAtS < v.duration - 0.4 ? part.ctaAtS : Math.max(0, v.duration - 4);
-                  if (v.currentTime >= mark) { ctaDone.current = true; v.pause(); onCta(); }
+                  // No pause (Lee, 2026-09-16: "the try the practice questions button is pausing the easy points
+                  // video #1. We don't want that") — the offer rides over the picture; the end holds on it.
+                  if (v.currentTime >= mark) { ctaDone.current = true; onCta(); }
                 }
                 const now = Date.now(); if (now - lastWrite.current > 5000) { lastWrite.current = now; flush(); }
               }}

@@ -15,10 +15,12 @@ const ctx = async (): Promise<DB> => {
   return supabaseAdmin as unknown as DB;
 };
 
-type Pub = { kind?: string; source?: string; state?: string; pubKey?: string; takeIndex?: number; meta?: { title?: string }; render?: { durationS?: number | null; muxPlaybackId?: string }; coverUrl?: string };
+type Pub = { kind?: string; source?: string; state?: string; pubKey?: string; takeIndex?: number; order?: number; meta?: { title?: string }; render?: { durationS?: number | null; muxPlaybackId?: string }; coverUrl?: string };
+/** The order students see (student-shorts.ts orderOf): a publication's own `order` when Lee set one, else its takeIndex. */
+const siteOrder = (p: Pub) => (typeof p.order === "number" && Number.isFinite(p.order) ? p.order : (p.takeIndex ?? 0));
 const isPosted = (p: Pub) => p?.kind === "blast" && p.source === "blastoff" && p.state === "shipped" && typeof p.pubKey === "string" && !!p.render?.muxPlaybackId;
 
-export interface SequenceVideo { pubKey: string; index: number; title: string; durationS: number | null; coverUrl: string | null; playbackId: string | null }
+export interface SequenceVideo { pubKey: string; index: number; takeIndex: number; title: string; durationS: number | null; coverUrl: string | null; playbackId: string | null }
 
 /** Sets with at least two posted videos — the sequences a breather can sit in. */
 export const listBreatherSets = createServerFn({ method: "GET" }).handler(async (): Promise<Array<{ id: string; name: string; videos: number; breathers: number }>> => {
@@ -41,8 +43,10 @@ export const loadBreathers = createServerFn({ method: "GET" })
     const o = (await loadDecksDeduped(db as never)).get(data.setId);
     if (!o) return null;
     const d = o.deck as { name?: string; publications?: Pub[]; breathers?: Breather[] };
-    const videos = (d.publications ?? []).filter(isPosted).sort((a, b) => (a.takeIndex ?? 0) - (b.takeIndex ?? 0))
-      .map((p, i) => ({ pubKey: p.pubKey!, index: i, title: p.meta?.title ?? `Video ${i + 1}`, durationS: p.render?.durationS ?? null, coverUrl: p.coverUrl ?? null, playbackId: p.render?.muxPlaybackId ?? null }));
+    // In the order students see them (Lee, 2026-09-16: "how can I rearrange the order that videos appear on the
+    // site? I'd prefer to do it from the /breathers page").
+    const videos = (d.publications ?? []).filter(isPosted).sort((a, b) => siteOrder(a) - siteOrder(b) || (a.takeIndex ?? 0) - (b.takeIndex ?? 0))
+      .map((p, i) => ({ pubKey: p.pubKey!, index: i, takeIndex: p.takeIndex ?? 0, title: p.meta?.title ?? `Video ${i + 1}`, durationS: p.render?.durationS ?? null, coverUrl: p.coverUrl ?? null, playbackId: p.render?.muxPlaybackId ?? null }));
     return { setName: d.name ?? data.setId, videos, breathers: d.breathers ?? [] };
   });
 

@@ -12,6 +12,21 @@ import { Check, Loader2, Lock, MessageCircle, Play, X } from "lucide-react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { BonusPanel } from "@/components/learn/BonusPanel";
+import { HOW_SURVIVE_WORKS_LEN, HowSurviveWorksLightbox } from "@/components/learn/HowSurviveWorks";
+
+/** THE WELCOME VIDEO, in the set screen too (Lee, 2026-09-16, on the wireframes: "The welcome video could just
+ *  be in this too"): one quiet row above the videos; a tap opens the same lightbox as the home page. */
+function WelcomeRow() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "7px 10px", borderRadius: 9, cursor: "pointer", background: "transparent", border: `1px dashed ${PANEL_EDGE}`, color: MUTED, fontFamily: BRAND_SANS, fontSize: 12.5, fontWeight: 600 }}>
+        <Play className="h-3.5 w-3.5" /> How Survive Works · {HOW_SURVIVE_WORKS_LEN}
+      </button>
+      {open && <HowSurviveWorksLightbox onClose={() => setOpen(false)} />}
+    </>
+  );
+}
 import { fmtRuntime, type Prog } from "@/components/learn/cram-media";
 import type { PlayerItem } from "@/components/learn/CramPlayer";
 import { PracticeStage } from "@/components/site/PracticeStage";
@@ -85,6 +100,7 @@ export function SetPanel({ items, index, onIndex, progress, tab, onTab, narrow, 
         {tab === "watch" && (
           <div style={{ padding: "12px 12px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ fontSize: 10.5, letterSpacing: "0.14em", fontWeight: 800, color: MUTED, textTransform: "uppercase" }}>{topic.name} · {set.name}{mine.length > 1 ? ` · ${mine.length} videos` : ""}</div>
+            <WelcomeRow />
             <div role="list" style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               {mine.map(({ it, j }, i) => {
                 const now = j === index;
@@ -123,6 +139,8 @@ export function SetPanel({ items, index, onIndex, progress, tab, onTab, narrow, 
             campusName={campusName}
             campusSlug={campusSlug}
             surface="learn"
+            skin="cream"
+            statusLabel=""
             isTest={demo}
             doneLabel={guidance.nextLabel}
             onDone={onPracticeDone}

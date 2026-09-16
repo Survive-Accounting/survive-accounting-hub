@@ -63,7 +63,7 @@ export function HowSurviveWorksVideo({ style, radius = 16, caption = true, onSou
 }
 
 /** THE /learn ROW, above the topics: a small silent preview, the name, the length, Watch. Once watched, one line. */
-export function HowSurviveWorksRow({ narrow }: { narrow: boolean }) {
+export function HowSurviveWorksRow({ narrow, onStart }: { narrow: boolean; onStart?: () => void }) {
   const [seen, setSeen] = useState(false);
   const [open, setOpen] = useState(false);
   useEffect(() => { setSeen(readHswSeen()); }, []);
@@ -76,7 +76,9 @@ export function HowSurviveWorksRow({ narrow }: { narrow: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
-  const lightbox = open && <HowSurviveWorksLightbox onClose={close} />;
+  // THE BUTTON AT THE BOTTOM OF THE PLAYER (Lee, 2026-09-16: "just like the home page… it should *immediately*
+  // take you to the first easy points").
+  const lightbox = open && <HowSurviveWorksLightbox onClose={close} cta={onStart ? { label: "Start cramming →", onClick: () => { close(); onStart(); } } : undefined} />;
   if (seen) {
     return (
       <>

@@ -218,7 +218,7 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
               )}
             </>
           )}
-          {tab === "queue" && <PostQueue records={named} onChange={upsert} onOpen={(r) => { setSel(videoKey(r.setId, r.takeIndex)); setTab("videos"); }} />}
+          {tab === "queue" && <PostQueue records={named} suggestName={(r) => { const f = briefFor(r)?.first ?? ""; return f.length > 60 ? `${f.slice(0, 58)}…` : f; }} onChange={upsert} onOpen={(r) => { setSel(videoKey(r.setId, r.takeIndex)); setTab("videos"); }} />}
           {tab === "stats" && <FilmStats records={named} onOpen={(r) => { setSel(videoKey(r.setId, r.takeIndex)); setTab("videos"); }} />}
         </main>
       </div>

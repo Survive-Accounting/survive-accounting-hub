@@ -82,6 +82,17 @@ export const setFilmStitchTrim = createServerFn({ method: "POST" })
     return toRecord(saved);
   });
 
+/** THE NAME (Lee, 2026-09-16: "I need help naming these videos… They can't all be the same"): the title the
+ *  post queue, the thumbnail and /learn use. */
+export const renameFilmStitch = createServerFn({ method: "POST" })
+  .inputValidator((x: unknown) => z.object({ id: z.string().uuid(), name: z.string().trim().max(300) }).parse(x))
+  .handler(async ({ data }): Promise<StitchRecord> => {
+    const { d } = await db();
+    const { data: saved, error } = await d.from("film_stitches").update({ name: data.name, updated_at: new Date().toISOString() }).eq("id", data.id).select("*").single();
+    if (error) fail(error);
+    return toRecord(saved);
+  });
+
 /** THE POST QUEUE: in (at the end), out, or a new order. */
 export const queueFilmStitch = createServerFn({ method: "POST" })
   .inputValidator((x: unknown) => z.object({ id: z.string().uuid(), queued: z.boolean() }).parse(x))

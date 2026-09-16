@@ -2,7 +2,7 @@
 // these queue up in the order I send them there. Then I review everything and post it all in one batch."
 // In the order he queued them (↑ ↓ to change it); each with its brand thumbnail; Post all goes top to bottom and
 // stops at the first failure so nothing posts out of order.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ThumbnailArt } from "@/components/brand-kit/ThumbnailArt";
 import { coverFor } from "@/components/v3/quick-post";
@@ -10,7 +10,7 @@ import { measureText } from "@/lib/brand-kit/measure";
 import { defaultThumbSpec, seriesTitleCap, TITLE_TRACKING } from "@/lib/brand-kit/thumbnail";
 import { colorwayFor, KIT, NEUTRAL_COLORWAY_ID } from "@/lib/brand-kit/tokens";
 import { clock, money, queueOf, videoTitle, type StitchRecord } from "@/lib/film-stitch";
-import { queueFilmStitch, reorderFilmStitchQueue } from "@/lib/film-stitch.functions";
+import { queueFilmStitch, renameFilmStitch, reorderFilmStitchQueue } from "@/lib/film-stitch.functions";
 
 import { ROOM } from "./room-theme";
 import { postStitch } from "./stitch-render";
@@ -23,7 +23,31 @@ function thumbFor(r: StitchRecord) {
   return { ...spec, titleCap: seriesTitleCap([spec], (t: string, s: number) => measureText(t, s, 900, KIT.display, TITLE_TRACKING)) };
 }
 
-export function PostQueue({ records, onChange, onOpen }: { records: readonly StitchRecord[]; onChange: (r?: StitchRecord) => void; onOpen?: (r: StitchRecord) => void }) {
+/** THE NAME FIELD (Lee, 2026-09-16: seven "#N - Accounting equation effects" in a row): each queued video is named
+ *  right here — the thumbnail redraws from it — with the video's first question offered as a starting point. */
+function NameField({ r, suggest, onSaved }: { r: StitchRecord; suggest?: string; onSaved: (r: StitchRecord) => void }) {
+  const [v, setV] = useState(r.name);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setV(r.name), [r.name]);
+  const save = async (name: string) => {
+    const next = name.trim();
+    if (next === r.name.trim()) { setV(next); return; }
+    setBusy(true);
+    try { onSaved(await renameFilmStitch({ data: { id: r.id, name: next } })); } catch { setV(r.name); } finally { setBusy(false); }
+  };
+  const same = !v.trim() || v.trim() === (r.setName ?? "").trim();
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+      <span style={{ fontWeight: 800, color: ROOM.muted, flex: "none" }}>#{r.takeIndex + 1}</span>
+      <input value={v} onChange={(e) => setV(e.target.value)} onBlur={() => void save(v)} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setV(r.name); }}
+        placeholder={suggest || "Name this video"} disabled={busy} aria-label="Video name"
+        style={{ font: "inherit", fontWeight: 800, fontSize: 14, color: ROOM.cream, background: "rgba(0,0,0,0.25)", border: `1px solid ${same ? ROOM.gold : ROOM.edge}`, borderRadius: 7, padding: "3px 8px", flex: 1, minWidth: 0 }} />
+      {same && suggest && <button type="button" onClick={() => { setV(suggest); void save(suggest); }} title="Use the first question as the name" style={{ font: "inherit", fontSize: 11.5, fontWeight: 800, color: ROOM.gold, background: "transparent", border: `1px solid ${ROOM.gold}66`, borderRadius: 7, padding: "3px 8px", cursor: "pointer", whiteSpace: "nowrap" }}>Use question</button>}
+    </div>
+  );
+}
+
+export function PostQueue({ records, onChange, onOpen, suggestName }: { records: readonly StitchRecord[]; onChange: (r?: StitchRecord) => void; onOpen?: (r: StitchRecord) => void; suggestName?: (r: StitchRecord) => string }) {
   const queue = useMemo(() => queueOf(records), [records]);
   const arts = useRef(new Map<string, SVGSVGElement | null>());
   const [status, setStatus] = useState<Record<string, { note: string; tone: "work" | "good" | "bad" }>>({});
@@ -81,8 +105,8 @@ export function PostQueue({ records, onChange, onOpen }: { records: readonly Sti
               <ThumbnailArt ref={(el) => { arts.current.set(r.id, el); }} spec={thumbFor(r)} colorway={colorwayFor(NEUTRAL_COLORWAY_ID)} mode="social" width={54} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              {onOpen ? <button type="button" onClick={() => onOpen(r)} style={{ all: "unset", cursor: "pointer", fontWeight: 800 }}>{videoTitle(r.takeIndex, r.name)}</button> : <b>{videoTitle(r.takeIndex, r.name)}</b>}
-              <div style={{ fontSize: 11.5, color: ROOM.muted }}>{r.setName} · {clock(r.durationS)} · {r.slides} slides · {money(r.payCents)}</div>
+              <NameField r={r} suggest={suggestName?.(r)} onSaved={(x) => onChange(x)} />
+              <div style={{ fontSize: 11.5, color: ROOM.muted, marginTop: 3 }}>{r.setName} · {clock(r.durationS)} · {r.slides} slides · {money(r.payCents)}{onOpen && <> · <button type="button" onClick={() => onOpen(r)} style={{ all: "unset", cursor: "pointer", color: ROOM.sky, fontWeight: 700 }}>open</button></>}</div>
               {st && <div style={{ fontSize: 11.5, color: st.tone === "good" ? ROOM.mint : st.tone === "bad" ? ROOM.red : ROOM.gold }}>{st.note}</div>}
             </div>
             <button type="button" style={btn()} disabled={busy || i === 0} onClick={() => void move(i, -1)} title="Earlier">↑</button>

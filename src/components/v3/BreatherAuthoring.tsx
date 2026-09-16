@@ -10,6 +10,7 @@ import { BreatherCard } from "@/components/learn/BreatherCard";
 import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 import { BREATHER_BODY_MAX, breatherPosition, breatherWarnings, moveBreather, newBreather, type Breather } from "@/lib/breathers";
 import { listBreatherSets, loadBreathers, saveBreathers, type SequenceVideo } from "@/lib/breathers.functions";
+import { setLearnOrder } from "@/lib/learn-admin.functions";
 
 import { clock } from "./quick-post";
 
@@ -39,6 +40,18 @@ export function BreatherAuthoring() {
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
   };
   useEffect(() => { void load(setId); }, [setId]);
+  // THE ORDER ON THE SITE (Lee, 2026-09-16): ▲ ▼ on a video moves it for students right away — no Save needed
+  // (the breathers below keep their gaps by video, so they travel with it).
+  const moveVideo = async (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= videos.length) return;
+    const takeIndexes = videos.map((v) => v.takeIndex);
+    [takeIndexes[i], takeIndexes[j]] = [takeIndexes[j], takeIndexes[i]];
+    setBusy(true); setErr(null);
+    try { await setLearnOrder({ data: { setId, takeIndexes } }); await load(setId); setNote("Order saved · live on /learn"); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
 
   const order = videos.map((v) => v.pubKey);
   const warnings = useMemo(() => breatherWarnings(order, draft), [order, draft]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -100,6 +113,8 @@ export function BreatherAuthoring() {
                   {v.coverUrl ? <img src={v.coverUrl} alt="" style={{ width: 30, height: 53, objectFit: "cover", borderRadius: 4 }} /> : <span style={{ width: 30, height: 53, borderRadius: 4, background: "#000" }} />}
                   <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{v.title}</span>
                   <span style={{ fontSize: 12, color: V3_MUTED }}>{clock(v.durationS)}</span>
+                  <button type="button" style={{ ...btn(), padding: "2px 8px" }} disabled={busy || i === 0} onClick={() => void moveVideo(i, -1)} title="Play this video earlier on /learn">▲</button>
+                  <button type="button" style={{ ...btn(), padding: "2px 8px" }} disabled={busy || last} onClick={() => void moveVideo(i, 1)} title="Play this video later on /learn">▼</button>
                 </div>
                 {!last && (
                   <div onDragOver={(e) => { if (dragId) e.preventDefault(); }} onDrop={() => { if (dragId) { setDraft((d) => moveBreather(d, dragId, v.pubKey)); setDragId(null); } }}

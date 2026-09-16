@@ -6,13 +6,11 @@
 // a grade — the end of a set counts questions seen and how many to run again, and a cram tool
 // brings the missed ones back. Every answer/skip/abandon logs to practice_attempts (stable ids).
 // Questions come from fetchSetPractice (or are passed in for demo).
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CircleCheck, CircleX, Loader2, MessageCircle, RotateCcw } from "lucide-react";
 
 import { fetchSetPractice, type PracticeQuestion } from "@/lib/student.functions";
-import { requestPracticePack } from "@/lib/practice-pack.functions";
-import { LeadMagnetGate } from "@/components/site/LeadMagnetGate";
 import { askAboutQuestion, logPracticeEvents, type AttemptEvent } from "@/lib/practice.functions";
 import { readStudentEmail, rememberStudentEmail } from "@/lib/student-email";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,7 +20,19 @@ import { emptyArrows, type RubricArrows } from "@/components/blastoff/rubric";
 import { RubricAnswer } from "@/components/learn/RubricAnswer";
 import { rubricMatches } from "@/lib/learn-bonus";
 
-const C = { text: "#E8ECF5", muted: "#93A0B4", yellow: "#FCA311", green: "#3BF5A0", red: "#FF5C6E", border: "rgba(148,163,190,0.16)", panel: "rgba(9,14,26,0.6)" };
+const DARK = { text: "#E8ECF5", muted: "#93A0B4", yellow: "#FCA311", green: "#3BF5A0", red: "#FF5C6E", border: "rgba(148,163,190,0.16)", panel: "rgba(9,14,26,0.6)", bg: undefined as string | undefined, card: "rgba(255,255,255,0.05)", cardEdge: "rgba(148,180,255,0.18)", chip: "rgba(255,255,255,0.08)", chipEdge: "rgba(148,180,255,0.22)" };
+/** THE CREAM SKIN (Lee, 2026-09-16: "it should use the same skin as the learn page… cream background, electric
+ *  shock when you hover over a choice. Pulse when you select one."). */
+const CREAM = { text: "#14213D", muted: "#5B6478", yellow: "#B86E00", green: "#15803D", red: "#C2273B", border: "rgba(20,33,61,0.14)", panel: "#FFFFFF", bg: "#F4EFE6" as string | undefined, card: "#FFFFFF", cardEdge: "rgba(20,33,61,0.16)", chip: "rgba(20,33,61,0.06)", chipEdge: "rgba(20,33,61,0.14)" };
+type Palette = typeof DARK;
+const PaletteContext = createContext<Palette>(DARK);
+const CHOICE_CSS = `
+@keyframes sa-shock{0%{box-shadow:0 0 0 0 rgba(252,163,17,0)}18%{box-shadow:0 0 0 3px rgba(252,163,17,.6),0 0 18px rgba(252,163,17,.55)}34%{box-shadow:0 0 0 1px rgba(252,163,17,.25)}52%{box-shadow:0 0 0 3px rgba(252,163,17,.5),0 0 22px rgba(59,245,160,.35)}100%{box-shadow:0 0 0 2px rgba(252,163,17,.4)}}
+.sa-choice:not(:disabled):hover{animation:sa-shock 460ms ease-out forwards;transform:translateX(2px)}
+@keyframes sa-pulse{0%{transform:scale(1)}40%{transform:scale(1.025)}100%{transform:scale(1)}}
+.sa-pulse{animation:sa-pulse 360ms ease-out}
+@media (prefers-reduced-motion:reduce){.sa-choice:not(:disabled):hover,.sa-pulse{animation:none;transform:none}}
+`;
 const SWAP_MS = 120;
 
 // ---- coverage (questions attempted per set) — drives the rail bars; local, never a score ------
@@ -56,6 +66,8 @@ export interface PracticeStageProps {
   isTest?: boolean;
   /** Top-right status pill ("PRACTICE"). The only chrome the question header carries. */
   statusLabel?: string;
+  /** "cream" = the /learn skin (2026-09-16); "dark" is the homepage cram mode. */
+  skin?: "dark" | "cream";
   /** Auth state, controlled by the surface. When false, Save my progress is surfaced contextually
    *  (a small chip next to Q# after the first answer + a link in the Q navigator). */
   authed?: boolean;
@@ -88,7 +100,11 @@ export interface PracticeStageProps {
   bonus?: { kind: "ale" | "types"; onOpen: () => void } | null;
 }
 
-export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress, pathAdvance = null, onFinished, roundSize, guidance, gradeAtEnd = false, bonus = null }: PracticeStageProps) {
+export function PracticeStage(props: PracticeStageProps) {
+  return <PaletteContext.Provider value={props.skin === "cream" ? CREAM : DARK}><PracticeStageInner {...props} /></PaletteContext.Provider>;
+}
+function PracticeStageInner({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress, pathAdvance = null, onFinished, roundSize, guidance, gradeAtEnd = false, bonus = null }: PracticeStageProps) {
+  const C = useContext(PaletteContext);
   const q = useQuery({ queryKey: ["set-practice", setId], queryFn: () => fetchSetPractice({ data: { setId } }), enabled: !override, staleTime: 300_000, networkMode: "always" });
   const questions = useMemo<PracticeQuestion[]>(() => override ?? (q.data?.status === "ok" ? q.data.questions : []), [override, q.data]);
 
@@ -381,7 +397,8 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   const resolved = !!picked && !gradeAtEnd;
   const canAdvance = resolved || (gradeAtEnd && !!picked);
   return (
-    <div className="relative flex h-full w-full flex-col" style={{ color: C.text }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <div className="relative flex h-full w-full flex-col" style={{ color: C.text, background: C.bg }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <style>{CHOICE_CSS}</style>
       {/* QUESTION HEADER — "Q1 / 8" and the status pill. The curriculum reference (3.2.14) is
           NOT shown to students: it rides into analytics and Ask-Lee submissions only. Keyboard
           shortcuts still work (↑↓ ⏎ ←→, Shift+→) without a hint strip. */}
@@ -411,17 +428,9 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
         )}
         {statusLabel && <span className="ml-auto rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ background: C.yellow, color: "#0B1322" }}>{statusLabel}</span>}
         {!statusLabel && <span className="ml-auto" />}
-        {/* PRINTABLE PACK (D5) — subtle from the start; glows once at the
-            completion/5-answer moment. Free Exam-1 content only (the endpoint
-            enforces it); the link arrives by EMAIL — that's the point. */}
-        <LeadMagnetGate
-          tooltip="Printable pack"
-          prompt="Get this practice as a printable PDF — emailed to you."
-          cta="Email me the pack →"
-          sentCopy="Sent. Go check your email — then keep going."
-          spotlight={packSpot}
-          onRequest={(email) => requestPracticePack({ data: { email, campusName: campusName ?? null, campusSlug: campusSlug ?? null, sourcePath: typeof location !== "undefined" ? location.pathname : null, isTest: !!isTest } })}
-        />
+        {/* THE PRINTABLE PACK icon is off for now (Lee, 2026-09-16: "remove print icon for now. We will add
+            that back later") — LeadMagnetGate + requestPracticePack stay for its return. */}
+        {void packSpot}
       </div>
 
       {navOpen && (
@@ -460,11 +469,11 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
                 onClick={() => lockIn(c.id)}
                 onMouseEnter={() => { if (!resolved) setHi(i); }}
                 disabled={resolved}
-                                className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left"
+                className={`sa-choice flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left${isPicked ? " sa-pulse" : ""}`}
                 style={{
                   minHeight: 54, color: C.text, fontSize: 15.5, fontWeight: 600, lineHeight: 1.3,
-                  background: showRight ? "rgba(59,245,160,0.16)" : showWrong ? "rgba(255,92,110,0.16)" : highlighted ? "rgba(252,163,17,0.14)" : "rgba(255,255,255,0.05)",
-                  border: `1.5px solid ${showRight ? "rgba(59,245,160,0.8)" : showWrong ? "rgba(255,92,110,0.8)" : highlighted ? C.yellow : "rgba(148,180,255,0.18)"}`,
+                  background: showRight ? "rgba(59,245,160,0.16)" : showWrong ? "rgba(255,92,110,0.16)" : highlighted ? "rgba(252,163,17,0.14)" : C.card,
+                  border: `1.5px solid ${showRight ? "rgba(59,245,160,0.8)" : showWrong ? "rgba(255,92,110,0.8)" : highlighted ? "#FCA311" : C.cardEdge}`,
                   boxShadow: highlighted && !resolved ? "0 6px 18px -10px rgba(252,163,17,0.8)" : "none",
                   textDecoration: showWrong ? "line-through" : "none",
                   transition: "background 120ms, border-color 120ms, box-shadow 120ms",
@@ -472,9 +481,9 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
               >
                 <span aria-hidden className="grid shrink-0 place-items-center rounded-lg" style={{
                   width: 28, height: 28, fontSize: 12.5, fontWeight: 800,
-                  background: showRight ? "rgba(59,245,160,0.22)" : showWrong ? "rgba(255,92,110,0.22)" : "rgba(255,255,255,0.08)",
+                  background: showRight ? "rgba(59,245,160,0.22)" : showWrong ? "rgba(255,92,110,0.22)" : C.chip,
                   color: showRight ? C.green : showWrong ? C.red : highlighted ? C.yellow : C.muted,
-                  border: `1px solid ${showRight ? "rgba(59,245,160,0.5)" : showWrong ? "rgba(255,92,110,0.5)" : "rgba(148,180,255,0.22)"}`,
+                  border: `1px solid ${showRight ? "rgba(59,245,160,0.5)" : showWrong ? "rgba(255,92,110,0.5)" : C.chipEdge}`,
                 }}>{showRight ? <CircleCheck className="h-4 w-4" /> : showWrong ? <CircleX className="h-4 w-4" /> : String.fromCharCode(65 + i)}</span>
                                 <span className="min-w-0">{c.text}</span>
               </button>
@@ -554,6 +563,7 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
 //      the first ~3 seconds untouched; then a single quiet line counts 5→0 and continues. "Stay
 //      here" (or Retry, which remounts via key={pass}) cancels it for this screen. -----------------
 function FinishAutoAdvance({ label, onContinue }: { label: string; onContinue: () => void }) {
+  const C = useContext(PaletteContext);
   const [phase, setPhase] = useState<"wait" | "count" | "off">("wait");
   const [left, setLeft] = useState(5);
   useEffect(() => {
@@ -584,6 +594,7 @@ function QuestionNav({ questions, currentIndex, results, answered, onJump, onClo
   questions: PracticeQuestion[]; currentIndex: number; results: Record<string, boolean>; answered: Record<string, string>;
   onJump: (qIndex: number) => void; onClose: () => void; onSaveProgress?: () => void;
 }) {
+  const C = useContext(PaletteContext);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onDown = (e: MouseEvent | TouchEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
@@ -645,6 +656,7 @@ function QuestionNav({ questions, currentIndex, results, answered, onJump, onClo
 //      submission (source-tagged "ask-lee") but are never shown. Closable with ×; typed text
 //      survives a close/reopen (the collapsed control says "(draft)"). -------------
 function AskBox({ reference, shorthand, prompt, setId, ceqId, campusName, campusSlug, isTest }: { reference: string; shorthand: string | null; prompt: string; setId: string; ceqId: string; campusName?: string | null; campusSlug?: string | null; isTest?: boolean }) {
+  const C = useContext(PaletteContext);
   const [open, setOpen] = useState(false);
   // AskBox only mounts after an answer resolves (a client interaction), so reading storage in
   // the initializer cannot cause a hydration mismatch. On the server it just yields null.
