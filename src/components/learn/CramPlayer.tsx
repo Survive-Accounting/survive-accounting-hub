@@ -36,7 +36,10 @@ export type PlayerPart = { index: number; of: number; name: string; playbackId: 
   gate?: "practice80" | null };
 export type PlayerItem = { set: StudentSet; topic: StudentTopic; n: number; of: number; locked: boolean; part: PlayerPart };
 
-const readSound = () => { try { return sessionStorage.getItem(SOUND_KEY) === "on"; } catch { return false; } };
+// SOUND IS ON when a video is opened (Lee, 2026-09-16: "ensure that the videos have sound on when clicked to play.
+// Sound is off only for autoplay in the background / on hover"). The player opens from a tap, which is the gesture
+// browsers want; only a student's own mute sticks for the visit.
+const readSound = () => { try { return sessionStorage.getItem(SOUND_KEY) !== "off"; } catch { return true; } };
 const writeSound = (on: boolean) => { try { sessionStorage.setItem(SOUND_KEY, on ? "on" : "off"); } catch { /* ignore */ } };
 const SHARE_DISMISS = "sa-player-share-dismissed";
 /** m:ss on the control bar. */
@@ -71,8 +74,10 @@ export function CramPlayer({
   demoQuestions?: PracticeQuestion[];
 }) {
   const item = items[index];
-  const [soundOn, setSoundOn] = useState(false);
+    const [soundOn, setSoundOn] = useState(true);
   useEffect(() => { setSoundOn(readSound()); }, []);
+  /** Parts whose practice offer has already been made this visit — the end of the video then rolls on. */
+  const offered = useRef(new Set<string>());
   const [ask, setAsk] = useState(false);
   // BREATHER (2026-09-14): a recap beat after this part, before the next one — only on the way
   // forward at the end of a video. Tap skips; it never shows twice for the same part in a visit.
@@ -197,7 +202,10 @@ export function CramPlayer({
       onStarted={() => onStarted(part.key)} onComplete={() => onComplete(part.key)} onPosition={(p, d) => onPosition(part.key, p, d)}
       onEnded={() => {
         if (practice || cards || ask) return;
-        if (part.endCta) { setEndCta(part.key); return; }
+                // THE PRACTICE OFFER shows once per part — at its slide (onCta), or here if the slide's moment wasn't
+        // known. Once it's been answered, the end of the video rolls straight on (Lee, 2026-09-16: "We want it to
+        // automatically go to the next video in series").
+        if (part.endCta && !offered.current.has(part.key)) { offered.current.add(part.key); setEndCta(part.key); return; }
         if (!hasNext) return;
         const b = set.breathers?.find((x) => x.afterIndex === part.index);
         const nextSameSet = items[index + 1]?.set.id === set.id;
@@ -208,7 +216,7 @@ export function CramPlayer({
         }
         window.setTimeout(() => go(1), 1200);
       }}
-      onCta={() => setEndCta(part.key)}
+            onCta={() => { offered.current.add(part.key); setEndCta(part.key); }}
       onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask || gateShut || endCta === part.key}
       caption={{ topic: topic.name, n: cap.n, of: cap.of, name: cap.name }}
       overlay={gateCard || breatherCard || endCard || null}

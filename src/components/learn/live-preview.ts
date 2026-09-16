@@ -23,6 +23,16 @@ export function previewMode(): "hover" | "scroll" | "off" {
   return window.matchMedia("(hover: hover)").matches ? "hover" : "scroll";
 }
 
+// THE CARD THAT PLAYS ON ARRIVAL (Lee, 2026-09-16): the one they left off on; a first visit gets the first posted
+// card on the page (cards register in page order as they mount).
+let autoFirst: string | null = null;
+export function resetAutoPick(): void { autoFirst = null; }
+export function pickAuto(key: string, last: string | null): boolean {
+  if (last) return last === key;
+  if (!autoFirst) autoFirst = key;
+  return autoFirst === key;
+}
+
 let warmed = false;
 /** Fetch the hls.js chunk ahead of the first preview, when the page is idle. */
 export function warmPreviewPlayer(): void {

@@ -121,7 +121,7 @@ import { Check, ChevronDown, Loader2, Lock } from "lucide-react";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { CONTENT_MAX, LK, SIDE_PAD, type LearnTheme } from "@/components/learn/learn-theme";
-import { fmtRuntime, muxThumb } from "@/components/learn/cram-media";
+import { fmtRuntime, LAST_SET_KEY, muxThumb } from "@/components/learn/cram-media";
 import { EMAIL_RE, emailGateNeeded, isUuid, practiceGateNeeded, questionCount, topicRowDetail, waitlistNeeded, writeUnlocked, type GateSet } from "@/components/learn/learn-gate";
 import { LearnEntrance } from "@/components/learn/LearnEntrance";
 import type { RailKey } from "@/components/learn/LearnRail";
@@ -134,7 +134,7 @@ import { adEvent } from "@/lib/retargeting";
 import type { School } from "@/lib/schools";
 import type { StudentSet, StudentTopic } from "@/lib/student.functions";
 import { useDismiss } from "@/lib/use-dismiss";
-import { claimPreview, onPreview, previewMode, releasePreview, warmPreviewPlayer } from "@/components/learn/live-preview";
+import { claimPreview, currentPreview, onPreview, pickAuto, previewMode, releasePreview, resetAutoPick, warmPreviewPlayer } from "@/components/learn/live-preview";
 
 export type HomeSet = {
   set: StudentSet; topic: StudentTopic; n: number; of: number; locked: boolean; done: boolean;
@@ -257,6 +257,8 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   /** THE SHARE KIT (LearnShareKit) for a council or chapter chair, above the hero; null for a student. */
   kit?: ReactNode;
 }>(function LearnHome({ sets, examLabel, tier, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school, progress = {}, chapterSlug = null, kit = null }, ref) {
+  // the arrival autoplay picks afresh each time the home draws (live-preview.ts pickAuto)
+  if (typeof window !== "undefined") resetAutoPick();
   const byTopic = useMemo(() => {
     const m = new Map<string, HomeSet[]>();
     for (const s of sets) { const arr = m.get(s.topic.id) ?? []; arr.push(s); m.set(s.topic.id, arr); }
@@ -533,8 +535,9 @@ function cardsOf(s: HomeSet, progress: Record<string, Prog>): Card[] {
  *  reduced motion. */
 function HoverPreview({ pid, onProgress }: { pid: string; onProgress?: (f: number) => void }) {
   const ref = useRef<HTMLVideoElement>(null);
-  // A loading wheel until the first frame plays (Lee, 2026-09-11: "Show loading animation so
-  // it's clear the video would be coming").
+  // NO WHEEL (Lee, 2026-09-16: "don't show a loading animation… we want the background play to just happen
+  // organically. Maybe make it fade in if there's a lag"): the thumbnail holds, and the picture fades over it
+  // the moment the first frame plays.
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const v = ref.current; if (!v) return;
@@ -552,13 +555,8 @@ function HoverPreview({ pid, onProgress }: { pid: string; onProgress?: (f: numbe
     <>
       <video ref={ref} muted playsInline loop preload="auto" aria-hidden onPlaying={() => setReady(true)}
         onTimeUpdate={(e) => { const v = e.currentTarget; if (onProgress && v.duration > 0) onProgress(v.currentTime / v.duration); }}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "#000", opacity: ready ? 1 : 0 }} />
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", background: "transparent", opacity: ready ? 1 : 0, transition: "opacity 420ms ease" }} />
       {ready && <span aria-hidden className="absolute bottom-2 right-2 z-[2] rounded px-1.5 py-px text-[10px] font-bold" style={{ background: "rgba(0,0,0,0.6)", color: "#fff", fontFamily: BRAND_SANS }}>muted</span>}
-      {!ready && (
-        <span aria-hidden className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full" style={{ width: 44, height: 44, background: "rgba(0,0,0,0.5)", color: "#fff" }}>
-          <Loader2 className="h-5 w-5 animate-spin" />
-        </span>
-      )}
     </>
   );
 }
@@ -588,6 +586,17 @@ function Short({ s, card, onOpen }: { s: HomeSet; card: Card; onOpen: () => void
     }, { rootMargin: "-30% 0px -30% 0px", threshold: [0, 0.95] });
     io.observe(el);
     return () => { io.disconnect(); releasePreview(card.key); };
+  }, [canPreview, card.key]);
+    // THE ONE THEY LEFT OFF ON PLAYS ON ITS OWN (Lee, 2026-09-16: "I want the first video to autoplay instantly on
+  // load. That is, the last video they left off on. This is to entice them to click it. Just like how youtube
+  // shorts works"). Muted, in its card, as soon as the page is up; a hover elsewhere takes the slot over.
+  useEffect(() => {
+    if (!canPreview || previewMode() === "off") return;
+    let last: string | null = null;
+    try { last = localStorage.getItem(LAST_SET_KEY); } catch { last = null; }
+        if (!pickAuto(card.key, last)) return;
+    const t = window.setTimeout(() => { if (!currentPreview()) claimPreview(card.key); }, 150);
+    return () => window.clearTimeout(t);
   }, [canPreview, card.key]);
   const enter = () => { if (canPreview && previewMode() === "hover") claimPreview(card.key); };
   const leave = () => releasePreview(card.key);
