@@ -261,6 +261,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           schoolName={campus.school?.name ?? null}
           onStart={startCramming}
           onChapter={openChapter}
+          bolt={campus.school ? boltFor(campus.school.id) : null}
         />
 
         {/* PROOF DIRECTLY UNDER THE CLAIM (p4 §2): the three checks sit right below the hero. */}
@@ -278,7 +279,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
         {/* COURSE SCOPE — one quiet line, because students have genuinely asked whether Survive
             covers Intermediate. A tiny modal answers; the hero stays out of it. */}
         <p className="mt-2 text-center text-[13px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
-          Intro Financial Accounting only{" "}
+          Intro Financial Accounting, right now{" "}
           <span aria-hidden style={{ opacity: 0.5 }}>·</span>{" "}
           <button
             type="button"
@@ -305,20 +306,26 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
             in Lee's voice, the three cards, then the SECONDARY Exam-1 catch (amber outline, never a
             second full-width primary competing with the hero's "Start cramming"). */}
         <section className="pt-16">
-          {/* p6 §7 — the headline reads stronger as something a student said: a quotation with
-              attribution, then the supporting paragraph with its now-redundant opening clause cut. */}
-          {/* marginInline auto, NOT `margin: 0` — the shorthand was overriding Tailwind's mx-auto,
-              which is why the quote sat left of the paragraph under it instead of on its axis. */}
-          <blockquote className="max-w-[620px] text-center" style={{ marginBlock: 0, marginInline: "auto" }}>
-            <p className="text-[24px] font-black leading-tight sm:text-[30px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
-              &ldquo;The exam looks nothing like the homework.&rdquo;
-            </p>
-            <footer className="mt-2 text-[13.5px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>(what students tell me every semester)</footer>
-          </blockquote>
-          <p className="mx-auto mt-5 max-w-[600px] text-center text-[15px] leading-relaxed sm:text-[16px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-secondary)" }}>
-            Walk into your test confident. Survive makes exam day the second time you&apos;ve seen the problems&mdash;not the first.
+          {/* WATCH · PRACTICE · ORGANIZED FOR YOU (Lee, 2026-09-16, from his centered wireframe): three cards, one line
+              that lands on each, and the syllabus ask under them. */}
+          <h2 className="text-center text-[26px] font-black leading-tight sm:text-[30px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.01em" }}>Watch. Practice. Walk in ready.</h2>
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            {[
+              { kicker: "Watch", title: <>Cram videos.<br />About a minute each.</>, body: "One idea at a time. Get it, then keep moving." },
+              { kicker: "Practice", title: <>Practice exams.<br />Get the reps in.</>, body: "Exam-style questions, then learn from the ones you miss." },
+              { kicker: "Organized for you", title: <>Topics in the order<br />that works.</>, body: `Not the textbook's order — the one ten years of tutoring says clicks. Start with Exam 1${campus.code ? ` for ${nbspCode(campus.code)}` : ""} and move through the topics in order.` },
+            ].map((c) => (
+              <article key={c.kicker} className="rounded-2xl p-6 text-left" style={{ background: "var(--bg-surface, #162443)", border: "1px solid var(--border-default)" }}>
+                <div className="text-[11px] font-black uppercase" style={{ letterSpacing: "0.14em", color: "var(--accent)", fontFamily: BRAND_SANS }}>{c.kicker}</div>
+                <h3 className="mt-3 text-[19px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{c.title}</h3>
+                <p className="mt-3 text-[14px] leading-relaxed" style={{ fontFamily: BRAND_SANS, color: "var(--text-secondary)" }}>{c.body}</p>
+              </article>
+            ))}
+          </div>
+          <p className="mt-5 text-center text-[13px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
+            Want us to align Survive to your course?{" "}
+            <button type="button" onClick={() => setSyllabusOpen(true)} className="underline underline-offset-4" style={{ background: "none", border: 0, padding: "4px 2px", cursor: "pointer", color: "var(--brand-cream)", font: "inherit", fontWeight: 700 }}>Send your syllabus →</button>
           </p>
-          <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} variant="homepage" />
           <div className="mt-3 flex justify-center">
             <button
               type="button"
@@ -374,7 +381,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           initialSchoolSlug={campus.school ? SCHOOLS.find((s) => s.id === campus.school!.id)?.slug ?? null : null}
         />
       )}
-      {scopeOpen && <CourseScopeModal onClose={() => setScopeOpen(false)} />}
+      {scopeOpen && <CourseScopeModal onClose={() => setScopeOpen(false)} onStart={() => { setScopeOpen(false); openExam1Free(); }} />}
       {pickerFor && (
         <SchoolPickerSheet
           onClose={() => setPickerFor(null)}
@@ -499,9 +506,11 @@ const HERO_CSS = `
 .sa-hero-cta:focus-visible { outline: 2px solid var(--brand-cream); outline-offset: 6px; border-radius: 999px; }
 `;
 
-function TwoDoorHero({ code, schoolName, onStart, onChapter }: {
+function TwoDoorHero({ code, schoolName, onStart, onChapter, bolt }: {
   code: string | null;
   schoolName: string | null;
+  /** The campus bolt on the How Survive Works card — it changes with the school. */
+  bolt: { c1: string; c2: string } | null;
   /** Start cramming — the campus's /learn page, or the picker once (the simple flow, 2026-09-16). */
   onStart: () => void;
   /** "Studying with your chapter?" — the chapter finder (school first when unknown). */
@@ -539,7 +548,7 @@ function TwoDoorHero({ code, schoolName, onStart, onChapter }: {
       <style>{HERO_CSS}</style>
       <div className="sa-hero-col">
         {/* HOW SURVIVE WORKS — the card on top; a click opens the real vertical video, with Start cramming in the player. */}
-        <HowSurviveWorksCard onOpen={() => setVideo(true)} />
+        <HowSurviveWorksCard bolt={bolt} onOpen={() => setVideo(true)} />
         <h1
           className="mt-6 max-w-[760px] text-[32px] font-black leading-[1.06] sm:text-[44px] lg:text-[52px]"
           style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.02em", textWrap: "balance" }}
@@ -938,7 +947,7 @@ function Exam1LaunchModal({ campusId, campusName, courseCode, onClose }: {
 
 // ── COURSE SCOPE MODAL ────────────────────────────────────────────────────────────────────────
 /** The "Why only Intro Financial?" answer — a tiny dialog, never a marketing page. */
-function CourseScopeModal({ onClose }: { onClose: () => void }) {
+function CourseScopeModal({ onClose, onStart }: { onClose: () => void; onStart: () => void }) {
   const panelRef = useDismiss<HTMLDivElement>(onClose, { enabled: true });
   const P = ({ children }: { children: React.ReactNode }) => (
     <p className="mt-3 text-[14.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>{children}</p>
@@ -956,11 +965,11 @@ function CourseScopeModal({ onClose }: { onClose: () => void }) {
           <span aria-hidden style={{ fontSize: 20 }}>×</span>
         </button>
         <h2 className="pr-8 text-[19px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
-          Intro Financial Accounting only
+          Intro Financial Accounting, right now
         </h2>
         <P>I&apos;ve taught and tutored other accounting courses, but Survive is focused on the first financial accounting course right now.</P>
         <P>Master the fundamentals here and every accounting course after it gets easier.</P>
-        <P>If you&apos;re in a later accounting course and the fundamentals feel shaky, Exam 1 is a good place to rebuild them.</P>
+        <button type="button" onClick={onStart} className="mt-5 inline-flex items-center justify-center rounded-xl text-[14.5px] font-black" style={{ minHeight: 46, paddingInline: 20, background: "var(--accent)", color: "#0B1220", border: 0, cursor: "pointer", fontFamily: BRAND_SANS }}>Review the basics →</button>
       </div>
     </div>
   );
