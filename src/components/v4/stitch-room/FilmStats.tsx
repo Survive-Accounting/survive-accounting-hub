@@ -1,42 +1,19 @@
-// STATS AND THE LEDGER — pay per filmed slide. Lee, 2026-09-15: "videos completed today, this week, this month,
-// all time … If I click one, it can show the today by default … if I click 'View ledger', it can show a log of
-// each video, # of slides, pay amount, with a total at bottom."
-import { useEffect, useMemo, useState } from "react";
+// STATS — videos and slides filmed today, this week, this month, all time, and the log of each video.
+// Lee, 2026-09-15: "videos completed today, this week, this month, all time … a log of each video, # of
+// slides". The pay-per-slide column and the rate picker were dropped on 2026-09-16 ("Remove the pay per
+// slide stuff. Not needed.") — film-stitch.ts keeps the arithmetic in case it ever comes back.
+import { useState } from "react";
 
-import { clock, ledgerRows, money, videoTitle, PERIOD_LABEL, PERIODS, PAY_PER_SLIDE_CENTS, inPeriod, statsFor, type Period, type StitchRecord } from "@/lib/film-stitch";
+import { clock, ledgerRows, videoTitle, PERIOD_LABEL, PERIODS, inPeriod, statsFor, type Period, type StitchRecord } from "@/lib/film-stitch";
 
 import { ROOM } from "./room-theme";
 
-/** THE RATE PICKER (Lee, 2026-09-15: "$0.25, $0.50, $1, $1.50, $2, $2.50, $5, $10 a slide picker from stats &
- *  ledger will help me explore options"). A what-if over the same slides — nothing saved changes. */
-export const RATE_OPTIONS_CENTS = [25, 50, 100, 150, 200, 250, 500, 1000] as const;
-const RATE_KEY = "sa-film-rate-explore";
-
-export function FilmStats({ records: saved, onOpen }: { records: readonly StitchRecord[]; onOpen?: (r: StitchRecord) => void }) {
+export function FilmStats({ records, onOpen }: { records: readonly StitchRecord[]; onOpen?: (r: StitchRecord) => void }) {
   const [period, setPeriod] = useState<Period>("today");
-  const [ledger, setLedger] = useState(false);
-  const [rate, setRate] = useState<number>(PAY_PER_SLIDE_CENTS);
-  useEffect(() => { try { const v = Number(localStorage.getItem(RATE_KEY)); if (RATE_OPTIONS_CENTS.includes(v as never)) setRate(v); } catch { /* the default rate */ } }, []);
-  const pick = (c: number) => { setRate(c); try { localStorage.setItem(RATE_KEY, String(c)); } catch { /* this visit only */ } };
-  const records = useMemo(() => saved.map((r) => ({ ...r, rateCents: rate, payCents: r.slides * rate })), [saved, rate]);
   const s = statsFor(records, period);
   const rows = ledgerRows(records.filter((r) => inPeriod(r, period)));
-  const total = rows.reduce((n, r) => n + r.payCents, 0);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, color: ROOM.cream, fontFamily: ROOM.font }}>
-      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, color: ROOM.muted, fontWeight: 700, marginRight: 4 }}>Pay per slide</span>
-        {RATE_OPTIONS_CENTS.map((c) => {
-          const on = c === rate;
-          return (
-            <button key={c} type="button" aria-pressed={on} onClick={() => pick(c)}
-              style={{ font: "inherit", fontSize: 12.5, fontWeight: 800, padding: "4px 10px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? ROOM.mint : ROOM.edge}`, background: on ? "rgba(59,245,160,0.14)" : "transparent", color: on ? ROOM.mint : ROOM.cream, fontVariantNumeric: "tabular-nums" }}>
-              {money(c)}
-            </button>
-          );
-        })}
-        {rate !== PAY_PER_SLIDE_CENTS && <span style={{ fontSize: 11.5, color: ROOM.muted }}>what-if · the saved rate is {money(PAY_PER_SLIDE_CENTS)}</span>}
-      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 }}>
         {PERIODS.map((p) => {
           const x = statsFor(records, p);
@@ -46,7 +23,7 @@ export function FilmStats({ records: saved, onOpen }: { records: readonly Stitch
               style={{ all: "unset", cursor: "pointer", borderRadius: 12, padding: "10px 12px", background: on ? "rgba(252,163,17,0.12)" : ROOM.panel, border: `1px solid ${on ? ROOM.gold : ROOM.edge}` }}>
               <div style={{ fontSize: 11, letterSpacing: "0.12em", fontWeight: 800, color: on ? ROOM.gold : ROOM.muted }}>{PERIOD_LABEL[p].toUpperCase()}</div>
               <div style={{ fontSize: 24, fontWeight: 900, marginTop: 2 }}>{x.videos} <span style={{ fontSize: 12, color: ROOM.muted, fontWeight: 600 }}>video{x.videos === 1 ? "" : "s"}</span></div>
-              <div style={{ fontSize: 13, color: ROOM.mint, fontWeight: 800 }}>{money(x.payCents)}</div>
+              <div style={{ fontSize: 13, color: ROOM.muted, fontWeight: 700 }}>{x.slides} slide{x.slides === 1 ? "" : "s"}</div>
             </button>
           );
         })}
@@ -55,49 +32,38 @@ export function FilmStats({ records: saved, onOpen }: { records: readonly Stitch
         <div style={{ fontSize: 13, color: ROOM.muted }}>{PERIOD_LABEL[period]}</div>
         <div><b style={{ fontSize: 20 }}>{s.videos}</b> <span style={{ color: ROOM.muted }}>videos</span></div>
         <div><b style={{ fontSize: 20 }}>{s.slides}</b> <span style={{ color: ROOM.muted }}>slides filmed</span></div>
-        <div><b style={{ fontSize: 20, color: ROOM.mint }}>{money(s.payCents)}</b> <span style={{ color: ROOM.muted }}>at {money(rate)} a slide{s.videos ? ` · ${money(Math.round(s.payCents / s.videos))} a video` : ""}</span></div>
-        <span style={{ flex: 1 }} />
-        <button type="button" onClick={() => setLedger((v) => !v)} style={{ font: "inherit", fontSize: 12, fontWeight: 800, padding: "6px 12px", borderRadius: 8, cursor: "pointer", border: `1px solid ${ROOM.gold}`, background: ledger ? ROOM.gold : "transparent", color: ledger ? "#14213D" : ROOM.gold }}>
-          {ledger ? "Hide ledger" : "View ledger"}
-        </button>
       </div>
-      {ledger && (
-        <div style={{ overflowX: "auto", border: `1px solid ${ROOM.edge}`, borderRadius: 12 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
-            <thead>
-              <tr style={{ color: ROOM.muted, fontSize: 11, letterSpacing: "0.08em", textAlign: "left" }}>
-                {["Date", "Video", "Length", "Slides", "Pay", "Running"].map((h, i) => <th key={h} style={{ padding: "8px 10px", fontWeight: 800, textAlign: i >= 3 ? "right" : "left", borderBottom: `1px solid ${ROOM.edge}` }}>{h.toUpperCase()}</th>)}
+      <div style={{ overflowX: "auto", border: `1px solid ${ROOM.edge}`, borderRadius: 12 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
+          <thead>
+            <tr style={{ color: ROOM.muted, fontSize: 11, letterSpacing: "0.08em", textAlign: "left" }}>
+              {["Date", "Video", "Length", "Slides"].map((h, i) => <th key={h} style={{ padding: "8px 10px", fontWeight: 800, textAlign: i >= 3 ? "right" : "left", borderBottom: `1px solid ${ROOM.edge}` }}>{h.toUpperCase()}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && <tr><td colSpan={4} style={{ padding: 14, color: ROOM.muted }}>No videos stitched {period === "all" ? "yet" : PERIOD_LABEL[period].toLowerCase()}.</td></tr>}
+            {rows.map((r) => (
+              <tr key={r.id} style={{ borderBottom: `1px solid ${ROOM.edge}55` }}>
+                <td style={{ padding: "7px 10px", color: ROOM.muted, whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
+                <td style={{ padding: "7px 10px" }}>
+                  {onOpen ? <button type="button" onClick={() => onOpen(r)} style={{ all: "unset", cursor: "pointer", fontWeight: 700 }}>{videoTitle(r.takeIndex, r.name)}</button> : <b>{videoTitle(r.takeIndex, r.name)}</b>}
+                  <div style={{ fontSize: 11, color: ROOM.muted }}>{r.setName ?? r.setId}</div>
+                </td>
+                <td style={{ padding: "7px 10px", color: ROOM.muted }}>{clock(r.durationS)}</td>
+                <td style={{ padding: "7px 10px", textAlign: "right" }}>{r.slides}</td>
               </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && <tr><td colSpan={6} style={{ padding: 14, color: ROOM.muted }}>No videos stitched {period === "all" ? "yet" : PERIOD_LABEL[period].toLowerCase()}.</td></tr>}
-              {rows.map((r) => (
-                <tr key={r.id} style={{ borderBottom: `1px solid ${ROOM.edge}55` }}>
-                  <td style={{ padding: "7px 10px", color: ROOM.muted, whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
-                  <td style={{ padding: "7px 10px" }}>
-                    {onOpen ? <button type="button" onClick={() => onOpen(r)} style={{ all: "unset", cursor: "pointer", fontWeight: 700 }}>{videoTitle(r.takeIndex, r.name)}</button> : <b>{videoTitle(r.takeIndex, r.name)}</b>}
-                    <div style={{ fontSize: 11, color: ROOM.muted }}>{r.setName ?? r.setId}</div>
-                  </td>
-                  <td style={{ padding: "7px 10px", color: ROOM.muted }}>{clock(r.durationS)}</td>
-                  <td style={{ padding: "7px 10px", textAlign: "right" }}>{r.slides}</td>
-                  <td style={{ padding: "7px 10px", textAlign: "right", color: ROOM.mint, fontWeight: 700 }}>{money(r.payCents)}</td>
-                  <td style={{ padding: "7px 10px", textAlign: "right", color: ROOM.muted }}>{money(r.runningCents)}</td>
-                </tr>
-              ))}
-            </tbody>
-            {rows.length > 0 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={3} style={{ padding: "9px 10px", fontWeight: 900 }}>Total · {PERIOD_LABEL[period].toLowerCase()}</td>
-                  <td style={{ padding: "9px 10px", textAlign: "right", fontWeight: 900 }}>{rows.reduce((n, r) => n + r.slides, 0)}</td>
-                  <td style={{ padding: "9px 10px", textAlign: "right", fontWeight: 900, color: ROOM.mint }}>{money(total)}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+          {rows.length > 0 && (
+            <tfoot>
+              <tr>
+                <td colSpan={3} style={{ padding: "9px 10px", fontWeight: 900 }}>Total · {PERIOD_LABEL[period].toLowerCase()}</td>
+                <td style={{ padding: "9px 10px", textAlign: "right", fontWeight: 900 }}>{rows.reduce((n, r) => n + r.slides, 0)}</td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
     </div>
   );
 }

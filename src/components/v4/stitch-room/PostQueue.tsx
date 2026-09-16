@@ -9,7 +9,9 @@ import { coverFor } from "@/components/v3/quick-post";
 import { measureText } from "@/lib/brand-kit/measure";
 import { defaultThumbSpec, seriesTitleCap, TITLE_TRACKING } from "@/lib/brand-kit/thumbnail";
 import { colorwayFor, KIT, NEUTRAL_COLORWAY_ID } from "@/lib/brand-kit/tokens";
-import { clock, money, queueOf, videoTitle, type StitchRecord } from "@/lib/film-stitch";
+import { clock, queueOf, videoTitle, type StitchRecord } from "@/lib/film-stitch";
+import { suggestStitchNames } from "@/lib/film-names.functions";
+import type { V4VideoBrief } from "@/lib/v4.functions";
 import { queueFilmStitch, renameFilmStitch, reorderFilmStitchQueue } from "@/lib/film-stitch.functions";
 
 import { ROOM } from "./room-theme";
@@ -47,7 +49,26 @@ function NameField({ r, suggest, onSaved }: { r: StitchRecord; suggest?: string;
   );
 }
 
-export function PostQueue({ records, onChange, onOpen, suggestName }: { records: readonly StitchRecord[]; onChange: (r?: StitchRecord) => void; onOpen?: (r: StitchRecord) => void; suggestName?: (r: StitchRecord) => string }) {
+export function PostQueue({ records, onChange, onOpen, suggestName, briefOf }: { records: readonly StitchRecord[]; onChange: (r?: StitchRecord) => void; onOpen?: (r: StitchRecord) => void; suggestName?: (r: StitchRecord) => string; briefOf?: (r: StitchRecord) => V4VideoBrief | undefined }) {
+  const [naming, setNaming] = useState(false);
+  /** Every queued video still wearing its set's name (or none) — the ones "✨ Name them" fills; a hand-typed name stays. */
+  const unnamed = (list: readonly StitchRecord[]) => list.filter((r) => !r.name.trim() || r.name.trim() === (r.setName ?? "").trim());
+  const nameThem = async (all: boolean) => {
+    const list = all ? queueOf(records) : unnamed(queueOf(records));
+    if (!list.length || !briefOf) return;
+    setNaming(true); setErr(null);
+    try {
+      const bySet = new Map<string, StitchRecord[]>();
+      for (const r of list) bySet.set(r.setId, [...(bySet.get(r.setId) ?? []), r]);
+      for (const [, group] of bySet) {
+        const videos = group.map((r) => { const b = briefOf(r); return { id: r.id, takeIndex: r.takeIndex, first: b?.first ?? "", last: b?.last ?? "", stems: b?.stems ?? [] }; });
+        const { names } = await suggestStitchNames({ data: { setName: group[0].setName ?? "", topicName: group[0].topicName ?? "", videos } });
+        for (const r of group) { const name = names[r.id]; if (name) onChange(await renameFilmStitch({ data: { id: r.id, name } })); }
+      }
+      track("stitch_names_suggested", { videos: list.length, all });
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setNaming(false); }
+  };
   const queue = useMemo(() => queueOf(records), [records]);
   const arts = useRef(new Map<string, SVGSVGElement | null>());
   const [status, setStatus] = useState<Record<string, { note: string; tone: "work" | "good" | "bad" }>>({});
@@ -92,6 +113,14 @@ export function PostQueue({ records, onChange, onOpen, suggestName }: { records:
         <b style={{ fontSize: 16 }}>Post queue</b>
         <span style={{ color: ROOM.muted, fontSize: 12 }}>{queue.length} waiting · posts top to bottom</span>
         <span style={{ flex: 1 }} />
+        {/* THE NAMES (Lee, 2026-09-16: "I want to have AI generate some on queue to post"): one short name per
+            queued video from what its slides say; shift-click renames every queued video, hand-typed ones too. */}
+        {briefOf && queue.length > 0 && (
+          <button type="button" style={btn()} disabled={busy || naming} onClick={(e) => void nameThem(e.shiftKey)}
+            title={unnamed(queue).length ? `Name the ${unnamed(queue).length} still wearing the set's name (shift-click: all ${queue.length})` : `Every queued video has a name — shift-click to redo all ${queue.length}`}>
+            {naming ? "Naming…" : `✨ Name them${unnamed(queue).length ? ` · ${unnamed(queue).length}` : ""}`}
+          </button>
+        )}
         <button type="button" style={btn(true)} disabled={busy || !queue.length} onClick={() => void postAll()}>{busy ? "Posting…" : `Post all ${queue.length}`}</button>
       </div>
       {err && <div style={{ color: ROOM.red, fontSize: 12 }}>{err}</div>}
@@ -106,7 +135,7 @@ export function PostQueue({ records, onChange, onOpen, suggestName }: { records:
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <NameField r={r} suggest={suggestName?.(r)} onSaved={(x) => onChange(x)} />
-              <div style={{ fontSize: 11.5, color: ROOM.muted, marginTop: 3 }}>{r.setName} · {clock(r.durationS)} · {r.slides} slides · {money(r.payCents)}{onOpen && <> · <button type="button" onClick={() => onOpen(r)} style={{ all: "unset", cursor: "pointer", color: ROOM.sky, fontWeight: 700 }}>open</button></>}</div>
+              <div style={{ fontSize: 11.5, color: ROOM.muted, marginTop: 3 }}>{r.setName} · {clock(r.durationS)} · {r.slides} slides{onOpen && <> · <button type="button" onClick={() => onOpen(r)} style={{ all: "unset", cursor: "pointer", color: ROOM.sky, fontWeight: 700 }}>open</button></>}</div>
               {st && <div style={{ fontSize: 11.5, color: st.tone === "good" ? ROOM.mint : st.tone === "bad" ? ROOM.red : ROOM.gold }}>{st.note}</div>}
             </div>
             <button type="button" style={btn()} disabled={busy || i === 0} onClick={() => void move(i, -1)} title="Earlier">↑</button>

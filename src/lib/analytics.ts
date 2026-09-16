@@ -122,6 +122,7 @@ export const SA_EVENTS = [
   "take_kept",
   "take_scrapped",
   "stitch_started",
+  "stitch_names_suggested",
   "stitch_done",
   "stitch_failed",
   "stitch_queued",

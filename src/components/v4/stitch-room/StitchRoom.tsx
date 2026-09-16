@@ -8,7 +8,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import { inVideoOrder, isPlaceholderName, money, statsFor, videoKey, videoTitle, type StitchRecord } from "@/lib/film-stitch";
+import { inVideoOrder, isPlaceholderName, statsFor, videoKey, videoTitle, type StitchRecord } from "@/lib/film-stitch";
 import { listFilmStitches } from "@/lib/film-stitch.functions";
 import { loadV4VideoBriefs, type V4VideoBrief } from "@/lib/v4.functions";
 
@@ -130,13 +130,13 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
         <nav style={{ display: "flex", gap: 2, marginLeft: 12 }}>
           <button type="button" style={chip(tab === "videos")} onClick={() => setTab("videos")}>Videos</button>
           <button type="button" style={chip(tab === "queue")} onClick={() => setTab("queue")}>Post queue{records.some((r) => r.status === "queued") ? ` · ${records.filter((r) => r.status === "queued").length}` : ""}</button>
-          <button type="button" style={chip(tab === "stats")} onClick={() => setTab("stats")}>Stats & ledger</button>
+          <button type="button" style={chip(tab === "stats")} onClick={() => setTab("stats")}>Stats</button>
         </nav>
         <span style={{ flex: 1 }} />
         {typeof window !== "undefined" && window.self === window.top && (
           <button type="button" onClick={() => openDemoLens("/v4/stitch-room")} style={chip(false)} title="The Stitch Room in a vertical window you can zoom and swim around — for filming a demo">▯ Vertical demo</button>
         )}
-        <span style={{ fontSize: 12.5, color: ROOM.muted }}>Today: <b style={{ color: ROOM.cream }}>{today.videos}</b> videos · <b style={{ color: ROOM.mint }}>{money(today.payCents)}</b></span>
+        <span style={{ fontSize: 12.5, color: ROOM.muted }}>Today: <b style={{ color: ROOM.cream }}>{today.videos}</b> video{today.videos === 1 ? "" : "s"} · <b style={{ color: ROOM.cream }}>{today.slides}</b> slides</span>
       </header>
 
       {q.isError && <div style={{ margin: 14, padding: 12, borderRadius: 10, border: `1px solid ${ROOM.red}`, color: ROOM.red, fontSize: 13 }}>{q.error instanceof Error ? q.error.message : String(q.error)}</div>}
@@ -213,12 +213,12 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
               {!showBuild && !record && <div style={{ color: ROOM.muted, fontSize: 14 }}>{records.length || jobs.length ? "Pick a video on the left." : "No stitched videos yet. In punch-in, press ⚡ Stitch — it opens here."}</div>}
               {job && job.state === "done" && record && (
                 <div style={{ marginTop: 16, fontSize: 12.5, color: ROOM.mint }}>
-                  Just stitched in {job.startedAt && job.finishedAt ? `${Math.round((job.finishedAt - job.startedAt) / 1000)} s` : "the background"} · +{money(record.payCents)}
+                  Just stitched in {job.startedAt && job.finishedAt ? `${Math.round((job.finishedAt - job.startedAt) / 1000)} s` : "the background"}
                 </div>
               )}
             </>
           )}
-          {tab === "queue" && <PostQueue records={named} suggestName={(r) => { const f = briefFor(r)?.first ?? ""; return f.length > 60 ? `${f.slice(0, 58)}…` : f; }} onChange={upsert} onOpen={(r) => { setSel(videoKey(r.setId, r.takeIndex)); setTab("videos"); }} />}
+          {tab === "queue" && <PostQueue records={named} briefOf={briefFor} suggestName={(r) => { const f = briefFor(r)?.first ?? ""; return f.length > 60 ? `${f.slice(0, 58)}…` : f; }} onChange={upsert} onOpen={(r) => { setSel(videoKey(r.setId, r.takeIndex)); setTab("videos"); }} />}
           {tab === "stats" && <FilmStats records={named} onOpen={(r) => { setSel(videoKey(r.setId, r.takeIndex)); setTab("videos"); }} />}
         </main>
       </div>

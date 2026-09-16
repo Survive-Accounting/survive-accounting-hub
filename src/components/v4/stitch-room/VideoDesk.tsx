@@ -7,7 +7,7 @@
 // the real files on the worker (the site video, and the social one with the outro).
 import { useEffect, useRef, useState } from "react";
 
-import { clampTrim, clock, isTrimmed, money, videoTitle, type StitchRecord } from "@/lib/film-stitch";
+import { clampTrim, clock, isTrimmed, videoTitle, type StitchRecord } from "@/lib/film-stitch";
 import { deleteFilmStitch, queueFilmStitch } from "@/lib/film-stitch.functions";
 import type { V4VideoBrief } from "@/lib/v4.functions";
 import { redoInFilm } from "../../blastoff/capture/film-nav";
@@ -105,7 +105,7 @@ export function VideoDesk({ record, onChange, onDeleted, brief }: { record: Stit
       <div style={{ flex: 1, minWidth: 300, display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
           <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1 }}>{videoTitle(record.takeIndex, record.name)}</div>
-                    <div style={{ color: ROOM.muted, fontSize: 13, marginTop: 3 }}>{record.setName} · {record.slides} slides · <span style={{ color: ROOM.mint, fontWeight: 800 }}>{money(record.payCents)}</span> · stitched {new Date(record.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                    <div style={{ color: ROOM.muted, fontSize: 13, marginTop: 3 }}>{record.setName} · {record.slides} slides · stitched {new Date(record.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
           {/* WHAT'S IN IT (Lee, 2026-09-16): the slides this video covers and what they ask, so two videos of one set tell apart. */}
           {brief && (
             <div style={{ marginTop: 6, fontSize: 12.5, color: ROOM.cream, lineHeight: 1.35 }}>
@@ -164,7 +164,7 @@ export function VideoDesk({ record, onChange, onDeleted, brief }: { record: Stit
           <button type="button" style={btn()} disabled={!record.socialUrl} onClick={() => record.socialUrl && void downloadVideo(record.socialUrl, record.name, true)}>⬇ Download social</button>
           <button type="button" style={{ ...btn(), color: ROOM.sky, borderColor: `${ROOM.sky}88` }} onClick={redo} title="Film this video again: the film page and the pop-out go straight to it">↺ Redo in film</button>
           <button type="button" style={{ ...btn(armedDelete, ROOM.red), ...(armedDelete ? {} : { color: ROOM.red }) }} onClick={() => void remove()}
-            title="Delete this stitch (its pay comes off the ledger). The takes stay in punch-in.">{armedDelete ? "Click again to delete" : "Delete stitch"}</button>
+            title="Delete this stitch. The takes stay in punch-in.">{armedDelete ? "Click again to delete" : "Delete stitch"}</button>
           <span style={{ flex: 1 }} />
           {record.status !== "posted" && (
             <button type="button" disabled={busy || !!queueing} onClick={() => void toggleQueue()}

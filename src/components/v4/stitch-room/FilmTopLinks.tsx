@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { money, statsFor } from "@/lib/film-stitch";
+import { statsFor } from "@/lib/film-stitch";
 import { listFilmStitches } from "@/lib/film-stitch.functions";
 
 import { openStitchRoom } from "../../blastoff/capture/stitch-queue";
@@ -25,8 +25,8 @@ export function FilmTopLinks() {
   return (
     <>
       <span>·</span>
-      <button type="button" style={link} onClick={() => { setOpen(true); void q.refetch(); }} title="Videos and pay — today, this week, this month, all time">
-        Stats{q.data ? ` · ${money(today.payCents)} today` : ""}
+      <button type="button" style={link} onClick={() => { setOpen(true); void q.refetch(); }} title="Videos and slides filmed — today, this week, this month, all time">
+        Stats{q.data ? ` · ${today.videos} today` : ""}
       </button>
       <span>·</span>
       <button type="button" style={link} onClick={() => openStitchRoom()} title="The popout: stitched videos, trims, downloads, the post queue">⚡ Stitch Room</button>

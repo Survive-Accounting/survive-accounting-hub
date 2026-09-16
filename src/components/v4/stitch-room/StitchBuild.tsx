@@ -9,7 +9,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { ChainLightning } from "@/components/brand-cards/ChainLightning";
 import type { Rect } from "@/components/brand-cards/chain-lightning";
-import { money, PAY_PER_SLIDE_CENTS, videoTitle } from "@/lib/film-stitch";
+import { videoTitle } from "@/lib/film-stitch";
 
 import type { StitchJob } from "../../blastoff/capture/stitch-queue";
 import { ROOM } from "./room-theme";
@@ -116,7 +116,7 @@ export function StitchBuild({ job, animate }: { job: StitchJob; animate: boolean
 
       {job.state === "done" && (
         <div className={animate ? "sa-sb-pay" : undefined} style={{ alignSelf: "flex-start", fontSize: 18, fontWeight: 900, color: ROOM.mint }}>
-          +{money(job.slides * PAY_PER_SLIDE_CENTS)} · {job.slides} slide{job.slides === 1 ? "" : "s"} at {money(PAY_PER_SLIDE_CENTS)}
+          Done · {job.slides} slide{job.slides === 1 ? "" : "s"}
         </div>
       )}
       {job.error && <div style={{ color: ROOM.red, fontSize: 13 }}>{job.error}</div>}
