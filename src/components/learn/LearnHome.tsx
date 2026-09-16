@@ -135,6 +135,7 @@ import type { School } from "@/lib/schools";
 import type { StudentSet, StudentTopic } from "@/lib/student.functions";
 import { useDismiss } from "@/lib/use-dismiss";
 import { claimPreview, currentPreview, onPreview, pickAuto, previewMode, releasePreview, resetAutoPick, warmPreviewPlayer } from "@/components/learn/live-preview";
+import { HowSurviveWorksRow } from "@/components/learn/HowSurviveWorks";
 
 export type HomeSet = {
   set: StudentSet; topic: StudentTopic; n: number; of: number; locked: boolean; done: boolean;
@@ -313,7 +314,9 @@ export const LearnHome = forwardRef<HTMLDivElement, {
         </div>
         <div aria-hidden style={{ height: narrow ? 8 : wide ? 26 : 22, background: `linear-gradient(${LK.heroBg}, ${LK.bg})` }} />
       </div>
-      <div className="mx-auto flex w-full flex-col" style={{ maxWidth: CONTENT_MAX, padding: `0 ${pad}px 96px`, gap: narrow ? 0 : wide ? 32 : 28 }}>
+            <div className="mx-auto flex w-full flex-col" style={{ maxWidth: CONTENT_MAX, padding: `0 ${pad}px 96px`, gap: narrow ? 0 : wide ? 32 : 28 }}>
+        {/* HOW SURVIVE WORKS (2026-09-16): one row above the topics — 0:36, silent until tapped; one line once seen. */}
+        <div style={{ padding: narrow ? "10px 0 14px" : 0 }}><HowSurviveWorksRow narrow={narrow} /></div>
 
         {/* CRAM ROWS — one per topic, the primary structure of the page. First topic, first short
             sit right under the hero — no control panel between the student and the video. */}

@@ -84,6 +84,7 @@ import { CHAPTER_JOINED_EVENT, LearnChapterModule, openChapterFinder, readJoined
 import { ChapterJoinGate } from "@/components/learn/ChapterJoinGate";
 import { pageShareUrl } from "@/lib/share-url";
 import { CramPlayer, type PlayerItem, type PlayerPart } from "@/components/learn/CramPlayer";
+import { GreekAskSheet } from "@/components/learn/GreekAskSheet";
 import { partKey, setIdOfKey } from "@/lib/student-shorts";
 import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
 import { DEFAULT_LOOK, isLook, LK, LEARN_CSS, themeFor, themeStyle, type Look } from "@/components/learn/learn-theme";
@@ -111,8 +112,11 @@ type LearnSearch = {
   look?: Look;
   /** ?part=N (1-based) — which part of the set the player is on (2026-09-11). */
   part?: number;
-  /** ?looks=1 — mount the floating look picker (LearnLookPicker). */
+    /** ?looks=1 — mount the floating look picker (LearnLookPicker). */
   looks?: true;
+  /** ?pick=1 (2026-09-16, the home hero's Start cramming): arrive with the school picker up; after the pick,
+   *  "in a fraternity or sorority?" — Yes opens the chapter finder. Cleared once acted on. */
+  pick?: true;
   /** THE SHARE KIT (2026-09-11): ?share=council (+ ?c=<council slug>) for a council chair, ?share=chair
    *  for a chapter's chair. Since the same night both are the one LearnChapterBar every visitor sees
    *  above the hero; ?c= presets its council. Never copied onward (share-url strips both). */
@@ -137,7 +141,8 @@ export const Route = createFileRoute("/learn/{-$campus}/{-$chapter}")({
     g: typeof s.g === "string" && s.g ? s.g : undefined,
     test: typeof s.test === "string" && s.test ? s.test : undefined,
     look: isLook(s.look) && s.look !== DEFAULT_LOOK ? s.look : undefined,
-    looks: s.looks === true || s.looks === 1 || s.looks === "1" || s.looks === "true" ? true : undefined,
+        looks: s.looks === true || s.looks === 1 || s.looks === "1" || s.looks === "true" ? true : undefined,
+    pick: s.pick === true || s.pick === 1 || s.pick === "1" || s.pick === "true" ? true : undefined,
     share: s.share === "council" || s.share === "chair" ? s.share : undefined,
     c: typeof s.c === "string" && /^[a-z0-9-]{1,40}$/.test(s.c) ? s.c : undefined,
   }),
@@ -181,11 +186,16 @@ const DEMO_QUESTIONS: PracticeQuestion[] = [
   ] },
   { id: "dq2", prompt: "Which pair keeps the accounting equation in balance after buying supplies on account?", shorthand: "A = L + E", choices: [
     { id: "a", text: "Assets up, Liabilities up", correct: true, feedback: "Supplies (asset) rise, Accounts Payable (liability) rises — balanced." },
-    { id: "b", text: "Assets up, Equity up", correct: false, feedback: "'On account' means a payable, not owner money." },
+        { id: "b", text: "Assets up, Equity up", correct: false, feedback: "'On account' means a payable, not owner money." },
   ] },
+  // A RUBRIC QUESTION (2026-09-16): answered on the A = L + E boxes, the way the real A = L + E sets are.
+  { id: "dq3", prompt: "Survive Co earns $1,500 of service revenue on account. Effect on A = L + E?", shorthand: "Accounting equation effects", choices: [
+    { id: "a", text: "Assets ↑ and Equity ↑", correct: true, feedback: null },
+    { id: "b", text: "Assets ↑ and Liabilities ↑", correct: false, feedback: null },
+  ], rubric: { text: "Survive Co earns $1,500 of service revenue on account.", amount: 1500, arrows: { A: ["up"], L: [], E: [], Rev: ["up"], Exp: [] } } },
 ];
 function demoTree(): StudentCourse[] {
-  const set = (id: string, name: string, o: Partial<StudentSet> = {}): StudentSet => ({ id: `demo-${id}`, name, coverUrl: null, access: "free", orientation: "portrait", playbackId: DEMO_PLAYBACK, ceqCount: 0, runtimeSec: null, hasReview: false, reviewPlaybackId: null, reviewRuntimeSec: null, firstStem: null, shortLabel: null, ...o });
+  const set = (id: string, name: string, o: Partial<StudentSet> = {}): StudentSet => ({ id: `demo-${id}`, name, coverUrl: null, access: "free", orientation: "portrait", playbackId: DEMO_PLAYBACK, ceqCount: 0, runtimeSec: null, hasReview: false, reviewPlaybackId: null, reviewRuntimeSec: null, firstStem: null, shortLabel: null, bonus: o.ceqCount ? "types" : null, ...o });
   return [{
     id: "demo-intro1", name: "Intro 1", family: "intro",
     units: [
@@ -314,9 +324,13 @@ function LearnShell() {
   // ?campus= CHANGING UNDER A MOUNTED PAGE (2026-09-10): the in-place school picker rewrites the
   // address without remounting, so the state seeded from search.campus above has to follow it.
   useEffect(() => { if (search.campus && search.campus !== campusId) setCampusId(search.campus); }, [campusId, search.campus]);
-  const [pickerOpen, setPickerOpen] = useState(false);
+    const [pickerOpen, setPickerOpen] = useState(false);
+  // THE HOME HERO'S HANDOFF (2026-09-16): ?pick=1 opens the picker on arrival; the pick then asks about a chapter.
+  const [greekAsk, setGreekAsk] = useState(false);
+  useEffect(() => { if (search.pick) setPickerOpen(true); }, [search.pick]);
   const pickSchool = (s: School) => {
     setPickerOpen(false);
+    if (search.pick) setGreekAsk(true);
     if (!s.campusId) return;
     // The site-wide "last used campus" cookie/key — so the homepage agrees with the pick, the way
     // it does when the pick is made there.
@@ -324,7 +338,7 @@ function LearnShell() {
     setCampusId(s.campusId);
     // ?g (a shared link's slug) would outrank the new campus — see THE LINK WINS — so it goes;
     // so do set/stage/topic, which belong to the old campus's tree. ref/by/test/demo ride along.
-    void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: s.id, chapter: undefined }, search: (p: LearnSearch) => ({ ...p, campus: undefined, g: undefined, set: undefined, stage: undefined, topic: undefined }), replace: true });
+        void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: s.id, chapter: undefined }, search: (p: LearnSearch) => ({ ...p, campus: undefined, g: undefined, set: undefined, stage: undefined, topic: undefined, pick: undefined }), replace: true });
   };
   // THE EMAIL GATE (learn-gate.ts) — passed once on this device, or never shown to a signed-in
   // student. Read in an effect: storage is client-only.
@@ -708,7 +722,8 @@ function LearnShell() {
       {/* The site-wide chat (SiteChat, in __root) hides while the player covers the page. */}
       <HideChatWhile on={inPlayer} />
 
-      {pickerOpen && <LearnSchoolSheet current={school} onClose={() => setPickerOpen(false)} onPick={pickSchool} />}
+            {pickerOpen && <LearnSchoolSheet current={school} onClose={() => { setPickerOpen(false); if (search.pick) void navigate({ search: (p: LearnSearch) => ({ ...p, pick: undefined }), replace: true }); }} onPick={pickSchool} />}
+      {greekAsk && <GreekAskSheet schoolName={school?.name ?? null} onYes={() => { setGreekAsk(false); openChapterFinder(); }} onNo={() => setGreekAsk(false)} />}
       {search.looks && <LearnLookPicker look={look} onPick={pickLook} />}
 
       {paywallTopic && <Paywall topic={paywallTopic} campusName={campusName} campusId={campusId} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}

@@ -10,7 +10,7 @@
 // takes the centre with the real PracticeStage. ASK LEE: the video pauses and a compose card pops
 // beside the column; it files a `question` intake with the set and the timestamp. On a phone the
 // video is the screen, actions sit bottom-right, practice and ask are sheets.
-import { useMemo, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, Check, ChevronLeft, Loader2, Lock, Maximize2, Pause, Play, Volume2, VolumeX, X } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
@@ -20,11 +20,9 @@ import { submitIntake } from "@/lib/intake.functions";
 import type { PracticeQuestion, StudentSet, StudentTopic } from "@/lib/student.functions";
 import { LK, type LearnTheme } from "@/components/learn/learn-theme";
 import { DEMO_PLAYBACK, muxThumb, SOUND_KEY, type Prog } from "@/components/learn/cram-media";
-import { QUICK_ROUND_SIZE } from "@/components/learn/learn-gate";
 import { BreatherCard } from "@/components/learn/BreatherCard";
 import { PracticeEndCard } from "@/components/learn/PracticeEndCard";
-import { RecapLock } from "@/components/learn/RecapLock";
-import { gateOpen, practiceScoreOf, type GateState } from "@/lib/practice-score";
+import { PANEL_BG, PANEL_EDGE, PANEL_INK, SetPanel, tabsOf, type SetTab } from "@/components/learn/SetPanel";
 
 /** ONE PART OF A SET (2026-09-11): a set filmed as five splits is five items in the player and
  *  five cards in the rail — Lee: "I've posted all 5 videos but only seeing first one." `key` is
@@ -44,8 +42,7 @@ const writeSound = (on: boolean) => { try { sessionStorage.setItem(SOUND_KEY, on
 const SHARE_DISMISS = "sa-player-share-dismissed";
 /** m:ss on the control bar. */
 const clockOf = (s: number): string => (Number.isFinite(s) && s > 0 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : "0:00");
-/** The school picker's navy, for the practice drawer (its questions are drawn in light ink). */
-const PRACTICE_BG = "#101C39", PRACTICE_EDGE = "rgba(148,180,255,0.20)", PRACTICE_INK = "#F2EFE6";
+
 
 export function CramPlayer({
   items, index, onIndex, progress, onStarted, onComplete, onPosition, resolvePlayback, demo, narrow, theme,
@@ -78,21 +75,20 @@ export function CramPlayer({
   useEffect(() => { setSoundOn(readSound()); }, []);
   /** Parts whose practice offer has already been made this visit — the end of the video then rolls on. */
   const offered = useRef(new Set<string>());
-  const [ask, setAsk] = useState(false);
+    const [ask, setAsk] = useState(false);
+  // THE SET SCREEN (2026-09-16, SetPanel.tsx): Watch · Practice (· Bonus) beside the video on a desk, always; the
+  // sheet a tab bar opens on a phone. `practice` (the shell's ?stage=practice) is the Practice tab being open.
+  const [tab, setTab] = useState<SetTab>("watch");
+  const [sheet, setSheet] = useState(false);
+  useEffect(() => { if (practice) { setTab("practice"); setSheet(true); } }, [practice]);
+  const pickTab = (t: SetTab) => { setTab(t); setSheet(true); onPractice(t === "practice"); };
+  const closeSheet = () => { setSheet(false); onPractice(false); };
   // BREATHER (2026-09-14): a recap beat after this part, before the next one — only on the way
   // forward at the end of a video. Tap skips; it never shows twice for the same part in a visit.
   const [breather, setBreather] = useState<{ key: string; heading: string; body: string; position: string } | null>(null);
   /** The part whose practice end screen is up (PracticeEndCard), by key — moving to another part drops it. */
-  const [endCta, setEndCta] = useState<string | null>(null);
-  // THE RECAP'S LOCK (2026-09-15). Lee: "lock the recap video at the end (video #11) until they have completed
-  // all videos and all practice questions and earned at least an 80% on it. Give them the option to skip to the
-  // next topic if they'd like." Re-read whenever practice or progress moves.
-  const [scoreTick, setScoreTick] = useState(0);
-  useEffect(() => {
-    const bump = () => setScoreTick((n) => n + 1);
-    window.addEventListener("sa-coverage", bump);
-    return () => window.removeEventListener("sa-coverage", bump);
-  }, []);
+    const [endCta, setEndCta] = useState<string | null>(null);
+  // THE RECAP LOCK IS GONE (Lee, 2026-09-16: "drop the recap video lock"). The 80% gate moved to the Bonus tab.
   const seenBreathers = useRef(new Set<string>());
   // CRAM CARDS (2026-09-03): video → cards → practice. Same drawer as practice.
   const [cards, setCards] = useState(false);
@@ -144,7 +140,7 @@ export function CramPlayer({
   const dragging = useRef(false);
   const onTouchStart = (e: React.TouchEvent) => { touchY.current = e.touches[0].clientY; dragging.current = false; };
   const onTouchMove = (e: React.TouchEvent) => {
-    if (touchY.current == null || practice || cards || ask) return;
+        if (touchY.current == null || sheet || cards || ask) return;
     const dy = e.touches[0].clientY - touchY.current;
     if (!dragging.current && Math.abs(dy) < 8) return;
     dragging.current = true;
@@ -168,21 +164,7 @@ export function CramPlayer({
   // The caption: a multi-part set counts its parts ("Assets · 1 of 5"); a single video counts sets.
   const cap = part.of > 1 ? { n: part.index + 1, of: part.of, name: part.name || set.name } : { n, of, name: set.name };
 
-  // the gate for THIS part, when it has one
-  const gateNow: GateState | null = useMemo(() => {
-    if (part.gate !== "practice80") return null;
-    const mine = items.filter((it) => it.set.id === set.id && it.part.key !== part.key);
-    const done = mine.filter((it) => progress[it.part.key]?.state === "complete").length;
-    void scoreTick;
-    return { videosDone: done, videosOf: mine.length, score: practiceScoreOf(set.id), total: set.ceqCount ?? 0 };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [part.gate, part.key, items, set.id, set.ceqCount, progress, scoreTick]);
-  const gateShut = !!gateNow && !gateOpen(gateNow);
-  const gateCard = gateShut && gateNow && (
-    <RecapLock state={gateNow} onPractice={() => onPractice(true)} onSkipTopic={nextTopicIndex >= 0 ? () => onIndex(nextTopicIndex) : onExit} lastTopic={nextTopicIndex < 0} />
-  );
-
-  const breatherCard = breather && (
+    const breatherCard = breather && (
     <BreatherCard heading={breather.heading} body={breather.body} position={breather.position} onDone={() => { setBreather(null); go(1); }} />
   );
   // THE PRACTICE END SCREEN (2026-09-14, PracticeEndCard.tsx): a video that ends on a practice slide stops
@@ -198,7 +180,7 @@ export function CramPlayer({
   const video = (
     <Video
       key={part.key} set={set} part={part} locked={locked} demo={demo} soundOn={soundOn} onToggleSound={toggleSound}
-      prog={progress[part.key]} narrow={narrow} shrink={!narrow && practice} theme={theme}
+            prog={progress[part.key]} narrow={narrow} shrink={!narrow} theme={theme}
       onStarted={() => onStarted(part.key)} onComplete={() => onComplete(part.key)} onPosition={(p, d) => onPosition(part.key, p, d)}
       onEnded={() => {
         if (practice || cards || ask) return;
@@ -217,9 +199,9 @@ export function CramPlayer({
         window.setTimeout(() => go(1), 1200);
       }}
             onCta={() => { offered.current.add(part.key); setEndCta(part.key); }}
-      onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask || gateShut || endCta === part.key}
+            onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask || endCta === part.key}
       caption={{ topic: topic.name, n: cap.n, of: cap.of, name: cap.name }}
-      overlay={gateCard || breatherCard || endCard || null}
+      overlay={breatherCard || endCard || null}
     />
   );
 
@@ -241,54 +223,49 @@ export function CramPlayer({
     </div>
   );
 
-  // THE PRACTICE DRAWER (2026-09-15). Lee: "they're not easy to read... it needs to match the vibe of the school
-  // picker." The practice stage draws in light ink, and the cream shell swallowed it; it now sits on the picker's
-  // navy, where its own colours read.
-  const practicePanel = practice && set.ceqCount > 0 && (
-    <div className={narrow ? "flex min-h-0 flex-1 flex-col" : "lk-in flex flex-col overflow-hidden rounded-2xl"} style={narrow ? { background: PRACTICE_BG, borderTop: `1px solid ${PRACTICE_EDGE}`, borderRadius: "18px 18px 0 0", color: PRACTICE_INK } : { width: "min(560px, 46vw)", height: "min(700px, calc(100dvh - 110px))", background: PRACTICE_BG, border: `1px solid ${PRACTICE_EDGE}`, color: PRACTICE_INK, boxShadow: "0 30px 70px -30px rgba(0,0,0,0.85)" }}>
-      <div className="flex shrink-0 items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${PRACTICE_EDGE}`, background: "rgba(255,255,255,0.03)" }}>
-        <span className="lk-disp" style={{ fontSize: 15, color: PRACTICE_INK }}>Practice</span>
-        <span className="min-w-0 truncate text-[12px]" style={{ color: "#93A0B4" }}>{set.name}</span>
-        <span className="flex-1" />
-        <button type="button" onClick={() => onPractice(false)} className="grid h-8 w-8 place-items-center rounded-full" style={{ background: "rgba(255,255,255,0.10)", color: PRACTICE_INK, border: 0, cursor: "pointer" }} aria-label="Close practice"><X className="h-4 w-4" /></button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto" style={{ display: "flex", flexDirection: "column" }}>
-        <PracticeStage
-          setId={set.id}
-          questions={demo ? demoQuestions : undefined}
-          reference={{ topic: topic.number, set: n }}
-          setName={set.name}
-          campusName={campusName}
-          campusSlug={campusSlug}
-          surface="learn"
-          isTest={demo}
-          doneLabel={hasNext ? "Next cram →" : "Back to the videos"}
-          onDone={() => { onPractice(false); if (hasNext) go(1); }}
-          roundSize={QUICK_ROUND_SIZE}
-          guidance={nextTopicIndex >= 0
-            ? { nextLabel: "Next topic →", onNext: () => { onPractice(false); setAsk(false); onIndex(nextTopicIndex); } }
-            : { nextLabel: "Back to the videos", onNext: () => { onPractice(false); onExit(); } }}
-        />
-      </div>
+    // THE SET SCREEN (2026-09-16, SetPanel.tsx) on the school picker's navy (Lee, 2026-09-15: "it needs to match the
+  // vibe of the school picker"): the whole set in order, the practice, the bonus, Ask Lee. Always beside the video on
+  // a desk; the sheet the tab bar opens on a phone.
+  const panelOpen = !narrow || sheet;
+  const setPanel = panelOpen && (
+    <div className={narrow ? "flex min-h-0 flex-1 flex-col" : "lk-in flex flex-col overflow-hidden rounded-2xl"} style={narrow ? { background: PANEL_BG, borderTop: `1px solid ${PANEL_EDGE}`, borderRadius: "18px 18px 0 0", color: PANEL_INK } : { width: "min(520px, 44vw)", height: "min(700px, calc(100dvh - 110px))", background: PANEL_BG, border: `1px solid ${PANEL_EDGE}`, color: PANEL_INK, boxShadow: "0 30px 70px -30px rgba(0,0,0,0.85)" }}>
+      <SetPanel
+        items={items} index={index} onIndex={(i) => { onIndex(i); setAsk(false); }} progress={progress}
+        tab={tab} onTab={pickTab} narrow={narrow} onClose={narrow ? closeSheet : undefined}
+        demo={demo} demoQuestions={demoQuestions} campusName={campusName} campusSlug={campusSlug}
+        guidance={nextTopicIndex >= 0
+          ? { nextLabel: "Next topic →", onNext: () => { onPractice(false); setTab("watch"); setSheet(false); setAsk(false); onIndex(nextTopicIndex); } }
+          : { nextLabel: "Back to the videos", onNext: () => { onPractice(false); onExit(); } }}
+        onPracticeDone={() => { onPractice(false); setTab("watch"); setSheet(false); if (hasNext) go(1); }}
+      />
     </div>
   );
+  const tabLabel = (t: SetTab) => (t === "watch" ? "Videos" : t === "practice" ? "Practice" : "Bonus");
 
   if (narrow) {
     return (
       <div className="relative flex min-h-0 flex-1 flex-col" style={{ background: "#000", overflow: "hidden" }} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={() => { touchY.current = null; dragging.current = false; setDrag({ y: 0, settle: true }); }}>
-        <div className={practice || cards || ask ? "shrink-0" : "min-h-0 flex-1"} style={{ ...(practice || cards || ask ? { height: 220 } : {}), transform: `translateY(${drag.y}px)`, transition: drag.settle ? "transform 190ms ease-out" : "none", willChange: "transform" }}>{video}</div>
+                <div className={sheet || cards || ask ? "shrink-0" : "min-h-0 flex-1"} style={{ ...(sheet || cards || ask ? { height: 220 } : {}), transform: `translateY(${drag.y}px)`, transition: drag.settle ? "transform 190ms ease-out" : "none", willChange: "transform" }}>{video}</div>
         <button type="button" onClick={onExit} className="absolute left-3 top-3 z-[2] inline-flex h-9 items-center gap-1 rounded-full pl-2 pr-3.5 text-[12.5px] font-extrabold" style={{ background: "rgba(0,0,0,0.72)", color: "#FFFFFF", border: "1px solid rgba(255,255,255,0.4)", cursor: "pointer", backdropFilter: "blur(6px)" }} aria-label="Back to all videos"><ChevronLeft className="h-4 w-4" /> All videos</button>
-        {!practice && !cards && !ask && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 p-4" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0))" }}>
+        {!sheet && !cards && !ask && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 p-4" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0))", paddingBottom: 62 }}>
             <div className="min-w-0 flex-1 pb-1">
               <div className="text-[10px] font-extrabold uppercase" style={{ letterSpacing: "0.14em", color: theme.accent }}>{topic.name} · {cap.n} of {cap.of}</div>
               <div className="lk-disp" style={{ fontSize: 19, lineHeight: 1.1, marginTop: 4 }}>{cap.name}</div>
               {hasNext && <div className="lk-swipe mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: "rgba(255,255,255,0.14)", color: "#F2EFE6" }}><ArrowUp className="lk-swipe-arrow h-3.5 w-3.5" /> Swipe up for the next video</div>}
+              {/* THE TAB BAR (2026-09-16): Videos · Practice · Bonus open the set screen as a sheet. */}
+              <div className="pointer-events-auto mt-2.5 flex gap-1.5">
+                {tabsOf(set.bonus).map((t) => (
+                  <button key={t} type="button" onClick={() => pickTab(t)} className="rounded-full px-3 py-1.5 text-[12px] font-extrabold" style={{ background: t === "practice" ? theme.accent : "rgba(0,0,0,0.6)", color: t === "practice" ? theme.accentInk : "#F2EFE6", border: t === "practice" ? 0 : "1px solid rgba(255,255,255,0.35)", cursor: "pointer", minHeight: 34 }}>
+                    {tabLabel(t)}{t === "practice" && set.ceqCount > 0 ? ` · ${set.ceqCount}` : ""}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
         {cardsPanel}
-        {practicePanel}
+        {setPanel}
         {askCard}
       </div>
     );
@@ -310,9 +287,9 @@ export function CramPlayer({
           <button type="button" onClick={() => void copyShare()} className="lk-btn lk-btn-acc self-start" style={{ padding: "7px 12px", fontSize: 11 }}>{shareCopied ? <><Check className="h-3.5 w-3.5" /> Copied</> : "Copy share link"}</button>
         </div>
       )}
-      {video}
+            {video}
       {cardsPanel}
-      {practicePanel}
+      {setPanel}
       {askCard}
     </div>
   );
@@ -403,8 +380,9 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
   // bar takes ~72px, the padding ~30) — a 746px video on a 720px laptop must shrink, not clip.
   // Centered and as large as the viewport allows (King, 2026-09-11: "displayed larger and
   // centered in the middle of the screen by default").
-  const h = narrow ? "100%" : shrink ? "min(533px, calc(100dvh - 48px))" : "min(900px, calc(100dvh - 48px))";
-  const w = narrow ? "100%" : shrink ? "calc(min(533px, calc(100dvh - 48px)) * 9 / 16)" : "calc(min(900px, calc(100dvh - 48px)) * 9 / 16)";
+    // Beside the set screen (shrink) the picture matches the panel's height.
+  const h = narrow ? "100%" : shrink ? "min(700px, calc(100dvh - 110px))" : "min(900px, calc(100dvh - 48px))";
+  const w = narrow ? "100%" : shrink ? "calc(min(700px, calc(100dvh - 110px)) * 9 / 16)" : "calc(min(900px, calc(100dvh - 48px)) * 9 / 16)";
   const pill = { background: "rgba(28,28,28,0.85)", color: "#F2EFE6", border: "1px solid rgba(255,255,255,0.18)", cursor: "pointer" } as const;
   return (
     <div ref={box} className="relative overflow-hidden" style={{ width: w, height: h, borderRadius: narrow ? 0 : 16, background: "#000", flexShrink: 0, transition: "width 160ms ease, height 160ms ease", containerType: "inline-size" }}>

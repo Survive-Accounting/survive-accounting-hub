@@ -63,6 +63,9 @@ import type { School as PickerSchool } from "@/lib/schools";
 import { CAMPUS_LINE_CSS } from "./campus-line";
 import { soloButtonLabel } from "./two-door-copy";
 import { nbspCode } from "@/lib/course-code";
+import { HowSurviveWorksVideo } from "@/components/learn/HowSurviveWorks";
+import { ChainLightning, CtaButton } from "@/components/brand-cards/ChainLightning";
+import type { Rect } from "@/components/brand-cards/chain-lightning";
 
 /** The doors section's anchor. Also aliased by the legacy #exam1 anchor below it, because every
  *  other page's navbar still links "/#exam1" — those visitors should land at the doors, not at a
@@ -207,7 +210,13 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   const openChapterPicker = () => { track("homepage_chapter_switch_opened", ctx()); chapterGo.current = false; setChapterPickerOpen(true); };
   // The SECOND Exam-1 door, at the foot of the feature list — a reader who scrolled the whole
   // list can convert without scrolling back up. Same waitlist the solo door opens.
-  const openExam1Free = () => { track("homepage_secondary_cta_clicked", ctx()); if (campus.school) goLearn(campus.school.id); else setPickerFor("solo"); };
+    const openExam1Free = () => { track("homepage_secondary_cta_clicked", ctx()); if (campus.school) goLearn(campus.school.id); else setPickerFor("solo"); };
+  // THE HERO'S START CRAMMING (Lee, 2026-09-16): /learn with the school picker up, then "in a fraternity or
+  // sorority?" (the learn route's ?pick=1). The picker opens even for a known campus — it is pre-marked there.
+  const startCramming = () => {
+    track("homepage_study_solo_clicked", { ...ctx(), returning, hero: true });
+    void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: campus.school?.id ?? undefined, chapter: undefined }, search: { pick: true } as never });
+  };
 
   // A school was chosen in the picker: remember it (the page repaints for that campus), then
   // continue into whichever flow opened the picker. State updates batch, so the flow's modal
@@ -246,9 +255,10 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       <SiteHeader homeNav onLanding />
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
-        <TwoDoorHero
+                <TwoDoorHero
           code={campus.code}
           schoolName={campus.school?.name ?? null}
+          onStart={startCramming}
         />
 
         {/* PROOF DIRECTLY UNDER THE CLAIM (p4 §2): the three checks sit right below the subhead,
@@ -500,32 +510,84 @@ function SwitchFlourish({ code, school, c1, c2, onDone }: {
 // ── HERO — CENTERED, QUIET ────────────────────────────────────────────────────────────────────
 /** Headline → subhead. The campus control moved out to the SchoolBadge (directly above the cards),
  *  and the proof chips sit right under the subhead now (p4). */
-function TwoDoorHero({ code, schoolName }: {
+/** The hero's own layout: words left, the video right on a desk; stacked on a phone. */
+const HERO_HSW_CSS = `
+.sa-hero-hsw { display: grid; grid-template-columns: 1fr; gap: 22px; align-items: center; width: 100%; text-align: center; justify-items: center; }
+.sa-hero-hsw-video { width: min(260px, 72vw); }
+@media (min-width: 720px) { .sa-hero-hsw { grid-template-columns: 1fr 250px; gap: 36px; text-align: left; justify-items: start; } .sa-hero-hsw-video { width: 250px; justify-self: end; } }
+.sa-hero-cta { background: transparent; border: 0; padding: 0; cursor: pointer; display: inline-block; }
+.sa-hero-cta:focus-visible { outline: 2px solid var(--brand-cream); outline-offset: 6px; border-radius: 999px; }
+`;
+
+function TwoDoorHero({ code, schoolName, onStart }: {
   code: string | null;
   schoolName: string | null;
+  /** Start cramming — /learn with the school picker up (2026-09-16). */
+  onStart: () => void;
 }) {
   // Same honesty rule as every hero before it: the campus version needs BOTH a school and a
   // VERIFIED course code; anything less renders the generic page, never an invented code.
   const headline = code && schoolName
     ? <><span style={{ color: "var(--accent)" }}>{nbspCode(code)}</span> at {schoolName} is where GPAs quietly slip.</>
     : <>Intro accounting is where GPAs quietly slip.</>;
+  // THE STRIKE (Lee, 2026-09-16: "show the bolt"): the outro's real ChainLightning, from the navbar's bolt to
+  // Start cramming — on arrival and every seven seconds while the hero is on screen. Measured in viewport px at
+  // each strike, drawn on a fixed overlay. Nothing under reduced motion.
+  const btn = useRef<HTMLDivElement>(null);
+  const [lit, setLit] = useState(false);
+  const [geo, setGeo] = useState<{ from: Rect; to: Rect; w: number; h: number } | null>(null);
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    let alive = true;
+    const strike = () => {
+      if (!alive) return;
+      const b = btn.current?.getBoundingClientRect();
+      if (!b || b.bottom < 0 || b.top > window.innerHeight) return;
+      const n = document.querySelector("header svg")?.getBoundingClientRect();
+      const from: Rect = n ? { x: n.left, y: n.top, w: n.width, h: n.height } : { x: 28, y: 20, w: 18, h: 26 };
+      setGeo({ from, to: { x: b.left, y: b.top, w: b.width, h: b.height }, w: window.innerWidth, h: window.innerHeight });
+      setLit(true);
+      window.setTimeout(() => { if (alive) setLit(false); }, 1100);
+    };
+    const t0 = window.setTimeout(strike, 900);
+    const iv = window.setInterval(strike, 7000);
+    return () => { alive = false; window.clearTimeout(t0); window.clearInterval(iv); };
+  }, []);
   return (
-    <section id={MARKETING_HERO_ID} className="sa-two-door-hero flex flex-col items-center pb-5 pt-10 text-center sm:pt-14" style={{ fontFamily: BRAND_SANS }}>
-      <h1
-        className="mx-auto max-w-[600px] text-[30px] font-black leading-[1.12] sm:text-[40px] lg:text-[44px]"
-        style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}
-      >
-        {headline}
-      </h1>
-      {/* SUBHEAD — supports the headline, doesn't compete: medium weight, muted (p4 §1).
-          TWO LINES BY DECREE, not by wrap: the break belongs after "exam", where the sentence
-          turns. Letting it fall wherever the viewport runs out put it somewhere different on
-          every screen. */}
-      <p className="mt-3.5 text-[17px] font-medium leading-snug sm:text-[19px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--text-secondary)" }}>
-        <span className="block">Cram what&apos;s on your exam.</span>
-        <span className="block">Skip everything else.</span>
-      </p>
-      {/* "Like Reels for exam prep." removed from the home hero 2026-09-14 (Lee). */}
+    <section id={MARKETING_HERO_ID} className="sa-two-door-hero flex flex-col items-center pb-5 pt-8 sm:pt-12" style={{ fontFamily: BRAND_SANS }}>
+      <style>{HERO_HSW_CSS}</style>
+      <div className="sa-hero-hsw">
+        <div className="flex flex-col" style={{ alignItems: "inherit" }}>
+          <h1
+            className="max-w-[600px] text-[30px] font-black leading-[1.12] sm:text-[40px] lg:text-[44px]"
+            style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}
+          >
+            {headline}
+          </h1>
+          {/* SUBHEAD — supports the headline, doesn't compete: medium weight, muted (p4 §1).
+              TWO LINES BY DECREE, not by wrap: the break belongs after "exam", where the sentence
+              turns. Letting it fall wherever the viewport runs out put it somewhere different on
+              every screen. */}
+          <p className="mt-3.5 text-[17px] font-medium leading-snug sm:text-[19px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--text-secondary)" }}>
+            <span className="block">Cram what&apos;s on your exam.</span>
+            <span className="block">Skip everything else.</span>
+          </p>
+          {/* "Like Reels for exam prep." removed from the home hero 2026-09-14 (Lee). */}
+          <div className="mt-6">
+            <button type="button" className="sa-hero-cta" onClick={onStart} data-gm-cta="hero-start" aria-label="Start cramming">
+              <CtaButton ref={btn} label="Start cramming →" font={18} h={56} padX={30} minW={250} lit={lit} />
+            </button>
+          </div>
+          <p className="mt-3 text-[13px]" style={{ color: "var(--text-muted)" }}>Exam 1 is free. Pick your school, then go.</p>
+        </div>
+        {/* HOW SURVIVE WORKS — 0:36, silent from the moment the page is up; a tap restarts it with sound. */}
+        <div className="sa-hero-hsw-video"><HowSurviveWorksVideo radius={18} /></div>
+      </div>
+      {geo && (
+        <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 210, pointerEvents: "none" }}>
+          <ChainLightning active={lit} from={geo.from} to={geo.to} w={geo.w} h={geo.h} />
+        </div>
+      )}
     </section>
   );
 }

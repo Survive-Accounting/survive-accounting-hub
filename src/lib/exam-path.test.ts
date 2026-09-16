@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { buildPath, estRangeMin, firstUnfinished, nextPathStep, pathProgress, prevPathStep, stepMeta, stepShortLabel, topicComplete } from "./exam-path";
 
 const set = (id: string, o: Record<string, unknown> = {}) => ({
-  id, name: `Set ${id}`, shortLabel: null, playbackId: null, ceqCount: 0, hasReview: false,
+  id, name: `Set ${id}`, shortLabel: null, bonus: null, playbackId: null, ceqCount: 0, hasReview: false,
   reviewPlaybackId: null, runtimeSec: null, reviewRuntimeSec: null, coverUrl: null, access: "free" as const, ...o,
 });
 

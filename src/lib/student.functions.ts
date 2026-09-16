@@ -9,6 +9,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { cramCardsFromPlan, practiceIdsFromPlan, readLearnPlan } from "./learn-plan";
+import { aleRowsOf, bonusKindOf, rubricForCeq, type BonusKind, type RubricKeyData } from "./learn-bonus";
+import type { TypesSpec } from "@/components/blastoff/account-types";
+import type { RubricArrows } from "@/components/blastoff/rubric";
 
 /** A SET is one Cram Blast → Practice → Review sequence (the product model, 08-20).
  *
@@ -40,7 +43,10 @@ export interface StudentSet {
   /** SHORTHAND (08-23) — the problem-type label the left-rail row should show ("Account
    *  classification", "Accounting equation effects"). Comes from the FIRST CEQ's authored
    *  `shorthand` field. Null when no shorthand is authored; the rail falls back to `name`. */
-  shortLabel: string | null;
+    shortLabel: string | null;
+  /** THE BONUS TAB (2026-09-16, lib/learn-bonus.ts): "ale" = every transaction of the set's rubric slides,
+   *  "types" = the Types of Accounts map; null = no bonus, no tab. Derived from the film plan, never authored twice. */
+  bonus: BonusKind | null;
   /** REVIEW stage — Lee working the questions. Shipped for only some sets; never faked. */
   hasReview: boolean;
   reviewPlaybackId: string | null; // withheld for paid sets even when hasReview
@@ -139,7 +145,9 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   // (the same membership the Studio uses). Powers the "N questions" line on each outline set row.
   const ceqCountByDeck = new Map<string, number>();
   // FIRST STEM per deck (lowest stageOrder) — the outline teaser, with its blur ranges for paid redaction.
-  const firstCeqByDeck = new Map<string, { order: number; prompt: string; blur: { s: number; e: number }[]; shorthand: string | null }>();
+    const firstCeqByDeck = new Map<string, { order: number; prompt: string; blur: { s: number; e: number }[]; shorthand: string | null }>();
+  // The question stems per deck — the bonus rule reads them (a bank of "What type of account is X?").
+  const promptsByDeck = new Map<string, string[]>();
   type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[]; noteOnly?: boolean; draft?: boolean; bankArchived?: string; format?: string };
   // PARKED sets are authoring-only — never served, regardless of status (same law as parked topics).
   for (const o of liveDecks(owned)) {
@@ -156,14 +164,21 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
       if (n.data?.format !== undefined && n.data?.format !== "mc") continue;
       const did = n.data?.deckId;
       if (!did) continue;
-      ceqCountByDeck.set(did, (ceqCountByDeck.get(did) ?? 0) + 1);
+            ceqCountByDeck.set(did, (ceqCountByDeck.get(did) ?? 0) + 1);
+      promptsByDeck.set(did, [...(promptsByDeck.get(did) ?? []), (n.data?.prompt ?? "").trim()]);
       const order = n.data?.stageOrder ?? 0;
       const cur = firstCeqByDeck.get(did);
       const sh = (n.data as { shorthand?: string } | undefined)?.shorthand?.trim() || null;
       if (!cur || order < cur.order) firstCeqByDeck.set(did, { order, prompt: (n.data?.prompt ?? "").trim(), blur: Array.isArray(n.data?.blurRanges) ? n.data!.blurRanges! : [], shorthand: sh });
     }
   }
-  if (!live.length) return [];
+    if (!live.length) return [];
+  // THE BONUS per set (learn-bonus.ts): from the plan's rubric / types frames, or the question bank's shape.
+  const bonusByDeck = new Map<string, BonusKind>();
+  for (const d of live) {
+    const k = bonusKindOf(readLearnPlan(d.blastOff)?.frames ?? [], promptsByDeck.get(d.id) ?? []);
+    if (k) bonusByDeck.set(d.id, k);
+  }
 
   // SERVER-SIDE redaction for paid display: replace each author-marked range with a ░ block. The
   // redacted words never leave the server for a paid set — the tease is the shape, not the specifics.
@@ -273,7 +288,7 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
       .filter((p) => p?.kind === "blast" && p.source === "blastoff" && p.state === "shipped" && !!p.render?.muxPlaybackId && typeof p.pubKey === "string")
       .sort((a, b) => (a.takeIndex ?? 0) - (b.takeIndex ?? 0)).map((p) => p.pubKey!);
     const breathers = shorts.length === seqKeys.length ? studentBreathers(seqKeys, (d as { breathers?: Breather[] }).breathers) : [];
-    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: shorts.length ? "portrait" : "landscape", playbackId: paid ? null : (shorts[0]?.playbackId ?? cramPid), coverUrl: coverBySet.get(d.id) ?? null, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: shorts[0]?.runtimeSec ?? cramDur, shorts, ...(breathers.length ? { breathers } : {}), hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id) });
+    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: shorts.length ? "portrait" : "landscape", playbackId: paid ? null : (shorts[0]?.playbackId ?? cramPid), coverUrl: coverBySet.get(d.id) ?? null, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: shorts[0]?.runtimeSec ?? cramDur, shorts, ...(breathers.length ? { breathers } : {}), hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id), bonus: bonusByDeck.get(d.id) ?? null });
   }
 
   for (const t of topics.values()) t.sets.sort((a, b) => (setOrderKey.get(a.id) ?? 0) - (setOrderKey.get(b.id) ?? 0) || a.name.localeCompare(b.name));
@@ -345,7 +360,12 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
 // middleware so signed-out students can practice free sets, and entitled paid practice rides
 // the checkout pass later (mirror getSetPlayback's grant check then).
 export interface PracticeChoice { id: string; text: string; correct: boolean; feedback: string | null }
-export interface PracticeQuestion { id: string; prompt: string; shorthand: string | null; choices: PracticeChoice[] }
+export interface PracticeQuestion {
+  id: string; prompt: string; shorthand: string | null; choices: PracticeChoice[];
+  /** THE RUBRIC QUESTION (2026-09-16): the card has a rubric slide, so it is answered on the A = L + E boxes —
+   *  tap the arrows, no numbers to type — and graded by learn-bonus's rubricMatches. Absent = multiple choice. */
+  rubric?: RubricKeyData | null;
+}
 export type SetPracticeResult =
   | { status: "ok"; setName: string; questions: PracticeQuestion[] }
   | { status: "locked" }
@@ -421,7 +441,9 @@ export const fetchSetPractice = createServerFn({ method: "GET" })
     // cards in it, practice is the plan's non-skipped cards in PLAN order; a
     // card in the set but not in the plan is not served. No plan → bank
     // (stageOrder) order, exactly as before.
-    const planIds = practiceIdsFromPlan(readLearnPlan(deck.blastOff));
+        const plan = readLearnPlan(deck.blastOff);
+    const planIds = practiceIdsFromPlan(plan);
+    const planFrames = plan?.frames ?? [];
     const byNode = new Map(cards.map((c) => [c.nodeId, c] as const));
     const ordered = planIds
       ? planIds.flatMap((id) => { const c = byNode.get(id); return c ? [c] : []; })
@@ -431,9 +453,41 @@ export const fetchSetPractice = createServerFn({ method: "GET" })
         id: c.nodeId || `${data.setId}:${c.stageOrder ?? i}`,
         prompt: (c.prompt ?? "").trim(),
         shorthand: c.shorthand?.trim() || null,
-        choices: (c.choices ?? []).map((ch, j) => ({ id: ch.id ?? String(j), text: (ch.text ?? "").trim(), correct: !!ch.correct, feedback: ch.feedback?.trim() || null })),
+                choices: (c.choices ?? []).map((ch, j) => ({ id: ch.id ?? String(j), text: (ch.text ?? "").trim(), correct: !!ch.correct, feedback: ch.feedback?.trim() || null })),
+        rubric: c.nodeId ? rubricForCeq(planFrames, c.nodeId) : null,
       }))
       // A card with no prompt or fewer than 2 choices can't be practiced — skip, never crash.
       .filter((q) => q.prompt && q.choices.length >= 2);
     return questions.length ? { status: "ok", setName: setName(deck.name), questions } : { status: "empty" };
+  });
+
+// ---- THE BONUS TAB (2026-09-16, lib/learn-bonus.ts) ----------------------------------------------
+// What the set's Bonus tab shows, derived from its film plan: every transaction of its rubric slides
+// (arrows only), or its Types of Accounts slide's settings (null = the slide's defaults, which are
+// Lee's own teaching slide). Locked client-side until 80% on the practice (lib/practice-score.ts).
+export type SetBonusResult =
+  | { status: "ok"; kind: "ale"; rows: { id: string; text: string; arrows: RubricArrows }[] }
+  | { status: "ok"; kind: "types"; spec: TypesSpec | null }
+  | { status: "none" }
+  | { status: "locked" }
+  | { status: "not_found" };
+export const fetchSetBonus = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string() }).parse(d))
+  .handler(async ({ data }): Promise<SetBonusResult> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as { from: (t: string) => any };
+    const owned = await loadDecksDeduped(admin);
+    const o = owned.get(data.setId);
+    const deck = o && o.deck.status === "live" && o.deck.parked !== true ? o.deck : undefined;
+    if (!deck || !o) return { status: "not_found" };
+    if (deck.access === "paid") return { status: "locked" };
+    const frames = readLearnPlan(deck.blastOff)?.frames ?? [];
+    const prompts = o.nodes.map((n) => String((n.data as { prompt?: string } | undefined)?.prompt ?? ""));
+    const kind = bonusKindOf(frames, prompts);
+    if (kind === "ale") return { status: "ok", kind, rows: aleRowsOf(frames) };
+    if (kind === "types") {
+      const t = frames.find((f) => f.kind === "types" && !f.skipped);
+      return { status: "ok", kind, spec: (t?.types as TypesSpec | undefined) ?? null };
+    }
+    return { status: "none" };
   });

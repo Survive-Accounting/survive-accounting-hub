@@ -127,6 +127,10 @@ export const SA_EVENTS = [
   "stitch_posted",
   "stitch_redo",
   "stitch_deleted",
+  "hsw_play_sound",
+  "hsw_open",
+  "set_practice_open",
+  "ask_lee_sent",
 ] as const;
 
 export type SaEvent = (typeof SA_EVENTS)[number];

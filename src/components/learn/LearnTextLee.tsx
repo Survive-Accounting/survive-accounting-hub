@@ -23,6 +23,7 @@ import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { deviceAnonId } from "@/lib/device-id";
 import { chatPoll, chatSend, chatSetNickname, type VisitorChatView } from "@/lib/site-chat.functions";
+import { CONV_KEY, NAME_KEY, readChatLocal as readLocal, writeChatLocal as writeLocal } from "@/lib/site-chat-client";
 
 export const LEE_TEL = "+16625658818";
 export const LEE_PHONE = "(662) 565-8818";
@@ -37,8 +38,7 @@ export const TEXT_LEE_LINES = [
 
 const PHOTO_SIZE = 56;
 const SHADOW = "0 14px 30px -8px rgba(0,0,0,0.85), 0 4px 10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.18)";
-const CONV_KEY = "sa-chat-conversation";
-const NAME_KEY = "sa-chat-nickname";
+// The conversation and nickname keys live in lib/site-chat-client (2026-09-16) — the set screen's Ask Lee shares them.
 
 /** The room's tokens, the home page's as fallbacks. */
 const T = {
@@ -68,8 +68,6 @@ const CSS = `
 @media (prefers-reduced-motion: reduce) { .ltl-card { animation: none; } .ltl-dots span { animation: none; opacity: .7; } }
 `;
 
-function readLocal(key: string): string | null { try { return window.localStorage.getItem(key); } catch { return null; } }
-function writeLocal(key: string, v: string | null) { try { if (v) window.localStorage.setItem(key, v); else window.localStorage.removeItem(key); } catch { /* storage blocked */ } }
 const MIGRATION_MISSING = /Chat isn't set up yet/;
 
 export function LearnTextLee({ bottomOffset = 16 }: {

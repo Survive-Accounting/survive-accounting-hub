@@ -17,7 +17,10 @@ import { askAboutQuestion, logPracticeEvents, type AttemptEvent } from "@/lib/pr
 import { readStudentEmail, rememberStudentEmail } from "@/lib/student-email";
 import { supabase } from "@/integrations/supabase/client";
 import { track } from "@/lib/analytics";
-import { recordPracticeAnswer } from "@/lib/practice-score";
+import { passed, recordPracticeAnswer } from "@/lib/practice-score";
+import { emptyArrows, type RubricArrows } from "@/components/blastoff/rubric";
+import { RubricAnswer } from "@/components/learn/RubricAnswer";
+import { rubricMatches } from "@/lib/learn-bonus";
 
 const C = { text: "#E8ECF5", muted: "#93A0B4", yellow: "#FCA311", green: "#3BF5A0", red: "#FF5C6E", border: "rgba(148,163,190,0.16)", panel: "rgba(9,14,26,0.6)" };
 const SWAP_MS = 120;
@@ -75,10 +78,17 @@ export interface PracticeStageProps {
    *    clean round   Recommended · Next topic →      ›  More practice ›  Retry round
    *  `nextLabel` / `onNext` are the surface's ("Next topic →", or "Back to the videos" on the last
    *  topic). Undefined = the older screen (Retry the N you missed / doneLabel / Review with Lee). */
-  guidance?: { nextLabel: string; onNext: () => void };
+    guidance?: { nextLabel: string; onNext: () => void };
+  /** GRADE AT THE END (2026-09-16, the set screen). Lee: "wait until the end to show right/wrong." A pick is
+   *  kept, not resolved — no green, no red, no feedback — and can be changed until the results screen, which
+   *  shows the score, the misses, and "Redo the N you missed". Rubric questions (q.rubric) are answered on the
+   *  A = L + E boxes (RubricAnswer). */
+  gradeAtEnd?: boolean;
+  /** The set's bonus, when it has one: the results say "Bonus unlocked" at 80% and open it. */
+  bonus?: { kind: "ale" | "types"; onOpen: () => void } | null;
 }
 
-export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress, pathAdvance = null, onFinished, roundSize, guidance }: PracticeStageProps) {
+export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress, pathAdvance = null, onFinished, roundSize, guidance, gradeAtEnd = false, bonus = null }: PracticeStageProps) {
   const q = useQuery({ queryKey: ["set-practice", setId], queryFn: () => fetchSetPractice({ data: { setId } }), enabled: !override, staleTime: 300_000, networkMode: "always" });
   const questions = useMemo<PracticeQuestion[]>(() => override ?? (q.data?.status === "ok" ? q.data.questions : []), [override, q.data]);
 
@@ -92,7 +102,9 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   // ceqId → the choice that was locked in. Navigating back to an answered question shows that
   // result (no re-answer, no silent re-log); a retry pass clears the missed ones so they can be
   // answered again. This is the session state the Q navigator reads.
-  const [pickedBy, setPickedBy] = useState<Record<string, string>>({});
+    const [pickedBy, setPickedBy] = useState<Record<string, string>>({});
+  // ceqId → the arrows tapped on a rubric question (gradeAtEnd; pickedBy holds "rubric" for it).
+  const [rubricBy, setRubricBy] = useState<Record<string, RubricArrows>>({});
   const [navOpen, setNavOpen] = useState(false);
   const [seen, setSeen] = useState<Set<string>>(() => new Set());
   const [finished, setFinished] = useState(false);
@@ -172,8 +184,9 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
     window.setTimeout(() => { setPos(at); setPicked(pickedBy[questions[qIndex]?.id ?? ""] ?? null); setHi(0); revealedAt.current = Date.now(); setSwap(false); }, SWAP_MS);
   }, [order, pos, questions, pickedBy]);
 
-  const lockIn = useCallback((choiceId: string) => {
-    if (!cur || picked) return;
+    const lockIn = useCallback((choiceId: string) => {
+    // Grading at the end, a pick can be changed until the results; resolved at once, it is final.
+    if (!cur || (picked && !gradeAtEnd)) return;
     const choice = cur.choices.find((c) => c.id === choiceId);
     if (!choice) return;
     const ms = Date.now() - revealedAt.current;
@@ -185,9 +198,24 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
     // …and whether they got it right, for the recap gate (lib/practice-score.ts)
     recordPracticeAnswer(setId, cur.id, !!choice.correct);
     log({ setId, ceqId: cur.id, event: "answer", choiceId, correct: !!choice.correct, ms, attemptNumber: pass });
-    // Auto-advance ONLY after a correct answer — a wrong one sits with the right answer showing.
-    if (choice.correct && autoAdvance) window.setTimeout(() => goTo(pos + 1), 900);
-  }, [cur, picked, setId, pass, log, autoAdvance, goTo, pos]);
+        // Auto-advance ONLY after a correct answer — a wrong one sits with the right answer showing.
+    if (choice.correct && autoAdvance && !gradeAtEnd) window.setTimeout(() => goTo(pos + 1), 900);
+  }, [cur, picked, setId, pass, log, autoAdvance, goTo, pos, gradeAtEnd]);
+
+  // THE RUBRIC ANSWER: every tap is the current answer (graded by learn-bonus's rubricMatches — Rev ↑ and E ↑
+  // are the same answer). Kept like a pick; nothing resolves until the results.
+  const setRubric = useCallback((next: RubricArrows) => {
+    if (!cur?.rubric) return;
+    const ok = rubricMatches(next, cur.rubric.arrows);
+    setRubricBy((m) => ({ ...m, [cur.id]: next }));
+    setPicked("rubric");
+    setPickedBy((m) => ({ ...m, [cur.id]: "rubric" }));
+    setResults((r) => ({ ...r, [cur.id]: ok }));
+    setSeen((s) => new Set(s).add(cur.id));
+    addCoverage(setId, cur.id);
+    recordPracticeAnswer(setId, cur.id, ok);
+    log({ setId, ceqId: cur.id, event: "answer", choiceId: "rubric", correct: ok, ms: Date.now() - revealedAt.current, attemptNumber: pass });
+  }, [cur, setId, pass, log]);
 
   const advance = useCallback(() => goTo(pos + 1), [goTo, pos]);
 
@@ -218,17 +246,24 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   };
 
   // ---- end of set → retry the missed ones ---------------------------------------------------------
-  const missedIdx = useMemo(() => order.filter((i) => results[questions[i]?.id] === false), [order, results, questions]);
+    const missedIdx = useMemo(() => order.filter((i) => results[questions[i]?.id] === false), [order, results, questions]);
   const retryMissed = () => {
     track("retry_missed_clicked", { set_id: setId } as never);
     setPickedBy((m) => { const n = { ...m }; for (const i of missedIdx) delete n[questions[i]?.id ?? ""]; return n; });
+    setRubricBy((m) => { const n = { ...m }; for (const i of missedIdx) delete n[questions[i]?.id ?? ""]; return n; });
     setOrder(missedIdx); setPass((p) => p + 1); setPos(0); setPicked(null); setHi(0); setFinished(false); revealedAt.current = Date.now();
   };
   /** A fresh pass over a list of question indexes — the round again, or the next slice. */
   const startPass = (idx: number[]) => {
     setPickedBy((m) => { const n = { ...m }; for (const i of idx) delete n[questions[i]?.id ?? ""]; return n; });
+    setRubricBy((m) => { const n = { ...m }; for (const i of idx) delete n[questions[i]?.id ?? ""]; return n; });
     setOrder(idx); setPass((p) => p + 1); setPos(0); setPicked(null); setHi(0); setFinished(false); revealedAt.current = Date.now();
   };
+  // GRADED AT THE END: the whole set's tally (every pass counts; a question answered again replaces its mark).
+  const missedAll = useMemo(() => questions.map((q, i) => (results[q.id] === false ? i : -1)).filter((i) => i >= 0), [questions, results]);
+  const skippedAll = useMemo(() => questions.map((q, i) => (results[q.id] === undefined ? i : -1)).filter((i) => i >= 0), [questions, results]);
+  const correctAll = useMemo(() => questions.filter((q) => results[q.id] === true).length, [questions, results]);
+  const startOver = () => { setResults({}); startPass(questions.map((_, i) => i)); };
   const retryRound = () => startPass(order);
   const morePractice = () => {
     const size = roundSize ?? questions.length;
@@ -249,6 +284,54 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
     </div></div>
   );
 
+    if (finished && gradeAtEnd) {
+    const total = questions.length, answered = total - skippedAll.length;
+    const pct = total > 0 ? Math.round((correctAll / total) * 100) : 0;
+    const redo = [...new Set([...missedAll, ...skippedAll])].sort((a, b) => a - b);
+    const unlocked = passed({ answered, correct: correctAll, at: 0 }, total);
+    const clean = redo.length === 0;
+    const label = (i: number) => { const q = questions[i]; const p = (q?.shorthand || q?.prompt || "").replace(/\s+/g, " ").trim(); return p.length > 64 ? `${p.slice(0, 62)}…` : p; };
+    return (
+      <div className="flex h-full w-full flex-col p-5" style={{ color: C.text }}>
+        <div className="mx-auto w-full max-w-sm">
+          <div className="text-[10.5px] font-black uppercase tracking-[0.14em]" style={{ color: C.yellow }}>Results · {fmtElapsed(Date.now() - startedAt.current)}</div>
+          <div className="mt-1 flex items-baseline gap-2" style={{ fontFamily: "'League Spartan', 'Rubik', system-ui, sans-serif" }}>
+            <span style={{ fontSize: 40, fontWeight: 900, lineHeight: 1 }}>{correctAll}<span style={{ fontSize: 20, color: C.muted }}>/{total}</span></span>
+            <span style={{ fontSize: 20, fontWeight: 900, color: unlocked ? C.green : pct >= 60 ? C.yellow : C.red }}>{pct}%</span>
+            {skippedAll.length > 0 && <span className="text-[12px]" style={{ color: C.muted }}>· {skippedAll.length} skipped</span>}
+          </div>
+          {unlocked && bonus && (
+            <button type="button" onClick={bonus.onOpen} className="mt-3 flex w-full items-center justify-between gap-2 rounded-xl px-3.5 py-3 text-left" style={{ background: "rgba(59,245,160,0.10)", border: `1px solid rgba(59,245,160,0.55)`, color: C.text, minHeight: 48 }}>
+              <span className="text-[13.5px] font-black"><CircleCheck className="mr-1.5 inline h-4 w-4" style={{ color: C.green }} /> Bonus unlocked</span>
+              <span className="text-[12px] font-bold" style={{ color: C.green }}>Open it →</span>
+            </button>
+          )}
+          {!unlocked && <p className="mt-2 text-[12.5px]" style={{ color: C.muted }}>{clean ? "Clean pass." : bonus ? `80% opens the bonus. ${redo.length} to go back over.` : `${redo.length} to go back over — run them until they're automatic.`}</p>}
+          {redo.length > 0 && (
+            <div className="mt-3 flex flex-col gap-1.5" style={{ maxHeight: 220, overflowY: "auto" }}>
+              {redo.map((i) => (
+                <button key={i} type="button" onClick={() => jumpTo(i)} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[12.5px]" style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${C.border}`, color: C.text, minHeight: 40 }}>
+                  <span aria-hidden className="grid h-5 w-5 shrink-0 place-items-center rounded" style={{ background: results[questions[i]?.id] === false ? "rgba(255,92,110,0.2)" : "rgba(255,255,255,0.08)", color: results[questions[i]?.id] === false ? C.red : C.muted, fontSize: 10.5, fontWeight: 800 }}>{results[questions[i]?.id] === false ? <CircleX className="h-3.5 w-3.5" /> : "–"}</span>
+                  <span className="min-w-0 flex-1 truncate">Q{i + 1} · {label(i)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {redo.length > 0 ? (
+            <button className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13.5px] font-black uppercase tracking-wide" style={{ background: C.red, color: "#fff", minHeight: 50 }} onClick={() => { track("retry_missed_clicked", { set_id: setId } as never); startPass(redo); }}>
+              <RotateCcw className="h-4 w-4" /> Redo the {redo.length} you {skippedAll.length && !missedAll.length ? "skipped" : "missed"}
+            </button>
+          ) : (
+            <button className="mt-3 w-full rounded-xl px-4 py-3 text-[13.5px] font-black uppercase tracking-wide" style={{ background: C.yellow, color: "#0B1322", minHeight: 50 }} onClick={guidance ? guidance.onNext : onDone}>{guidance?.nextLabel ?? doneLabel}</button>
+          )}
+          <div className="mt-2 flex items-center justify-center gap-4">
+            <button className="px-2 py-2 text-[12px] font-bold underline underline-offset-2" style={{ color: C.muted, minHeight: 40 }} onClick={startOver}>{redo.length > 0 ? "or start over" : "Start over"}</button>
+            {redo.length > 0 && <button className="px-2 py-2 text-[12px] font-bold underline underline-offset-2" style={{ color: C.muted, minHeight: 40 }} onClick={guidance ? guidance.onNext : onDone}>{guidance?.nextLabel ?? doneLabel}</button>}
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (finished) {
     const n = order.length, m = missedIdx.length, rough = m > 0 && m >= Math.ceil(n / 3);
     return (
@@ -293,8 +376,10 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   if (!cur) return null;
 
   // ---- one question ---------------------------------------------------------------------------------
-  const pickedChoice = picked ? cur.choices.find((c) => c.id === picked) ?? null : null;
-  const resolved = !!picked;
+    const pickedChoice = picked ? cur.choices.find((c) => c.id === picked) ?? null : null;
+  // Graded at the end, a pick is kept but never resolved on the card.
+  const resolved = !!picked && !gradeAtEnd;
+  const canAdvance = resolved || (gradeAtEnd && !!picked);
   return (
     <div className="relative flex h-full w-full flex-col" style={{ color: C.text }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       {/* QUESTION HEADER — "Q1 / 8" and the status pill. The curriculum reference (3.2.14) is
@@ -355,13 +440,20 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
       <div className="min-h-0 flex-1 px-4 pb-3 pt-3 sm:px-5 sm:pb-4" style={{ opacity: swap ? 0 : 1, transform: swap ? "translateX(8px)" : "none", transition: `opacity ${SWAP_MS}ms ease, transform ${SWAP_MS}ms ease` }}>
                 {/* THE QUESTION, in the school picker's voice (Lee, 2026-09-15: "they're not easy to read… it needs to
             match the vibe of the school picker"): the ask big and cream, each answer a lettered row. */}
-        <p className="lk-disp" style={{ fontSize: 19, lineHeight: 1.25, color: C.text, textWrap: "balance" }}>{cur.prompt}</p>
+                <p className="lk-disp" style={{ fontSize: 19, lineHeight: 1.25, color: C.text, textWrap: "balance" }}>{gradeAtEnd && cur.rubric ? cur.rubric.text : cur.prompt}</p>
+        {gradeAtEnd && cur.rubric ? (
+          // THE RUBRIC QUESTION: tap the boxes; Rev / Exp light Equity on their own; the amount rides the arrows.
+          <div className="mt-3">
+            <p className="mb-2 text-[12.5px]" style={{ color: C.muted }}>Effect on A = L + E? Tap the boxes — tap again to change the arrow.</p>
+            <RubricAnswer value={rubricBy[cur.id] ?? emptyArrows()} onChange={setRubric} amount={cur.rubric.amount} />
+          </div>
+        ) : (
         <div className="mt-4 flex flex-col gap-2.5">
           {cur.choices.map((c, i) => {
             const isPicked = picked === c.id;
             const showRight = resolved && c.correct;
-            const showWrong = isPicked && !c.correct;
-            const highlighted = !resolved && hi === i;
+            const showWrong = resolved && isPicked && !c.correct;
+            const highlighted = (!resolved && !picked && hi === i) || (gradeAtEnd && isPicked);
             return (
               <button
                 key={c.id}
@@ -384,11 +476,12 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
                   color: showRight ? C.green : showWrong ? C.red : highlighted ? C.yellow : C.muted,
                   border: `1px solid ${showRight ? "rgba(59,245,160,0.5)" : showWrong ? "rgba(255,92,110,0.5)" : "rgba(148,180,255,0.22)"}`,
                 }}>{showRight ? <CircleCheck className="h-4 w-4" /> : showWrong ? <CircleX className="h-4 w-4" /> : String.fromCharCode(65 + i)}</span>
-                <span className="min-w-0">{c.text}</span>
+                                <span className="min-w-0">{c.text}</span>
               </button>
             );
           })}
         </div>
+        )}
         {resolved && (
           <div className="mt-3">
             {/* Feedback is a quiet note, not another card. */}
@@ -446,7 +539,7 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
       {/* MOBILE NEXT — thumb-reachable, FIXED to the viewport bottom (the player card is
           overflow-hidden, so sticky can't reach the viewport). Only renders once a question is
           resolved, so it never covers the choices. Desktop: static under the card, ⏎ also works. */}
-      {resolved && (
+            {canAdvance && (
         <div className="fixed inset-x-0 bottom-0 z-30 bg-[linear-gradient(0deg,rgba(5,8,16,0.96)_60%,rgba(5,8,16,0)_100%)] p-3 sm:static sm:bg-none sm:p-0 sm:px-5 sm:pb-4">
           <button className="w-full rounded-xl text-[14px] font-black uppercase tracking-wide sm:text-[12.5px]" style={{ background: C.yellow, color: "#0B1322", minHeight: 48 }} onClick={advance}>
             {pos + 1 < total ? "Next →" : "Finish set →"}
