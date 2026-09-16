@@ -18,7 +18,7 @@ import { baseName, connectObs, OBS_DEFAULT_ADDRESS, type ObsStatus } from "@/com
 import { fsaSupported, getFile, moveToRecycle, pickTakesFolder, probeDuration, restoreFromRecycle, savedTakesFolder } from "@/components/canvas/takes-folder";
 import { uploadTake } from "@/components/v3/take-burn";
 import { isPlaceholderName, splitNameOf, takesFingerprint, videoKey } from "@/lib/film-stitch";
-import { loadV4Splits } from "@/lib/v4.functions";
+import { loadV4Splits, v4InsertSlideAfter } from "@/lib/v4.functions";
 import { listFilmStitches } from "@/lib/film-stitch.functions";
 import { track } from "@/lib/analytics";
 import { enqueueStitch, openStitchRoom, stitchJob, subscribeStitches, type StitchInput } from "./stitch-queue";
@@ -307,7 +307,24 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   };
   // RECOVER TAKES (Lee, 2026-09-15: "scrapping removed takes I liked"): this video's recordings from the last day and
   // a half, matched to the pop-out's roll logs — tick the ones to put back.
-  const [recover, setRecover] = useState<null | { busy: string } | { error: string } | { list: { take: PunchTake; on: boolean; had: boolean }[] }>(null);
+    const [recover, setRecover] = useState<null | { busy: string } | { error: string } | { list: { take: PunchTake; on: boolean; had: boolean }[] }>(null);
+  // THE ADD-ON CLIP (Lee, 2026-09-16): a new slide after this one, straight into the plan; the open Editor adopts it
+  // over the sa-plan channel, the pop-out puts it up, and the next punch-in lands on it. Stitch again joins it in;
+  // Post replaces the old video in its slot.
+  const [adding, setAdding] = useState(false);
+  const addSlideAfter = async (afterId: string, n: number) => {
+    const text = window.prompt(`The new slide, after slide ${n} — what's on it?`, "Quick thing I forgot that matters for your exam:");
+    if (!text?.trim()) return;
+    setAdding(true);
+    try {
+      const r = await v4InsertSlideAfter({ data: { setId, afterId, text: text.trim() } });
+      try { const ch = new BroadcastChannel(`sa-plan:${setId}`); ch.postMessage({ from: "punch-add", frames: r.frames, updatedAt: r.updatedAt }); ch.close(); } catch { /* the deck reloads on its own next visit */ }
+      window.setTimeout(() => goto(r.id), 700);
+      say(`Added a slide after ${n} — punch in on it. Stitch again puts the clip in; Post replaces the old video.`, "good");
+      track("v4_slide_added", { set_id: setId, source: "film-add-on" } as never);
+    } catch (e) { say(e instanceof Error ? e.message : String(e), "bad"); }
+    finally { setAdding(false); }
+  };
   const findLost = async () => {
     try {
       let dir = folder;
@@ -452,21 +469,22 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
       {/* NOW */}
       <div style={{ borderTop: `1px solid ${EDGE}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
         <div style={{ fontWeight: 800, color: recording ? RED : CREAM }}>{recording ? `● REC — ${recording.fromId ? label(recording.fromId) : "no pop-out"}` : "F4 in OBS to punch in"}</div>
-        <div style={{ color: MUTED }}>Space in the pop-out while recording = a speed run over those slides. F3 scrap · F3 again to confirm · Ctrl+Z undo.</div>
+        
         {armed && <div style={{ color: GOLD, fontWeight: 800 }}>{armed === "live" ? "Scrap this take? F3 again (Esc cancels)" : "Scrap the last take? F3 again (Esc cancels)"}</div>}
         {flash && <div role="status" style={{ color: flash.tone === "good" ? MINT : flash.tone === "warn" ? GOLD : RED, fontWeight: 700 }}>{flash.text}</div>}
       </div>
 
       {/* THE SLIDES AND THEIR TAKES */}
       <div style={{ borderTop: `1px solid ${EDGE}`, paddingTop: 8, display: "flex", flexDirection: "column", gap: 2 }}>
-        {/* THE OUTRO CLIP: kept once, added to every video's Preview. */}
-        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, color: outroClip ? MINT : MUTED }}>
-          <span style={{ flex: 1 }}>{outroClip ? `✓ Outro clip kept (${outroClip.durationS.toFixed(1)} s) — for the social versions` : "No outro clip yet — film the outro slide once (socials only)"}</span>
-          {lastOutroTake && lastOutroTake.file !== outroClip?.file && (
+                {/* THE OUTRO CLIP (kept once, for the social versions) only speaks up when there is a new one to keep —
+            Lee, 2026-09-16: "I don't need to see 'No outro clip yet'… minimalize it and show me only what I need." */}
+        {lastOutroTake && lastOutroTake.file !== outroClip?.file && (
+          <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, color: MUTED }}>
+            <span style={{ flex: 1 }}>New outro take</span>
             <button type="button" style={btn(true)} disabled={savingOutro} onClick={() => void keepOutro(lastOutroTake)}
-              title="Keep your latest outro take as the outro every video ends on">{savingOutro ? "Keeping…" : "Use as the outro"}</button>
-          )}
-        </div>
+              title="Keep your latest outro take as the outro every video ends on (socials only)">{savingOutro ? "Keeping…" : "Use as the outro"}</button>
+          </div>
+        )}
         {frames.map((f, k) => {
           const fk = filmIds.indexOf(f.id);
           const p = fk < 0 ? undefined : picks.find((x) => fk >= x.from && fk <= x.to);
@@ -486,9 +504,9 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
           return (
             <div key={f.id} style={{ display: "flex", flexDirection: "column", borderLeft: `3px solid ${p ? tone : "transparent"}`, paddingLeft: 4, marginTop: p && fk === p.from && n > 0 ? 4 : 0 }}>
               {p && fk === p.from && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0 1px", fontSize: 11, fontWeight: 800, color: tone }}>
-                  <span>Take {n + 1}</span>
-                  <span style={{ color: MUTED, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{p.take.file}</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0 1px", fontSize: 11, fontWeight: 800, color: tone }}>
+                  <span title={p.take.file}>Take {n + 1}</span>
+                  <span style={{ flex: 1 }} />
                   <button type="button" title="Play this take" style={{ ...btn(), padding: "0 6px", fontSize: 11 }} onClick={() => void playTake(p.take)}>▶</button>
                   <button type="button" aria-pressed={replacing === p.take}
                     title={replacing === p.take ? "Replacing — punch in (F4). Click to cancel." : "Replace: puts its first slide up; your next take replaces this whole take"}
@@ -498,12 +516,18 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
                     onClick={() => { save(takes.filter((t) => t !== p.take)); setTrash((t) => [...t, p.take]); setStage({ s: "idle" }); say(`Removed take ${n + 1} — Ctrl+Z brings it back`, "warn"); }}>✕</button>
                 </div>
               )}
-              <button type="button" onClick={() => goto(f.id)} title="Put this slide up in the pop-out — punch in again to overwrite it"
-                style={{ all: "unset", cursor: "pointer", display: "flex", gap: 6, alignItems: "center", padding: "2px 4px", borderRadius: 5, color: p ? CREAM : MUTED }}>
-                <span style={{ width: 18, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{k + 1}</span>
-                <span style={{ color: p ? MINT : MUTED }}>{p ? "✓" : "○"}</span>
-                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{FRAME_LABEL[f.kind]}{f.pace === "speed" ? " · speed" : ""}</span>
-              </button>
+                            <div className="sa-take-row" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <button type="button" onClick={() => goto(f.id)} title="Put this slide up in the pop-out — punch in again to overwrite it"
+                  style={{ all: "unset", cursor: "pointer", display: "flex", gap: 6, alignItems: "center", padding: "2px 4px", borderRadius: 5, color: p ? CREAM : MUTED, flex: 1, minWidth: 0 }}>
+                  <span style={{ width: 18, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{k + 1}</span>
+                  <span style={{ color: p ? MINT : MUTED }}>{p ? "✓" : "○"}</span>
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{FRAME_LABEL[f.kind]}{f.pace === "speed" ? " · speed" : ""}</span>
+                </button>
+                {/* ADD A CLIP HERE (Lee, 2026-09-16: "an 'Add clip here' button that shows up on hover for takes… whatever
+                    we film, it will be placed there"): a new slide goes in after this one; punch in on it and Stitch again. */}
+                <button type="button" className="sa-take-add" disabled={adding} title="Add a slide after this one — then punch in on it. Stitch again puts the new clip into the video, and Post replaces the old one."
+                  style={{ ...btn(), padding: "0 6px", fontSize: 11, opacity: 0 }} onClick={() => void addSlideAfter(f.id, k + 1)}>+ slide</button>
+              </div>
             </div>
           );
         })}
@@ -513,13 +537,14 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
             <button type="button" style={{ ...btn(), position: "absolute", top: 4, right: 4, padding: "0 6px" }} onClick={() => { URL.revokeObjectURL(playing.url); setPlaying(null); }}>✕</button>
           </div>
         )}
-        <div style={{ color: MUTED, marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ flex: 1 }}>{picks.length} take{picks.length === 1 ? "" : "s"} kept{gaps.length ? ` · ${gaps.length} slide${gaps.length === 1 ? "" : "s"} not filmed` : " · every slide filmed"}</span>
-          <button type="button" style={btn()} disabled={!!recording} onClick={() => void findLost()}
-            title="Find this video's recordings from the last day and a half and put takes back">Recover takes</button>
-          <button type="button" style={btn()} disabled={!takes.length || !!recording}
+                <style>{`.sa-take-row:hover .sa-take-add, .sa-take-add:focus-visible { opacity: 1 !important; }`}</style>
+        <div style={{ color: MUTED, marginTop: 4, display: "flex", alignItems: "center", gap: 10, fontSize: 11 }}>
+          <span style={{ flex: 1 }}>{picks.length} take{picks.length === 1 ? "" : "s"}{gaps.length ? ` · ${gaps.length} slide${gaps.length === 1 ? "" : "s"} not filmed` : " · every slide filmed"}</span>
+          <button type="button" style={{ all: "unset", cursor: "pointer", color: MUTED, textDecoration: "underline" }} disabled={!!recording} onClick={() => void findLost()}
+            title="Find this video's recordings from the last day and a half and put takes back">Recover</button>
+          <button type="button" style={{ all: "unset", cursor: "pointer", color: MUTED, textDecoration: "underline" }} disabled={!takes.length || !!recording}
             title="Clear this video's takes and film it again from the first slide. The files stay in the folder; Ctrl+Z brings the takes back."
-            onClick={() => { cleared.current = takes; save([]); setStage({ s: "idle" }); goto(ids[0] ?? null); say(`Started over — ${takes.length} take${takes.length === 1 ? "" : "s"} cleared. Ctrl+Z brings them back.`, "warn"); }}>↺ Start over</button>
+            onClick={() => { cleared.current = takes; save([]); setStage({ s: "idle" }); goto(ids[0] ?? null); say(`Started over — ${takes.length} take${takes.length === 1 ? "" : "s"} cleared. Ctrl+Z brings them back.`, "warn"); }}>Start over</button>
         </div>
       </div>
 

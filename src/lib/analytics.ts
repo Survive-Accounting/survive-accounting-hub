@@ -114,6 +114,7 @@ export const SA_EVENTS = [
   // THE PRODUCTION PIPELINE (09-15, /v4). Lee: "track my movements around the site and learn how to make it
   // faster". Properties: {set_id, video (1-based), slides, clips, seconds, status, ...}.
   "v4_question_saved",
+  "v4_slide_added",
   "v4_questions_final",
   "film_opened",
   "film_popout_opened",

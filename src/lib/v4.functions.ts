@@ -635,3 +635,34 @@ export const proposeV4GroupQuestions = createServerFn({ method: "POST" })
     const cards = await Promise.all(cardNodes(j2, data.setId).map(toCard));
     return { ok: true as const, added: questions.length, cards, logWarning };
   });
+
+// ─────────────────────────────────────────────────────────── the add-on clip (2026-09-16) ──
+
+/** ADD A SLIDE AFTER THIS ONE, FROM /film (Lee: "I want to just add something at the end… 'Hey, quick thing I
+ *  forgot that's important for your exam' … an 'Add clip here' button that shows up on hover for takes; whatever we
+ *  film, it will be placed there"). A big callout slide goes into the plan right after `afterId` — inside the same
+ *  video, since the cuts are by frame id — so the pop-out can put it up and the next punch-in lands on it. Stitching
+ *  again then joins the old takes and the new one; Post replaces the old video in the same slot. The open Editor
+ *  takes the new slide in place through the sa-plan channel (the caller tells it). */
+export const v4InsertSlideAfter = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(200), afterId: z.string().min(1).max(200), text: z.string().trim().min(1).max(400), who: z.string().max(40).nullable().optional() }).parse(d))
+  .handler(async ({ data }) => {
+    const d = await db();
+    const { frameSchema } = await import("@/lib/blastoff-frame-schema");
+    const { sceneId, j, deck } = await openScene(d, data.setId);
+    const before = (Array.isArray(deck.blastOff?.frames) ? deck.blastOff!.frames! : []) as import("@/components/blastoff/plan").BlastFrame[];
+    const at = before.findIndex((f) => f.id === data.afterId);
+    if (at < 0) throw new Error("That slide isn't in the plan any more — reload the film page.");
+    const neighbor = before[at] as { v4Group?: string };
+    const id = `bf-phrase-v4add-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+    const slide = { id, kind: "phrase" as const, text: data.text, display: "big" as const, cam: "top" as const, camSize: 0.28, ...(neighbor.v4Group ? { v4Group: neighbor.v4Group } : {}) };
+    const frames = z.array(frameSchema).max(2000).parse([...before.slice(0, at + 1), slide, ...before.slice(at + 1)]);
+    const now = new Date().toISOString();
+    deck.blastOff = { ...(deck.blastOff ?? {}), frames, updatedAt: now };
+    await saveScene(d, sceneId, j);
+    try {
+      const proposal = await openProposalId(d, data.setId, "slides");
+      if (!proposal.error && proposal.id) await d.from("teach_edits").insert({ proposal_id: proposal.id, set_id: data.setId, step: "slides", target: id, action: "add-on clip", before: null, after: { afterId: data.afterId, text: data.text }, created_by: data.who ?? null });
+    } catch { /* the learning log is best-effort */ }
+    return { ok: true as const, id, frames, updatedAt: now };
+  });
