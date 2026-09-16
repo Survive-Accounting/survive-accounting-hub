@@ -100,6 +100,15 @@ export const resolveSitePost = createServerFn({ method: "POST" })
       const gate = gateOfBag(st0?.captions);
       if (gate) (pub as Record<string, unknown>).gate = gate;
     } catch { /* the row is optional */ }
+        // A RE-POST KEEPS WHAT LEE SET ON THE PART (2026-09-16, /learn/admin): its place in the order, his review,
+    // the sync offset applied, and the ORIGINAL file every fix is cut from (so offsets never compound).
+    {
+      const prior = (deck.publications ?? []).find((p) => p?.id === pub.id) as Record<string, unknown> | undefined;
+      if (prior) {
+        for (const k of ["order", "review", "audioOffsetMs", "normalizedAt"] as const) if (prior[k] !== undefined) (pub as Record<string, unknown>)[k] = prior[k];
+        (pub as Record<string, unknown>).originalUrl = prior.originalUrl ?? prior.sourceUrl ?? data.videoUrl;
+      }
+    }
     deck.publications = upsertPublication(deck.publications, pub);
     // COMPARE-AND-SET on updated_at: zero rows back means someone saved the scene since the read.
     const up = await db.from("canvas_scenes").update({ nodes_json: j, updated_at: new Date().toISOString() }).eq("id", o.sceneId).eq("updated_at", row.updated_at).select("id");

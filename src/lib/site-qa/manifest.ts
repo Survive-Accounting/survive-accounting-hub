@@ -658,6 +658,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "v4.$topic.$set.index.tsx": "V4 topic (AdminGate, noindex) — Start in v4 panel, or redirect to its step (2026-09-13)",
   "v4.$topic.$set.$step.tsx": "V4 topic step (AdminGate, noindex) — questions / slides / chain / split / film (2026-09-13)",
   "v4.$topic.$set.shoot.tsx": "V4 film tool (AdminGate, noindex) — the punch-in film surface for one split, same tab as /v4 (2026-09-14)",
+  "admin.learn.tsx": "/admin/learn (AdminGate, noindex) — drag to reorder the posted videos, normalize audio, sync offset, good / needs-redo with a why (2026-09-16)",
   "v4.stitch-room.tsx": "V4 Stitch Room (AdminGate, noindex) — the popout punch-in stitches open in: live build, trims, downloads, post queue, stats and pay ledger (2026-09-15)",
   "v4.demo-lens.tsx": "V4 Demo lens (AdminGate, noindex) — any app page in a vertical window, wheel zoom + drag to swim, for filming demos (2026-09-15)",
   "v4.breathers.tsx": "V4 Breathers (AdminGate, noindex) — the same breather authoring, reached from /v4 (2026-09-14)",

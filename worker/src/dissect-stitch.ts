@@ -123,7 +123,7 @@ export function dissectStitchArgs(
   files: StagedFile[],
   trims: DissectTrim[],
   outPath: string,
-  o?: { gapsS?: number[]; roomTone?: StagedFile; loudI?: number; jointFadeS?: number; toneBlendS?: number; vertical?: boolean },
+    o?: { gapsS?: number[]; roomTone?: StagedFile; loudI?: number; jointFadeS?: number; toneBlendS?: number; vertical?: boolean; audioOffsetMs?: number },
 ): DissectPlan {
   if (files.length === 0) throw new Error("dissect_stitch: no clips");
   if (trims.length !== files.length) throw new Error("dissect_stitch: trims must match clips");
@@ -132,7 +132,12 @@ export function dissectStitchArgs(
   const w = o?.vertical ? 1080 : RENDER.width, h = o?.vertical ? 1920 : RENDER.height;
   const loudI = o?.loudI ?? DISSECT_DEFAULTS.loudI;
   const fadeS = o?.jointFadeS ?? DISSECT_DEFAULTS.jointFadeS;
-  const blendS = o?.toneBlendS ?? DISSECT_DEFAULTS.toneBlendS;
+    const blendS = o?.toneBlendS ?? DISSECT_DEFAULTS.toneBlendS;
+  // AUDIO SYNC (2026-09-16, Lee: "Some videos are out of sync with my mouth, can we fix that in post?"): slide the
+  // sound against the picture. Positive = audio later (delay), negative = audio earlier (drop its head). The
+  // apad + atrim pin after it keeps every clip's length exact, so the picture never drifts.
+  const offMs = Math.round(o?.audioOffsetMs ?? 0);
+  const shift = offMs > 0 ? `adelay=${offMs}|${offMs},` : offMs < 0 ? `atrim=start=${r3(-offMs / 1000)},asetpts=PTS-STARTPTS,` : "";
   const n = files.length;
   const gapsS = (o?.gapsS ?? Array.from({ length: Math.max(0, n - 1) }, (_, k) => gapForJoin(k) / 1000)).map(r3);
   if (gapsS.length !== Math.max(0, n - 1)) throw new Error("dissect_stitch: need one gap per joint");
@@ -157,7 +162,7 @@ export function dissectStitchArgs(
     const env = `afade=t=in:d=${fadeS},afade=t=out:st=${r3(Math.max(0, d - fadeS))}:d=${fadeS}`;
     parts.push(
       f.hasAudio !== false
-        ? `[${i}:a]atrim=start=${r3(t.start)}:end=${r3(t.end)},asetpts=PTS-STARTPTS,aresample=${hz},aformat=sample_fmts=fltp:channel_layouts=stereo,loudnorm=I=${loudI}:TP=-1.5:LRA=11,${env},apad,atrim=0:${d},asetpts=PTS-STARTPTS[ca${i}]`
+                ? `[${i}:a]atrim=start=${r3(t.start)}:end=${r3(t.end)},asetpts=PTS-STARTPTS,${shift}aresample=${hz},aformat=sample_fmts=fltp:channel_layouts=stereo,loudnorm=I=${loudI}:TP=-1.5:LRA=11,${env},apad,atrim=0:${d},asetpts=PTS-STARTPTS[ca${i}]`
         : `anullsrc=r=${hz}:cl=stereo,atrim=0:${d},asetpts=PTS-STARTPTS[ca${i}]`,
     );
   });

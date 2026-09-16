@@ -60,7 +60,9 @@ export interface DissectStitchStage {
   heads?: (number | null)[];
   gapMs?: number;
   gapJitterMs?: number;
-  loudI?: number;
+    loudI?: number;
+  /** AUDIO SYNC (2026-09-16): slide the sound against the picture, ms. Positive = audio later. */
+  audioOffsetMs?: number;
   /** Per-clip padding kept after the auto-trim (held pauses), ms. */
   pads?: ({ headMs?: number; tailMs?: number } | null)[];
   /** Manual per-clip trim overrides (seconds into the source) — win over detection. */

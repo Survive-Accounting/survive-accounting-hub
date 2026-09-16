@@ -152,8 +152,10 @@ export const startDissectStitch = createServerFn({ method: "POST" })
       loudI: z.number().min(-31).max(-9).optional(),
       pads: z.array(z.object({ headMs: z.number().int().min(0).max(5000).optional(), tailMs: z.number().int().min(0).max(5000).optional() }).nullable()).optional(),
       trims: z.array(z.object({ start: z.number().min(0), end: z.number().min(0) }).nullable()).optional(),
-      /** 9:16 output (punch-in videos). */
+            /** 9:16 output (punch-in videos). */
       vertical: z.boolean().optional(),
+      /** AUDIO SYNC (2026-09-16): slide the sound against the picture, ms; positive = audio later. */
+      audioOffsetMs: z.number().int().min(-2000).max(2000).optional(),
     }).parse(d))
   .handler(async ({ data }): Promise<{ jobId: string; path: string; machineId: string | null }> => {
     const { assertAdmin } = await import("@/lib/admin-session.functions");
@@ -177,7 +179,8 @@ export const startDissectStitch = createServerFn({ method: "POST" })
       ...(data.loudI != null ? { loudI: data.loudI } : {}),
       ...(data.pads ? { pads: data.pads } : {}),
       ...(data.trims ? { trims: data.trims } : {}),
-      ...(data.vertical ? { vertical: true } : {}),
+            ...(data.vertical ? { vertical: true } : {}),
+      ...(data.audioOffsetMs ? { audioOffsetMs: data.audioOffsetMs } : {}),
     };
     const body = { v: 1, inputs, stages: [stage], output: { putUrl: signed.signedUrl, contentType: "video/mp4" } };
     const res = await workerFetch(c, "/render", { method: "POST", body: JSON.stringify(body) });

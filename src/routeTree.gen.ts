@@ -126,6 +126,7 @@ import { Route as ApiBackfillRouteImport } from './routes/api.backfill'
 import { Route as AdminSiteQaRouteImport } from './routes/admin.site-qa'
 import { Route as AdminRepsRouteImport } from './routes/admin.reps'
 import { Route as AdminProductionRouteImport } from './routes/admin.production'
+import { Route as AdminLearnRouteImport } from './routes/admin.learn'
 import { Route as AdminIllustrationsRouteImport } from './routes/admin.illustrations'
 import { Route as AdminIdeasRouteImport } from './routes/admin.ideas'
 import { Route as AdminGrowthRouteImport } from './routes/admin.growth'
@@ -814,6 +815,11 @@ const AdminProductionRoute = AdminProductionRouteImport.update({
   path: '/admin/production',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminLearnRoute = AdminLearnRouteImport.update({
+  id: '/admin/learn',
+  path: '/admin/learn',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminIllustrationsRoute = AdminIllustrationsRouteImport.update({
   id: '/admin/illustrations',
   path: '/admin/illustrations',
@@ -1378,6 +1384,7 @@ export interface FileRoutesByFullPath {
   '/admin/growth': typeof AdminGrowthRouteWithChildren
   '/admin/ideas': typeof AdminIdeasRoute
   '/admin/illustrations': typeof AdminIllustrationsRoute
+  '/admin/learn': typeof AdminLearnRoute
   '/admin/production': typeof AdminProductionRoute
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
@@ -1593,6 +1600,7 @@ export interface FileRoutesByTo {
   '/admin/dm-v2': typeof AdminDmV2Route
   '/admin/ideas': typeof AdminIdeasRoute
   '/admin/illustrations': typeof AdminIllustrationsRoute
+  '/admin/learn': typeof AdminLearnRoute
   '/admin/production': typeof AdminProductionRoute
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
@@ -1809,6 +1817,7 @@ export interface FileRoutesById {
   '/admin/growth': typeof AdminGrowthRouteWithChildren
   '/admin/ideas': typeof AdminIdeasRoute
   '/admin/illustrations': typeof AdminIllustrationsRoute
+  '/admin/learn': typeof AdminLearnRoute
   '/admin/production': typeof AdminProductionRoute
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
@@ -2028,6 +2037,7 @@ export interface FileRouteTypes {
     | '/admin/growth'
     | '/admin/ideas'
     | '/admin/illustrations'
+    | '/admin/learn'
     | '/admin/production'
     | '/admin/reps'
     | '/admin/site-qa'
@@ -2243,6 +2253,7 @@ export interface FileRouteTypes {
     | '/admin/dm-v2'
     | '/admin/ideas'
     | '/admin/illustrations'
+    | '/admin/learn'
     | '/admin/production'
     | '/admin/site-qa'
     | '/api/backfill'
@@ -2458,6 +2469,7 @@ export interface FileRouteTypes {
     | '/admin/growth'
     | '/admin/ideas'
     | '/admin/illustrations'
+    | '/admin/learn'
     | '/admin/production'
     | '/admin/reps'
     | '/admin/site-qa'
@@ -2676,6 +2688,7 @@ export interface RootRouteChildren {
   AdminGrowthRoute: typeof AdminGrowthRouteWithChildren
   AdminIdeasRoute: typeof AdminIdeasRoute
   AdminIllustrationsRoute: typeof AdminIllustrationsRoute
+  AdminLearnRoute: typeof AdminLearnRoute
   AdminProductionRoute: typeof AdminProductionRoute
   AdminRepsRoute: typeof AdminRepsRouteWithChildren
   AdminSiteQaRoute: typeof AdminSiteQaRoute
@@ -3595,6 +3608,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/production'
       fullPath: '/admin/production'
       preLoaderRoute: typeof AdminProductionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/learn': {
+      id: '/admin/learn'
+      path: '/admin/learn'
+      fullPath: '/admin/learn'
+      preLoaderRoute: typeof AdminLearnRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/illustrations': {
@@ -4561,6 +4581,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminGrowthRoute: AdminGrowthRouteWithChildren,
   AdminIdeasRoute: AdminIdeasRoute,
   AdminIllustrationsRoute: AdminIllustrationsRoute,
+  AdminLearnRoute: AdminLearnRoute,
   AdminProductionRoute: AdminProductionRoute,
   AdminRepsRoute: AdminRepsRouteWithChildren,
   AdminSiteQaRoute: AdminSiteQaRoute,

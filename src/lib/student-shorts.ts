@@ -27,8 +27,10 @@ export interface ShortPub {
   coverUrl?: unknown;
   /** The practice buttons the player shows when this part ends (2026-09-14, practice-cta.ts). */
   endCta?: unknown;
-  /** "practice80" = the recap: locked until the other parts are watched and practice is 80% (2026-09-15). */
+    /** "practice80" = the recap: locked until the other parts are watched and practice is 80% (2026-09-15). */
   gate?: unknown;
+  /** THE ORDER ON /learn (2026-09-16, /learn/admin): Lee's drag order. Absent = takeIndex order. */
+  order?: unknown;
 }
 
 export interface StudentShort {
@@ -78,5 +80,12 @@ export function shortsFrom(pubs: readonly ShortPub[] | undefined, paid: boolean)
       gate: p.gate === "practice80" ? "practice80" : null,
     });
   }
-  return out.sort((a, b) => a.takeIndex - b.takeIndex);
+    const rank = new Map(out.map((s) => [s.takeIndex, orderOf({ order: (pubs ?? []).find((p) => (typeof p.takeIndex === "number" ? p.takeIndex : 0) === s.takeIndex)?.order, takeIndex: s.takeIndex })]));
+  return out.sort((a, b) => (rank.get(a.takeIndex)! - rank.get(b.takeIndex)!) || a.takeIndex - b.takeIndex);
+}
+
+/** THE ORDER ON /learn: a publication's own `order` when Lee set one, else its takeIndex (both 0-based). */
+export function orderOf(p: Pick<ShortPub, "order" | "takeIndex">): number {
+  if (typeof p.order === "number" && Number.isFinite(p.order)) return p.order;
+  return typeof p.takeIndex === "number" && Number.isFinite(p.takeIndex) ? p.takeIndex : 0;
 }

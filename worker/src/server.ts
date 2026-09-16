@@ -184,7 +184,7 @@ async function runJob(job: Job, spec: JobSpec): Promise<void> {
           trims.push(resolveTrim(t, { manual, slateHeadS: stage.heads?.[ci] ?? null, durationS: clipFiles[ci].durationS }));
         }
         const gapsS = Array.from({ length: Math.max(0, clipFiles.length - 1) }, (_, k) => gapForJoin(k, stage.gapMs ?? DISSECT_DEFAULTS.gapMs, stage.gapJitterMs ?? DISSECT_DEFAULTS.gapJitterMs) / 1000);
-        const plan = dissectStitchArgs(clipFiles, trims, outPath, { gapsS, roomTone, loudI: stage.loudI, vertical: stage.vertical === true });
+                const plan = dissectStitchArgs(clipFiles, trims, outPath, { gapsS, roomTone, loudI: stage.loudI, vertical: stage.vertical === true, audioOffsetMs: stage.audioOffsetMs });
         job.result = { ...plan.manifest, trims };
         job.note = "stitching";
         await runFfmpeg(plan.args, remaining(LIMITS.renderTimeoutMs));
