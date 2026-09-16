@@ -145,7 +145,12 @@ export const frameSchema = z.object({
   // 2026-09-14: the practice slide's variant (plan.ts `practice`).
   practice: z.enum(["try", "unlock"]).optional(),
   // 2026-09-15: the ledger slides (plan.ts `dcFocus`, `tacct`, `tpick`; ledger.ts).
-  dcFocus: z.string().max(8).optional(),
+    dcFocus: z.string().max(8).optional(),
+  // 2026-09-16: the rule's walk (plan.ts `dcMode`) and the rubric pick on a question slide (plan.ts `dcpick`).
+  // Both were missing here, so every saved plan came back without them and the film drew plain cards
+  // (Lee: "the rubric is NOT showing on the debit vs. credit effects questions when I'm in film mode").
+  dcMode: z.string().max(12).optional(),
+  dcpick: z.string().max(8).optional(),
   tacct: z.object({
     name: z.string().max(80),
     normal: z.enum(["debit", "credit"]),
