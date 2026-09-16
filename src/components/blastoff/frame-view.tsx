@@ -151,7 +151,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   if (frame.kind === "topic_done") return <TopicDoneFrame w={fw} set={set} frame={frame} live={live} />;
   // THE EXAM OUTLINE (2026-09-11, OutlineFrame.tsx): the roadmap, one topic open at a time.
   if (frame.kind === "outline") return <OutlineFrame w={fw} set={set} frame={frame} live={live} />;
-  if (frame.kind === "up_next") return <UpNextFrame w={fw} set={set} frame={frame} live={live} />;
+  if (frame.kind === "up_next") return <UpNextFrame w={fw} set={set} frame={frame} live={live} roam={film?.roam} />;
   // THE END-OF-TOPIC AD (2026-09-12, TopicAdFrame.tsx): the run's own count, his best ones, and how
   // the practice works — the one slide that may point at other videos.
   if (frame.kind === "topic_ad") return <TopicAdFrame w={fw} set={set} frame={frame} live={live} />;

@@ -207,6 +207,10 @@ export interface BlastFrame {
    *  "Skip to <next topic>" (Prompt 5, after site publish exists) needs to know where the tease
    *  begins; the frame that opens it carries the flag. Additive; no other value yet. */
   segment?: "skippable";
+  /** THE UP NEXT ART (2026-09-16): the A = L + E demo (default) or the accounting cycle ring on a field —
+   *  wheel zooms, drag swims (Lee: "actually show the accounting cycle on here. let me zoom and click drag
+   *  around to explore it"). */
+  upArt?: "rubric" | "cycle";
   /** THE EXAM OUTLINE's words (2026-09-11, kind "outline"): Lee's edits, by topic id and set id —
    *  "A lot of times I like to change the way we're describing them internally." Absent = the
    *  defaults (a topic's name; a video's question stem, exam-outline.ts defaultSetLabel). */

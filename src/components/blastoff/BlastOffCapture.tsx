@@ -76,7 +76,7 @@ import { CaptureArrows } from "./capture/arrows";
 import { CameraBgPicker } from "./capture/CameraBgPicker";
 import { useCaptureCamera } from "./capture/camera";
 import { useFieldRoam } from "./capture/field-roam";
-import { CYCLE_FIELD, cycleHome } from "./cycle-field";
+import { CYCLE_FIELD, UP_NEXT_CYCLE_VIEW, cycleHome, upNextCycleHome } from "./cycle-field";
 import { HotkeysModal } from "./capture/HotkeysModal";
 import { COUNTDOWN_SECONDS, countdownCue, countdownTone, useCapturePopout, useCountdown } from "./capture/popout";
 import { popoutTake, previewIndex, readFilmActive, signalRoll, useCapturePrompterSyncFrame, usePopoutTake, useRollSignal } from "./capture/prompter-sync";
@@ -378,7 +378,8 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
   const walkOn = !!frame?.walk && frame.kind !== "rubric" && frame.kind !== "cluster" && frame.kind !== "survibes" && frame.kind !== "teaser" && frame.kind !== "taccount";
   const survibes = frame?.kind === "survibes";
   // THE ACCOUNTING CYCLE (2026-09-12) roams like the map: one field, one set of gestures.
-  const cycle = frame?.kind === "cycle";
+  const cycle = frame?.kind === "cycle" || (frame?.kind === "up_next" && frame.upArt === "cycle");
+  const upNextCycle = frame?.kind === "up_next" && frame.upArt === "cycle";
   // THE TEASER (2026-09-13, teaser.ts): the callout chips come in one per click — or space — as steps.
   const teaser = frame?.kind === "teaser";
   // THE LEDGER WALKS (2026-09-15, ledger.ts): a T-account's lines, then its ending; a T pick's reveal.
@@ -605,7 +606,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
   // ---- the plug-ins: camera, arrows, teleprompter sync, the 9:16 pop-out ----
   // On a map frame the card camera stands down and the field roam takes the same gestures.
   const camera = useCaptureCamera({ hostRef, frameId: frameId ?? "", target: cluster || cycle ? "field" : "card" });
-  const fieldRoam = useFieldRoam({ hostRef, active: (!!cluster || cycle) && !preview, shot: cluster ? cameraAt(cluster, shot) : cycle ? cycleHome() : null, field: cluster?.field ?? (cycle ? CYCLE_FIELD : null), key: `${frameId ?? ""}:${shot}` });
+  const fieldRoam = useFieldRoam({ hostRef, active: (!!cluster || cycle) && !preview, shot: cluster ? cameraAt(cluster, shot) : upNextCycle ? upNextCycleHome() : cycle ? cycleHome() : null, field: cluster?.field ?? (cycle ? CYCLE_FIELD : null), key: `${frameId ?? ""}:${shot}`, view: upNextCycle ? UP_NEXT_CYCLE_VIEW : null, plainDrag: cycle });
   const openTeleprompter = useTeleprompterPopout(set.id);
   // THE COUNTDOWN (pop-out only; capture/popout.ts). Starting it jumps to slide 0, so slide 1 is
   // what is there when the black lifts. Cancelling (space) leaves slide 1 up as well.

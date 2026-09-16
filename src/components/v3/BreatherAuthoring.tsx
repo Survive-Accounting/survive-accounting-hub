@@ -12,6 +12,8 @@ import { BREATHER_BODY_MAX, breatherPosition, breatherWarnings, moveBreather, ne
 import { listBreatherSets, loadBreathers, saveBreathers, type SequenceVideo } from "@/lib/breathers.functions";
 import { setLearnOrder } from "@/lib/learn-admin.functions";
 
+import { ChainPreview } from "./ChainPreview";
+
 import { clock } from "./quick-post";
 
 const MINT = "#7BD3A8", RED = "#FF8A7A", AMBER = "#FFC46B";
@@ -29,6 +31,7 @@ export function BreatherAuthoring() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [preview, setPreview] = useState(false);
 
   useEffect(() => { void listBreatherSets().then(setSets).catch((e) => setErr(String(e?.message ?? e))); }, []);
   const load = async (id: string) => {
@@ -80,6 +83,7 @@ export function BreatherAuthoring() {
 
   return (
     <div style={{ color: V3_CREAM }}>
+      {preview && <ChainPreview setId={setId} videos={videos} draft={draft} onClose={() => setPreview(false)} />}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 6 }}>
         <h1 style={{ fontFamily: V3_DISPLAY, fontSize: 30, margin: 0 }}>Breathers</h1>
         <select value={setId} onChange={(e) => setSetId(e.target.value)} style={{ ...field, width: "auto", minWidth: 260 }} disabled={dirty && busy}>
@@ -89,6 +93,7 @@ export function BreatherAuthoring() {
         <span style={{ flex: 1 }} />
         {note && !dirty && <span style={{ fontSize: 12.5, color: MINT }}>{note}</span>}
         {dirty && <span style={{ fontSize: 12.5, color: AMBER }}>Unsaved changes</span>}
+        <button type="button" style={btn()} disabled={!videos.length} onClick={() => setPreview(true)} title="Play the whole topic the way students get it — this set with the breathers as drafted here, unsaved edits included">▶ Preview the chain</button>
         <button type="button" style={{ ...btn(true), opacity: busy || !dirty ? 0.55 : 1 }} disabled={busy || !dirty} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</button>
       </div>
       <p style={{ fontSize: 13, color: V3_MUTED, maxWidth: 720, margin: "0 0 14px", lineHeight: 1.5 }}>

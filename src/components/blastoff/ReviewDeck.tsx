@@ -185,6 +185,14 @@ const MINT = "#3BF5A0";
 const RED = "#F87171";
 const ORANGE = "#FF9F43";
 /** The kind's colour in the list and on the stage — matches the detour skin. */
+/** THE CAMERA CLIPBOARD (Lee, 2026-09-16: "a quick way to copy a camera style, size, etc on a slide and easily
+ *  paste it to another slide"): spot, size and free placement, kept across reloads. */
+const CAM_CLIP_KEY = "sa-cam-clip";
+type CamClip = Pick<BlastFrame, "cam" | "camSize" | "camPos">;
+function readCamClip(): CamClip | null { try { const v = localStorage.getItem(CAM_CLIP_KEY); return v ? (JSON.parse(v) as CamClip) : null; } catch { return null; } }
+function writeCamClip(f: BlastFrame): CamClip { const c: CamClip = { cam: f.cam, camSize: f.camSize, camPos: f.camPos }; try { localStorage.setItem(CAM_CLIP_KEY, JSON.stringify(c)); } catch { /* this visit only */ } return c; }
+const camClipLabel = (c: CamClip): string => `${c.cam ?? "default spot"}${c.camSize != null ? ` · ${Math.round(c.camSize * 100)}%` : ""}`;
+
 const KIND_COLOR: Partial<Record<BlastFrameKind, string>> = { cheat: GOLD, phrase: ORANGE, tip: SKY, tricky: "#F87171", found: "#FCA311", exhibit: GOLD, blank: MUTED, bolt: "#B3E5FC", ad: MINT, cluster: "#C4B5FD", slogan: "#FDA4AF", rubric: "#FCD34D", topic_done: "#FDBA74", up_next: "#A5B4FC", survibes: "#F472B6", ask: "#5EEAD4", outline: "#86EFAC", types: "#A3E635", cycle: "#FDBA74", topic_ad: "#F0ABFC", teaser: "#FCA311", dcrule: "#FACC15", taccount: "#FB923C" };
 
 // THE PHONE STAGE — every video is vertical (Lee: "I am considering even
@@ -1540,6 +1548,9 @@ export function ReviewDeck({ set, topic, register, initialSelectedId = null, foc
     });
     // THE CAMERA (2026-09-05): cycles the spots; "free" is placed by dragging the ring on the stage.
     items.push({ label: `📷 Camera · ${camSpotOf(f)}`, title: `Where Lee sits on this slide — ${CAM_LABEL[camSpotOf(f)]}. Click to cycle.`, run: () => patch(f.id, { cam: CAM_SPOTS[(CAM_SPOTS.indexOf(camSpotOf(f)) + 1) % CAM_SPOTS.length] }) });
+    // COPY / PASTE the camera (2026-09-16): spot, size and placement travel between slides in one click each.
+    items.push({ label: "⧉ Copy camera", title: "Copy this slide's camera — spot, size, placement — to paste on other slides", run: () => { writeCamClip(f); } });
+    { const c = readCamClip(); if (c) items.push({ label: `📋 Paste camera · ${camClipLabel(c)}`, title: "Give this slide the copied camera", run: () => patch(f.id, { cam: c.cam, camSize: c.camSize, camPos: c.camPos }) }); }
     // THE ILLUSTRATION (polish pass): opens the Illustrator face for this slide.
     if (canIllustrate(f.kind)) items.push({
       label: `🎨 Illustration · ${f.illustration?.assetUrl ? "on" : f.illustration?.requested ? "idea banked" : "none"}`,
@@ -2550,6 +2561,13 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
             ))}
           </div>
           {(isCamSpot(sel.cam) ? sel.cam : camDefault(layout, sel.kind).spot) === "free" && <div style={{ fontSize: 10.5, color: MUTED, marginTop: 4 }}>Drag the ring on the stage to place it · wheel over it to resize.</div>}
+          {/* COPY / PASTE (2026-09-16): the whole camera — spot, size, placement — in one click each; the slide's ⋯ menu has the same two. */}
+          {(() => { const c = readCamClip(); return (
+            <div className="flex flex-wrap items-center" style={{ gap: 5, marginTop: 6 }}>
+              <button style={chip(false)} title="Copy this slide's camera — spot, size, placement — to paste on another slide" onClick={() => { writeCamClip(sel); setCamOpen(true); }}>⧉ copy camera</button>
+              {c && <button style={chip(false, ORANGE)} title={`Paste ${camClipLabel(c)} onto this slide`} onClick={() => onPatch({ cam: c.cam, camSize: c.camSize, camPos: c.camPos })}>📋 paste · {camClipLabel(c)}</button>}
+            </div>
+          ); })()}
           {/* SIZE (2026-09-05: "allow me to choose a camera on this slide location and resize
               it from its fixed spot and it would apply to any other slides using that setting"
               — instead of a fast-track round trip every time). Works on any spot but off; "apply
@@ -2956,6 +2974,13 @@ function EndOfTopicEditor({ sel, set, onPatch }: { sel: BlastFrame; set: BoothSe
       </div>
       <label style={{ fontSize: 11, color: MUTED }}>{done ? `The line under "${TOPIC_DONE_COPY.heading}" (blank = the mockup's)` : "Subtitle under the topic (blank = the next set's name)"}
         <textarea rows={2} style={{ ...field, marginTop: 4, resize: "vertical" }} value={sel.text ?? ""} placeholder={done ? TOPIC_DONE_COPY.line : next?.set.name ?? ""} onChange={(e) => onPatch({ text: e.target.value })} /></label>
+      {!done && (
+        <div className="flex flex-wrap items-center" style={{ gap: 6, fontSize: 11, color: MUTED }}>
+          <span>Under the title:</span>
+          <button style={chip(sel.upArt !== "cycle", GOLD)} onClick={() => onPatch({ upArt: undefined })}>A = L + E demo</button>
+          <button style={chip(sel.upArt === "cycle", "#FDBA74")} title="The accounting cycle ring on a field — on film the wheel zooms, a drag swims, 0 goes home" onClick={() => onPatch({ upArt: "cycle" })}>The accounting cycle · zoom + drag</button>
+        </div>
+      )}
       {done
         ? <div style={{ fontSize: 11.5, color: MUTED }}>One bar segment per exam topic; the finished ones fill amber→red and the newest charges on camera. The red pill says "{TOPIC_DONE_COPY.cta}".</div>
         : <div style={{ fontSize: 11.5, color: MUTED }}>The rubric cycles borrow → supplies → services on account → rent every ~3 s on camera. This slide opens a skippable segment{sel.segment === "skippable" ? "" : " — but the flag is missing on this one"}.</div>}

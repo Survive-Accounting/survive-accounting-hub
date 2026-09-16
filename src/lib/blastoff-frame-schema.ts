@@ -117,6 +117,7 @@ export const frameSchema = z.object({
   rubric: rubricSchema.optional(),
   // 2026-09-11: the Up Next frame opens a skippable segment (plan.ts `segment`).
   segment: z.enum(["skippable"]).optional(),
+  upArt: z.enum(["rubric", "cycle"]).optional(),
   // 2026-09-11: the exam outline's words, by topic id and set id (plan.ts `outline`).
   outline: z.object({ topics: z.record(z.string().max(200)).optional(), sets: z.record(z.string().max(200)).optional() }).optional(),
   // 2026-09-11: the note over a set card (plan.ts `note`, card-note.ts) — its words, its box as

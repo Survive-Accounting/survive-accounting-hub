@@ -28,6 +28,15 @@ export function cycleHome(): ClusterCamera {
   return { x: ov.x, y: ov.y, zoom: r3(ov.zoom * 0.94) };
 }
 
+/** THE UP NEXT SLIDE's window onto the ring (2026-09-16): under the topic header, in phone units (the
+ *  end-of-topic column is 15 / 242 wide in 306-units; the header ends near 170). */
+export const UP_NEXT_CYCLE_VIEW = { x: 53, y: 600, w: 854, h: 1179 } as const;
+/** Home for that window: the whole ring in it, a breath inside the edges. */
+export function upNextCycleHome(): ClusterCamera {
+  const ov = overviewCamera(CYCLE_FIELD, { w: UP_NEXT_CYCLE_VIEW.w, h: UP_NEXT_CYCLE_VIEW.h });
+  return { x: ov.x, y: ov.y, zoom: r3(ov.zoom * 0.96) };
+}
+
 /** Where the ring's box sits inside the field (centred), in field units. */
 export function cycleRingBox(): { left: number; top: number; w: number; h: number } {
   return { left: Math.round((CYCLE_FIELD.w - CYCLE_RING_W) / 2), top: Math.round((CYCLE_FIELD.h - CYCLE_RING_H) / 2), w: CYCLE_RING_W, h: CYCLE_RING_H };

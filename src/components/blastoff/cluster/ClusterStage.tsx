@@ -52,7 +52,7 @@ export interface ClusterFilm {
 export const ClusterFilmContext = createContext<ClusterFilm | null>(null);
 
 /** The field's transform in phone units: the camera's centre lands on the phone's centre. */
-export function fieldTransform(cam: ClusterCamera, phone = PHONE): string {
+export function fieldTransform(cam: ClusterCamera, phone: { w: number; h: number } = PHONE): string {
   const r = (v: number) => Math.round(v * 100) / 100;
   return `translate(${r(phone.w / 2 - cam.x * cam.zoom)}px, ${r(phone.h / 2 - cam.y * cam.zoom)}px) scale(${r(cam.zoom)})`;
 }

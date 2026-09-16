@@ -191,7 +191,7 @@ export function fitCamera(node: Pick<ClusterNode, "x" | "y" | "w" | "h">, pad = 
 }
 
 /** The camera that shows the whole field — the bird's-eye. */
-export function overviewCamera(field: { w: number; h: number }, phone = PHONE): ClusterCamera {
+export function overviewCamera(field: { w: number; h: number }, phone: { w: number; h: number } = PHONE): ClusterCamera {
   return { x: field.w / 2, y: field.h / 2, zoom: round3(Math.min(phone.w / field.w, phone.h / field.h)) };
 }
 

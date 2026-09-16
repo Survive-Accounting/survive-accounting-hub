@@ -44,7 +44,7 @@ export function wheelFactor(deltaY: number, deltaMode = 0, ctrl = false): number
 
 /** ZOOM ABOUT THE POINTER: the field point under (px, py) — in phone units, 0..1080 × 0..1920 —
  *  stays under it after the zoom. Bounded by the multiplier range. */
-export function zoomAbout(roam: FieldRoam, shot: ClusterCamera, factor: number, px: number, py: number, phone = PHONE): FieldRoam {
+export function zoomAbout(roam: FieldRoam, shot: ClusterCamera, factor: number, px: number, py: number, phone: { w: number; h: number } = PHONE): FieldRoam {
   const zoomMul = clampRoamZoom(roam.zoom * factor);
   if (zoomMul === roam.zoom) return { ...roam, gesture: "wheel" };
   const z = shot.zoom * roam.zoom, z2 = shot.zoom * zoomMul;
@@ -86,13 +86,20 @@ export interface FieldRoamApi {
 /** The field's gestures on the capture host. `active` only on a cluster frame that is the take
  *  (not the main window's next-slide preview); `key` names the frame + shot the roam belongs to
  *  — a new key is a fresh NO_ROAM, with no flash of the old offset. */
-export function useFieldRoam({ hostRef, active, shot, field, key }: {
+export function useFieldRoam({ hostRef, active, shot, field, key, view = null, plainDrag = false }: {
   hostRef: RefObject<HTMLDivElement | null>;
   active: boolean;
   shot: ClusterCamera | null;
   field: { w: number; h: number } | null;
   key: string;
+  /** THE WINDOW (2026-09-16): the part of the phone the camera looks through, in phone units — the Up Next
+   *  slide's ring sits under a header. Null = the whole phone. */
+  view?: { x: number; y: number; w: number; h: number } | null;
+  /** A drag without alt pans too — on a frame where the card camera has stood down (the cycle). */
+  plainDrag?: boolean;
 }): FieldRoamApi {
+  const viewRef = useRef(view); viewRef.current = view;
+  const plainRef = useRef(plainDrag); plainRef.current = plainDrag;
   const [state, setState] = useState<{ key: string; roam: FieldRoam }>({ key, roam: NO_ROAM });
   const roam = state.key === key ? state.roam : NO_ROAM;
   const keyRef = useRef(key); keyRef.current = key;
@@ -127,12 +134,13 @@ export function useFieldRoam({ hostRef, active, shot, field, key }: {
     const p = phonePoint(e.clientX, e.clientY);
     if (!p) return;
     const f = wheelFactor(e.deltaY, e.deltaMode, e.ctrlKey || e.metaKey);
-    update((r, s) => zoomAbout(r, s, f, p.px, p.py));
+    const v = viewRef.current;
+    update((r, s) => (v ? zoomAbout(r, s, f, p.px - v.x, p.py - v.y, { w: v.w, h: v.h }) : zoomAbout(r, s, f, p.px, p.py)));
   }, [hostRef, phonePoint, update]);
 
   // ---- ALT-DRAG: pan ----
   const onDown = useCallback((e: PointerEvent) => {
-    if (!activeRef.current || !e.altKey || e.button !== 0) return;
+    if (!activeRef.current || (!e.altKey && !plainRef.current) || e.button !== 0) return;
     const host = hostRef.current;
     const t = e.target as Element | null;
     if (!host || (t !== host && !t?.closest?.("[data-sa-phone]"))) return;

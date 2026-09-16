@@ -37,7 +37,13 @@ import { BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
 import type { BoothSetInfo } from "@/lib/talkthrough.functions";
 import { useBank } from "@/components/v3/use-bank";
 
+import { CycleRing, type PillState } from "@/components/canvas/exhibit-lab/cycle-ring";
+import { CYCLE_STEPS } from "@/components/canvas/exhibit-lab/cycle-model";
+
+import { NO_ROAM, effectiveCamera, type FieldRoam } from "./capture/field-roam";
 import { watermarkSpot } from "./capture/webcam-spots";
+import { fieldTransform } from "./cluster/ClusterStage";
+import { CYCLE_FIELD, UP_NEXT_CYCLE_VIEW, cycleRingBox, upNextCycleHome } from "./cycle-field";
 import { TOPIC_DONE_COPY, UP_NEXT_COPY, UP_NEXT_DEMO, UP_NEXT_EVERY_MS, demoIndexAt, topicProgress, upNextFor } from "./end-of-topic";
 import type { BlastFrame } from "./plan";
 import { RubricFrame } from "./RubricFrame";
@@ -150,7 +156,35 @@ export function TopicDoneFrame({ w, set, frame, live = false }: { w: number; set
   );
 }
 
-export function UpNextFrame({ w, set, frame, live = false }: { w: number; set: BoothSetInfo; frame: BlastFrame; live?: boolean }) {
+/** THE ACCOUNTING CYCLE ON THE UP NEXT SLIDE (Lee, 2026-09-16: "for accounting cycle... actually show the accounting
+ *  cycle on here. let me zoom and click drag around to explore it"): the exhibit's ring on the same field as the
+ *  cycle slide (CycleFrame.tsx), through a window under the header. The take's roam moves it; at rest it is home. */
+function UpNextCycle({ k, roam, live }: { k: number; roam?: FieldRoam; live: boolean }) {
+  const view = UP_NEXT_CYCLE_VIEW;
+  const p = 1080 / 306; // phone units per 306-unit
+  const cam = effectiveCamera(upNextCycleHome(), roam ?? NO_ROAM);
+  const gesture = roam?.gesture ?? "none";
+  const transition = gesture === "drag" ? "none" : gesture === "wheel" ? "transform 120ms ease-out" : "transform 480ms cubic-bezier(0.2, 0.8, 0.2, 1)";
+  const box = cycleRingBox();
+  const states: PillState[] = CYCLE_STEPS.map(() => "normal");
+  const labels = CYCLE_STEPS.map((s) => s.text);
+  const top = (view.y / p - END_OF_TOPIC_GEOM.top) * k;
+  return (
+    <div style={{ position: "absolute", left: 0, top, width: (view.w / p) * k, height: (view.h / p) * k, overflow: "hidden", borderRadius: 14 * k }}>
+      <div style={{ position: "absolute", left: 0, top: 0, width: view.w, height: view.h, transform: `scale(${k / p})`, transformOrigin: "0 0" }}>
+        <div data-sa-field="" style={{ position: "absolute", left: 0, top: 0, width: CYCLE_FIELD.w, height: CYCLE_FIELD.h, transform: fieldTransform(cam, { w: view.w, h: view.h }), transformOrigin: "0 0", transition, willChange: "transform" }}>
+          <div style={{ position: "absolute", left: box.left, top: box.top, width: box.w }}>
+            <CycleRing states={states} labels={labels}
+              centre={<span style={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: 30, color: BRAND_CREAM, textShadow: "0 2px 12px rgba(0,0,0,0.7)" }}>The Accounting Cycle</span>} />
+          </div>
+        </div>
+      </div>
+      {!live && <div style={{ position: "absolute", left: 8 * k, bottom: 6 * k, fontSize: 8 * k, fontWeight: 700, color: MUTED, pointerEvents: "none" }}>on film: wheel zooms · drag swims · 0 home · O bird's-eye</div>}
+    </div>
+  );
+}
+
+export function UpNextFrame({ w, set, frame, live = false, roam }: { w: number; set: BoothSetInfo; frame: BlastFrame; live?: boolean; roam?: FieldRoam }) {
   const k = w / 306;
   const G = END_OF_TOPIC_GEOM;
   const { topics, reason, quiet } = useBankOrReason();
@@ -175,9 +209,13 @@ export function UpNextFrame({ w, set, frame, live = false }: { w: number; set: B
         <div style={{ marginTop: 7 * k, fontFamily: DISPLAY_FONT, fontWeight: 700, fontSize: G.titleSize * k, lineHeight: 1.05, color: BRAND_CREAM, textWrap: "balance" as never }}>{next.topic.name}</div>
         <div style={{ marginTop: 3 * k, fontSize: G.subtitleSize * k, color: MUTED }}>{subtitle}</div>
       </div>
-      <div style={{ marginTop: 12 * k }}>
-        <RubricFrame spec={spec} k={k * G.rubricScale} live={live} popKey={cycling ? `demo-${tick}` : undefined} />
-      </div>
+      {frame.upArt === "cycle"
+        ? <UpNextCycle k={k} roam={roam} live={live} />
+        : (
+          <div style={{ marginTop: 12 * k }}>
+            <RubricFrame spec={spec} k={k * G.rubricScale} live={live} popKey={cycling ? `demo-${tick}` : undefined} />
+          </div>
+        )}
     </Shell>
   );
 }
