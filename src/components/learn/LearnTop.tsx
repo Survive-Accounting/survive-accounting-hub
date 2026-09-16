@@ -65,6 +65,7 @@ import { LK, type LearnTheme } from "@/components/learn/learn-theme";
 import { LEARN_MENU_CSS, LearnMenu } from "@/components/learn/LearnMenu";
 import { NAV_BOLT_ID } from "@/components/learn/LearnLoading";
 import { adEvent } from "@/lib/retargeting";
+import { CourseSheet, LIVE_COURSE, OPEN_COURSE_SHEET_EVENT } from "@/components/learn/CourseSheet";
 
 export type TopProgress = { total: number; done: number; secondsLeft: number | null };
 
@@ -160,9 +161,16 @@ export function LearnTop({
   const [copied, setCopied] = useState(false);
   const shareNow = async () => { const ok = await onShare(); if (ok) { setCopied(true); window.setTimeout(() => setCopied(false), 2200); } };
   const closeMenu = () => { setMenuOpen(false); menuBtn.current?.focus(); };
-  const [reminderOpen, setReminderOpen] = useState(false);
+    const [reminderOpen, setReminderOpen] = useState(false);
   const [waitlistExam, setWaitlistExam] = useState<number | null>(null);
-  const letters = chapter?.letters?.trim() || null;
+  // THE COURSE SHEET (phase 4): the toolbar's course control, and the "another course?" line on the page.
+  const [courseOpen, setCourseOpen] = useState(false);
+  useEffect(() => {
+    const on = () => setCourseOpen(true);
+    window.addEventListener(OPEN_COURSE_SHEET_EVENT, on);
+    return () => window.removeEventListener(OPEN_COURSE_SHEET_EVENT, on);
+  }, []);
+  void chapter;
 
   // The bar's own ink — chalk on black until a school is picked, then whatever reads on c1.
   const ink = theme.topInk, muted = theme.topMuted, rule = theme.topRule, hairline = theme.topBorder;
@@ -175,45 +183,23 @@ export function LearnTop({
   return (
     <>
       <header className="flex shrink-0 flex-col" style={{ background: theme.topBg, borderBottom: `2px solid ${hairline}`, color: ink, padding: `${narrow ? 8 : 12}px ${pad}px ${narrow ? 10 : 12}px`, gap: narrow ? 8 : 10, fontFamily: BRAND_SANS }}>
+                {/* ROW 1 (the simple flow, phase 4, 2026-09-16): the wordmark alone on the left; the campus, review, share
+            and the menu on the right. The stacked bolt + school + course + exam block is gone; the course and the
+            exam are the toolbar underneath. */}
         <div className="flex items-center" style={{ gap: narrow ? 8 : 14, minHeight: boltH }}>
-          {/* THE WORDMARK — "survive" only — then a rule, then the campus. */}
-          <a href="/" aria-label="Survive Accounting home" className="lk-disp shrink-0" style={{ fontSize: narrow ? 15 : 21, letterSpacing: "-0.01em", lineHeight: 1, color: ink, textDecoration: "none" }}>survive</a>
-          <span aria-hidden className="shrink-0 self-stretch" style={{ width: 1, background: rule, minHeight: boltH }} />
-          {/* THE BIG BOLT, with the chapter's letters held still over it. It catches the drop. */}
-          <span key={arrive} id={NAV_BOLT_ID} data-gm-bolt="start" className={`relative inline-block shrink-0${arrive > 0 ? " lk-bolt-arrive" : ""}`} style={{ lineHeight: 0 }} title={schoolName ?? undefined}>
-            <BoltBoil height={boltH} red={school?.c1 ?? undefined} blue={school?.c2 ?? undefined} cream={ink} boilSeconds={1.2} />
-            {/* NO LETTERS ON THE NAV BOLT (Lee, 2026-09-11): illegible at this size on a desk and
-                unreadable on a phone. The chapter's identity lives in the chapter module, large. */}
-            {false && letters && (
-              <span aria-hidden className="absolute inset-0 grid place-items-center" style={{ pointerEvents: "none", color: "#F5EFE6", fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: Math.round(boltH * 0.42), letterSpacing: "0.01em", lineHeight: 1, textShadow: "0 1px 2px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.7)", whiteSpace: "nowrap" }}>{letters}</span>
-            )}
-          </span>
-          {/* THE TWO-LINE BLOCK: campus over course · exam. */}
-          <div className="flex min-w-0 flex-col justify-center" style={{ gap: 1 }}>
-            {/* A PILL (King's notes, 2026-09-14: "Choose Your School needs to be much easier to see"): the
-                school's colours round it; with no school it fills with the accent and asks. */}
-            <button type="button" onClick={onPickSchool} className="ml-1 flex min-w-0 items-center gap-1.5 self-start rounded-full text-left" title={schoolName ? "Change school" : "Choose your school"}
-              style={schoolName
-                ? { background: "rgba(245,239,230,0.14)", border: "1.5px solid rgba(245,239,230,0.7)", padding: narrow ? "5px 12px 5px 6px" : "6px 15px 6px 7px", cursor: "pointer", color: ink, fontSize: narrow ? 13.5 : 15.5, fontWeight: 900, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 28 : 32, maxWidth: "100%", boxShadow: "0 0 0 3px rgba(245,239,230,0.08)" }
-                : { background: LK.acc, border: `1.5px solid ${LK.acc}`, padding: narrow ? "5px 13px" : "6px 16px", cursor: "pointer", color: LK.accInk, fontSize: narrow ? 13 : 14.5, fontWeight: 900, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 28 : 32, maxWidth: "100%" }}>
-              {schoolName && <span aria-hidden className="shrink-0 rounded-full" style={{ width: narrow ? 16 : 18, height: narrow ? 16 : 18, background: school?.c1 ?? LK.acc, border: `2px solid ${school?.c2 ?? ink}` }} />}
-              <span className="truncate">{schoolName ?? "Choose your school"}</span>
-              <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: schoolName ? ink : LK.accInk }} aria-hidden />
-            </button>
-            <div className="flex min-w-0 items-center gap-1.5 truncate" style={{ fontSize: narrow ? 11.5 : 12.5, color: muted, fontWeight: 600, lineHeight: 1.2 }}>
-              {courseCode && <><span className="truncate">{courseCode}</span><span aria-hidden>·</span></>}
-              <ExamMenu exams={menuExams} examNum={examNum} examLabel={examLabel} ink={ink} muted={muted} onPick={onPickExam}
-                onLocked={(n) => {
-                  setWaitlistExam(n);
-                  // RETARGETING (2026-09-11): a student reaching for a locked exam — the spec's
-                  // highest-value signal (exam2_lock; `exam` says which one).
-                  if (!demo) adEvent("exam2_lock", { campus: school?.slug ?? undefined, chapter: chapter?.slug ?? undefined, course: courseCode ?? undefined, exam: n });
-                }} />
-              {demo && <span className="rounded-full px-1.5 py-px text-[9px] font-black uppercase tracking-wider" style={{ color: "#111", background: LK.green }}>Demo</span>}
-            </div>
-          </div>
-
+          <a href="/" aria-label="Survive Accounting home" className="lk-disp shrink-0" style={{ fontSize: narrow ? 17 : 22, letterSpacing: "-0.01em", lineHeight: 1, color: ink, textDecoration: "none" }}>survive</a>
           <div className="min-w-0 flex-1" />
+          {/* THE CAMPUS PILL, with the small bolt inside it — the loading screen's drop-in still lands on it. */}
+          <button type="button" onClick={onPickSchool} className="flex min-w-0 items-center gap-1.5 rounded-full text-left" title={schoolName ? "Change school" : "Choose your school"}
+            style={schoolName
+              ? { background: "rgba(245,239,230,0.14)", border: "1.5px solid rgba(245,239,230,0.7)", padding: narrow ? "4px 11px 4px 6px" : "5px 14px 5px 7px", cursor: "pointer", color: ink, fontSize: narrow ? 13 : 14.5, fontWeight: 900, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 30 : 34, maxWidth: narrow ? 160 : 260 }
+              : { background: LK.acc, border: `1.5px solid ${LK.acc}`, padding: narrow ? "4px 12px" : "5px 15px", cursor: "pointer", color: LK.accInk, fontSize: narrow ? 13 : 14.5, fontWeight: 900, fontFamily: "inherit", lineHeight: 1.2, minHeight: narrow ? 30 : 34 }}>
+            <span key={arrive} id={NAV_BOLT_ID} data-gm-bolt="start" className={`relative inline-block shrink-0${arrive > 0 ? " lk-bolt-arrive" : ""}`} style={{ lineHeight: 0 }} aria-hidden>
+              <BoltBoil height={narrow ? 18 : 20} red={school?.c1 ?? undefined} blue={school?.c2 ?? undefined} cream={schoolName ? ink : LK.accInk} boilSeconds={1.2} />
+            </span>
+            <span className="truncate">{schoolName ?? "Choose your school"}</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: schoolName ? ink : LK.accInk }} aria-hidden />
+          </button>
 
           {/* RIGHT: review · share · the hamburger. */}
           {!narrow && (
@@ -224,10 +210,30 @@ export function LearnTop({
           ) : (
             <button type="button" onClick={() => void shareNow()} title="Copy link" aria-live="polite" className="inline-flex shrink-0 items-center gap-2 rounded-full" style={{ minHeight: 38, padding: "0 16px", border: `1px solid ${copied ? LK.acc : rule}`, background: copied ? LK.acc : "transparent", color: copied ? LK.accInk : ink, cursor: "pointer", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit", transition: "background 160ms, color 160ms, border-color 160ms" }}>{copied ? <Check className="h-4 w-4" aria-hidden /> : <Link2 className="h-4 w-4" aria-hidden />} {copied ? "Link copied!" : "Share"}</button>
           )}
-          <button ref={menuBtn} type="button" onClick={() => setMenuOpen(true)} aria-label="Menu" aria-haspopup="dialog" aria-expanded={menuOpen} className="grid shrink-0 place-items-center rounded-full" style={{ ...iconBtn, width: narrow ? 40 : 44, height: narrow ? 40 : 44 }}><HamburgerGlyph /></button>
+                    <button ref={menuBtn} type="button" onClick={() => setMenuOpen(true)} aria-label="Menu" aria-haspopup="dialog" aria-expanded={menuOpen} className="grid shrink-0 place-items-center rounded-full" style={{ ...iconBtn, width: narrow ? 40 : 44, height: narrow ? 40 : 44 }}><HamburgerGlyph /></button>
         </div>
 
+        {/* ROW 2 — THE TOOLBAR: "ACCY 201 · Intro Financial Accounting ▾" and "Exam 1 · Free ▾". Two controls, which
+            wrap on a phone; never a third navigation. */}
+        <div className="flex flex-wrap items-center" style={{ gap: 8 }}>
+          <button type="button" onClick={() => setCourseOpen(true)} className="inline-flex min-w-0 items-center gap-1.5 rounded-full" title="Your course"
+            style={{ minHeight: narrow ? 32 : 34, padding: narrow ? "0 11px" : "0 13px", border: `1px solid ${rule}`, background: "rgba(245,239,230,0.06)", color: ink, cursor: "pointer", fontFamily: "inherit", fontSize: narrow ? 12.5 : 13.5, fontWeight: 800, maxWidth: "100%" }}>
+            <span className="truncate">{courseCode ? `${courseCode} · ` : ""}{narrow ? "Intro Financial" : LIVE_COURSE}</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: muted }} aria-hidden />
+          </button>
+          <span className="inline-flex items-center rounded-full" style={{ minHeight: narrow ? 32 : 34, padding: narrow ? "0 11px" : "0 13px", border: `1px solid ${rule}`, background: "rgba(245,239,230,0.06)", color: ink, fontSize: narrow ? 12.5 : 13.5, fontWeight: 800 }}>
+            <ExamMenu exams={menuExams} examNum={examNum} examLabel={examNum === 1 ? `${examLabel} · Free` : examLabel} ink={ink} muted={muted} onPick={onPickExam}
+              onLocked={(n) => {
+                setWaitlistExam(n);
+                // RETARGETING (2026-09-11): a student reaching for a locked exam — the spec's
+                // highest-value signal (exam2_lock; `exam` says which one).
+                if (!demo) adEvent("exam2_lock", { campus: school?.slug ?? undefined, chapter: chapter?.slug ?? undefined, course: courseCode ?? undefined, exam: n });
+              }} />
+          </span>
+          {demo && <span className="rounded-full px-1.5 py-px text-[9px] font-black uppercase tracking-wider" style={{ color: "#111", background: LK.green }}>Demo</span>}
+        </div>
       </header>
+      {courseOpen && <CourseSheet courseCode={courseCode} campusId={campusId} demo={demo} narrow={narrow} onClose={() => setCourseOpen(false)} />}
 
       <style>{LEARN_MENU_CSS + ARRIVE_CSS}</style>
       {menuOpen && (

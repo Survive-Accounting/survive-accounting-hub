@@ -130,6 +130,7 @@ export const SA_EVENTS = [
   "stitch_deleted",
   "hsw_play_sound",
   "hsw_open",
+  "course_interest",
   "set_practice_open",
   "ask_lee_sent",
 ] as const;

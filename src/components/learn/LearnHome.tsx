@@ -136,6 +136,7 @@ import type { StudentSet, StudentTopic } from "@/lib/student.functions";
 import { useDismiss } from "@/lib/use-dismiss";
 import { claimPreview, currentPreview, onPreview, pickAuto, previewMode, releasePreview, resetAutoPick, warmPreviewPlayer } from "@/components/learn/live-preview";
 import { HowSurviveWorksRow } from "@/components/learn/HowSurviveWorks";
+import { openCourseSheet } from "@/components/learn/CourseSheet";
 
 export type HomeSet = {
   set: StudentSet; topic: StudentTopic; n: number; of: number; locked: boolean; done: boolean;
@@ -370,8 +371,13 @@ export const LearnHome = forwardRef<HTMLDivElement, {
               )}
               {expanded && row}
             </section>
-          );
+                    );
         })}
+        {/* ANOTHER COURSE? (phase 4): the same sheet the toolbar's course control opens — interest, not enrollment. */}
+        <div className="text-center" style={{ fontSize: 13, color: LK.muted, fontFamily: BRAND_SANS, paddingTop: narrow ? 20 : 8 }}>
+          Looking for another accounting course?{" "}
+          <button type="button" onClick={openCourseSheet} className="underline underline-offset-4" style={{ background: "none", border: 0, padding: "4px 2px", cursor: "pointer", color: LK.acc, font: "inherit", fontWeight: 700 }}>Tell us which one →</button>
+        </div>
       </div>
 
       {practiceAsk && (
