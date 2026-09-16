@@ -62,7 +62,10 @@ export function V4Questions({ data, onData, topicName = "" }: { data: V4TopicDat
     const cur = dataRef.current;
     // the choices the way the server hands them back (feedback null, not missing), so nothing reads as unsaved
     const patch = { ...edit, choices: edit.choices.map((c) => ({ ...c, feedback: c.feedback ?? null })) };
-    onData({ ...cur, cards: cur.cards.map((c) => (c.id === cardId ? { ...c, ...patch } : c)) });
+        onData({ ...cur, cards: cur.cards.map((c) => (c.id === cardId ? { ...c, ...patch } : c)) });
+    // SAVE CLOSES THE CARD (Lee, 2026-09-16: "After saving a question in /questions, collapse its toggle. It saves
+    // me a click. And feels more natural.") — the row folds up at once; the save goes on behind it.
+    setOpenId((o) => (o === cardId ? null : o));
     setSaveState((s) => ({ ...s, [cardId]: "saving" }));
     track("v4_question_saved", { set_id: cur.setId });
     setErr(null);
