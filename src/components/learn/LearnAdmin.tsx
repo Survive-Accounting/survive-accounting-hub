@@ -104,20 +104,43 @@ export function LearnAdmin() {
     } catch (e) { setFlash({ text: e instanceof Error ? e.message : String(e), bad: true }); }
     finally { done(key); }
   };
+    /** One video: cut from its original with the loudness pass (the worker applies it to every stitch now), re-post. */
+  const normalizeOne = async (sid: string, part: AdminPart, key: string) => {
+    await wake(say(key));
+    say(key)("normalizing…");
+    const url = await renderFix(part, { normalize: true, audioOffsetMs: part.audioOffsetMs }, say(key));
+    await repost(sid, part, url, say(key));
+    const next = await noteLearnFix({ data: { setId: sid, takeIndex: part.takeIndex, normalized: true } });
+    if (sid === setId) take(next); else setSets((all) => (all ?? []).map((s) => (s.setId === sid ? { ...s, parts: next } : s)));
+  };
   const normalizeAll = async () => {
     if (!window.confirm(`Normalize every video in "${set?.name}" to ${LOUD_TARGET} LUFS and re-post them? About a minute each, one at a time.`)) return;
     for (const part of parts) {
       const key = `norm:${part.pubKey}`;
-      try {
-        await wake(say(key));
-        say(key)("normalizing…");
-        const url = await renderFix(part, { normalize: true, audioOffsetMs: part.audioOffsetMs }, say(key));
-        await repost(setId, part, url, say(key));
-        take(await noteLearnFix({ data: { setId, takeIndex: part.takeIndex, normalized: true } }));
-      } catch (e) { setFlash({ text: `#${part.takeIndex + 1}: ${e instanceof Error ? e.message : String(e)}`, bad: true }); done(key); return; }
+      try { await normalizeOne(setId, part, key); }
+      catch (e) { setFlash({ text: `#${part.takeIndex + 1}: ${e instanceof Error ? e.message : String(e)}`, bad: true }); done(key); return; }
       done(key);
     }
     setFlash({ text: "Every video normalized and re-posted." });
+  };
+  // EVERYTHING POSTED, EVERY SET (Lee, 2026-09-16: "Go into each video I've already posted, and normalize the audio").
+  // Videos already stamped normalized are skipped unless asked; the loop is sequential so the worker never
+  // renders two at once. Leave the tab open.
+  const [everyNote, setEveryNote] = useState<string | null>(null);
+  const normalizeEverything = async (again: boolean) => {
+    const todo = (sets ?? []).flatMap((s) => s.parts.filter((p) => (again || !p.normalizedAt) && (p.originalUrl || p.sourceUrl)).map((p) => ({ sid: s.setId, name: s.name, part: p })));
+    if (!todo.length) { setFlash({ text: "Every posted video is already normalized." }); return; }
+    if (!window.confirm(`Normalize ${todo.length} posted video${todo.length === 1 ? "" : "s"} across ${new Set(todo.map((t) => t.sid)).size} set(s) to ${LOUD_TARGET} LUFS and re-post each one? About a minute each — keep this tab open.`)) return;
+    let n = 0;
+    for (const t of todo) {
+      const key = `norm:${t.part.pubKey}`;
+      setEveryNote(`${n + 1} of ${todo.length} · ${t.name} · #${t.part.takeIndex + 1}`);
+      try { await normalizeOne(t.sid, t.part, key); n++; }
+      catch (e) { setFlash({ text: `${t.name} #${t.part.takeIndex + 1}: ${e instanceof Error ? e.message : String(e)}`, bad: true }); done(key); setEveryNote(null); return; }
+      done(key);
+    }
+    setEveryNote(null);
+    setFlash({ text: `${n} video${n === 1 ? "" : "s"} normalized and re-posted.` });
   };
 
   const btn = (strong = false, tone = GOLD): React.CSSProperties => ({ font: "inherit", fontSize: 12, fontWeight: 800, padding: "6px 11px", borderRadius: 8, cursor: "pointer", border: `1px solid ${strong ? tone : EDGE}`, background: strong ? tone : "transparent", color: strong ? "#14213D" : CREAM, whiteSpace: "nowrap" });
@@ -134,8 +157,11 @@ export function LearnAdmin() {
               {sets.map((s) => <option key={s.setId} value={s.setId}>{s.name} · {s.parts.length}</option>)}
             </select>
           )}
-          <button type="button" style={btn(true)} disabled={!parts.length || Object.keys(busy).some((k) => k.startsWith("norm:"))} onClick={() => void normalizeAll()}>Normalize audio · all {parts.length}</button>
+                    <button type="button" style={btn(true)} disabled={!parts.length || Object.keys(busy).some((k) => k.startsWith("norm:"))} onClick={() => void normalizeAll()}>Normalize audio · this set</button>
+          <button type="button" style={btn(false)} disabled={!sets?.length || Object.keys(busy).some((k) => k.startsWith("norm:"))} onClick={(e) => void normalizeEverything(e.shiftKey)} title="Every posted video not yet normalized, across every set. Shift-click to redo them all.">Normalize every posted video</button>
         </div>
+        {everyNote && <div style={{ fontSize: 12.5, color: GOLD, fontWeight: 700 }}>Normalizing everything · {everyNote}</div>}
+        <div style={{ fontSize: 12.5, color: MUTED }}>New stitches are normalized automatically (−16 LUFS, two-pass) — these buttons are for videos posted before that.</div>
         <div style={{ fontSize: 12.5, color: MUTED }}>Drag a row to reorder — it saves on drop. Good / Needs redo take a why, typed or talked. Sync slides the sound against the picture: preview 8 seconds, then apply to re-post the whole video.</div>
         {err && <div style={{ color: RED }}>{err}</div>}
         {flash && <div role="status" style={{ color: flash.bad ? RED : MINT, fontWeight: 700, fontSize: 13 }}>{flash.text}</div>}

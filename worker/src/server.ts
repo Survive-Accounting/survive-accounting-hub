@@ -101,6 +101,32 @@ async function runFfmpegCapture(args: string[], timeoutMs: number): Promise<stri
   return errText;
 }
 
+// ONE LOUDNESS FOR EVERY VIDEO (Lee, 2026-09-16: "automate the volume normalization… for future posts ensure
+// normalization is auto applied"). The per-clip loudnorm inside the stitch is single-pass — accurate to a couple of
+// LU on short clips, which is enough to hear between videos. So every dissect_stitch output gets a TWO-PASS pass on
+// the finished file: measure its integrated loudness, true peak, range and threshold, then re-encode the audio with
+// those measurements (linear mode) so it lands at exactly the target. The picture is copied, not re-encoded.
+const LOUD = { I: -16, TP: -1.5, LRA: 11 } as const;
+async function normalizeLoudness(path: string, dir: string, timeoutMs: number): Promise<void> {
+  if (!(await probeHasAudio(path))) return;
+  const filt = `loudnorm=I=${LOUD.I}:TP=${LOUD.TP}:LRA=${LOUD.LRA}`;
+  const stderr = await runFfmpegCapture(["-hide_banner", "-nostats", "-i", path, "-af", `${filt}:print_format=json`, "-f", "null", "-"], timeoutMs);
+  const m = /\{[^{}]*"input_i"[\s\S]*?\}/.exec(stderr);
+  if (!m) throw new Error(`loudnorm: no measurement in ffmpeg output …${stderr.slice(-400)}`);
+  const r = JSON.parse(m[0]) as Record<string, string>;
+  const num = (k: string) => { const v = parseFloat(r[k]); if (!Number.isFinite(v)) throw new Error(`loudnorm: bad ${k} "${r[k]}"`); return v; };
+  // A silent file measures −inf and cannot be normalized — leave it as it is rather than fail the render.
+  if (!Number.isFinite(parseFloat(r.input_i)) || parseFloat(r.input_i) < -70) return;
+  const out = `${dir}/loud-${Date.now()}.mp4`;
+  await runFfmpeg([
+    "-y", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy",
+    "-af", `${filt}:measured_I=${num("input_i")}:measured_TP=${num("input_tp")}:measured_LRA=${num("input_lra")}:measured_thresh=${num("input_thresh")}:offset=${num("target_offset")}:linear=true:print_format=summary,aresample=48000`,
+    "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", out,
+  ], timeoutMs);
+  await Bun.write(path, Bun.file(out));
+  await rm(out, { force: true }).catch(() => { /* tmp */ });
+}
+
 async function runJob(job: Job, spec: JobSpec): Promise<void> {
   // EVERYTHING inside the try — an early throw (mkdir on a full disk) must still
   // hit finally, or activeJobs leaks and the idle self-exit is disabled forever.
@@ -186,8 +212,10 @@ async function runJob(job: Job, spec: JobSpec): Promise<void> {
         const gapsS = Array.from({ length: Math.max(0, clipFiles.length - 1) }, (_, k) => gapForJoin(k, stage.gapMs ?? DISSECT_DEFAULTS.gapMs, stage.gapJitterMs ?? DISSECT_DEFAULTS.gapJitterMs) / 1000);
                 const plan = dissectStitchArgs(clipFiles, trims, outPath, { gapsS, roomTone, loudI: stage.loudI, vertical: stage.vertical === true, audioOffsetMs: stage.audioOffsetMs });
         job.result = { ...plan.manifest, trims };
-        job.note = "stitching";
+                job.note = "stitching";
         await runFfmpeg(plan.args, remaining(LIMITS.renderTimeoutMs));
+        job.note = "normalizing loudness";
+        await normalizeLoudness(outPath, dir, remaining(LIMITS.renderTimeoutMs));
       } else {
         await runFfmpeg(planStage(stage, files, outPath), remaining(LIMITS.renderTimeoutMs));
       }
