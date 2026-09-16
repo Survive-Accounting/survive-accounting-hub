@@ -84,7 +84,7 @@ import { CHAPTER_JOINED_EVENT, LearnChapterModule, openChapterFinder, readJoined
 import { ChapterJoinGate } from "@/components/learn/ChapterJoinGate";
 import { pageShareUrl } from "@/lib/share-url";
 import { CramPlayer, type PlayerItem, type PlayerPart } from "@/components/learn/CramPlayer";
-import { GreekAskSheet } from "@/components/learn/GreekAskSheet";
+
 import { partKey, setIdOfKey } from "@/lib/student-shorts";
 import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
 import { DEFAULT_LOOK, isLook, LK, LEARN_CSS, themeFor, themeStyle, type Look } from "@/components/learn/learn-theme";
@@ -325,12 +325,12 @@ function LearnShell() {
   // address without remounting, so the state seeded from search.campus above has to follow it.
   useEffect(() => { if (search.campus && search.campus !== campusId) setCampusId(search.campus); }, [campusId, search.campus]);
     const [pickerOpen, setPickerOpen] = useState(false);
-  // THE HOME HERO'S HANDOFF (2026-09-16): ?pick=1 opens the picker on arrival; the pick then asks about a chapter.
-  const [greekAsk, setGreekAsk] = useState(false);
+    // ?pick=1 opens the school picker on arrival (a link that wants the school asked first). The "fraternity or
+  // sorority?" step that followed it is gone (the simple flow, Lee, 2026-09-16 round 2) — the chapter path is the
+  // "Studying with your chapter?" link on the home page and the chapter finder on this one.
   useEffect(() => { if (search.pick) setPickerOpen(true); }, [search.pick]);
   const pickSchool = (s: School) => {
     setPickerOpen(false);
-    if (search.pick) setGreekAsk(true);
     if (!s.campusId) return;
     // The site-wide "last used campus" cookie/key — so the homepage agrees with the pick, the way
     // it does when the pick is made there.
@@ -723,7 +723,7 @@ function LearnShell() {
       <HideChatWhile on={inPlayer} />
 
             {pickerOpen && <LearnSchoolSheet current={school} onClose={() => { setPickerOpen(false); if (search.pick) void navigate({ search: (p: LearnSearch) => ({ ...p, pick: undefined }), replace: true }); }} onPick={pickSchool} />}
-      {greekAsk && <GreekAskSheet schoolName={school?.name ?? null} onYes={() => { setGreekAsk(false); openChapterFinder(); }} onNo={() => setGreekAsk(false)} />}
+      
       {search.looks && <LearnLookPicker look={look} onPick={pickLook} />}
 
       {paywallTopic && <Paywall topic={paywallTopic} campusName={campusName} campusId={campusId} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}

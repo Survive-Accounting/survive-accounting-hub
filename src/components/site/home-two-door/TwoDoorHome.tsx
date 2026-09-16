@@ -211,11 +211,12 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   // The SECOND Exam-1 door, at the foot of the feature list — a reader who scrolled the whole
   // list can convert without scrolling back up. Same waitlist the solo door opens.
     const openExam1Free = () => { track("homepage_secondary_cta_clicked", ctx()); if (campus.school) goLearn(campus.school.id); else setPickerFor("solo"); };
-  // THE HERO'S START CRAMMING (Lee, 2026-09-16): /learn with the school picker up, then "in a fraternity or
-  // sorority?" (the learn route's ?pick=1). The picker opens even for a known campus — it is pre-marked there.
+    // THE HERO'S START CRAMMING (the simple flow, Lee, 2026-09-16 round 2): a known campus opens its /learn page at
+  // once — never a second school question; an unknown one gets the picker, once, then /learn. The "fraternity or
+  // sorority?" step is gone; "Studying with your chapter?" under the button is the chapter path (openChapter).
   const startCramming = () => {
     track("homepage_study_solo_clicked", { ...ctx(), returning, hero: true });
-    void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: campus.school?.id ?? undefined, chapter: undefined }, search: { pick: true } as never });
+    if (campus.school) goLearn(campus.school.id); else setPickerFor("solo");
   };
 
   // A school was chosen in the picker: remember it (the page repaints for that campus), then
@@ -255,49 +256,29 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       <SiteHeader homeNav onLanding />
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
-                <TwoDoorHero
+                        <TwoDoorHero
           code={campus.code}
           schoolName={campus.school?.name ?? null}
           onStart={startCramming}
+          onChapter={openChapter}
+          onChangeSchool={openSwitch}
         />
 
-        {/* PROOF DIRECTLY UNDER THE CLAIM (p4 §2): the three checks sit right below the subhead,
-            above the doors. Centered under the centered hero (p6 §3) — TrustChips left-aligns at
-            lg by default, which read as off-axis here. */}
+        {/* PROOF DIRECTLY UNDER THE CLAIM (p4 §2): the three checks sit right below the hero. */}
         <div className="sa-home-chips mb-7 sm:mb-8">
-          <TrustChips onBio={() => setBioOpen(true)} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} thirdDesktopOnly />
+          <TrustChips onBio={() => setBioOpen(true)} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(MARKETING_HERO_ID)} thirdDesktopOnly />
         </div>
 
         {/* Legacy compatibility: every other page's navbar still links "/#exam1". */}
         <div id="exam1" className="sa-anchor" />
 
-        {/* THE SWITCHERS MOVED INSIDE THE CARDS (p11 §2). A standalone line above the pair had to
-            speak for both doors at once; each card now carries its own context and its own picker,
-            and both are given the SAME level of context so they stay symmetrical at every state. */}
-        <TwoDoorCards
-          code={campus.code}
-          campusId={campus.school?.id ?? null}
-          schoolName={campus.school?.name ?? null}
-          chapter={chapter}
-          greekCycle={greekCycle}
-          onSolo={openSolo}
-          soloHref={previewSoloHref}
-          onChapter={openChapter}
-          onSwitchSchool={openSwitch}
-          onSwitchChapter={openChapterPicker}
-          pulse={pulse}
-        />
-
-        {/* EXAM 1 IS FREE — said ONCE, under both doors (p9 §3). It used to close each card, where
-            it said the same thing twice and competed with the bold in the buttons above it. */}
-        <p className="mt-6 text-center text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
-          Exam 1 is ready.
-        </p>
+        {/* THE DOORS ARE GONE (the simple flow, Lee, 2026-09-16: "one primary action, no doors"). One button in the
+            hero starts cramming; the chapter path is the quiet link under it. TwoDoorCards stays in this file, unmounted,
+            until the flow has run for a while. */}
 
         {/* COURSE SCOPE — one quiet line, because students have genuinely asked whether Survive
             covers Intermediate. A tiny modal answers; the hero stays out of it. */}
-        {/* Second line of the same block — the muted qualifier under the promise, not its own beat. */}
-        <p className="mt-1.5 text-center text-[13px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
+        <p className="mt-2 text-center text-[13px]" style={{ fontFamily: BRAND_SANS, color: "var(--text-muted)" }}>
           Intro Financial Accounting only{" "}
           <span aria-hidden style={{ opacity: 0.5 }}>·</span>{" "}
           <button
@@ -519,27 +500,32 @@ const HERO_HSW_CSS = `
 .sa-hero-cta:focus-visible { outline: 2px solid var(--brand-cream); outline-offset: 6px; border-radius: 999px; }
 `;
 
-function TwoDoorHero({ code, schoolName, onStart }: {
+function TwoDoorHero({ code, schoolName, onStart, onChapter, onChangeSchool }: {
   code: string | null;
   schoolName: string | null;
-  /** Start cramming — /learn with the school picker up (2026-09-16). */
+  /** Start cramming — the campus's /learn page, or the picker once (the simple flow, 2026-09-16). */
   onStart: () => void;
+  /** "Studying with your chapter?" — the chapter finder (school first when unknown). */
+  onChapter: () => void;
+  /** "Not you? Change school" under the button when a campus is known. */
+  onChangeSchool: () => void;
 }) {
   // Same honesty rule as every hero before it: the campus version needs BOTH a school and a
   // VERIFIED course code; anything less renders the generic page, never an invented code.
   const headline = code && schoolName
-    ? <><span style={{ color: "var(--accent)" }}>{nbspCode(code)}</span> at {schoolName} is where GPAs quietly slip.</>
-    : <>Intro accounting is where GPAs quietly slip.</>;
-  // THE STRIKE (Lee, 2026-09-16: "show the bolt"): the outro's real ChainLightning, from the navbar's bolt to
-  // Start cramming — on arrival and every seven seconds while the hero is on screen. Measured in viewport px at
-  // each strike, drawn on a fixed overlay. Nothing under reduced motion.
+        ? <><span style={{ color: "var(--accent)" }}>{nbspCode(code)}</span> at {schoolName}, crammed.</>
+    : <>Cram what&apos;s on your exam.</>;
+    // THE STRIKE (Lee, 2026-09-16: "show the bolt"): the outro's real ChainLightning, from the navbar's bolt to
+  // Start cramming — ONCE per browsing session on arrival (the simple flow: "never every few seconds"), then the
+  // pill settles into its steady glow. Measured in viewport px, drawn on a fixed overlay. Nothing under reduced motion.
   const btn = useRef<HTMLDivElement>(null);
   const [lit, setLit] = useState(false);
   const [geo, setGeo] = useState<{ from: Rect; to: Rect; w: number; h: number } | null>(null);
   useEffect(() => {
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    try { if (sessionStorage.getItem("sa-hero-struck") === "1") return; } catch { /* strike anyway */ }
     let alive = true;
-    const strike = () => {
+    const t0 = window.setTimeout(() => {
       if (!alive) return;
       const b = btn.current?.getBoundingClientRect();
       if (!b || b.bottom < 0 || b.top > window.innerHeight) return;
@@ -547,11 +533,10 @@ function TwoDoorHero({ code, schoolName, onStart }: {
       const from: Rect = n ? { x: n.left, y: n.top, w: n.width, h: n.height } : { x: 28, y: 20, w: 18, h: 26 };
       setGeo({ from, to: { x: b.left, y: b.top, w: b.width, h: b.height }, w: window.innerWidth, h: window.innerHeight });
       setLit(true);
+      try { sessionStorage.setItem("sa-hero-struck", "1"); } catch { /* once per load then */ }
       window.setTimeout(() => { if (alive) setLit(false); }, 1100);
-    };
-    const t0 = window.setTimeout(strike, 900);
-    const iv = window.setInterval(strike, 7000);
-    return () => { alive = false; window.clearTimeout(t0); window.clearInterval(iv); };
+    }, 900);
+    return () => { alive = false; window.clearTimeout(t0); };
   }, []);
   return (
     <section id={MARKETING_HERO_ID} className="sa-two-door-hero flex flex-col items-center pb-5 pt-8 sm:pt-12" style={{ fontFamily: BRAND_SANS }}>
@@ -568,17 +553,31 @@ function TwoDoorHero({ code, schoolName, onStart }: {
               TWO LINES BY DECREE, not by wrap: the break belongs after "exam", where the sentence
               turns. Letting it fall wherever the viewport runs out put it somewhere different on
               every screen. */}
+                    {/* THE SUB-LINE (Lee, 2026-09-16, round 2): what it is, in his words; "Built for exam week" only when we
+              don't know the campus yet. "Like Reels for exam prep." stays off the home hero (2026-09-14). */}
           <p className="mt-3.5 text-[17px] font-medium leading-snug sm:text-[19px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--text-secondary)" }}>
-            <span className="block">Cram what&apos;s on your exam.</span>
-            <span className="block">Skip everything else.</span>
+            <span className="block">Cram videos around a minute each.</span>
+            <span className="block">Practice that looks like your test.</span>
+            {!(code && schoolName) && <span className="block">Built for exam week.</span>}
           </p>
-          {/* "Like Reels for exam prep." removed from the home hero 2026-09-14 (Lee). */}
           <div className="mt-6">
             <button type="button" className="sa-hero-cta" onClick={onStart} data-gm-cta="hero-start" aria-label="Start cramming">
               <CtaButton ref={btn} label="Start cramming →" font={18} h={56} padX={30} minW={250} lit={lit} />
             </button>
           </div>
-          <p className="mt-3 text-[13px]" style={{ color: "var(--text-muted)" }}>Exam 1 is free. Pick your school, then go.</p>
+          <p className="mt-3 text-[13px]" style={{ color: "var(--text-muted)" }}>
+            Exam 1 is free.
+            {schoolName && (
+              <>
+                {" "}Opens your {schoolName} page — not you?{" "}
+                <button type="button" onClick={onChangeSchool} className="underline underline-offset-4" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "inherit", font: "inherit" }}>Change school</button>
+              </>
+            )}
+          </p>
+          {/* THE CHAPTER PATH — a quiet link, not a door (the simple flow, 2026-09-16). */}
+          <button type="button" onClick={onChapter} data-gm-cta="hero-chapter" className="mt-4 text-[13.5px] font-bold underline underline-offset-4" style={{ background: "none", border: 0, padding: "4px 0", cursor: "pointer", color: "var(--text-secondary)", fontFamily: BRAND_SANS }}>
+            Studying with your chapter?
+          </button>
         </div>
         {/* HOW SURVIVE WORKS — 0:36, silent from the moment the page is up; a tap restarts it with sound. */}
         <div className="sa-hero-hsw-video"><HowSurviveWorksVideo radius={18} /></div>
