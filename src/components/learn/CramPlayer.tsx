@@ -11,7 +11,7 @@
 // beside the column; it files a `question` intake with the set and the timestamp. On a phone the
 // video is the screen, actions sit bottom-right, practice and ask are sheets.
 import { useMemo, useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Check, ChevronLeft, Loader2, Lock, Maximize2, Play, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowUp, Check, ChevronLeft, Loader2, Lock, Maximize2, Pause, Play, Volume2, VolumeX, X } from "lucide-react";
 
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { PracticeStage } from "@/components/site/PracticeStage";
@@ -30,6 +30,8 @@ import { gateOpen, practiceScoreOf, type GateState } from "@/lib/practice-score"
  *  five cards in the rail — Lee: "I've posted all 5 videos but only seeing first one." `key` is
  *  the part's publish key (student-shorts' partKey) and the key its progress is kept under. */
 export type PlayerPart = { index: number; of: number; name: string; playbackId: string | null; coverUrl: string | null; key: string; endCta?: "try" | "unlock" | null;
+  /** When the practice slide comes up, in seconds — the stitch recorded it. Absent = as the last slide arrives. */
+  ctaAtS?: number | null;
   /** "practice80" — the recap: it waits for the other videos and an 80% practice run (lib/practice-score.ts). */
   gate?: "practice80" | null };
 export type PlayerItem = { set: StudentSet; topic: StudentTopic; n: number; of: number; locked: boolean; part: PlayerPart };
@@ -37,6 +39,10 @@ export type PlayerItem = { set: StudentSet; topic: StudentTopic; n: number; of: 
 const readSound = () => { try { return sessionStorage.getItem(SOUND_KEY) === "on"; } catch { return false; } };
 const writeSound = (on: boolean) => { try { sessionStorage.setItem(SOUND_KEY, on ? "on" : "off"); } catch { /* ignore */ } };
 const SHARE_DISMISS = "sa-player-share-dismissed";
+/** m:ss on the control bar. */
+const clockOf = (s: number): string => (Number.isFinite(s) && s > 0 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : "0:00");
+/** The school picker's navy, for the practice drawer (its questions are drawn in light ink). */
+const PRACTICE_BG = "#101C39", PRACTICE_EDGE = "rgba(148,180,255,0.20)", PRACTICE_INK = "#F2EFE6";
 
 export function CramPlayer({
   items, index, onIndex, progress, onStarted, onComplete, onPosition, resolvePlayback, demo, narrow, theme,
@@ -176,10 +182,13 @@ export function CramPlayer({
   );
   // THE PRACTICE END SCREEN (2026-09-14, PracticeEndCard.tsx): a video that ends on a practice slide stops
   // on it with the real buttons, and waits — practice or skip is the student's call.
-  // "try" is an offer, not a stop: it stands for five seconds, then the next video rolls (Lee, 2026-09-15).
+  // THE OFFER IS A GATE (Lee, 2026-09-15: "no more countdown. Just force them to either click Try Practice
+  // Problems or Keep Watching"). It arrives with the practice slide — not at the end of the video — and the
+  // picture holds until they choose.
   const endCard = endCta === part.key && part.endCta && (
-    <PracticeEndCard variant={part.endCta} countdown={part.endCta === "try" && hasNext ? 5 : undefined}
-      onPractice={() => { setEndCta(null); onPractice(true); }} onSkip={() => { setEndCta(null); if (hasNext) go(1); }} />
+    <PracticeEndCard variant={part.endCta}
+      onPractice={() => { setEndCta(null); onPractice(true); }}
+      onSkip={() => { setEndCta(null); const v = document.querySelector<HTMLVideoElement>("[data-sa-cram-video]"); if (v && !v.ended) void v.play().catch(() => { /* the glyph invites the tap */ }); else if (hasNext) go(1); }} />
   );
   const video = (
     <Video
@@ -199,7 +208,8 @@ export function CramPlayer({
         }
         window.setTimeout(() => go(1), 1200);
       }}
-      onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask || gateShut}
+      onCta={() => setEndCta(part.key)}
+      onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask || gateShut || endCta === part.key}
       caption={{ topic: topic.name, n: cap.n, of: cap.of, name: cap.name }}
       overlay={gateCard || breatherCard || endCard || null}
     />
@@ -223,13 +233,16 @@ export function CramPlayer({
     </div>
   );
 
+  // THE PRACTICE DRAWER (2026-09-15). Lee: "they're not easy to read... it needs to match the vibe of the school
+  // picker." The practice stage draws in light ink, and the cream shell swallowed it; it now sits on the picker's
+  // navy, where its own colours read.
   const practicePanel = practice && set.ceqCount > 0 && (
-    <div className={narrow ? "flex min-h-0 flex-1 flex-col" : "lk-in flex flex-col overflow-hidden rounded-2xl"} style={narrow ? { background: LK.surface, borderTop: `1px solid ${LK.border}`, borderRadius: "18px 18px 0 0" } : { width: "min(560px, 46vw)", height: "min(700px, calc(100dvh - 110px))", background: LK.surface, border: `1px solid ${LK.border}` }}>
-      <div className="flex shrink-0 items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${LK.border}` }}>
-        <span className="lk-disp" style={{ fontSize: 15 }}>Practice</span>
-        <span className="min-w-0 truncate text-[12px]" style={{ color: LK.muted }}>{set.name}</span>
+    <div className={narrow ? "flex min-h-0 flex-1 flex-col" : "lk-in flex flex-col overflow-hidden rounded-2xl"} style={narrow ? { background: PRACTICE_BG, borderTop: `1px solid ${PRACTICE_EDGE}`, borderRadius: "18px 18px 0 0", color: PRACTICE_INK } : { width: "min(560px, 46vw)", height: "min(700px, calc(100dvh - 110px))", background: PRACTICE_BG, border: `1px solid ${PRACTICE_EDGE}`, color: PRACTICE_INK, boxShadow: "0 30px 70px -30px rgba(0,0,0,0.85)" }}>
+      <div className="flex shrink-0 items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${PRACTICE_EDGE}`, background: "rgba(255,255,255,0.03)" }}>
+        <span className="lk-disp" style={{ fontSize: 15, color: PRACTICE_INK }}>Practice</span>
+        <span className="min-w-0 truncate text-[12px]" style={{ color: "#93A0B4" }}>{set.name}</span>
         <span className="flex-1" />
-        <button type="button" onClick={() => onPractice(false)} className="grid h-8 w-8 place-items-center rounded-full" style={{ background: LK.border, color: LK.text, border: 0, cursor: "pointer" }} aria-label="Close practice"><X className="h-4 w-4" /></button>
+        <button type="button" onClick={() => onPractice(false)} className="grid h-8 w-8 place-items-center rounded-full" style={{ background: "rgba(255,255,255,0.10)", color: PRACTICE_INK, border: 0, cursor: "pointer" }} aria-label="Close practice"><X className="h-4 w-4" /></button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto" style={{ display: "flex", flexDirection: "column" }}>
         <PracticeStage
@@ -305,9 +318,11 @@ export function CramPlayer({
 // paused), a thin progress bar along the foot you can tap to seek, the sound pill at the top,
 // fullscreen bottom-right on a desk, and a check with "Crammed" when it ends. Autoplays muted
 // the moment it can (the browser rule), resumes where it left off, keeps writing its position.
-function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, shrink, theme, onStarted, onComplete, onPosition, onEnded, onLocked, resolvePlayback, paused, caption, overlay }: {
+function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, shrink, theme, onStarted, onComplete, onPosition, onEnded, onCta, onLocked, resolvePlayback, paused, caption, overlay }: {
   /** Drawn over the picture — the breather between this video and the next. */
   overlay?: React.ReactNode;
+  /** The practice slide is on screen — the picture holds and the offer goes up. */
+  onCta?: () => void;
   set: StudentSet; part: PlayerPart; locked: boolean; demo: boolean; soundOn: boolean; onToggleSound: () => void; prog: Prog | undefined; narrow: boolean; shrink: boolean; theme: LearnTheme;
   onStarted: () => void; onComplete: () => void; onPosition: (p: number, d: number | null) => void; onEnded: () => void; onLocked: () => void;
   resolvePlayback: (set: StudentSet) => Promise<string | null>; paused: boolean;
@@ -320,7 +335,15 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
   const [playing, setPlaying] = useState(false);
   // TRUE until the stream can play, and again whenever it stalls — drives the loading wheel.
   const [buffering, setBuffering] = useState(true);
-  const [pct, setPct] = useState(0);
+    const [pct, setPct] = useState(0);
+  const [at, setAt] = useState(0);
+  const [dur, setDur] = useState(0);
+  const [rate, setRate] = useState(1);
+  const [vol, setVol] = useState(1);
+  const [barOpen, setBarOpen] = useState(false);
+  /** The practice offer has been made on this part — once only. */
+  const ctaDone = useRef(false);
+  useEffect(() => { ctaDone.current = false; }, [part.key]);
   const [fetched, setFetched] = useState<string | null>(null);
   const pid = part.playbackId ?? set.playbackId ?? fetched;
   const isDemo = demo || pid === DEMO_PLAYBACK;
@@ -359,7 +382,7 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
     return () => v.removeEventListener("loadedmetadata", go);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pid, isDemo, locked, paused]);
-  useEffect(() => { const v = ref.current; if (v) v.muted = !soundOn; }, [soundOn]);
+    useEffect(() => { const v = ref.current; if (v) { v.muted = !soundOn; if (soundOn && v.volume === 0) { v.volume = 1; setVol(1); } } }, [soundOn]);
   const lastWrite = useRef(0);
   const flush = () => { const v = ref.current; if (v && v.currentTime > 0) onPosition(Math.floor(v.currentTime), v.duration ? Math.floor(v.duration) : null); };
   useEffect(() => () => { const v = ref.current; if (v && !isDemo && v.currentTime > 0 && !v.ended) onPosition(Math.floor(v.currentTime), v.duration ? Math.floor(v.duration) : null); }, [isDemo, onPosition]);
@@ -397,7 +420,21 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
             <video ref={ref} playsInline muted={!soundOn} preload="auto" poster={poster} className="h-full w-full" style={{ objectFit: "contain", background: "#000", pointerEvents: "none" }}
               onPlay={() => { setEnded(false); setPlaying(true); onStarted(); }} onPause={() => { setPlaying(false); flush(); }}
               onWaiting={() => setBuffering(true)} onStalled={() => setBuffering(true)} onPlaying={() => setBuffering(false)} onCanPlay={() => setBuffering(false)}
-              onTimeUpdate={() => { const v = ref.current; if (v?.duration) setPct(v.currentTime / v.duration); const now = Date.now(); if (now - lastWrite.current > 5000) { lastWrite.current = now; flush(); } }}
+                            onTimeUpdate={() => {
+                const v = ref.current;
+                if (!v) return;
+                if (v.duration) { setPct(v.currentTime / v.duration); setDur(v.duration); }
+                setAt(v.currentTime);
+                // THE PRACTICE SLIDE (2026-09-15): at the moment the stitch recorded, else as the last slide
+                // arrives. The picture holds there until they choose — the offer is a gate, not a countdown.
+                if (onCta && part.endCta && !ctaDone.current && v.duration) {
+                  const mark = part.ctaAtS != null && part.ctaAtS > 0 && part.ctaAtS < v.duration - 0.4 ? part.ctaAtS : Math.max(0, v.duration - 4);
+                  if (v.currentTime >= mark) { ctaDone.current = true; v.pause(); onCta(); }
+                }
+                const now = Date.now(); if (now - lastWrite.current > 5000) { lastWrite.current = now; flush(); }
+              }}
+              onLoadedMetadata={() => { const v = ref.current; if (v?.duration) setDur(v.duration); }}
+              data-sa-cram-video
               onEnded={finish} onError={() => setErr(true)} />
             {/* THE LOADING WHEEL (Lee, 2026-09-11: "ensure there's a loading animation … since it
                 feels like it's a bit stuck otherwise") — while the stream is buffering, in place
@@ -425,10 +462,28 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
           {!narrow && (
             <button type="button" onClick={fullscreen} aria-label="Full screen" className="absolute grid place-items-center rounded-full" style={{ ...pill, right: 10, bottom: 14, width: 34, height: 34, padding: 0 }}><Maximize2 className="h-4 w-4" /></button>
           )}
-          {/* THE PROGRESS BAR — tap to seek. */}
-          <div role="slider" aria-label="Position" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct * 100)} onClick={seek} className="absolute inset-x-0 bottom-0" style={{ height: 22, cursor: "pointer" }}>
-            <div className="absolute inset-x-3 bottom-2" style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.28)" }}>
-              <div style={{ width: `${Math.round(pct * 1000) / 10}%`, height: "100%", borderRadius: 2, background: theme.accent, transition: "width 200ms linear" }} />
+                    {/* THE CONTROLS (Lee, 2026-09-15: "we need more controls with the videos. More like a video player… I
+              need a way to seek, change video speed, play/pause, volume"). Over the foot of the picture; they fade
+              in on hover and stay put on a phone or while paused, and never cover the caption. */}
+          <div onClick={(e) => e.stopPropagation()} onMouseEnter={() => setBarOpen(true)} onMouseLeave={() => setBarOpen(false)}
+            className="absolute inset-x-0 bottom-0" style={{ padding: "20px 10px 6px", background: "linear-gradient(to top, rgba(0,0,0,0.82), rgba(0,0,0,0))", opacity: barOpen || !playing || narrow ? 1 : 0, transition: "opacity 160ms ease" }}>
+            <input type="range" aria-label="Seek" min={0} max={Math.max(0.1, dur)} step={0.05} value={Math.min(at, dur || 0)}
+              onChange={(e) => { const v = ref.current; if (!v) return; const t = Number(e.target.value); v.currentTime = t; setAt(t); if (v.duration) setPct(t / v.duration); }}
+              style={{ width: "100%", accentColor: theme.accent, height: 18, cursor: "pointer" }} />
+            <div className="flex items-center" style={{ gap: 7, color: "#F2EFE6", fontSize: 11.5, fontWeight: 700, marginTop: -2 }}>
+              <button type="button" onClick={toggle} aria-label={playing ? "Pause" : "Play"} style={{ ...pill, borderRadius: 999, width: 30, height: 30, display: "grid", placeItems: "center", padding: 0 }}>
+                {playing ? <Pause className="h-3.5 w-3.5" fill="currentColor" /> : <Play className="h-3.5 w-3.5" style={{ marginLeft: 2 }} fill="currentColor" />}
+              </button>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>{clockOf(at)} / {clockOf(dur)}</span>
+              <span className="flex-1" />
+              <button type="button" title="Playback speed" aria-label={`Speed ${rate}×`} style={{ ...pill, borderRadius: 999, padding: "4px 9px" }}
+                onClick={() => { const next = rate === 1 ? 1.25 : rate === 1.25 ? 1.5 : rate === 1.5 ? 2 : rate === 2 ? 0.75 : 1; setRate(next); const v = ref.current; if (v) v.playbackRate = next; }}>{rate}×</button>
+              <button type="button" onClick={onToggleSound} aria-label={soundOn ? "Mute" : "Unmute"} style={{ ...pill, borderRadius: 999, width: 30, height: 30, display: "grid", placeItems: "center", padding: 0 }}>
+                {soundOn ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+              </button>
+              <input type="range" aria-label="Volume" min={0} max={1} step={0.05} value={soundOn ? vol : 0}
+                onChange={(e) => { const n = Number(e.target.value); setVol(n); const v = ref.current; if (v) v.volume = n; if (n > 0 && !soundOn) onToggleSound(); }}
+                style={{ width: 64, accentColor: theme.accent, cursor: "pointer" }} />
             </div>
           </div>
         </>

@@ -353,8 +353,10 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
 
       {/* THE CARD — swaps in place in ~120ms */}
       <div className="min-h-0 flex-1 px-4 pb-3 pt-3 sm:px-5 sm:pb-4" style={{ opacity: swap ? 0 : 1, transform: swap ? "translateX(8px)" : "none", transition: `opacity ${SWAP_MS}ms ease, transform ${SWAP_MS}ms ease` }}>
-        <p className="text-[15px] font-semibold leading-relaxed sm:text-[14px]">{cur.prompt}</p>
-        <div className="mt-3 flex flex-col gap-2">
+                {/* THE QUESTION, in the school picker's voice (Lee, 2026-09-15: "they're not easy to read… it needs to
+            match the vibe of the school picker"): the ask big and cream, each answer a lettered row. */}
+        <p className="lk-disp" style={{ fontSize: 19, lineHeight: 1.25, color: C.text, textWrap: "balance" }}>{cur.prompt}</p>
+        <div className="mt-4 flex flex-col gap-2.5">
           {cur.choices.map((c, i) => {
             const isPicked = picked === c.id;
             const showRight = resolved && c.correct;
@@ -366,16 +368,22 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
                 onClick={() => lockIn(c.id)}
                 onMouseEnter={() => { if (!resolved) setHi(i); }}
                 disabled={resolved}
-                className="flex w-full items-start gap-2.5 rounded-xl px-3.5 py-3 text-left text-[14px] leading-snug sm:text-[13px]"
+                                className="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-left"
                 style={{
-                  minHeight: 48, color: C.text,
-                  background: showRight ? "rgba(59,245,160,0.14)" : showWrong ? "rgba(255,92,110,0.14)" : highlighted ? "rgba(252,163,17,0.12)" : C.panel,
-                  border: `1.5px solid ${showRight ? "rgba(59,245,160,0.7)" : showWrong ? "rgba(255,92,110,0.7)" : highlighted ? C.yellow : C.border}`,
+                  minHeight: 54, color: C.text, fontSize: 15.5, fontWeight: 600, lineHeight: 1.3,
+                  background: showRight ? "rgba(59,245,160,0.16)" : showWrong ? "rgba(255,92,110,0.16)" : highlighted ? "rgba(252,163,17,0.14)" : "rgba(255,255,255,0.05)",
+                  border: `1.5px solid ${showRight ? "rgba(59,245,160,0.8)" : showWrong ? "rgba(255,92,110,0.8)" : highlighted ? C.yellow : "rgba(148,180,255,0.18)"}`,
+                  boxShadow: highlighted && !resolved ? "0 6px 18px -10px rgba(252,163,17,0.8)" : "none",
                   textDecoration: showWrong ? "line-through" : "none",
-                  transition: "background 120ms, border-color 120ms",
+                  transition: "background 120ms, border-color 120ms, box-shadow 120ms",
                 }}
               >
-                {showRight ? <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.green }} /> : showWrong ? <CircleX className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.red }} /> : <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full" style={{ border: `1.5px solid ${highlighted ? C.yellow : C.border}` }} />}
+                <span aria-hidden className="grid shrink-0 place-items-center rounded-lg" style={{
+                  width: 28, height: 28, fontSize: 12.5, fontWeight: 800,
+                  background: showRight ? "rgba(59,245,160,0.22)" : showWrong ? "rgba(255,92,110,0.22)" : "rgba(255,255,255,0.08)",
+                  color: showRight ? C.green : showWrong ? C.red : highlighted ? C.yellow : C.muted,
+                  border: `1px solid ${showRight ? "rgba(59,245,160,0.5)" : showWrong ? "rgba(255,92,110,0.5)" : "rgba(148,180,255,0.22)"}`,
+                }}>{showRight ? <CircleCheck className="h-4 w-4" /> : showWrong ? <CircleX className="h-4 w-4" /> : String.fromCharCode(65 + i)}</span>
                 <span className="min-w-0">{c.text}</span>
               </button>
             );
