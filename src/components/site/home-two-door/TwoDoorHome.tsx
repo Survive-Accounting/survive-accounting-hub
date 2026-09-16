@@ -63,7 +63,7 @@ import type { School as PickerSchool } from "@/lib/schools";
 import { CAMPUS_LINE_CSS } from "./campus-line";
 import { soloButtonLabel } from "./two-door-copy";
 import { nbspCode } from "@/lib/course-code";
-import { HowSurviveWorksVideo } from "@/components/learn/HowSurviveWorks";
+import { HowSurviveWorksCard, HowSurviveWorksLightbox } from "@/components/learn/HowSurviveWorks";
 import { ChainLightning, CtaButton } from "@/components/brand-cards/ChainLightning";
 import type { Rect } from "@/components/brand-cards/chain-lightning";
 
@@ -253,7 +253,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       <style>{TWO_DOOR_CSS}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate onBlack /></div>
 
-      <SiteHeader homeNav onLanding />
+      <SiteHeader homeNav onLanding campusChip={{ label: campus.school?.name ?? "Choose your school", onClick: openSwitch }} />
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
                         <TwoDoorHero
@@ -261,7 +261,6 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           schoolName={campus.school?.name ?? null}
           onStart={startCramming}
           onChapter={openChapter}
-          onChangeSchool={openSwitch}
         />
 
         {/* PROOF DIRECTLY UNDER THE CLAIM (p4 §2): the three checks sit right below the hero. */}
@@ -491,31 +490,28 @@ function SwitchFlourish({ code, school, c1, c2, onDone }: {
 // ── HERO — CENTERED, QUIET ────────────────────────────────────────────────────────────────────
 /** Headline → subhead. The campus control moved out to the SchoolBadge (directly above the cards),
  *  and the proof chips sit right under the subhead now (p4). */
-/** The hero's own layout: words left, the video right on a desk; stacked on a phone. */
-const HERO_HSW_CSS = `
-.sa-hero-hsw { display: grid; grid-template-columns: 1fr; gap: 22px; align-items: center; width: 100%; text-align: center; justify-items: center; }
-.sa-hero-hsw-video { width: min(260px, 72vw); }
-@media (min-width: 720px) { .sa-hero-hsw { grid-template-columns: 1fr 250px; gap: 36px; text-align: left; justify-items: start; } .sa-hero-hsw-video { width: 250px; justify-self: end; } }
+/** THE CENTERED HERO (Lee, 2026-09-16, from his centered wireframe: "the home page looks very scattered … I like this
+ *  approach better"): one column — the How Survive Works card on top, the headline, the line, the button, "Exam 1 is
+ *  free.", the chapter link. The campus lives in the navbar chip, not under the button. */
+const HERO_CSS = `
+.sa-hero-col { display: flex; flex-direction: column; align-items: center; text-align: center; width: 100%; gap: 0; }
 .sa-hero-cta { background: transparent; border: 0; padding: 0; cursor: pointer; display: inline-block; }
 .sa-hero-cta:focus-visible { outline: 2px solid var(--brand-cream); outline-offset: 6px; border-radius: 999px; }
 `;
 
-function TwoDoorHero({ code, schoolName, onStart, onChapter, onChangeSchool }: {
+function TwoDoorHero({ code, schoolName, onStart, onChapter }: {
   code: string | null;
   schoolName: string | null;
   /** Start cramming — the campus's /learn page, or the picker once (the simple flow, 2026-09-16). */
   onStart: () => void;
   /** "Studying with your chapter?" — the chapter finder (school first when unknown). */
   onChapter: () => void;
-  /** "Not you? Change school" under the button when a campus is known. */
-  onChangeSchool: () => void;
 }) {
   // Same honesty rule as every hero before it: the campus version needs BOTH a school and a
   // VERIFIED course code; anything less renders the generic page, never an invented code.
-  const headline = code && schoolName
-        ? <><span style={{ color: "var(--accent)" }}>{nbspCode(code)}</span> at {schoolName}, crammed.</>
-    : <>Cram what&apos;s on your exam.</>;
-    // THE STRIKE (Lee, 2026-09-16: "show the bolt"): the outro's real ChainLightning, from the navbar's bolt to
+  const known = !!(code && schoolName);
+  const [video, setVideo] = useState(false);
+  // THE STRIKE (Lee, 2026-09-16: "show the bolt"): the outro's real ChainLightning, from the navbar's bolt to
   // Start cramming — ONCE per browsing session on arrival (the simple flow: "never every few seconds"), then the
   // pill settles into its steady glow. Measured in viewport px, drawn on a fixed overlay. Nothing under reduced motion.
   const btn = useRef<HTMLDivElement>(null);
@@ -539,49 +535,38 @@ function TwoDoorHero({ code, schoolName, onStart, onChapter, onChangeSchool }: {
     return () => { alive = false; window.clearTimeout(t0); };
   }, []);
   return (
-    <section id={MARKETING_HERO_ID} className="sa-two-door-hero flex flex-col items-center pb-5 pt-8 sm:pt-12" style={{ fontFamily: BRAND_SANS }}>
-      <style>{HERO_HSW_CSS}</style>
-      <div className="sa-hero-hsw">
-        <div className="flex flex-col" style={{ alignItems: "inherit" }}>
-          <h1
-            className="max-w-[600px] text-[30px] font-black leading-[1.12] sm:text-[40px] lg:text-[44px]"
-            style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}
-          >
-            {headline}
-          </h1>
-          {/* SUBHEAD — supports the headline, doesn't compete: medium weight, muted (p4 §1).
-              TWO LINES BY DECREE, not by wrap: the break belongs after "exam", where the sentence
-              turns. Letting it fall wherever the viewport runs out put it somewhere different on
-              every screen. */}
-                    {/* THE SUB-LINE (Lee, 2026-09-16, round 2): what it is, in his words; "Built for exam week" only when we
-              don't know the campus yet. "Like Reels for exam prep." stays off the home hero (2026-09-14). */}
-          <p className="mt-3.5 text-[17px] font-medium leading-snug sm:text-[19px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--text-secondary)" }}>
-            <span className="block">Cram videos around a minute each.</span>
-            <span className="block">Practice that looks like your test.</span>
-            {!(code && schoolName) && <span className="block">Built for exam week.</span>}
-          </p>
-          <div className="mt-6">
-            <button type="button" className="sa-hero-cta" onClick={onStart} data-gm-cta="hero-start" aria-label="Start cramming">
-              <CtaButton ref={btn} label="Start cramming →" font={18} h={56} padX={30} minW={250} lit={lit} />
-            </button>
-          </div>
-          <p className="mt-3 text-[13px]" style={{ color: "var(--text-muted)" }}>
-            Exam 1 is free.
-            {schoolName && (
-              <>
-                {" "}Opens your {schoolName} page — not you?{" "}
-                <button type="button" onClick={onChangeSchool} className="underline underline-offset-4" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "inherit", font: "inherit" }}>Change school</button>
-              </>
-            )}
-          </p>
-          {/* THE CHAPTER PATH — a quiet link, not a door (the simple flow, 2026-09-16). */}
-          <button type="button" onClick={onChapter} data-gm-cta="hero-chapter" className="mt-4 text-[13.5px] font-bold underline underline-offset-4" style={{ background: "none", border: 0, padding: "4px 0", cursor: "pointer", color: "var(--text-secondary)", fontFamily: BRAND_SANS }}>
-            Studying with your chapter?
+    <section id={MARKETING_HERO_ID} className="sa-two-door-hero flex flex-col items-center pb-6 pt-8 sm:pt-12" style={{ fontFamily: BRAND_SANS }}>
+      <style>{HERO_CSS}</style>
+      <div className="sa-hero-col">
+        {/* HOW SURVIVE WORKS — the card on top; a click opens the real vertical video, with Start cramming in the player. */}
+        <HowSurviveWorksCard onOpen={() => setVideo(true)} />
+        <h1
+          className="mt-6 max-w-[760px] text-[32px] font-black leading-[1.06] sm:text-[44px] lg:text-[52px]"
+          style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.02em", textWrap: "balance" }}
+        >
+          {known
+            ? <><span style={{ color: "var(--accent)" }}>{nbspCode(code!)}</span> at {schoolName}.<br />Crammed.</>
+            : <>Cram what&apos;s on your exam.</>}
+        </h1>
+        {/* THE SUB-LINE (Lee, 2026-09-16, round 2): what it is, in his words; "Built for exam week" only when we
+            don't know the campus yet. "Like Reels for exam prep." stays off the home hero (2026-09-14). */}
+        <p className="mt-4 max-w-[520px] text-[17px] font-medium leading-snug sm:text-[19px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--text-secondary)", textWrap: "balance" }}>
+          <span className="block">Cram videos around a minute each.</span>
+          <span className="block">Practice that looks like your test.</span>
+          {!known && <span className="block">Built for exam week.</span>}
+        </p>
+        <div className="mt-6">
+          <button type="button" className="sa-hero-cta" onClick={onStart} data-gm-cta="hero-start" aria-label="Start cramming">
+            <CtaButton ref={btn} label="Start cramming →" font={18} h={56} padX={30} minW={250} lit={lit} />
           </button>
         </div>
-        {/* HOW SURVIVE WORKS — 0:36, silent from the moment the page is up; a tap restarts it with sound. */}
-        <div className="sa-hero-hsw-video"><HowSurviveWorksVideo radius={18} /></div>
+        <p className="mt-3 text-[13.5px]" style={{ color: "var(--text-muted)" }}>Exam 1 is free.</p>
+        {/* THE CHAPTER PATH — a quiet link, not a door (the simple flow, 2026-09-16). */}
+        <button type="button" onClick={onChapter} data-gm-cta="hero-chapter" className="mt-3 text-[13.5px] font-bold underline underline-offset-4" style={{ background: "none", border: 0, padding: "4px 0", cursor: "pointer", color: "var(--text-secondary)", fontFamily: BRAND_SANS }}>
+          Studying with your chapter?
+        </button>
       </div>
+      {video && <HowSurviveWorksLightbox onClose={() => setVideo(false)} cta={{ label: "Start cramming →", onClick: () => { setVideo(false); onStart(); } }} />}
       {geo && (
         <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 210, pointerEvents: "none" }}>
           <ChainLightning active={lit} from={geo.from} to={geo.to} w={geo.w} h={geo.h} />
@@ -590,8 +575,6 @@ function TwoDoorHero({ code, schoolName, onStart, onChapter, onChangeSchool }: {
     </section>
   );
 }
-
-
 
 // ── THE TWO DOORS ─────────────────────────────────────────────────────────────────────────────
 function TwoDoorCards({ code, campusId, schoolName, chapter, greekCycle, onSolo, soloHref, onChapter, onSwitchSchool, onSwitchChapter, pulse }: {

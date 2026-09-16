@@ -74,14 +74,7 @@ export function HowSurviveWorksRow({ narrow }: { narrow: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
-  const lightbox = open && (
-    <div role="dialog" aria-label="How Survive Works" className="fixed inset-0 z-[150] flex items-center justify-center" style={{ background: "rgba(6,10,22,0.9)", backdropFilter: "blur(10px)" }} onClick={close}>
-      <div style={{ width: "min(420px, 92vw)", maxHeight: "92dvh", aspectRatio: "9 / 16" }} onClick={(e) => e.stopPropagation()}>
-        <SoundFirst />
-      </div>
-      <button type="button" onClick={close} aria-label="Close" className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full" style={{ background: "rgba(255,255,255,0.14)", color: "#fff", border: 0, cursor: "pointer" }}><X className="h-5 w-5" /></button>
-    </div>
-  );
+  const lightbox = open && <HowSurviveWorksLightbox onClose={close} />;
   if (seen) {
     return (
       <>
@@ -127,6 +120,54 @@ function SoundFirst() {
       {ended && (
         <button type="button" onClick={() => { const v = ref.current; if (v) { v.currentTime = 0; void v.play(); } }} className="absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full" style={{ width: 72, height: 72, background: "rgba(0,0,0,0.6)", border: "2px solid rgba(255,255,255,0.85)", color: "#fff", cursor: "pointer" }} aria-label="Play again"><Play className="h-8 w-8" fill="currentColor" style={{ marginLeft: 4 }} /></button>
       )}
+    </div>
+  );
+}
+
+/** THE CARD (the home hero, Lee, 2026-09-16: "just How Survive Works and a play button… Meet Lee, 36 seconds"): a
+ *  small landscape card with the real video moving silently behind a play button. A click opens the lightbox. */
+export function HowSurviveWorksCard({ onOpen }: { onOpen: () => void }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => { const v = ref.current; if (v) void v.play().catch(() => { /* the poster black stays */ }); }, []);
+  return (
+    <button type="button" onClick={onOpen} aria-label="Watch How Survive Works — meet Lee, 36 seconds" data-gm-cta="hero-video"
+      style={{ position: "relative", display: "block", width: "min(300px, 84vw)", aspectRatio: "16 / 9", borderRadius: 14, overflow: "hidden", background: "#0B1220", border: "1px solid rgba(125,211,252,0.35)", padding: 0, cursor: "pointer", boxShadow: "0 18px 40px -18px rgba(0,0,0,0.8)" }}>
+      <video ref={ref} src={HOW_SURVIVE_WORKS_URL} muted playsInline loop preload="auto" aria-hidden onPlaying={() => setReady(true)}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: ready ? 0.55 : 0, transition: "opacity 420ms ease" }} />
+      <span aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(11,18,32,0.92) 0%, rgba(11,18,32,0.55) 55%, rgba(11,18,32,0.25) 100%)" }} />
+      <span style={{ position: "absolute", left: 16, top: 14, right: 78, textAlign: "left", color: "#F5EFE6" }}>
+        <span style={{ display: "block", fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: 17, lineHeight: 1.1, letterSpacing: "0.01em" }}>How Survive<br />Works</span>
+        <span style={{ display: "block", marginTop: 8, fontFamily: BRAND_SANS, fontSize: 12, fontWeight: 700, color: "#C8D2E6" }}>Meet Lee · {HOW_SURVIVE_WORKS_LEN}</span>
+      </span>
+      <span aria-hidden style={{ position: "absolute", right: 18, top: "50%", transform: "translateY(-50%)", width: 50, height: 50, borderRadius: "50%", border: "2px solid #FCA311", background: "rgba(11,18,32,0.75)", display: "grid", placeItems: "center", color: "#FCA311" }}>
+        <Play className="h-5 w-5" fill="currentColor" style={{ marginLeft: 3 }} />
+      </span>
+    </button>
+  );
+}
+
+/** THE LIGHTBOX: the vertical video with sound, and — when the caller hands one in — the next step right under it
+ *  (the home page's "Start cramming →", so a viewer moves on without closing anything). */
+export function HowSurviveWorksLightbox({ onClose, cta }: { onClose: () => void; cta?: { label: string; onClick: () => void } }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [onClose]);
+  return (
+    <div role="dialog" aria-label="How Survive Works" className="fixed inset-0 z-[150] flex items-center justify-center" style={{ background: "rgba(6,10,22,0.9)", backdropFilter: "blur(10px)" }} onClick={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, width: "min(400px, 92vw)", maxHeight: "94dvh" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ width: "100%", aspectRatio: "9 / 16", maxHeight: cta ? "calc(94dvh - 70px)" : "94dvh" }}>
+          <SoundFirst />
+        </div>
+        {cta && (
+          <button type="button" onClick={cta.onClick} className="lk-btn-cta" style={{ minWidth: 240, background: "#E63B2D", color: "#fff", boxShadow: "0 0 0 2px rgba(125,211,252,0.45), 0 0 24px 2px rgba(230,59,45,0.45)" }}>{cta.label}</button>
+        )}
+      </div>
+      <button type="button" onClick={onClose} aria-label="Close" className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full" style={{ background: "rgba(255,255,255,0.14)", color: "#fff", border: 0, cursor: "pointer" }}><X className="h-5 w-5" /></button>
     </div>
   );
 }

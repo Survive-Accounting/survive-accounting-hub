@@ -335,7 +335,10 @@ const homeMenuLinks = (base: string): NavItem[] => [
   { label: "Contact", href: "", contact: true },
 ];
 
-export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = true }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. DEFAULT since 2026-09-14 (Lee: "standardize nav bar across the app. Each should match the home page"); pass false for the old full bar. */ homeNav?: boolean; } = {}) {
+export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = true, campusChip }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. DEFAULT since 2026-09-14 (Lee: "standardize nav bar across the app. Each should match the home page"); pass false for the old full bar. */ homeNav?: boolean;
+  /** THE CAMPUS CHIP (the centered home, Lee, 2026-09-16: "the nav bar could be where the school chosen is"): "Arkansas ▾"
+   *  — or "Choose your school" — beside the links, opening the picker. */
+  campusChip?: { label: string; onClick: () => void } | null; } = {}) {
   const bar = useRef<HTMLElement>(null);
   // The Greek link carries the known campus. One source (campus context), so the navbar can never
   // name a different school from the hero beside it; pages outside a provider get the bare link.
@@ -395,7 +398,14 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, hom
         {wordmark
           ? <a href="/" aria-label="Survive Accounting — home" data-gm-bolt="auto" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup size={27} animate /></a>
           : <span style={{ minHeight: 44, display: "inline-flex" }} />}
-        <span className="flex-1" />
+                <span className="flex-1" />
+
+        {campusChip && (
+          <button type="button" onClick={campusChip.onClick} data-gm-cta="nav-campus" className="mr-5 inline-flex items-center gap-1 rounded-full text-[13px] font-bold"
+            style={{ minHeight: 38, padding: "0 14px", border: "1px solid rgba(255,255,255,0.28)", background: "rgba(255,255,255,0.05)", color: "var(--brand-cream)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+            {campusChip.label} <span aria-hidden style={{ fontSize: 10, opacity: 0.8 }}>▾</span>
+          </button>
+        )}
 
         {/* DESKTOP INLINE LINKS (>=1024px). The bar carried a wordmark and a lone hamburger with
             a wasteland between them; at this width there is room to just show the destinations.
