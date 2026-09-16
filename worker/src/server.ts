@@ -79,14 +79,43 @@ async function probeHasAudio(path: string): Promise<boolean> {
   return out.trim().length > 0;
 }
 
+/** A render that makes no progress for this long is hung, not slow — it is killed and the job fails loudly
+ *  (Lee, 2026-09-16: a stitch sat at "stitching · 11:49"; nothing said whether ffmpeg was moving). */
+const STALL_MS = 4 * 60_000;
+
 /** Run one ffmpeg invocation with a hard timeout; on failure surface the stderr
- *  tail (that's where ffmpeg says WHY). */
-async function runFfmpeg(args: string[], timeoutMs: number): Promise<void> {
-  const p = Bun.spawn(["ffmpeg", ...args], { stdout: "ignore", stderr: "pipe" });
+ *  tail (that's where ffmpeg says WHY). With `onProgress`, ffmpeg reports through -progress
+ *  (out_time) so the job can say how far along it is, and a stall kills it. */
+async function runFfmpeg(args: string[], timeoutMs: number, onProgress?: (outTimeS: number) => void): Promise<void> {
+  const full = onProgress ? ["-nostats", "-progress", "pipe:1", ...args] : args;
+  const p = Bun.spawn(["ffmpeg", ...full], { stdout: onProgress ? "pipe" : "ignore", stderr: "pipe" });
+  let stalled: number | null = null;
+  let lastS = 0, lastAt = Date.now();
   const timer = setTimeout(() => { try { p.kill(); } catch { /* already gone */ } }, timeoutMs);
+  const stall = onProgress ? setInterval(() => { if (Date.now() - lastAt > STALL_MS) { stalled = lastS; try { p.kill(); } catch { /* gone */ } } }, 15_000) : null;
+  const progress = onProgress && p.stdout ? (async () => {
+    const reader = (p.stdout as ReadableStream<Uint8Array>).getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+        const m = /^out_time_(us|ms)=(\d+)/.exec(line);
+        if (m) { const s = Number(m[2]) / (m[1] === "us" ? 1e6 : 1e3); if (s > lastS) { lastS = s; lastAt = Date.now(); onProgress(s); } }
+        else if (/^(frame|fps|speed)=/.test(line)) lastAt = Date.now();
+      }
+    }
+  })() : Promise.resolve();
   const errText = await new Response(p.stderr).text();
   const code = await p.exited;
+  await progress.catch(() => { /* the pipe closed with the process */ });
   clearTimeout(timer);
+  if (stall) clearInterval(stall);
+  if (stalled != null) throw new Error(`ffmpeg stalled — no progress for ${Math.round(STALL_MS / 60_000)} minutes at ${stalled.toFixed(1)}s. Stitch it again.`);
   if (code !== 0) throw new Error(`ffmpeg exited ${code}: …${errText.slice(-1800)}`);
 }
 
@@ -107,7 +136,7 @@ async function runFfmpegCapture(args: string[], timeoutMs: number): Promise<stri
 // the finished file: measure its integrated loudness, true peak, range and threshold, then re-encode the audio with
 // those measurements (linear mode) so it lands at exactly the target. The picture is copied, not re-encoded.
 const LOUD = { I: -16, TP: -1.5, LRA: 11 } as const;
-async function normalizeLoudness(path: string, dir: string, timeoutMs: number): Promise<void> {
+async function normalizeLoudness(path: string, dir: string, timeoutMs: number, onProgress?: (outTimeS: number) => void): Promise<void> {
   if (!(await probeHasAudio(path))) return;
   const filt = `loudnorm=I=${LOUD.I}:TP=${LOUD.TP}:LRA=${LOUD.LRA}`;
   const stderr = await runFfmpegCapture(["-hide_banner", "-nostats", "-i", path, "-af", `${filt}:print_format=json`, "-f", "null", "-"], timeoutMs);
@@ -121,8 +150,8 @@ async function normalizeLoudness(path: string, dir: string, timeoutMs: number): 
   await runFfmpeg([
     "-y", "-i", path, "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy",
     "-af", `${filt}:measured_I=${num("input_i")}:measured_TP=${num("input_tp")}:measured_LRA=${num("input_lra")}:measured_thresh=${num("input_thresh")}:offset=${num("target_offset")}:linear=true:print_format=summary,aresample=48000`,
-    "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", out,
-  ], timeoutMs);
+        "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", out,
+  ], timeoutMs, onProgress);
   await Bun.write(path, Bun.file(out));
   await rm(out, { force: true }).catch(() => { /* tmp */ });
 }
@@ -212,10 +241,11 @@ async function runJob(job: Job, spec: JobSpec): Promise<void> {
         const gapsS = Array.from({ length: Math.max(0, clipFiles.length - 1) }, (_, k) => gapForJoin(k, stage.gapMs ?? DISSECT_DEFAULTS.gapMs, stage.gapJitterMs ?? DISSECT_DEFAULTS.gapJitterMs) / 1000);
                 const plan = dissectStitchArgs(clipFiles, trims, outPath, { gapsS, roomTone, loudI: stage.loudI, vertical: stage.vertical === true, audioOffsetMs: stage.audioOffsetMs });
         job.result = { ...plan.manifest, trims };
-                job.note = "stitching";
-        await runFfmpeg(plan.args, remaining(LIMITS.renderTimeoutMs));
+                        job.note = "stitching · 0%";
+        const totalS = Math.max(0.1, plan.manifest.totalS);
+        await runFfmpeg(plan.args, remaining(LIMITS.renderTimeoutMs), (s) => { job.note = `stitching · ${Math.min(99, Math.round((s / totalS) * 100))}%`; });
         job.note = "normalizing loudness";
-        await normalizeLoudness(outPath, dir, remaining(LIMITS.renderTimeoutMs));
+        await normalizeLoudness(outPath, dir, remaining(LIMITS.renderTimeoutMs), (s) => { job.note = `normalizing loudness · ${Math.min(99, Math.round((s / totalS) * 100))}%`; });
       } else {
         await runFfmpeg(planStage(stage, files, outPath), remaining(LIMITS.renderTimeoutMs));
       }

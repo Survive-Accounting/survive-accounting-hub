@@ -59,15 +59,15 @@ function RubricL({ k, shown, lit, dim, blank, hop, link, div, size = 1 }: {
           </svg>
         )}
       </div>
-            {/* Under equity: revenues and expenses side by side, a size down so the pair sits inside equity's column
-          (and dividends under them when asked) — the backwards L. */}
+            {/* Under equity: revenues, then expenses, stacked in equity's column (dividends under them when asked) — the L. */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr auto 1fr", gap: 4 * s, alignItems: "start" }}>
         <span /><span /><span /><span />
         <div style={{ display: "flex", flexDirection: "column", gap: 8 * s, alignItems: "center", position: "relative" }}>
           {link && on("Rev") && <div aria-hidden style={{ position: "absolute", left: "50%", top: -10 * s, width: 2 * s, height: 10 * s, background: "#FCA311" }} />}
-          <div style={{ display: "flex", gap: 6 * s, justifyContent: "center" }}>
-            <div style={{ visibility: on("Rev") ? "visible" : "hidden" }}><MiniT k={k} name="Revenues" keyName="Rev" dim={dimmed("Rev")} blank={blank} size={size * 0.72} /></div>
-            <div style={{ visibility: on("Exp") ? "visible" : "hidden" }}><MiniT k={k} name="Expenses" keyName="Exp" dim={dimmed("Exp")} blank={blank} size={size * 0.72} /></div>
+          {/* STACKED, not side by side (Lee, 2026-09-16: "more like an L… under E, Revenues, Expenses, vertically aligned"). */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 * s, alignItems: "center" }}>
+            <div style={{ visibility: on("Rev") ? "visible" : "hidden" }}><MiniT k={k} name="Revenues" keyName="Rev" dim={dimmed("Rev")} blank={blank} size={size * 0.85} /></div>
+            <div style={{ visibility: on("Exp") ? "visible" : "hidden" }}><MiniT k={k} name="Expenses" keyName="Exp" dim={dimmed("Exp")} blank={blank} size={size * 0.85} /></div>
           </div>
           {div && <MiniT k={k} name="Dividends" keyName="Div" dim={dimmed("Div")} blank={blank} size={size * 0.72} />}
         </div>

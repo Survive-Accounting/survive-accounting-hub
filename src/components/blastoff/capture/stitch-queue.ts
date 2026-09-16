@@ -200,6 +200,10 @@ async function runJob(key: string) {
     }
 
     let plain = false;
+    // THE WATCHDOG (Lee, 2026-09-16: "it appears to have gotten stuck"): the worker reports its progress now
+    // ("stitching · 42%"), so a note that has not changed in QUIET_MS means the encoder is hung, not slow — the job
+    // fails with a clear line and "Stitch it again" is one click away, instead of "11:49" forever.
+    const QUIET_MS = 8 * 60_000;
     const join = async (list: string[], label: string, trims?: ({ start: number; end: number } | null)[]) => {
       const job = await startDissectStitch({ data: { urls: list, gapMs: 220, vertical: true, ...(trims ? { trims } : {}) } }).catch(async (e) => {
         if (!/unknown stage/i.test(e instanceof Error ? e.message : String(e))) throw e;
@@ -207,6 +211,7 @@ async function runJob(key: string) {
         return startWorkerRender({ data: { urls: list, mode: "full" } });
       });
       let misses = 0;
+      let lastNote = "", lastChange = Date.now();
       for (;;) {
         await wait(3000);
         const r = await resolveWorkerRender({ data: { jobId: job.jobId, path: job.path, machineId: job.machineId } }).catch((e) => {
@@ -216,6 +221,9 @@ async function runJob(key: string) {
         if (r.state !== "rendering" || r.note !== "checking again…") misses = 0;
         if (r.state === "done" && r.fileUrl) return { fileUrl: r.fileUrl, totalS: r.result?.totalS ?? null };
         if (r.state === "error") throw new Error(r.error ?? "The joiner failed.");
+        const noteNow = `${r.state}·${r.note ?? ""}`;
+        if (noteNow !== lastNote) { lastNote = noteNow; lastChange = Date.now(); }
+        else if (Date.now() - lastChange > QUIET_MS) throw new Error(`The joiner went quiet for ${Math.round(QUIET_MS / 60_000)} minutes at "${r.note || r.state}" — stitch it again.`);
         patch(key, { note: `${label} · ${r.state}${r.note && r.note !== "checking again…" ? ` · ${r.note}` : ""}` });
       }
     };
