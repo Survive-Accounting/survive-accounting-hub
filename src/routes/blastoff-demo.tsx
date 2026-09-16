@@ -14,6 +14,8 @@ import { SurviveIntro } from "@/components/blastoff/SurviveIntro";
 import { SurviveOutro } from "@/components/blastoff/SurviveOutro";
 import { FoundOnYourExam } from "@/components/blastoff/FoundOnYourExam";
 import { CheatCodeFrame, PhraseFrame, TipFrame } from "@/components/blastoff/ContentFrames";
+import { DcPickFrame, DcRuleFrame } from "@/components/blastoff/LedgerFrames";
+import type { BlastFrame } from "@/components/blastoff/plan";
 
 export const Route = createFileRoute("/blastoff-demo")({
   component: BlastOffDemo,
@@ -46,7 +48,15 @@ function BlastOffDemo() {
     ["Phrase", <PhraseFrame text="Question order is teaching order." progress={progress} scale={SCALE} />],
     ["Cheat code", <CheatCodeFrame title="Anything “Payable” is always a liability" body="If the name ends in Payable, you OWE it. No exceptions on Exam 1." progress={progress} scale={SCALE} />],
     ["Tip / Trick", <TipFrame text="Put a 12/31 button in your brain — every adjusting entry happens there." progress={progress} scale={SCALE} />],
-    ["Outro", <SurviveOutro progress={progress} scale={SCALE} />],
+        ["Outro", <SurviveOutro progress={progress} scale={SCALE} />],
+    // THE LEDGER SLIDES (2026-09-16): the rubric-shaped rule at rest and in each of its walks, and a rubric pick.
+    ["Rule · at rest", <DcRuleFrame w={306} frame={{ id: "d1", kind: "dcrule" } as BlastFrame} />],
+    ["Rule · focus A", <DcRuleFrame w={306} frame={{ id: "d2", kind: "dcrule", dcFocus: "A" } as BlastFrame} />],
+    ["Rule · walk (rest)", <DcRuleFrame w={306} frame={{ id: "d3", kind: "dcrule", dcMode: "walk" } as BlastFrame} />],
+    ["Rule · contra A", <DcRuleFrame w={306} frame={{ id: "d4", kind: "dcrule", dcMode: "contraA" } as BlastFrame} />],
+    ["Rule · contra E", <DcRuleFrame w={306} frame={{ id: "d5", kind: "dcrule", dcMode: "contraE" } as BlastFrame} />],
+    ["Rule · blank", <DcRuleFrame w={306} frame={{ id: "d6", kind: "dcrule", dcMode: "blank" } as BlastFrame} />],
+    ["Rubric pick", <DcPickFrame w={306} stem="How do you increase Equipment?" pick={{ account: "Equipment", side: "L" }} type="A" />],
   ];
 
   return (

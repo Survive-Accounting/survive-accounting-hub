@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { DC_SIDE, formatTLines, parseTLines, tAccountShown, tAccountSteps, tPickOf } from "./ledger";
+import { DC_SIDE, dcPickOf, dcRuleSteps, dcWalkView, formatTLines, parseTLines, tAccountShown, tAccountSteps, tPickOf } from "./ledger";
 
 describe("the ledger slides", () => {
   test("ADE on the debit side, LER on the credit side", () => {
@@ -24,5 +24,28 @@ describe("the ledger slides", () => {
   test("a normal-balance card reads as a T pick", () => {
     expect(tPickOf("What is the normal balance of Accounts Payable?", [{ text: "Debit", correct: false }, { text: "Credit", correct: true }])).toEqual({ account: "Accounts Payable", side: "R" });
     expect(tPickOf("Which side increases Cash?", [])).toBeNull();
+  });
+});
+
+describe("the rubric-shaped rule (2026-09-16)", () => {
+  test("the walk: bare, five boxes, then the two families", () => {
+    expect(dcRuleSteps({ dcMode: "walk" })).toBe(8);
+    expect(dcWalkView(0)).toEqual({ shown: [], lit: null });
+    expect(dcWalkView(3).shown).toEqual(["A", "L", "E"]);
+    expect(dcWalkView(6)).toEqual({ shown: ["A", "L", "E", "Rev", "Exp"], lit: ["A", "Exp"] });
+    expect(dcWalkView(7).lit).toEqual(["L", "E", "Rev"]);
+    expect(dcWalkView(null).shown).toHaveLength(5);
+  });
+  test("contra zooms and the blank L have their own steps; a still slide has none", () => {
+    expect(dcRuleSteps({ dcMode: "contraA" })).toBe(2);
+    expect(dcRuleSteps({ dcMode: "contraE" })).toBe(3);
+    expect(dcRuleSteps({ dcMode: "blank" })).toBe(2);
+    expect(dcRuleSteps({})).toBe(0);
+  });
+  test("a 'How do you increase ____?' card reads as a rubric pick", () => {
+    expect(dcPickOf("How do you increase Equipment?", [{ text: "Debit", correct: true }, { text: "Credit", correct: false }])).toEqual({ account: "Equipment", direction: "increase", side: "L" });
+    expect(dcPickOf("How do you decrease an Asset?", [{ text: "Debit", correct: false }, { text: "Credit", correct: true }])).toEqual({ account: "Asset", direction: "decrease", side: "R" });
+    expect(dcPickOf("Which side increases Revenue?", [{ text: "Credit", correct: true }])).toEqual({ account: "Revenue", direction: "increase", side: "R" });
+    expect(dcPickOf("When would we debit Supplies?", [{ text: "We buy supplies", correct: true }])).toBeNull();
   });
 });

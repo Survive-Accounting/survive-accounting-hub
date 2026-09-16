@@ -70,3 +70,62 @@ export function tPickOf(stem: string, choices: readonly { text: string; correct:
   const right = choices.find((c) => c.correct)?.text.trim().toLowerCase() ?? "";
   return { account: m[1].replace(/^the\s+/i, ""), side: right.startsWith("debit") ? "L" : right.startsWith("credit") ? "R" : null };
 }
+
+// ── THE RUBRIC-SHAPED RULE (Lee, 2026-09-16) ──────────────────────────────────────────────────────────────
+// "I don't really like showing students that ADE and LER thing. I prefer just showing the progression: show
+// assets — debits increase, credits decrease — then an arrow hops over the equal sign to both liabilities and
+// equity … after that Revenue appears with an arrow connected to equity ('they work the same'), and revenues and
+// expenses are always opposite … then highlight that assets and expenses work together, blur the others; then
+// liabilities, equity and revenues all work together … then show how contra accounts are opposite: a bigger view
+// of just assets and accumulated depreciation, then equity and dividends … Keep it minimal, don't show the text
+// at the top, just show the rubric, in the same backwards-L format the A = L + E rubric is in."
+//
+// So a dcrule slide is the rubric's L — A = L + E across, Rev and Exp under E — and nothing else unless asked.
+// `dcMode` picks the walk it does on space:
+//   walk     A · L · E · Rev · Exp come in one per space, then the debit family lights, then the credit family
+//   contraA  Assets big, then Accumulated Depreciation beside it, opposite
+//   contraE  Equity big, then Dividends beside it, opposite, then "starts with D → increases with a Debit"
+//   blank    the L with blank T's ("write this on your exam"), then the signs fill in
+// `dcFocus` (an older field) lights one type and dims the rest — the slide that opens a type's video.
+export const DC_MODES = ["walk", "contraA", "contraE", "blank"] as const;
+export type DcMode = (typeof DC_MODES)[number];
+export const isDcMode = (v: unknown): v is DcMode => typeof v === "string" && (DC_MODES as readonly string[]).includes(v);
+export const DC_MODE_LABEL: Record<DcMode, string> = { walk: "Walk A → L → E → Rev → Exp", contraA: "Contra: assets", contraE: "Contra: equity", blank: "Blank — write it on your exam" };
+
+/** The L's order on the walk: the top row, then the pair under equity. */
+export const DC_WALK_ORDER: readonly DcKey[] = ["A", "L", "E", "Rev", "Exp"];
+/** The two families the walk lights at its end: the debit side (assets and expenses), the credit side. */
+export const DC_FAMILY_DEBIT: readonly DcKey[] = ["A", "Exp"];
+export const DC_FAMILY_CREDIT: readonly DcKey[] = ["L", "E", "Rev"];
+
+/** How many space steps a dcrule slide walks. 0 = it just sits there. */
+export function dcRuleSteps(f: { dcMode?: string }): number {
+  switch (f.dcMode) {
+    case "walk": return 1 + DC_WALK_ORDER.length + 2; // bare, five reveals, two families
+    case "contraA": return 2;
+    case "contraE": return 3;
+    case "blank": return 2;
+    default: return 0;
+  }
+}
+/** At step `s` of the walk (null = at rest): which boxes are in, and which family is lit (null = none). */
+export function dcWalkView(s: number | null | undefined): { shown: DcKey[]; lit: DcKey[] | null } {
+  if (s == null) return { shown: [...DC_WALK_ORDER], lit: null };
+  const n = Math.max(0, Math.min(DC_WALK_ORDER.length, s));
+  const lit = s === DC_WALK_ORDER.length + 1 ? [...DC_FAMILY_DEBIT] : s >= DC_WALK_ORDER.length + 2 ? [...DC_FAMILY_CREDIT] : null;
+  return { shown: DC_WALK_ORDER.slice(0, n), lit };
+}
+
+/** THE RUBRIC PICK (a ceq frame's `dcpick`, the type it lights): "How do you increase Equipment?" → the account,
+ *  the direction, and the answer side from the correct choice (Debit → L, Credit → R). Null when the card
+ *  isn't that shape. Steps: the bare question, the type's box lights, the answer lights. */
+export const DC_PICK_STEPS = 3;
+export function dcPickOf(stem: string, choices: readonly { text: string; correct: boolean }[]): { account: string; direction: "increase" | "decrease" | null; side: "L" | "R" | null } | null {
+  const s = stem.replace(/\s+/g, " ").trim();
+  const m = /\b(increase|decrease)s?\s+(?:an?\s+|the\s+)?(.+?)\??\s*$/i.exec(s);
+  if (!m) return null;
+  const right = choices.find((c) => c.correct)?.text.trim().toLowerCase() ?? "";
+  const side = right.startsWith("debit") ? "L" : right.startsWith("credit") ? "R" : null;
+  if (!side) return null;
+  return { account: m[2].trim(), direction: m[1].toLowerCase() as "increase" | "decrease", side };
+}

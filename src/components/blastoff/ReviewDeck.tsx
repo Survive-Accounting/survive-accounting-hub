@@ -108,7 +108,7 @@ import { SplitRunPanel, takeCards } from "./SplitRunPanel";
 import { replaceRun } from "./split-run";
 import { TEASER_DEFAULT, TEASER_MAX } from "./teaser";
 import { PRACTICE_COPY, PRACTICE_FILMED_LINE, practiceVariantOf } from "./practice-cta";
-import { DC_KEYS, DC_NAME, DC_ORANGE, DC_YELLOW, dcColor, formatTLines, isDcKey, parseTLines, tPickOf } from "./ledger";
+import { DC_KEYS, DC_MODE_LABEL, DC_MODES, DC_NAME, DC_ORANGE, DC_YELLOW, dcColor, dcPickOf, formatTLines, isDcKey, isDcMode, parseTLines, tPickOf } from "./ledger";
 // THE END-OF-TOPIC AD (2026-09-12): his picks of the topic's best videos.
 import { TOPIC_AD_COPY, bestOf, toggleBest } from "./topic-ad";
 import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, canRemove, canZoomBehind, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, moveMany, newFrameId, pasteAfter, patchFrame, patchFramesOfKind, toggleSkip, toggleSpeedRun, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
@@ -2298,7 +2298,15 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         {sel.kind === "ceq" && ceq && !ceq.noteOnly && tPickOf(ceq.stem, ceq.choices) && (
           <div className="flex items-center" style={{ gap: 8, fontSize: 11, color: MUTED }}>
             <button style={chip(!!sel.tpick, GOLD)} onClick={() => onPatch({ tpick: sel.tpick ? undefined : true })}>Blank T</button>
-            <span>Draw this normal-balance question as a blank T; space lights the + side. Practice keeps the choices.</span>
+                        <span>Draw this normal-balance question as a blank T; space lights the + side. Practice keeps the choices.</span>
+          </div>
+        )}
+        {/* THE RUBRIC PICK (2026-09-16): a "How do you increase ____?" card with the L beside it. */}
+        {sel.kind === "ceq" && ceq && !ceq.noteOnly && dcPickOf(ceq.stem, ceq.choices) && (
+          <div className="flex flex-wrap items-center" style={{ gap: 6, fontSize: 11, color: MUTED }}>
+            <span>Rubric beside it, lighting:</span>
+            <button style={chip(!sel.dcpick, GOLD)} onClick={() => onPatch({ dcpick: undefined })}>Off</button>
+            {DC_KEYS.map((k) => <button key={k} style={chip(sel.dcpick === k, dcColor(k))} onClick={() => onPatch({ dcpick: k, tpick: undefined })}>{DC_NAME[k]}</button>)}
           </div>
         )}
         {/* THE A = L + E CONVERT (2026-09-11). Lee: "For all the A = L + E ones, I think we don't do
@@ -2821,15 +2829,23 @@ function TeaserEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<
  *  surviveaccounting.com"; the site shows the real buttons when the video ends. */
 function DcRuleEditor({ sel, onPatch }: { sel: BlastFrame; onPatch: (p: Partial<BlastFrame>) => void }) {
   const focus = isDcKey(sel.dcFocus) ? sel.dcFocus : null;
+  const mode = isDcMode(sel.dcMode) ? sel.dcMode : null;
   return (
     <div className="flex flex-col" style={{ gap: 10 }}>
+      {/* THE WALK (2026-09-16): what the slide does on space. */}
       <div className="flex flex-wrap" style={{ gap: 6 }}>
-        <button style={chip(!focus, GOLD)} onClick={() => onPatch({ dcFocus: undefined })}>All</button>
-        {DC_KEYS.map((k) => <button key={k} style={chip(focus === k, dcColor(k))} onClick={() => onPatch({ dcFocus: k })}>{DC_NAME[k]}</button>)}
+        <button style={chip(!mode, GOLD)} onClick={() => onPatch({ dcMode: undefined })}>Sits still</button>
+        {DC_MODES.map((m) => <button key={m} style={chip(mode === m, "#FCD34D")} onClick={() => onPatch({ dcMode: m, dcFocus: undefined })}>{DC_MODE_LABEL[m]}</button>)}
       </div>
-      <label style={{ fontSize: 11, color: MUTED }}>Chip
-        <input style={{ ...field, marginTop: 4 }} value={sel.chipText ?? ""} placeholder="Memorize this" onChange={(e) => onPatch({ chipText: e.target.value || undefined })} /></label>
-      <label style={{ fontSize: 11, color: MUTED }}>Heading (blank = the lit type's rule)
+      {!mode && (
+        <div className="flex flex-wrap" style={{ gap: 6 }}>
+          <button style={chip(!focus, GOLD)} onClick={() => onPatch({ dcFocus: undefined })}>All lit</button>
+          {DC_KEYS.map((k) => <button key={k} style={chip(focus === k, dcColor(k))} onClick={() => onPatch({ dcFocus: k })}>{DC_NAME[k]}</button>)}
+        </div>
+      )}
+      <label style={{ fontSize: 11, color: MUTED }}>Chip (blank = none)
+        <input style={{ ...field, marginTop: 4 }} value={sel.chipText ?? ""} placeholder="none" onChange={(e) => onPatch({ chipText: e.target.value || undefined })} /></label>
+      <label style={{ fontSize: 11, color: MUTED }}>Heading (blank = none — just the rubric)
         <input style={{ ...field, marginTop: 4 }} value={sel.title ?? ""} onChange={(e) => onPatch({ title: e.target.value || undefined })} /></label>
     </div>
   );

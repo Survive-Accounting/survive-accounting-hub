@@ -33,8 +33,8 @@ import { OUTRO_CTA_KEY, SurviveOutro } from "./SurviveOutro";
 import { outroLine } from "@/components/brand-cards/slogans";
 import { TeaserFrame } from "./TeaserFrame";
 import { PracticeFrame } from "./PracticeFrame";
-import { DcRuleFrame, TAccountFrame, TPickFrame } from "./LedgerFrames";
-import { tPickOf } from "./ledger";
+import { DcPickFrame, DcRuleFrame, TAccountFrame, TPickFrame } from "./LedgerFrames";
+import { dcPickOf, isDcKey, tPickOf } from "./ledger";
 import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, showCampusBanner, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
 import { RubricSlide } from "./RubricSlide";
@@ -159,7 +159,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
   if (frame.kind === "teaser") return <TeaserFrame w={fw} frame={frame} live={live} />;
   if (frame.kind === "practice") return <PracticeFrame w={fw} frame={frame} />;
   // THE LEDGER SLIDES (2026-09-15, LedgerFrames.tsx): the ± rule, and the T-account walked on space.
-  if (frame.kind === "dcrule") return <DcRuleFrame w={fw} frame={frame} />;
+    if (frame.kind === "dcrule") return <DcRuleFrame w={fw} frame={frame} live={live} />;
   if (frame.kind === "taccount") return <TAccountFrame w={fw} frame={frame} live={live} />;
   // SURVIBES (2026-09-11, SurvibesFrame.tsx): the flip runs on film only; the props follow the
   // capture's step (frame-step.ts); at rest it is the settled look, the camera alone.
@@ -267,7 +267,10 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // THE T PICK (2026-09-15): a normal-balance card drawn as a blank T. A card that doesn't read that way
     // stays the card it is.
     const pick = frame.tpick && !ceq.noteOnly ? tPickOf(ceq.stem, ceq.choices) : null;
-    if (pick) return <TPickFrame w={fw} stem={ceq.stem} account={pick.account} side={pick.side} live={live} />;
+        if (pick) return <TPickFrame w={fw} stem={ceq.stem} account={pick.account} side={pick.side} live={live} />;
+    // THE RUBRIC PICK (2026-09-16): a "How do you increase ____?" card with the L beside it.
+    const dpick = frame.dcpick && !ceq.noteOnly ? dcPickOf(ceq.stem, ceq.choices) : null;
+    if (dpick) return <DcPickFrame w={fw} stem={ceq.stem} pick={dpick} type={isDcKey(frame.dcpick) ? frame.dcpick : null} live={live} />;
     if (ceq.noteOnly) return <SetCard id={ceq.id} stem={ceq.stem} scale={scale} callout={{ detour: true, showTopic: false }} live={live} {...ov} />;
     return (
       <SetCard

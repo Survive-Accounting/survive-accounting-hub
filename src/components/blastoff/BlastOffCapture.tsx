@@ -97,7 +97,7 @@ import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
 // here, the block reads it through its own context (RubricFrame.tsx).
 import { FrameStepContext, type FrameStep } from "./frame-step";
 import { teaserSteps } from "./teaser";
-import { tAccountSteps, tPickOf } from "./ledger";
+import { DC_PICK_STEPS, dcPickOf, dcRuleSteps, tAccountSteps, tPickOf } from "./ledger";
 import { revExpShown, rubricSteps, type RubricArrow, type RubricKey } from "./rubric";
 // SURVIBES (2026-09-11): its props are steps too; the authoring-only 2:00 clock lives in the
 // main window's chrome (never the pop-out, never the shot).
@@ -382,7 +382,12 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
   // THE TEASER (2026-09-13, teaser.ts): the callout chips come in one per click — or space — as steps.
   const teaser = frame?.kind === "teaser";
   // THE LEDGER WALKS (2026-09-15, ledger.ts): a T-account's lines, then its ending; a T pick's reveal.
-  const ledgerSteps = frame?.kind === "taccount" ? tAccountSteps(frame.tacct) : frame?.kind === "ceq" && frame.tpick && ceq && tPickOf(ceq.stem, ceq.choices) ? 2 : 0;
+    // …and (2026-09-16) the rubric-shaped rule's walk, and a rubric pick's type-then-answer.
+  const ledgerSteps = frame?.kind === "taccount" ? tAccountSteps(frame.tacct)
+    : frame?.kind === "dcrule" ? dcRuleSteps(frame)
+    : frame?.kind === "ceq" && frame.tpick && ceq && tPickOf(ceq.stem, ceq.choices) ? 2
+    : frame?.kind === "ceq" && frame.dcpick && ceq && dcPickOf(ceq.stem, ceq.choices) ? DC_PICK_STEPS
+    : 0;
   const ledger = ledgerSteps > 0;
   // SPACE WALK (2026-09-13, plan.ts `walk`): any text slide's lines come in one per space. The count is
   // read off the rendered slide (every [data-sa-walk] line), so it follows whatever the text is.

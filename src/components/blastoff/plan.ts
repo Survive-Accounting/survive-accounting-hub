@@ -259,7 +259,14 @@ export interface BlastFrame {
   practice?: "try" | "unlock";
   /** THE ± RULE's focus (2026-09-15, kind "dcrule", ledger.ts DcKey): the one account type lit, the rest
    *  dimmed. Absent = all lit. */
-  dcFocus?: string;
+    dcFocus?: string;
+  /** THE RULE'S WALK (2026-09-16, kind "dcrule", ledger.ts DcMode): "walk" = A · L · E · Rev · Exp come in on
+   *  space then the two families light; "contraA" / "contraE" = the contra zoom; "blank" = the L with blank T's
+   *  to write on the exam. Absent = the L at rest (with dcFocus lighting one type). */
+  dcMode?: string;
+  /** THE RUBRIC PICK (2026-09-16, kind "ceq", ledger.ts DcKey): a "How do you increase ____?" card drawn with the
+   *  L beside it; space lights this type in the L, then the answer. The practice keeps the Debit / Credit choices. */
+  dcpick?: string;
   /** THE T-ACCOUNT (2026-09-15, kind "taccount", ledger.ts TAccountSpec). */
   tacct?: TAccountSpec;
   /** THE T PICK (2026-09-15, kind "ceq"): a "What is the normal balance of ____?" card drawn as a blank T,
@@ -310,7 +317,7 @@ export const isBigCallout = (f: BlastFrame): boolean => f.display === "big" && c
 /** Does this FRAME own the whole 9:16 — by its kind, or by being a callout turned big? The
  *  frame-level question; `isFullFrame` answers the kind-level one and stays the right call
  *  wherever only a kind is at hand. */
-export const framesFullFrame = (f: BlastFrame): boolean => isFullFrame(f.kind) || isBigCallout(f) || (f.kind === "ceq" && !!f.tpick);
+export const framesFullFrame = (f: BlastFrame): boolean => isFullFrame(f.kind) || isBigCallout(f) || (f.kind === "ceq" && (!!f.tpick || !!f.dcpick));
 
 export const isInsert = (k: BlastFrameKind): boolean => INSERT_KINDS.includes(k);
 
@@ -548,7 +555,7 @@ export function canRemove(frames: readonly BlastFrame[], f: BlastFrame): boolean
  *  pair, whose shell is see-through. The brand slides, the slogan, a big callout and the map draw
  *  their own. */
 export function canZoomBehind(f: BlastFrame): boolean {
-  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next" || f.kind === "outline" || f.kind === "topic_ad" || f.kind === "teaser" || f.kind === "practice" || f.kind === "dcrule" || f.kind === "taccount" || (f.kind === "ceq" && !!f.tpick);
+  return !framesFullFrame(f) || f.kind === "topic_done" || f.kind === "up_next" || f.kind === "outline" || f.kind === "topic_ad" || f.kind === "teaser" || f.kind === "practice" || f.kind === "dcrule" || f.kind === "taccount" || (f.kind === "ceq" && (!!f.tpick || !!f.dcpick));
 }
 
 /** THE STANDARD OPENER (2026-09-09), in Lee's words and in his own draft's order: "Hero camera,
