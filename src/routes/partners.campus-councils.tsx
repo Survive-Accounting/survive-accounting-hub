@@ -4,6 +4,7 @@
 // What it does instead: state the problem, hand them one control that finds THEIR council page
 // (which has real chapters), and — the important change — SHOW the student product with a preview,
 // rather than describing in cards what a council page "gives you". Show, don't tell.
+import { councilLearnPath } from "@/lib/learn-paths";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -59,7 +60,8 @@ function CampusCouncilsPage() {
   // THE COUNCIL'S /go PAGE (Lee, 2026-09-11): "For IFC / For Panhellenic etc. need to ask for the
   // school/campus and then take them to the share links." That page is ChairPromo — the doors,
   // the share kit, the meeting slide — and it works without a token.
-  const go = () => { if (school && council) void nav({ to: "/go/$school/council/$council", params: { school, council } }); };
+  // THE COUNCIL LANDS ON /learn (the simple flow, Lee, 2026-09-16: "ask your school and then go to the learn page").
+  const go = () => { if (school && council) void nav({ href: councilLearnPath(school, council) }); };
 
   // Preview switcher from the showcase schools, resolved off the school table so the code and href
   // are the real ones. Falls back gracefully if a slug is not in the table.

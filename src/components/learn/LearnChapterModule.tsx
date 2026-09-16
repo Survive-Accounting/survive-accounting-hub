@@ -289,7 +289,7 @@ function Crest({ school, chapter, contactRef, narrow, onNotYours }: { school: Sc
 
 // ── D: activate the dashboard ─────────────────────────────────────────────────────────────────
 
-function ExecForm({ school, chapter, short, onMember, onNotYours }: { school: School; chapter: PickedChapter; short: string; onMember: () => void; onNotYours: () => void }) {
+export function ExecForm({ school, chapter, short, onMember, onNotYours }: { school: School; chapter: PickedChapter; short: string; onMember: () => void; onNotYours: () => void }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   // EMAIL IS ASKED HERE TOO (2026-09-13) — it is how the dashboard signs the chair in. A chair who

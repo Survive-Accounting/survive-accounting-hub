@@ -12,7 +12,8 @@
 //
 // NO GRADES. EVER. The leaderboard shows signups and nothing else: no GPA, no scores, no
 // performance measure, per chapter or aggregated.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { councilLearnPath } from "@/lib/learn-paths";
 import { frameThemeVars } from "@/components/frames/frame-theme";
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { useEffect, useState } from "react";
@@ -31,6 +32,14 @@ import { currentContactRef } from "@/lib/contact-ref";
 import { ogMeta , councilOgImage } from "@/lib/og";
 
 export const Route = createFileRoute("/go/$school/council/$council")({
+  // /go RETIRED for the public page (the simple flow, Lee, 2026-09-16): a council exec lands on the campus /learn
+  // page with the council strip. Only the private leaderboard (?k=<token>) still renders here.
+  beforeLoad: ({ params, search }) => {
+    const q = search as Record<string, unknown>;
+    if (typeof q.k === "string" && q.k) return;
+    const ref = typeof q.ref === "string" ? `&ref=${encodeURIComponent(q.ref)}` : "";
+    throw redirect({ href: `${councilLearnPath(params.school, params.council)}${ref}`, replace: true });
+  },
   // `k` is OPTIONAL in the type, not merely undefined-able: the public promo is navigated to with
   // no search at all (the council finder, the footer), and a required key would make every such
   // navigate() a type error.

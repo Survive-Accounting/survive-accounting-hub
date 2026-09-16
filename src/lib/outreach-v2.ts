@@ -1,3 +1,4 @@
+import { chapterLearnPath, councilLearnPath } from "@/lib/learn-paths";
 // OUTREACH V2 — the pure half of /admin/dm-v2 (2026-09-14).
 //
 // Lee: "instead of scheduling individual DMs, I really just want to prioritize campuses … for each
@@ -235,8 +236,8 @@ export function missingMessage(missing: readonly string[]): string {
 export function slotLink(page: string, contactCode: string | null | undefined): string {
   return contactCode ? `${OUTREACH_ORIGIN}/l/${contactCode}` : `${OUTREACH_ORIGIN}${page}`;
 }
-export const councilPage = (campusSlug: string, council: string): string => `/go/${campusSlug}/council/${council}`;
-export const chapterPage = (campusSlug: string, chapterSlug: string): string => `/go/${campusSlug}/${chapterSlug}`;
+export const councilPage = (campusSlug: string, council: string): string => councilLearnPath(campusSlug, council);
+export const chapterPage = (campusSlug: string, chapterSlug: string): string => chapterLearnPath(campusSlug, chapterSlug, { share: "chair" });
 
 /** The council key a roster row's free-text council column means (IFC, "Panhellenic", "nphc"…). */
 export function v2CouncilOf(raw: string | null | undefined): V2CouncilKey | null {

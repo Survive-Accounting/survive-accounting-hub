@@ -27,11 +27,11 @@ describe("left door support line", () => {
 
 describe("share attribution", () => {
   test("each share path hands out a distinctly stamped URL", () => {
-    expect(chapterUrl("auburn", "sigma-chi", "link")).toBe("https://surviveaccounting.com/go/auburn/sigma-chi?via=link");
-    expect(chapterUrl("auburn", "sigma-chi", "groupme")).toBe("https://surviveaccounting.com/go/auburn/sigma-chi?via=groupme");
+    expect(chapterUrl("auburn", "sigma-chi", "link")).toBe("https://surviveaccounting.com/learn/auburn/sigma-chi?via=link");
+    expect(chapterUrl("auburn", "sigma-chi", "groupme")).toBe("https://surviveaccounting.com/learn/auburn/sigma-chi?via=groupme");
   });
   test("the plain URL — the one shown to be typed — carries no stamp", () => {
-    expect(chapterUrl("auburn", "sigma-chi")).toBe("https://surviveaccounting.com/go/auburn/sigma-chi");
+    expect(chapterUrl("auburn", "sigma-chi")).toBe("https://surviveaccounting.com/learn/auburn/sigma-chi");
   });
 });
 

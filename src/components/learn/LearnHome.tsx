@@ -309,8 +309,10 @@ export const LearnHome = forwardRef<HTMLDivElement, {
       {/* THE ENTRANCE BAND — full-bleed on the hero ground, the column inside it. */}
       <div style={{ background: LK.heroBg }}>
         <div className="mx-auto w-full" style={{ maxWidth: CONTENT_MAX, padding: `${narrow ? 10 : wide ? 16 : 14}px ${pad}px 0` }}>
+                    <LearnEntrance tier={tier} onStart={startFirst} />
+          {/* THE CHAPTER STRIP under the button (the simple flow, 2026-09-16): whose page this is, and the one
+              thing that visitor should do next. A quiet "Studying with your chapter?" line when there is none. */}
           {kit}
-          <LearnEntrance tier={tier} onStart={startFirst} />
         </div>
         <div aria-hidden style={{ height: narrow ? 8 : wide ? 26 : 22, background: `linear-gradient(${LK.heroBg}, ${LK.bg})` }} />
       </div>

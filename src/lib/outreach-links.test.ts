@@ -20,12 +20,12 @@ const chapters: SiteChapter[] = [
 describe("links", () => {
   test("council contacts get the council chair page, with the ref", () => {
     const l = linkFor("university-of-mississippi", { kind: "council", group: "IFC", slug: "ifc", onSite: true }, true);
-    expect(l.path).toBe("/go/university-of-mississippi/council/ifc");
-    expect(withContactRef(l.path, REF)).toBe(`/go/university-of-mississippi/council/ifc?ref=${REF}`);
+    expect(l.path).toBe("/learn/ole-miss?share=council&c=ifc");
+    expect(withContactRef(l.path, REF)).toBe(`/learn/ole-miss?share=council&c=ifc&ref=${REF}`);
   });
   test("the office gets the all-council page; a chapter on the site gets its chair page", () => {
     expect(linkFor("university-of-mississippi", { kind: "office", group: "FSL Office", slug: "", onSite: true }, true).path).toBe("/s/university-of-mississippi/council");
-    expect(linkFor("university-of-mississippi", { kind: "chapter", group: "IFC", slug: "alpha-tau-omega", onSite: true }, true).path).toBe("/go/university-of-mississippi/alpha-tau-omega");
+    expect(linkFor("university-of-mississippi", { kind: "chapter", group: "IFC", slug: "alpha-tau-omega", onSite: true }, true).path).toBe("/learn/ole-miss/alpha-tau-omega?share=chair");
   });
   test("clubs, chapters not on the site, and any org at a campus with no chapters get the campus page", () => {
     expect(linkFor("university-of-mississippi", { kind: "club", group: "Campus Club", slug: "", onSite: false }, true).path).toBe("/s/university-of-mississippi");

@@ -2,7 +2,7 @@
 // every tier:
 //
 //                        Like Reels for exam prep.
-//                Cram what's on your exam. Skip everything else.
+//                Start with the easy points. Cram videos around a minute each; practice that looks like your test.
 //                       [ Start cramming for free ]
 //                           ~2.4 min per video
 //
@@ -53,10 +53,10 @@ export function LearnEntrance({ tier, onStart }: {
       <span aria-hidden className="lk-hero-glow" data-corner="br" />
       <svg aria-hidden className="lk-hero-mark" viewBox={BOLT_VIEWBOX} focusable="false"><path d={BOLT_OUTER} fill="currentColor" /></svg>
       <h1 className="lk-disp" style={{ margin: 0, fontSize: displaySize, lineHeight: 1.05, letterSpacing: "-0.015em", color: LK.heroText, textWrap: "balance", maxWidth: 720 }}>
-        Like <span style={{ color: LK.acc }}>Reels</span> for exam prep.
+        Cram what&apos;s on <span style={{ color: LK.acc }}>Exam 1</span>.
       </h1>
       <p style={{ margin: 0, fontSize: narrow ? 15 : 17, lineHeight: 1.45, color: LK.heroMuted, fontFamily: SANS, maxWidth: 560, textWrap: "balance" }}>
-        Cram what's on your exam. Skip everything else.
+        Start with the easy points. Cram videos around a minute each; practice that looks like your test.
       </p>
       <div className="flex flex-col items-center" style={{ gap: 6, marginTop: narrow ? 4 : 6 }}>
         {/* King's testing notes (2026-09-14): no "for free" on the button, and no "~0.6 min per video"

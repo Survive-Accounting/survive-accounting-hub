@@ -11,6 +11,7 @@
 // thing to change if the scheme ever moves again.
 //
 // Tables: 0115 (manual-apply) on top of 0111.
+import { chapterLearnPath } from "@/lib/learn-paths";
 import { canonicalSchoolName } from "@/lib/schools";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -22,9 +23,11 @@ const admin = async () => {
 };
 
 /** THE canonical chapter URL builder. Everything that shows, copies, QR-encodes or prints a
- *  chapter link goes through this — share toolkit, dashboard, flyer, admin list. */
+ *  chapter link goes through this — share toolkit, dashboard, flyer, admin list.
+ *  SINCE 2026-09-16 it is the chair's /learn link (lib/learn-paths): /learn/<school>/<chapter>?share=chair.
+ *  /go/<school>/<chapter> redirects there for every link already in the wild. */
 export function goPath(schoolSlug: string, chapterSlug: string): string {
-  return `/go/${schoolSlug}/${chapterSlug}`;
+  return chapterLearnPath(schoolSlug, chapterSlug, { share: "chair" });
 }
 
 export interface GoChapter {

@@ -14,6 +14,7 @@
 //                              → /s/<campus>                                         (the campus /learn page)
 // Every link carries ?ref=<contact uuid> so the click lands on the DM console as that contact's.
 import { CONTACT_REF_PARAM } from "@/lib/contact-ref";
+import { chapterLearnPath, councilLearnPath } from "@/lib/learn-paths";
 
 export const OUTREACH_HOST = "surviveaccounting.com";
 
@@ -128,9 +129,12 @@ export interface OutreachLink {
  *  nothing on the site (FGCU today) sends every contact to the campus page rather than an empty
  *  council. */
 export function linkFor(campusSlug: string, org: Pick<LinkOrg, "kind" | "slug" | "onSite" | "group">, campusHasChapters: boolean): OutreachLink {
-  if (org.kind === "council" && org.slug && campusHasChapters) return { path: `/go/${campusSlug}/council/${org.slug}`, why: `${GROUP_LABEL[org.group] ?? org.group} council page` };
+  // SINCE 2026-09-16 every exec lands on /learn (lib/learn-paths): the council exec on the campus page with the
+  // council strip, the chapter exec on the chapter's page with the chair strip. /l/<code> resolves through here
+  // live, so every DM already sent lands on the new pages too.
+  if (org.kind === "council" && org.slug && campusHasChapters) return { path: councilLearnPath(campusSlug, org.slug), why: `${GROUP_LABEL[org.group] ?? org.group} council page on /learn` };
   if (org.kind === "office" && campusHasChapters) return { path: `/s/${campusSlug}/council`, why: "all-council page" };
-  if (org.kind === "chapter" && org.onSite && org.slug) return { path: `/go/${campusSlug}/${org.slug}`, why: "chapter page" };
+  if (org.kind === "chapter" && org.onSite && org.slug) return { path: chapterLearnPath(campusSlug, org.slug, { share: "chair" }), why: "chapter page on /learn" };
   return { path: `/s/${campusSlug}`, why: org.kind === "chapter" ? "campus page (chapter not on the site)" : "campus page" };
 }
 

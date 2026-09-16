@@ -1,3 +1,4 @@
+import { chapterLearnPath, LEARN_ORIGIN } from "@/lib/learn-paths";
 // CHAPTER SHARE — the vocabulary every sharing surface speaks: the canonical /go URL (with its
 // attribution stamp), the chapter's natural short name, and the GroupMe message. Pure functions
 // only; the UI that uses them is the /go page's share kit (see ChapterAccess).
@@ -15,7 +16,7 @@ export type ShareVia = "link" | "groupme" | "text" | "flyer" | "slide";
 
 /** One place, so the copied link, the printed flyer and the visit log can never disagree. */
 export const chapterUrl = (schoolSlug: string, chapterSlug: string, via?: ShareVia) =>
-  `https://surviveaccounting.com/go/${schoolSlug}/${chapterSlug}${via ? `?via=${via}` : ""}`;
+  `${LEARN_ORIGIN}${chapterLearnPath(schoolSlug, chapterSlug, via ? { via } : {})}`;
 
 /** Greek-letter words whose Latin initial is how houses ACTUALLY abbreviate them. Chi maps to X
  *  ("Alpha Chi Omega" → "AXO"). Phi and Psi are deliberately ABSENT: their real-world shorthands

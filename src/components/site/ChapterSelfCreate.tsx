@@ -10,6 +10,7 @@
 //
 // ONLY SHOWN WITH A SCHOOL. Creating a chapter needs a campus, so the caller falls back to the
 // plain write-in form when nobody has picked a school yet.
+import { chapterLearnPath } from "@/lib/learn-paths";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -48,7 +49,7 @@ export function ChapterSelfCreate({ schoolSlug, schoolName, onClose }: {
       if (!r.ok) { setErr(r.error); setBusy(false); return; }
       // Straight to the page. `created` is deliberately not surfaced: whether we made the row just
       // now or already had it is our business, not theirs.
-      void navigate({ to: "/go/$school/$chapter", params: { school: schoolSlug, chapter: r.chapterSlug } });
+      void navigate({ href: chapterLearnPath(schoolSlug, r.chapterSlug, { share: "chair" }) });
     } catch {
       setErr("Couldn't set that up — try again in a moment.");
       setBusy(false);

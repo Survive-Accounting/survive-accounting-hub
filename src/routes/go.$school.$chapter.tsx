@@ -54,17 +54,20 @@ const MEMBER_STAMPS: ReadonlySet<ShareStamp> = new Set<ShareStamp>(["flyer", "sl
 export const Route = createFileRoute("/go/$school/$chapter")({
   // A SCANNED FLYER OR SLIDE goes to the student page, not the chair's. The search object here
   // is the raw parsed query (this route validates none of it).
+    // /go RETIRED (the simple flow, Lee, 2026-09-16: "chairs are students … I don't agree with keeping /go").
+  // Every link already in the wild lands on the chapter's /learn page: a scanned flyer or slide as a member, a
+  // DM'd chair with ?share=chair so the strip says "bring this to the house". The page below is unreachable.
   beforeLoad: ({ params, search }) => {
     const q = search as Record<string, unknown>;
     const via: ShareStamp | null = typeof q.via === "string" && SHARE_VIA.includes(q.via as ShareStamp) ? (q.via as ShareStamp)
       : q.s === "flyer" ? "flyer" : null;
-    if (!via || !MEMBER_STAMPS.has(via)) return;
-    void logGreekEvent({ data: { kind: "visit", schoolSlug: params.school, chapterSlug: params.chapter, via } }).catch(() => {});
+    const member = !!via && MEMBER_STAMPS.has(via);
+    if (member) void logGreekEvent({ data: { kind: "visit", schoolSlug: params.school, chapterSlug: params.chapter, via: via! } }).catch(() => {});
     throw redirect({
       to: "/learn/{-$campus}/{-$chapter}",
       params: { campus: schoolBySlug(params.school)?.id ?? params.school, chapter: params.chapter },
       // An ad's utm_* / click id ride along (lib/carry-params) — this hop runs before any tag.
-      search: carryParams(q),
+      search: { ...carryParams(q), ...(typeof q.ref === "string" ? { ref: q.ref } : {}), ...(typeof q.by === "string" ? { by: q.by } : {}), ...(member ? {} : { share: "chair" }) } as never,
       replace: true,
     });
   },

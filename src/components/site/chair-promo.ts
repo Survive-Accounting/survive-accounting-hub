@@ -5,6 +5,7 @@
 // scholarship chairs." Students never land here on purpose — their page is /learn. So every line
 // speaks to the chair about THEIR members (or, for a council, every chapter's members).
 import { SHARE_ORIGIN, buildShareUrl } from "@/lib/share-url";
+import { councilLearnPath } from "@/lib/learn-paths";
 import { chapterGroupMe } from "@/components/learn/LearnChapterBar";
 import { nbspCode } from "@/lib/course-code";
 import { schoolByAny } from "@/lib/schools";
@@ -66,7 +67,7 @@ export function councilShortUrl(school: string, council: string, ref?: string | 
  *  portal speaks campuses.slug; the id is accepted and translated so callers can pass either. */
 export function councilPortalUrl(school: string, council: string): string {
   const slug = schoolByAny(school)?.slug ?? school;
-  return `${SHARE_ORIGIN}/chapters?school=${encodeURIComponent(slug)}&c=${encodeURIComponent(council)}`;
+  return `${SHARE_ORIGIN}${councilLearnPath(slug, council)}`;
 }
 
 /** What the left door opens in a new tab: the page MEMBERS land on. For a chapter, that chapter's
