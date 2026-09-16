@@ -65,7 +65,9 @@ type Stage =
   | { s: "posted"; link: string }
   | { s: "error"; error: string; fileUrl?: string };
 
-export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName, popoutFrameId, onClose, onNext, onPrev, videoOf }: {
+export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName, popoutFrameId, onClose, onNext, onPrev, videoOf, stemOf }: {
+  /** A card's question, by id — the fallback name of a video with no cut name. */
+  stemOf?: (ceqId: string) => string | undefined;
   /** Move this window (and the pop-out) to the next video; null on the last one. */
   onNext?: (() => void) | null;
   /** …and back one; null on the first. */
@@ -136,7 +138,10 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
   // THE VIDEO'S NAME from the Build step's cuts, as the v4 Film list shows it (Lee, 2026-09-15: "#1 - [title]").
   const splitsQ = useQuery({ queryKey: ["v4-splits", setId], queryFn: () => loadV4Splits({ data: { setId } }), staleTime: 60_000, retry: false });
   const cutName = splitNameOf(splitsQ.data, takeIndex);
-  const defaultTitle = cutName || (isPlaceholderName(takeName) ? "" : takeName) || setName;
+    // No cut name and no take name → the video is named by what it opens on (its first question), not the set —
+  // the Stitch Room was a column of "A = L + E effects" (Lee, 2026-09-16).
+  const firstStem = useMemo(() => { const f = frames.find((x) => x.kind === "ceq" && !x.skipped && x.ceqId && stemOf?.(x.ceqId)); const s = f?.ceqId ? (stemOf?.(f.ceqId) ?? "") : ""; return s.length > 70 ? `${s.slice(0, 68)}…` : s; }, [frames, stemOf]);
+  const defaultTitle = cutName || (isPlaceholderName(takeName) ? "" : takeName) || firstStem || setName;
   const [title, setTitle] = useState(defaultTitle);
   useEffect(() => { setTitle(defaultTitle); setStage({ s: "idle" }); }, [defaultTitle, takeIndex]);
   const cta = endCtaOf(frames);

@@ -34,7 +34,7 @@ import { outroLine } from "@/components/brand-cards/slogans";
 import { TeaserFrame } from "./TeaserFrame";
 import { PracticeFrame } from "./PracticeFrame";
 import { DcPickFrame, DcRuleFrame, TAccountFrame, TPickFrame } from "./LedgerFrames";
-import { dcPickOf, isDcKey, tPickOf } from "./ledger";
+import { dcPickOf, dcTypeOf, isDcKey, tPickOf } from "./ledger";
 import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, showCampusBanner, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
 import { RubricSlide } from "./RubricSlide";
@@ -270,7 +270,7 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
         if (pick) return <TPickFrame w={fw} stem={ceq.stem} account={pick.account} side={pick.side} live={live} />;
     // THE RUBRIC PICK (2026-09-16): a "How do you increase ____?" card with the L beside it.
     const dpick = frame.dcpick && !ceq.noteOnly ? dcPickOf(ceq.stem, ceq.choices) : null;
-    if (dpick) return <DcPickFrame w={fw} stem={ceq.stem} pick={dpick} type={isDcKey(frame.dcpick) ? frame.dcpick : null} live={live} />;
+        if (dpick) return <DcPickFrame w={fw} stem={ceq.stem} pick={dpick} type={isDcKey(frame.dcpick) ? frame.dcpick : dcTypeOf(dpick.account)} live={live} />;
     if (ceq.noteOnly) return <SetCard id={ceq.id} stem={ceq.stem} scale={scale} callout={{ detour: true, showTopic: false }} live={live} {...ov} />;
     return (
       <SetCard

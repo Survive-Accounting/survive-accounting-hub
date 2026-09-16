@@ -8,9 +8,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import { inVideoOrder, isPlaceholderName, money, splitNameOf, statsFor, videoKey, videoTitle, type StitchRecord } from "@/lib/film-stitch";
+import { inVideoOrder, isPlaceholderName, money, statsFor, videoKey, videoTitle, type StitchRecord } from "@/lib/film-stitch";
 import { listFilmStitches } from "@/lib/film-stitch.functions";
-import { loadV4Splits } from "@/lib/v4.functions";
+import { loadV4VideoBriefs, type V4VideoBrief } from "@/lib/v4.functions";
 
 import { STITCH_CHANNEL, type StitchJob, type StitchMessage } from "../../blastoff/capture/stitch-queue";
 import { FilmStats } from "./FilmStats";
@@ -75,19 +75,24 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
     void qc.invalidateQueries({ queryKey: ["film-stitches"] });
   };
 
-  // NAMES: a video saved as "Split N" (or nothing) takes its name from the Build step's cuts.
-  const [cutNames, setCutNames] = useState<Record<string, Awaited<ReturnType<typeof loadV4Splits>> | null>>({});
-  const needNames = useMemo(() => [...new Set([...records, ...jobs].filter((x) => isPlaceholderName(x.name)).map((x) => x.setId))], [records, jobs]);
+    // WHICH VIDEO IS WHICH (Lee, 2026-09-16: "I'm having trouble knowing which stitch is which video. They're all
+  // marked A = L + E effects"): every set in the room loads its videos' briefs — the cut's name, the slides it
+  // covers, and what those slides say — so a video saved under the set's name (or "Split N") is named by its
+  // cut, and every row says "Slides 12–18 · How do you increase Cash?" under the title.
+  const [briefs, setBriefs] = useState<Record<string, V4VideoBrief[] | null>>({});
+  const needBriefs = useMemo(() => [...new Set([...records, ...jobs].map((x) => x.setId))], [records, jobs]);
   useEffect(() => {
-    for (const setId of needNames) {
-      if (setId in cutNames) continue;
-      setCutNames((m) => ({ ...m, [setId]: null }));
-      loadV4Splits({ data: { setId } }).then((s) => setCutNames((m) => ({ ...m, [setId]: s }))).catch(() => { /* stays #N */ });
+    for (const setId of needBriefs) {
+      if (setId in briefs) continue;
+      setBriefs((m) => ({ ...m, [setId]: null }));
+      loadV4VideoBriefs({ data: { setId } }).then((s) => setBriefs((m) => ({ ...m, [setId]: s }))).catch(() => { /* stays #N */ });
     }
-  }, [needNames]); // eslint-disable-line react-hooks/exhaustive-deps
-  const nameFor = (x: { setId: string; takeIndex: number; name: string }) => (isPlaceholderName(x.name) ? splitNameOf(cutNames[x.setId], x.takeIndex) : x.name);
-  const titleFor = (x: { setId: string; takeIndex: number; name: string }) => videoTitle(x.takeIndex, nameFor(x));
-  const named = useMemo(() => records.map((r) => (isPlaceholderName(r.name) ? { ...r, name: splitNameOf(cutNames[r.setId], r.takeIndex) } : r)), [records, cutNames]);
+  }, [needBriefs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const briefFor = (x: { setId: string; takeIndex: number }): V4VideoBrief | undefined => briefs[x.setId]?.find((b) => b.index === x.takeIndex);
+  const nameFor = (x: { setId: string; takeIndex: number; name: string; setName: string | null }) => (isPlaceholderName(x.name) || x.name.trim() === (x.setName ?? "").trim() ? (briefFor(x)?.name ?? "") : x.name);
+  const titleFor = (x: { setId: string; takeIndex: number; name: string; setName: string | null }) => videoTitle(x.takeIndex, nameFor(x));
+  const subFor = (x: { setId: string; takeIndex: number; setName: string | null }, tail: string) => { const b = briefFor(x); return b ? `${briefLine(b)} · ${tail}` : `${x.setName ?? ""} · ${tail}`; };
+  const named = useMemo(() => records.map((r) => (isPlaceholderName(r.name) || r.name.trim() === (r.setName ?? "").trim() ? { ...r, name: briefs[r.setId]?.find((b) => b.index === r.takeIndex)?.name ?? (isPlaceholderName(r.name) ? "" : r.name) } : r)), [records, briefs]);
 
   const byKey = useMemo(() => new Map(named.map((r) => [videoKey(r.setId, r.takeIndex), r])), [named]);
   const inProgress = jobs.filter((j) => j.state !== "done" || !byKey.has(j.key));
@@ -144,7 +149,7 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
             {inProgress.length > 0 && <div style={{ fontSize: 10.5, letterSpacing: "0.14em", fontWeight: 800, color: ROOM.gold, padding: "4px 6px" }}>STITCHING</div>}
             {inProgress.map((j) => (
               <MenuRow key={j.key} on={sel === j.key} onClick={() => { setSel(j.key); setTab("videos"); }}
-                title={titleFor(j)} sub={`${j.setName} · ${j.state === "error" ? "stopped" : j.state === "waiting" ? "waiting" : j.note}`}
+                                title={titleFor(j)} sub={subFor(j, j.state === "error" ? "stopped" : j.state === "waiting" ? "waiting" : j.note)} hint={briefHint(briefFor(j), j.setName)}
                 tone={j.state === "error" ? ROOM.red : ROOM.gold} spinning={j.state !== "done" && j.state !== "error"} />
             ))}
             <div style={{ fontSize: 10.5, letterSpacing: "0.14em", fontWeight: 800, color: ROOM.muted, padding: "10px 6px 4px" }}>STITCHED · {records.length}</div>
@@ -153,7 +158,7 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
               const k = videoKey(r.setId, r.takeIndex);
               return (
                 <MenuRow key={r.id} on={sel === k} onClick={() => { setSel(k); setTab("videos"); }}
-                  title={titleFor(r)} sub={`${r.setName ?? ""} · ${r.slides} slides`}
+                                    title={titleFor(r)} sub={subFor(r, `${r.slides} slides`)} hint={briefHint(briefFor(r), r.setName ?? "")}
                   tone={r.status === "posted" ? ROOM.mint : r.status === "queued" ? ROOM.gold : ROOM.muted}
                   badge={r.status === "posted" ? "posted" : r.status === "queued" ? "queued" : undefined} />
               );
@@ -203,7 +208,7 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
                   </button>
                 </div>
               )}
-              {!showBuild && record && <VideoDesk record={record} onChange={(r) => upsert(r)}
+                            {!showBuild && record && <VideoDesk record={record} brief={briefFor(record)} onChange={(r) => upsert(r)}
                 onDeleted={(r) => { qc.setQueryData<StitchRecord[]>(["film-stitches"], (old) => (old ?? []).filter((x) => x.id !== r.id)); setSel(null); }} />}
               {!showBuild && !record && <div style={{ color: ROOM.muted, fontSize: 14 }}>{records.length || jobs.length ? "Pick a video on the left." : "No stitched videos yet. In punch-in, press ⚡ Stitch — it opens here."}</div>}
               {job && job.state === "done" && record && (
@@ -222,9 +227,23 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
   );
 }
 
-function MenuRow({ on, onClick, title, sub, tone, badge, spinning }: { on: boolean; onClick: () => void; title: string; sub: string; tone: string; badge?: string; spinning?: boolean }) {
+/** "Slides 12–18 · How do you increase Cash?" — where a video sits in its set and what it opens on. */
+export function briefLine(b: V4VideoBrief): string {
+  const range = b.from === b.to ? `Slide ${b.from}` : `Slides ${b.from}–${b.to}`;
+  return b.first ? `${range} · ${b.first}` : range;
+}
+/** The hover: the set, the slide range, then every question the video asks. */
+function briefHint(b: V4VideoBrief | undefined, setName: string): string | undefined {
+  if (!b) return setName || undefined;
+  const lines = [setName, b.from === b.to ? `Slide ${b.from}` : `Slides ${b.from}–${b.to}`];
+  if (b.stems.length) lines.push("", ...b.stems.map((s) => `• ${s}`));
+  else if (b.first) lines.push("", b.first, ...(b.last ? [`… ${b.last}`] : []));
+  return lines.filter((l, i) => l || i > 0).join("\n");
+}
+
+function MenuRow({ on, onClick, title, sub, tone, badge, spinning, hint }: { on: boolean; onClick: () => void; title: string; sub: string; tone: string; badge?: string; spinning?: boolean; hint?: string }) {
   return (
-    <button type="button" onClick={onClick}
+    <button type="button" onClick={onClick} title={hint}
       style={{ all: "unset", cursor: "pointer", display: "flex", gap: 8, alignItems: "center", padding: "7px 8px", borderRadius: 8, background: on ? "rgba(252,163,17,0.10)" : "transparent", border: `1px solid ${on ? `${ROOM.gold}88` : "transparent"}` }}>
       {spinning
         ? <span className="sa-room-spin" style={{ width: 12, height: 12, borderRadius: 999, border: `2px solid ${tone}`, borderTopColor: "transparent", flex: "none" }} />

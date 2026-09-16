@@ -1,13 +1,13 @@
 // THE LEDGER SLIDES — the rubric-shaped debit/credit rule, the rubric pick, the T-account and the T pick (ledger.ts
 // has the rules and Lee's words). Full 9:16 in the end-of-topic shell, drawn in phone units (k = w / 306). On film
 // every one of them walks with space through the capture's FrameStepContext, the way the teaser does.
-import { useContext } from "react";
+import { useContext, useState } from "react";
 
 import { BRAND_CREAM } from "@/components/brand-cards/bolt-boil";
 
 import { Chip, Shell } from "./EndOfTopicFrames";
 import { FrameStepContext } from "./frame-step";
-import { DC_ORANGE, DC_YELLOW, dcColor, dcWalkView, isDcKey, isDcMode, tAccountShown, type DcKey, type TAccountSpec } from "./ledger";
+import { DC_ORANGE, DC_YELLOW, dcColor, dcContraOf, dcWalkView, isDcKey, isDcMode, tAccountShown, type DcKey, type TAccountSpec } from "./ledger";
 import type { BlastFrame } from "./plan";
 import { DISPLAY_FONT } from "./stage";
 
@@ -33,22 +33,39 @@ function MiniT({ k, name, keyName, dim, blank, size = 1 }: { k: number; name: st
 /** THE L — A = L + E across, Rev and Exp under E (the same shape as the A = L + E rubric). `shown` hides boxes
  *  not yet walked in (their space is kept); `lit` dims everything outside the family; `hop` draws the arrow that
  *  jumps the equal sign; `link` the tie between Equity and Revenue. `div` adds the Dividends box under Rev/Exp. */
-function RubricL({ k, shown, lit, dim, blank, hop, link, div, size = 1 }: {
+function RubricL({ k, shown, lit, dim, blank, hop, link, div, size = 1, contra, onPick }: {
   k: number; shown?: readonly DcKey[]; lit?: readonly DcKey[] | null; dim?: (key: DcKey) => boolean; blank?: boolean; hop?: boolean; link?: boolean; div?: boolean; size?: number;
+  /** THE CONTRA VIEW (Lee, 2026-09-16): the flipped contra T to the right of Assets with a flip arrow between
+   *  them, or — for equity — Dividends under Equity, where Revenues and Expenses sit otherwise. */
+  contra?: { of: "A" | "E"; name: string } | null;
+  /** A tap on a box: "click the rubric to focus on one type of account". */
+  onPick?: (key: DcKey) => void;
 }) {
   const s = k * size;
   const on = (key: DcKey) => !shown || shown.includes(key);
   const dimmed = (key: DcKey) => (lit ? !lit.includes(key) : dim ? dim(key) : false);
+  const tap = (key: DcKey) => (onPick ? { onClick: (e: React.MouseEvent) => { e.stopPropagation(); onPick(key); } } : {});
   const box = (key: DcKey, name: string) => (
-    <div style={{ visibility: on(key) ? "visible" : "hidden", transition: "opacity 220ms" }}><MiniT k={k} name={name} keyName={key} dim={dimmed(key)} blank={blank} size={size} /></div>
+    <div {...tap(key)} style={{ visibility: on(key) ? "visible" : "hidden", transition: "opacity 220ms", ...(onPick ? { cursor: "pointer" } : {}) }}><MiniT k={k} name={name} keyName={key} dim={dimmed(key)} blank={blank} size={size} /></div>
   );
   const sign = (t: string) => <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 900, fontSize: 22 * s, color: BRAND_CREAM, paddingTop: 2 * s, position: "relative" }}>{t}</div>;
+  // the flip arrow: the contra is its family's OPPOSITE
+  const flip = (t: string, vertical?: boolean) => (
+    <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 900, fontSize: (vertical ? 20 : 24) * s, lineHeight: 1, color: "#FCA311", paddingTop: vertical ? 0 : 4 * s, textAlign: "center" }}>{t}</div>
+  );
+  // the contra's T takes a key with the opposite sign, so its + sits on the other side
+  const contraT = (name: string, keyName: DcKey, sz: number) => (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 * s }}>
+      <MiniT k={k} name={name} keyName={keyName} blank={blank} size={sz} />
+      <span style={{ fontSize: 8.5 * s, fontWeight: 800, letterSpacing: "0.12em", color: "#FF8B7E", whiteSpace: "nowrap" }}>CONTRA · OPPOSITE</span>
+    </div>
+  );
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 * s, position: "relative" }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr auto 1fr", alignItems: "start", gap: 4 * s, position: "relative" }}>
         {box("A", "Assets")}
-        {sign("=")}
-        {box("L", "Liabilities")}
+        {contra?.of === "A" ? flip("⇄") : sign("=")}
+        {contra?.of === "A" ? contraT(contra.name, "L", size) : box("L", "Liabilities")}
         {sign("+")}
         {box("E", "Equity")}
         {/* THE HOP: the arrow that jumps the equal sign — "each side of the equal sign". */}
@@ -59,17 +76,27 @@ function RubricL({ k, shown, lit, dim, blank, hop, link, div, size = 1 }: {
           </svg>
         )}
       </div>
-            {/* Under equity: revenues, then expenses, stacked in equity's column (dividends under them when asked) — the L. */}
+      {/* Under equity: revenues, then expenses, stacked in equity's column (dividends under them when asked) — the L. */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr auto 1fr", gap: 4 * s, alignItems: "start" }}>
         <span /><span /><span /><span />
         <div style={{ display: "flex", flexDirection: "column", gap: 8 * s, alignItems: "center", position: "relative" }}>
-          {link && on("Rev") && <div aria-hidden style={{ position: "absolute", left: "50%", top: -10 * s, width: 2 * s, height: 10 * s, background: "#FCA311" }} />}
-          {/* STACKED, not side by side (Lee, 2026-09-16: "more like an L… under E, Revenues, Expenses, vertically aligned"). */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 * s, alignItems: "center" }}>
-            <div style={{ visibility: on("Rev") ? "visible" : "hidden" }}><MiniT k={k} name="Revenues" keyName="Rev" dim={dimmed("Rev")} blank={blank} size={size * 0.85} /></div>
-            <div style={{ visibility: on("Exp") ? "visible" : "hidden" }}><MiniT k={k} name="Expenses" keyName="Exp" dim={dimmed("Exp")} blank={blank} size={size * 0.85} /></div>
-          </div>
-          {div && <MiniT k={k} name="Dividends" keyName="Div" dim={dimmed("Div")} blank={blank} size={size * 0.72} />}
+          {contra?.of === "E" ? (
+            // EQUITY VS. DIVIDENDS: the flipped one goes underneath ("due to lack of space"), the flip arrow between.
+            <>
+              {flip("⇅", true)}
+              {contraT(contra.name, "Div", size)}
+            </>
+          ) : (
+            <>
+              {link && on("Rev") && <div aria-hidden style={{ position: "absolute", left: "50%", top: -10 * s, width: 2 * s, height: 10 * s, background: "#FCA311" }} />}
+              {/* STACKED, not side by side (Lee, 2026-09-16: "more like an L… under E, Revenues, Expenses, vertically aligned"). */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 * s, alignItems: "center" }}>
+                <div {...tap("Rev")} style={{ visibility: on("Rev") ? "visible" : "hidden", ...(onPick ? { cursor: "pointer" } : {}) }}><MiniT k={k} name="Revenues" keyName="Rev" dim={dimmed("Rev")} blank={blank} size={size * 0.85} /></div>
+                <div {...tap("Exp")} style={{ visibility: on("Exp") ? "visible" : "hidden", ...(onPick ? { cursor: "pointer" } : {}) }}><MiniT k={k} name="Expenses" keyName="Exp" dim={dimmed("Exp")} blank={blank} size={size * 0.85} /></div>
+              </div>
+              {div && <div {...tap("Div")} style={onPick ? { cursor: "pointer" } : undefined}><MiniT k={k} name="Dividends" keyName="Div" dim={dimmed("Div")} blank={blank} size={size * 0.72} /></div>}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -146,9 +173,13 @@ export function DcRuleFrame({ w, frame, live }: { w: number; frame: BlastFrame; 
   );
 }
 
-/** THE RUBRIC PICK: a "How do you increase ____?" card with the L beside the question. Space lights the account's
- *  type in the L (the rest dim), then the answer. At rest (Editor) everything is revealed. Debit / Credit are the
- *  card's own choices; the practice keeps them. */
+/** THE RUBRIC PICK: a "How do you increase ____?" card. The L sits on top — the question in the lower area under
+ *  it, Debit / Credit at the bottom (Lee, 2026-09-16: "I want the question to sit where it's circled. The rubric
+ *  can move upward"). On film, space lights the account's family (the rest blur), then the answer. A tap on any
+ *  box focuses that family instead, and a tap on it again lets go — "click the rubric to focus on one type of
+ *  account… blur everything else". A contra account (Acc Depr, Dividends) shows its family lit with the flipped
+ *  contra T beside it: to the right of Assets with a flip arrow, or under Equity. At rest (Editor) everything is
+ *  revealed. Debit / Credit are the card's own choices; the practice keeps them. */
 export function DcPickFrame({ w, stem, pick, type, live }: { w: number; stem: string; pick: { account: string; side: "L" | "R" | null }; type: DcKey | null; live?: boolean }) {
   const k = w / 306;
   const stepCtx = useContext(FrameStepContext);
@@ -156,6 +187,11 @@ export function DcPickFrame({ w, stem, pick, type, live }: { w: number; stem: st
   const step = walking ? stepCtx.step : null;
   const typeLit = step == null || step >= 1;
   const answer = step == null || step >= 2;
+  const contra = dcContraOf(pick.account);
+  const family: DcKey | null = contra ? contra.of : type;
+  const [focus, setFocus] = useState<DcKey | null>(null);
+  const lit: DcKey | null = focus ?? (typeLit ? family : null);
+  const showContra = !!contra && lit === contra.of;
   const advance = walking && stepCtx.advance ? (e: React.MouseEvent) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); stepCtx.advance?.(e.shiftKey ? -1 : 1); } : undefined;
   const pill = (side: "L" | "R") => {
     const on = answer && pick.side === side;
@@ -167,12 +203,13 @@ export function DcPickFrame({ w, stem, pick, type, live }: { w: number; stem: st
   };
   return (
     <Shell w={w} k={k}>
-      <div onClick={advance} style={{ width: "100%", minHeight: 420 * k, display: "flex", flexDirection: "column", justifyContent: "center", gap: 14 * k, cursor: advance ? "pointer" : undefined }}>
+      <div onClick={advance} style={{ width: "100%", minHeight: 420 * k, display: "flex", flexDirection: "column", gap: 14 * k, cursor: advance ? "pointer" : undefined }}>
+        <div style={{ padding: `${12 * k}px ${4 * k}px ${10 * k}px`, borderRadius: 12 * k, border: `1px solid rgba(245,239,230,0.14)` }}>
+          <RubricL k={k} dim={(key) => !!lit && lit !== key} contra={showContra ? contra : null} onPick={(key) => setFocus((f) => (f === key ? null : key))} />
+        </div>
+        <div style={{ flex: 1 }} />
         <div><Chip text="Common exam question" k={k} /></div>
         <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: 21 * k, lineHeight: 1.08, color: BRAND_CREAM, textWrap: "balance" as never }}>{stem}</div>
-        <div style={{ padding: `${8 * k}px ${4 * k}px`, borderRadius: 12 * k, border: `1px solid rgba(245,239,230,0.14)` }}>
-          <RubricL k={k} size={0.86} dim={(key) => typeLit && !!type && type !== key} div={type === "Div"} />
-        </div>
         <div style={{ display: "flex", gap: 10 * k }}>{pill("L")}{pill("R")}</div>
       </div>
     </Shell>

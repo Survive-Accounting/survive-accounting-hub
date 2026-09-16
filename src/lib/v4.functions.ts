@@ -472,7 +472,45 @@ export const loadV4Splits = createServerFn({ method: "POST" })
     const { deck } = await openScene(d, data.setId);
     const state = deck.v4 as import("@/components/v4/v4-topic").V4State | undefined;
     const s = state?.split ?? NO_SPLITS;
-    return { startIntro: s.startIntro, ...(s.startName ? { startName: s.startName } : {}), cuts: s.cuts.map((c) => ({ after: c.after, intro: c.intro, ...(c.name ? { name: c.name } : {}) })) };
+        return { startIntro: s.startIntro, ...(s.startName ? { startName: s.startName } : {}), cuts: s.cuts.map((c) => ({ after: c.after, intro: c.intro, ...(c.name ? { name: c.name } : {}) })) };
+  });
+
+/** WHICH VIDEO IS WHICH (Lee, 2026-09-16: "I'm having trouble knowing which stitch is which video. They're all
+ *  marked A = L + E effects"). One line per video of a set, from the plan itself: the cut's name, the slide
+ *  numbers it covers, and what its slides say — the first and last one, and every question stem — so the Stitch
+ *  Room can tell them apart without opening each. */
+export interface V4VideoBrief { index: number; name: string; from: number; to: number; first: string; last: string; stems: string[] }
+export const loadV4VideoBriefs = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string().min(1).max(200) }).parse(d))
+  .handler(async ({ data }): Promise<V4VideoBrief[]> => {
+    const d = await db();
+    const { NO_SPLITS } = await import("@/components/v4/v4-chain");
+        const { planTakes, FRAME_LABEL, STANDARD_KINDS } = await import("@/components/blastoff/plan");
+    const spine = new Set<string>(STANDARD_KINDS);
+    const { j, deck } = await openScene(d, data.setId);
+    const state = deck.v4 as import("@/components/v4/v4-topic").V4State | undefined;
+    const s = state?.split ?? NO_SPLITS;
+    const stemOf = new Map(cardNodes(j, data.setId).map((n) => [n.id, typeof n.data?.prompt === "string" ? n.data.prompt : ""]));
+    const frames = ((deck.blastOff?.frames ?? []) as import("@/components/blastoff/plan").BlastFrame[]);
+    const label = (f: import("@/components/blastoff/plan").BlastFrame): string => {
+      const t = f.kind === "ceq" ? (stemOf.get(f.ceqId ?? "") ?? "") : (f.title ?? f.text ?? "");
+      const one = t.replace(/\s+/g, " ").trim();
+      return one ? (one.length > 90 ? `${one.slice(0, 88)}…` : one) : FRAME_LABEL[f.kind];
+    };
+    // slide numbers count the filmed slides of the whole plan, the way punch-in labels its clips
+    let n = 0;
+    return planTakes(frames).map((t) => {
+      const filmed = t.frames.filter((f) => !f.skipped);
+      const from = n + 1; n += filmed.length; const to = n;
+            const said = filmed.filter((f) => !spine.has(f.kind));
+      const pick = said.length ? said : filmed;
+      const cut = ((t.index === 0 ? s.startName : s.cuts[t.index - 1]?.name) ?? "").trim();
+      return {
+        index: t.index, name: cut || t.name, from, to,
+        first: pick[0] ? label(pick[0]) : "", last: pick.length > 1 ? label(pick[pick.length - 1]) : "",
+        stems: filmed.filter((f) => f.kind === "ceq").map(label),
+      };
+    });
   });
 
 // ─────────────────────────────────────────────────────────────────────────── /v4/todo ──

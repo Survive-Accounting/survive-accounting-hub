@@ -120,6 +120,28 @@ export function dcWalkView(s: number | null | undefined): { shown: DcKey[]; lit:
  *  the direction, and the answer side from the correct choice (Debit → L, Credit → R). Null when the card
  *  isn't that shape. Steps: the bare question, the type's box lights, the answer lights. */
 export const DC_PICK_STEPS = 3;
+/** THE FAMILY OF AN ACCOUNT NAME: which box of the L lights for "How do you increase Cash?". Liabilities are
+ *  tested before revenues (Unearned Revenue), expenses before assets (Depreciation Expense vs. Accumulated
+ *  Depreciation). Null when the name says nothing the L knows. */
+export function dcTypeOf(account: string): DcKey | null {
+  const a = account.toLowerCase();
+  if (/dividend|drawing/.test(a)) return "Div";
+  if (/expense|cost of goods|cogs|\bloss\b/.test(a)) return "Exp";
+  if (/payable|unearned|deferred|liabilit|\bloan|\bdebt|accrued|owed/.test(a)) return "L";
+  if (/revenue|earned|\bsales\b|\bfees\b|income\b|\bgain\b/.test(a)) return "Rev";
+  if (/stock|retained|equity|capital|owner/.test(a)) return "E";
+  if (/cash|receivable|supplies|prepaid|inventory|equipment|land|building|asset|accumulated|allowance|vehicle|furniture|investment|patent|\bnote|goodwill|truck|computer/.test(a)) return "A";
+  return null;
+}
+/** THE CONTRA: an account that flips its family's signs, with the short label its T wears (Lee: "Acc Depr"). */
+export function dcContraOf(account: string): { of: "A" | "E"; name: string } | null {
+  const a = account.toLowerCase();
+  if (/accumulated depreciation|accum\.? dep|acc depr/.test(a)) return { of: "A", name: "Acc Depr" };
+  if (/allowance/.test(a)) return { of: "A", name: "Allowance" };
+  if (/dividend|drawing/.test(a)) return { of: "E", name: "Dividends" };
+  if (/treasury/.test(a)) return { of: "E", name: "Treasury Stock" };
+  return null;
+}
 export function dcPickOf(stem: string, choices: readonly { text: string; correct: boolean }[]): { account: string; direction: "increase" | "decrease" | null; side: "L" | "R" | null } | null {
   const s = stem.replace(/\s+/g, " ").trim();
   const m = /\b(increase|decrease)s?\s+(?:an?\s+|the\s+)?(.+?)\??\s*$/i.exec(s);

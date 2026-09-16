@@ -108,7 +108,7 @@ import { SplitRunPanel, takeCards } from "./SplitRunPanel";
 import { replaceRun } from "./split-run";
 import { TEASER_DEFAULT, TEASER_MAX } from "./teaser";
 import { PRACTICE_COPY, PRACTICE_FILMED_LINE, practiceVariantOf } from "./practice-cta";
-import { DC_KEYS, DC_MODE_LABEL, DC_MODES, DC_NAME, DC_ORANGE, DC_YELLOW, dcColor, dcPickOf, formatTLines, isDcKey, isDcMode, parseTLines, tPickOf } from "./ledger";
+import { DC_KEYS, DC_MODE_LABEL, DC_MODES, DC_NAME, DC_ORANGE, DC_YELLOW, dcColor, dcPickOf, dcTypeOf, formatTLines, isDcKey, isDcMode, parseTLines, tPickOf } from "./ledger";
 // THE END-OF-TOPIC AD (2026-09-12): his picks of the topic's best videos.
 import { TOPIC_AD_COPY, bestOf, toggleBest } from "./topic-ad";
 import { AD_KINDS, FRAME_LABEL, backdropFor, canGoBig, canRemove, canZoomBehind, cloneFrameToEnd, cutAfterFrame, standardOpener, isBigCallout, dropFrame, duplicateFrame, filmFrames, insertFrame, isAdKind, isInsert, isStandard, moveFrame, moveMany, newFrameId, pasteAfter, patchFrame, patchFramesOfKind, toggleSkip, toggleSpeedRun, type BackdropMode, type BlastFrame, type BlastFrameKind, isFullFrame } from "./plan";
@@ -2304,8 +2304,10 @@ function SlideEditor({ sel, label, ceq, set, tabs, layout, saving, shortenApplie
         {/* THE RUBRIC PICK (2026-09-16): a "How do you increase ____?" card with the L beside it. */}
         {sel.kind === "ceq" && ceq && !ceq.noteOnly && dcPickOf(ceq.stem, ceq.choices) && (
           <div className="flex flex-wrap items-center" style={{ gap: 6, fontSize: 11, color: MUTED }}>
-            <span>Rubric beside it, lighting:</span>
+                        <span>Rubric on top, lighting:</span>
             <button style={chip(!sel.dcpick, GOLD)} onClick={() => onPatch({ dcpick: undefined })}>Off</button>
+            {/* THE AUTO PICK (2026-09-16): the family read from the account's name; a key chip overrides it. */}
+            {(() => { const auto = dcTypeOf(dcPickOf(ceq.stem, ceq.choices)?.account ?? ""); return <button style={chip(!!sel.dcpick && !isDcKey(sel.dcpick), auto ? dcColor(auto) : GOLD)} onClick={() => onPatch({ dcpick: "auto", tpick: undefined })}>{auto ? `Auto · ${DC_NAME[auto]}` : "Auto"}</button>; })()}
             {DC_KEYS.map((k) => <button key={k} style={chip(sel.dcpick === k, dcColor(k))} onClick={() => onPatch({ dcpick: k, tpick: undefined })}>{DC_NAME[k]}</button>)}
           </div>
         )}

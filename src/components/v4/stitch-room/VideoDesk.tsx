@@ -9,13 +9,14 @@ import { useEffect, useRef, useState } from "react";
 
 import { clampTrim, clock, isTrimmed, money, videoTitle, type StitchRecord } from "@/lib/film-stitch";
 import { deleteFilmStitch, queueFilmStitch } from "@/lib/film-stitch.functions";
+import type { V4VideoBrief } from "@/lib/v4.functions";
 import { redoInFilm } from "../../blastoff/capture/film-nav";
 import { track } from "@/lib/analytics";
 
 import { ROOM } from "./room-theme";
 import { applyTrims, downloadVideo, readOutroClip } from "./stitch-render";
 
-export function VideoDesk({ record, onChange, onDeleted }: { record: StitchRecord; onChange: (r: StitchRecord) => void; onDeleted?: (r: StitchRecord) => void }) {
+export function VideoDesk({ record, onChange, onDeleted, brief }: { record: StitchRecord; onChange: (r: StitchRecord) => void; onDeleted?: (r: StitchRecord) => void; brief?: V4VideoBrief }) {
   const video = useRef<HTMLVideoElement | null>(null);
   const [view, setView] = useState<"site" | "social">("site");
   const [dur, setDur] = useState<number>(record.durationS ?? 0);
@@ -104,7 +105,15 @@ export function VideoDesk({ record, onChange, onDeleted }: { record: StitchRecor
       <div style={{ flex: 1, minWidth: 300, display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
           <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1 }}>{videoTitle(record.takeIndex, record.name)}</div>
-          <div style={{ color: ROOM.muted, fontSize: 13, marginTop: 3 }}>{record.setName} · {record.slides} slides · <span style={{ color: ROOM.mint, fontWeight: 800 }}>{money(record.payCents)}</span> · stitched {new Date(record.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                    <div style={{ color: ROOM.muted, fontSize: 13, marginTop: 3 }}>{record.setName} · {record.slides} slides · <span style={{ color: ROOM.mint, fontWeight: 800 }}>{money(record.payCents)}</span> · stitched {new Date(record.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+          {/* WHAT'S IN IT (Lee, 2026-09-16): the slides this video covers and what they ask, so two videos of one set tell apart. */}
+          {brief && (
+            <div style={{ marginTop: 6, fontSize: 12.5, color: ROOM.cream, lineHeight: 1.35 }}>
+              <span style={{ color: ROOM.gold, fontWeight: 800 }}>{brief.from === brief.to ? `Slide ${brief.from}` : `Slides ${brief.from}–${brief.to}`}</span>
+              {brief.first && <> · {brief.first}</>}{brief.last && <span style={{ color: ROOM.muted }}> … {brief.last}</span>}
+              {brief.stems.length > 1 && <div style={{ color: ROOM.muted, fontSize: 11.5, marginTop: 2 }}>{brief.stems.length} questions: {brief.stems.map((s) => s.replace(/\?$/, "")).join(" · ")}</div>}
+            </div>
+          )}
           <div style={{ marginTop: 6, fontSize: 12, fontWeight: 800, color: record.status === "posted" ? ROOM.mint : record.status === "queued" ? ROOM.gold : ROOM.muted }}>
             {record.status === "posted" ? <>✓ Posted{record.postedLink && <> — <a href={record.postedLink} target="_blank" rel="noreferrer" style={{ color: ROOM.mint }}>see it</a></>}</> : record.status === "queued" ? "In the post queue" : "Not queued"}
           </div>

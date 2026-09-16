@@ -56,7 +56,10 @@ function BlastOffDemo() {
     ["Rule · contra A", <DcRuleFrame w={306} frame={{ id: "d4", kind: "dcrule", dcMode: "contraA" } as BlastFrame} />],
     ["Rule · contra E", <DcRuleFrame w={306} frame={{ id: "d5", kind: "dcrule", dcMode: "contraE" } as BlastFrame} />],
     ["Rule · blank", <DcRuleFrame w={306} frame={{ id: "d6", kind: "dcrule", dcMode: "blank" } as BlastFrame} />],
-    ["Rubric pick", <DcPickFrame w={306} stem="How do you increase Equipment?" pick={{ account: "Equipment", side: "L" }} type="A" />],
+        ["Rubric pick", <DcPickFrame w={306} stem="How do you increase Equipment?" pick={{ account: "Equipment", side: "L" }} type="A" />],
+    ["Rubric pick · contra A", <DcPickFrame w={306} stem="How do you increase Accumulated Depreciation?" pick={{ account: "Accumulated Depreciation", side: "R" }} type="A" />],
+    ["Rubric pick · contra E", <DcPickFrame w={306} stem="How do you decrease Dividends?" pick={{ account: "Dividends", side: "R" }} type="Div" />],
+    ["Rubric pick · revenue", <DcPickFrame w={306} stem="How do you increase Rent Earned?" pick={{ account: "Rent Earned", side: "R" }} type="Rev" />],
   ];
 
   return (

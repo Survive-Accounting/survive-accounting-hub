@@ -1005,7 +1005,8 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
           popoutFrameId={popoutFrameId} onClose={() => setPunch(false)}
           onNext={takeInfo && takeInfo.index < takes.length - 1 ? () => goSplit(takeInfo.index + 1) : null}
           onPrev={takeInfo && takeInfo.index > 0 ? () => goSplit(takeInfo.index - 1) : null}
-          videoOf={(id) => takes.find((t) => t.frames.some((f) => f.id === id))?.index ?? null} />
+                    videoOf={(id) => takes.find((t) => t.frames.some((f) => f.id === id))?.index ?? null}
+          stemOf={(id) => ceqById.get(id)?.stem} />
       )}
       {/* THE BRAND CURSOR — the bolt, as on the canvas popout. The native
           cursor is hidden; turn "Capture Cursor" off on the OBS source. */}
