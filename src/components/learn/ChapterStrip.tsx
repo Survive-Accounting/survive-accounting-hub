@@ -173,8 +173,8 @@ function HouseStrip({ school, chapter, role, contactRef, narrow, prefillEmail, o
           <span style={{ flex: 1 }} />
           {chair ? (
             <>
-              <Quiet onClick={() => setClaim(true)}>Claim your exec dashboard</Quiet>
-              <Quiet onClick={() => setChair(false)}>I'm a member</Quiet>
+                            <Quiet onClick={() => setClaim(true)}>Claim your exec dashboard</Quiet>
+              {!heroAbove && <Quiet onClick={() => setChair(false)}>I'm a member</Quiet>}
             </>
           ) : (
             <Quiet onClick={() => setChair(true)}>On exec?</Quiet>
