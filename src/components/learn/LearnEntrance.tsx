@@ -25,7 +25,11 @@
 //
 // The display face and the button are the home page's tokens (learn-theme: DISPLAY = BRAND_DISPLAY,
 // .lk-btn-cta = the door button's geometry). Copy rule: no "run" / "blast" / "pledge", no emoji.
+import { useEffect, useState } from "react";
+
 import { BOLT_OUTER, BOLT_VIEWBOX } from "@/components/canvas/brand";
+import { chairHero, COUNCIL_CHIPS, COUNCIL_STEPS, councilHero } from "@/lib/acquisition-copy";
+import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { LK, SANS } from "@/components/learn/learn-theme";
 import type { Tier } from "@/components/learn/use-tier";
 
@@ -39,23 +43,31 @@ export const HERO_CSS = `
 @media (prefers-reduced-motion: no-preference) { .lk-hero .lk-btn-cta { transition: transform 160ms ease, box-shadow 160ms ease; } }
 `;
 
-// THE EXEC HERO (Lee, 2026-09-16: "For a council link and for a chapter scholarship chair link… it's more about
-// boosting gpas for their chapter or for members. the main cta should be the sharing, but they can try the
-// product too. if they hit that button, it should just open how survive works video"). Same panel, left-set:
-// the council's or the house's name up top, the GPA line, Share as the button, See how it works beside it, and
-// only real counts in the chips (stripWords — "Be the first from ΣΧ." when nobody is in yet).
+// THE EXEC HERO. Council page job: SEND THE PORTAL TO CHAPTER CHAIRS. Chapter chair page job: COPY THE GROUPME POST
+// AND SEND IT. (Lee, 2026-09-17: evergreen — "STOP making the council/chapter acquisition experience revolve around
+// 'Exam 1 is free'".) The words live in lib/acquisition-copy; the GroupMe post and the member link are built by the
+// route from the same share-url helper the toolkit uses, so the copy here and the copy in the kit are identical.
+// Headline, one sentence, primary, secondary — the bolt stays a faint background mark and never narrows the text.
 export type ExecRole = "council" | "chair";
-export function ExecEntrance({ tier, role, schoolName, councilName, chapterShort, membersLine, onShare, onHow, onMember }: {
+export function ExecEntrance({ tier, role, schoolName, courseCode, councilName, chapterShort, membersLine, groupMePost, memberPreviewHref, onShare, onCopied, onHow, onMember }: {
   tier: Tier;
   role: ExecRole;
   schoolName: string;
+  courseCode: string | null;
   /** "Interfraternity Council" on a council link, else null. */
   councilName: string | null;
-  /** "ΣΧ" on a chair's link, else null. */
+  /** "ΣΝ" on a chair's link, else null. */
   chapterShort: string | null;
-  /** stripWords().head — "13 other members are cramming" / "Be the first from ΣΧ." — or null with no chapter. */
+  /** "12 ΣΝ members are cramming" — only when the real count is above zero; null otherwise. */
   membersLine: string | null;
+  /** The chapter's GroupMe post with its tracked member link (chair, chapter known); null otherwise. */
+  groupMePost: string | null;
+  /** The student-facing chapter page (chair, chapter known). */
+  memberPreviewHref: string | null;
+  /** Council: open the chairs' kit. Chair without a chapter yet: pick the chapter first. */
   onShare: () => void;
+  /** The GroupMe post landed on the clipboard (for tracking). */
+  onCopied?: () => void;
   onHow: () => void;
   /** "I'm a member" — back to the student hero. */
   onMember: () => void;
@@ -63,48 +75,69 @@ export function ExecEntrance({ tier, role, schoolName, councilName, chapterShort
   const narrow = tier === "narrow";
   const wide = tier === "wide";
   const council = role === "council";
-  const displaySize = narrow ? 27 : wide ? 38 : 32;
+  const displaySize = narrow ? 28 : wide ? 40 : 34;
   const eyebrow = council ? `${councilName ?? "Your council"} · ${schoolName}` : `${chapterShort ?? "Your chapter"} · ${schoolName} · Scholarship chair`;
+  const copy = council ? councilHero({ courseCode, schoolName }) : chairHero({ courseCode, chapter: chapterShort });
+  const [copied, setCopied] = useState<"idle" | "ok" | "fail">("idle");
+  useEffect(() => { if (copied === "idle") return; const t = window.setTimeout(() => setCopied("idle"), 2200); return () => window.clearTimeout(t); }, [copied]);
+  const copyPost = async () => {
+    if (!groupMePost) { onShare(); return; }
+    const ok = await copyToClipboard(groupMePost);
+    setCopied(ok ? "ok" : "fail");
+    if (ok) onCopied?.();
+  };
   const chip = (text: string, on = false): React.ReactNode => (
-    <span key={text} style={{ fontSize: 12, fontWeight: 700, borderRadius: 999, padding: "5px 11px", border: `1px solid ${on ? LK.green : LK.border}`, color: on ? LK.green : LK.heroMuted, background: LK.surface, fontFamily: SANS }}>{text}</span>
+    <span key={text} style={{ fontSize: 12.5, fontWeight: 700, borderRadius: 999, padding: "5px 11px", border: `1px solid ${on ? LK.green : LK.border}`, color: on ? LK.green : LK.heroMuted, background: LK.surface, fontFamily: SANS, whiteSpace: "normal" }}>{text}</span>
   );
+  const primaryLabel = council
+    ? copy.primary
+    : !groupMePost ? "Choose your chapter"
+    : copied === "ok" ? "Copied — paste it in GroupMe" : copied === "fail" ? "Couldn't copy — try again" : copy.primary;
   return (
-    <section aria-label={council ? "For council execs" : "For chapter chairs"} className="lk-hero" data-tier={tier} style={{ gap: narrow ? 8 : 10, alignItems: "flex-start", textAlign: "left", padding: narrow ? "20px 16px 18px" : wide ? "28px 32px 26px" : "24px 24px 22px", borderColor: LK.acc }}>
+    <section aria-label={council ? "For council execs" : "For chapter chairs"} className="lk-hero" data-tier={tier} style={{ gap: narrow ? 10 : 12, alignItems: "flex-start", textAlign: "left", padding: narrow ? "20px 16px 18px" : wide ? "30px 34px 28px" : "26px 26px 24px", borderColor: LK.acc }}>
       <style>{HERO_CSS}</style>
       <span aria-hidden className="lk-hero-glow" data-corner="tl" />
       <span aria-hidden className="lk-hero-glow" data-corner="br" />
       <svg aria-hidden className="lk-hero-mark" viewBox={BOLT_VIEWBOX} focusable="false"><path d={BOLT_OUTER} fill="currentColor" /></svg>
-      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: LK.acc, fontFamily: SANS }}>{eyebrow}</div>
-      <h1 className="lk-disp" style={{ margin: 0, fontSize: displaySize, lineHeight: 1.05, letterSpacing: "-0.015em", color: LK.heroText, textWrap: "balance", maxWidth: 640 }}>
-        {council ? <>Raise the GPA of <span style={{ color: LK.acc }}>every house</span> on campus.</> : <>Boost your chapter&apos;s GPA <span style={{ color: LK.acc }}>before Exam 1.</span></>}
+      <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: LK.acc, fontFamily: SANS }}>{eyebrow}</div>
+      <h1 className="lk-disp" style={{ margin: 0, fontSize: displaySize, lineHeight: 1.04, letterSpacing: "-0.015em", color: LK.heroText, textWrap: "balance", maxWidth: 720 }}>
+        {copy.headline}
       </h1>
-      <p style={{ margin: 0, fontSize: narrow ? 14.5 : 16, lineHeight: 1.45, color: LK.heroMuted, fontFamily: SANS, maxWidth: 560, textWrap: "balance" }}>
-        {council
-          ? "Free Exam 1 prep, built for members. One link for your chairs. Every chapter gets its own page and its own numbers."
-          : "Free cram videos and practice for Exam 1. Send the link to the house; this page counts who's in."}
+      <p style={{ margin: 0, fontSize: narrow ? 15 : 16.5, lineHeight: 1.45, color: LK.heroMuted, fontFamily: SANS, maxWidth: 620, textWrap: "pretty" }}>
+        {copy.sub}
       </p>
-      <div className="flex flex-wrap items-center" style={{ gap: 10, marginTop: narrow ? 4 : 6 }}>
-        <button type="button" onClick={onShare} data-gm-cta={council ? "exec-share-chairs" : "exec-share-house"} className="lk-btn-cta" style={{ boxShadow: LK.shadow }}>
-          {council ? "Share with chapter chairs ↻" : "Share with your members ↻"}
+      <div className="flex flex-wrap items-center" style={{ gap: 10, marginTop: narrow ? 2 : 4, width: narrow ? "100%" : undefined }}>
+        <button type="button" onClick={council ? onShare : () => void copyPost()} data-gm-cta={council ? "exec-send-chairs" : "exec-copy-groupme"} className="lk-btn-cta" aria-live="polite"
+          style={{ boxShadow: LK.shadow, ...(narrow ? { width: "100%" } : {}), ...(copied === "ok" ? { background: LK.green } : {}) }}>
+          {primaryLabel}
         </button>
-        <button type="button" onClick={onHow} data-gm-cta="exec-how" className="lk-btn lk-btn-ghost" style={{ minHeight: 46, fontSize: 13.5, padding: "0 16px" }}>▶ See how it works · 0:36</button>
+        {council ? (
+          <button type="button" onClick={onHow} data-gm-cta="exec-how" className="lk-btn lk-btn-ghost" style={{ minHeight: 46, fontSize: 13.5, padding: "0 16px", ...(narrow ? { width: "100%" } : {}) }}>▶ See how it works · 0:36</button>
+        ) : memberPreviewHref ? (
+          <a href={memberPreviewHref} target="_blank" rel="noopener" data-gm-cta="exec-preview-member" className="lk-btn lk-btn-ghost" style={{ minHeight: 46, fontSize: 13.5, padding: "0 16px", textDecoration: "none", ...(narrow ? { width: "100%" } : {}) }}>{chairHero({ courseCode, chapter: chapterShort }).secondary} ↗</a>
+        ) : null}
       </div>
-      <div className="flex flex-wrap" style={{ gap: 8, marginTop: 4 }}>
-        {membersLine && chip(membersLine, /cramming/i.test(membersLine))}
-        {chip("Exam 1 · free")}
-        {chip(council ? "No sign-up for members" : "Takes 30 seconds to send")}
-      </div>
-      {council && (
-        <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "repeat(3, 1fr)", gap: 8, marginTop: 8, width: "100%", maxWidth: 720, fontFamily: SANS }}>
-          {[["Their own page", "The chapter's name on it, members counted."], ["Who's cramming", "Each house page says how many members are in."], ["Zero cost", "Exam 1 is free. Nothing to buy, nothing to install."]].map(([h, b]) => (
-            <div key={h} style={{ border: `1px solid ${LK.border}`, borderRadius: 10, padding: "9px 11px", background: LK.surface }}>
-              <div style={{ fontSize: 12.5, fontWeight: 800, color: LK.text }}>{h}</div>
-              <div style={{ fontSize: 12, color: LK.muted, marginTop: 2, lineHeight: 1.4 }}>{b}</div>
-            </div>
-          ))}
+      {council ? (
+        <>
+          {/* THE WORKFLOW, three beats, one line on a desk — visually lightweight. */}
+          <ol aria-label="How it works" style={{ listStyle: "none", margin: "4px 0 0", padding: 0, display: "flex", flexWrap: "wrap", gap: narrow ? 6 : 8, fontFamily: SANS }}>
+            {COUNCIL_STEPS.map((s, i) => (
+              <li key={s} style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 700, color: LK.heroText }}>
+                <span aria-hidden style={{ display: "grid", placeItems: "center", width: 20, height: 20, borderRadius: 999, background: LK.acc, color: LK.accInk, fontSize: 11, fontWeight: 900 }}>{i + 1}</span>
+                {s}
+                {i < COUNCIL_STEPS.length - 1 && !narrow && <span aria-hidden style={{ color: LK.heroMuted, marginLeft: 1 }}>→</span>}
+              </li>
+            ))}
+          </ol>
+          <div className="flex flex-wrap" style={{ gap: 8 }}>{COUNCIL_CHIPS.map((c) => chip(c))}</div>
+        </>
+      ) : (
+        <div className="flex flex-wrap items-center" style={{ gap: 8 }}>
+          {membersLine && chip(membersLine, true)}
+          <button type="button" onClick={onHow} data-gm-cta="exec-how" className="underline underline-offset-4" style={{ background: "none", border: 0, padding: "4px 0", cursor: "pointer", color: LK.heroMuted, fontFamily: SANS, fontSize: 13, fontWeight: 700, minHeight: 32 }}>▶ See how it works · 0:36</button>
         </div>
       )}
-      <button type="button" onClick={onMember} className="underline underline-offset-4" style={{ background: "none", border: 0, padding: "4px 0 0", cursor: "pointer", color: LK.heroMuted, fontFamily: SANS, fontSize: 12.5, fontWeight: 700, minHeight: 32 }}>
+      <button type="button" onClick={onMember} className="underline underline-offset-4" style={{ background: "none", border: 0, padding: "2px 0 0", cursor: "pointer", color: LK.heroMuted, fontFamily: SANS, fontSize: 12.5, fontWeight: 700, minHeight: 32 }}>
         I&apos;m a member, not on exec →
       </button>
     </section>

@@ -1,4 +1,5 @@
 import { chapterLearnPath, LEARN_ORIGIN } from "@/lib/learn-paths";
+import { chapterGroupMePost } from "@/lib/acquisition-copy";
 // CHAPTER SHARE — the vocabulary every sharing surface speaks: the canonical /go URL (with its
 // attribution stamp), the chapter's natural short name, and the GroupMe message. Pure functions
 // only; the UI that uses them is the /go page's share kit (see ChapterAccess).
@@ -63,12 +64,8 @@ export function chapterShortName(chapterName: string, letters?: string | null, n
  *  actually agreed to, whose appearance depended on state the reader could not see. `claimed` is
  *  still accepted so existing callers compile, and is deliberately ignored. */
 export function groupMeMessage(opts: { claimed?: boolean; shortName?: string; courseLabel: string; url: string }): string {
-  return [
-    `For anyone taking ${opts.courseLabel} — Survive Accounting has free cram videos + practice exams to help you ace your exams. Go check them out!`,
-    "",
-    "Start studying here:",
-    opts.url,
-  ].join("\n");
+  // The canonical chapter post (lib/acquisition-copy, 2026-09-17) — one GroupMe message for every surface.
+  return chapterGroupMePost({ courseCode: opts.courseLabel, chapterLink: opts.url });
 }
 
 // The ChapterShare COMPONENT (the old accordion step-01 UI) was removed 2026-08-28 — the share

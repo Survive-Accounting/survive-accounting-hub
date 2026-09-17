@@ -42,7 +42,7 @@ export const Route = createFileRoute("/expand")({
 
 // The two messages, verbatim. `?src=expand` makes a forward attributable — arrivals land on the
 // normal pages, and the chapter signup carries the source through its own flow.
-const MSG_STUDENT = "My old accounting tutor built free exam prep for intro accounting — the first exam's completely free, no signup: https://surviveaccounting.com?src=expand";
+const MSG_STUDENT = "My old accounting tutor built short cram videos + practice exams for intro accounting — you can study free, no signup: https://surviveaccounting.com?src=expand";
 const MSG_GREEK = "A buddy of mine gives fraternities free exam prep for intro accounting — free for the whole chapter, takes a minute to set up: https://surviveaccounting.com/chapters?src=expand";
 
 /** Any YouTube form (watch?v= / youtu.be / embed / bare id) → an embed URL. Returns null when the

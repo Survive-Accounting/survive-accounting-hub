@@ -29,9 +29,10 @@ describe("the group-chat post", () => {
     expect(post).toContain("surviveaccounting.com/go/alabama/adpi");
   });
 
-  test("names the course and leads with the free exam", () => {
+  // EVERGREEN since 2026-09-17 (lib/acquisition-copy): names the course, never "Exam 1" or "first exam".
+  test("names the course and stays evergreen", () => {
     expect(post).toContain("AC 210");
-    expect(post.toLowerCase()).toContain("free");
+    expect(post).not.toMatch(/Exam 1|first exam/i);
   });
 
   // CHANGED 2026-08-31, and the reason matters: every pasteable message now ends on a PERSON with
@@ -148,10 +149,12 @@ describe("the portal post", () => {
     expect(post).not.toContain("/go/");
   });
 
-  test("names the course and says what it costs in the first line", () => {
+  // EVERGREEN since 2026-09-17: the first line names the course and says students start free — no "first exam".
+  test("names the course and says students start free in the first line", () => {
     const first = post.split("\n")[0];
     expect(first).toContain("AC 210");
-    expect(first.toLowerCase()).toContain("no cost");
+    expect(first.toLowerCase()).toContain("start free");
+    expect(post).not.toMatch(/Exam 1|first exam/i);
   });
 
   test("ends on a person with a number", () => {

@@ -119,7 +119,7 @@ export function RepWorkspaceView({ d, readOnly = false, viewingAs, legacyToken, 
             SURVIVE{d.campusName ? ` · ${d.campusName}` : ""}<span style={{ opacity: 0.6 }}> — {d.termLabel}</span>
           </p>
           <h1 className="mt-1 text-[26px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Hi {first} ⚡</h1>
-          <p className="mt-0.5 text-[13px]" style={{ color: "var(--text-muted)" }}>Find the right people → share free Exam 1 → get it in the house.</p>
+          <p className="mt-0.5 text-[13px]" style={{ color: "var(--text-muted)" }}>Find the right people → share the study page → get it in the house.</p>
         </div>
         <div className="flex items-center gap-2">
           {d.isTest && <span className="rounded-full px-2.5 py-1 text-[11px] font-black uppercase" style={{ background: "rgba(122,46,18,0.22)", color: "#FFC9A3", letterSpacing: "0.08em" }}>Test rep</span>}
@@ -470,7 +470,7 @@ function Onboarding({ videoUrl, repId }: { videoUrl: string | null; repId: strin
           <p className="text-[12px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.12em" }}>Welcome to Survive — your job</p>
           <ol className="mt-2 grid gap-1 text-[13.5px] font-bold" style={{ color: "var(--brand-cream)" }}>
             <li>1. Find a useful chapter contact.</li>
-            <li>2. Send them the free Exam 1 share kit.</li>
+            <li>2. Send them the chapter's share kit.</li>
             <li>3. Get the flyer in the house if you can.</li>
           </ol>
           <p className="mt-1.5 text-[12px]" style={{ color: "var(--text-muted)" }}>That's it. Lee handles all follow-up after your intro.</p>
@@ -554,7 +554,7 @@ function ChapterDrawer({ c, d, readOnly, legacyToken, onClose, reload, copied, c
             <p className="text-[11px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.1em" }}>Your steps</p>
             <ol className="mt-1.5 grid gap-1 text-[13.5px] font-bold" style={{ color: "var(--brand-cream)" }}>
               <li style={{ opacity: stepDone.contact ? 0.55 : 1 }}>{stepDone.contact ? "✓" : "1."} Add a useful contact</li>
-              <li style={{ opacity: stepDone.kit ? 0.55 : 1 }}>{stepDone.kit ? "✓" : "2."} Share the Exam 1 kit</li>
+              <li style={{ opacity: stepDone.kit ? 0.55 : 1 }}>{stepDone.kit ? "✓" : "2."} Share the chapter kit</li>
               <li style={{ opacity: stepDone.house ? 0.55 : 1 }}>{stepDone.house ? "✓" : "3."} Get the flyer in the house</li>
             </ol>
           </div>
@@ -682,12 +682,12 @@ function KitBlock({ kit, c, readOnly, legacyToken, copied, copy }: {
   const canWebShare = typeof navigator !== "undefined" && !!navigator.share;
   const webShare = () => {
     if (readOnly) return;
-    void navigator.share({ title: `Free Exam 1 — ${kit.chapterName}`, text: kit.message }).then(() => log("web_share")).catch(() => { /* dismissed */ });
+    void navigator.share({ title: `Study page — ${kit.chapterName}`, text: kit.message }).then(() => log("web_share")).catch(() => { /* dismissed */ });
   };
 
   return (
     <section className="mt-4">
-      <h3 className="text-[12px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.1em" }}>Share Exam 1</h3>
+      <h3 className="text-[12px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.1em" }}>Share the study page</h3>
       <div className="mt-2 rounded-xl p-3.5" style={{ background: "var(--bg-surface)", border: "1px solid var(--accent)" }}>
         <p className="break-all text-[14px] font-black" style={{ color: "var(--brand-cream)" }}>{kit.shortUrl.replace("https://", "")}</p>
         <div className="mt-2.5 flex flex-wrap gap-2">

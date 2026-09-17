@@ -8,6 +8,7 @@
 // "Exam 1" means nothing to someone who has not yet seen a campus page.
 
 import { nbspCode } from "@/lib/course-code";
+import { councilChapterListIntro, councilGroupLine, councilPortalLines, councilPresidentEmailBody } from "@/lib/acquisition-copy";
 
 /** A chapter on a council page — the same identity a /go/ page uses, never a parallel one. */
 export type PartnerChapterRow = {
@@ -98,11 +99,11 @@ const ORIGIN = "https://surviveaccounting.com";
 export function councilPresidentEmail(d: { councilName: string; schoolName: string; courseCode: string | null; schoolSlug: string }): string {
   const course = d.courseCode ?? "intro accounting";
   return [
-    `Subject: Free ${course} exam prep for your chapter`,
+    `Subject: ${course} study pages for your chapter`,
     ``,
     `Hey all,`,
     ``,
-    `${course} hits a lot of our members at once. Survive Accounting makes ${course} cram videos and practice exams for ${d.schoolName} students, and Exam 1 is free for every member — no cost to the chapter.`,
+    councilPresidentEmailBody({ courseCode: d.courseCode, schoolName: d.schoolName }),
     ``,
     `Every chapter has its own page. Send yours to your members:`,
     `${ORIGIN}/chapters?school=${d.schoolSlug}`,
@@ -115,8 +116,7 @@ export function councilPresidentEmail(d: { councilName: string; schoolName: stri
 
 /** The group-chat line for a council presidents' chat. */
 export function councilGroupMessage(d: { schoolName: string; courseCode: string | null; schoolSlug: string }): string {
-  const course = d.courseCode ?? "intro accounting";
-  return `Free ${course} exam prep for the house ⚡ Exam 1 is free for every member. Each chapter has its own page — find yours: ${ORIGIN}/chapters?school=${d.schoolSlug}`;
+  return `${councilGroupLine(d.courseCode)} ${ORIGIN}/chapters?school=${d.schoolSlug}`;
 }
 
 /** THE GROUP-CHAT POST — one message, every chapter's own link, ready to paste.
@@ -134,7 +134,7 @@ export function councilChapterLinksPost(d: {
 }): string {
   const course = d.courseCode ?? "intro accounting";
   return [
-    `Hey all — free exam prep for ${course}, the first exam is completely free. Each chapter has its own link:`,
+    councilChapterListIntro(course),
     ``,
     // ── ONE CHAPTER, TWO LINES, A BLANK LINE BETWEEN ─────────────────────────────────────────
     // These were "Name — url" on one line each, which in a chat client is eighteen consecutive
@@ -175,14 +175,8 @@ export function councilPortalPost(d: {
   /** The /s/<campus> portal, already carrying any ref. */
   portalUrl: string;
 }): string {
-  const course = d.courseCode ?? "intro accounting";
   return [
-    `Free ${course} exam prep for every chapter — the whole first exam, no cost, nothing to buy.`,
-    ``,
-    `Cram videos + practice questions for what's actually on Exam 1.`,
-    `Built by a tutor who's worked with 1,000+ students.`,
-    ``,
-    `Your chapter finds itself here:`,
+    ...councilPortalLines(d.courseCode),
     d.portalUrl.replace("https://", ""),
     ``,
     LEE_SIGNOFF,
@@ -196,7 +190,7 @@ export function nationalLeaderEmail(d: { orgShort: string; totalCampuses: number
     ``,
     `Hi all,`,
     ``,
-    `Sharing something your chapters can use this semester. Survive Accounting makes intro accounting cram videos and practice exams matched to the course each campus actually teaches. Exam 1 is free for every member.`,
+    `Sharing something your chapters can use this semester. Survive Accounting makes intro accounting cram videos and practice exams matched to the course each campus actually teaches. Students can start free.`,
     ``,
     `${d.orgShort} chapters on ${d.totalCampuses} campuses already have their own pages. Chapters find theirs here:`,
     `${ORIGIN}/chapters`,

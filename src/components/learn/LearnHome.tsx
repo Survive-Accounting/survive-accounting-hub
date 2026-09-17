@@ -264,7 +264,7 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   after?: ReactNode;
   /** THE EXEC HERO (2026-09-16): a council exec's or a chapter chair's link — Share is the button, the product
    *  is a taste ("See how it works"). Null = the student hero. */
-  exec?: { role: ExecRole; schoolName: string; councilName: string | null; chapterShort: string | null; membersLine: string | null; onMember: () => void } | null;
+  exec?: { role: ExecRole; schoolName: string; courseCode: string | null; councilName: string | null; chapterShort: string | null; membersLine: string | null; groupMePost: string | null; memberPreviewHref: string | null; onMember: () => void } | null;
 }>(function LearnHome({ sets, examLabel, tier, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school, progress = {}, chapterSlug = null, kit = null, after = null, exec = null }, ref) {
   const [how, setHow] = useState(false);
   // the arrival autoplay picks afresh each time the home draws (live-preview.ts pickAuto)
@@ -319,7 +319,9 @@ export const LearnHome = forwardRef<HTMLDivElement, {
       <div style={{ background: LK.heroBg }}>
         <div className="mx-auto w-full" style={{ maxWidth: CONTENT_MAX, padding: `${narrow ? 10 : wide ? 16 : 14}px ${pad}px 0` }}>
                     {exec
-            ? <ExecEntrance tier={tier} role={exec.role} schoolName={exec.schoolName} councilName={exec.councilName} chapterShort={exec.chapterShort} membersLine={exec.membersLine}
+            ? <ExecEntrance tier={tier} role={exec.role} schoolName={exec.schoolName} courseCode={exec.courseCode} councilName={exec.councilName} chapterShort={exec.chapterShort} membersLine={exec.membersLine}
+                groupMePost={exec.groupMePost} memberPreviewHref={exec.memberPreviewHref}
+                onCopied={() => track("share_link_copied", { source: "learn-strip-post" } as never)}
                 onShare={() => { track("exec_share_opened", { role: exec.role }); window.dispatchEvent(new CustomEvent(OPEN_SHARE_KIT_EVENT)); }}
                 onHow={() => { setHow(true); track("hsw_open", { where: `/learn-exec-${exec.role}` }); }} onMember={exec.onMember} />
             : <LearnEntrance tier={tier} onStart={startFirst} />}

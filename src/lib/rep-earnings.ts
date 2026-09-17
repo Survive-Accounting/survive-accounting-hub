@@ -11,6 +11,7 @@
 // conversion or deleted claim reverses its bonus automatically. Money only ever moves through
 // the existing referral_commissions ledger, via an explicit admin action after unlock.
 
+import { flyerCaption } from "@/lib/acquisition-copy";
 export const BONUS_SIGNUP_CENTS = 100;            // $1 per free signup through their link
 export const BONUS_FLYER_CENTS = 1_000;           // $10 per flyer producing ≥5 signups
 export const BONUS_CLAIM_CENTS = 2_500;           // $25 per rep-attributed chapter page claim
@@ -88,5 +89,4 @@ export const BONUS_PLAIN_STATEMENT =
   "You earn 10% of everything sold through your link, always. On top of that, there's a one-time bonus of up to $300 for getting your campus off the ground — paid when your first chapter signs up. If no chapter signs up, the bonus isn't paid.";
 
 /** The under-QR caption every flyer carries — a bare QR on a corkboard gets ignored. */
-export const flyerQrCaption = (courseCode: string | null): string =>
-  `Free ${courseCode ?? "accounting"} exam prep — first exam free.`;
+export const flyerQrCaption = (courseCode: string | null): string => flyerCaption(courseCode); // lib/acquisition-copy, evergreen

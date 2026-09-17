@@ -58,7 +58,7 @@ describe("thresholds", () => {
 
 describe("flyer QR caption", () => {
   it("names the course; falls back without inventing one", () => {
-    expect(flyerQrCaption("ACCY 201")).toBe("Free ACCY 201 exam prep — first exam free.");
-    expect(flyerQrCaption(null)).toBe("Free accounting exam prep — first exam free.");
+        expect(flyerQrCaption("ACCY 201")).toBe("Short ACCY 201 cram videos + practice exams.");
+    expect(flyerQrCaption(null)).toBe("Short intro accounting cram videos + practice exams.");
   });
 });

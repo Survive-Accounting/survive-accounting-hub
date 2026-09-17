@@ -129,7 +129,7 @@ export function declineCopy(i: { firstName: string; campusName: string | null })
     blocks: [
       `Hey ${i.firstName},`,
       `Thanks for putting your name in for ${campus}. I'm not able to bring you on right now — I'm keeping the program small on each campus while I figure out what works, so it's a numbers thing more than anything about you.`,
-      `If that changes I'll come back to you first. And either way, Exam 1 is free — use it, and send it to your chapter if it helps them.`,
+      `If that changes I'll come back to you first. And either way, you can study free — use it, and send it to your chapter if it helps them.`,
       `Thanks for wanting to be part of it.`,
     ],
   };

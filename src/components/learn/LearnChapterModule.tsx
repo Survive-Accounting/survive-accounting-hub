@@ -14,7 +14,7 @@
 // THE REMAINING-TO-THRESHOLD LINE is the share engine: "7 more members and AKA can fund everyone's
 // access for the semester." — "can", never "will". The threshold is the seat minimum (lib/terms
 // SEAT_MINIMUM) until a chapter carries its own; with no threshold the line is not rendered.
-// The counter never says "0 members joined": at zero it says "Be the first from AKA."
+// The counter never says "0 members joined" and never "Be the first" (2026-09-17): at zero it just says "Study with AKA".
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
@@ -95,9 +95,9 @@ export function gateFundingLine(short: string, members: number, threshold: numbe
     : `${short} has enough members to fund everyone's access to Exams 2, 3 and the Final.`;
 }
 
-/** The count pill: never "0 members joined". */
+/** The count pill: never "0 members joined", never "Be the first" (2026-09-17). */
 export function countLine(short: string, members: number): string {
-  return members > 0 ? `${members} member${members === 1 ? "" : "s"} joined` : `Be the first from ${short}.`;
+  return members > 0 ? `${members} member${members === 1 ? "" : "s"} joined` : `Study with ${short}`; // no zero-usage line (2026-09-17)
 }
 
 export function LearnChapterModule({ school, chapter, councilPreset, contactRef, narrow, onPick, onClear }: {

@@ -81,12 +81,14 @@ import { HideChatWhile } from "@/components/site/SiteChat";
 import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
 import { ReviewSheet } from "@/components/learn/ReviewSheet";
 import { openChapterFinder } from "@/components/learn/LearnChapterModule";
-import { ChapterStrip, stripWords } from "@/components/learn/ChapterStrip";
+import { ChapterStrip } from "@/components/learn/ChapterStrip";
+import { chapterGroupMe } from "@/components/learn/LearnChapterBar";
+import { membersCrammingLine } from "@/lib/acquisition-copy";
 import { COUNCILS } from "@/lib/greek-councils.functions";
 
 /** THE EXEC ROLE, kept for the tab (sessionStorage) once a council / chair link has been opened. */
 const EXEC_STAMP_KEY = "sa-learn-exec";
-import { pageShareUrl } from "@/lib/share-url";
+import { buildShareUrl, pageShareUrl } from "@/lib/share-url";
 import { CramPlayer, type PlayerItem, type PlayerPart } from "@/components/learn/CramPlayer";
 import { PongOnLearn } from "@/components/play/PongOnLearn";
 import { partKey, setIdOfKey } from "@/lib/student-shorts";
@@ -699,12 +701,15 @@ function LearnShell() {
               />
             ) : null}
             exec={school && !demo && execRole ? {
-              role: execRole, schoolName: school.name,
+              role: execRole, schoolName: school.name, courseCode: school.courseCode ?? null,
               councilName: COUNCILS.find((x) => x.slug === search.c)?.name ?? null,
               chapterShort: chapter.slug ? ((chapter.letters ?? "").trim() || chapter.name || null) : null,
-                            // The chip is the COUNT when there is one ("13 members are cramming."), else the invitation
-              // ("Be the first from ΣΧ.") — stripWords keeps the count in .sub (fixed 2026-09-17).
-              membersLine: execRole === "chair" && chapter.slug ? (() => { const w = stripWords((chapter.letters ?? "").trim() || chapter.name || "your chapter", chapter.members, false); return chapter.members > 0 && w.sub ? w.sub : w.head; })() : null,
+              // Only a real count above zero (lib/acquisition-copy, 2026-09-17).
+              membersLine: execRole === "chair" && chapter.slug ? membersCrammingLine((chapter.letters ?? "").trim() || chapter.name || "", chapter.members) : null,
+              // The SAME tracked member link and post the toolkit copies (share-url buildShareUrl → chapterGroupMe).
+              groupMePost: execRole === "chair" && chapter.slug ? chapterGroupMe({ courseCode: school.courseCode ?? null, url: buildShareUrl({ campus: school.id, chapter: chapter.slug, contactRef: search.by ?? search.ref ?? null }), chapter: (chapter.letters ?? "").trim() || chapter.name || "your chapter" }) : null,
+              // The student-facing chapter page, without a ref (a chair previewing isn't a member's click).
+              memberPreviewHref: execRole === "chair" && chapter.slug ? `/learn/${encodeURIComponent(school.id)}/${encodeURIComponent(chapter.slug)}` : null,
               onMember: leaveExec,
             } : null}
             after={<PongOnLearn narrow={isNarrow} courseCode={school?.courseCode ?? null} campusName={campusName ?? null} bolt={school?.c1 && school?.c2 ? { c1: school.c1, c2: school.c2 } : null} />}

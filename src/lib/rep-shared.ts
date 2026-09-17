@@ -12,6 +12,8 @@
 // approval-gate era and behaves identically. `paused`/`deactivated` stay the admin brakes.
 // This is rep_status on referral_partners; the engine's own `status` column stays the
 // link-resolution switch and the server keeps the two in sync.
+import { repChapterDm, repShareEmail, repShareLine } from "@/lib/acquisition-copy";
+
 export const REP_STATUSES = ["applied", "approved", "active", "paused", "deactivated"] as const;
 export type RepStatus = (typeof REP_STATUSES)[number];
 
@@ -96,18 +98,12 @@ export function contactTypeForRole(role: string): "student_officer" | "staff_adv
 // ── share copy (the prebuilt message) ────────────────────────────────────────────────────────
 /** One short message a rep can paste anywhere. Chapter-specific when we know the chapter. */
 export function shareMessage(i: { campusName: string | null; chapterName: string | null; courseCode: string | null; shortUrl: string }): string {
-  const course = i.courseCode ? `${i.courseCode} ` : "accounting ";
-  const who = i.chapterName ? `${i.chapterName} — ` : "";
-  return `${who}free ${course}Exam 1 prep from Survive Accounting: real exam-style questions worked start to finish. No card, no catch — Exam 1 is free: ${i.shortUrl}`;
+  return repShareLine(i); // canonical, evergreen (lib/acquisition-copy, 2026-09-17)
 }
 
 /** Subject + body for the mailto: composer. */
 export function shareEmail(i: { campusName: string | null; chapterName: string | null; courseCode: string | null; shortUrl: string }): { subject: string; body: string } {
-  const course = i.courseCode ?? "Intro Accounting";
-  return {
-    subject: `Free ${course} Exam 1 prep for ${i.chapterName ?? "your chapter"}`,
-    body: `Hey!\n\nWanted to pass this along for the chapter — Survive Accounting has free Exam 1 prep for ${course} at ${i.campusName ?? "our school"}: real exam-style questions, worked start to finish by a tutor who's helped 1,000+ students.\n\nExam 1 is completely free (no card): ${i.shortUrl}\n\nWorth sharing in the group chat before the first exam.`,
-  };
+  return repShareEmail(i); // canonical, evergreen (lib/acquisition-copy, 2026-09-17)
 }
 
 export const smsHref = (msg: string) => `sms:?&body=${encodeURIComponent(msg)}`;
@@ -374,8 +370,7 @@ export const DM_PACE_NOTE = "Suggested pace: ~10 DMs a day. Blasting 40 chapters
 /** The prewritten DM a rep copies. Editable in the UI before copying; the tracked link is the
  *  part that must survive edits. */
 export function dmMessage(i: { chapterName: string; courseCode: string | null; shortUrl: string }): string {
-  const course = i.courseCode ?? "intro accounting";
-  return `Hey! I'm the Survive Accounting rep on campus — we make free ${course} Exam 1 prep (real exam-style questions, worked start to finish). Totally free for ${i.chapterName}, no card or catch. Would you share it with the chapter? ${i.shortUrl}`;
+  return repChapterDm(i); // canonical, evergreen (lib/acquisition-copy, 2026-09-17)
 }
 
 /** Vanity /r/<slug> candidate for a rep's main link: "sarah-olemiss". The caller must still

@@ -59,7 +59,7 @@ const FILES: Record<string, { fns: string[]; open: string[] }> = {
     open: ["listPublishedByLabel"],
   },
   "render-worker.functions.ts": {
-    fns: ["workerPreflight", "startWorkerRender", "startDissectStitch", "startCaptionBurn", "resolveWorkerRender"],
+    fns: ["workerPreflight", "startWorkerRender", "startDissectStitch", "startCaptionBurn", "cancelWorkerRender", "resolveWorkerRender"],
     open: [],
   },
   "transcribe.functions.ts": {

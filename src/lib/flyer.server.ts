@@ -151,14 +151,14 @@ export async function flyerSvg(i: FlyerInput): Promise<string> {
   <text x="1275" y="1820" fill="#B9C2DC" font-size="52" text-anchor="middle">Real exam-style questions, worked start to finish</text>
   <text x="1275" y="1884" fill="#B9C2DC" font-size="52" text-anchor="middle">by a tutor who&apos;s helped 1,000+ students.</text>
   <rect x="855" y="1990" width="840" height="96" rx="48" fill="#F5A623"/>
-  <text x="1275" y="2056" fill="#14213D" font-size="52" font-weight="700" letter-spacing="4" text-anchor="middle">SCAN IT — EXAM 1 IS FREE</text>
+  <text x="1275" y="2056" fill="#14213D" font-size="52" font-weight="700" letter-spacing="4" text-anchor="middle">SCAN IT — STUDY FREE</text>
   <rect x="945" y="2150" width="660" height="660" rx="24" fill="#FFFFFF"/>
   <image x="975" y="2180" width="600" height="600" href="${qr}"/>
   <text x="1275" y="2872" fill="#F5F1E8" font-size="42" font-weight="600" text-anchor="middle">${esc(flyerQrCaption(i.courseCode))}</text>
   <text x="1275" y="2952" fill="#8B97BD" font-size="46" font-style="italic" text-anchor="middle">${i.chapterName ? esc(`Shared by ${i.chapterName}`) : ""}</text>
   <line x1="700" y1="3010" x2="1850" y2="3010" stroke="#2A3555" stroke-width="3"/>
   <text x="1275" y="3105" fill="#F5F1E8" font-size="58" font-weight="600" text-anchor="middle">surviveaccounting.com</text>
-  <text x="1275" y="3175" fill="#5C6B99" font-size="38" text-anchor="middle">Free Exam 1 · No card required</text>
+  <text x="1275" y="3175" fill="#5C6B99" font-size="38" text-anchor="middle">Cram videos + practice exams · No card required</text>
 </svg>`;
 }
 
@@ -183,7 +183,7 @@ export function flyerDisplayUrl(i: FlyerInput): string {
   return flyerTarget(i).replace(/^https?:\/\//, "").replace(/\?.*$/, "");
 }
 
-/** The headline ("{code} EXAM 1") runs longer than the code alone, so it gets its own scale —
+/** The headline ("{code} PREP") runs longer than the code alone, so it gets its own scale —
  *  same idea as courseFontSize, tuned for the extra two words. */
 function printHeroFontSize(text: string): number {
   const n = text.length;
@@ -199,7 +199,7 @@ export async function printFlyerSvg(i: FlyerInput): Promise<string> {
   const eyebrow = i.chapterName
     ? `FOR ${i.chapterName.toUpperCase()} · ${i.schoolName.toUpperCase()}`
     : `FOR ${i.schoolName.toUpperCase()} STUDENTS`;
-  const line1 = `${code} EXAM 1`;
+  const line1 = `${code} PREP`; // evergreen since 2026-09-17 — no "EXAM 1" on acquisition art
   const size1 = printHeroFontSize(line1);
   const url = esc(flyerDisplayUrl(i));
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2550 3300" width="100%" font-family="Poppins, system-ui, sans-serif">
@@ -279,7 +279,7 @@ export async function slideSvg(i: FlyerInput): Promise<string> {
   <text x="120" y="${codeSize + 544}" fill="#B9C2DC" font-size="34">by a tutor who&apos;s helped 1,000+ students.</text>
 
   <rect x="120" y="820" width="560" height="76" rx="38" fill="#F5A623"/>
-  <text x="400" y="871" fill="#14213D" font-size="36" font-weight="700" letter-spacing="3" text-anchor="middle">SCAN IT — EXAM 1 IS FREE</text>
+  <text x="400" y="871" fill="#14213D" font-size="36" font-weight="700" letter-spacing="3" text-anchor="middle">SCAN IT — STUDY FREE</text>
   <text x="120" y="960" fill="#8B97BD" font-size="30" font-style="italic">${i.chapterName ? esc(`Shared by ${i.chapterName}`) : ""}</text>
   <text x="120" y="1015" fill="#F5F1E8" font-size="34" font-weight="600">surviveaccounting.com</text>
 
@@ -378,11 +378,11 @@ export async function slidePdf(i: FlyerInput): Promise<Buffer> {
     page.drawText(i.chapterName.toUpperCase(), { x: L, y: top(160), size: 17, font: bold, color: hex("#F5A623"), ...{ characterSpacing: 3 } });
   }
   page.drawText(code, { x: L, y: top(228), size: Math.min(58, courseFontSize(code) * 0.2), font: bold, color: hex("#F5F1E8") });
-  page.drawText("Exam 1 is free for the house.", { x: L, y: top(284), size: 30, font: bold, color: hex("#F5F1E8") });
+  page.drawText("Study pages for the house.", { x: L, y: top(284), size: 30, font: bold, color: hex("#F5F1E8") });
   page.drawText("Cram videos + practice built on what actually gets tested.", { x: L, y: top(320), size: 16, font: reg, color: hex("#B9C2DC") });
 
   page.drawRectangle({ x: L, y: top(410), width: 300, height: 42, color: hex("#F5A623") });
-  page.drawText("SCAN IT — EXAM 1 IS FREE", { x: L + 22, y: top(398), size: 15, font: bold, color: hex("#14213D"), ...{ characterSpacing: 2 } });
+  page.drawText("SCAN IT — STUDY FREE", { x: L + 22, y: top(398), size: 15, font: bold, color: hex("#14213D"), ...{ characterSpacing: 2 } });
   page.drawText("surviveaccounting.com", { x: L, y: top(470), size: 15, font: semi, color: hex("#F5F1E8") });
   if (i.chapterName) page.drawText(`Shared by ${i.chapterName}`, { x: L, y: top(496), size: 12, font: ital, color: hex("#8B97BD") });
 
@@ -443,7 +443,7 @@ export async function flyerPdf(i: FlyerInput): Promise<Buffer> {
   centre(page, "by a tutor who's helped 1,000+ students.", 1884, 52, reg, "#B9C2DC");
 
   page.drawRectangle({ x: X(855), y: Y(2086), width: X(840), height: X(96), color: hex("#F5A623") });
-  centre(page, "SCAN IT — EXAM 1 IS FREE", 2056, 52, bold, "#14213D", 4);
+  centre(page, "SCAN IT — STUDY FREE", 2056, 52, bold, "#14213D", 4);
 
   page.drawRectangle({ x: X(945), y: Y(2810), width: X(660), height: X(660), color: rgb(1, 1, 1) });
   const qr = await doc.embedPng(await qrDataUri(i));
@@ -455,7 +455,7 @@ export async function flyerPdf(i: FlyerInput): Promise<Buffer> {
 
   page.drawRectangle({ x: X(700), y: Y(3010), width: X(1150), height: X(3), color: hex("#2A3555") });
   centre(page, "surviveaccounting.com", 3105, 58, semi, "#F5F1E8");
-  centre(page, "Free Exam 1 · No card required", 3175, 38, reg, "#5C6B99");
+  centre(page, "Cram videos + practice exams · No card required", 3175, 38, reg, "#5C6B99");
 
   return Buffer.from(await doc.save());
 }
@@ -483,7 +483,7 @@ export async function printFlyerPdf(i: FlyerInput): Promise<Buffer> {
   const eyebrow = i.chapterName
     ? `FOR ${i.chapterName.toUpperCase()} · ${i.schoolName.toUpperCase()}`
     : `FOR ${i.schoolName.toUpperCase()} STUDENTS`;
-  const line1 = `${code} EXAM 1`;
+  const line1 = `${code} PREP`; // evergreen since 2026-09-17 — no "EXAM 1" on acquisition art
   const size1 = printHeroFontSize(line1);
 
   // THE BOLT — same anchor pattern as the dark flyer's hero bolt (translate → scale → the -45.4

@@ -50,10 +50,11 @@ describe("groupMeMessage", () => {
   // LOCKED TEMPLATE (2026-08-28). One message for every chapter — the old claimed/unclaimed split
   // is gone, because the claimed variant asserted a partnership nobody agreed to. These assertions
   // are the lock: they fail if anyone edits the wording, which is the point.
+  // RE-LOCKED 2026-09-17 to the canonical chapter post (lib/acquisition-copy): evergreen, no Exam 1.
   test("the locked template, character for character", () => {
     const m = groupMeMessage({ courseLabel: "ACG 2021", url });
     expect(m).toBe(
-      `For anyone taking ACG 2021 — Survive Accounting has free cram videos + practice exams to help you ace your exams. Go check them out!\n\nStart studying here:\n${url}`,
+      `Hey everyone — Survive Accounting set up a page for our chapter with short ACG 2021 cram videos + practice exams.\n\nIf you're in ACG 2021, you can study for free here:\n${url}`,
     );
   });
 
@@ -71,6 +72,6 @@ describe("groupMeMessage", () => {
 
   test("degrades to plain Intro Accounting when no verified course code exists", () => {
     const m = groupMeMessage({ claimed: false, shortName: "ATO", courseLabel: "Intro Accounting", url });
-    expect(m).toContain("For anyone taking Intro Accounting —");
+    expect(m).toContain("If you're in Intro Accounting, you can study for free here:");
   });
 });

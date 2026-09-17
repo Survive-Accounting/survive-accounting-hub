@@ -71,7 +71,7 @@ describe("the decline note", () => {
     expect(all).not.toContain("unfortunately");
     expect(all).not.toContain("regret");
     expect(all).not.toContain("application was unsuccessful");
-    expect(all).toContain("exam 1 is free");
+    expect(all).toContain("you can study free"); // evergreen since 2026-09-17 (no "Exam 1 is free")
   });
 });
 

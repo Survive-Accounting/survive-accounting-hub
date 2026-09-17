@@ -1,3 +1,4 @@
+import { COLD_DM_TEMPLATES } from "@/lib/acquisition-copy";
 import { chapterLearnPath, councilLearnPath } from "@/lib/learn-paths";
 // OUTREACH V2 — the pure half of /admin/dm-v2 (2026-09-14).
 //
@@ -141,41 +142,9 @@ export function isRealSignup(m: { name?: string | null; phone?: string | null; u
 // A template that can't be filled honestly (no campus, course code or link) is NOT copied — the
 // caller shows what's missing instead of pasting a placeholder or a guess.
 
-export const DM_TEMPLATES = {
-  // LEE'S COPY, VERBATIM (2026-09-17). Every Copy DM button in admin renders one of these two — dm-v2, the
-  // links page, the cold-outreach boards and schedule — so a VA can't send the wrong one.
-  council: [
-    "Hey y’all,",
-    "",
-    "I’m Lee Ingram, an accounting professor at Ole Miss and the tutor behind Survive Accounting. I’ve helped 1,000+ students with Intro Accounting.",
-    "",
-    "I put together free {{courseCode}} exam prep specifically for {{campusShorthand}} students — short cram videos and practice exams:",
-    "",
-    "{{outreachLink}}",
-    "",
-    "Would you mind passing this along to your chapters’ scholarship chairs or presidents?",
-    "",
-    "If you have any questions about it, feel free to text or call me at 601-201-8759.",
-    "",
-    "Really appreciate it!",
-    "",
-    "Lee",
-  ].join("\n"),
-  chapter: [
-    "Hey! I’m Lee — an accounting tutor and professor, and I’ve helped 1,000+ students get through Intro Accounting.",
-    "",
-    "I put together a page specifically for {{greekLetters}} members taking {{courseCode}}, with short cram videos and practice exams.",
-    "",
-    "They can access everything here:",
-    "{{outreachLink}}",
-    "",
-    "I’d be happy to hop on a quick 5-minute call and show you how it works. Just text me at 601-201-8759.",
-    "",
-    "Happy to answer any questions!",
-    "",
-    "— Lee",
-  ].join("\n"),
-} as const;
+// THE COPY LIVES IN lib/acquisition-copy (2026-09-17) — every Copy DM button in admin renders one of these two:
+// dm-v2, the links page, the cold-outreach boards and schedule, the DM console. Evergreen: no Exam 1.
+export const DM_TEMPLATES = COLD_DM_TEMPLATES;
 export type DmKind = keyof typeof DM_TEMPLATES;
 
 export type OrgType = "fraternity" | "sorority" | null;
@@ -213,6 +182,11 @@ export interface DmRecipient {
 }
 
 export type DmResult = { ok: true; text: string } | { ok: false; missing: string[] };
+
+/** The council exec's cold DM (the council's tracked link passed in). */
+export const councilColdDm = (r: Omit<DmRecipient, "kind">): DmResult => renderOutreachDm({ ...r, kind: "council" });
+/** The chapter exec's cold DM (the chapter's tracked link passed in). */
+export const chapterColdDm = (r: Omit<DmRecipient, "kind">): DmResult => renderOutreachDm({ ...r, kind: "chapter" });
 
 /** Fill the recipient's template. Plain text, paragraph breaks kept, no Markdown. */
 export function renderOutreachDm(r: DmRecipient): DmResult {

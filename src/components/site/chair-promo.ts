@@ -7,6 +7,7 @@
 import { SHARE_ORIGIN, buildShareUrl } from "@/lib/share-url";
 import { councilLearnPath } from "@/lib/learn-paths";
 import { chapterGroupMe } from "@/components/learn/LearnChapterBar";
+import { councilShareMessage } from "@/lib/acquisition-copy";
 import { nbspCode } from "@/lib/course-code";
 import { schoolByAny } from "@/lib/schools";
 
@@ -84,15 +85,10 @@ export function chairGroupMe(kind: ChairKind, courseCode: string | null, url: st
   return chapterGroupMe({ courseCode, url, chapter: shortName });
 }
 
-/** The council → scholarship chairs post. One link, and it says what they get when they open it. */
-export function councilChairPost(courseCode: string | null, url: string, councilName: string): string {
-  const course = courseCode ?? "intro accounting";
-  return [
-    `Scholarship chairs — ${councilName} is sharing free ${course} cram videos + practice exams for every chapter. The first exam is completely free for your members.`,
-    "",
-    "Pick your chapter here to get your members' link and a flyer for the house:",
-    url,
-  ].join("\n");
+/** The council → scholarship chairs post — the canonical message (lib/acquisition-copy, 2026-09-17). Survive
+ *  Accounting provides the pages; the council only forwards the link, so the council's name isn't in it. */
+export function councilChairPost(courseCode: string | null, url: string, _councilName?: string): string {
+  return councilShareMessage({ courseCode, councilLink: url });
 }
 
 /** Print + projector artwork. A council gets the slide only (Lee: "For IFC councils… they just

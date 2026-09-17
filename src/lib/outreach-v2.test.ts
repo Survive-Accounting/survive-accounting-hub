@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { isRealSignup, mergeOrder, missingMessage, moveSlug, organizationTypePlural, renderOutreachDm, slotLink, V2_PRIORITY, v2CouncilOf, type DmRecipient } from "./outreach-v2";
+import { chapterColdDm, councilColdDm, isRealSignup, mergeOrder, missingMessage, moveSlug, organizationTypePlural, renderOutreachDm, slotLink, V2_PRIORITY, v2CouncilOf, type DmRecipient } from "./outreach-v2";
 
 describe("outreach v2", () => {
   test("priority starts with Lee's order", () => {
@@ -22,10 +22,10 @@ describe("outreach v2", () => {
     expect(text({ ...olemissIfc, campusShorthand: "Indiana", courseCode: "BUS-A 201", outreachLink: "https://surviveaccounting.com/l/8e39e4744b56" })).toBe([
       "Hey y’all,", "",
       "I’m Lee Ingram, an accounting professor at Ole Miss and the tutor behind Survive Accounting. I’ve helped 1,000+ students with Intro Accounting.", "",
-      "I put together free BUS-A 201 exam prep specifically for Indiana students — short cram videos and practice exams:", "",
+      "I put together BUS-A 201 cram videos + practice exams for Indiana students.", "",
+      "Would you mind passing this along to your chapters’ scholarship chairs or presidents? They can pick their chapter and get a ready-to-share page for their members:", "",
       "https://surviveaccounting.com/l/8e39e4744b56", "",
-      "Would you mind passing this along to your chapters’ scholarship chairs or presidents?", "",
-      "If you have any questions about it, feel free to text or call me at 601-201-8759.", "",
+      "If you have questions, feel free to text or call me at 601-201-8759.", "",
       "Really appreciate it!", "", "Lee",
     ].join("\n"));
     // IFC, Panhellenic and NPHC all read the same; only campus, course and link change.
@@ -37,8 +37,8 @@ describe("outreach v2", () => {
     const ka = text({ kind: "chapter", campusShorthand: "Ole Miss", courseCode: "ACCY 201", chapterName: "Kappa Alpha Order", greekLetters: "ΚΑ", council: "ifc", outreachLink: "https://surviveaccounting.com/l/bbbbbbbbbbbb" });
     expect(ka).toBe([
       "Hey! I’m Lee — an accounting tutor and professor, and I’ve helped 1,000+ students get through Intro Accounting.", "",
-      "I put together a page specifically for ΚΑ members taking ACCY 201, with short cram videos and practice exams.", "",
-      "They can access everything here:", "https://surviveaccounting.com/l/bbbbbbbbbbbb", "",
+      "I set up a page specifically for ΚΑ members taking ACCY 201, with short cram videos and practice exams.", "",
+      "They can study for free here:", "https://surviveaccounting.com/l/bbbbbbbbbbbb", "",
       "I’d be happy to hop on a quick 5-minute call and show you how it works. Just text me at 601-201-8759.", "",
       "Happy to answer any questions!", "", "— Lee",
     ].join("\n"));
@@ -46,6 +46,13 @@ describe("outreach v2", () => {
       .toContain("specifically for Acacia members taking BUS-A 201,");
     expect(text({ kind: "chapter", campusShorthand: "Indiana", courseCode: "BUS-A 201", chapterName: "", council: "ifc", outreachLink: "x" }))
       .toContain("specifically for your members taking BUS-A 201,");
+  });
+
+  test("evergreen: no Exam 1, and the named helpers are the same copy (2026-09-17)", () => {
+    for (const t of [text(olemissIfc), text({ kind: "chapter", campusShorthand: "Ole Miss", courseCode: "ACCY 201", greekLetters: "ΚΑ", council: "ifc", outreachLink: "x" })]) expect(t).not.toMatch(/Exam 1|first exam|GPA/i);
+    const { kind: _k, ...rest } = olemissIfc;
+    expect(councilColdDm(rest)).toEqual(renderOutreachDm(olemissIfc));
+    expect(chapterColdDm({ ...rest, greekLetters: "ΚΑ" })).toEqual(renderOutreachDm({ ...olemissIfc, kind: "chapter", greekLetters: "ΚΑ" }));
   });
 
   test("switching recipients changes every field and the link", () => {

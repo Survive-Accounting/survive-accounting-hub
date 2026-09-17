@@ -46,15 +46,18 @@ describe("the GroupMe post", () => {
   test("a chapter's post says 'our chapter' and carries exactly one link", () => {
     const url = chairShareUrl("chapter", "tennessee", "alpha-tau-omega");
     const msg = chairGroupMe("chapter", "ACCT 200", url, "ATO");
-    expect(msg).toContain("our chapter free ACCT 200 cram videos");
+    expect(msg).toContain("a page for our chapter with short ACCT 200 cram videos + practice exams.");
+    expect(msg).not.toMatch(/Exam 1|first exam|GPA/i);
     expect(msg.match(/https?:\/\//g)?.length).toBe(1);
     expect(msg.endsWith(url)).toBe(true);
   });
   test("a council's post goes to the scholarship chairs and sends them to pick their chapter", () => {
     const url = chairShareUrl("council", "tennessee", "ifc");
     const msg = chairGroupMe("council", "ACCT 200", url, "IFC");
-    expect(msg.startsWith("Scholarship chairs — IFC is sharing free ACCT 200")).toBe(true);
-    expect(msg).toContain("Pick your chapter here to get your members' link and a flyer for the house:");
+    // Survive Accounting provides the pages; the council only forwards the link (2026-09-17).
+    expect(msg.startsWith("Scholarship chairs — Survive Accounting set up ACCT 200 study pages for every chapter")).toBe(true);
+    expect(msg).toContain("Pick your chapter here to get your member link, GroupMe post, and flyer:");
+    expect(msg).not.toMatch(/IFC is sharing|Exam 1|first exam/i);
     expect(msg.match(/https?:\/\//g)?.length).toBe(1);
     expect(msg.endsWith(url)).toBe(true);
   });

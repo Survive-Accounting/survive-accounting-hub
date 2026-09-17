@@ -43,7 +43,7 @@ describe("the DM", () => {
   test("councils, the FSL office and clubs get Lee's council DM; chapters get the chapter DM with their letters", () => {
     const ifc = ok(contactDm({ campusLabel: "Ole Miss", courseCode: "ACCY 201", org: { kind: "council", group: "IFC", name: "Interfraternity Council", onSite: true }, link: "https://surviveaccounting.com/l/68a083e86648" }));
     expect(ifc.startsWith("Hey y’all,")).toBe(true);
-    expect(ifc).toContain("specifically for Ole Miss students");
+    expect(ifc).toContain("cram videos + practice exams for Ole Miss students.");
     expect(ifc).toContain("\nhttps://surviveaccounting.com/l/68a083e86648\n");
     const office = ok(contactDm({ campusLabel: "Ole Miss", courseCode: "ACCY 201", org: { kind: "office", group: "FSL Office", name: "FSL", onSite: false }, link: "x" }));
     expect(office.startsWith("Hey y’all,")).toBe(true);

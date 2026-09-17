@@ -258,13 +258,13 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
     <section id={id} className="sa-anchor mx-auto w-full max-w-[640px] px-5 py-12" style={{ fontFamily: BRAND_SANS }}>
       {/* SECTION HEADING — the whole section's promise, before either audience-specific piece. */}
       <p className="text-center text-[11.5px] font-bold" style={{ color: "var(--text-muted)", letterSpacing: "0.16em" }}>
-        SHARE EXAM 1
+        SHARE WITH THE HOUSE
       </p>
       <h2 className="mx-auto mt-3 max-w-[26ch] text-center text-[21px] font-black leading-[1.15] sm:text-[25px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.01em" }}>
         Make sure your whole chapter has this.
       </h2>
       <p className="mx-auto mt-2 max-w-[38ch] text-center text-[14px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-        Exam 1 is free for everyone. Send it to your GroupMe, chapter chat, or scholarship chair.
+        Short cram videos + practice exams. Send it to your GroupMe, chapter chat, or scholarship chair.
       </p>
 
       {/* SECTION A — the compact member utility panel. One panel, not three cards: sending,
@@ -272,7 +272,7 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
           surface instead of competing for equal-sized real estate. */}
       <div className="mt-7 rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
         <h3 className="text-[15.5px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
-          Share the free Exam 1 prep
+          Share the study page
         </h3>
         <p className="mt-1 text-[13.5px]" style={{ color: "var(--text-muted)" }}>
           Send it to your chapter in a few seconds.

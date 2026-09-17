@@ -32,21 +32,15 @@ import { COUNCILS, councilMatches } from "@/lib/greek-councils.functions";
 import { listGoChapters, type GoChapterListItem } from "@/lib/greek-go.functions";
 import type { School } from "@/lib/schools";
 import { buildShareUrl } from "@/lib/share-url";
+import { campusGroupMePost, chapterGroupMePost } from "@/lib/acquisition-copy";
 
 const DISMISS_KEY = "sa-learn-chapterbar-hidden";
 export function readChapterBarHidden(): boolean { try { return localStorage.getItem(DISMISS_KEY) === "1"; } catch { return false; } }
 function writeChapterBarHidden(): void { try { localStorage.setItem(DISMISS_KEY, "1"); } catch { /* ignore */ } }
 
-/** THE GROUPME MESSAGE — Lee's vibe, tightened: one line of what, one line of where. */
+/** THE GROUPME MESSAGE — the canonical post (lib/acquisition-copy, 2026-09-17): evergreen, no Exam 1, no GPA line. */
 export function chapterGroupMe({ courseCode, url, chapter }: { courseCode: string | null; url: string; chapter: string | null }): string {
-  const course = courseCode ?? "intro accounting";
-  const who = chapter ? "our chapter" : "every chapter";
-  return [
-    `Hey everyone — SurviveAccounting.com is giving ${who} free ${course} cram videos + practice exams to help boost ${chapter ? "our chapter GPA" : "chapter GPAs"}. The first exam is completely free.`,
-    "",
-    chapter ? "Start studying here:" : "Pick your chapter and start here:",
-    url,
-  ].join("\n");
+  return chapter ? chapterGroupMePost({ courseCode, chapterLink: url }) : campusGroupMePost({ courseCode, link: url });
 }
 
 export function LearnChapterBar({ school, chapter, councilSlug, contactRef, narrow, onPick, onHide }: {
