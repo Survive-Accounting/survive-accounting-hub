@@ -81,6 +81,7 @@ import { Route as PreviewTemplatesRouteImport } from './routes/preview_.template
 import { Route as PreviewStudentplayerv1RouteImport } from './routes/preview_.studentplayerv1'
 import { Route as PreviewHomeRouteImport } from './routes/preview_.home'
 import { Route as PreviewExam1RouteImport } from './routes/preview_.exam1'
+import { Route as PlayPongRouteImport } from './routes/play.pong'
 import { Route as PartnersNationalOrganizationsRouteImport } from './routes/partners.national-organizations'
 import { Route as PartnersCampusCouncilsRouteImport } from './routes/partners.campus-councils'
 import { Route as OutreachVideoArchiveRouteImport } from './routes/outreach.video-archive'
@@ -584,6 +585,11 @@ const PreviewHomeRoute = PreviewHomeRouteImport.update({
 const PreviewExam1Route = PreviewExam1RouteImport.update({
   id: '/preview_/exam1',
   path: '/preview/exam1',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlayPongRoute = PlayPongRouteImport.update({
+  id: '/play/pong',
+  path: '/play/pong',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PartnersNationalOrganizationsRoute =
@@ -1430,6 +1436,7 @@ export interface FileRoutesByFullPath {
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
+  '/play/pong': typeof PlayPongRoute
   '/preview/exam1': typeof PreviewExam1Route
   '/preview/home': typeof PreviewHomeRoute
   '/preview/studentplayerv1': typeof PreviewStudentplayerv1Route
@@ -1645,6 +1652,7 @@ export interface FileRoutesByTo {
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
+  '/play/pong': typeof PlayPongRoute
   '/preview/exam1': typeof PreviewExam1Route
   '/preview/home': typeof PreviewHomeRoute
   '/preview/studentplayerv1': typeof PreviewStudentplayerv1Route
@@ -1863,6 +1871,7 @@ export interface FileRoutesById {
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
+  '/play/pong': typeof PlayPongRoute
   '/preview_/exam1': typeof PreviewExam1Route
   '/preview_/home': typeof PreviewHomeRoute
   '/preview_/studentplayerv1': typeof PreviewStudentplayerv1Route
@@ -2083,6 +2092,7 @@ export interface FileRouteTypes {
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
+    | '/play/pong'
     | '/preview/exam1'
     | '/preview/home'
     | '/preview/studentplayerv1'
@@ -2298,6 +2308,7 @@ export interface FileRouteTypes {
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
+    | '/play/pong'
     | '/preview/exam1'
     | '/preview/home'
     | '/preview/studentplayerv1'
@@ -2515,6 +2526,7 @@ export interface FileRouteTypes {
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
+    | '/play/pong'
     | '/preview_/exam1'
     | '/preview_/home'
     | '/preview_/studentplayerv1'
@@ -2705,6 +2717,7 @@ export interface RootRouteChildren {
   OfferMckenzieRoute: typeof OfferMckenzieRoute
   PartnersCampusCouncilsRoute: typeof PartnersCampusCouncilsRoute
   PartnersNationalOrganizationsRoute: typeof PartnersNationalOrganizationsRoute
+  PlayPongRoute: typeof PlayPongRoute
   PreviewExam1Route: typeof PreviewExam1Route
   PreviewHomeRoute: typeof PreviewHomeRoute
   PreviewStudentplayerv1Route: typeof PreviewStudentplayerv1Route
@@ -3293,6 +3306,13 @@ declare module '@tanstack/react-router' {
       path: '/preview/exam1'
       fullPath: '/preview/exam1'
       preLoaderRoute: typeof PreviewExam1RouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/play/pong': {
+      id: '/play/pong'
+      path: '/play/pong'
+      fullPath: '/play/pong'
+      preLoaderRoute: typeof PlayPongRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/partners/national-organizations': {
@@ -4598,6 +4618,7 @@ const rootRouteChildren: RootRouteChildren = {
   OfferMckenzieRoute: OfferMckenzieRoute,
   PartnersCampusCouncilsRoute: PartnersCampusCouncilsRoute,
   PartnersNationalOrganizationsRoute: PartnersNationalOrganizationsRoute,
+  PlayPongRoute: PlayPongRoute,
   PreviewExam1Route: PreviewExam1Route,
   PreviewHomeRoute: PreviewHomeRoute,
   PreviewStudentplayerv1Route: PreviewStudentplayerv1Route,
