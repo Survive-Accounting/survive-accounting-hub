@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ARC_BLUE, ARC_CORE, ARC_GOLD, CTA_RED, CTA_RED_DEEP, CTA_RED_LIT } from "@/components/brand-cards/chain-lightning";
 import { BRAND_BLUE, BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
+import { LEE_PHOTO, LEE_TEL } from "@/components/learn/LearnTextLee";
 import { track } from "@/lib/analytics";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import {
@@ -459,6 +460,11 @@ export function AccountingPong({ embedded = false, courseCode = null, campusName
             )}
             <IconButton label={sound ? "Sound on" : "Sound off"} onClick={toggleSound}>{sound ? "🔊" : "🔇"}</IconButton>
             <IconButton label="Workshop settings" onClick={() => setDrawer((d) => !d)} active={drawer}>⚙</IconButton>
+            {/* LEE, top right (Lee, 2026-09-16: "instead of the floating modal, a circle frame of my
+                headshot in the top right"). Tapping it texts him; the floating bubble stays off this page. */}
+            <a href={`sms:${LEE_TEL}`} aria-label="Text Lee" title="Text Lee" style={{ display: "block", width: 36, height: 36, borderRadius: 999, overflow: "hidden", border: `2px solid ${NAVY_TEXT}`, flexShrink: 0, boxShadow: "0 4px 10px -4px rgba(0,0,0,0.6)" }}>
+              <img src={LEE_PHOTO} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 30%", display: "block" }} />
+            </a>
           </div>
         </header>
 
@@ -631,7 +637,7 @@ function LeaderboardPanel({ total, bests }: { total: number; bests: Record<strin
             <td style={{ padding: "8px 6px", fontFamily: DISPLAY, fontWeight: 900, color: ACCENT, width: 28 }}>1</td>
             <td style={{ padding: "8px 6px" }}>
               <input value={name} onChange={(e) => save(e.target.value)} placeholder="Your name" aria-label="Your name on the board"
-                style={{ fontFamily: SANS, fontWeight: 700, fontSize: 14, color: INK, background: "transparent", border: 0, borderBottom: `1px dashed ${CREAM_BORDER}`, padding: "2px 0", width: "100%", maxWidth: 220 }} />
+                style={{ fontFamily: SANS, fontWeight: 700, fontSize: 16, color: INK, background: "transparent", border: 0, borderBottom: `1px dashed ${CREAM_BORDER}`, padding: "2px 0", width: "100%", maxWidth: 220 }} />
             </td>
             <td style={{ padding: "8px 6px", textAlign: "right", fontFamily: DISPLAY, fontWeight: 900, fontSize: 18 }}>{formatScore(total)}</td>
           </tr>

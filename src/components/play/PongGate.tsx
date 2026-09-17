@@ -31,7 +31,8 @@ export function PongGate({ children }: { children: ReactNode }) {
       <div style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: 22 }}>Accounting Pong</div>
       <p style={{ margin: "8px 0 14px", fontSize: 13.5, color: "#AAB4C8" }}>This one is still in the workshop. Enter the word Lee gave you.</p>
       <input value={typed} onChange={(e) => { setTyped(e.target.value); setWrong(false); }} autoFocus autoComplete="off" aria-label="Password" placeholder="Password"
-        style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${wrong ? "#FF5C6C" : "#34486D"}`, background: "#0D1730", color: "#F7F0E6", fontSize: 15, fontFamily: BRAND_SANS }} />
+        // 16px, not smaller: iOS Safari zooms the page in on a smaller input and never zooms back out.
+        style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${wrong ? "#FF5C6C" : "#34486D"}`, background: "#0D1730", color: "#F7F0E6", fontSize: 16, fontFamily: BRAND_SANS }} />
       {wrong && <div style={{ marginTop: 6, fontSize: 12.5, color: "#FF5C6C" }}>That’s not it.</div>}
       <button type="submit" style={{ marginTop: 12, width: "100%", padding: "11px 16px", borderRadius: 999, border: 0, background: "#E63B2D", color: "#F7F0E6", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: BRAND_SANS }}>Let me in</button>
     </form>
