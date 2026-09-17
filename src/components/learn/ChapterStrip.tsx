@@ -20,7 +20,7 @@ import { Check, Copy, FileText, Image as ImageIcon, Link2, Loader2, MessageSquar
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { LK } from "@/components/learn/learn-theme";
 import { chapterGroupMe } from "@/components/learn/LearnChapterBar";
-import { CHAPTER_JOINED_EVENT, EMAIL_RE, ExecForm, joinChapter, OPEN_CHAPTER_FINDER_EVENT, readJoined, type PickedChapter } from "@/components/learn/LearnChapterModule";
+import { CHAPTER_JOINED_EVENT, EMAIL_RE, ExecForm, joinChapter, OPEN_CHAPTER_FINDER_EVENT, OPEN_SHARE_KIT_EVENT, readJoined, type PickedChapter } from "@/components/learn/LearnChapterModule";
 import { chairArtwork, councilChairPost } from "@/components/site/chair-promo";
 import { ChapterPickerSheet } from "@/components/site/home-two-door/ChapterPickerSheet";
 import { track } from "@/lib/analytics";
@@ -49,8 +49,10 @@ export function stripWords(short: string, members: number | null, joined: boolea
   return { head: `Study with ${short}.`, sub: `${members} member${members === 1 ? " is" : "s are"} cramming.` };
 }
 
-export function ChapterStrip({ school, chapter, pathChapter = false, role, councilPreset, contactRef, narrow, prefillEmail, onPick, onClear }: {
+export function ChapterStrip({ school, chapter, pathChapter = false, role, councilPreset, contactRef, narrow, prefillEmail, onPick, onClear, heroAbove = false }: {
   school: School;
+  /** THE EXEC HERO sits above (2026-09-16): the strip keeps only its kit and its quiet links — no second header. */
+  heroAbove?: boolean;
   chapter: PickedChapter | null;
   /** The chapter is in the address (a chapter link), not just remembered on this device — a council exec's link
    *  with a remembered pick still shows the council strip. */
@@ -95,16 +97,22 @@ export function ChapterStrip({ school, chapter, pathChapter = false, role, counc
       </>
     );
   }
-  if (!chapter || council) return <><CouncilStrip school={school} council={councilPreset} contactRef={contactRef} narrow={narrow} onChoose={() => setPicking(true)} />{sheet}</>;
-  return <><HouseStrip school={school} chapter={chapter} role={role === "council" ? "chair" : role} contactRef={contactRef} narrow={narrow} prefillEmail={prefillEmail ?? null} onNotYours={() => { onClear(); setPicking(true); }} />{sheet}</>;
+  if (!chapter || council) return <><CouncilStrip school={school} council={councilPreset} contactRef={contactRef} narrow={narrow} onChoose={() => setPicking(true)} heroAbove={heroAbove} />{sheet}</>;
+  return <><HouseStrip school={school} chapter={chapter} role={role === "council" ? "chair" : role} contactRef={contactRef} narrow={narrow} prefillEmail={prefillEmail ?? null} onNotYours={() => { onClear(); setPicking(true); }} heroAbove={heroAbove} />{sheet}</>;
 }
 
 // ── a chapter's strip: member, or chair ──────────────────────────────────────────────────────
 
-function HouseStrip({ school, chapter, role, contactRef, narrow, prefillEmail, onNotYours }: { school: School; chapter: PickedChapter; role: StripRole; contactRef: string | null; narrow: boolean; prefillEmail: string | null; onNotYours: () => void }) {
+function HouseStrip({ school, chapter, role, contactRef, narrow, prefillEmail, onNotYours, heroAbove = false }: { school: School; chapter: PickedChapter; role: StripRole; contactRef: string | null; narrow: boolean; prefillEmail: string | null; onNotYours: () => void; heroAbove?: boolean }) {
   const short = (chapter.letters ?? "").trim() || chapter.name || "your chapter";
   const [chair, setChair] = useState(role === "chair");
   useEffect(() => { setChair(role === "chair"); }, [role, chapter.slug]);
+  // THE EXEC HERO's Share (2026-09-16): opens this strip's kit, as a chair.
+  useEffect(() => {
+    const on = () => { setChair(true); setKit(true); };
+    window.addEventListener(OPEN_SHARE_KIT_EVENT, on);
+    return () => window.removeEventListener(OPEN_SHARE_KIT_EVENT, on);
+  }, []);
   const [joined, setJoined] = useState(false);
   useEffect(() => {
     const read = () => setJoined(readJoined(school.slug, chapter.slug));
@@ -126,7 +134,7 @@ function HouseStrip({ school, chapter, role, contactRef, narrow, prefillEmail, o
 
   return (
     <section aria-label="Your chapter" className="lk-card" style={{ marginTop: narrow ? 10 : 12, padding: narrow ? "11px 12px" : "12px 14px", fontFamily: BRAND_SANS, borderColor: chair ? GOLD : joined ? "#1F7A4D" : undefined, display: "flex", flexDirection: "column", gap: 8 }}>
-      {!kit && !claim && (
+      {!kit && !claim && !(heroAbove && chair) && (
         <div className="flex flex-wrap items-center" style={{ gap: 10 }}>
           <div className="min-w-0" style={{ flex: "1 1 200px" }}>
             {chair ? (
@@ -185,10 +193,16 @@ function HouseStrip({ school, chapter, role, contactRef, narrow, prefillEmail, o
 
 // ── the council exec's strip ─────────────────────────────────────────────────────────────────
 
-function CouncilStrip({ school, council, contactRef, narrow, onChoose }: { school: School; council: string | null; contactRef: string | null; narrow: boolean; onChoose: () => void }) {
+function CouncilStrip({ school, council, contactRef, narrow, onChoose, heroAbove = false }: { school: School; council: string | null; contactRef: string | null; narrow: boolean; onChoose: () => void; heroAbove?: boolean }) {
   const c = COUNCILS.find((x) => x.slug === council) ?? null;
   const name = c?.name ?? "your council";
   const [kit, setKit] = useState(false);
+  // THE EXEC HERO's Share (2026-09-16): opens the chairs' kit.
+  useEffect(() => {
+    const on = () => setKit(true);
+    window.addEventListener(OPEN_SHARE_KIT_EVENT, on);
+    return () => window.removeEventListener(OPEN_SHARE_KIT_EVENT, on);
+  }, []);
   // THE CHAIRS' LINK: the campus page with the council preset — a chair opens it, picks their chapter, and the
   // house gets its own link. The council's referral rides along as ?by=.
   const chairs = `${LEARN_ORIGIN}${councilChairsPath(school.id, council ?? "")}${contactRef ? `&by=${encodeURIComponent(contactRef)}` : ""}`;
@@ -198,6 +212,13 @@ function CouncilStrip({ school, council, contactRef, narrow, onChoose }: { schoo
     <section aria-label="Your council" className="lk-card" style={{ marginTop: narrow ? 10 : 12, padding: narrow ? "11px 12px" : "12px 14px", fontFamily: BRAND_SANS, borderColor: GOLD, display: "flex", flexDirection: "column", gap: 8 }}>
       {kit && art ? (
         <Kit title="Share with chapter chairs" note="One link. Chairs open the free prep, pick their chapter, and pass the house its own link." link={chairs} post={post} art={art} letters={name} council onBack={() => setKit(false)} />
+      ) : heroAbove ? (
+        // Under the exec hero the header is the hero's; this row keeps only the chapter pick.
+        <div className="flex flex-wrap items-center" style={{ gap: 10, fontSize: 12.5, color: LK.muted }}>
+          <span>{name} · {school.name}</span>
+          <span style={{ flex: 1 }} />
+          <Quiet onClick={onChoose}>Choose your chapter →</Quiet>
+        </div>
       ) : (
         <>
           <div className="flex flex-wrap items-center" style={{ gap: 10 }}>

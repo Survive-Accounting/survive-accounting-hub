@@ -81,7 +81,11 @@ import { HideChatWhile } from "@/components/site/SiteChat";
 import { LearnLookPicker } from "@/components/learn/LearnLookPicker";
 import { ReviewSheet } from "@/components/learn/ReviewSheet";
 import { openChapterFinder } from "@/components/learn/LearnChapterModule";
-import { ChapterStrip } from "@/components/learn/ChapterStrip";
+import { ChapterStrip, stripWords } from "@/components/learn/ChapterStrip";
+import { COUNCILS } from "@/lib/greek-councils.functions";
+
+/** THE EXEC ROLE, kept for the tab (sessionStorage) once a council / chair link has been opened. */
+const EXEC_STAMP_KEY = "sa-learn-exec";
 import { pageShareUrl } from "@/lib/share-url";
 import { CramPlayer, type PlayerItem, type PlayerPart } from "@/components/learn/CramPlayer";
 import { PongOnLearn } from "@/components/play/PongOnLearn";
@@ -375,6 +379,19 @@ function LearnShell() {
   const campusName = school?.name ?? campuses.find((c) => c.id === campusId)?.name ?? null;
   const look: Look = search.look ?? DEFAULT_LOOK;
   const theme = useMemo(() => themeFor(school, look), [school, look]);
+  // THE EXEC ROLE (2026-09-16): ?share=council / ?share=chair picks the exec hero; the address loses the param
+  // on arrival (below), so the role is kept for this tab and "I'm a member" lets it go.
+  const [execStamp, setExecStamp] = useState<"council" | "chair" | null>(null);
+  useEffect(() => {
+    if (search.share) { try { sessionStorage.setItem(EXEC_STAMP_KEY, search.share); } catch { /* this visit */ } setExecStamp(search.share); }
+    else { try { const v = sessionStorage.getItem(EXEC_STAMP_KEY); setExecStamp(v === "council" || v === "chair" ? v : null); } catch { /* none */ } }
+  }, [search.share]);
+  const execRole: "council" | "chair" | null = search.share ?? execStamp;
+  const leaveExec = useCallback(() => {
+    try { sessionStorage.removeItem(EXEC_STAMP_KEY); } catch { /* none */ }
+    setExecStamp(null);
+    void navigate({ search: (p: LearnSearch) => ({ ...p, share: undefined }), replace: true });
+  }, [navigate]);
   // THE CHAPTER BAR (2026-09-11): hidden on this device only by its own "Not in a chapter?" link,
   // and never when a chapter or a council is in the address. Read in an effect (storage).
   // PICK AND CLEAR IN PLACE (Lee, 2026-09-11: "It must not full-page reload — swap the module in
@@ -675,12 +692,19 @@ function LearnShell() {
                         kit={school && !demo ? (
               <ChapterStrip
                 school={school} councilPreset={search.c ?? null}
-                role={search.share === "chair" ? "chair" : search.share === "council" ? "council" : "member"}
+                role={execRole ?? "member"}
                 chapter={chapter.slug ? { slug: chapter.slug, name: chapter.name, letters: chapter.letters, members: chapter.members, council: chapter.council } : null}
                 contactRef={search.by ?? search.ref ?? null} narrow={isNarrow} prefillEmail={email || null} pathChapter={!!params.chapter}
-                onPick={pickChapter} onClear={clearChapter}
+                onPick={pickChapter} onClear={clearChapter} heroAbove={!!execRole}
               />
             ) : null}
+            exec={school && !demo && execRole ? {
+              role: execRole, schoolName: school.name,
+              councilName: COUNCILS.find((x) => x.slug === search.c)?.name ?? null,
+              chapterShort: chapter.slug ? ((chapter.letters ?? "").trim() || chapter.name || null) : null,
+              membersLine: execRole === "chair" && chapter.slug ? stripWords((chapter.letters ?? "").trim() || chapter.name || "your chapter", chapter.members, false).head : null,
+              onMember: leaveExec,
+            } : null}
             after={<PongOnLearn narrow={isNarrow} courseCode={school?.courseCode ?? null} campusName={campusName ?? null} bolt={school?.c1 && school?.c2 ? { c1: school.c1, c2: school.c2 } : null} />}
           />
         )}

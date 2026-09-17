@@ -71,6 +71,8 @@ const NAVY = "#14213D", CREAM = "#F5EFE6", GOLD = "#FCA311", NAVY_DEEP = "#0C152
 const GREEK_BAND_DISMISSED = "sa-learn-greek-band-dismissed";
 /** The menu's "Study with your chapter" fires this: the Find your chapter band and its picker come back. */
 export const OPEN_CHAPTER_FINDER_EVENT = "sa-open-chapter-finder";
+/** THE EXEC HERO's Share button (2026-09-16): the strip below opens its share kit. */
+export const OPEN_SHARE_KIT_EVENT = "sa-open-share-kit";
 export function openChapterFinder(): void { try { window.dispatchEvent(new CustomEvent(OPEN_CHAPTER_FINDER_EVENT)); } catch { /* ignore */ } }
 
 /** The funding threshold for a chapter, or null when there is none to compute from. */

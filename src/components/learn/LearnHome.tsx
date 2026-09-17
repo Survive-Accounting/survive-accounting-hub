@@ -121,9 +121,11 @@ import { Check, ChevronDown, Loader2, Lock } from "lucide-react";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { CONTENT_MAX, LK, SIDE_PAD, type LearnTheme } from "@/components/learn/learn-theme";
+import { track } from "@/lib/analytics";
 import { fmtRuntime, LAST_SET_KEY, muxThumb } from "@/components/learn/cram-media";
 import { EMAIL_RE, emailGateNeeded, isUuid, practiceGateNeeded, questionCount, topicRowDetail, waitlistNeeded, writeUnlocked, type GateSet } from "@/components/learn/learn-gate";
-import { LearnEntrance } from "@/components/learn/LearnEntrance";
+import { ExecEntrance, LearnEntrance, type ExecRole } from "@/components/learn/LearnEntrance";
+import { OPEN_SHARE_KIT_EVENT } from "@/components/learn/LearnChapterModule";
 import type { RailKey } from "@/components/learn/LearnRail";
 import { CRAM_MACHINE_CSS } from "@/components/learn/CramMachine";
 import { PRACTICE_CARD_CSS, PracticeCard } from "@/components/learn/PracticeCard";
@@ -135,7 +137,7 @@ import type { School } from "@/lib/schools";
 import type { StudentSet, StudentTopic } from "@/lib/student.functions";
 import { useDismiss } from "@/lib/use-dismiss";
 import { claimPreview, currentPreview, onPreview, pickAuto, previewMode, releasePreview, resetAutoPick, warmPreviewPlayer } from "@/components/learn/live-preview";
-import { HowSurviveWorksRow } from "@/components/learn/HowSurviveWorks";
+import { HowSurviveWorksLightbox, HowSurviveWorksRow } from "@/components/learn/HowSurviveWorks";
 import { openCourseSheet } from "@/components/learn/CourseSheet";
 
 export type HomeSet = {
@@ -260,7 +262,11 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   kit?: ReactNode;
   /** Anything that sits BELOW the topic rows (Accounting Pong, 2026-09-16 workshop). */
   after?: ReactNode;
-}>(function LearnHome({ sets, examLabel, tier, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school, progress = {}, chapterSlug = null, kit = null, after = null }, ref) {
+  /** THE EXEC HERO (2026-09-16): a council exec's or a chapter chair's link — Share is the button, the product
+   *  is a taste ("See how it works"). Null = the student hero. */
+  exec?: { role: ExecRole; schoolName: string; councilName: string | null; chapterShort: string | null; membersLine: string | null; onMember: () => void } | null;
+}>(function LearnHome({ sets, examLabel, tier, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school, progress = {}, chapterSlug = null, kit = null, after = null, exec = null }, ref) {
+  const [how, setHow] = useState(false);
   // the arrival autoplay picks afresh each time the home draws (live-preview.ts pickAuto)
   if (typeof window !== "undefined") resetAutoPick();
   const byTopic = useMemo(() => {
@@ -312,7 +318,12 @@ export const LearnHome = forwardRef<HTMLDivElement, {
       {/* THE ENTRANCE BAND — full-bleed on the hero ground, the column inside it. */}
       <div style={{ background: LK.heroBg }}>
         <div className="mx-auto w-full" style={{ maxWidth: CONTENT_MAX, padding: `${narrow ? 10 : wide ? 16 : 14}px ${pad}px 0` }}>
-                    <LearnEntrance tier={tier} onStart={startFirst} />
+                    {exec
+            ? <ExecEntrance tier={tier} role={exec.role} schoolName={exec.schoolName} councilName={exec.councilName} chapterShort={exec.chapterShort} membersLine={exec.membersLine}
+                onShare={() => { track("exec_share_opened", { role: exec.role }); window.dispatchEvent(new CustomEvent(OPEN_SHARE_KIT_EVENT)); }}
+                onHow={() => { setHow(true); track("hsw_open", { where: `/learn-exec-${exec.role}` }); }} onMember={exec.onMember} />
+            : <LearnEntrance tier={tier} onStart={startFirst} />}
+          {how && <HowSurviveWorksLightbox onClose={() => setHow(false)} cta={{ label: "Try it yourself →", onClick: () => { setHow(false); startFirst(); } }} />}
           {/* THE CHAPTER STRIP under the button (the simple flow, 2026-09-16): whose page this is, and the one
               thing that visitor should do next. A quiet "Studying with your chapter?" line when there is none. */}
           {kit}
@@ -321,7 +332,9 @@ export const LearnHome = forwardRef<HTMLDivElement, {
       </div>
             <div className="mx-auto flex w-full flex-col" style={{ maxWidth: CONTENT_MAX, padding: `0 ${pad}px 96px`, gap: narrow ? 0 : wide ? 32 : 28 }}>
         {/* HOW SURVIVE WORKS (2026-09-16): one row above the topics — 0:36, silent until tapped; one line once seen. */}
-        <div style={{ padding: narrow ? "10px 0 14px" : 0 }}><HowSurviveWorksRow narrow={narrow} onStart={startFirst} /></div>
+        {exec
+          ? <div className="lk-disp" style={{ fontSize: narrow ? 15 : 17, color: LK.muted, padding: narrow ? "10px 0 4px" : "4px 0 0" }}>What {exec.role === "council" ? "members" : "your members"} see ↓</div>
+          : <div style={{ padding: narrow ? "10px 0 14px" : 0 }}><HowSurviveWorksRow narrow={narrow} onStart={startFirst} /></div>}
 
         {/* CRAM ROWS — one per topic, the primary structure of the page. First topic, first short
             sit right under the hero — no control panel between the student and the video. */}
