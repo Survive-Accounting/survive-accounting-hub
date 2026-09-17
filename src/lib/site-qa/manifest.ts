@@ -584,6 +584,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "intro-outro.tsx": "dev lab (noindex)",
   "logo-lab.tsx": "dev lab (noindex)",
   "lab.bolt.tsx": "dev lab (noindex)",
+  "play.pong.tsx": "Accounting Pong workshop (PongGate password, noindex, unlinked) — register as a student template when it launches on /learn",
   "leeportal.tsx": "Lee's private nav portal (AdminGate, noindex, unlinked)",
   "buildqueue.tsx": "internal (AdminGate, noindex) — the build machine's plate; fast-track requests for Lee and King",
   "branding.tsx": "Lee's brand-slide wall — the shipping slides, the bolt detour, the set-aside experiments (AdminGate, noindex)",
