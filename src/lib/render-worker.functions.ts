@@ -156,6 +156,8 @@ export const startDissectStitch = createServerFn({ method: "POST" })
       vertical: z.boolean().optional(),
       /** AUDIO SYNC (2026-09-16): slide the sound against the picture, ms; positive = audio later. */
       audioOffsetMs: z.number().int().min(-2000).max(2000).optional(),
+      /** THE STREAM-COPY JOIN (2026-09-16): the urls are the worker's own outputs — no second encode. */
+      copy: z.boolean().optional(),
     }).parse(d))
   .handler(async ({ data }): Promise<{ jobId: string; path: string; machineId: string | null }> => {
     const { assertAdmin } = await import("@/lib/admin-session.functions");
@@ -181,6 +183,7 @@ export const startDissectStitch = createServerFn({ method: "POST" })
       ...(data.trims ? { trims: data.trims } : {}),
             ...(data.vertical ? { vertical: true } : {}),
       ...(data.audioOffsetMs ? { audioOffsetMs: data.audioOffsetMs } : {}),
+      ...(data.copy ? { copy: true } : {}),
     };
     const body = { v: 1, inputs, stages: [stage], output: { putUrl: signed.signedUrl, contentType: "video/mp4" } };
     const res = await workerFetch(c, "/render", { method: "POST", body: JSON.stringify(body) });

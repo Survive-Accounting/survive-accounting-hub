@@ -204,8 +204,10 @@ async function runJob(key: string) {
     // ("stitching · 42%"), so a note that has not changed in QUIET_MS means the encoder is hung, not slow — the job
     // fails with a clear line and "Stitch it again" is one click away, instead of "11:49" forever.
     const QUIET_MS = 8 * 60_000;
-    const join = async (list: string[], label: string, trims?: ({ start: number; end: number } | null)[]) => {
-      const job = await startDissectStitch({ data: { urls: list, gapMs: 220, vertical: true, ...(trims ? { trims } : {}) } }).catch(async (e) => {
+    // `copy` = the list is the worker's own batch outputs: joined without a second encode (2026-09-16 — a
+    // stitch was two full renders of the same footage; now it is one, plus seconds).
+    const join = async (list: string[], label: string, trims?: ({ start: number; end: number } | null)[], copy = false) => {
+      const job = await startDissectStitch({ data: { urls: list, gapMs: 220, vertical: true, ...(trims ? { trims } : {}), ...(copy ? { copy: true } : {}) } }).catch(async (e) => {
         if (!/unknown stage/i.test(e instanceof Error ? e.message : String(e))) throw e;
         plain = true;
         return startWorkerRender({ data: { urls: list, mode: "full" } });
@@ -248,10 +250,10 @@ async function runJob(key: string) {
       while (parts.length > STITCH_CHUNK) {
         const groups = chunks(parts);
         const next: typeof parts = [];
-        for (let g = 0; g < groups.length; g++) next.push(await join(groups[g].map((p) => p.fileUrl), `joining batches ${g + 1} of ${groups.length}`, plain ? undefined : groups[g].map((p) => ({ start: 0, end: p.totalS! }))));
+        for (let g = 0; g < groups.length; g++) next.push(await join(groups[g].map((p) => p.fileUrl), `joining batches ${g + 1} of ${groups.length}`, plain ? undefined : groups[g].map((p) => ({ start: 0, end: p.totalS! })), !plain));
         parts = next;
       }
-      whole = await join(parts.map((p) => p.fileUrl), "joining the batches", plain ? undefined : parts.map((p) => ({ start: 0, end: p.totalS! })));
+      whole = await join(parts.map((p) => p.fileUrl), "joining the batches", plain ? undefined : parts.map((p) => ({ start: 0, end: p.totalS! })), !plain);
     }
     patch(key, (j) => ({ ...segs(() => "joined")(j), state: "saving", note: "saving the video", fileUrl: whole.fileUrl, durationS: whole.totalS, plainJoin: plain, strike: j.strike + 1 }));
 

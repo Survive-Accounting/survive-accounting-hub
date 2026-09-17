@@ -42,6 +42,27 @@ const MAX_KEPT = 40;
 // request auto-starts it.
 let activeJobs = 0;
 let lastActivity = Date.now();
+
+// ONE AT A TIME (Lee, 2026-09-16: "stitching has started taking a really long time… the cash cheat code video
+// keeps getting stuck"). Every POST used to start its ffmpeg at once; with several film tabs stitching, the
+// 2 shared CPUs thrashed between renders, memory ran out, the machine restarted and every job was lost
+// ("unknown job"). Now jobs wait their turn — a queued job says how many are ahead and for how long, so the
+// app's watchdog sees it moving — and each render gets the whole machine. MAX_RUNNING raises it on a bigger VM.
+const MAX_RUNNING = Math.max(1, Number(process.env.MAX_RUNNING ?? 1) || 1);
+let running = 0;
+const waiting: Array<{ job: Job; spec: JobSpec }> = [];
+function pump(): void {
+  while (running < MAX_RUNNING && waiting.length) {
+    const next = waiting.shift()!;
+    running++;
+    void runJob(next.job, next.spec).finally(() => { running--; pump(); });
+  }
+}
+const queuedNote = (job: Job): string => {
+  const ahead = waiting.findIndex((w) => w.job === job);
+  const waitS = Math.round((Date.now() - job.startedAt) / 1000);
+  return ahead < 0 ? job.note : `queued · ${ahead === 0 ? "next up" : `${ahead} ahead`} · ${waitS}s`;
+};
 setInterval(() => {
   if (activeJobs === 0 && Date.now() - lastActivity > LIMITS.idleExitMs) {
     console.log("idle — exiting so the machine stops (auto_start revives on the next request)");
@@ -105,8 +126,9 @@ async function runFfmpeg(args: string[], timeoutMs: number, onProgress?: (outTim
       while ((nl = buf.indexOf("\n")) >= 0) {
         const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
         const m = /^out_time_(us|ms)=(\d+)/.exec(line);
+        // Only real progress resets the clock: a hung encode still prints frame=/speed= blocks (2026-09-16:
+        // "stitching · 99%" for 27 minutes), so those no longer count.
         if (m) { const s = Number(m[2]) / (m[1] === "us" ? 1e6 : 1e3); if (s > lastS) { lastS = s; lastAt = Date.now(); onProgress(s); } }
-        else if (/^(frame|fps|speed)=/.test(line)) lastAt = Date.now();
       }
     }
   })() : Promise.resolve();
@@ -139,7 +161,8 @@ const LOUD = { I: -16, TP: -1.5, LRA: 11 } as const;
 async function normalizeLoudness(path: string, dir: string, timeoutMs: number, onProgress?: (outTimeS: number) => void): Promise<void> {
   if (!(await probeHasAudio(path))) return;
   const filt = `loudnorm=I=${LOUD.I}:TP=${LOUD.TP}:LRA=${LOUD.LRA}`;
-  const stderr = await runFfmpegCapture(["-hide_banner", "-nostats", "-i", path, "-af", `${filt}:print_format=json`, "-f", "null", "-"], timeoutMs);
+  // -vn: the measurement needs the audio; decoding 1080×1920 video for nothing was most of the pass.
+  const stderr = await runFfmpegCapture(["-hide_banner", "-nostats", "-i", path, "-vn", "-af", `${filt}:print_format=json`, "-f", "null", "-"], timeoutMs);
   const m = /\{[^{}]*"input_i"[\s\S]*?\}/.exec(stderr);
   if (!m) throw new Error(`loudnorm: no measurement in ffmpeg output …${stderr.slice(-400)}`);
   const r = JSON.parse(m[0]) as Record<string, string>;
@@ -221,7 +244,23 @@ async function runJob(job: Job, spec: JobSpec): Promise<void> {
         if (bed.durationS < X - 0.001) throw new Error(`loop_builder: music bed is ${bed.durationS.toFixed(3)}s but a whole ${stage.bars} bars need X=${X.toFixed(3)}s — the bed can't fill a full loop`);
         if (short.durationS < X - 0.001) throw new Error(`loop_builder: short is ${short.durationS.toFixed(3)}s but X=${X.toFixed(3)}s — the video can't cover a full loop`);
       }
-      if (stage.kind === "dissect_stitch") {
+      if (stage.kind === "dissect_stitch" && stage.copy) {
+        // THE STREAM-COPY JOIN (2026-09-16): the inputs are this worker's own outputs — one encoder, one
+        // geometry, one audio format — so the batches concatenate without decoding: seconds, where the old
+        // join re-encoded the whole video a second time. Loudness still gets its (audio-only) pass.
+        const clipFiles = files.slice(0, stage.inputs.length);
+        const listPath = join(dir, `concat-${s}.txt`);
+        await Bun.write(listPath, clipFiles.map((f) => `file '${f.path.replace(/'/g, "'\\''")}'`).join("\n") + "\n");
+        job.note = "joining the batches";
+        await runFfmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", "-movflags", "+faststart", outPath], remaining(LIMITS.renderTimeoutMs));
+        const r3 = (n: number) => Math.round(n * 1000) / 1000;
+        let cursor = 0;
+        const clips = clipFiles.map((f) => { const c = { startS: r3(cursor), durS: r3(f.durationS) }; cursor += f.durationS; return c; });
+        job.result = { clips, totalS: r3(cursor), gapsS: [], roomTone: false, trims: clipFiles.map((f) => ({ start: 0, end: r3(f.durationS) })) };
+        const totalS = Math.max(0.1, cursor);
+        job.note = "normalizing loudness";
+        await normalizeLoudness(outPath, dir, remaining(LIMITS.renderTimeoutMs), (sec) => { job.note = `normalizing loudness · ${Math.min(99, Math.round((sec / totalS) * 100))}%`; });
+      } else if (stage.kind === "dissect_stitch") {
         // DETECT head/tail silence per clip (unless a manual trim overrides),
         // then plan + run the stitch and keep the chapters manifest on the job.
         const clipFiles = files.slice(0, stage.inputs.length);
@@ -315,7 +354,8 @@ Bun.serve({
         const oldest = [...jobs.values()].filter((j) => j.state === "done" || j.state === "error").sort((a, b) => a.startedAt - b.startedAt);
         for (const j of oldest.slice(0, jobs.size - MAX_KEPT)) jobs.delete(j.id);
       }
-      void runJob(job, spec);
+      waiting.push({ job, spec });
+      pump();
       return json({ jobId: id, machineId: process.env.FLY_MACHINE_ID ?? null }, 202);
     }
 
@@ -323,8 +363,8 @@ Bun.serve({
     if (req.method === "GET" && m) {
       const job = jobs.get(m[1]);
       if (!job) return json({ error: "unknown job (worker may have restarted — re-submit)" }, 404);
-      const { id, state, note, stageIndex, totalStages, error, result } = job;
-      return json({ id, state, note, stageIndex, totalStages, error, result });
+      const { id, state, stageIndex, totalStages, error, result } = job;
+      return json({ id, state, note: job.state === "queued" ? queuedNote(job) : job.note, stageIndex, totalStages, error, result });
     }
 
     return json({ error: "not found" }, 404);
