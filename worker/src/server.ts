@@ -102,7 +102,7 @@ async function probeHasAudio(path: string): Promise<boolean> {
 
 /** A render that makes no progress for this long is hung, not slow — it is killed and the job fails loudly
  *  (Lee, 2026-09-16: a stitch sat at "stitching · 11:49"; nothing said whether ffmpeg was moving). */
-const STALL_MS = 4 * 60_000;
+const STALL_MS = 90_000;
 
 /** Run one ffmpeg invocation with a hard timeout; on failure surface the stderr
  *  tail (that's where ffmpeg says WHY). With `onProgress`, ffmpeg reports through -progress
@@ -282,7 +282,14 @@ async function runJob(job: Job, spec: JobSpec): Promise<void> {
         job.result = { ...plan.manifest, trims };
                         job.note = "stitching · 0%";
         const totalS = Math.max(0.1, plan.manifest.totalS);
-        await runFfmpeg(plan.args, remaining(LIMITS.renderTimeoutMs), (s) => { job.note = `stitching · ${Math.min(99, Math.round((s / totalS) * 100))}%`; });
+        // WHICH CLIP (2026-09-16): a failed stitch names every clip's length, trim and audio, so the odd one
+        // out is visible in the Stitch Room instead of a wall of x264 stats.
+        const clipLine = clipFiles.map((f, i) => `${i + 1}: ${f.durationS.toFixed(1)}s → ${trims[i].start.toFixed(1)}–${trims[i].end.toFixed(1)}${f.hasAudio === false ? " NO AUDIO" : ""}`).join(" · ");
+        try {
+          await runFfmpeg(plan.args, remaining(LIMITS.renderTimeoutMs), (s) => { job.note = `stitching · ${Math.min(99, Math.round((s / totalS) * 100))}%`; });
+        } catch (e) {
+          throw new Error(`${e instanceof Error ? e.message.slice(0, 600) : String(e)} · clips ${clipLine}`);
+        }
         job.note = "normalizing loudness";
         await normalizeLoudness(outPath, dir, remaining(LIMITS.renderTimeoutMs), (s) => { job.note = `normalizing loudness · ${Math.min(99, Math.round((s / totalS) * 100))}%`; });
       } else {

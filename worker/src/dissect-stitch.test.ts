@@ -63,9 +63,10 @@ describe("dissectStitchArgs — the graph and the manifest", () => {
     expect(g).toContain("concat=n=3:v=1:a=0[vout]");
     expect(g).not.toContain("xfade");
   });
-  test("audio: loudnorm to one target, micro-fade envelopes, 2N-1 concat", () => {
+    test("audio: no loudnorm in the graph (the whole file gets the two-pass one), micro-fade envelopes, 2N-1 concat", () => {
     const g = graphOf(dissectStitchArgs(clips, trims, "/tmp/out.mp4", { gapsS }).args);
-    expect((g.match(/loudnorm=I=-16:TP=-1\.5:LRA=11/g) ?? []).length).toBe(3);
+    expect(g).not.toContain("loudnorm");
+    expect((g.match(/aresample=48000:async=1/g) ?? []).length).toBe(3);
     expect(g).toContain(`afade=t=in:d=${DISSECT_DEFAULTS.jointFadeS}`);
     expect(g).toContain("concat=n=5:v=0:a=1[aout]");
   });

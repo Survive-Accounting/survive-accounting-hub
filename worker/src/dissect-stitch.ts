@@ -130,7 +130,7 @@ export function dissectStitchArgs(
   const { fps, audioHz: hz } = RENDER;
   // 9:16 for the v4 punch-in videos; the canvas lessons keep RENDER's landscape.
   const w = o?.vertical ? 1080 : RENDER.width, h = o?.vertical ? 1920 : RENDER.height;
-  const loudI = o?.loudI ?? DISSECT_DEFAULTS.loudI;
+  void (o?.loudI ?? DISSECT_DEFAULTS.loudI); // the whole-file pass owns loudness now; the option stays accepted
   const fadeS = o?.jointFadeS ?? DISSECT_DEFAULTS.jointFadeS;
     const blendS = o?.toneBlendS ?? DISSECT_DEFAULTS.toneBlendS;
   // AUDIO SYNC (2026-09-16, Lee: "Some videos are out of sync with my mouth, can we fix that in post?"): slide the
@@ -162,7 +162,10 @@ export function dissectStitchArgs(
     const env = `afade=t=in:d=${fadeS},afade=t=out:st=${r3(Math.max(0, d - fadeS))}:d=${fadeS}`;
     parts.push(
       f.hasAudio !== false
-                ? `[${i}:a]atrim=start=${r3(t.start)}:end=${r3(t.end)},asetpts=PTS-STARTPTS,${shift}aresample=${hz},aformat=sample_fmts=fltp:channel_layouts=stereo,loudnorm=I=${loudI}:TP=-1.5:LRA=11,${env},apad,atrim=0:${d},asetpts=PTS-STARTPTS[ca${i}]`
+                // No per-clip loudnorm since 2026-09-16: the finished file gets the two-pass loudnorm (server.ts
+                // normalizeLoudness), and loudnorm inside the graph (192 kHz, a look-ahead that flushes only at EOF)
+                // is the one filter that could leave the encoder waiting at 99% or hand aac a bad final frame.
+                ? `[${i}:a]atrim=start=${r3(t.start)}:end=${r3(t.end)},asetpts=PTS-STARTPTS,${shift}aresample=${hz}:async=1,aformat=sample_fmts=fltp:channel_layouts=stereo,${env},apad,atrim=0:${d},asetpts=PTS-STARTPTS[ca${i}]`
         : `anullsrc=r=${hz}:cl=stereo,atrim=0:${d},asetpts=PTS-STARTPTS[ca${i}]`,
     );
   });
