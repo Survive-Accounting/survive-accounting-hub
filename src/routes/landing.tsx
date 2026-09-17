@@ -2023,7 +2023,9 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
     if (entitlements.kinds.size === 0) return;
     void (async () => { const { markStep } = await import("@/lib/test-mode"); markStep("buy", { kinds: [...entitlements.kinds] }); })();
   }, [isTest, entitlements.kinds]);
-  const startCheckout = async (kind: "exam_2" | "exam_3" | "final" | "pass") => {
+  // The per-exam SKUs only. study_pass has its own one-tap flow at /pass (no sign-in first), so it
+  // deliberately does not come through here.
+  const startCheckout = async (kind: "exam_2" | "exam_3" | "final" | "pass" | "study_pass") => {
     if (!auth.userId) { setSaveOpen(true); return; } // needs sign-in first
     const { data: sess } = await supabase.auth.getSession();
     const token = sess.session?.access_token ?? "";

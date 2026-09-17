@@ -585,6 +585,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "logo-lab.tsx": "dev lab (noindex)",
   "lab.bolt.tsx": "dev lab (noindex)",
   "beta.tsx": "Beta invite redirect (/beta?email&t&k → the Test Mode URL); renders nothing — the page it lands on is covered",
+  "pass.tsx": "Study Pass checkout ($150, whole course, expires with the term) — payment BEFORE signup: one tap to Stripe, account created from the email Stripe collects, signed in on return. noindex",
   "play.pong.tsx": "Accounting Pong workshop (PongGate password, noindex, unlinked) — register as a student template when it launches on /learn",
   "leeportal.tsx": "Lee's private nav portal (AdminGate, noindex, unlinked)",
   "buildqueue.tsx": "internal (AdminGate, noindex) — the build machine's plate; fast-track requests for Lee and King",

@@ -37,12 +37,12 @@ async function grantStudentEntitlement(event: StripeEvent): Promise<Response> {
   const s = event.data.object as {
     id: string; client_reference_id?: string | null; customer?: string | null;
     amount_total?: number | null; customer_details?: { email?: string | null } | null;
-    metadata?: { user_id?: string; kind?: string; campus_id?: string; ref_code?: string };
+    metadata?: { user_id?: string; kind?: string; campus_id?: string; course_id?: string; ref_code?: string };
   };
   const userId = s.metadata?.user_id || s.client_reference_id || null;
   if (!userId) return new Response("no user_id", { status: 400 });
 
-  let kind = (s.metadata?.kind ?? "") as "exam_2" | "exam_3" | "final" | "pass" | "";
+  let kind = (s.metadata?.kind ?? "") as "exam_2" | "exam_3" | "final" | "pass" | "study_pass" | "";
   if (!kind) {
     try {
       const full = await stripe().checkout.sessions.retrieve(s.id, { expand: ["line_items.data.price"] });
@@ -67,6 +67,17 @@ async function grantStudentEntitlement(event: StripeEvent): Promise<Response> {
     console.warn("student_entitlements insert failed:", error.message);
     return new Response(error.message ?? "insert failed", { status: 500 });
   }
+
+  // BRIDGE TO THE GATE THAT ACTUALLY RUNS. student_entitlements records the SALE; /learn reads
+  // `entitlements`. Writing only the first is how a paying student ends up staring at a lock, so
+  // the course-scoped row is written here, expiring with the term. Logs loudly when it can't.
+  try {
+    const { bridgeEntitlement } = await import("@/lib/entitlement-bridge.server");
+    const bridged = await bridgeEntitlement(supabaseAdmin as never, {
+      userId, kind, courseId: s.metadata?.course_id || null, source: "stripe",
+    });
+    if (!bridged.ok) console.warn("[stripe-webhook] PAID BUT NOT UNLOCKED:", userId, kind, bridged.reason);
+  } catch (e) { console.warn("[stripe-webhook] bridge threw:", e instanceof Error ? e.message : e); }
 
   // REFERRAL CREDIT. If the checkout carried a rep's code (captured from the sa_ref cookie at
   // checkout-create time), record the purchase conversion + commission. Idempotent on

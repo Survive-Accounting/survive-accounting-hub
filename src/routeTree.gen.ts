@@ -25,6 +25,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PreviewRouteImport } from './routes/preview'
 import { Route as PracticeDemoRouteImport } from './routes/practice-demo'
 import { Route as PlaygroundRouteImport } from './routes/playground'
+import { Route as PassRouteImport } from './routes/pass'
 import { Route as OutreachRouteImport } from './routes/outreach'
 import { Route as OrderRouteImport } from './routes/order'
 import { Route as OnboardRouteImport } from './routes/onboard'
@@ -306,6 +307,11 @@ const PracticeDemoRoute = PracticeDemoRouteImport.update({
 const PlaygroundRoute = PlaygroundRouteImport.update({
   id: '/playground',
   path: '/playground',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PassRoute = PassRouteImport.update({
+  id: '/pass',
+  path: '/pass',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OutreachRoute = OutreachRouteImport.update({
@@ -1375,6 +1381,7 @@ export interface FileRoutesByFullPath {
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
   '/outreach': typeof OutreachRouteWithChildren
+  '/pass': typeof PassRoute
   '/playground': typeof PlaygroundRoute
   '/practice-demo': typeof PracticeDemoRoute
   '/preview': typeof PreviewRoute
@@ -1594,6 +1601,7 @@ export interface FileRoutesByTo {
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
+  '/pass': typeof PassRoute
   '/playground': typeof PlaygroundRoute
   '/practice-demo': typeof PracticeDemoRoute
   '/preview': typeof PreviewRoute
@@ -1812,6 +1820,7 @@ export interface FileRoutesById {
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
   '/outreach': typeof OutreachRouteWithChildren
+  '/pass': typeof PassRoute
   '/playground': typeof PlaygroundRoute
   '/practice-demo': typeof PracticeDemoRoute
   '/preview': typeof PreviewRoute
@@ -2034,6 +2043,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/order'
     | '/outreach'
+    | '/pass'
     | '/playground'
     | '/practice-demo'
     | '/preview'
@@ -2253,6 +2263,7 @@ export interface FileRouteTypes {
     | '/logo-lab'
     | '/onboard'
     | '/order'
+    | '/pass'
     | '/playground'
     | '/practice-demo'
     | '/preview'
@@ -2470,6 +2481,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/order'
     | '/outreach'
+    | '/pass'
     | '/playground'
     | '/practice-demo'
     | '/preview'
@@ -2691,6 +2703,7 @@ export interface RootRouteChildren {
   OnboardRoute: typeof OnboardRoute
   OrderRoute: typeof OrderRouteWithChildren
   OutreachRoute: typeof OutreachRouteWithChildren
+  PassRoute: typeof PassRoute
   PlaygroundRoute: typeof PlaygroundRoute
   PracticeDemoRoute: typeof PracticeDemoRoute
   PreviewRoute: typeof PreviewRoute
@@ -2927,6 +2940,13 @@ declare module '@tanstack/react-router' {
       path: '/playground'
       fullPath: '/playground'
       preLoaderRoute: typeof PlaygroundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pass': {
+      id: '/pass'
+      path: '/pass'
+      fullPath: '/pass'
+      preLoaderRoute: typeof PassRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/outreach': {
@@ -4600,6 +4620,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardRoute: OnboardRoute,
   OrderRoute: OrderRouteWithChildren,
   OutreachRoute: OutreachRouteWithChildren,
+  PassRoute: PassRoute,
   PlaygroundRoute: PlaygroundRoute,
   PracticeDemoRoute: PracticeDemoRoute,
   PreviewRoute: PreviewRoute,

@@ -14,7 +14,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-const KIND = z.enum(["exam_2", "exam_3", "final", "pass"]);
+import { STUDY_PASS_PRICE_CENTS } from "./study-pass";
+
+const KIND = z.enum(["exam_2", "exam_3", "final", "pass", "study_pass"]);
 export type EntitlementKind = z.infer<typeof KIND>;
 
 // ────────────────────────────────────────────────────────────────────────────────────────────
@@ -31,6 +33,9 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       /** Optional campus id — recorded on the entitlement so a paid Exam-2 attached to Alabama
        *  doesn't accidentally unlock at LSU. Null = global (Pass / homepage). */
       campusId: z.string().uuid().nullable().optional(),
+      /** The course a study_pass covers. Rides in metadata so the webhook can write the
+       *  course-scoped row /learn actually reads — see entitlement-bridge.server.ts. */
+      courseId: z.string().uuid().nullable().optional(),
     }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true; url: string; sessionId: string } | { ok: false; error: string }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -65,6 +70,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
           user_id: u.user.id,
           kind: data.kind,
           campus_id: data.campusId ?? "",
+          course_id: data.courseId ?? "",
           is_test: stripeIsTest() ? "1" : "0",
           ref_code: refCode,
         },
@@ -83,10 +89,10 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
 // real revenue. It also records a referral PURCHASE conversion from the sa_ref cookie (forced test),
 // so a rep whose link the tester followed sees the sale land in their dashboard — the whole point.
 // ────────────────────────────────────────────────────────────────────────────────────────────
-const KIND_PRICE_CENTS: Record<EntitlementKind, number> = { exam_2: 5000, exam_3: 5000, final: 5000, pass: 12000 };
+const KIND_PRICE_CENTS: Record<EntitlementKind, number> = { exam_2: 5000, exam_3: 5000, final: 5000, pass: 12000, study_pass: STUDY_PASS_PRICE_CENTS };
 
 export const grantTestEntitlement = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ accessToken: z.string().min(20), kind: KIND, campusId: z.string().uuid().nullable().optional() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ accessToken: z.string().min(20), kind: KIND, campusId: z.string().uuid().nullable().optional(), courseId: z.string().uuid().nullable().optional() }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string; credited?: boolean }> => {
     const { testModeOn } = await import("@/lib/test-mode.server");
     if (!testModeOn()) return { ok: false, error: "Test Mode is not enabled." };
@@ -102,6 +108,14 @@ export const grantTestEntitlement = createServerFn({ method: "POST" })
     };
     const { error } = await (supabaseAdmin.from("student_entitlements" as never) as unknown as { insert: (r: Record<string, unknown>) => Promise<{ error: { message?: string } | null }> }).insert(row);
     if (error && !/duplicate|conflict|unique/i.test(String(error.message ?? ""))) return { ok: false, error: error.message };
+
+    // BRIDGE — a test grant that doesn't reach `entitlements` unlocks nothing on /learn, which
+    // would make the whole test run a lie. Same call the Stripe webhook makes.
+    const { bridgeEntitlement } = await import("@/lib/entitlement-bridge.server");
+    const bridged = await bridgeEntitlement(supabaseAdmin as never, {
+      userId: u.user.id, kind: data.kind, courseId: data.courseId ?? null, source: "test",
+    });
+    if (!bridged.ok && data.kind === "study_pass") return { ok: false, error: `granted, but not unlocked: ${bridged.reason}` };
 
     // Credit the rep whose link brought this student here (if any). Test-forced so it can't pollute
     // real commission totals.

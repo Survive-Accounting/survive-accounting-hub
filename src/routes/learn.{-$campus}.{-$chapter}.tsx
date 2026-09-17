@@ -59,6 +59,8 @@ import { Loader2, Lock, Mail, X } from "lucide-react";
 
 import { useDismiss } from "@/lib/use-dismiss";
 import { joinPricingWaitlist } from "@/lib/pricing-api";
+import { startStudyPassCheckout, studyPassContext } from "@/lib/study-pass.functions";
+import { readTestSession, TEST_CAMPUS_SLUG } from "@/lib/test-mode";
 import { fetchStudentTree, type PracticeQuestion, type StudentCourse, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { isPlayable } from "@/lib/set-flow";
 import type { SetStage } from "@/lib/set-flow";
@@ -271,8 +273,35 @@ function SignInDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-// NOTIFY-NOT-PAY: no checkout yet, so a locked topic captures an email into the pricing waitlist.
-function Paywall({ topic, campusName, campusId, demo, onClose, onRestore, restoring }: { topic: StudentTopic; campusName: string | null; campusId: string | null; demo: boolean; onClose: () => void; onRestore?: () => void; restoring?: boolean }) {
+// THE LOCKED TOPIC. Two shapes, and which one shows is decided by whether a Study Pass price is
+// actually configured on this deployment — never by a flag someone has to remember to flip:
+//   • configured  → SELL. One tap to Stripe; no account first (payment before signup, Lee 09-17).
+//   • not         → the original notify-not-pay waitlist, unchanged.
+// The email capture stays underneath the buy button either way: a student who isn't buying today
+// is still worth hearing from.
+function Paywall({ topic, campusName, campusId, campusSlug, demo, onClose, onRestore, restoring }: { topic: StudentTopic; campusName: string | null; campusId: string | null; campusSlug: string | null; demo: boolean; onClose: () => void; onRestore?: () => void; restoring?: boolean }) {
+  const passQ = useQuery({
+    queryKey: ["study-pass-paywall", campusSlug ?? ""],
+    queryFn: () => studyPassContext({ data: { campusSlug } }),
+    enabled: !demo,
+    staleTime: 5 * 60_000,
+  });
+  const pass = passQ.data;
+  // DEMO FIRST, LIVE WHEN LEE SAYS. Even with a price configured, the buy button only appears to a
+  // Test/Beta session or on the test campus — so the flow can be walked end to end without a real
+  // student on a real campus meeting a checkout nobody has signed off on. Going live = deleting
+  // this one condition.
+  const sellHere = !!pass?.configured && (campusSlug === TEST_CAMPUS_SLUG || !!readTestSession());
+  const [buying, setBuying] = useState(false);
+  const [buyErr, setBuyErr] = useState("");
+  const buyPass = async () => {
+    if (buying || !campusSlug) return;
+    setBuying(true); setBuyErr("");
+    const here = `/learn/${encodeURIComponent(campusSlug)}`;
+    const r = await startStudyPassCheckout({ data: { campusSlug, returnPath: `/pass?campus=${encodeURIComponent(campusSlug)}&back=${encodeURIComponent(here)}` } });
+    if (!r.ok) { setBuyErr(r.error); setBuying(false); return; }
+    window.location.assign(r.url);
+  };
   const n = topic.sets.length;
   const key = `sa-notify-topic-${topic.id}`;
   const [email, setEmail] = useState("");
@@ -302,6 +331,19 @@ function Paywall({ topic, campusName, campusId, demo, onClose, onRestore, restor
             </>
           )}
         </div>
+        {sellHere && pass && (
+          <div className="mt-4 rounded-xl p-3.5" style={{ border: `1px solid ${LK.border}`, background: "rgba(255,255,255,0.04)" }}>
+            <p className="text-[13px] font-bold" style={{ color: LK.text, margin: 0 }}>
+              Or open all of {pass.courseCode ?? "the course"} now — ${Math.round(pass.priceCents / 100)}
+            </p>
+            <p className="mt-0.5 text-[12px]" style={{ color: LK.muted, margin: 0 }}>{pass.disclosure}</p>
+            <button type="button" onClick={() => void buyPass()} disabled={buying} className="lk-btn lk-btn-acc mt-2.5 w-full disabled:opacity-50" style={{ minHeight: 46 }}>
+              {buying ? "Opening checkout…" : `Get the Study Pass — ${Math.round(pass.priceCents / 100)}`}
+            </button>
+            <p className="mt-1.5 text-center text-[11.5px]" style={{ color: LK.muted, margin: 0 }}>No account needed — you're signed in right after you pay.</p>
+            {buyErr && <p className="mt-1.5 text-[12px]" style={{ color: LK.red }}>{buyErr}</p>}
+          </div>
+        )}
         {onRestore && <button type="button" className="lk-btn mt-2 w-full disabled:opacity-50" style={{ background: "transparent", color: "var(--lk-acc)" }} disabled={restoring} onClick={onRestore}>{restoring ? "Checking…" : "Already have access? Restore it"}</button>}
         <button type="button" className="lk-btn mt-1 w-full" style={{ background: "transparent", color: LK.muted }} onClick={onClose}>Keep cramming</button>
       </div>
@@ -774,7 +816,7 @@ function LearnShell() {
       
       {search.looks && <LearnLookPicker look={look} onPick={pickLook} />}
 
-      {paywallTopic && <Paywall topic={paywallTopic} campusName={campusName} campusId={campusId} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
+      {paywallTopic && <Paywall topic={paywallTopic} campusName={campusName} campusId={campusId} campusSlug={campusSlug} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
       {signInOpen && <SignInDialog onClose={() => setSignInOpen(false)} />}
       {reviewOpen && (
         <ReviewSheet narrow={isNarrow} email={email} userId={userId} campusId={campusId} campusSlug={campusSlug} campusName={campusName} courseCode={school?.courseCode ?? null} examLabel={exam?.label ?? null} demo={demo} onClose={() => setReviewOpen(false)} />

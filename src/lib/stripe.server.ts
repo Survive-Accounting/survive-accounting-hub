@@ -149,7 +149,9 @@ export function stripeIsTest(): boolean {
   return k.startsWith("sk_test_");
 }
 
-export type EntitlementKind = "exam_2" | "exam_3" | "final" | "pass";
+// study_pass — $150, the whole course for a term (see study-pass.ts). The per-exam kinds predate
+// it and still resolve; study_pass is the one we sell.
+export type EntitlementKind = "exam_2" | "exam_3" | "final" | "pass" | "study_pass";
 
 /** Which price id in env maps to which entitlement. The webhook reads the resolved price back
  *  off the Checkout Session and looks up the kind here. If a price shows up we don't recognise
@@ -161,6 +163,7 @@ export function kindForPriceId(priceId: string): EntitlementKind | null {
     [process.env.STRIPE_PRICE_EXAM3 ?? ""]: "exam_3",
     [process.env.STRIPE_PRICE_FINAL ?? ""]: "final",
     [process.env.STRIPE_PRICE_PASS  ?? ""]: "pass",
+    [process.env.STRIPE_PRICE_STUDY_PASS ?? ""]: "study_pass",
   };
   return map[priceId] ?? null;
 }
@@ -172,5 +175,6 @@ export function priceIdForKind(kind: EntitlementKind): string | null {
     case "exam_3": return process.env.STRIPE_PRICE_EXAM3 || null;
     case "final":  return process.env.STRIPE_PRICE_FINAL || null;
     case "pass":   return process.env.STRIPE_PRICE_PASS  || null;
+    case "study_pass": return process.env.STRIPE_PRICE_STUDY_PASS || null;
   }
 }
