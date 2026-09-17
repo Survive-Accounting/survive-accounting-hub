@@ -84,7 +84,7 @@ import { openChapterFinder } from "@/components/learn/LearnChapterModule";
 import { ChapterStrip } from "@/components/learn/ChapterStrip";
 import { pageShareUrl } from "@/lib/share-url";
 import { CramPlayer, type PlayerItem, type PlayerPart } from "@/components/learn/CramPlayer";
-
+import { PongOnLearn } from "@/components/play/PongOnLearn";
 import { partKey, setIdOfKey } from "@/lib/student-shorts";
 import { LearnAsksBar } from "@/components/learn/LearnAsksBar";
 import { DEFAULT_LOOK, isLook, LK, LEARN_CSS, themeFor, themeStyle, type Look } from "@/components/learn/learn-theme";
@@ -681,6 +681,7 @@ function LearnShell() {
                 onPick={pickChapter} onClear={clearChapter}
               />
             ) : null}
+            after={<PongOnLearn narrow={isNarrow} courseCode={school?.courseCode ?? null} campusName={campusName ?? null} bolt={school?.c1 && school?.c2 ? { c1: school.c1, c2: school.c2 } : null} />}
           />
         )}
       </div>

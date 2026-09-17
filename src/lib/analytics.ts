@@ -134,6 +134,12 @@ export const SA_EVENTS = [
   "course_interest",
   "set_practice_open",
   "ask_lee_sent",
+  // Accounting Pong (09-16, /play/pong workshop). Properties: pong_round {section, rule, cups,
+  // rack_no, attempt, result, points, multiplier, boss} · pong_end {section, score, racks_cleared,
+  // bosses_cleared, quit, best}.
+  "pong_start",
+  "pong_round",
+  "pong_end",
 ] as const;
 
 export type SaEvent = (typeof SA_EVENTS)[number];

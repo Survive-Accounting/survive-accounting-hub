@@ -33,6 +33,12 @@
         "8111"
       ],
       "port": 8111
+    },
+    {
+      "name": "pong-dev",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "dev", "--port", "8099"],
+      "port": 8099
     }
   ]
 }

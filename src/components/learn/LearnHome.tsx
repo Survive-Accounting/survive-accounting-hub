@@ -258,7 +258,9 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   chapterSlug?: string | null;
   /** THE SHARE KIT (LearnShareKit) for a council or chapter chair, above the hero; null for a student. */
   kit?: ReactNode;
-}>(function LearnHome({ sets, examLabel, tier, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school, progress = {}, chapterSlug = null, kit = null }, ref) {
+  /** Anything that sits BELOW the topic rows (Accounting Pong, 2026-09-16 workshop). */
+  after?: ReactNode;
+}>(function LearnHome({ sets, examLabel, tier, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school, progress = {}, chapterSlug = null, kit = null, after = null }, ref) {
   // the arrival autoplay picks afresh each time the home draws (live-preview.ts pickAuto)
   if (typeof window !== "undefined") resetAutoPick();
   const byTopic = useMemo(() => {
@@ -378,6 +380,7 @@ export const LearnHome = forwardRef<HTMLDivElement, {
           Looking for another accounting course?{" "}
           <button type="button" onClick={openCourseSheet} className="underline underline-offset-4" style={{ background: "none", border: 0, padding: "4px 2px", cursor: "pointer", color: LK.acc, font: "inherit", fontWeight: 700 }}>Tell us which one →</button>
         </div>
+        {after}
       </div>
 
       {practiceAsk && (
