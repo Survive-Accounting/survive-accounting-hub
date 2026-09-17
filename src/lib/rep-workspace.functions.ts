@@ -24,6 +24,7 @@ import { nextPayout } from "@/lib/rep-portal";
 import type { RepRow } from "@/lib/rep-auth.server";
 import { COUNCILS, councilMatches } from "@/lib/greek-councils.functions";
 import { termFor, termId } from "@/lib/terms";
+import { chapterLearnPath } from "@/lib/learn-paths";
 import {
   contactTypeForRole, chapterState, normalizeInstagram, shareEmail, shareMessage, shareKindForMethod,
   SHARE_METHODS,
@@ -98,7 +99,7 @@ export async function ensureRepChapterLink(db: DB, rep: Pick<RepRow, "id" | "is_
   const code = await generateUniqueCode();
   const { data: ins, error } = await db.from("referral_links").insert({
     code, partner_id: rep.id, label: chapter.orgName,
-    destination_url: `/go/${chapter.campusSlug}/${chapter.slug}`,
+    destination_url: chapterLearnPath(chapter.campusSlug, chapter.slug),
     campus_greek_chapter_id: chapter.id, active: true, is_test: rep.is_test,
   }).select("id,code").single();
   if (error) throw new Error(error.message);
@@ -119,7 +120,7 @@ export async function ensureFlyerLink(db: DB, rep: Pick<RepRow, "id" | "is_test"
   const code = await generateUniqueCode();
   const { data: ins, error } = await db.from("referral_links").insert({
     code, partner_id: rep.id, label: `${target.name} — flyer`,
-    destination_url: chapterId ? `/go/${target.campusSlug}/${(target as { chapterSlug: string }).chapterSlug}` : `/${target.campusSlug}`,
+    destination_url: chapterId ? chapterLearnPath(target.campusSlug, (target as { chapterSlug: string }).chapterSlug) : `/${target.campusSlug}`,
     campus_greek_chapter_id: chapterId, utm_content: "flyer", active: true, is_test: rep.is_test,
   }).select("id,code").single();
   if (error) throw new Error(error.message);

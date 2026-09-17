@@ -22,6 +22,7 @@ import { z } from "zod";
 
 import { councilBySlug, councilMatches } from "@/lib/greek-councils.functions";
 import { canonicalSchoolName } from "@/lib/schools";
+import { chapterLearnPath } from "@/lib/learn-paths";
 import { orgSlugify, type PartnerChapterRow, type CouncilPartner, type NationalPartner, type NationalCampusRow } from "@/lib/partners";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same shape the other greek-* server modules use
@@ -82,7 +83,7 @@ export const getCouncilPartner = createServerFn({ method: "POST" })
         letters: c.letters,
         nickname: c.nickname,
         // THE EXISTING chapter URL, never a parallel identity.
-        goPath: `/go/${data.schoolSlug}/${c.slug}`,
+        goPath: chapterLearnPath(data.schoolSlug, c.slug),
         claimed: claimedOf(c.claim_status),
       }))
       // Claimed first (they are the proof), then alphabetical. Nothing is hidden — an unclaimed
@@ -144,7 +145,7 @@ export const getNationalPartner = createServerFn({ method: "POST" })
           schoolName: canonicalSchoolName(camp.slug, camp.short_name || camp.name),
           courseCode: introCode(camp.course_family_codes_json),
           chapterSlug: c.slug,
-          goPath: `/go/${camp.slug}/${c.slug}`,
+          goPath: chapterLearnPath(camp.slug, c.slug),
           claimed: claimedOf(c.claim_status),
         };
       })

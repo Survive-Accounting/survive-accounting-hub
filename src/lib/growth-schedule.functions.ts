@@ -7,6 +7,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { normOrgType } from "@/lib/growth-tranche.functions";
+import { schoolBySlug } from "@/lib/schools";
+import { renderOutreachDm } from "@/lib/outreach-v2";
 import {
   planRange, addDays, senderFor, capsFor, seasonWeeks, weekStartOf, sendingDays,
   type SchedCampus, type SchedOrg, type SchedContact, type PriorTouch, type SeqItem, type DayPlan,
@@ -160,7 +162,18 @@ async function fetchTouches(db: DB, campusIds: string[]): Promise<PriorTouch[]> 
 // ── message templates (S7 link rules; complementary cross-channel copy) ─────────────────
 const LINK_BASE = "https://surviveaccounting.com";
 const campusLink = (slug: string | null) => (slug ? `${LINK_BASE}/${slug}` : LINK_BASE);
-function renderMessages(item: SeqItem, slug: string | null): { dm?: string; email?: string; story?: string } {
+/** THE DM IS LEE'S (2026-09-17): the same two templates every Copy DM uses, with the contact's short /l/ link.
+ *  No DM when a field is missing (no course code, no tracked contact) — the button says so. */
+function scheduleDm(item: SeqItem, slug: string | null, code: string | null, letters: string | null): string | undefined {
+  const school = slug ? schoolBySlug(slug) : null;
+  if (!code) return undefined;
+  const r = renderOutreachDm({
+    kind: item.orgKind === "chapter" ? "chapter" : "council", campusShorthand: school?.name ?? item.campusName, courseCode: school?.courseCode ?? null,
+    chapterName: item.orgKind === "chapter" ? item.orgLabel : null, greekLetters: letters, council: null, outreachLink: `${LINK_BASE}/l/${code}`,
+  });
+  return r.ok ? r.text : undefined;
+}
+function renderMessages(item: SeqItem, slug: string | null, code: string | null = null, letters: string | null = null): { dm?: string; email?: string; story?: string } {
   const hasDm = item.channels.some((c) => c.track === "dm");
   const hasEmail = item.channels.some((c) => c.track === "email");
   const link = campusLink(slug);
@@ -176,6 +189,7 @@ function renderMessages(item: SeqItem, slug: string | null): { dm?: string; emai
     if (hasDm) out.dm = `Hey ${item.orgLabel}! ${chapterAsk}${followup ? ` Here's the free set: ${link}` : ""}${hasEmail ? "\n\nAlso sent this to your chapter email in case that's easier." : ""}`;
     if (hasEmail) out.email = `Hi ${item.orgLabel} — ${chapterAsk}${followup ? ` (${link})` : ""}${hasDm ? "\n\nSent your Instagram a message too — following up here." : ""}`;
   }
+  if (hasDm) out.dm = scheduleDm(item, slug, code, letters);
   out.story = `Love the recent post! Quick q — who's your scholarship chair this semester? I make free ACC 210 exam prep and want to get it to the right person.`;
   return out;
 }
@@ -218,6 +232,13 @@ export const growthScheduleWeek = createServerFn({ method: "GET" })
     const { campuses, slugOf, meta } = await buildSchedCampuses(db, campusIds);
     const touches = await fetchTouches(db, campusIds);
     const plan = planRange({ from, to: addDays(from, 6), campuses, touches });
+    // The short /l/ code for every contact on the week's plan.
+    const planContactIds = Array.from(new Set(plan.flatMap((d: DayPlan) => d.items.map((i) => i.contactId)).filter((x): x is string => !!x)));
+    const codeOf = new Map<string, string>();
+    for (let i = 0; i < planContactIds.length; i += 200) {
+      const { data: rows } = await db.from("growth_contact_qc").select("id,contact_id").in("id", planContactIds.slice(i, i + 200));
+      for (const r of (rows ?? []) as any[]) if (r.contact_id) codeOf.set(r.id, r.contact_id);
+    }
     const ownerSender = data.owner === "lee" ? "lee" : "king"; // founder-first: only the day's owner populates
 
     // Index touches so each rendered row can show its real sent/replied state (and the touch id the
@@ -229,7 +250,7 @@ export const growthScheduleWeek = createServerFn({ method: "GET" })
     const contactView = (channel: "dm" | "email", it: SeqItem, date: string): SchedContactView => {
       const ch = it.channels.find((c) => c.track === channel);
       const t = touchAt(it.campusId, it.orgKey, it.contactId, channel, date);
-      return { channel, gap: false, contactId: it.contactId, orgKey: it.orgKey, orgLabel: it.orgLabel, isPerson: !!(it.contactName && it.contactName.trim()), name: it.contactName, role: it.contactRole, handle: ch?.handle ?? null, kind: it.kind, messages: renderMessages(it, slugOf.get(it.campusId) ?? null), sent: !!t?.sentAt, replied: !!t?.repliedAt, touchId: t?.id ?? null };
+      return { channel, gap: false, contactId: it.contactId, orgKey: it.orgKey, orgLabel: it.orgLabel, isPerson: !!(it.contactName && it.contactName.trim()), name: it.contactName, role: it.contactRole, handle: ch?.handle ?? null, kind: it.kind, messages: renderMessages(it, slugOf.get(it.campusId) ?? null, it.contactId ? codeOf.get(it.contactId) ?? null : null), sent: !!t?.sentAt, replied: !!t?.repliedAt, touchId: t?.id ?? null };
     };
     const gapView = (channel: "dm" | "email", g: SeqItem): SchedContactView => ({ channel, gap: true, contactId: null, orgKey: g.orgKey, orgLabel: g.orgLabel, isPerson: false, name: null, role: null, handle: null, kind: "new", messages: {}, sent: false, replied: false, touchId: null });
 

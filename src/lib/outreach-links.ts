@@ -15,6 +15,7 @@
 // Every link carries ?ref=<contact uuid> so the click lands on the DM console as that contact's.
 import { CONTACT_REF_PARAM } from "@/lib/contact-ref";
 import { chapterLearnPath, councilLearnPath } from "@/lib/learn-paths";
+import { renderOutreachDm, type DmResult } from "@/lib/outreach-v2";
 
 export const OUTREACH_HOST = "surviveaccounting.com";
 
@@ -151,50 +152,23 @@ export const fullUrl = (path: string): string => `https://${OUTREACH_HOST}${path
 // ── the DM ─────────────────────────────────────────────────────────────────────────────────────
 
 export interface DmContext {
+  /** Campus shorthand: "Ole Miss", "Indiana". */
   campusLabel: string;
   courseCode: string | null;
-  org: Pick<LinkOrg, "kind" | "group" | "name" | "onSite">;
-  /** The person's first name, or "" for an org account (then "Hey!"). */
-  firstName: string;
-  /** TRUE for the org's own account — the chapter ask adds "or pass it to your scholarship chair". */
-  isOrg: boolean;
-  /** Bare link, host included, ref included: "surviveaccounting.com/go/…?ref=…". */
+  org: Pick<LinkOrg, "kind" | "group" | "name" | "onSite"> & { letters?: string | null };
+  /** Full link, host included: "https://surviveaccounting.com/l/8e39e4744b56". */
   link: string;
-  campusHasChapters: boolean;
 }
 
-const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
-
-/** Lee's DM, in the voice the DM console already uses, with the ask that fits the contact. */
-export function contactDm(c: DmContext): string {
-  const hey = c.firstName ? `Hey ${c.firstName}!` : "Hey!";
-  const course = c.courseCode ? `intro accounting (${c.courseCode})` : "intro accounting";
-  const tutored = c.courseCode || "intro accounting";
-  const intro = `I'm an Ole Miss accounting grad and I've tutored ${tutored} since 2015. I make cram videos and practice exams built around what's actually on the exam. Everything for Exam 1 is free.`;
-  let open: string;
-  let ask: string;
-  if (c.org.kind === "council" || c.org.kind === "office") {
-    const noun = c.org.group === "IFC" ? "fraternities" : c.org.group === "Panhellenic" ? "sororities" : "chapters";
-    open = `${hey} ${cap(course)} is one of the biggest drags on GPAs across your ${c.org.kind === "office" ? "chapters" : noun}, and it's a fixable one.`;
-    ask = !c.campusHasChapters
-      ? "Could you pass this to your chapter scholarship chairs so they can share it with their members?"
-      : c.org.kind === "office"
-        ? "Could you pass this along to your council and chapter scholarship chairs? Every chapter has its own page here:"
-        // THE COUNCIL PAGE HANDS THEM ONE LINK FOR EVERY CHAIR (2026-09-13) — the chapter pages are
-        // one pick away from it, not listed on it, so the DM promises exactly that.
-        : "Could you pass this to your chapter scholarship chairs? This page gives you one link to send them, and each chair picks their chapter from it:";
-  } else if (c.org.kind === "chapter") {
-    open = `${hey} ${cap(course)} is one of the biggest drags on chapter GPAs, and it's a fixable one.`;
-    ask = c.org.onSite
-      ? (c.isOrg
-        ? `I set up a page just for ${c.org.name} at ${c.campusLabel}. Could you share it with your members or pass it to your scholarship chair?`
-        : `I set up a page just for ${c.org.name} at ${c.campusLabel}. Could you share it with your members?`)
-      : "Could you share this with your members?";
-  } else {
-    open = `${hey} ${cap(course)} is one of the biggest drags on GPAs at ${c.campusLabel}, and it's a fixable one.`;
-    ask = "Could you share this with your members?";
-  }
-  return [open, "", intro, "", ask, "", c.link, "", "Happy to answer any questions. Thanks!", "", "— Lee"].join("\n");
+/** Lee's DM for a contact (2026-09-17): chapters get the chapter template; councils, the FSL office and
+ *  clubs get the council template. The copy lives in ONE place — DM_TEMPLATES in lib/outreach-v2. */
+export function contactDm(c: DmContext): DmResult {
+  const chapter = c.org.kind === "chapter";
+  return renderOutreachDm({
+    kind: chapter ? "chapter" : "council", campusShorthand: c.campusLabel, courseCode: c.courseCode,
+    chapterName: chapter ? c.org.name : null, greekLetters: chapter ? (c.org.letters ?? null) : null,
+    council: c.org.group.toLowerCase(), outreachLink: c.link,
+  });
 }
 
 // ── grouping the contacts table into orgs ──────────────────────────────────────────────────────

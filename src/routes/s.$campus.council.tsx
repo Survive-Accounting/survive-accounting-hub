@@ -23,6 +23,7 @@ import { currentContactRef, withRef } from "@/lib/contact-ref";
 import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { track } from "@/lib/analytics";
 import { adEvent } from "@/lib/retargeting";
+import { chapterLearnPath } from "@/lib/learn-paths";
 
 const ORIGIN = "https://surviveaccounting.com";
 
@@ -95,7 +96,7 @@ function CouncilSharePage() {
       courseCode: code,
       chapters: chapters.map((c) => ({
         name: c.name,
-        url: withRef(`${ORIGIN}/go/${slug}/${c.slug}`, ref),
+        url: withRef(`${ORIGIN}${chapterLearnPath(slug, c.slug)}`, ref),
       })),
     }),
     [code, chapters, slug, ref],

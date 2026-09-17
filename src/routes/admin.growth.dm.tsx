@@ -262,9 +262,10 @@ function PlanRow({ e }: { e: PlanEntry }) {
   const copy = async () => {
     // WHO THEY ARE decides the link and the ask (2026-09-11) — a Panhellenic chair no longer reads
     // "across your fraternities", and a chapter chair gets their chapter's page.
-    const msg = dmForPlanEntry(e, { campusLabel: schoolBySlug(e.campusSlug)?.name ?? e.campusLabel, courseCode, slug });
+    const dm = dmForPlanEntry(e, { campusLabel: schoolBySlug(e.campusSlug)?.name ?? e.campusLabel, courseCode, slug });
+    if (!dm.ok) { toast.error(`Can't copy yet — add the ${dm.missing.join(" and ")} first.`); return; }
     try {
-      await navigator.clipboard.writeText(msg);
+      await navigator.clipboard.writeText(dm.text);
       setCopied(true); setTimeout(() => setCopied(false), 1500);
     } catch { toast.error("Clipboard blocked — open the profile and paste by hand."); }
   };

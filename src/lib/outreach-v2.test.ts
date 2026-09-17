@@ -18,40 +18,41 @@ describe("outreach v2", () => {
   const olemissIfc: DmRecipient = { kind: "council", campusShorthand: "Ole Miss", courseCode: "ACCY 201", council: "ifc", outreachLink: "https://surviveaccounting.com/l/aaaaaaaaaaaa" };
   const text = (r: DmRecipient) => { const x = renderOutreachDm(r); if (!x.ok) throw new Error(x.missing.join()); return x.text; };
 
-  test("council template: IFC, Panhellenic, NPHC", () => {
-    const ifc = text(olemissIfc);
-    expect(ifc).toBe([
-      "Hey y’all,", "", "I’m Lee Ingram, a professor at Ole Miss and the tutor behind SurviveAccounting.com.", "",
-      "I help fraternities boost their GPAs by making accounting exams easier. With Ole Miss’s first ACCY 201 exam coming up, my free Exam 1 prep is available now—quick cram videos and practice exams.", "",
-      "Could you pass this along to your chapters’ scholarship chairs or presidents?", "", "https://surviveaccounting.com/l/aaaaaaaaaaaa", "", "Really appreciate it!", "Lee",
+  test("council template: Lee's copy, verbatim", () => {
+    expect(text({ ...olemissIfc, campusShorthand: "Indiana", courseCode: "BUS-A 201", outreachLink: "https://surviveaccounting.com/l/8e39e4744b56" })).toBe([
+      "Hey y’all,", "",
+      "I’m Lee Ingram, an accounting professor at Ole Miss and the tutor behind Survive Accounting. I’ve helped 1,000+ students with Intro Accounting.", "",
+      "I put together free BUS-A 201 exam prep specifically for Indiana students — short cram videos and practice exams:", "",
+      "https://surviveaccounting.com/l/8e39e4744b56", "",
+      "Would you mind passing this along to your chapters’ scholarship chairs or presidents?", "",
+      "If you have any questions about it, feel free to text or call me at 601-201-8759.", "",
+      "Really appreciate it!", "", "Lee",
     ].join("\n"));
-    const phc = text({ ...olemissIfc, campusShorthand: "Tennessee", courseCode: "ACCT 200", council: "panhellenic", outreachLink: "https://surviveaccounting.com/go/university-of-tennessee-knoxville/council/panhellenic" });
-    expect(phc).toContain("I help sororities boost");
-    expect(phc).toContain("With Tennessee’s first ACCT 200 exam");
-    expect(phc).toContain("\n\nhttps://surviveaccounting.com/go/university-of-tennessee-knoxville/council/panhellenic\n\n");
-    expect(phc).toContain("a professor at Ole Miss");
-    expect(text({ ...olemissIfc, council: "nphc" })).toContain("I help fraternities and sororities boost");
-    for (const t of [ifc, phc]) { expect(t).not.toMatch(/\{\{|\*|#|\[/); }
+    // IFC, Panhellenic and NPHC all read the same; only campus, course and link change.
+    for (const council of ["ifc", "panhellenic", "nphc"]) expect(text({ ...olemissIfc, council })).toBe(text(olemissIfc));
+    expect(text(olemissIfc)).not.toMatch(/\{\{|\[|\/go\//);
   });
 
-  test("chapter template: by the organization's own type, name in the ask, fallback without a name", () => {
-    const sigmaChi = text({ kind: "chapter", campusShorthand: "LSU", courseCode: "ACCT 2001", chapterName: "Sigma Chi", council: "ifc", orgType: "fraternity", outreachLink: "https://surviveaccounting.com/l/bbbbbbbbbbbb" });
-    expect(sigmaChi).toContain("I help fraternities boost");
-    expect(sigmaChi).toContain("Could you pass this along to Sigma Chi’s scholarship chair or president?");
-    expect(sigmaChi).toContain("With LSU’s first ACCT 2001 exam");
-    const aka = text({ kind: "chapter", campusShorthand: "Ole Miss", courseCode: "ACCY 201", chapterName: "Alpha Kappa Alpha", council: "nphc", orgType: "sorority", outreachLink: "x" });
-    expect(aka).toContain("I help sororities boost");
-    expect(text({ kind: "chapter", campusShorthand: "Ole Miss", courseCode: "ACCY 201", chapterName: "", council: "nphc", orgType: null, outreachLink: "x" }))
-      .toContain("I help chapters boost");
-    expect(text({ kind: "chapter", campusShorthand: "Ole Miss", courseCode: "ACCY 201", chapterName: null, council: "ifc", outreachLink: "x" }))
-      .toContain("Could you pass this along to your scholarship chair or president?");
+  test("chapter template: Lee's copy, Greek letters, then the name, then 'your members'", () => {
+    const ka = text({ kind: "chapter", campusShorthand: "Ole Miss", courseCode: "ACCY 201", chapterName: "Kappa Alpha Order", greekLetters: "ΚΑ", council: "ifc", outreachLink: "https://surviveaccounting.com/l/bbbbbbbbbbbb" });
+    expect(ka).toBe([
+      "Hey! I’m Lee — an accounting tutor and professor, and I’ve helped 1,000+ students get through Intro Accounting.", "",
+      "I put together a page specifically for ΚΑ members taking ACCY 201, with short cram videos and practice exams.", "",
+      "They can access everything here:", "https://surviveaccounting.com/l/bbbbbbbbbbbb", "",
+      "I’d be happy to hop on a quick 5-minute call and show you how it works. Just text me at 601-201-8759.", "",
+      "Happy to answer any questions!", "", "— Lee",
+    ].join("\n"));
+    expect(text({ kind: "chapter", campusShorthand: "Indiana", courseCode: "BUS-A 201", chapterName: "Acacia", greekLetters: null, council: "ifc", outreachLink: "x" }))
+      .toContain("specifically for Acacia members taking BUS-A 201,");
+    expect(text({ kind: "chapter", campusShorthand: "Indiana", courseCode: "BUS-A 201", chapterName: "", council: "ifc", outreachLink: "x" }))
+      .toContain("specifically for your members taking BUS-A 201,");
   });
 
   test("switching recipients changes every field and the link", () => {
     const a = text(olemissIfc);
-    const b = text({ kind: "chapter", campusShorthand: "Tennessee", courseCode: "ACCT 200", chapterName: "Kappa Delta", council: "panhellenic", orgType: "sorority", outreachLink: "https://surviveaccounting.com/l/cccccccccccc" });
-    expect(b).not.toContain("Ole Miss’s"); expect(b).not.toContain("aaaaaaaaaaaa"); expect(b).toContain("cccccccccccc");
-    expect(a).not.toContain("Kappa Delta");
+    const b = text({ kind: "chapter", campusShorthand: "Tennessee", courseCode: "ACCT 200", chapterName: "Kappa Delta", greekLetters: "ΚΔ", council: "panhellenic", orgType: "sorority", outreachLink: "https://surviveaccounting.com/l/cccccccccccc" });
+    expect(b).not.toContain("aaaaaaaaaaaa"); expect(b).toContain("cccccccccccc"); expect(b).toContain("ΚΔ members taking ACCT 200");
+    expect(a).not.toContain("ΚΔ");
   });
 
   test("never copies placeholders or guesses: missing campus, course code or link", () => {

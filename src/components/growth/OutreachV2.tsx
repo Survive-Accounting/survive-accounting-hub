@@ -223,7 +223,7 @@ function SlotRow({ data, council, chapter, slotKey, slot, onSaved }: { data: V2C
   const dm = renderOutreachDm({
     kind: chapter ? "chapter" : "council",
     campusShorthand: data.campusShort, campusName: data.campusName, courseCode: data.courseCode,
-    chapterName: chapter?.name ?? null, council: council.key, orgType: chapter?.orgType ?? null,
+    chapterName: chapter?.name ?? null, greekLetters: chapter?.letters ?? null, council: council.key, orgType: chapter?.orgType ?? null,
     outreachLink: link || null,
   });
 

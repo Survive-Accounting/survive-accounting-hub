@@ -11,6 +11,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { councilSlugOf, intro1Code, orgSlugify } from "@/lib/growth-util";
+import { schoolByAny } from "@/lib/schools";
+import { chapterLearnPath } from "@/lib/learn-paths";
 
 // ---------------------------------------------------------------------------
 // Types returned to the client
@@ -687,7 +689,7 @@ export const getGrowthCampusDetail = createServerFn({ method: "GET" })
       colorSecondary: c.color_secondary,
       outreachStatus: c.outreach_status,
       outreachNotes: c.outreach_notes,
-      publicPath: c.slug ? `/go/${c.slug}` : null,
+      publicPath: c.slug ? `/learn/${schoolByAny(c.slug)?.id ?? c.slug}` : null,
       councils: [...councilMap.values()].sort((x, y) => y.chapters - x.chapters),
       chapters,
       studentReady: !!code,
@@ -936,7 +938,7 @@ export const getGrowthChapterDetail = createServerFn({ method: "GET" })
     return {
       ...base,
       campusSlug,
-      publicPath: campusSlug && r.slug ? `/go/${campusSlug}/${r.slug}` : null,
+      publicPath: campusSlug && r.slug ? chapterLearnPath(campusSlug, r.slug) : null,
       claimContact: claim
         ? {
             name: claim.name,

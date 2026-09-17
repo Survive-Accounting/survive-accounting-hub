@@ -27,6 +27,7 @@ import { z } from "zod";
 
 import { sendSms } from "@/lib/greek-chapters.functions";
 import { ADMIN_EMAILS } from "@/lib/admin-emails";
+import { chapterLearnPath } from "@/lib/learn-paths";
 
 type DB = { from: (t: string) => any };
 const admin = async () => {
@@ -178,7 +179,7 @@ export const getCouncilPage = createServerFn({ method: "POST" })
       .map((c) => ({
         chapterSlug: c.slug,
         chapterName: c.greek_org_id ? (orgName.get(c.greek_org_id) ?? c.slug) : c.slug,
-        goPath: `/go/${data.schoolSlug}/${c.slug}`,
+        goPath: chapterLearnPath(data.schoolSlug, c.slug),
         members: total.get(c.id) ?? 0,
         joinedThisWeek: week.get(c.id) ?? 0,
       }))

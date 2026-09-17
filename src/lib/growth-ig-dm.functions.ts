@@ -46,6 +46,9 @@ export interface IgContact {
   orgName: string | null;
   firstName: string | null;
   chapterSlug: string | null;
+  /** The site chapter's name and Greek letters, when chapterSlug resolves — the chapter DM names them. */
+  chapterName?: string | null;
+  chapterLetters?: string | null;
   /** growth_contact_qc.contact_id — the short /l/<code> link. */
   contactCode: string | null;
 }
@@ -143,6 +146,8 @@ export const growthIgCampus = createServerFn({ method: "GET" })
         sentAt: dm?.sent_at ?? null, repliedAt: dm?.replied_at ?? null, thread: dm?.thread ?? [],
         clicks: clicks.get(c.id) ?? 0, chapterOpens: chapterOpens.get(c.id) ?? 0,
         orgType, orgName: (c.org_name as string | null) ?? null, firstName: (c.first_name as string | null) ?? null, chapterSlug,
+        chapterName: chapterSlug ? siteChapters.find((x) => x.slug === chapterSlug)?.name ?? null : null,
+        chapterLetters: chapterSlug ? siteChapters.find((x) => x.slug === chapterSlug)?.letters ?? null : null,
         contactCode: (c.contact_id as string | null) ?? null,
       };
       if (c.entity_type === "council" && c.council_type) {

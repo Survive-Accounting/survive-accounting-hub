@@ -4,7 +4,8 @@
 // Pure and client-safe.
 import type { IgContact } from "@/lib/growth-ig-dm.functions";
 import type { PlanEntry } from "@/lib/king-dm.functions";
-import { bareUrl, COUNCIL_LABEL, contactDm, firstNameOf, linkFor, shortPath, withContactRef, type LinkOrg } from "@/lib/outreach-links";
+import { COUNCIL_LABEL, contactDm, fullUrl, linkFor, shortPath, withContactRef, type LinkOrg } from "@/lib/outreach-links";
+import type { DmResult } from "@/lib/outreach-v2";
 
 type Who = {
   contactId: string;
@@ -17,29 +18,28 @@ type Who = {
   name: string | null;
   isOrg: boolean;
   chapterSlug: string | null;
+  chapterName?: string | null;
+  chapterLetters?: string | null;
 };
 
-function orgOf(w: Who): Pick<LinkOrg, "kind" | "group" | "name" | "onSite" | "slug"> {
+function orgOf(w: Who): Pick<LinkOrg, "kind" | "group" | "name" | "onSite" | "slug"> & { letters?: string | null } {
   const key = (w.councilKey ?? "").toLowerCase();
   const group = COUNCIL_LABEL[key] ?? (key === "fsl" ? "FSL Office" : key === "wib" ? "Campus Club" : "Other");
   const kind: LinkOrg["kind"] = w.orgType === "chapter" ? "chapter" : w.orgType === "club" ? "club" : w.orgType === "office" || key === "fsl" ? "office" : key === "wib" ? "club" : "council";
-  if (kind === "chapter") return { kind, group, name: w.orgName || "your chapter", onSite: !!w.chapterSlug, slug: w.chapterSlug ?? "" };
+  // No name and no letters → the DM says "your members" rather than guessing.
+  if (kind === "chapter") return { kind, group, name: w.chapterName || w.orgName || "", letters: w.chapterLetters ?? null, onSite: !!w.chapterSlug, slug: w.chapterSlug ?? "" };
   if (kind === "council") return { kind, group, name: `${group} council`, onSite: true, slug: COUNCIL_LABEL[key] ? key : "" };
   return { kind, group, name: w.orgName || (kind === "office" ? "Fraternity and Sorority Life Office" : "your club"), onSite: false, slug: "" };
 }
 
-export function dmForWho(w: Who, ctx: { campusLabel: string; courseCode: string | null; slug: string; campusHasChapters: boolean }): string {
+export function dmForWho(w: Who, ctx: { campusLabel: string; courseCode: string | null; slug: string; campusHasChapters: boolean }): DmResult {
   const org = orgOf(w);
   const link = w.contactCode ? shortPath(w.contactCode) : withContactRef(linkFor(ctx.slug, org, ctx.campusHasChapters).path, w.contactId);
-  return contactDm({
-    campusLabel: ctx.campusLabel, courseCode: ctx.courseCode, org,
-    firstName: w.isOrg ? "" : (w.firstName || firstNameOf(w.name)), isOrg: w.isOrg,
-    link: bareUrl(link), campusHasChapters: ctx.campusHasChapters,
-  });
+  return contactDm({ campusLabel: ctx.campusLabel, courseCode: ctx.courseCode, org, link: fullUrl(link) });
 }
 
-export const dmForPlanEntry = (e: PlanEntry, ctx: { campusLabel: string; courseCode: string | null; slug: string }): string =>
+export const dmForPlanEntry = (e: PlanEntry, ctx: { campusLabel: string; courseCode: string | null; slug: string }): DmResult =>
   dmForWho({ contactId: e.contactId, contactCode: e.contactCode, councilKey: e.councilKey, orgType: e.orgType, orgName: e.orgName, firstName: e.firstName, name: e.name, isOrg: e.isOrg, chapterSlug: e.chapterSlug }, { ...ctx, campusHasChapters: e.campusHasChapters });
 
-export const dmForIgContact = (c: IgContact, ctx: { councilKey: string; campusLabel: string; courseCode: string | null; slug: string; campusHasChapters: boolean }): string =>
-  dmForWho({ contactId: c.contactId, contactCode: c.contactCode, councilKey: ctx.councilKey, orgType: c.orgType, orgName: c.orgName, firstName: c.firstName, name: c.name, isOrg: c.isOrg, chapterSlug: c.chapterSlug }, ctx);
+export const dmForIgContact = (c: IgContact, ctx: { councilKey: string; campusLabel: string; courseCode: string | null; slug: string; campusHasChapters: boolean }): DmResult =>
+  dmForWho({ contactId: c.contactId, contactCode: c.contactCode, councilKey: ctx.councilKey, orgType: c.orgType, orgName: c.orgName, firstName: c.firstName, name: c.name, isOrg: c.isOrg, chapterSlug: c.chapterSlug, chapterName: c.chapterName ?? null, chapterLetters: c.chapterLetters ?? null }, ctx);

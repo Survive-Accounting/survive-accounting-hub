@@ -14,8 +14,8 @@ import { FindContactsPanel } from "@/components/growth/FindContactsPanel";
 import { ContactsCsvBar } from "@/components/growth/ContactsCsvBar";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { schoolByCampusId, boltForSlug } from "@/lib/schools";
-import { buildDmMessage } from "@/lib/dm-template";
 import { dmForIgContact } from "@/lib/outreach-dm";
+import { missingMessage } from "@/lib/outreach-v2";
 import {
   growthIgCampus, growthIgMarkSent, growthIgAddMessage, growthIgPopMessage,
   type IgCampus, type IgContact, type ThreadMsg,
@@ -153,8 +153,9 @@ export function ContactRow({ contact, councilKey, slug, courseCode, campusId, ca
   const copyDm = () => {
     if (!slug) { toast.error("This campus isn't in the school list yet — link can't be built."); return; }
     // WHO THEY ARE decides the link and the ask (2026-09-11, lib/outreach-links).
-    const msg = dmForIgContact(contact, { councilKey, campusLabel: campusLabel ?? slug, courseCode, slug, campusHasChapters: (siteChapters ?? 1) > 0 });
-    navigator.clipboard.writeText(msg).then(
+    const dm = dmForIgContact(contact, { councilKey, campusLabel: campusLabel ?? slug, courseCode, slug, campusHasChapters: (siteChapters ?? 1) > 0 });
+    if (!dm.ok) { toast.error(missingMessage(dm.missing)); return; }
+    navigator.clipboard.writeText(dm.text).then(
       () => toast.success("DM copied", { description: contact.sentAt ? undefined : "Paste in Instagram, then tick sent." }),
       () => toast.error("Couldn't copy"),
     );
@@ -194,13 +195,13 @@ export function ContactRow({ contact, councilKey, slug, courseCode, campusId, ca
           <button onClick={() => setEditing(false)} title="Cancel" className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted"><X className="size-3.5" /></button>
         </div>
       )}
-      {openThread && <Thread contact={contact} councilKey={councilKey} slug={slug} courseCode={courseCode} onChanged={invalidate} />}
+      {openThread && <Thread contact={contact} councilKey={councilKey} slug={slug} courseCode={courseCode} campusLabel={campusLabel} siteChapters={siteChapters} onChanged={invalidate} />}
     </div>
   );
 }
 
-function Thread({ contact, councilKey, slug, courseCode, onChanged }: {
-  contact: IgContact; councilKey: string; slug: string; courseCode: string | null; onChanged: () => void;
+function Thread({ contact, councilKey, slug, courseCode, campusLabel, siteChapters, onChanged }: {
+  contact: IgContact; councilKey: string; slug: string; courseCode: string | null; campusLabel?: string; siteChapters?: number; onChanged: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const [who, setWho] = useState<"us" | "them">("them");
@@ -213,7 +214,8 @@ function Thread({ contact, councilKey, slug, courseCode, onChanged }: {
     mutationFn: () => growthIgPopMessage({ data: { contactId: contact.contactId } }),
     onSuccess: onChanged,
   });
-  const initialDm = slug ? buildDmMessage({ councilKey, courseCode, slug, contactId: contact.contactId }) : "";
+  const sentDm = slug ? dmForIgContact(contact, { councilKey, campusLabel: campusLabel ?? slug, courseCode, slug, campusHasChapters: (siteChapters ?? 1) > 0 }) : null;
+  const initialDm = sentDm?.ok ? sentDm.text : "";
 
   return (
     <div className="mt-2 rounded-lg border border-border bg-muted/20 p-2.5">

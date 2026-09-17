@@ -27,6 +27,7 @@ import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { currentContactRef, withRef } from "@/lib/contact-ref";
 import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { nbspCode } from "@/lib/course-code";
+import { chapterLearnPath } from "@/lib/learn-paths";
 import { LEE_SIGNOFF } from "@/lib/partners";
 import { track } from "@/lib/analytics";
 import { adEvent } from "@/lib/retargeting";
@@ -94,7 +95,7 @@ function ChapterSharePage() {
   // THE LINK THEY HAND OUT CARRIES THE TAG THAT BROUGHT THEM. This is the whole mechanism by
   // which chapter-to-chapter spread becomes visible: one DM to one officer, then every member
   // who opens what she forwards is attributed back to that first contact.
-  const plain = `${ORIGIN}/go/${d.schoolSlug}/${d.chapterSlug}`;
+  const plain = `${ORIGIN}${chapterLearnPath(d.schoolSlug, d.chapterSlug)}`;
   const tagged = withRef(plain, ref);
   const course = d.code ? nbspCode(d.code) : "intro accounting";
 
@@ -146,7 +147,7 @@ function ChapterSharePage() {
 
       <ShareFootnote>
         Want the whole semester for your chapter?{" "}
-        <a href={withRef(`/go/${d.schoolSlug}/${d.chapterSlug}#claim`, ref)} className="underline underline-offset-4" style={{ color: "var(--accent)" }}>
+        <a href={withRef(chapterLearnPath(d.schoolSlug, d.chapterSlug, { share: "chair" }), ref)} className="underline underline-offset-4" style={{ color: "var(--accent)" }}>
           See chapter plans →
         </a>
       </ShareFootnote>

@@ -336,7 +336,7 @@ function ContactLine({ c, campus, date, sender, onChange }: { c: SchedContactVie
         <div className="flex shrink-0 flex-col items-stretch gap-1">
           {/* Copy is clipboard-only — marking sent is the checkbox below, never a side effect of Copy. */}
           {c.channel === "dm" ? (<>
-            <button onClick={() => copyText(c.messages.dm ?? "", "DM copied.")} className={btn}><Copy className="size-3" /> Copy DM</button>
+            <button onClick={() => { if (c.messages.dm) copyText(c.messages.dm, "DM copied."); else toast.error("Can't copy yet — this contact needs a tracked link and the campus a course code. Use DM Console (dm-v2)."); }} className={btn}><Copy className="size-3" /> Copy DM</button>
             <button onClick={() => copyText(c.messages.story ?? "", "Story reply copied.")} title="Reply to an active Story instead of a cold DM" className={btn}><MessageSquare className="size-3" /> Story reply</button>
           </>) : (
             <button onClick={() => copyText(c.messages.email ?? "", "Email copied.")} className={btn}><Copy className="size-3" /> Copy email</button>

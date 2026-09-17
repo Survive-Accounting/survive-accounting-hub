@@ -39,48 +39,20 @@ describe("links", () => {
 });
 
 describe("the DM", () => {
-  test("Luke Habeeb, IFC scholarship chair at Ole Miss (the handoff's reference message)", () => {
-    const msg = contactDm({
-      campusLabel: "Ole Miss", courseCode: "ACCY 201", org: { kind: "council", group: "IFC", name: "Interfraternity Council", onSite: true },
-      firstName: firstNameOf("Luke Habeeb"), isOrg: false, link: `surviveaccounting.com/go/university-of-mississippi/council/ifc?ref=${REF}`, campusHasChapters: true,
-    });
-    expect(msg).toBe([
-      "Hey Luke! Intro accounting (ACCY 201) is one of the biggest drags on GPAs across your fraternities, and it's a fixable one.",
-      "",
-      "I'm an Ole Miss accounting grad and I've tutored ACCY 201 since 2015. I make cram videos and practice exams built around what's actually on the exam. Everything for Exam 1 is free.",
-      "",
-      "Could you pass this to your chapter scholarship chairs? This page gives you one link to send them, and each chair picks their chapter from it:",
-      "",
-      `surviveaccounting.com/go/university-of-mississippi/council/ifc?ref=${REF}`,
-      "",
-      "Happy to answer any questions. Thanks!",
-      "",
-      "— Lee",
-    ].join("\n"));
+  const ok = (r: ReturnType<typeof contactDm>) => { if (!r.ok) throw new Error(r.missing.join()); return r.text; };
+  test("councils, the FSL office and clubs get Lee's council DM; chapters get the chapter DM with their letters", () => {
+    const ifc = ok(contactDm({ campusLabel: "Ole Miss", courseCode: "ACCY 201", org: { kind: "council", group: "IFC", name: "Interfraternity Council", onSite: true }, link: "https://surviveaccounting.com/l/68a083e86648" }));
+    expect(ifc.startsWith("Hey y’all,")).toBe(true);
+    expect(ifc).toContain("specifically for Ole Miss students");
+    expect(ifc).toContain("\nhttps://surviveaccounting.com/l/68a083e86648\n");
+    const office = ok(contactDm({ campusLabel: "Ole Miss", courseCode: "ACCY 201", org: { kind: "office", group: "FSL Office", name: "FSL", onSite: false }, link: "x" }));
+    expect(office.startsWith("Hey y’all,")).toBe(true);
+    const ato = ok(contactDm({ campusLabel: "Ole Miss", courseCode: "ACCY 201", org: { kind: "chapter", group: "IFC", name: "Alpha Tau Omega", onSite: true, letters: "ΑΤΩ" }, link: "x" }));
+    expect(ato).toContain("specifically for ΑΤΩ members taking ACCY 201");
+    expect(ato.endsWith("— Lee")).toBe(true);
   });
-  test("the Alpha Tau Omega chapter account (the handoff's second reference message)", () => {
-    const msg = contactDm({
-      campusLabel: "Ole Miss", courseCode: "ACCY 201", org: { kind: "chapter", group: "IFC", name: "Alpha Tau Omega", onSite: true },
-      firstName: "", isOrg: true, link: "surviveaccounting.com/go/university-of-mississippi/alpha-tau-omega", campusHasChapters: true,
-    });
-    expect(msg.startsWith("Hey! Intro accounting (ACCY 201) is one of the biggest drags on chapter GPAs, and it's a fixable one.")).toBe(true);
-    expect(msg).toContain("I set up a page just for Alpha Tau Omega at Ole Miss. Could you share it with your members or pass it to your scholarship chair?");
-    expect(msg).toContain("\nsurviveaccounting.com/go/university-of-mississippi/alpha-tau-omega\n");
-    expect(msg.endsWith("— Lee")).toBe(true);
-  });
-  test("a person at a chapter is asked to share with members; Panhellenic says sororities; no code says intro accounting", () => {
-    const person = contactDm({ campusLabel: "Ole Miss", courseCode: "ACCY 201", org: { kind: "chapter", group: "IFC", name: "Alpha Tau Omega", onSite: true }, firstName: "Jordan", isOrg: false, link: "x", campusHasChapters: true });
-    expect(person).toContain("Hey Jordan!");
-    expect(person).toContain("Could you share it with your members?\n");
-    expect(person).not.toContain("scholarship chair?");
-    const ph = contactDm({ campusLabel: "Ole Miss", courseCode: null, org: { kind: "council", group: "Panhellenic", name: "Panhellenic Council", onSite: true }, firstName: "", isOrg: true, link: "x", campusHasChapters: true });
-    expect(ph).toContain("across your sororities");
-    expect(ph).toContain("Hey! Intro accounting is one of the biggest drags");
-    expect(ph).toContain("I've tutored intro accounting since 2015");
-  });
-  test("a campus with nothing on the site keeps the old council ask", () => {
-    const msg = contactDm({ campusLabel: "Florida Gulf Coast", courseCode: null, org: { kind: "council", group: "IFC", name: "Interfraternity Council", onSite: true }, firstName: "", isOrg: true, link: "x", campusHasChapters: false });
-    expect(msg).toContain("Could you pass this to your chapter scholarship chairs so they can share it with their members?");
+  test("no course code → nothing to copy", () => {
+    expect(contactDm({ campusLabel: "Ole Miss", courseCode: null, org: { kind: "council", group: "IFC", name: "IFC", onSite: true }, link: "x" }).ok).toBe(false);
   });
   test("first names: people yes, org accounts and handles no", () => {
     expect(firstNameOf("Luke Habeeb")).toBe("Luke");

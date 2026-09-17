@@ -53,14 +53,13 @@ function linksFor(data: OutreachCampusData, org: LinkOrg, contact: LinkContact |
   const short = contact?.contactId ? shortPath(contact.contactId) : long;
   return { page, long, short };
 }
-function dmFor(data: OutreachCampusData, org: LinkOrg, contact: LinkContact | null, isOrg: boolean): string {
+/** Lee's DM (lib/outreach-v2 DM_TEMPLATES), or "" when a field is missing — the caller says which. */
+function dmFor(data: OutreachCampusData, org: LinkOrg, contact: LinkContact | null): string {
   const { short } = linksFor(data, org, contact);
-  return contactDm({
-    campusLabel: data.campus.label, courseCode: data.campus.courseCode, org,
-    firstName: isOrg ? "" : firstNameOf(contact?.fullName ?? ""), isOrg,
-    link: bareUrl(short), campusHasChapters: data.campus.siteChapters > 0,
-  });
+  const r = contactDm({ campusLabel: data.campus.label, courseCode: data.campus.courseCode, org, link: fullUrl(short) });
+  return r.ok ? r.text : "";
 }
+const DM_MISSING = "Can't copy yet — this campus needs a course code first.";
 async function copyText(text: string): Promise<boolean> {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }
@@ -107,7 +106,7 @@ function LinksPage() {
 
       <section aria-label="Which link goes where" className="mt-10 grid gap-3 border-t border-border pt-4 text-[12px] text-muted-foreground sm:grid-cols-3">
         <div><b className="text-foreground">Every DM link is short</b>: <code className="text-foreground">surviveaccounting.com/l/&lt;code&gt;</code>. It forwards to the right page with the contact&apos;s ref, so the click, and everything they share from there, counts on the DM console.</div>
-        <div><b className="text-foreground">Council contacts</b> land on the council chair page <code className="text-foreground">/go/&lt;campus&gt;/council/ifc</code>; <b className="text-foreground">chapter contacts</b> on their chapter chair page <code className="text-foreground">/go/&lt;campus&gt;/&lt;chapter&gt;</code>.</div>
+        <div><b className="text-foreground">Council contacts</b> land on the campus page with the council strip <code className="text-foreground">/learn/&lt;campus&gt;?share=council&amp;c=ifc</code>; <b className="text-foreground">chapter contacts</b> on their chapter&apos;s page <code className="text-foreground">/learn/&lt;campus&gt;/&lt;chapter&gt;?share=chair</code>.</div>
         <div><b className="text-foreground">Clubs, FSL staff and chapters not on the site</b> land on the campus page <code className="text-foreground">/s/&lt;campus&gt;</code>.</div>
       </section>
     </div>
@@ -219,7 +218,7 @@ function resolveItem(item: DmItem, data: OutreachCampusData | null, orgs: LinkOr
     else { const d = defaultContactFor(org); contact = d.contact; isOrg = d.isOrg; }
   }
   const handle = contact ? cleanHandle(isOrg ? (contact.orgIg || contact.personalIg) : (contact.personalIg || contact.orgIg)) : "";
-  const dm = data && org ? dmFor(data, org, contact, isOrg) : "";
+  const dm = data && org ? dmFor(data, org, contact) : "";
   const short = data && org ? linksFor(data, org, contact).short : "";
   return { item, data, org, contact, isOrg, handle, dm, short };
 }
@@ -451,7 +450,9 @@ function ContactRow({ org, data, schedule, contact, isOrg, onEdit }: { org: Link
   };
 
   const copy = async (what: "dm" | "link") => {
-    const ok = await copyText(what === "link" ? fullUrl(short) : dmFor(data, org, contact, isOrg));
+    const text = what === "link" ? fullUrl(short) : dmFor(data, org, contact);
+    if (!text) { toast.error(DM_MISSING); return; }
+    const ok = await copyText(text);
     if (ok) { setCopied(what); window.setTimeout(() => setCopied(null), 1600); } else toast.error("Clipboard blocked — copy it from the link line.");
   };
 

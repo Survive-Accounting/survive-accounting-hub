@@ -142,33 +142,38 @@ export function isRealSignup(m: { name?: string | null; phone?: string | null; u
 // caller shows what's missing instead of pasting a placeholder or a guess.
 
 export const DM_TEMPLATES = {
+  // LEE'S COPY, VERBATIM (2026-09-17). Every Copy DM button in admin renders one of these two — dm-v2, the
+  // links page, the cold-outreach boards and schedule — so a VA can't send the wrong one.
   council: [
     "Hey y’all,",
     "",
-    "I’m Lee Ingram, a professor at Ole Miss and the tutor behind SurviveAccounting.com.",
+    "I’m Lee Ingram, an accounting professor at Ole Miss and the tutor behind Survive Accounting. I’ve helped 1,000+ students with Intro Accounting.",
     "",
-    "I help {{organizationTypePlural}} boost their GPAs by making accounting exams easier. With {{campusShorthand}}’s first {{courseCode}} exam coming up, my free Exam 1 prep is available now—quick cram videos and practice exams.",
-    "",
-    "Could you pass this along to your chapters’ scholarship chairs or presidents?",
+    "I put together free {{courseCode}} exam prep specifically for {{campusShorthand}} students — short cram videos and practice exams:",
     "",
     "{{outreachLink}}",
     "",
+    "Would you mind passing this along to your chapters’ scholarship chairs or presidents?",
+    "",
+    "If you have any questions about it, feel free to text or call me at 601-201-8759.",
+    "",
     "Really appreciate it!",
+    "",
     "Lee",
   ].join("\n"),
   chapter: [
-    "Hey y’all,",
+    "Hey! I’m Lee — an accounting tutor and professor, and I’ve helped 1,000+ students get through Intro Accounting.",
     "",
-    "I’m Lee Ingram, a professor at Ole Miss and the tutor behind SurviveAccounting.com.",
+    "I put together a page specifically for {{greekLetters}} members taking {{courseCode}}, with short cram videos and practice exams.",
     "",
-    "I help {{organizationTypePlural}} boost their GPAs by making accounting exams easier. With {{campusShorthand}}’s first {{courseCode}} exam coming up, my free Exam 1 prep is available now—quick cram videos and practice exams.",
-    "",
-    "Could you pass this along to {{chapterName}}’s scholarship chair or president?",
-    "",
+    "They can access everything here:",
     "{{outreachLink}}",
     "",
-    "Really appreciate it!",
-    "Lee",
+    "I’d be happy to hop on a quick 5-minute call and show you how it works. Just text me at 601-201-8759.",
+    "",
+    "Happy to answer any questions!",
+    "",
+    "— Lee",
   ].join("\n"),
 } as const;
 export type DmKind = keyof typeof DM_TEMPLATES;
@@ -198,8 +203,10 @@ export interface DmRecipient {
   campusShorthand: string | null;
   campusName?: string | null;
   courseCode: string | null;
-  /** Organization display name ("Sigma Chi"); chapters only. */
+  /** Organization display name ("Sigma Chi"); chapters only. The DM uses it when the letters are unknown. */
   chapterName?: string | null;
+  /** The chapter's Greek letters ("ΣΧ") — {{greekLetters}}; chapters only. */
+  greekLetters?: string | null;
   council: string | null;
   orgType?: OrgType;
   outreachLink: string | null;
@@ -215,12 +222,10 @@ export function renderOutreachDm(r: DmRecipient): DmResult {
   const missing = [!campus && "campus name", !course && "course code", !link && "outreach link"].filter((x): x is string => !!x);
   if (missing.length) return { ok: false, missing };
   let t: string = DM_TEMPLATES[r.kind];
-  const chapter = (r.chapterName ?? "").trim();
-  if (r.kind === "chapter" && !chapter) t = t.replace("{{chapterName}}’s scholarship chair or president", "your scholarship chair or president");
-  const values: Record<string, string> = {
-    campusShorthand: campus, courseCode: course, chapterName: chapter, outreachLink: link,
-    organizationTypePlural: organizationTypePlural({ kind: r.kind, council: r.council, orgType: r.orgType ?? null }),
-  };
+  // {{greekLetters}}: the letters, else the chapter's name, else "your members".
+  const letters = (r.greekLetters ?? "").trim() || (r.chapterName ?? "").trim();
+  if (r.kind === "chapter" && !letters) t = t.replace("for {{greekLetters}} members", "for your members");
+  const values: Record<string, string> = { campusShorthand: campus, courseCode: course, greekLetters: letters, outreachLink: link };
   const text = t.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => values[k] ?? "");
   if (/\{\{\w+\}\}/.test(text)) return { ok: false, missing: ["template field"] };
   return { ok: true, text };

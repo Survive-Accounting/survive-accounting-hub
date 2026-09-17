@@ -8,6 +8,7 @@
 // using before deciding anything about it.
 import { createFileRoute } from "@tanstack/react-router";
 import { frameThemeVars } from "@/components/frames/frame-theme";
+import { chapterLearnPath } from "@/lib/learn-paths";
 import { useNavyDocument } from "@/components/site/SiteHeader";
 import { useEffect, useState } from "react";
 
@@ -87,7 +88,7 @@ function PendingChaptersAdmin() {
                 </p>
               </div>
               <a
-                href={`/go/${r.schoolSlug}/${r.chapterSlug}`}
+                href={chapterLearnPath(r.schoolSlug, r.chapterSlug, { share: "chair" })}
                 target="_blank"
                 rel="noreferrer"
                 className="rounded-lg px-3 text-[12.5px] font-bold"

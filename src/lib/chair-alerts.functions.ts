@@ -67,7 +67,8 @@ export const notifyChairAction = createServerFn({ method: "POST" })
       const { schoolBySlug } = await import("@/lib/schools");
       const campus = schoolBySlug(data.schoolSlug)?.name ?? data.schoolSlug;
       const what = ACTION_LABEL[data.action];
-      const pageUrl = `https://surviveaccounting.com/go/${data.schoolSlug}/${data.kind === "council" ? `council/${data.slug}` : data.slug}`;
+      const { chapterLearnPath, councilLearnPath, LEARN_ORIGIN } = await import("@/lib/learn-paths");
+      const pageUrl = `${LEARN_ORIGIN}${data.kind === "council" ? councilLearnPath(data.schoolSlug, data.slug) : chapterLearnPath(data.schoolSlug, data.slug, { share: "chair" })}`;
       // A chapter chair who arrived through a council's one-link portal (/chapters?c=ifc) carries
       // the COUNCIL contact's ref, so that contact is who sent them — not who they are.
       const viaCouncil = data.kind === "chapter" && data.fromCouncil ? data.fromCouncil.toUpperCase() : null;

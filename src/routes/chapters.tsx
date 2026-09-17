@@ -28,6 +28,7 @@ import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { ALL_SCHOOLS, schoolById, schoolBySlug } from "@/lib/schools";
 import { councilBySlug } from "@/lib/greek-councils.functions";
 import { isContactRef } from "@/lib/contact-ref";
+import { chapterLearnPath } from "@/lib/learn-paths";
 import { TEST_CAMPUS_SLUG } from "@/lib/test-mode";
 import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
@@ -207,7 +208,7 @@ function FindMyChapter() {
       onPick={(school, chapter, chapterName) => {
         // The chair portal opens the chapter's CHAIR page; the member hallway opens /learn.
         if (c) {
-          const href = `/go/${encodeURIComponent(school)}/${encodeURIComponent(chapter)}?from=${encodeURIComponent(c)}`;
+          const href = chapterLearnPath(school, chapter, { share: "chair" });
           setOpening({ name: chapterName, href });
           void nav({ href });
           return;
