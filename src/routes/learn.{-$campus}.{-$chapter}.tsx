@@ -702,7 +702,9 @@ function LearnShell() {
               role: execRole, schoolName: school.name,
               councilName: COUNCILS.find((x) => x.slug === search.c)?.name ?? null,
               chapterShort: chapter.slug ? ((chapter.letters ?? "").trim() || chapter.name || null) : null,
-              membersLine: execRole === "chair" && chapter.slug ? stripWords((chapter.letters ?? "").trim() || chapter.name || "your chapter", chapter.members, false).head : null,
+                            // The chip is the COUNT when there is one ("13 members are cramming."), else the invitation
+              // ("Be the first from ΣΧ.") — stripWords keeps the count in .sub (fixed 2026-09-17).
+              membersLine: execRole === "chair" && chapter.slug ? (() => { const w = stripWords((chapter.letters ?? "").trim() || chapter.name || "your chapter", chapter.members, false); return chapter.members > 0 && w.sub ? w.sub : w.head; })() : null,
               onMember: leaveExec,
             } : null}
             after={<PongOnLearn narrow={isNarrow} courseCode={school?.courseCode ?? null} campusName={campusName ?? null} bolt={school?.c1 && school?.c2 ? { c1: school.c1, c2: school.c2 } : null} />}

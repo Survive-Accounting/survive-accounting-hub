@@ -74,11 +74,19 @@ export function ChapterStrip({ school, chapter, pathChapter = false, role, counc
   // A chapter picked on this page (a council exec choosing a house) turns the strip into that house's — the
   // address loses ?share= underneath, but the route's search state does not, so the strip remembers the pick.
   const [pickedHere, setPickedHere] = useState(false);
-  useEffect(() => {
+    useEffect(() => {
     const on = () => setPicking(true);
     window.addEventListener(OPEN_CHAPTER_FINDER_EVENT, on);
     return () => window.removeEventListener(OPEN_CHAPTER_FINDER_EVENT, on);
   }, []);
+  // THE EXEC HERO's Share with no chapter on the page yet (a ?share=chair campus link): pick the house first —
+  // before this, the button did nothing (2026-09-17 audit).
+  useEffect(() => {
+    if (chapter || role === "council") return;
+    const on = () => setPicking(true);
+    window.addEventListener(OPEN_SHARE_KIT_EVENT, on);
+    return () => window.removeEventListener(OPEN_SHARE_KIT_EVENT, on);
+  }, [chapter, role]);
   const sheet = picking ? (
     <ChapterPickerSheet schoolSlug={school.slug} schoolName={school.name} pinnedTheme initialCouncil={councilPreset} hasChapter={!!chapter}
       onClose={() => setPicking(false)} onClear={onClear} onPick={(c) => { setPicking(false); setPickedHere(true); onPick(c.slug); }} />
