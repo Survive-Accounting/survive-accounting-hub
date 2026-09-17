@@ -39,13 +39,13 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true; url: string; sessionId: string } | { ok: false; error: string }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { stripe, priceIdForKind, stripeIsTest } = await import("./stripe.server");
+    const { stripe, priceIdForKind, stripeIsTest, checkoutOrigin } = await import("./stripe.server");
     const { data: u } = await supabaseAdmin.auth.getUser(data.accessToken);
     if (!u?.user) return { ok: false, error: "not signed in" };
     const price = priceIdForKind(data.kind);
     if (!price) return { ok: false, error: `STRIPE_PRICE_${data.kind.toUpperCase()} is not set` };
     const path = data.returnPath.startsWith("/") ? data.returnPath : "/";
-    const origin = process.env.SITE_ORIGIN || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://surviveaccounting.com");
+    const origin = checkoutOrigin();
 
     // REFERRAL ATTRIBUTION. Capture the rep's code from the sa_ref cookie NOW, while we still have the
     // student's browser request — Stripe's webhook is a server-to-server call with no cookies, so the

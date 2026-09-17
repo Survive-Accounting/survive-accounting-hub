@@ -125,6 +125,16 @@ export async function verifyStripeSignature(rawBody: string, header: string | nu
 
 // _V4 FIRST (Lee, 09-17): the Vercel project already carried STRIPE_* names from an earlier build,
 // so the v4 checkout's own values live under *_V4 and win. The old names remain as fallbacks.
+/** WHERE STRIPE SENDS THE STUDENT BACK. Never VERCEL_URL in production: that is the per-deployment
+ *  hostname (survive-accounting-xxxx.vercel.app), which Vercel keeps behind SSO — so a paying
+ *  student was bounced to a Vercel login wall instead of the site (Lee's first test, 09-17).
+ *  Production ⇒ the public domain; a preview deploy keeps its own URL; SITE_ORIGIN overrides all. */
+export function checkoutOrigin(): string {
+  if (process.env.SITE_ORIGIN) return process.env.SITE_ORIGIN.replace(/\/$/, "");
+  if (process.env.VERCEL_ENV === "production" || !process.env.VERCEL_URL) return "https://surviveaccounting.com";
+  return `https://${process.env.VERCEL_URL}`;
+}
+
 export const stripeWebhookSecret = () =>
   process.env.STRIPE_WEBHOOK_SECRET_TEST_V4 || process.env.STRIPE_WEBHOOK_SECRET_TEST || process.env.STRIPE_WEBHOOK_SECRET || null;
 

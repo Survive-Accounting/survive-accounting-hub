@@ -135,13 +135,13 @@ export const startStudyPassCheckout = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true; url: string } | { ok: false; error: string }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
-    const { stripe, priceIdForKind, stripeIsTest } = await import("./stripe.server");
+    const { stripe, priceIdForKind, stripeIsTest, checkoutOrigin } = await import("./stripe.server");
     const price = priceIdForKind("study_pass");
     if (!price) return { ok: false, error: "STRIPE_PRICE_STUDY_PASS_V4 is not set" };
 
     const { campusId, courseId } = await resolveCourse(db, data.campusSlug ?? null);
     const path = data.returnPath.startsWith("/") ? data.returnPath : "/pass";
-    const origin = process.env.SITE_ORIGIN || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://surviveaccounting.com");
+    const origin = checkoutOrigin();
 
     // REFERRAL. Grab the rep's code now, from the browser's cookie — Stripe's webhook has no
     // cookies, so it has to ride in metadata.
@@ -189,7 +189,7 @@ export const claimStudyPassSession = createServerFn({ method: "POST" })
     redirectTo: z.string().max(200).default("/pass"),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true; signInUrl: string | null; email: string | null } | { ok: false; error: string }> => {
-    const { stripe, stripeIsTest } = await import("./stripe.server");
+    const { stripe, stripeIsTest, checkoutOrigin } = await import("./stripe.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
 
@@ -264,7 +264,7 @@ export const claimStudyPassSession = createServerFn({ method: "POST" })
     // browser that just completed this exact paid session.
     let signInUrl: string | null = null;
     try {
-      const origin = process.env.SITE_ORIGIN || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://surviveaccounting.com");
+      const origin = checkoutOrigin();
       const redirectTo = `${origin}${data.redirectTo.startsWith("/") ? data.redirectTo : "/pass"}`;
       const link = await (supabaseAdmin as unknown as { auth: { admin: { generateLink: (a: Record<string, unknown>) => Promise<{ data: { properties?: { action_link?: string } | null } | null }> } } })
         .auth.admin.generateLink({ type: "magiclink", email, options: { redirectTo } });
