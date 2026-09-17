@@ -89,6 +89,8 @@ import { useTakeLog } from "./capture/take-log";
 import { isCamSpot, nextCamSpot, type CamSpot } from "./capture/webcam-spots";
 import { FILM_NAV_KEY, FILM_REDO_KEY, obsCheckDone, obsCheckDue, parsePlace, writeFilmAlive, writeFilmNav } from "./capture/film-nav";
 import { stitchingNow, subscribeStitches } from "./capture/stitch-queue";
+import { HandedOff } from "./capture/HandedOff";
+import { useSingleton } from "./capture/singleton";
 import { filmPopoutHref, isPopoutSearch } from "./capture/popout";
 import { track } from "@/lib/analytics";
 import { camDefault, layoutOf } from "./layout";
@@ -97,7 +99,7 @@ import { ClusterFilmContext, type ClusterFilm } from "./cluster/ClusterStage";
 // here, the block reads it through its own context (RubricFrame.tsx).
 import { FrameStepContext, type FrameStep } from "./frame-step";
 import { teaserSteps } from "./teaser";
-import { DC_PICK_STEPS, dcPickOf, dcRuleSteps, tAccountSteps, tPickOf } from "./ledger";
+import { DC_PICK_STEPS, dcPickOf, dcRuleSteps, dcWhenOf, tAccountSteps, tPickOf } from "./ledger";
 import { revExpShown, rubricSteps, type RubricArrow, type RubricKey } from "./rubric";
 // SURVIBES (2026-09-11): its props are steps too; the authoring-only 2:00 clock lives in the
 // main window's chrome (never the pop-out, never the shot).
@@ -268,13 +270,16 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
     seenTake.current = takeSel;
     track("film_video_changed", { set_id: set.id, video: takeSel != null ? takeSel + 1 : null });
   }, [inPopout, set.id, takeSel]);
+  // ONE FILM PAGE AT A TIME (capture/singleton.ts): an older copy steps aside — no heartbeat, so the Stitch
+  // Room's "Stitch it again in film" and the pop-out follow the newest one.
+  const single = useSingleton("film", !inPopout);
   useEffect(() => {
-    if (inPopout) return;
+    if (inPopout || single.yielded) return;
     writeFilmNav(window.location.pathname, takeSel ?? null);
     writeFilmAlive(window.location.pathname, takeSel ?? null);
     const t = window.setInterval(() => writeFilmAlive(window.location.pathname, takeSelRef.current ?? null), 2000);
     return () => window.clearInterval(t);
-  }, [inPopout, set.id, takeSel]);
+  }, [inPopout, set.id, takeSel, single.yielded]);
   useEffect(() => {
     const on = (e: StorageEvent) => {
       if (!e.newValue) return;
@@ -387,7 +392,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
   const ledgerSteps = frame?.kind === "taccount" ? tAccountSteps(frame.tacct)
     : frame?.kind === "dcrule" ? dcRuleSteps(frame)
     : frame?.kind === "ceq" && frame.tpick && ceq && tPickOf(ceq.stem, ceq.choices) ? 2
-    : frame?.kind === "ceq" && frame.dcpick && ceq && dcPickOf(ceq.stem, ceq.choices) ? DC_PICK_STEPS
+    : frame?.kind === "ceq" && frame.dcpick && ceq && (dcPickOf(ceq.stem, ceq.choices) || dcWhenOf(ceq.stem, ceq.choices)) ? DC_PICK_STEPS
     : 0;
   const ledger = ledgerSteps > 0;
   // SPACE WALK (2026-09-13, plan.ts `walk`): any text slide's lines come in one per space. The count is
@@ -978,6 +983,7 @@ export function BlastOffCapture({ set, topicName, onExit, crumbs, topLinks, take
         </div>
       )}
       <CaptureArrows hostRef={hostRef} frameId={frame.id} />
+      {!popout.isPopout && single.yielded && <HandedOff what="Filming" onReclaim={single.reclaim} />}
       {!popout.isPopout && chrome && stitching > 0 && (
         <div role="status" style={{ position: "fixed", left: 12, bottom: 12, zIndex: 45, display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 999,
           background: "rgba(255,122,107,0.14)", border: "1px solid #FF7A6B", color: "#FF7A6B", fontFamily: "'Rubik', system-ui, sans-serif", fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap" }}>

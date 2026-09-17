@@ -216,6 +216,47 @@ export function DcPickFrame({ w, stem, pick, type, live }: { w: number; stem: st
   );
 }
 
+/** THE WHEN PICK: "When would we debit Supplies?" — the L on top (tap a box to focus it), the question, its own
+ *  lettered choices under it. On film space lights the account's family, then the right choice. */
+export function DcWhenFrame({ w, stem, choices, pick, type, live }: { w: number; stem: string; choices: readonly { text: string; correct: boolean }[]; pick: { account: string; side: "L" | "R"; correct: number }; type: DcKey | null; live?: boolean }) {
+  const k = w / 306;
+  const stepCtx = useContext(FrameStepContext);
+  const walking = !!live && !!stepCtx;
+  const step = walking ? stepCtx.step : null;
+  const typeLit = step == null || step >= 1;
+  const answer = step == null || step >= 2;
+  const contra = dcContraOf(pick.account);
+  const family: DcKey | null = contra ? contra.of : type;
+  const [focus, setFocus] = useState<DcKey | null>(null);
+  const lit: DcKey | null = focus ?? (typeLit ? family : null);
+  const showContra = !!contra && lit === contra.of;
+  const advance = walking && stepCtx.advance ? (e: React.MouseEvent) => { if (e.ctrlKey || e.metaKey || e.altKey) return; e.stopPropagation(); stepCtx.advance?.(e.shiftKey ? -1 : 1); } : undefined;
+  const long = choices.some((c) => c.text.length > 44);
+  return (
+    <Shell w={w} k={k}>
+      <div onClick={advance} style={{ width: "100%", minHeight: 420 * k, display: "flex", flexDirection: "column", gap: 10 * k, cursor: advance ? "pointer" : undefined }}>
+        <div style={{ padding: `${10 * k}px ${4 * k}px ${8 * k}px`, borderRadius: 12 * k, border: `1px solid rgba(245,239,230,0.14)` }}>
+          <RubricL k={k} size={0.92} dim={(key) => !!lit && lit !== key} contra={showContra ? contra : null} onPick={(key) => setFocus((f) => (f === key ? null : key))} />
+        </div>
+        <div style={{ flex: 1 }} />
+        <div><Chip text="Common exam question" k={k} /></div>
+        <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: 19 * k, lineHeight: 1.08, color: BRAND_CREAM, textWrap: "balance" as never }}>{stem}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 * k }}>
+          {choices.map((c, i) => {
+            const on = answer && i === pick.correct;
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 7 * k, padding: `${(long ? 5 : 6) * k}px ${8 * k}px`, borderRadius: 8 * k, border: `${1.5 * k}px solid ${on ? MINT : "rgba(245,239,230,0.22)"}`, background: on ? "rgba(59,245,160,0.12)" : "rgba(255,255,255,0.03)", transition: "all 220ms" }}>
+                <span style={{ flex: "none", width: 16 * k, height: 16 * k, borderRadius: 4 * k, display: "grid", placeItems: "center", fontSize: 9 * k, fontWeight: 900, color: on ? "#0B1322" : BRAND_CREAM, background: on ? MINT : "rgba(255,255,255,0.12)" }}>{String.fromCharCode(65 + i)}</span>
+                <span style={{ fontSize: (long ? 10.5 : 12) * k, lineHeight: 1.2, fontWeight: 700, color: on ? MINT : BRAND_CREAM }}>{c.text}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
 /** THE T-ACCOUNT: "Cash (+/-)", staggered entries with their labels, the ending balance under a second line.
  *  On film space brings in each line, then the ending. */
 export function TAccountFrame({ w, frame, live }: { w: number; frame: BlastFrame; live?: boolean }) {

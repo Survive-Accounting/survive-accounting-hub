@@ -220,6 +220,9 @@ function PracticeStageInner({ setId, questions: override, onDone, doneLabel, onR
 
   // THE RUBRIC ANSWER: every tap is the current answer (graded by learn-bonus's rubricMatches — Rev ↑ and E ↑
   // are the same answer). Kept like a pick; nothing resolves until the results.
+  // IMMEDIATE MODE (Lee, 2026-09-16: "should we have immediate feedback on practice? So they know if one was
+  // wrong"): the arrows are a draft until "Check answer"; then it grades like a pick and is final.
+  const draftRubric = useCallback((next: RubricArrows) => { if (cur?.rubric) setRubricBy((m) => ({ ...m, [cur.id]: next })); }, [cur]);
   const setRubric = useCallback((next: RubricArrows) => {
     if (!cur?.rubric) return;
     const ok = rubricMatches(next, cur.rubric.arrows);
@@ -300,7 +303,10 @@ function PracticeStageInner({ setId, questions: override, onDone, doneLabel, onR
     </div></div>
   );
 
-    if (finished && gradeAtEnd) {
+    // THE SCORE SCREEN: graded at the end, or graded at once with a bonus to unlock — the pass IS the score
+    // (Lee, 2026-09-16: "when it comes to getting 80% … You'd have to finish then start over"): missed ones can be
+    // looked at, not re-answered; Try again starts a fresh pass.
+    if (finished && (gradeAtEnd || bonus)) {
     const total = questions.length, answered = total - skippedAll.length;
     const pct = total > 0 ? Math.round((correctAll / total) * 100) : 0;
     const redo = [...new Set([...missedAll, ...skippedAll])].sort((a, b) => a - b);
@@ -333,7 +339,11 @@ function PracticeStageInner({ setId, questions: override, onDone, doneLabel, onR
               ))}
             </div>
           )}
-          {redo.length > 0 ? (
+          {redo.length > 0 && !gradeAtEnd ? (
+            <button className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13.5px] font-black uppercase tracking-wide" style={{ background: unlocked ? C.yellow : C.red, color: unlocked ? "#0B1322" : "#fff", minHeight: 50 }} onClick={() => { track("retry_missed_clicked", { set_id: setId } as never); startOver(); }}>
+              <RotateCcw className="h-4 w-4" /> Try again from the top
+            </button>
+          ) : redo.length > 0 ? (
             <button className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13.5px] font-black uppercase tracking-wide" style={{ background: C.red, color: "#fff", minHeight: 50 }} onClick={() => { track("retry_missed_clicked", { set_id: setId } as never); startPass(redo); }}>
               <RotateCcw className="h-4 w-4" /> Redo the {redo.length} you {skippedAll.length && !missedAll.length ? "skipped" : "missed"}
             </button>
@@ -341,7 +351,7 @@ function PracticeStageInner({ setId, questions: override, onDone, doneLabel, onR
             <button className="mt-3 w-full rounded-xl px-4 py-3 text-[13.5px] font-black uppercase tracking-wide" style={{ background: C.yellow, color: "#0B1322", minHeight: 50 }} onClick={guidance ? guidance.onNext : onDone}>{guidance?.nextLabel ?? doneLabel}</button>
           )}
           <div className="mt-2 flex items-center justify-center gap-4">
-            <button className="px-2 py-2 text-[12px] font-bold underline underline-offset-2" style={{ color: C.muted, minHeight: 40 }} onClick={startOver}>{redo.length > 0 ? "or start over" : "Start over"}</button>
+            {(gradeAtEnd || redo.length === 0) && <button className="px-2 py-2 text-[12px] font-bold underline underline-offset-2" style={{ color: C.muted, minHeight: 40 }} onClick={startOver}>{redo.length > 0 ? "or start over" : "Start over"}</button>}
             {redo.length > 0 && <button className="px-2 py-2 text-[12px] font-bold underline underline-offset-2" style={{ color: C.muted, minHeight: 40 }} onClick={guidance ? guidance.onNext : onDone}>{guidance?.nextLabel ?? doneLabel}</button>}
           </div>
         </div>
@@ -449,12 +459,19 @@ function PracticeStageInner({ setId, questions: override, onDone, doneLabel, onR
       <div className="min-h-0 flex-1 px-4 pb-3 pt-3 sm:px-5 sm:pb-4" style={{ opacity: swap ? 0 : 1, transform: swap ? "translateX(8px)" : "none", transition: `opacity ${SWAP_MS}ms ease, transform ${SWAP_MS}ms ease` }}>
                 {/* THE QUESTION, in the school picker's voice (Lee, 2026-09-15: "they're not easy to read… it needs to
             match the vibe of the school picker"): the ask big and cream, each answer a lettered row. */}
-                <p className="lk-disp" style={{ fontSize: 19, lineHeight: 1.25, color: C.text, textWrap: "balance" }}>{gradeAtEnd && cur.rubric ? cur.rubric.text : cur.prompt}</p>
-        {gradeAtEnd && cur.rubric ? (
+                <p className="lk-disp" style={{ fontSize: 19, lineHeight: 1.25, color: C.text, textWrap: "balance" }}>{cur.rubric ? cur.rubric.text : cur.prompt}</p>
+        {cur.rubric ? (
           // THE RUBRIC QUESTION: tap the boxes; Rev / Exp light Equity on their own; the amount rides the arrows.
+          // Graded at the end it is the answer as tapped; graded at once it is a draft until Check answer.
           <div className="mt-3">
-            <p className="mb-2 text-[12.5px]" style={{ color: C.muted }}>Effect on A = L + E? Tap the boxes — tap again to change the arrow.</p>
-            <RubricAnswer value={rubricBy[cur.id] ?? emptyArrows()} onChange={setRubric} amount={cur.rubric.amount} />
+            <p className="mb-2 text-[12.5px]" style={{ color: C.muted }}>{resolved ? (results[cur.id] ? "✓ That's the effect." : "✕ Not quite — the answer is below.") : "Effect on A = L + E? Tap the boxes — tap again to change the arrow."}</p>
+            <RubricAnswer value={rubricBy[cur.id] ?? emptyArrows()} onChange={gradeAtEnd ? setRubric : draftRubric} amount={cur.rubric.amount} readOnly={resolved} />
+            {!gradeAtEnd && !resolved && (
+              <button type="button" className="mt-3 w-full rounded-xl px-4 py-2.5 text-[12.5px] font-black uppercase tracking-wide" style={{ background: "#FCA311", color: "#0B1322", minHeight: 44 }} onClick={() => setRubric(rubricBy[cur.id] ?? emptyArrows())}>Check answer</button>
+            )}
+            {resolved && results[cur.id] === false && (
+              <div className="mt-3"><RubricAnswer value={cur.rubric.arrows} amount={cur.rubric.amount} readOnly compact /></div>
+            )}
           </div>
         ) : (
         <div className="mt-4 flex flex-col gap-2.5">
@@ -494,9 +511,11 @@ function PracticeStageInner({ setId, questions: override, onDone, doneLabel, onR
         {resolved && (
           <div className="mt-3">
             {/* Feedback is a quiet note, not another card. */}
-            <p className="px-1 text-[12px] leading-relaxed" style={{ color: C.muted }}>
-              {pickedChoice?.feedback ?? (pickedChoice?.correct ? "✓ Correct!" : "✕ Not quite. Try again →")}
-            </p>
+            {picked !== "rubric" && (
+              <p className="px-1 text-[12px] leading-relaxed" style={{ color: C.muted }}>
+                {pickedChoice?.feedback ?? (pickedChoice?.correct ? "✓ Correct!" : "✕ Not quite. Try again →")}
+              </p>
+            )}
             <AskBox reference={fullRef(pos)} shorthand={cur.shorthand} prompt={cur.prompt} setId={setId} ceqId={cur.id} campusName={campusName} campusSlug={campusSlug} isTest={isTest} />
           </div>
         )}

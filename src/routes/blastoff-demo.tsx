@@ -14,7 +14,7 @@ import { SurviveIntro } from "@/components/blastoff/SurviveIntro";
 import { SurviveOutro } from "@/components/blastoff/SurviveOutro";
 import { FoundOnYourExam } from "@/components/blastoff/FoundOnYourExam";
 import { CheatCodeFrame, PhraseFrame, TipFrame } from "@/components/blastoff/ContentFrames";
-import { DcPickFrame, DcRuleFrame } from "@/components/blastoff/LedgerFrames";
+import { DcPickFrame, DcRuleFrame, DcWhenFrame } from "@/components/blastoff/LedgerFrames";
 import type { BlastFrame } from "@/components/blastoff/plan";
 
 export const Route = createFileRoute("/blastoff-demo")({
@@ -59,6 +59,7 @@ function BlastOffDemo() {
         ["Rubric pick", <DcPickFrame w={306} stem="How do you increase Equipment?" pick={{ account: "Equipment", side: "L" }} type="A" />],
     ["Rubric pick · contra A", <DcPickFrame w={306} stem="How do you increase Accumulated Depreciation?" pick={{ account: "Accumulated Depreciation", side: "R" }} type="A" />],
     ["Rubric pick · contra E", <DcPickFrame w={306} stem="How do you decrease Dividends?" pick={{ account: "Dividends", side: "R" }} type="Div" />],
+    ["When pick", <DcWhenFrame w={306} stem="When would we debit Supplies?" choices={[{ text: "We use up supplies", correct: false }, { text: "We buy supplies", correct: true }, { text: "We pay the supplier what we owe", correct: false }, { text: "A customer pays us", correct: false }]} pick={{ account: "Supplies", side: "L", correct: 1 }} type="A" />],
     ["Rubric pick · revenue", <DcPickFrame w={306} stem="How do you increase Rent Earned?" pick={{ account: "Rent Earned", side: "R" }} type="Rev" />],
   ];
 

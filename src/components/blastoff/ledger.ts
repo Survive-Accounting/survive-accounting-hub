@@ -120,6 +120,16 @@ export function dcWalkView(s: number | null | undefined): { shown: DcKey[]; lit:
  *  the direction, and the answer side from the correct choice (Debit → L, Credit → R). Null when the card
  *  isn't that shape. Steps: the bare question, the type's box lights, the answer lights. */
 export const DC_PICK_STEPS = 3;
+/** THE WHEN PICK (Lee, 2026-09-16: "I need the rubric shown on all of these"): "When would we debit Supplies?"
+ *  keeps its own text choices, and the L on top lights the account's family, then the right choice. Null when
+ *  the stem doesn't read that way. */
+export function dcWhenOf(stem: string, choices: readonly { text: string; correct: boolean }[]): { account: string; side: "L" | "R"; correct: number } | null {
+  const m = /^when (?:would|do|should|does|did) (?:we|you|i|a company|the company) (debit|credit)\s+(?:an?\s+|the\s+)?(.+?)\??\s*$/i.exec(stem.replace(/\s+/g, " ").trim());
+  if (!m) return null;
+  const correct = choices.findIndex((c) => c.correct);
+  if (correct < 0 || choices.length < 2) return null;
+  return { account: m[2].trim(), side: m[1].toLowerCase() === "debit" ? "L" : "R", correct };
+}
 /** THE FAMILY OF AN ACCOUNT NAME: which box of the L lights for "How do you increase Cash?". Liabilities are
  *  tested before revenues (Unearned Revenue), expenses before assets (Depreciation Expense vs. Accumulated
  *  Depreciation). Null when the name says nothing the L knows. */

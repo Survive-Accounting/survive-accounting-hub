@@ -144,7 +144,6 @@ export function SetPanel({ items, index, onIndex, progress, tab, onTab, narrow, 
             isTest={demo}
             doneLabel={guidance.nextLabel}
             onDone={onPracticeDone}
-            gradeAtEnd
             bonus={set.bonus ? { kind: set.bonus, onOpen: () => onTab("bonus") } : null}
             guidance={guidance}
           />

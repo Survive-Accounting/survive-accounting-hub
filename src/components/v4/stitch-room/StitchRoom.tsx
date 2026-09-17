@@ -20,11 +20,15 @@ import { StitchBuild } from "./StitchBuild";
 import { VideoDesk } from "./VideoDesk";
 import { openDemoLens } from "../DemoLens";
 import { redoInFilm } from "../../blastoff/capture/film-nav";
+import { HandedOff } from "../../blastoff/capture/HandedOff";
+import { useSingleton } from "../../blastoff/capture/singleton";
 
 type Tab = "videos" | "queue" | "stats";
 
 export function StitchRoom({ initialKey }: { initialKey?: string }) {
   const qc = useQueryClient();
+  // ONE ROOM AT A TIME (capture/singleton.ts): a newer room opening sends this one away.
+  const single = useSingleton("stitch-room");
   const q = useQuery({ queryKey: ["film-stitches"], queryFn: () => listFilmStitches(), staleTime: 10_000, retry: false });
   const records = q.data ?? [];
   // EVERY FILM WINDOW'S JOBS, kept apart (one window's empty list never wipes another's), newest word per video.
@@ -115,6 +119,7 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
     <div style={{ minHeight: "100vh", background: ROOM.bg, color: ROOM.cream, fontFamily: ROOM.font, display: "flex", flexDirection: "column" }}>
       {/* TOP BAR — the ⚙ top left */}
       <header style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderBottom: `1px solid ${ROOM.edge}`, position: "relative" }}>
+        {single.yielded && <HandedOff what="The Stitch Room" onReclaim={single.reclaim} />}
         <button type="button" aria-label="Settings" aria-expanded={gear} onClick={() => setGear((v) => !v)} style={{ ...chip(gear), fontSize: 16, padding: "4px 9px" }}>⚙</button>
         {gear && (
           <div style={{ position: "absolute", top: 48, left: 12, zIndex: 20, background: ROOM.panel, border: `1px solid ${ROOM.edge}`, borderRadius: 10, padding: 12, width: 260, boxShadow: "0 18px 40px rgba(0,0,0,0.5)" }}>

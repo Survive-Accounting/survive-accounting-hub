@@ -33,8 +33,8 @@ import { OUTRO_CTA_KEY, SurviveOutro } from "./SurviveOutro";
 import { outroLine } from "@/components/brand-cards/slogans";
 import { TeaserFrame } from "./TeaserFrame";
 import { PracticeFrame } from "./PracticeFrame";
-import { DcPickFrame, DcRuleFrame, TAccountFrame, TPickFrame } from "./LedgerFrames";
-import { dcPickOf, dcTypeOf, isDcKey, tPickOf } from "./ledger";
+import { DcPickFrame, DcRuleFrame, DcWhenFrame, TAccountFrame, TPickFrame } from "./LedgerFrames";
+import { dcPickOf, dcTypeOf, dcWhenOf, isDcKey, tPickOf } from "./ledger";
 import { FRAME_LABEL, INSERT_CALLOUT, frameBullets, insertStem, isAdKind, isBigCallout, isStandard, showCampusBanner, type BlastFrame } from "./plan";
 import { SlideEditContext } from "./slide-edit";
 import { RubricSlide } from "./RubricSlide";
@@ -271,6 +271,9 @@ export function FrameView({ frame, set, scale, topicName, progress, live = false
     // THE RUBRIC PICK (2026-09-16): a "How do you increase ____?" card with the L beside it.
     const dpick = frame.dcpick && !ceq.noteOnly ? dcPickOf(ceq.stem, ceq.choices) : null;
         if (dpick) return <DcPickFrame w={fw} stem={ceq.stem} pick={dpick} type={isDcKey(frame.dcpick) ? frame.dcpick : dcTypeOf(dpick.account)} live={live} />;
+    // THE WHEN PICK (2026-09-16): "When would we debit Supplies?" keeps its choices, with the L on top.
+    const wpick = frame.dcpick && !ceq.noteOnly ? dcWhenOf(ceq.stem, ceq.choices) : null;
+    if (wpick) return <DcWhenFrame w={fw} stem={ceq.stem} choices={ceq.choices} pick={wpick} type={isDcKey(frame.dcpick) ? frame.dcpick : dcTypeOf(wpick.account)} live={live} />;
     if (ceq.noteOnly) return <SetCard id={ceq.id} stem={ceq.stem} scale={scale} callout={{ detour: true, showTopic: false }} live={live} {...ov} />;
     return (
       <SetCard
