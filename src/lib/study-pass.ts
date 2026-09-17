@@ -35,7 +35,9 @@ export function studyPassIncludes(courseCode: string | null | undefined): string
   return [
     `Every cram video for ${c} — all exams, not just Exam 1`,
     "The full review-video archive, organized by chapter",
-    "Homework help: worked solutions for quick study, exercises and problems",
+    // Lee's own videos walking problems — never the textbook's answer key (Lee, 09-17: the
+    // solutions bank stays internal).
+    "Homework help: Lee working through the quick study, exercises and problems",
     "Practice questions and the bonus round on every topic",
   ];
 }
