@@ -513,7 +513,7 @@ function PracticeStageInner({ setId, questions: override, onDone, doneLabel, onR
             {/* Feedback is a quiet note, not another card. */}
             {picked !== "rubric" && (
               <p className="px-1 text-[12px] leading-relaxed" style={{ color: C.muted }}>
-                {pickedChoice?.feedback ?? (pickedChoice?.correct ? "✓ Correct!" : "✕ Not quite. Try again →")}
+                {pickedChoice?.feedback ?? (pickedChoice?.correct ? "✓ Correct!" : "✕ Not quite — the right one is marked.")}
               </p>
             )}
             <AskBox reference={fullRef(pos)} shorthand={cur.shorthand} prompt={cur.prompt} setId={setId} ceqId={cur.id} campusName={campusName} campusSlug={campusSlug} isTest={isTest} />
