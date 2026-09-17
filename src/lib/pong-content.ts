@@ -90,11 +90,55 @@ const SHORT_WHY: Record<string, string> = {
   "notes-payable-long": "payable = liability",
   "mortgage-payable": "payable = liability",
   "bonds-payable": "payable = liability",
-  "cost-of-goods-sold": "an expense",
-  "retained-earnings": "equity — it stays",
-  "supplies": "an asset until used",
+  "cost-of-goods-sold": "inventory sold = expense",
+  "retained-earnings": "profits kept = equity",
+  "common-stock": "owners put it in = equity",
+  "supplies": "you own it until used",
+  "cash": "you own it",
+  "inventory": "you own it",
+  "equipment": "you own it",
+  "vehicles": "you own it",
+  "buildings": "you own it",
+  "land": "you own it",
+  "service-revenue": "earned = revenue",
+  "sales-revenue": "earned = revenue",
+  "interest-revenue": "earned = revenue",
+  "rent-revenue": "earned = revenue",
+  "rent-expense": "“expense” = expense",
+  "wages-expense": "“expense” = expense",
+  "salaries-expense": "“expense” = expense",
+  "utilities-expense": "“expense” = expense",
+  "supplies-expense": "“expense” = expense",
+  "insurance-expense": "“expense” = expense",
+  "depreciation-expense": "“expense” = expense",
+  "interest-expense": "“expense” = expense",
 };
 export const shortWhy = (a: AccountDef): string => SHORT_WHY[a.id] ?? CATEGORY_WORD[a.category];
+
+/** The contra-aware group word: "asset", "contra asset", "revenue"… */
+const groupWord = (a: AccountDef): string =>
+  a.id === "dividends" ? "contra equity" : a.contra ? `contra ${a.category}` : a.category;
+
+/** The why FOR THE RULE BEING PLAYED — a debit rack says "asset → debit +", a statements
+ *  rack says "revenue → income statement" (Lee: "remind them why it's correct … concise
+ *  minimal cheat codes"). Account types keep the name cheats ("payable = liability"). */
+export function whyFor(rule: Pick<PongRule, "sectionId">, a: AccountDef): string {
+  switch (rule.sectionId) {
+    case "increases":
+      return `${groupWord(a)} → ${increaseSide(a)} +`;
+    case "normal":
+      return `${groupWord(a)} → normal ${increaseSide(a)}`;
+    case "statements": {
+      const s = statementOf(a);
+      return `${groupWord(a)} → ${s === "balance-sheet" ? "balance sheet" : s === "income-statement" ? "income statement" : "neither (a payout)"}`;
+    }
+    case "tempperm":
+      return a.id === "retained-earnings" ? "equity → permanent, it stays"
+        : `${groupWord(a)} → ${isTemporary(a) ? "temporary, closed" : "permanent"}`;
+    default:
+      return shortWhy(a);
+  }
+}
 
 // ---- rules and sections ------------------------------------------------------------
 

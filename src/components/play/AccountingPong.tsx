@@ -975,6 +975,13 @@ function CupView({ cup, layout, pos, z, mode, index, tapped, outcome, onTap, reg
   return <div title={`${cup.label} — ${cup.why}`} style={wrapper}>{content}</div>;
 }
 
+/** "Rent Earned, Fees Earned — earned = revenue": cups that share a reason share a line. */
+function groupByWhy(cups: Cup[]): [string, Cup[]][] {
+  const m = new Map<string, Cup[]>();
+  for (const c of cups) m.set(c.why, [...(m.get(c.why) ?? []), c]);
+  return [...m.entries()];
+}
+
 /** A stable per-cup pseudo-random in 0..1 for the shuffle and confetti keyframes. */
 function seededOffset(i: number, k: number): number {
   const x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
@@ -1060,16 +1067,22 @@ function RecapPanel({ recap, record, onContinue, onQuit }: { recap: Recap; recor
         <div style={{ fontFamily: DISPLAY, fontWeight: 900, fontSize: 18, letterSpacing: "-0.01em", color: recap.perfect || recap.bossCleared ? GREEN : recap.result === "timeout" ? RED : INK }}>{title}</div>
         <div style={{ fontFamily: DISPLAY, fontWeight: 900, fontSize: 22, color: ACCENT }}>+{formatScore(recap.points)}</div>
       </div>
-      {recap.explanation && <div style={{ marginTop: 8, fontSize: 15, fontWeight: 700, color: INK }}>{recap.explanation}</div>}
-      {(recap.wrong.length > 1 || recap.missed.length > (recap.wrong.length ? 0 : 1)) && (
-        <div style={{ marginTop: 4, fontSize: 13, color: INK_MUTED, lineHeight: 1.5 }}>
-          {recap.wrong.length > 1 && <div><span style={{ color: RED }}>✕</span> {recap.wrong.slice(1).map((c) => `${c.label} — ${c.why}`).join(" · ")}</div>}
-          {recap.missed.length > 0 && <div><span style={{ color: ARC_GOLD }}>○</span> missed: {recap.missed.map((c) => c.label).join(", ")}</div>}
+      {/* THE WHY — every cup that mattered, a few words each: wrong taps, then misses, then the
+          cups you sank grouped by their reason (Lee: "feedback when you're correct should just
+          remind them why it's correct, same concise format as the cheat codes"). */}
+      <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 10, background: CREAM, border: `1px solid ${ACCENT}`, fontSize: 14, lineHeight: 1.5, color: INK }}>
+        <span style={{ color: ACCENT, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", fontSize: 11 }}>Why</span>
+        <div style={{ marginTop: 2, display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 8, rowGap: 2 }}>
+          {recap.wrong.map((c) => (
+            <div key={c.id} style={{ display: "contents" }}><span style={{ color: RED, fontWeight: 900 }}>✕</span><span><b>{c.label}</b> — {c.why}</span></div>
+          ))}
+          {recap.missed.map((c) => (
+            <div key={c.id} style={{ display: "contents" }}><span style={{ color: ARC_GOLD, fontWeight: 900 }}>○</span><span><b>{c.label}</b> — {c.why}</span></div>
+          ))}
+          {groupByWhy(record.rack.cups.filter((c) => cupOutcome(record, c) === "hit")).map(([why, cups]) => (
+            <div key={why} style={{ display: "contents" }}><span style={{ color: GREEN, fontWeight: 900 }}>✓</span><span><b>{cups.map((c) => c.label).join(", ")}</b> — {why}</span></div>
+          ))}
         </div>
-      )}
-      <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 10, background: CREAM, border: `1px solid ${ACCENT}`, fontSize: 14, lineHeight: 1.45, color: INK }}>
-        <span style={{ color: ACCENT, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", fontSize: 11 }}>Cheat code</span>
-        <div style={{ marginTop: 2 }}>{recap.cheat}</div>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12, color: INK_MUTED }}>

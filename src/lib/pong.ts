@@ -17,7 +17,7 @@
 //     subtracts, never resets
 //   · heat = consecutive perfect racks; the upgrade applies from the NEXT rack
 import type { AccountDef } from "@/components/canvas/account-registry";
-import { PONG_SECTIONS, cheatFor, pongLabel, poolFor, rulesOf, sectionOf, shortLabel, shortWhy, type PongRule, type PongSection } from "./pong-content";
+import { PONG_SECTIONS, cheatFor, pongLabel, poolFor, rulesOf, sectionOf, shortLabel, whyFor, type PongRule, type PongSection } from "./pong-content";
 
 // ---- config -------------------------------------------------------------
 
@@ -184,7 +184,7 @@ export function buildRack(rule: PongRule, size: number, r: () => number, cfg: Po
       const a = placed[i];
       cups.push({
         id: a.id, label: pongLabel(a), shortLabel: shortLabel(a),
-        correct: rule.isCorrect(a), trap: isTrap(a), why: shortWhy(a), row, col,
+        correct: rule.isCorrect(a), trap: isTrap(a), why: whyFor(rule, a), row, col,
       });
     }
   });

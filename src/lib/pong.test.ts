@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { account } from "@/components/canvas/account-registry";
-import { PONG_RULES, PONG_SECTIONS, RAMP, cheatFor, increaseSide, isTemporary, pongLabel, poolFor, ruleById, rulesOf, shortWhy, statementOf } from "./pong-content";
+import { PONG_RULES, PONG_SECTIONS, RAMP, cheatFor, increaseSide, isTemporary, pongLabel, poolFor, ruleById, rulesOf, shortWhy, statementOf, whyFor } from "./pong-content";
 import {
   PONG_CONFIG, armClock, bossesCleared, buildRack, continueRun, createRun, heatLabel, isTapped, limitMs,
   multiplierFor, pyramidRows, quitRun, racksCleared, recapFor, restart, retryPending, rng, ruleAt, runPoints,
@@ -52,11 +52,24 @@ describe("pong content rules", () => {
     expect(pongLabel(account("interest-revenue")!)).toBe("Interest Earned");
     expect(pongLabel(account("cash")!)).toBe("Cash");
   });
-  it("the why is a few words, never a sentence", () => {
+  it("the why is a few words, never a sentence, and speaks to the rule being played", () => {
     expect(shortWhy(account("dividends")!)).toBe("contra equity");
     expect(shortWhy(account("wages-payable")!)).toBe("payable = liability");
-    expect(shortWhy(account("cash")!)).toBe("an asset");
-    for (const a of poolFor({ includeContras: true })) expect(shortWhy(a).split(" ").length).toBeLessThanOrEqual(5);
+    expect(shortWhy(account("cash")!)).toBe("you own it");
+    expect(shortWhy(account("sales-revenue")!)).toBe("earned = revenue");
+    for (const a of poolFor({ includeContras: true })) expect(shortWhy(a).split(" ").length).toBeLessThanOrEqual(6);
+    // Rule-aware: the same account explains itself differently per section.
+    const cash = account("cash")!, div = account("dividends")!, re = account("retained-earnings")!, ad = account("accumulated-depreciation")!;
+    expect(whyFor({ sectionId: "types" }, cash)).toBe("you own it");
+    expect(whyFor({ sectionId: "increases" }, cash)).toBe("asset → debit +");
+    expect(whyFor({ sectionId: "increases" }, div)).toBe("contra equity → debit +");
+    expect(whyFor({ sectionId: "increases" }, ad)).toBe("contra asset → credit +");
+    expect(whyFor({ sectionId: "normal" }, account("accounts-payable")!)).toBe("liability → normal credit");
+    expect(whyFor({ sectionId: "statements" }, account("rent-revenue")!)).toBe("revenue → income statement");
+    expect(whyFor({ sectionId: "statements" }, div)).toBe("contra equity → neither (a payout)");
+    expect(whyFor({ sectionId: "tempperm" }, re)).toBe("equity → permanent, it stays");
+    expect(whyFor({ sectionId: "tempperm" }, account("rent-expense")!)).toBe("expense → temporary, closed");
+    for (const s of PONG_SECTIONS) for (const a of poolFor({ includeContras: true })) expect(whyFor(s, a).split(" ").length).toBeLessThanOrEqual(6);
   });
   it("sections: five modes, each ramping 3 → 6 → 6 → 10 → 15; Know your accounts has five rules, the rest two", () => {
     expect(PONG_SECTIONS.map((s) => s.id)).toEqual(["types", "increases", "normal", "statements", "tempperm"]);
