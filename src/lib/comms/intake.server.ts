@@ -14,7 +14,10 @@ export async function runIntake(data: IntakeInput): Promise<IntakeResult> {
     const phone = data.phone ? normalizePhoneE164(data.phone) : null;
     if (!email && !phone) throw new Error("A valid email or phone is required.");
     const channel = email && phone ? "both" : phone ? "phone" : "email";
-    const isTest = !!data.isTest;
+    // A tester's request is test data even when the calling page forgot to say so (2026-09-17: most /learn
+    // callers never passed isTest, so a tester's signups counted as real leads).
+    const { isTestOrBetaRequest } = await import("@/lib/beta-invite.server");
+    const isTest = !!data.isTest || (await isTestOrBetaRequest());
 
     // Campus context — resolve name/slug from the id when the caller only had the id.
     let campusName = data.campusName ?? null, campusSlug = data.campusSlug ?? null;

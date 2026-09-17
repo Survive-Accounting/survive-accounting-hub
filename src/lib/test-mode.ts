@@ -32,6 +32,9 @@ export type TestSession = {
   /** THE TESTER'S REP PHONE (2026-09-07): a 555 number minted once per run, pre-filled on the
    *  rep apply form and named in the run sheet, so nobody has to invent one. */
   repPhone?: string;
+  /** A BETA INVITE's signature (2026-09-17, beta-invite.server.ts) — sent with the session start so an address
+   *  off the QA allow-list is accepted. */
+  k?: string;
 };
 
 /** The rep flow's tester phone for this session — minted on first ask, kept for the run. A 555
@@ -46,7 +49,7 @@ export function testerRepPhone(): string {
 
 /** Parse the tester URL: ?feedback=1&t=Lee&email=lee@…&testmode=1
  *  Every flag is required; a partial URL is not test mode. */
-export function parseTestParams(search: string): { name: string; email: string } | null {
+export function parseTestParams(search: string): { name: string; email: string; k?: string } | null {
   try {
     const q = new URLSearchParams(search);
     if (q.get("testmode") !== "1") return null;
@@ -54,7 +57,8 @@ export function parseTestParams(search: string): { name: string; email: string }
     const email = (q.get("email") ?? "").trim().toLowerCase();
     const name = (q.get("t") ?? "").trim();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return null;
-    return { name: name || email.split("@")[0], email };
+    const k = (q.get("k") ?? "").trim();
+    return { name: name || email.split("@")[0], email, ...(k ? { k } : {}) };
   } catch { return null; }
 }
 
@@ -72,10 +76,11 @@ export function writeTestSession(s: TestSession): void {
   try { sessionStorage.setItem(TEST_SESSION_KEY, JSON.stringify(s)); } catch { /* private mode */ }
 }
 
-export function startTestSession(name: string, email: string): TestSession {
+export function startTestSession(name: string, email: string, k?: string): TestSession {
   const prior = readTestSession();
   const s: TestSession = {
     name, email,
+    ...(k ? { k } : prior?.email === email && prior.k ? { k: prior.k } : {}),
     run: prior && prior.email === email ? prior.run : 1,
     startedAt: new Date().toISOString(),
     step: 0,

@@ -47,6 +47,7 @@ import { Route as BrandingRouteImport } from './routes/branding'
 import { Route as BlastoffDemoRouteImport } from './routes/blastoff-demo'
 import { Route as BlastOffRouteImport } from './routes/blast-off'
 import { Route as BeyondRouteImport } from './routes/beyond'
+import { Route as BetaRouteImport } from './routes/beta'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as V4IndexRouteImport } from './routes/v4.index'
 import { Route as V3IndexRouteImport } from './routes/v3.index'
@@ -415,6 +416,11 @@ const BlastOffRoute = BlastOffRouteImport.update({
 const BeyondRoute = BeyondRouteImport.update({
   id: '/beyond',
   path: '/beyond',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BetaRoute = BetaRouteImport.update({
+  id: '/beta',
+  path: '/beta',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -1346,6 +1352,7 @@ const ApiSlideSchoolCouncilCouncilRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/beta': typeof BetaRoute
   '/beyond': typeof BeyondRoute
   '/blast-off': typeof BlastOffRoute
   '/blastoff-demo': typeof BlastoffDemoRoute
@@ -1565,6 +1572,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/beta': typeof BetaRoute
   '/beyond': typeof BeyondRoute
   '/blast-off': typeof BlastOffRoute
   '/blastoff-demo': typeof BlastoffDemoRoute
@@ -1781,6 +1789,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/beta': typeof BetaRoute
   '/beyond': typeof BeyondRoute
   '/blast-off': typeof BlastOffRoute
   '/blastoff-demo': typeof BlastoffDemoRoute
@@ -2002,6 +2011,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/beta'
     | '/beyond'
     | '/blast-off'
     | '/blastoff-demo'
@@ -2221,6 +2231,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/beta'
     | '/beyond'
     | '/blast-off'
     | '/blastoff-demo'
@@ -2436,6 +2447,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/beta'
     | '/beyond'
     | '/blast-off'
     | '/blastoff-demo'
@@ -2656,6 +2668,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BetaRoute: typeof BetaRoute
   BeyondRoute: typeof BeyondRoute
   BlastOffRoute: typeof BlastOffRoute
   BlastoffDemoRoute: typeof BlastoffDemoRoute
@@ -3068,6 +3081,13 @@ declare module '@tanstack/react-router' {
       path: '/beyond'
       fullPath: '/beyond'
       preLoaderRoute: typeof BeyondRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/beta': {
+      id: '/beta'
+      path: '/beta'
+      fullPath: '/beta'
+      preLoaderRoute: typeof BetaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -4557,6 +4577,7 @@ const GoDemoRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BetaRoute: BetaRoute,
   BeyondRoute: BeyondRoute,
   BlastOffRoute: BlastOffRoute,
   BlastoffDemoRoute: BlastoffDemoRoute,

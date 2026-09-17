@@ -288,6 +288,8 @@ function syncReplay(pathname: string): void {
 function tagProduction(): void {
   if (!ph) return;
   try {
+    // A TEST OR BETA SESSION (2026-09-17): every event it sends carries sa_test, so it filters out like admins do.
+    try { const t = JSON.parse(sessionStorage.getItem("sa-test-session") ?? "null") as { email?: string } | null; if (t?.email) ph.register({ sa_test: true, sa_tester: t.email }); } catch { /* no session storage */ }
     if (localStorage.getItem("sa-admin-unlocked") !== "yes") return;
     const who = localStorage.getItem("sa-admin-who");
     ph.register({ sa_internal: true, sa_operator: who ?? "admin" });

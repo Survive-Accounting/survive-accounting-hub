@@ -187,7 +187,10 @@ export const getCouncilPage = createServerFn({ method: "POST" })
       .sort((a, b) => b.members - a.members || a.chapterName.localeCompare(b.chapterName));
 
     // Fire-and-forget: first open of the day is worth a text, and the stamp is what rate-limits it.
-    void touchAndAlert(db, map, data.schoolSlug, data.councilSlug, council.name, campus.name as string, chapters.reduce((a, c) => a + c.members, 0), "opened").catch(() => {});
+    {
+      const { isTestOrBetaRequest } = await import("@/lib/beta-invite.server");
+      if (!(await isTestOrBetaRequest())) void touchAndAlert(db, map, data.schoolSlug, data.councilSlug, council.name, campus.name as string, chapters.reduce((a, c) => a + c.members, 0), "opened").catch(() => {});
+    }
 
     return {
       schoolSlug: data.schoolSlug, schoolName: campus.name as string,
@@ -238,7 +241,8 @@ export const logCouncilAction = createServerFn({ method: "POST" })
       if (error) console.warn("logCouncilAction insert failed:", error.message);
       const c = councilBySlug(data.councilSlug);
       const { data: campus } = await db.from("campuses").select("name").eq("slug", data.schoolSlug).maybeSingle();
-      void touchAndAlert(db, map, data.schoolSlug, data.councilSlug, c?.name ?? data.councilSlug, (campus?.name as string) ?? data.schoolSlug, 0, data.action.replace("_", " ")).catch(() => {});
+      const { isTestOrBetaRequest } = await import("@/lib/beta-invite.server");
+      if (!(await isTestOrBetaRequest())) void touchAndAlert(db, map, data.schoolSlug, data.councilSlug, c?.name ?? data.councilSlug, (campus?.name as string) ?? data.schoolSlug, 0, data.action.replace("_", " ")).catch(() => {});
       return { ok: !error };
     } catch { return { ok: false }; }
   });

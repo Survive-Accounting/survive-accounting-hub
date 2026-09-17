@@ -33,6 +33,9 @@ export const recordLearnEvents = createServerFn({ method: "POST" })
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const db = supabaseAdmin as unknown as { from: (t: string) => any };
+      // The pulse never sent isTest; a tester's session is test data regardless (2026-09-17).
+      const { isTestOrBetaRequest } = await import("@/lib/beta-invite.server");
+      const forcedTest = await isTestOrBetaRequest();
       const rows = data.events.map((e) => ({
         kind: e.kind,
         campus_id: e.campusId ?? null,
@@ -44,7 +47,7 @@ export const recordLearnEvents = createServerFn({ method: "POST" })
         part_key: e.partKey ?? null,
         seconds: e.seconds ?? null,
         ref: e.ref ?? null,
-        is_test: !!e.isTest,
+        is_test: forcedTest || !!e.isTest,
       }));
       const { error } = await db.from("learn_events").insert(rows);
       if (error) {

@@ -11,6 +11,7 @@
 // to "unavailable" — the template QA core keeps working.
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { BetaInviteCard } from "@/components/site/BetaInviteCard";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast, Toaster } from "sonner";
 import {
@@ -166,8 +167,9 @@ function SiteQaInner() {
   const byId = Object.fromEntries(overview.templates.map((t) => [t.id, t]));
   const selectedT = selected ? byId[selected] : null;
 
-  return (
+    return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+      <BetaInviteCard />
       <Header
         overview={overview}
         onRefresh={() => overviewQ.refetch()}

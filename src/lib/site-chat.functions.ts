@@ -82,12 +82,14 @@ export const chatSend = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<VisitorChatView> => {
     const d = await db();
     const now = new Date();
+    const { isTestOrBetaRequest } = await import("@/lib/beta-invite.server");
+    const isTest = data.isTest || (await isTestOrBetaRequest());
     let conv = await ownConversation(d, data.visitorId, data.conversationId);
     if (conv && conv.status === "closed") conv = null;
     const nickname = data.nickname?.trim() || null;
     if (!conv) {
       const { data: row, error } = await d.from("chat_conversations").insert({
-        visitor_id: data.visitorId, nickname, campus: data.campus ?? null, page: data.page ?? null, is_test: data.isTest,
+        visitor_id: data.visitorId, nickname, campus: data.campus ?? null, page: data.page ?? null, is_test: isTest,
       }).select("*").single();
       if (error) fail(error);
       conv = row as ConvRow;
@@ -125,7 +127,7 @@ export const chatSend = createServerFn({ method: "POST" })
     } catch (e) { console.warn("[site-chat] auto-replies skipped:", e instanceof Error ? e.message : e); }
 
     // TELL LEE about a new conversation (first message only), best-effort.
-    if (isFirst && !data.isTest) {
+    if (isFirst && !isTest) {
       try {
         const { sendResendEmail } = await import("@/lib/email.server");
         const { FOUNDER_EMAIL } = await import("@/lib/comms/send.server");

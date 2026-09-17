@@ -31,6 +31,8 @@ export const submitReview = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: true; id: string }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
+    const { isTestOrBetaRequest } = await import("@/lib/beta-invite.server");
+    const forcedTest = await isTestOrBetaRequest();
     const { data: row, error } = await db.from("student_reviews").insert({
       user_id: data.userId,
       name: data.name,
@@ -42,7 +44,7 @@ export const submitReview = createServerFn({ method: "POST" })
       rating: data.rating,
       comment: data.comment,
       source_path: data.sourcePath,
-      is_test: data.isTest,
+      is_test: forcedTest || data.isTest,
     }).select("id").single();
     if (error) {
       if (/student_reviews/i.test(error.message) && /does not exist|schema cache|not find/i.test(error.message)) throw new Error(MISSING);

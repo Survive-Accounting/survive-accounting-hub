@@ -265,20 +265,45 @@ export type FixtureStatus = {
 
 /** Adopt a tester for this browser session. Called once, when the banner first sees the URL. */
 export const beginTestSession = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ email: z.string().trim().email().max(200) }).parse(d))
-  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; email?: string }> => {
-    const { checkTester, TEST_TO_COOKIE } = await import("@/lib/test-mode.server");
+  .inputValidator((d: unknown) => z.object({ email: z.string().trim().email().max(200), k: z.string().trim().max(64).optional() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; email?: string; beta?: boolean }> => {
+    const { checkTester, TEST_TO_COOKIE, testModeOn, EMAIL_RE } = await import("@/lib/test-mode.server");
     const v = checkTester(data.email);
-    if (!v.ok || !v.email) return { ok: false, error: v.error };
+    let value: string | null = v.ok && v.email ? v.email : null;
+    let beta = false;
+    // A BETA INVITE (beta-invite.server.ts): an address off the allow-list is accepted when the link's
+    // signature matches it — the cookie carries the signature, so every later read re-checks it.
+    if (!value && data.k) {
+      const { verifyBetaSignature, betaCookieValue } = await import("@/lib/beta-invite.server");
+      const e = data.email.trim().toLowerCase();
+      if (testModeOn() && EMAIL_RE.test(e) && verifyBetaSignature(e, data.k)) { value = betaCookieValue(e, data.k); beta = true; }
+    }
+    if (!value) return { ok: false, error: v.error };
     const { setCookie } = await import("@tanstack/react-start/server");
-    setCookie(TEST_TO_COOKIE, v.email, {
+    setCookie(TEST_TO_COOKIE, value, {
       httpOnly: true,        // the page cannot read it, so it cannot be forged from the client
       sameSite: "lax",
       path: "/",
       secure: process.env.NODE_ENV === "production",
       // No maxAge: it dies with the browser session, matching the client half.
     });
-    return { ok: true, email: v.email };
+    return { ok: true, email: data.email.trim().toLowerCase(), beta };
+  });
+
+/** MINT A BETA INVITE (admin): the link a beta tester opens once. No env var edit — the signature is the permission. */
+export const mintBetaInvite = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ email: z.string().trim().email().max(200), name: z.string().trim().max(60).optional() }).parse(d))
+  .handler(async ({ data }): Promise<{ url: string; testModeOn: boolean }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const { betaSignature } = await import("@/lib/beta-invite.server");
+    const { testModeOn } = await import("@/lib/test-mode.server");
+    const email = data.email.toLowerCase();
+    const k = betaSignature(email);
+    if (!k) throw new Error("The server has no signing secret (BETA_INVITE_SECRET or SUPABASE_SERVICE_ROLE_KEY).");
+    const origin = (process.env.PUBLIC_SITE_URL || "https://surviveaccounting.com").replace(/\/$/, "");
+    const q = new URLSearchParams({ email, t: data.name?.trim() || email.split("@")[0], k });
+    return { url: `${origin}/beta?${q.toString()}`, testModeOn: testModeOn() };
   });
 
 /** Where test mail is actually going, for the banner to state out loud. A tester who can see the
@@ -298,12 +323,14 @@ export const testDestination = createServerFn({ method: "GET" })
  *  refuses it — which is the protection working, not a nuisance. The two wrappers below are
  *  ordinary functions precisely because they touch nothing server-only themselves. */
 export const testerEmail = createServerFn({ method: "GET" })
-  .handler(async (): Promise<{ email: string | null }> => {
-    const { readTesterCookie, TEST_TO_COOKIE } = await import("@/lib/test-mode.server");
+  .handler(async (): Promise<{ email: string | null; beta: boolean }> => {
+    const { TEST_TO_COOKIE } = await import("@/lib/test-mode.server");
     try {
       const { getCookie } = await import("@tanstack/react-start/server");
-      return { email: readTesterCookie(getCookie(TEST_TO_COOKIE)) };
-    } catch { return { email: null }; }   // no request context (cron, worker) — no tester
+      const { readTesterSession } = await import("@/lib/beta-invite.server");
+      const s = readTesterSession(getCookie(TEST_TO_COOKIE));
+      return { email: s?.email ?? null, beta: !!s?.beta };
+    } catch { return { email: null, beta: false }; }   // no request context (cron, worker) — no tester
   });
 
 /** Is THIS request part of a test run? The predicate every write should use to decide is_test,
@@ -311,6 +338,12 @@ export const testerEmail = createServerFn({ method: "GET" })
 export const isTestRequest = async (): Promise<boolean> => (await testerEmail()).email !== null;
 
 export const testerEmailForRequest = async (): Promise<string | null> => (await testerEmail()).email;
+
+/** The tester and whether it is a BETA session (email goes to the address typed, not to the tester). */
+export const testerSessionForRequest = async (): Promise<{ email: string; beta: boolean } | null> => {
+  const r = await testerEmail();
+  return r.email ? { email: r.email, beta: r.beta } : null;
+};
 
 export const endTestSessionServer = createServerFn({ method: "POST" })
   .handler(async (): Promise<{ ok: boolean }> => {

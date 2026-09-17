@@ -365,9 +365,14 @@ export const tagChapterMember = createServerFn({ method: "POST" })
     if (!ch) return { ok: false, members: 0 };
     const chapterId = await shellChapterId(db, ch);
     if (!chapterId) return { ok: false, members: ch.members };
+    // A TESTER ON A REAL CHAPTER (2026-09-17): greek_chapter_members has no is_test, and its count is what a
+    // chair is shown — so a test or beta session never adds a row outside Test University. The page still
+    // sees the count go up by one, so the flow looks exactly like a student's.
+    const { isTestOrBetaRequest } = await import("@/lib/beta-invite.server");
+    const phantom = (await isTestOrBetaRequest()) && ch.schoolSlug !== "test-university";
 
     if (data.userId) {
-      await db.from("greek_chapter_members").upsert({
+      if (!phantom) await db.from("greek_chapter_members").upsert({
         chapter_id: chapterId, user_id: data.userId, name: data.name ?? null, phone: data.phone ?? null,
         source: data.source, tagged_at: new Date().toISOString(),
       }, { onConflict: "chapter_id,user_id" });
@@ -393,6 +398,8 @@ export const tagChapterMember = createServerFn({ method: "POST" })
           });
         }
       } catch (e) { console.warn("greek_member intake failed (member tagged)", (e as Error).message); }
+    } else if (phantom) {
+      return { ok: true, members: ch.members + 1 };
     } else {
       // ── NO ACCOUNT: DE-DUPE ON THE STRONGEST HANDLE AVAILABLE (2026-08-31) ─────────────────
       //

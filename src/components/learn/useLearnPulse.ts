@@ -18,6 +18,11 @@ import { useCallback, useEffect, useRef } from "react";
 import { deviceAnonId } from "@/lib/device-id";
 import { currentContactRef } from "@/lib/contact-ref";
 import { recordLearnEvents, type LearnEvent } from "@/lib/learn-events.functions";
+import { parseTestParams, readTestSession } from "@/lib/test-mode";
+
+/** A test or beta tab (2026-09-17): known on the client from the first render — the URL or the session —
+ *  so the first page_visit can't beat the server-side tester cookie and count as a real student. */
+const testTab = (): boolean => { try { return !!readTestSession() || !!parseTestParams(window.location.search); } catch { return false; } };
 
 const SESSION_KEY = "sa-learn-session";
 const WATCH_FLUSH_MS = 15_000;
@@ -40,7 +45,7 @@ export function useLearnPulse(ctx: { campusId: string | null; campusSlug: string
 
   const stamp = useCallback((e: Partial<LearnEvent> & { kind: LearnEvent["kind"] }): LearnEvent => ({
     campusId: base.current.campusId, campusSlug: base.current.campusSlug, chapterSlug: base.current.chapterSlug,
-    anonId: deviceAnonId(), sessionId: sessionId(), ref: currentContactRef(), ...e,
+        anonId: deviceAnonId(), sessionId: sessionId(), ref: currentContactRef(), ...(testTab() ? { isTest: true } : {}), ...e,
   }), []);
 
   const flush = useCallback(() => {

@@ -56,10 +56,12 @@ export const logPracticeEvents = createServerFn({ method: "POST" })
         if (c && Date.now() - c.atMs <= 30 * 864e5) refCode = c.code;
       }
     } catch { /* no request context — unattributed practice */ }
+    const { isTestOrBetaRequest } = await import("@/lib/beta-invite.server");
+    const forcedTest = await isTestOrBetaRequest();
     const rows = data.events.map((e) => ({
       set_id: e.setId, ceq_id: e.ceqId, event: e.event, choice_id: e.choiceId ?? null, correct: e.correct ?? null, ms: e.ms ?? null,
       attempt_number: e.attemptNumber, session_id: data.sessionId, user_id: data.userId ?? null, campus: data.campus ?? null,
-      surface: data.surface ?? null, is_test: !!data.isTest, ref_code: refCode,
+      surface: data.surface ?? null, is_test: forcedTest || !!data.isTest, ref_code: refCode,
     }));
     const { error } = await db.from("practice_attempts").insert(rows);
     if (error) { console.warn("practice_attempts insert failed", error.message); return { ok: false, written: 0 }; }
@@ -93,7 +95,7 @@ export const askAboutQuestion = createServerFn({ method: "POST" })
       kind: "question", email: data.email, name: data.name ?? null,
       campusName: data.campusName ?? null, campusSlug: data.campusSlug ?? null,
       topic: data.reference, chapter: data.shorthand ?? null, note,
-      sourcePath: `ceq:${data.setId}:${data.ceqId}`, source: "ask-lee", isTest: !!data.isTest,
+      sourcePath: `ceq:${data.setId}:${data.ceqId}`, source: "ask-lee", isTest: !!data.isTest, // runIntake adds the tester check
     });
   });
 

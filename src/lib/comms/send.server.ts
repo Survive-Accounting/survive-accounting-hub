@@ -39,10 +39,10 @@ export type SendOutcome = { ok: boolean; status: "sent" | "queued" | "skipped" |
 // The form's own value is not lost — it stays on the intake row (campus_waitlist.email) as the
 // simulated user's address. comms_sends.to_email records where the message ACTUALLY went, which
 // is the only answer that helps when you are looking for it in an inbox.
-async function testEmailDestination(): Promise<string | null> {
+async function testEmailDestination(): Promise<{ email: string; beta: boolean } | null> {
   try {
-    const { testerEmailForRequest } = await import("@/lib/test-mode.functions");
-    return await testerEmailForRequest();
+    const { testerSessionForRequest } = await import("@/lib/test-mode.functions");
+    return await testerSessionForRequest();
   } catch { return null; }
 }
 
@@ -128,7 +128,9 @@ export async function sendTemplateEmail(opts: {
       await logSend(db, { lead_id: opts.leadId ?? null, to_email: intended, medium: "email", template: opts.key, category, is_test: true, status: "skipped", error: "test_no_destination" });
       return { ok: false, status: "skipped", reason: "test_no_destination" };
     }
-    to = dest;
+    // BETA (2026-09-17): "emails still send" — a beta tester gets the real email at the address typed (the
+    // [TEST] banner still says what it is); a QA tester still gets every test email redirected to them.
+    to = dest.beta ? intended : dest.email;
   }
   const base = { lead_id: opts.leadId ?? null, to_email: to, medium: "email" as const, template: opts.key, category, dedupe_key: opts.dedupeKey ?? null, is_test: isTest };
   if (!isTest && category !== "founder" && (await isSuppressed(db, { email: to }))) {

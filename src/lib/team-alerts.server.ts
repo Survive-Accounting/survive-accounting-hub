@@ -19,10 +19,16 @@ export const KING_ALERT_EMAIL = "jking.cim@gmail.com";
  *  null means "a real run". Omitted, it is read from the current request. */
 export async function emailTeam(msg: { subject: string; text: string; html?: string }, opts?: { testTo: string | null }): Promise<{ ok: boolean; test: boolean }> {
   try {
-    const tester: string | null = opts ? opts.testTo : await testerFromCookie();
+    const session = opts ? null : await testerFromCookie();
+    const tester: string | null = opts ? opts.testTo : session?.email ?? null;
     if (tester === "") return { ok: false, test: true };
     const { FOUNDER_EMAIL } = await import("@/lib/comms/send.server");
     const { sendResendEmail } = await import("@/lib/email.server");
+    // BETA: Lee sees what a beta tester did (never King), tagged so it can't pass for a real chapter.
+    if (session?.beta) {
+      const r = await sendResendEmail({ to: process.env.CHAIR_ALERT_EMAIL || FOUNDER_EMAIL, subject: `[BETA · ${session.email}] ${msg.subject}`, text: msg.text, html: msg.html });
+      return { ok: r.ok, test: true };
+    }
     if (tester) {
       const r = await sendResendEmail({ to: tester, subject: `[TEST] ${msg.subject}`, text: msg.text, html: msg.html });
       return { ok: r.ok, test: true };
@@ -41,14 +47,14 @@ export async function isTestRun(): Promise<boolean> {
   return (await testerFromCookie()) !== null;
 }
 
+
 /** The tester's address from the request's test cookie — read directly, NOT through
  *  test-mode.functions: that server-fn module imports the claim flow, which imports this file, and
  *  the loop made the server bundle's chunk rendering crawl (a deploy timed out on it). */
-async function testerFromCookie(): Promise<string | null> {
+async function testerFromCookie(): Promise<{ email: string; beta: boolean } | null> {
   try {
-    const { readTesterCookie, TEST_TO_COOKIE } = await import("@/lib/test-mode.server");
-    const { getCookie } = await import("@tanstack/react-start/server");
-    return readTesterCookie(getCookie(TEST_TO_COOKIE));
+    const { testerFromRequest } = await import("@/lib/beta-invite.server");
+    return await testerFromRequest();
   } catch { return null; }
 }
 

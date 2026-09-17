@@ -54,7 +54,7 @@ export function TestModeBar() {
   useEffect(() => {
     const fromUrl = parseTestParams(window.location.search);
     const existing = readTestSession();
-    if (fromUrl) setSession(startTestSession(fromUrl.name, fromUrl.email));
+    if (fromUrl) setSession(startTestSession(fromUrl.name, fromUrl.email, fromUrl.k));
     else if (existing) setSession(existing);
   }, []);
 
@@ -64,7 +64,7 @@ export function TestModeBar() {
   useEffect(() => {
     if (!session?.email) return;
     let alive = true;
-    void beginTestSession({ data: { email: session.email } })
+    void beginTestSession({ data: { email: session.email, ...(session.k ? { k: session.k } : {}) } })
       .then((r) => { if (alive) setRouting(r); })
       .catch(() => { if (alive) setRouting({ ok: false, error: "Couldn't reach the server." }); });
     return () => { alive = false; };
