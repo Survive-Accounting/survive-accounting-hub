@@ -200,6 +200,16 @@ export function StitchRoom({ initialKey }: { initialKey?: string }) {
                 </div>
               )}
               {showBuild && job &&<StitchBuild job={{ ...job, name: nameFor(job) }} animate={anim} />}
+              {job && job.state !== "done" && job.state !== "error" && (
+                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                  {/* CANCEL (2026-09-16): the film tab that owns the job hears this on the channel and stops it. */}
+                  <button type="button" onClick={() => { try { const ch = new BroadcastChannel(STITCH_CHANNEL); ch.postMessage({ type: "cancel", key: job.key } satisfies StitchMessage); ch.close(); } catch { /* no channel */ } }}
+                    style={{ font: "inherit", fontSize: 13, fontWeight: 800, padding: "9px 14px", borderRadius: 9, cursor: "pointer", border: `1px solid ${ROOM.red}88`, background: "transparent", color: ROOM.red }}>
+                    ✕ Cancel this stitch
+                  </button>
+                  <span style={{ alignSelf: "center", fontSize: 12, color: ROOM.muted }}>The takes stay in punch-in — stitch again any time.</span>
+                </div>
+              )}
               {job && job.state === "error" && (
                 <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
                   <button type="button" onClick={() => { if (job.topicKey && job.setKey) redoInFilm({ topicKey: job.topicKey, setKey: job.setKey, setId: job.setId, takeIndex: job.takeIndex }); }}

@@ -32,7 +32,12 @@ interface Job {
   startedAt: number;
   /** Stage-produced metadata (dissect_stitch: the chapters manifest). */
   result: unknown | null;
+  /** CANCELLED (2026-09-16): a DELETE arrived — the running ffmpeg was killed; the error reads "cancelled". */
+  cancelled?: boolean;
 }
+/** The ffmpeg of the job running right now (MAX_RUNNING is 1 by default), so a cancel can kill it. */
+let currentJobId: string | null = null;
+let currentKill: (() => void) | null = null;
 const jobs = new Map<string, Job>();
 const MAX_KEPT = 40;
 
@@ -110,6 +115,7 @@ const STALL_MS = 90_000;
 async function runFfmpeg(args: string[], timeoutMs: number, onProgress?: (outTimeS: number) => void): Promise<void> {
   const full = onProgress ? ["-nostats", "-progress", "pipe:1", ...args] : args;
   const p = Bun.spawn(["ffmpeg", ...full], { stdout: onProgress ? "pipe" : "ignore", stderr: "pipe" });
+  currentKill = () => { try { p.kill(); } catch { /* gone */ } };
   let stalled: number | null = null;
   let lastS = 0, lastAt = Date.now();
   const timer = setTimeout(() => { try { p.kill(); } catch { /* already gone */ } }, timeoutMs);
@@ -137,6 +143,7 @@ async function runFfmpeg(args: string[], timeoutMs: number, onProgress?: (outTim
   await progress.catch(() => { /* the pipe closed with the process */ });
   clearTimeout(timer);
   if (stall) clearInterval(stall);
+  currentKill = null;
   if (stalled != null) throw new Error(`ffmpeg stalled — no progress for ${Math.round(STALL_MS / 60_000)} minutes at ${stalled.toFixed(1)}s. Stitch it again.`);
   if (code !== 0) throw new Error(`ffmpeg exited ${code}: …${errText.slice(-1800)}`);
 }
@@ -186,6 +193,7 @@ async function runJob(job: Job, spec: JobSpec): Promise<void> {
   // Whole-job ceiling: every op below is clamped to the time remaining, so the
   // job can never legally outlive the app's publish poll deadline.
   const jobDeadline = job.startedAt + LIMITS.jobTimeoutMs;
+  currentJobId = job.id;
   const remaining = (opCapMs: number) => {
     const left = jobDeadline - Date.now();
     if (left <= 0) throw new Error(`job exceeded the ${Math.round(LIMITS.jobTimeoutMs / 60_000)}-min ceiling`);
@@ -324,7 +332,7 @@ async function runJob(job: Job, spec: JobSpec): Promise<void> {
     job.note = `rendered ${spec.stages.length} stage(s) from ${spec.inputs.length} clip(s)`;
   } catch (e) {
     job.state = "error";
-    job.error = e instanceof Error ? e.message : String(e);
+    job.error = job.cancelled ? "cancelled" : e instanceof Error ? e.message : String(e);
     job.note = "failed";
   } finally {
     activeJobs = Math.max(0, activeJobs - 1);
@@ -367,6 +375,23 @@ Bun.serve({
     }
 
     const m = url.pathname.match(/^\/jobs\/([0-9a-f-]{36})$/);
+    // CANCEL (2026-09-16): a waiting job is dropped; the running one's ffmpeg is killed and the job says so.
+    if (req.method === "DELETE" && m) {
+      const job = jobs.get(m[1]);
+      if (!job) return json({ error: "unknown job" }, 404);
+      if (job.state === "done" || job.state === "error") return json({ ok: true, state: job.state });
+      const w = waiting.findIndex((x) => x.job === job);
+      if (w >= 0) {
+        waiting.splice(w, 1);
+        job.state = "error"; job.error = "cancelled"; job.note = "cancelled";
+        activeJobs = Math.max(0, activeJobs - 1);
+        return json({ ok: true, state: "error" });
+      }
+      job.cancelled = true;
+      job.note = "cancelling…";
+      if (currentJobId === job.id) currentKill?.();
+      return json({ ok: true, state: job.state });
+    }
     if (req.method === "GET" && m) {
       const job = jobs.get(m[1]);
       if (!job) return json({ error: "unknown job (worker may have restarted — re-submit)" }, 404);

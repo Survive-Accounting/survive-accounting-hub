@@ -8,6 +8,7 @@
 // The Stitch Room popout watches it live over a BroadcastChannel and plays what's done. Closing the film tab
 // mid-stitch stops the job — the page asks first.
 import { uploadTake } from "@/components/v3/take-burn";
+import { cancelWorkerRender } from "@/lib/render-worker.functions";
 import { track } from "@/lib/analytics";
 import { MISSING_FILM_STITCHES_HINT, videoKey, type StitchRecord } from "@/lib/film-stitch";
 import { saveFilmStitch } from "@/lib/film-stitch.functions";
@@ -39,6 +40,8 @@ export interface StitchJob {
   record: StitchRecord | null;
   /** Pauses left in (the worker couldn't trim them). */
   plainJoin: boolean;
+  /** The worker job in flight right now, so a cancel can reach it (2026-09-16). */
+  worker?: { jobId: string; machineId: string | null } | null;
 }
 
 export interface StitchInput {
@@ -50,6 +53,7 @@ export interface StitchInput {
 
 export type StitchMessage =
   | { type: "hello" }
+  | { type: "cancel"; key: string }
   | { type: "state"; tab: string; at: number; jobs: StitchJob[] }
   | { type: "focus"; key: string }
   | { type: "saved"; record: StitchRecord };
@@ -72,7 +76,10 @@ function chan(): BroadcastChannel | null {
   if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return null;
   if (!channel) {
     channel = new BroadcastChannel(STITCH_CHANNEL);
-    channel.onmessage = (e: MessageEvent<StitchMessage>) => { if (e.data?.type === "hello" && jobs.size) broadcast(); };
+    channel.onmessage = (e: MessageEvent<StitchMessage>) => {
+      if (e.data?.type === "hello" && jobs.size) broadcast();
+      if (e.data?.type === "cancel" && jobs.has(e.data.key)) cancelStitch(e.data.key);
+    };
     window.addEventListener("beforeunload", (e) => {
       if (!stitchingNow()) return;
       e.preventDefault();
@@ -157,6 +164,20 @@ export function dismissStitch(key: string) {
   broadcast();
 }
 
+/** CANCELLED keys: the run loop checks between every step and throws out. */
+const cancelled = new Set<string>();
+/** CANCEL A STITCH (Lee, 2026-09-16: "let me cancel a stitch if it's queued accidentally"): waiting, uploading or
+ *  joining — the job stops here, and the worker's job (if one is in flight) is told to stop too. */
+export function cancelStitch(key: string): void {
+  const j = jobs.get(key);
+  if (!j || j.state === "done" || j.state === "error") return;
+  cancelled.add(key);
+  if (j.worker) void cancelWorkerRender({ data: j.worker }).catch(() => { /* the loop stops on its own */ });
+  patch(key, { state: "error", finishedAt: Date.now(), error: "Cancelled.", note: "cancelled" });
+  track("stitch_cancelled", { set_id: j.setId, video: j.takeIndex + 1, was: j.state });
+}
+const checkCancelled = (key: string) => { if (cancelled.has(key)) throw new Error("Cancelled."); };
+
 async function pump() {
   if (running) return;
   running = true;
@@ -176,6 +197,7 @@ async function pump() {
 async function runJob(key: string) {
   const clips = files.get(key) ?? [];
   const segs = (fn: (s: StitchSegment, i: number) => SegmentState) => (j: StitchJob) => ({ segments: j.segments.map((s, i) => ({ ...s, state: fn(s, i) })) });
+  if (cancelled.has(key)) return;
   patch(key, { state: "uploading", startedAt: Date.now(), note: "uploading the takes" });
   try {
     if (!clips.length) throw new Error("No takes to stitch.");
@@ -184,6 +206,7 @@ async function runJob(key: string) {
       const f = clips[i];
       const id = `${f.name}:${f.size}`;
       patch(key, (j) => ({ ...segs((s, k) => (k === i ? "uploading" : s.state))(j), note: `uploading take ${i + 1} of ${clips.length}` }));
+      checkCancelled(key);
       let url = uploaded.get(id);
       if (!url) { url = await uploadTake(f); uploaded.set(id, url); }
       urls.push(url);
@@ -212,16 +235,19 @@ async function runJob(key: string) {
         plain = true;
         return startWorkerRender({ data: { urls: list, mode: "full" } });
       });
+      patch(key, { worker: { jobId: job.jobId, machineId: job.machineId } });
       let misses = 0;
       let lastNote = "", lastChange = Date.now();
       for (;;) {
+        checkCancelled(key);
         await wait(3000);
+        checkCancelled(key);
         const r = await resolveWorkerRender({ data: { jobId: job.jobId, path: job.path, machineId: job.machineId } }).catch((e) => {
           if (++misses > 8) throw e;
           return { state: "rendering" as const, note: "checking again…", fileUrl: null, error: null, result: null };
         });
         if (r.state !== "rendering" || r.note !== "checking again…") misses = 0;
-        if (r.state === "done" && r.fileUrl) return { fileUrl: r.fileUrl, totalS: r.result?.totalS ?? null };
+        if (r.state === "done" && r.fileUrl) { patch(key, { worker: null }); return { fileUrl: r.fileUrl, totalS: r.result?.totalS ?? null }; }
         if (r.state === "error") throw new Error(r.error ?? "The joiner failed.");
         const noteNow = `${r.state}·${r.note ?? ""}`;
         if (noteNow !== lastNote) { lastNote = noteNow; lastChange = Date.now(); }
@@ -268,6 +294,7 @@ async function runJob(key: string) {
     const fin = jobs.get(key)!;
     track("stitch_done", { set_id: fin.setId, video: fin.takeIndex + 1, slides: fin.slides, clips: fin.segments.length, seconds: fin.startedAt ? Math.round((Date.now() - fin.startedAt) / 1000) : null, video_seconds: whole.totalS, saved: !!record });
   } catch (e) {
+    if (cancelled.has(key)) { patch(key, { state: "error", finishedAt: Date.now(), error: "Cancelled.", note: "cancelled", worker: null }); return; }
     patch(key, { state: "error", finishedAt: Date.now(), error: e instanceof Error ? e.message : String(e), note: "stopped" });
     const bad = jobs.get(key);
     track("stitch_failed", { set_id: bad?.setId, video: bad ? bad.takeIndex + 1 : null, error: (e instanceof Error ? e.message : String(e)).slice(0, 200) });

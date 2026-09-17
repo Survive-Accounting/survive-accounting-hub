@@ -238,6 +238,18 @@ export const startCaptionBurn = createServerFn({ method: "POST" })
     return { jobId: res.jobId, path, machineId: typeof res.machineId === "string" ? res.machineId : null };
   });
 
+/** CANCEL a worker job (2026-09-16): a waiting one is dropped, a running one's ffmpeg is killed. */
+export const cancelWorkerRender = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), machineId: z.string().max(64).nullable().optional() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const c = cfg();
+    if (c.state !== "on") throw new Error("Render worker not (fully) configured.");
+    const res = await workerFetch(c, `/jobs/${data.jobId}`, { method: "DELETE", ...(data.machineId ? { headers: { "fly-force-instance-id": data.machineId } } : {}) });
+    return { ok: res.ok === true };
+  });
+
 export const resolveWorkerRender = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), path: z.string().min(5), machineId: z.string().max(64).nullable().optional() }).parse(d))
   .handler(async ({ data }): Promise<{ state: "queued" | "downloading" | "rendering" | "uploading" | "done" | "error"; note: string; fileUrl: string | null; error: string | null; result?: DissectStitchResult | null }> => {

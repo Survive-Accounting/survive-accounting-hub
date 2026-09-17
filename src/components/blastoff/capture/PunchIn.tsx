@@ -21,7 +21,7 @@ import { isPlaceholderName, splitNameOf, takesFingerprint, videoKey } from "@/li
 import { loadV4Splits, v4InsertSlideAfter } from "@/lib/v4.functions";
 import { listFilmStitches } from "@/lib/film-stitch.functions";
 import { track } from "@/lib/analytics";
-import { enqueueStitch, openStitchRoom, stitchJob, subscribeStitches, type StitchInput } from "./stitch-queue";
+import { cancelStitch, enqueueStitch, openStitchRoom, stitchJob, subscribeStitches, type StitchInput } from "./stitch-queue";
 
 import type { BlastFrame } from "../plan";
 import { FRAME_LABEL } from "../plan";
@@ -583,9 +583,12 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
         <label style={{ color: MUTED }}>Title
           <input style={{ ...field, marginTop: 3 }} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
         {jobLive ? (
-          <button type="button" style={{ ...btn(true), background: "#7DD3FC", borderColor: "#7DD3FC" }} onClick={() => openStitchRoom(vKey)} title="Open the Stitch Room on this video">
-            ⚡ Stitching… {job!.state === "waiting" ? "waiting its turn" : job!.note}
-          </button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button type="button" style={{ ...btn(true), background: "#7DD3FC", borderColor: "#7DD3FC", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }} onClick={() => openStitchRoom(vKey)} title="Open the Stitch Room on this video">
+              ⚡ Stitching… {job!.state === "waiting" ? "waiting its turn" : job!.note}
+            </button>
+            <button type="button" style={{ ...btn(), color: RED, borderColor: `${RED}88` }} onClick={() => cancelStitch(vKey)} title="Stop this stitch — the takes stay; stitch again any time">✕ Cancel</button>
+          </div>
         ) : sameAsSaved ? (
           <div style={{ display: "flex", gap: 6 }}>
             <button type="button" style={{ ...btn(true), flex: 1 }} onClick={() => openStitchRoom(vKey)}>▶ Watch it again</button>
