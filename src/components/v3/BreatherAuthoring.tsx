@@ -10,7 +10,7 @@ import { BreatherCard } from "@/components/learn/BreatherCard";
 import { V3_CREAM, V3_DISPLAY, V3_EDGE, V3_GOLD, V3_MUTED } from "@/components/v3/Shell";
 import { BREATHER_BODY_MAX, breatherPosition, breatherWarnings, moveBreather, newBreather, type Breather } from "@/lib/breathers";
 import { listBreatherSets, loadBreathers, saveBreathers, type SequenceVideo } from "@/lib/breathers.functions";
-import { setLearnOrder } from "@/lib/learn-admin.functions";
+import { setLearnHidden, setLearnOrder } from "@/lib/learn-admin.functions";
 
 import { ChainPreview } from "./ChainPreview";
 
@@ -45,6 +45,14 @@ export function BreatherAuthoring() {
   useEffect(() => { void load(setId); }, [setId]);
   // THE ORDER ON THE SITE (Lee, 2026-09-16): ▲ ▼ on a video moves it for students right away — no Save needed
   // (the breathers below keep their gaps by video, so they travel with it).
+  const hideVideo = async (v: SequenceVideo, hidden: boolean) => {
+    setBusy(true); setErr(null);
+    try { await setLearnHidden({ data: { setId, takeIndex: v.takeIndex, hidden } }); await load(setId); setNote(hidden ? `Hidden from the site: ${v.title}` : `Back on the site: ${v.title}`); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  };
+  const shown = videos.filter((v) => !v.hidden);
+  const totalS = shown.reduce((n, v) => n + (v.durationS ?? 0), 0);
   const moveVideo = async (i: number, dir: -1 | 1) => {
     const j = i + dir;
     if (j < 0 || j >= videos.length) return;
@@ -90,6 +98,8 @@ export function BreatherAuthoring() {
           {!sets?.some((s) => s.id === setId) && <option value={setId}>{setId}</option>}
           {sets?.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.videos} videos{s.breathers ? ` · ${s.breathers} breathers` : ""}</option>)}
         </select>
+        {/* THE CHAIN'S TOTAL (Lee, 2026-09-16: "let me see the total time a chain has") — the videos students get. */}
+        {videos.length > 0 && <span style={{ fontSize: 12.5, color: V3_MUTED }}><b style={{ color: V3_CREAM }}>{shown.length}</b> video{shown.length === 1 ? "" : "s"} on the site · <b style={{ color: V3_CREAM }}>{clock(totalS)}</b> total{videos.length > shown.length ? ` · ${videos.length - shown.length} hidden` : ""}</span>}
         <span style={{ flex: 1 }} />
         {note && !dirty && <span style={{ fontSize: 12.5, color: MINT }}>{note}</span>}
         {dirty && <span style={{ fontSize: 12.5, color: AMBER }}>Unsaved changes</span>}
@@ -116,8 +126,9 @@ export function BreatherAuthoring() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", border: `1px solid ${V3_EDGE}`, borderRadius: 10, background: "rgba(255,255,255,0.03)" }}>
                   <span style={{ width: 22, textAlign: "right", fontWeight: 900, color: V3_MUTED }}>{i + 1}</span>
                   {v.coverUrl ? <img src={v.coverUrl} alt="" style={{ width: 30, height: 53, objectFit: "cover", borderRadius: 4 }} /> : <span style={{ width: 30, height: 53, borderRadius: 4, background: "#000" }} />}
-                  <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{v.title}</span>
+                  <span style={{ flex: 1, fontWeight: 700, fontSize: 14, opacity: v.hidden ? 0.45 : 1, textDecoration: v.hidden ? "line-through" : "none" }}>{v.title}{v.hidden && <span style={{ marginLeft: 8, fontSize: 10.5, letterSpacing: "0.1em", color: AMBER, textDecoration: "none", display: "inline-block" }}>HIDDEN</span>}</span>
                   <span style={{ fontSize: 12, color: V3_MUTED }}>{clock(v.durationS)}</span>
+                  <button type="button" style={{ ...btn(), padding: "2px 8px", color: v.hidden ? MINT : V3_MUTED }} disabled={busy} onClick={() => void hideVideo(v, !v.hidden)} title={v.hidden ? "Show this video on the site again" : "Take this video off the site (it stays posted and in the bank)"}>{v.hidden ? "show" : "hide"}</button>
                   <button type="button" style={{ ...btn(), padding: "2px 8px" }} disabled={busy || i === 0} onClick={() => void moveVideo(i, -1)} title="Play this video earlier on /learn">▲</button>
                   <button type="button" style={{ ...btn(), padding: "2px 8px" }} disabled={busy || last} onClick={() => void moveVideo(i, 1)} title="Play this video later on /learn">▼</button>
                 </div>

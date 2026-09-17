@@ -87,6 +87,13 @@ async function patchPubs(setId: string, fn: (pubs: Pub[]) => void): Promise<Admi
   return sorted(deck.publications);
 }
 
+/** HIDE A PART FROM THE SITE (2026-09-16) — or show it again. The video stays posted and in the bank. */
+export const setLearnHidden = createServerFn({ method: "POST" })
+  .inputValidator((x: unknown) => z.object({ setId: z.string().min(1).max(200), takeIndex: z.number().int().min(0).max(99), hidden: z.boolean() }).parse(x))
+  .handler(async ({ data }) => patchPubs(data.setId, (pubs) => {
+    for (const p of pubs) if (isPosted(p) && p.takeIndex === data.takeIndex) { if (data.hidden) p.hidden = true; else delete p.hidden; }
+  }));
+
 /** THE ORDER, as dragged: the parts' takeIndexes top to bottom. */
 export const setLearnOrder = createServerFn({ method: "POST" })
   .inputValidator((x: unknown) => z.object({ setId: z.string().min(1).max(200), takeIndexes: z.array(z.number().int().min(0).max(99)).min(1).max(100) }).parse(x))

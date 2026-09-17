@@ -123,6 +123,9 @@ export function CramPlayer({
   // desktop").
   const wheelLock = useRef(0);
   const onWheel = (e: React.WheelEvent) => {
+    // A DESK SCROLLS, A PHONE SWIPES (Lee, 2026-09-16: "when scrolling on desktop/laptop it is thinking im on
+    // mobile and it changes to next video"): the wheel only pages on a coarse pointer (a touchpad-less tablet).
+    if (typeof window !== "undefined" && !window.matchMedia?.("(pointer: coarse)").matches) return;
     if (Math.abs(e.deltaY) < 24) return;
     const now = Date.now();
     if (now < wheelLock.current) return;

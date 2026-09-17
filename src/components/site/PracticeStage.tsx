@@ -20,10 +20,10 @@ import { emptyArrows, type RubricArrows } from "@/components/blastoff/rubric";
 import { RubricAnswer } from "@/components/learn/RubricAnswer";
 import { rubricMatches } from "@/lib/learn-bonus";
 
-const DARK = { text: "#E8ECF5", muted: "#93A0B4", yellow: "#FCA311", green: "#3BF5A0", red: "#FF5C6E", border: "rgba(148,163,190,0.16)", panel: "rgba(9,14,26,0.6)", bg: undefined as string | undefined, card: "rgba(255,255,255,0.05)", cardEdge: "rgba(148,180,255,0.18)", chip: "rgba(255,255,255,0.08)", chipEdge: "rgba(148,180,255,0.22)" };
+const DARK = { text: "#E8ECF5", muted: "#93A0B4", yellow: "#FCA311", green: "#3BF5A0", red: "#FF5C6E", border: "rgba(148,163,190,0.16)", panel: "rgba(9,14,26,0.6)", bg: undefined as string | undefined, input: "#0e131b", card: "rgba(255,255,255,0.05)", cardEdge: "rgba(148,180,255,0.18)", chip: "rgba(255,255,255,0.08)", chipEdge: "rgba(148,180,255,0.22)" };
 /** THE CREAM SKIN (Lee, 2026-09-16: "it should use the same skin as the learn page… cream background, electric
  *  shock when you hover over a choice. Pulse when you select one."). */
-const CREAM = { text: "#14213D", muted: "#5B6478", yellow: "#B86E00", green: "#15803D", red: "#C2273B", border: "rgba(20,33,61,0.14)", panel: "#FFFFFF", bg: "#F4EFE6" as string | undefined, card: "#FFFFFF", cardEdge: "rgba(20,33,61,0.16)", chip: "rgba(20,33,61,0.06)", chipEdge: "rgba(20,33,61,0.14)" };
+const CREAM = { text: "#14213D", muted: "#5B6478", yellow: "#B86E00", green: "#15803D", red: "#C2273B", border: "rgba(20,33,61,0.14)", panel: "#FFFFFF", bg: "#F4EFE6" as string | undefined, input: "#FFFFFF", card: "#FFFFFF", cardEdge: "rgba(20,33,61,0.16)", chip: "rgba(20,33,61,0.06)", chipEdge: "rgba(20,33,61,0.14)" };
 type Palette = typeof DARK;
 const PaletteContext = createContext<Palette>(DARK);
 const CHOICE_CSS = `
@@ -718,16 +718,16 @@ function AskBox({ reference, shorthand, prompt, setId, ceqId, campusName, campus
     );
   }
   return (
-    <div className="mt-2 rounded-xl p-3" style={{ border: `1px solid ${C.border}`, background: "rgba(0,0,0,0.25)" }}>
+    <div className="mt-2 rounded-xl p-3" style={{ border: `1px solid ${C.border}`, background: C.bg ? "rgba(20,33,61,0.04)" : "rgba(0,0,0,0.25)" }}>
       <div className="flex items-center gap-2">
         <MessageCircle className="h-3.5 w-3.5 shrink-0" style={{ color: C.yellow }} />
         <span className="text-[12.5px] font-black" style={{ color: C.text }}>Ask Lee about this question</span>
         <button type="button" aria-label="Close" title="Close" className="ml-auto grid h-7 w-7 place-items-center rounded-full hover:bg-white/10" style={{ color: C.muted }} onClick={() => setOpen(false)}><span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>×</span></button>
       </div>
-      <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={3} placeholder="How can I help?" className="mt-2 w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: "#0e131b", color: C.text, border: `1px solid ${C.border}` }} />
+      <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={3} placeholder="How can I help?" className="mt-2 w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: C.input, color: C.text, border: `1px solid ${C.border}` }} />
       <div className="mt-2 flex flex-col gap-2 sm:flex-row">
         {askEmail && (
-          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" placeholder="Leave an email so I can answer you" className="min-w-0 flex-1 rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: "#0e131b", color: C.text, border: `1px solid ${C.border}`, minHeight: 44 }} />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" placeholder="Leave an email so I can answer you" className="min-w-0 flex-1 rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: C.input, color: C.text, border: `1px solid ${C.border}`, minHeight: 44 }} />
         )}
         <button disabled={state === "busy"} onClick={() => void send()} className={`rounded-lg px-4 text-[12px] font-black uppercase tracking-wide disabled:opacity-50${askEmail ? "" : " flex-1 sm:flex-none sm:ml-auto"}`} style={{ background: C.yellow, color: "#0B1322", minHeight: 44 }}>{state === "busy" ? "…" : "Send"}</button>
       </div>

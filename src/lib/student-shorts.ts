@@ -15,6 +15,9 @@
  *  student.functions.ts. */
 export interface ShortPub {
   id?: string;
+  /** HIDDEN FROM THE SITE (2026-09-16, Lee: "#12 and #13 are repeats… remove those from the site"): posted, kept,
+   *  not shown. The breathers page toggles it (learn-admin.functions setLearnHidden). */
+  hidden?: boolean;
   kind?: string;
   state?: string;
   source?: string;
@@ -67,7 +70,7 @@ function nameOf(p: ShortPub): string {
 export function shortsFrom(pubs: readonly ShortPub[] | undefined, paid: boolean): StudentShort[] {
   const out: StudentShort[] = [];
   for (const p of pubs ?? []) {
-    if (p?.kind !== "blast" || p?.state !== "shipped" || p?.source !== "blastoff") continue;
+    if (p?.kind !== "blast" || p?.state !== "shipped" || p?.source !== "blastoff" || p.hidden === true) continue;
     const pid = p.render?.muxPlaybackId;
     if (typeof pid !== "string" || !pid) continue;
     out.push({
