@@ -17,7 +17,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { studyPassDisclosure, studyPassIncludes, studyPassName, studyPassTerm, STUDY_PASS_PRICE_CENTS } from "./study-pass";
+import { studyPassAnchorLine, studyPassDisclosure, studyPassIncludes, studyPassName, studyPassTerm, STUDY_PASS_PRICE_CENTS } from "./study-pass";
 
 export type StudyPassContext = {
   campusId: string | null;
@@ -30,6 +30,8 @@ export type StudyPassContext = {
   termLabel: string;
   expiresLabel: string;
   disclosure: string;
+  /** "Four exams at $50 each — or all of it for $200." */
+  anchorLine: string;
   /** A real Stripe price id is configured — the Buy button can work. */
   configured: boolean;
   /** Test Mode is on, so the no-card walkthrough is available. */
@@ -113,6 +115,7 @@ export const studyPassContext = createServerFn({ method: "GET" })
       termLabel: term.label,
       expiresLabel: term.expiresLabel,
       disclosure: studyPassDisclosure(term),
+      anchorLine: studyPassAnchorLine(),
       configured, testGrantAvailable: testModeOn(), held,
     };
   });
@@ -134,7 +137,7 @@ export const startStudyPassCheckout = createServerFn({ method: "POST" })
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
     const { stripe, priceIdForKind, stripeIsTest } = await import("./stripe.server");
     const price = priceIdForKind("study_pass");
-    if (!price) return { ok: false, error: "STRIPE_PRICE_STUDY_PASS is not set" };
+    if (!price) return { ok: false, error: "STRIPE_PRICE_STUDY_PASS_V4 is not set" };
 
     const { campusId, courseId } = await resolveCourse(db, data.campusSlug ?? null);
     const path = data.returnPath.startsWith("/") ? data.returnPath : "/pass";

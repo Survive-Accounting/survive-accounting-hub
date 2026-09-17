@@ -1,4 +1,8 @@
-// THE STUDY PASS — $150, one course, one semester, everything in it.
+// THE STUDY PASS — $200, one course, one semester, everything in it.
+//
+// THE ANCHOR (Lee, 09-17). Four exams at $50 each; the pass is all four for $200. $200 is the number
+// that has to be seen first — a discount to $150 can come later, but only against this anchor.
+// Exam 1's CRAM REELS stay free; the Exam 1 archive (homework help, review) is $50 like every exam.
 //
 // WHY ONE PASS AND NOT A CART. The archive is ~1,300 videos and the solutions bank is ~2,500
 // worked problems. Priced per item that is a student doing arithmetic instead of studying, and
@@ -16,7 +20,13 @@
 // console can never quote different numbers.
 import { termFor, type Term } from "./terms";
 
-export const STUDY_PASS_PRICE_CENTS = 15_000;
+export const STUDY_PASS_PRICE_CENTS = 20_000;
+/** One exam's archive on its own. The pass = EXAM_COUNT of these. */
+export const EXAM_PRICE_CENTS = 5_000;
+export const EXAM_COUNT = 4;
+/** "Four exams at $50 each — or all of it for $200." Shown wherever the pass price is. */
+export const studyPassAnchorLine = (): string =>
+  "Four exams at $" + EXAM_PRICE_CENTS / 100 + " each — or all of it for $" + STUDY_PASS_PRICE_CENTS / 100 + ".";
 export const STUDY_PASS_PRICE_USD = STUDY_PASS_PRICE_CENTS / 100;
 
 /** The term a pass bought right now belongs to, and the day it dies. */

@@ -114,7 +114,8 @@ function PassPage() {
             ))}
           </ul>
 
-          <p style={{ color: "rgba(11,19,34,0.6)", fontSize: 12.5, lineHeight: 1.4, margin: "16px 0 0" }}>
+          <p style={{ color: INK, fontSize: 13, fontWeight: 700, margin: "14px 0 0" }}>{ctx?.anchorLine ?? ""}</p>
+          <p style={{ color: "rgba(11,19,34,0.6)", fontSize: 12.5, lineHeight: 1.4, margin: "6px 0 0" }}>
             {ctx?.disclosure ?? ""}
           </p>
 
@@ -144,7 +145,7 @@ function PassPage() {
             ) : (
               <p style={{ display: "flex", gap: 8, alignItems: "flex-start", color: "rgba(11,19,34,0.7)", fontSize: 13.5, margin: 0, lineHeight: 1.4 }}>
                 <Lock size={16} strokeWidth={2.5} style={{ flex: "0 0 auto", marginTop: 2 }} />
-                Checkout isn't switched on for this deployment yet (no <code>STRIPE_PRICE_STUDY_PASS</code>).
+                Checkout isn't switched on for this deployment yet (no <code>STRIPE_PRICE_STUDY_PASS_V4</code>).
               </p>
             )}
 

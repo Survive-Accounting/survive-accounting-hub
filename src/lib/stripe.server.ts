@@ -123,8 +123,14 @@ export async function verifyStripeSignature(rawBody: string, header: string | nu
   return diff === 0;
 }
 
+// _V4 FIRST (Lee, 09-17): the Vercel project already carried STRIPE_* names from an earlier build,
+// so the v4 checkout's own values live under *_V4 and win. The old names remain as fallbacks.
 export const stripeWebhookSecret = () =>
-  process.env.STRIPE_WEBHOOK_SECRET_TEST || process.env.STRIPE_WEBHOOK_SECRET || null;
+  process.env.STRIPE_WEBHOOK_SECRET_TEST_V4 || process.env.STRIPE_WEBHOOK_SECRET_TEST || process.env.STRIPE_WEBHOOK_SECRET || null;
+
+/** The student-checkout secret key, _V4 first. */
+const studentSecretKey = () =>
+  process.env.STRIPE_SECRET_KEY_TEST_V4 || process.env.STRIPE_SECRET_KEY_TEST || process.env.STRIPE_SECRET_KEY || "";
 
 
 // ── STUDENT-ENTITLEMENT STRIPE (SDK) — merged from Test Mode Phase B ───────────────────────────
@@ -136,8 +142,8 @@ let cached: Stripe | null = null;
  *  to surface at call time (the code base compiles + boots without Stripe keys). */
 export function stripe(): Stripe {
   if (cached) return cached;
-  const key = process.env.STRIPE_SECRET_KEY_TEST || process.env.STRIPE_SECRET_KEY || "";
-  if (!key) throw new Error("STRIPE_SECRET_KEY_TEST is not set");
+  const key = studentSecretKey();
+  if (!key) throw new Error("STRIPE_SECRET_KEY_TEST_V4 is not set");
   cached = new Stripe(key, { apiVersion: "2026-07-29.dahlia" });
   return cached;
 }
@@ -145,8 +151,7 @@ export function stripe(): Stripe {
 /** True when the running key is a test key. Any is_test flag on a resulting entitlement is
  *  derived from this — never the client-passed testmode flag, which is spoofable. */
 export function stripeIsTest(): boolean {
-  const k = process.env.STRIPE_SECRET_KEY_TEST || process.env.STRIPE_SECRET_KEY || "";
-  return k.startsWith("sk_test_");
+  return studentSecretKey().startsWith("sk_test_");
 }
 
 // study_pass — $150, the whole course for a term (see study-pass.ts). The per-exam kinds predate
@@ -163,7 +168,7 @@ export function kindForPriceId(priceId: string): EntitlementKind | null {
     [process.env.STRIPE_PRICE_EXAM3 ?? ""]: "exam_3",
     [process.env.STRIPE_PRICE_FINAL ?? ""]: "final",
     [process.env.STRIPE_PRICE_PASS  ?? ""]: "pass",
-    [process.env.STRIPE_PRICE_STUDY_PASS ?? ""]: "study_pass",
+    [process.env.STRIPE_PRICE_STUDY_PASS_V4 || process.env.STRIPE_PRICE_STUDY_PASS || ""]: "study_pass",
   };
   return map[priceId] ?? null;
 }
@@ -175,6 +180,6 @@ export function priceIdForKind(kind: EntitlementKind): string | null {
     case "exam_3": return process.env.STRIPE_PRICE_EXAM3 || null;
     case "final":  return process.env.STRIPE_PRICE_FINAL || null;
     case "pass":   return process.env.STRIPE_PRICE_PASS  || null;
-    case "study_pass": return process.env.STRIPE_PRICE_STUDY_PASS || null;
+    case "study_pass": return process.env.STRIPE_PRICE_STUDY_PASS_V4 || process.env.STRIPE_PRICE_STUDY_PASS || null;
   }
 }
