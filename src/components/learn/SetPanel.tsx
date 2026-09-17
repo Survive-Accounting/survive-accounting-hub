@@ -12,6 +12,7 @@ import { Check, Loader2, Lock, MessageCircle, Play, X } from "lucide-react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { BonusPanel } from "@/components/learn/BonusPanel";
+import { chapterLearnPath, LEARN_ORIGIN } from "@/lib/learn-paths";
 import { HOW_SURVIVE_WORKS_LEN, HowSurviveWorksLightbox } from "@/components/learn/HowSurviveWorks";
 
 /** THE WELCOME VIDEO, in the set screen too (Lee, 2026-09-16, on the wireframes: "The welcome video could just
@@ -56,7 +57,9 @@ export function useSetScore(setId: string): PracticeScore | null {
   return score;
 }
 
-export function SetPanel({ items, index, onIndex, progress, tab, onTab, narrow, onClose, demo, demoQuestions, campusName, campusSlug, guidance, onPracticeDone }: {
+export function SetPanel({ items, index, onIndex, progress, tab, onTab, narrow, onClose, demo, demoQuestions, campusName, campusSlug, chapterSlug = null, guidance, onPracticeDone }: {
+  /** The chapter the student is on — a shared score points at their chapter's page (2026-09-17). */
+  chapterSlug?: string | null;
   items: PlayerItem[];
   index: number;
   onIndex: (i: number) => void;
@@ -138,8 +141,9 @@ export function SetPanel({ items, index, onIndex, progress, tab, onTab, narrow, 
             setName={set.name}
             campusName={campusName}
             campusSlug={campusSlug}
-            surface="learn"
-            skin="cream"
+                        surface="learn"
+                        skin="cream"
+            shareUrl={demo || !campusSlug ? null : `${LEARN_ORIGIN}${chapterSlug ? chapterLearnPath(campusSlug, chapterSlug) : `/learn/${encodeURIComponent(campusSlug)}`}`}
             statusLabel=""
             isTest={demo}
             doneLabel={guidance.nextLabel}

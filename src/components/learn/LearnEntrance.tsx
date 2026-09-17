@@ -144,9 +144,11 @@ export function ExecEntrance({ tier, role, schoolName, courseCode, councilName, 
   );
 }
 
-export function LearnEntrance({ tier, onStart }: {
+export function LearnEntrance({ tier, onStart, resuming = false }: {
   tier: Tier;
   onStart: () => void;
+  /** Something has been watched on this device — the button continues instead of starting over (2026-09-17). */
+  resuming?: boolean;
 }) {
   const narrow = tier === "narrow";
   const wide = tier === "wide";
@@ -167,7 +169,7 @@ export function LearnEntrance({ tier, onStart }: {
         {/* King's testing notes (2026-09-14): no "for free" on the button, and no "~0.6 min per video"
             under it — every card already shows its own length. */}
         <button type="button" onClick={onStart} data-gm-cta="start" className="lk-btn-cta" style={{ minWidth: narrow ? 240 : 260, boxShadow: LK.shadow }}>
-          Start cramming
+          {resuming ? "Continue" : "Start cramming"}
         </button>
       </div>
     </section>

@@ -262,10 +262,12 @@ export const LearnHome = forwardRef<HTMLDivElement, {
   kit?: ReactNode;
   /** Anything that sits BELOW the topic rows (Accounting Pong, 2026-09-16 workshop). */
   after?: ReactNode;
+  /** Something has been watched on this device — the hero says "Continue" (2026-09-17). */
+  resuming?: boolean;
   /** THE EXEC HERO (2026-09-16): a council exec's or a chapter chair's link — Share is the button, the product
    *  is a taste ("See how it works"). Null = the student hero. */
   exec?: { role: ExecRole; schoolName: string; courseCode: string | null; councilName: string | null; chapterShort: string | null; membersLine: string | null; groupMePost: string | null; memberPreviewHref: string | null; onMember: () => void } | null;
-}>(function LearnHome({ sets, examLabel, tier, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school, progress = {}, chapterSlug = null, kit = null, after = null, exec = null }, ref) {
+}>(function LearnHome({ sets, examLabel, tier, onStart, onOpenSet, onLocked, rowRef, signedIn, campusId, demo, unlocked, onUnlocked, school, progress = {}, chapterSlug = null, kit = null, after = null, exec = null, resuming = false }, ref) {
   const [how, setHow] = useState(false);
   // the arrival autoplay picks afresh each time the home draws (live-preview.ts pickAuto)
   if (typeof window !== "undefined") resetAutoPick();
@@ -302,9 +304,11 @@ export const LearnHome = forwardRef<HTMLDivElement, {
     row?.querySelector<HTMLElement>(".lk-short, .lk-practice")?.focus({ preventScroll: true });
   };
   const firstTopic = byTopic[0] ?? null;
+  // THE HERO'S BUTTON: the shell's resume-aware start (it knows the last video and the progress); with nothing
+  // playable it lands on Easy Points. Before 2026-09-17 this always opened video 1, even 12 videos in.
   const startFirst = () => {
     const playable = firstTopic?.sets.find((s) => !!s.set.playbackId && !s.locked);
-    if (playable) onOpenSet(playable.set.id); else seeExam();
+    if (playable) onStart(); else seeExam();
   };
   const firstRowRef = (el: HTMLElement | null) => { firstRow.current = el; rowRef("cram")(el); };
   const reveal = useReveal();
@@ -324,7 +328,7 @@ export const LearnHome = forwardRef<HTMLDivElement, {
                 onCopied={() => track("share_link_copied", { source: "learn-strip-post" } as never)}
                 onShare={() => { track("exec_share_opened", { role: exec.role }); window.dispatchEvent(new CustomEvent(OPEN_SHARE_KIT_EVENT)); }}
                 onHow={() => { setHow(true); track("hsw_open", { where: `/learn-exec-${exec.role}` }); }} onMember={exec.onMember} />
-            : <LearnEntrance tier={tier} onStart={startFirst} />}
+            : <LearnEntrance tier={tier} onStart={startFirst} resuming={resuming} />}
           {how && <HowSurviveWorksLightbox onClose={() => setHow(false)} cta={{ label: "Try it yourself →", onClick: () => { setHow(false); startFirst(); } }} />}
           {/* THE CHAPTER STRIP under the button (the simple flow, 2026-09-16): whose page this is, and the one
               thing that visitor should do next. A quiet "Studying with your chapter?" line when there is none. */}

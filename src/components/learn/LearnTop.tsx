@@ -57,7 +57,7 @@ import type { School } from "@/lib/schools";
 import type { ExamTabState } from "@/components/learn/ExamRail";
 import { daysUntil, writeExamDate } from "@/components/learn/exam-date";
 import { CTA_CHAPTER_EVENT } from "@/components/learn/LearnCta";
-import { EMAIL_RE, examName, examWaitlistLine, isUuid } from "@/components/learn/learn-gate";
+import { EMAIL_RE, examName, examWaitlistLine, isUuid, readSavedEmail, writeUnlocked } from "@/components/learn/learn-gate";
 import { allowedOffsets, REMINDER_DISCLOSURE, scheduleExamReminder } from "@/lib/exam-reminder.functions";
 import { submitIntake } from "@/lib/intake.functions";
 import { useDismiss } from "@/lib/use-dismiss";
@@ -354,7 +354,7 @@ function ReminderModal({ campusId, courseCode, onClose }: { campusId: string | n
  *  through the unified intake (kind notify_exam, the exam number, source learn-exam-waitlist).
  *  Demo mode never writes a row but still shows the done state, so the flow can be walked. */
 function ExamWaitlistSheet({ exam, campusId, courseCode, demo, narrow, onClose }: { exam: number; campusId: string | null; courseCode: string | null; demo: boolean; narrow: boolean; onClose: () => void }) {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(readSavedEmail());
   const [state, setState] = useState<"open" | "busy" | "done" | "error">("open");
   const [msg, setMsg] = useState("");
   const submit = async () => {
@@ -364,6 +364,7 @@ function ExamWaitlistSheet({ exam, campusId, courseCode, demo, narrow, onClose }
     setState("busy");
     try {
       if (!demo) await submitIntake({ data: { kind: "notify_exam", email: e, exam, courseCode, campusId: isUuid(campusId) ? campusId : null, sourcePath: "/learn", source: "learn-exam-waitlist" } });
+      writeUnlocked(e); // the one email (learn-gate)
       setState("done");
     } catch { setState("error"); setMsg("Couldn't save that — try again in a moment."); }
   };

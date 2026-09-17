@@ -38,7 +38,7 @@ export interface StudentSet {
    *  the frame the video host cuts (Lee: "when I upload my own thumbnail file, it loads it. It
    *  still defaulted to choosing the frame"). Null when none was uploaded — the frame, as before. */
   coverUrl: string | null;
-  ceqCount: number; // # of CEQ question cards in the set (notes excluded) — the practice stage size
+  ceqCount: number; // # of questions PRACTICE will serve (the film plan's, when the set has one) — 2026-09-17
   runtimeSec: number | null; // cram runtime in seconds (blast publication, else lesson_videos.duration_sec)
   /** SHORTHAND (08-23) — the problem-type label the left-rail row should show ("Account
    *  classification", "Accounting equation effects"). Comes from the FIRST CEQ's authored
@@ -144,15 +144,18 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   // CEQ count per deck: a set's question count = nodes of type "ceq" whose data.deckId is the deck
   // (the same membership the Studio uses). Powers the "N questions" line on each outline set row.
   const ceqCountByDeck = new Map<string, number>();
+  // …and the ids behind that count, so the number can be narrowed to the set's FILM PLAN below — practice
+  // serves the plan's cards, and the pill used to promise the whole bank ("Practice · 46" → "Q1 / 37").
+  const ceqIdsByDeck = new Map<string, Set<string>>();
   // FIRST STEM per deck (lowest stageOrder) — the outline teaser, with its blur ranges for paid redaction.
     const firstCeqByDeck = new Map<string, { order: number; prompt: string; blur: { s: number; e: number }[]; shorthand: string | null }>();
   // The question stems per deck — the bonus rule reads them (a bank of "What type of account is X?").
   const promptsByDeck = new Map<string, string[]>();
-  type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[]; noteOnly?: boolean; draft?: boolean; bankArchived?: string; format?: string };
+  type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[]; noteOnly?: boolean; draft?: boolean; bankArchived?: string; format?: string; filmSkip?: boolean; choices?: unknown[] };
   // PARKED sets are authoring-only — never served, regardless of status (same law as parked topics).
   for (const o of liveDecks(owned)) {
     live.push(o.deck);
-    for (const n of o.nodes as { type?: string; data?: RawCeqData }[]) {
+    for (const n of o.nodes as { id?: string; type?: string; data?: RawCeqData }[]) {
       if (n?.type !== "ceq") continue;
       // NOTE frames are film chrome, not questions — excluded from the counter AND practice,
       // per the CeqCard contract ("excluded from the student question counter").
@@ -164,7 +167,13 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
       if (n.data?.format !== undefined && n.data?.format !== "mc") continue;
       const did = n.data?.deckId;
       if (!did) continue;
-            ceqCountByDeck.set(did, (ceqCountByDeck.get(did) ?? 0) + 1);
+      // The same card fetchSetPractice would serve: skipped on the review deck, no prompt, or fewer than two
+      // choices means it is never practiced, so it is never counted either.
+      const servable = !n.data?.filmSkip && !!(n.data?.prompt ?? "").trim() && (n.data?.choices?.length ?? 0) >= 2;
+      if (servable) {
+        ceqCountByDeck.set(did, (ceqCountByDeck.get(did) ?? 0) + 1);
+        if (n.id) { const set = ceqIdsByDeck.get(did) ?? new Set<string>(); set.add(n.id); ceqIdsByDeck.set(did, set); }
+      }
       promptsByDeck.set(did, [...(promptsByDeck.get(did) ?? []), (n.data?.prompt ?? "").trim()]);
       const order = n.data?.stageOrder ?? 0;
       const cur = firstCeqByDeck.get(did);
@@ -287,8 +296,13 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     const seqKeys = ((d.publications ?? []) as Array<{ kind?: string; source?: string; state?: string; pubKey?: string; takeIndex?: number; render?: { muxPlaybackId?: string } }>)
       .filter((p) => p?.kind === "blast" && p.source === "blastoff" && p.state === "shipped" && !!p.render?.muxPlaybackId && typeof p.pubKey === "string")
       .sort((a, b) => (a.takeIndex ?? 0) - (b.takeIndex ?? 0)).map((p) => p.pubKey!);
-    const breathers = shorts.length === seqKeys.length ? studentBreathers(seqKeys, (d as { breathers?: Breather[] }).breathers) : [];
-    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: shorts.length ? "portrait" : "landscape", playbackId: paid ? null : (shorts[0]?.playbackId ?? cramPid), coverUrl: coverBySet.get(d.id) ?? null, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: shorts[0]?.runtimeSec ?? cramDur, shorts, ...(breathers.length ? { breathers } : {}), hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id), bonus: bonusByDeck.get(d.id) ?? null });
+        const breathers = shorts.length === seqKeys.length ? studentBreathers(seqKeys, (d as { breathers?: Breather[] }).breathers) : [];
+    // THE PRACTICE COUNT = what practice will serve (Lee, 2026-09-17: the pill said 46 and practice opened on
+    // "Q1 / 37"). fetchSetPractice serves the FILM PLAN's cards when the set has one, so the count follows it.
+    const servableIds = ceqIdsByDeck.get(d.id) ?? new Set<string>();
+    const planPracticeIds = practiceIdsFromPlan(readLearnPlan(d.blastOff));
+    const practiceCount = planPracticeIds ? planPracticeIds.filter((id) => servableIds.has(id)).length : (ceqCountByDeck.get(d.id) ?? 0);
+    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: shorts.length ? "portrait" : "landscape", playbackId: paid ? null : (shorts[0]?.playbackId ?? cramPid), coverUrl: coverBySet.get(d.id) ?? null, ceqCount: practiceCount, runtimeSec: shorts[0]?.runtimeSec ?? cramDur, shorts, ...(breathers.length ? { breathers } : {}), hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id), bonus: bonusByDeck.get(d.id) ?? null });
   }
 
   for (const t of topics.values()) t.sets.sort((a, b) => (setOrderKey.get(a.id) ?? 0) - (setOrderKey.get(b.id) ?? 0) || a.name.localeCompare(b.name));

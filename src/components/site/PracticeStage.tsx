@@ -16,6 +16,7 @@ import { readStudentEmail, rememberStudentEmail } from "@/lib/student-email";
 import { supabase } from "@/integrations/supabase/client";
 import { track } from "@/lib/analytics";
 import { passed, recordPracticeAnswer } from "@/lib/practice-score";
+import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { emptyArrows, type RubricArrows } from "@/components/blastoff/rubric";
 import { RubricAnswer } from "@/components/learn/RubricAnswer";
 import { rubricMatches } from "@/lib/learn-bonus";
@@ -60,6 +61,9 @@ export interface PracticeStageProps {
   /** Reference scheme: topic number + 1-based set index → "3.2 · Q14 / 24" and "3.2.14". */
   reference?: { topic: number | null; set: number };
   setName?: string;
+  /** THE SCORE CARD (2026-09-17): the page a shared score points at — the chapter or campus /learn page.
+   *  Absent = no share button (a demo, or a surface with no public page). */
+  shareUrl?: string | null;
   campusName?: string | null;
   campusSlug?: string | null;
   surface?: "home" | "campus" | "greek" | "learn";
@@ -103,7 +107,7 @@ export interface PracticeStageProps {
 export function PracticeStage(props: PracticeStageProps) {
   return <PaletteContext.Provider value={props.skin === "cream" ? CREAM : DARK}><PracticeStageInner {...props} /></PaletteContext.Provider>;
 }
-function PracticeStageInner({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress, pathAdvance = null, onFinished, roundSize, guidance, gradeAtEnd = false, bonus = null }: PracticeStageProps) {
+function PracticeStageInner({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress, pathAdvance = null, onFinished, roundSize, guidance, gradeAtEnd = false, bonus = null, setName, shareUrl = null }: PracticeStageProps) {
   const C = useContext(PaletteContext);
   const q = useQuery({ queryKey: ["set-practice", setId], queryFn: () => fetchSetPractice({ data: { setId } }), enabled: !override, staleTime: 300_000, networkMode: "always" });
   const questions = useMemo<PracticeQuestion[]>(() => override ?? (q.data?.status === "ok" ? q.data.questions : []), [override, q.data]);
@@ -328,6 +332,7 @@ function PracticeStageInner({ setId, questions: override, onDone, doneLabel, onR
               <span className="text-[12px] font-bold" style={{ color: C.green }}>Open it →</span>
             </button>
           )}
+          {shareUrl && <ScoreCard correct={correctAll} total={total} setName={setName ?? null} campusName={campusName ?? null} url={shareUrl} setId={setId} />}
           {!unlocked && <p className="mt-2 text-[12.5px]" style={{ color: C.muted }}>{clean ? "Clean pass." : bonus ? `80% opens the bonus. ${redo.length} to go back over.` : `${redo.length} to go back over — run them until they're automatic.`}</p>}
           {redo.length > 0 && (
             <div className="mt-3 flex flex-col gap-1.5" style={{ maxHeight: 220, overflowY: "auto" }}>
@@ -581,6 +586,35 @@ function PracticeStageInner({ setId, questions: override, onDone, doneLabel, onR
 // ---- FINISH AUTO-ADVANCE — the guided path's conservative countdown. The results screen owns
 //      the first ~3 seconds untouched; then a single quiet line counts 5→0 and continues. "Stay
 //      here" (or Retry, which remounts via key={pass}) cancels it for this screen. -----------------
+/** THE SCORE CARD (Lee, 2026-09-17): the one moment a student is proud of something — "38/46 on Know Your
+ *  Accounts" with the page's link, straight to the phone's share sheet, or the clipboard on a desk. */
+function ScoreCard({ correct, total, setName, campusName, url, setId }: { correct: number; total: number; setName: string | null; campusName: string | null; url: string; setId: string }) {
+  const C = useContext(PaletteContext);
+  const [state, setState] = useState<"idle" | "ok" | "fail">("idle");
+  useEffect(() => { if (state === "idle") return; const t = window.setTimeout(() => setState("idle"), 2400); return () => window.clearTimeout(t); }, [state]);
+  const line = `${correct}/${total}${setName ? ` on ${setName}` : " on my accounting practice"}`;
+  const text = `I got ${line}${campusName ? ` · ${campusName}` : ""}. Free cram videos + practice: ${url}`;
+  const share = async () => {
+    track("score_share_clicked", { set_id: setId, correct, total } as never);
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try { await navigator.share({ text }); setState("ok"); return; } catch { /* dismissed — fall through to the copy */ }
+    }
+    const ok = await copyToClipboard(text);
+    setState(ok ? "ok" : "fail");
+    if (ok) track("share_link_copied", { source: "practice-score" } as never);
+  };
+  return (
+    <div className="mt-3 rounded-xl px-3.5 py-3" style={{ border: `1px solid ${C.cardEdge}`, background: C.card }}>
+      <p className="text-[13px] font-bold" style={{ color: C.text, margin: 0 }}>{line}.</p>
+      <p className="mt-0.5 text-[12px]" style={{ color: C.muted, margin: 0 }}>Send it to someone in your class.</p>
+      <button type="button" onClick={() => void share()} className="mt-2.5 w-full rounded-xl px-4 py-2.5 text-[12.5px] font-black uppercase tracking-wide"
+        style={{ background: state === "ok" ? C.green : "#FCA311", color: state === "ok" ? "#0B1322" : "#0B1322", minHeight: 44 }} aria-live="polite">
+        {state === "ok" ? "Shared" : state === "fail" ? "Couldn't copy — long-press to select" : "Share your score"}
+      </button>
+    </div>
+  );
+}
+
 function FinishAutoAdvance({ label, onContinue }: { label: string; onContinue: () => void }) {
   const C = useContext(PaletteContext);
   const [phase, setPhase] = useState<"wait" | "count" | "off">("wait");

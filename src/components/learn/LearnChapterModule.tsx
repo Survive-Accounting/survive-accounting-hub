@@ -63,7 +63,7 @@ export async function joinChapter(school: School, chapterSlug: string, email: st
   await submitIntake({ data: { kind: "greek_member", email: v, campusId: school.campusId || null, chapter: chapterSlug, source, sourcePath: typeof window !== "undefined" ? window.location.pathname : null, isTest } });
   await tagChapterMember({ data: { schoolSlug: school.slug, chapterSlug, source: "link", deviceId: deviceAnonId(), email: v } }).catch(() => undefined);
   try { localStorage.setItem(joinedKey(school.slug, chapterSlug), "1"); } catch { /* ignore */ }
-  writeUnlocked();
+  writeUnlocked(v); // the one email (learn-gate)
   try { window.dispatchEvent(new CustomEvent(CHAPTER_JOINED_EVENT)); } catch { /* ignore */ }
 }
 export const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;

@@ -185,8 +185,9 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   // and every email that page collects carries the chapter. An unknown school still gets the
   // picker first; the chapter door then asks for the chapter.
   const navigate = useNavigate();
-  const goLearn = (schoolId: string, chapterSlug?: string | null) => {
-    void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: schoolId, chapter: chapterSlug ?? undefined } });
+  // `play` — Start cramming here means a video, not a second "Start cramming" on /learn (Lee, 2026-09-17).
+  const goLearn = (schoolId: string, chapterSlug?: string | null, play = false) => {
+    void navigate({ to: "/learn/{-$campus}/{-$chapter}", params: { campus: schoolId, chapter: chapterSlug ?? undefined }, ...(play ? { search: { play: true } } : {}) });
   };
   const openSolo = () => {
     track("homepage_study_solo_clicked", { ...ctx(), returning, preview: !!previewSoloHref });
@@ -216,7 +217,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   // sorority?" step is gone; "Studying with your chapter?" under the button is the chapter path (openChapter).
   const startCramming = () => {
     track("homepage_study_solo_clicked", { ...ctx(), returning, hero: true });
-    if (campus.school) goLearn(campus.school.id); else setPickerFor("solo");
+    if (campus.school) goLearn(campus.school.id, null, true); else setPickerFor("solo");
   };
 
   // A school was chosen in the picker: remember it (the page repaints for that campus), then
@@ -225,7 +226,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   const onPickSchool = (school: PickerSchool) => {
     const mode = pickerFor;
     campus.setSessionSchool(school.id);
-    if (mode === "solo") { setPickerFor(null); goLearn(school.id); }
+    if (mode === "solo") { setPickerFor(null); goLearn(school.id, null, true); }
     else if (mode === "chapter") { setPickerFor(null); chapterGo.current = true; setChapterPickerOpen(true); }
     else if (mode === "switch") {
       // The rebrand flourish — switch mode only (the "flip through schools for fun" case; the door

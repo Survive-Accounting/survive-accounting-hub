@@ -34,6 +34,7 @@ import { LK } from "@/components/learn/learn-theme";
 import { buildGreekCycle, OLE_MISS_GREEK_CYCLE } from "@/lib/greek-cycle";
 import { listGoChapters } from "@/lib/greek-go.functions";
 import { submitIntake } from "@/lib/intake.functions";
+import { readSavedEmail, writeUnlocked } from "@/components/learn/learn-gate";
 import { useDismiss } from "@/lib/use-dismiss";
 
 export const LEARN_MENU_CSS = `
@@ -109,10 +110,16 @@ export function LearnMenu({ narrow, you, campusId, campusSlug, courseCode, chapt
             </span>
             <ChevronRight className="h-5 w-5 shrink-0" style={{ color: "var(--lk-top-muted)" }} aria-hidden />
           </button>
-          {you.userId && (
+          {you.userId ? (
             <div className="flex items-center justify-between gap-2" style={{ padding: "0 8px", fontSize: 12, color: LK.dim }}>
               <span className="truncate">signed in as {you.email ?? "you"}</span>
               <button type="button" className="lk-menu-quiet shrink-0" onClick={() => { onClose(); you.signOut(); }}>sign out</button>
+            </div>
+          ) : (
+            // SIGN IN (2026-09-17): the dialog existed and nothing opened it, so progress was stuck on one device.
+            <div className="flex items-center justify-between gap-2" style={{ padding: "0 8px", fontSize: 12, color: LK.dim }}>
+              <span className="truncate">Studying on another device?</span>
+              <button type="button" className="lk-menu-quiet shrink-0" onClick={() => { onClose(); you.onSignIn(); }}>sign in</button>
             </div>
           )}
         </section>
@@ -123,7 +130,7 @@ export function LearnMenu({ narrow, you, campusId, campusSlug, courseCode, chapt
 
 /** The email drop — one field, one button, the unified intake. */
 function SubscribeForm({ you, campusId, campusSlug, courseCode, chapterSlug, demo }: { you: TopYou; campusId: string | null; campusSlug: string | null; courseCode: string | null; chapterSlug: string | null; demo: boolean }) {
-  const [email, setEmail] = useState(you.email ?? "");
+  const [email, setEmail] = useState(you.email ?? readSavedEmail());
   const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -132,6 +139,7 @@ function SubscribeForm({ you, campusId, campusSlug, courseCode, chapterSlug, dem
     setState("busy");
     try {
       if (!demo) await submitIntake({ data: { kind: "notify_exam", email: v, campusId: isUuid(campusId) ? campusId : null, campusSlug, courseCode, chapter: chapterSlug, sourcePath: "/learn", source: "learn-menu-subscribe" } });
+      writeUnlocked(v); // the one email (learn-gate)
       setState("done");
     } catch { setState("error"); }
   };

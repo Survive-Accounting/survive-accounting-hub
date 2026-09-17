@@ -46,7 +46,7 @@ const clockOf = (s: number): string => (Number.isFinite(s) && s > 0 ? `${Math.fl
 
 export function CramPlayer({
   items, index, onIndex, progress, onStarted, onComplete, onPosition, resolvePlayback, demo, narrow, theme,
-  practice, onPractice, campusName, campusSlug, contactRef, onShare, onLocked, demoQuestions, onExit,
+    practice, onPractice, campusName, campusSlug, chapterSlug = null, contactRef, onShare, onLocked, demoQuestions, onExit,
 }: {
   /** Back to the home. */
   onExit: () => void;
@@ -64,7 +64,9 @@ export function CramPlayer({
   practice: boolean;
   onPractice: (open: boolean) => void;
   campusName: string | null;
-  campusSlug: string | null;
+    campusSlug: string | null;
+  /** The chapter the student is on — a shared score points at their chapter's page (2026-09-17). */
+  chapterSlug?: string | null;
   contactRef: string | null;
   onShare: () => void | Promise<boolean>;
   onLocked: (topic: StudentTopic) => void;
@@ -203,7 +205,9 @@ export function CramPlayer({
         window.setTimeout(() => go(1), 1200);
       }}
             onCta={() => { offered.current.add(part.key); setEndCta(part.key); }}
-            onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask}
+            // A PHONE'S practice sheet covers the picture, so the video pauses under it (Lee, 2026-09-17:
+      // "practice opens while the video keeps playing with sound"). On a desk they sit side by side and it plays on.
+      onLocked={() => onLocked(topic)} resolvePlayback={resolvePlayback} paused={ask || (narrow && sheet && tab === "practice")}
       caption={{ topic: topic.name, n: cap.n, of: cap.of, name: cap.name }}
       overlay={breatherCard || endCard || null}
     />
@@ -236,7 +240,7 @@ export function CramPlayer({
       <SetPanel
         items={items} index={index} onIndex={(i) => { onIndex(i); setAsk(false); }} progress={progress}
         tab={tab} onTab={pickTab} narrow={narrow} onClose={narrow ? closeSheet : undefined}
-        demo={demo} demoQuestions={demoQuestions} campusName={campusName} campusSlug={campusSlug}
+        demo={demo} demoQuestions={demoQuestions} campusName={campusName} campusSlug={campusSlug} chapterSlug={chapterSlug}
         guidance={nextTopicIndex >= 0
           ? { nextLabel: "Next topic →", onNext: () => { onPractice(false); setTab("watch"); setSheet(false); setAsk(false); onIndex(nextTopicIndex); } }
           : { nextLabel: "Back to the videos", onNext: () => { onPractice(false); onExit(); } }}
@@ -255,7 +259,7 @@ export function CramPlayer({
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end gap-3 p-4" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0))", paddingBottom: 62 }}>
             <div className="min-w-0 flex-1 pb-1">
               <div className="text-[10px] font-extrabold uppercase" style={{ letterSpacing: "0.14em", color: theme.accent }}>{topic.name} · {cap.n} of {cap.of}</div>
-              <div className="lk-disp" style={{ fontSize: 19, lineHeight: 1.1, marginTop: 4 }}>{cap.name}</div>
+              <div className="lk-disp" style={{ fontSize: 19, lineHeight: 1.1, marginTop: 4, color: "#F6F2E9", textShadow: "0 1px 10px rgba(0,0,0,0.65)" }}>{cap.name}</div>
               {hasNext && <div className="lk-swipe mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: "rgba(255,255,255,0.14)", color: "#F2EFE6" }}><ArrowUp className="lk-swipe-arrow h-3.5 w-3.5" /> Swipe up for the next video</div>}
               {/* THE TAB BAR (2026-09-16): Videos · Practice · Bonus open the set screen as a sheet. */}
               <div className="pointer-events-auto mt-2.5 flex gap-1.5">

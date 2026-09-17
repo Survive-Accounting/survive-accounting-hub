@@ -120,6 +120,9 @@ type LearnSearch = {
   part?: number;
     /** ?looks=1 — mount the floating look picker (LearnLookPicker). */
   looks?: true;
+  /** ?play=1 (2026-09-17, the home hero): open the player straight away — resume where they were, else the
+   *  first video. Cleared once acted on, so a refresh doesn't re-open it. */
+  play?: true;
   /** ?pick=1 (2026-09-16, the home hero's Start cramming): arrive with the school picker up; after the pick,
    *  "in a fraternity or sorority?" — Yes opens the chapter finder. Cleared once acted on. */
   pick?: true;
@@ -149,6 +152,7 @@ export const Route = createFileRoute("/learn/{-$campus}/{-$chapter}")({
     look: isLook(s.look) && s.look !== DEFAULT_LOOK ? s.look : undefined,
         looks: s.looks === true || s.looks === 1 || s.looks === "1" || s.looks === "true" ? true : undefined,
     pick: s.pick === true || s.pick === 1 || s.pick === "1" || s.pick === "true" ? true : undefined,
+    play: s.play === true || s.play === 1 || s.play === "1" || s.play === "true" ? true : undefined,
     share: s.share === "council" || s.share === "chair" ? s.share : undefined,
     c: typeof s.c === "string" && /^[a-z0-9-]{1,40}$/.test(s.c) ? s.c : undefined,
   }),
@@ -641,7 +645,30 @@ function LearnShell() {
   const rowEls = useRef<Partial<Record<RailKey, HTMLElement>>>({});
   const rowRef = useCallback((key: RailKey) => (el: HTMLElement | null) => { if (el) rowEls.current[key] = el; }, []);
   const [chip, setChip] = useState<string | null>(null);
-  const start = () => { const first = sets.find((s) => !!s.set.playbackId && !s.locked && !s.done) ?? sets.find((s) => !!s.set.playbackId && !s.locked); if (first) openSet(first.set.id); };
+  // START = RESUME (Lee, 2026-09-17: "'Start cramming' always restarts at video 1. It should resume"). The last
+  // part this device opened wins when it is still playable; then the first unfinished set; then the first set.
+  const start = () => {
+    try {
+      const last = localStorage.getItem(LAST_SET_KEY);
+      if (last) {
+        const hit = playerItems.find((i) => i.part.key === last && !i.locked);
+        if (hit) { openSet(hit.set.id, false, hit.part.index + 1); return; }
+      }
+    } catch { /* no storage — fall through to the first unfinished set */ }
+    const first = sets.find((s) => !!s.set.playbackId && !s.locked && !s.done) ?? sets.find((s) => !!s.set.playbackId && !s.locked);
+    if (first) openSet(first.set.id);
+  };
+  /** Has this device watched anything here? Then the hero says "Continue". */
+  const resuming = useMemo(() => Object.values(progress).some((p) => p && (p.state === "in_progress" || p.state === "complete")), [progress]);
+  // ?play=1 — the home page's one tap: land and play, without a second "Start cramming".
+  const playedRef = useRef(false);
+  useEffect(() => {
+    if (!search.play || playedRef.current || isLoading || inPlayer || !playerItems.length) return;
+    playedRef.current = true;
+    void navigate({ search: (p: LearnSearch) => ({ ...p, play: undefined }), replace: true });
+    start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.play, isLoading, inPlayer, playerItems.length]);
 
   useEffect(() => { const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setPaywallTopic(null); if (inPlayer && !practice) exitPlayer(); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); });
 
@@ -684,7 +711,7 @@ function LearnShell() {
             chip={chip} onChip={setChip}
             plan={plan} onPlan={setPlan} daysOut={daysOut} examLabel={exam?.label ?? "Exam 1"}
             theme={theme} tier={tier}
-            onStart={start} onOpenSet={openSet} onLocked={setPaywallTopic} rowRef={rowRef}
+            onStart={start} onOpenSet={openSet} onLocked={setPaywallTopic} rowRef={rowRef} resuming={resuming}
             signedIn={!!userId}
             campusId={campusId} demo={demo}
             unlocked={unlocked} onUnlocked={() => setUnlocked(true)}
@@ -729,7 +756,7 @@ function LearnShell() {
             progress={progress} onStarted={(k) => { onStarted(k); pulse.videoStart(k, setIdOfKey(k)); }} onComplete={onComplete} onPosition={(k, p, d) => { markPosition(k, p, d); pulse.position(k, p); }} resolvePlayback={resolvePlayback}
             demo={demo} narrow={isNarrow} theme={theme}
             practice={practice} onPractice={setPractice}
-            campusName={campusName} campusSlug={campusSlug} contactRef={contactRef}
+            campusName={campusName} campusSlug={campusSlug} chapterSlug={chapter.slug} contactRef={contactRef}
             onShare={share} onLocked={setPaywallTopic} onExit={exitPlayer}
             demoQuestions={DEMO_QUESTIONS}
           />

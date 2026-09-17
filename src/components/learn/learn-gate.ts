@@ -27,8 +27,20 @@ export const START_PULSE_KEY = "sa-learn-start-pulsed";
 export function readUnlocked(): boolean {
   try { return localStorage.getItem(UNLOCK_KEY) === "1"; } catch { return false; }
 }
-export function writeUnlocked(): void {
+/** localStorage — the one address this device has already given us, so nothing asks for it twice. */
+export const EMAIL_KEY = "sa-learn-email";
+
+/** THE ONE EMAIL (Lee, 2026-09-17: "Students are asked for their email up to nine separate times"). Every
+ *  capture on /learn calls this with the address it just collected: the device is unlocked AND the address is
+ *  remembered, so every later form arrives pre-filled and the topic gate never asks again. */
+export function writeUnlocked(email?: string | null): void {
   try { localStorage.setItem(UNLOCK_KEY, "1"); } catch { /* private mode — the gate simply asks again next time */ }
+  const e = (email ?? "").trim();
+  if (e) { try { localStorage.setItem(EMAIL_KEY, e); } catch { /* private mode */ } }
+}
+/** The remembered address, or "" — every email field's default. */
+export function readSavedEmail(): string {
+  try { return localStorage.getItem(EMAIL_KEY) ?? ""; } catch { return ""; }
 }
 export function readIntroSeen(): boolean {
   try { return sessionStorage.getItem(INTRO_SEEN_KEY) === "1"; } catch { return false; }
