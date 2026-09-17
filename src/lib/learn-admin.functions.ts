@@ -27,6 +27,9 @@ export interface AdminPart {
   review: { verdict: "good" | "redo"; why: string; at: string } | null;
   audioOffsetMs: number;
   normalizedAt: string | null;
+  /** The social cut — this part with the outro appended — once it has been made (cached so a
+   *  second download is instant). Cleared by a fix, since the fix changes the picture. */
+  socialUrl: string | null;
 }
 export interface AdminSet { setId: string; name: string; parts: AdminPart[] }
 
@@ -47,6 +50,7 @@ function partOf(p: Pub): AdminPart {
     review: r && (r.verdict === "good" || r.verdict === "redo") ? { verdict: r.verdict, why: String(r.why ?? ""), at: String(r.at ?? "") } : null,
     audioOffsetMs: typeof p.audioOffsetMs === "number" ? p.audioOffsetMs : 0,
     normalizedAt: typeof p.normalizedAt === "string" ? p.normalizedAt : null,
+    socialUrl: typeof p.socialUrl === "string" ? p.socialUrl : null,
   };
 }
 const isPosted = (p: Pub) => p?.kind === "blast" && p?.state === "shipped" && p?.source === "blastoff" && !!p.render?.muxPlaybackId;
@@ -118,5 +122,40 @@ export const noteLearnFix = createServerFn({ method: "POST" })
     for (const p of pubs) if (isPosted(p) && p.takeIndex === data.takeIndex) {
       if (data.audioOffsetMs !== undefined) p.audioOffsetMs = data.audioOffsetMs;
       if (data.normalized) p.normalizedAt = new Date().toISOString();
+      delete p.socialUrl; // the picture changed — the cached outro cut is stale
     }
   }));
+
+/** THE SOCIAL CUT was made — remember its URL on the part so the next download is instant. */
+export const noteSocialFile = createServerFn({ method: "POST" })
+  .inputValidator((x: unknown) => z.object({ setId: z.string().min(1).max(200), takeIndex: z.number().int().min(0).max(99), socialUrl: z.string().url().max(600) }).parse(x))
+  .handler(async ({ data }) => patchPubs(data.setId, (pubs) => {
+    for (const p of pubs) if (isPosted(p) && p.takeIndex === data.takeIndex) p.socialUrl = data.socialUrl;
+  }));
+
+// ── THE OUTRO CLIP, on the site ───────────────────────────────────────────────────────────────
+// Punch-in kept the filmed outro only in that browser's localStorage (sa-punch-outro-clip), so no
+// other page — and no other machine — could append it. It now also lives in site_settings, written
+// from punch-in when Lee keeps an outro and settable from /admin/learn with "Use this device's outro".
+export interface SocialOutro { url: string; durationS: number; at: number }
+const outroOf = (s: Record<string, unknown>): SocialOutro | null => {
+  const v = s.socialOutroClip as Partial<SocialOutro> | undefined;
+  return v && typeof v.url === "string" && typeof v.durationS === "number" && v.durationS > 0 ? { url: v.url, durationS: v.durationS, at: typeof v.at === "number" ? v.at : 0 } : null;
+};
+export const getSocialOutro = createServerFn({ method: "GET" }).handler(async (): Promise<SocialOutro | null> => {
+  const d = await db();
+  const { data } = await d.from("site_settings").select("settings").eq("id", 1).maybeSingle();
+  return outroOf(((data?.settings as Record<string, unknown> | null) ?? {}));
+});
+export const setSocialOutro = createServerFn({ method: "POST" })
+  .inputValidator((x: unknown) => z.object({ url: z.string().url().max(600), durationS: z.number().min(0.5).max(120) }).parse(x))
+  .handler(async ({ data }): Promise<SocialOutro> => {
+    const d = await db();
+    const { data: row } = await d.from("site_settings").select("settings").eq("id", 1).maybeSingle();
+    const cur = ((row?.settings as Record<string, unknown> | null) ?? {});
+    const clip: SocialOutro = { url: data.url, durationS: data.durationS, at: Date.now() };
+    const { error } = await d.from("site_settings").upsert({ id: 1, settings: { ...cur, socialOutroClip: clip } }, { onConflict: "id" });
+    if (error) throw new Error(error.message);
+    return clip;
+  });
+

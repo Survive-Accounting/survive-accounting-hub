@@ -376,6 +376,8 @@ export function PunchIn({ setId, setName, topicName, frames, takeIndex, takeName
       const url = await uploadTake(file);
       const clip: OutroClip = { url, durationS, file: t.file, at: Date.now() };
       try { localStorage.setItem(OUTRO_CLIP_KEY, JSON.stringify(clip)); } catch { /* this visit only */ }
+      // …and on the site, so /admin/learn can append it to any posted video from any machine.
+      void import("@/lib/learn-admin.functions").then((m) => m.setSocialOutro({ data: { url, durationS } })).catch(() => { /* this browser still has it */ });
       setOutroClip(clip);
       say(`Outro kept (${durationS.toFixed(1)} s) — every video's Preview ends on it now.`, "good");
     } catch (e) { say(e instanceof Error ? e.message : String(e), "bad"); }

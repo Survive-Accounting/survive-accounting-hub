@@ -10,7 +10,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { getAdminWho } from "@/components/AdminGate";
 import { useDictation } from "@/lib/use-dictation";
-import { listLearnAdminSets, noteLearnFix, setLearnOrder, setLearnReview, type AdminPart, type AdminSet } from "@/lib/learn-admin.functions";
+import { getSocialOutro, listLearnAdminSets, noteLearnFix, noteSocialFile, setLearnOrder, setLearnReview, setSocialOutro, type AdminPart, type AdminSet, type SocialOutro } from "@/lib/learn-admin.functions";
+import { downloadVideo, readOutroClip } from "@/components/v4/stitch-room/stitch-render";
 import { resolveWorkerRender, startDissectStitch, workerPreflight } from "@/lib/render-worker.functions";
 import { resolveSitePost, startSitePost } from "@/lib/site-publish.functions";
 
@@ -47,6 +48,28 @@ async function renderFix(part: AdminPart, fix: { audioOffsetMs?: number; normali
     say(`cutting · ${r.state}`);
   }
 }
+/** THE SOCIAL CUT: this part, then the outro, one file. The posted file never carries the outro (the site
+ *  video is the tighter one); socials get it appended here. Cached on the part after the first cut. */
+async function renderSocial(part: AdminPart, outro: SocialOutro, say: (n: string) => void): Promise<string> {
+  const src = part.sourceUrl ?? part.originalUrl;
+  if (!src) throw new Error("This part has no source file — it was posted another way.");
+  const end = Math.max(1, (part.durationS ?? 600) + 1);
+  const job = await startDissectStitch({ data: { urls: [src, outro.url], trims: [{ start: 0, end }, { start: 0, end: outro.durationS }], gapMs: 0, gapJitterMs: 0, vertical: true } });
+  let misses = 0;
+  for (;;) {
+    await wait(2500);
+    const r = await resolveWorkerRender({ data: { jobId: job.jobId, path: job.path, machineId: job.machineId } }).catch((e) => { if (++misses > 8) throw e; return null; });
+    if (!r) continue;
+    misses = 0;
+    if (r.state === "done" && r.fileUrl) return r.fileUrl;
+    if (r.state === "error") throw new Error(r.error ?? "The worker failed.");
+    say(`adding the outro · ${r.state}`);
+  }
+}
+/** The 1080×1920 cover for socials — the same brand card /v3/post makes, with this part's name as the hook. */
+const thumbHref = (setId: string, setName: string, part: AdminPart) =>
+  `/api/thumb/${encodeURIComponent(setId)}?ar=9x16&dl=1&topic=${encodeURIComponent(setName)}&line=${encodeURIComponent(part.name || "")}`;
+
 /** Post the fixed file over the same part. */
 async function repost(setId: string, part: AdminPart, fileUrl: string, say: (n: string) => void): Promise<void> {
   say("sending to the video host…");
@@ -76,6 +99,41 @@ export function LearnAdmin() {
   const done = (key: string) => setBusy((b) => { const { [key]: _g, ...rest } = b; return rest; });
   const [flash, setFlash] = useState<{ text: string; bad?: boolean } | null>(null);
   const take = (next: AdminPart[]) => { setParts(next); setSets((all) => (all ?? []).map((s) => (s.setId === setId ? { ...s, parts: next } : s))); };
+
+  // THE OUTRO — on the site, or still only in this browser (punch-in before 09-17 kept it in localStorage).
+  const [outro, setOutro] = useState<SocialOutro | null | undefined>(undefined);
+  useEffect(() => { getSocialOutro().then(setOutro).catch(() => setOutro(null)); }, []);
+  const deviceOutro = useMemo(() => readOutroClip(), []);
+  const useDeviceOutro = async () => {
+    if (!deviceOutro) return;
+    try { setOutro(await setSocialOutro({ data: { url: deviceOutro.url, durationS: deviceOutro.durationS } })); setFlash({ text: `Outro saved to the site (${deviceOutro.durationS.toFixed(1)} s).` }); }
+    catch (e) { setFlash({ text: e instanceof Error ? e.message : String(e), bad: true }); }
+  };
+  /** DOWNLOAD WITH THE OUTRO. Cached cut ⇒ instant; otherwise one worker job (about a minute), then cached. */
+  const downloadSocial = async (sid: string, part: AdminPart) => {
+    const key = `social:${part.pubKey}`;
+    try {
+      if (!outro) throw new Error("No outro on the site yet — keep one in punch-in, or open this page on the machine that has it and tap \"Use this device's outro\".");
+      let url = part.socialUrl;
+      if (!url) {
+        await wake(say(key));
+        url = await renderSocial(part, outro, say(key));
+        const next = await noteSocialFile({ data: { setId: sid, takeIndex: part.takeIndex, socialUrl: url } });
+        if (sid === setId) take(next); else setSets((all) => (all ?? []).map((s) => (s.setId === sid ? { ...s, parts: next } : s)));
+      }
+      say(key)("downloading…");
+      await downloadVideo(url, part.name || `video-${part.takeIndex + 1}`, true);
+    } catch (e) { setFlash({ text: e instanceof Error ? e.message : String(e), bad: true }); }
+    finally { done(key); }
+  };
+  /** Every part of this set, with the outro, one after another (the worker runs one job at a time anyway). */
+  const downloadAllSocial = async () => {
+    if (!outro) { setFlash({ text: "No outro on the site yet.", bad: true }); return; }
+    const todo = parts.filter((p) => p.sourceUrl || p.originalUrl);
+    if (!window.confirm(`Make and download ${todo.length} social cut${todo.length === 1 ? "" : "s"} for "${set?.name}"? Ones already cut download at once; the rest take about a minute each. Keep this tab open.`)) return;
+    for (const p of todo) await downloadSocial(setId, p);
+    setFlash({ text: `${todo.length} social cut${todo.length === 1 ? "" : "s"} downloaded.` });
+  };
 
   // DRAG TO REORDER — saved on drop
   const [dragging, setDragging] = useState<number | null>(null);
@@ -161,6 +219,15 @@ export function LearnAdmin() {
           <button type="button" style={btn(false)} disabled={!sets?.length || Object.keys(busy).some((k) => k.startsWith("norm:"))} onClick={(e) => void normalizeEverything(e.shiftKey)} title="Every posted video not yet normalized, across every set. Shift-click to redo them all.">Normalize every posted video</button>
         </div>
         {everyNote && <div style={{ fontSize: 12.5, color: GOLD, fontWeight: 700 }}>Normalizing everything · {everyNote}</div>}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 12.5, color: MUTED, background: PANEL, border: `1px solid ${EDGE}`, borderRadius: 10, padding: "8px 12px" }}>
+          <b style={{ color: CREAM }}>Socials</b>
+          {outro === undefined ? "checking the outro…" : outro
+            ? <span>outro on the site · {outro.durationS.toFixed(1)} s{outro.at ? ` · kept ${new Date(outro.at).toLocaleDateString()}` : ""}</span>
+            : <span style={{ color: GOLD }}>no outro on the site yet</span>}
+          {deviceOutro && (!outro || deviceOutro.url !== outro.url) && <button type="button" style={btn(false)} onClick={() => void useDeviceOutro()}>Use this device's outro ({deviceOutro.durationS.toFixed(1)} s)</button>}
+          <span style={{ flex: 1 }} />
+          <button type="button" style={btn(true, SKY)} disabled={!outro || !parts.length || Object.keys(busy).some((k) => k.startsWith("social:"))} onClick={() => void downloadAllSocial()}>⬇ Download all · with outro</button>
+        </div>
         <div style={{ fontSize: 12.5, color: MUTED }}>New stitches are normalized automatically (−16 LUFS, two-pass) — these buttons are for videos posted before that.</div>
         <div style={{ fontSize: 12.5, color: MUTED }}>Drag a row to reorder — it saves on drop. Good / Needs redo take a why, typed or talked. Sync slides the sound against the picture: preview 8 seconds, then apply to re-post the whole video.</div>
         {err && <div style={{ color: RED }}>{err}</div>}
@@ -169,7 +236,8 @@ export function LearnAdmin() {
         {sets && !parts.length && <div style={{ color: MUTED }}>No posted videos yet.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {parts.map((p, i) => (
-            <PartRow key={p.pubKey} part={p} n={i + 1} setId={setId} busy={busy[`sync:${p.pubKey}`] ?? busy[`norm:${p.pubKey}`] ?? null}
+            <PartRow key={p.pubKey} part={p} n={i + 1} setId={setId} setName={set?.name ?? ""} busy={busy[`sync:${p.pubKey}`] ?? busy[`norm:${p.pubKey}`] ?? busy[`social:${p.pubKey}`] ?? null}
+              onSocial={() => void downloadSocial(setId, p)} canSocial={!!outro}
               dragging={dragging === i} over={over === i && dragging != null && dragging !== i}
               onDragStart={() => setDragging(i)} onDragOver={() => setOver(i)} onDrop={() => void drop(i)} onDragEnd={() => { setDragging(null); setOver(null); }}
               onReview={async (verdict, why) => { try { take(await setLearnReview({ data: { setId, takeIndex: p.takeIndex, verdict, why } })); } catch (e) { setFlash({ text: e instanceof Error ? e.message : String(e), bad: true }); } }}
@@ -181,8 +249,9 @@ export function LearnAdmin() {
   );
 }
 
-function PartRow({ part, n, setId, busy, dragging, over, onDragStart, onDragOver, onDrop, onDragEnd, onReview, onSync, say, clear, onFlash }: {
-  part: AdminPart; n: number; setId: string; busy: string | null; dragging: boolean; over: boolean;
+function PartRow({ part, n, setId, setName, busy, dragging, over, onDragStart, onDragOver, onDrop, onDragEnd, onReview, onSync, onSocial, canSocial, say, clear, onFlash }: {
+  part: AdminPart; n: number; setId: string; setName: string; busy: string | null; dragging: boolean; over: boolean;
+  onSocial: () => void; canSocial: boolean;
   onDragStart: () => void; onDragOver: () => void; onDrop: () => void; onDragEnd: () => void;
   onReview: (verdict: "good" | "redo" | null, why: string) => Promise<void>;
   onSync: (ms: number) => void; say: (n: string) => void; clear: () => void; onFlash: (t: string, bad?: boolean) => void;
@@ -222,6 +291,8 @@ function PartRow({ part, n, setId, busy, dragging, over, onDragStart, onDragOver
           {busy && <div style={{ fontSize: 11.5, color: GOLD, fontWeight: 700 }}>⚡ {busy}</div>}
         </div>
         <a href={`/learn?set=${encodeURIComponent(setId)}&part=${part.takeIndex + 1}`} target="_blank" rel="noreferrer" style={{ ...small(), textDecoration: "none" }}>▶ Watch</a>
+        <button type="button" style={small(!!part.socialUrl, SKY)} disabled={!!busy || !canSocial} title={part.socialUrl ? "Cut already made — downloads at once" : "Cuts this video with the outro on the end (about a minute), then downloads"} onClick={onSocial}>⬇ Social</button>
+        <a href={thumbHref(setId, setName, part)} target="_blank" rel="noreferrer" style={{ ...small(), textDecoration: "none" }} title="1080×1920 cover PNG">🖼 Thumb</a>
         <button type="button" style={small(open === "review")} onClick={() => setOpen(open === "review" ? null : "review")}>Good / Redo</button>
         <button type="button" style={small(open === "sync")} onClick={() => setOpen(open === "sync" ? null : "sync")}>Sync</button>
       </div>
