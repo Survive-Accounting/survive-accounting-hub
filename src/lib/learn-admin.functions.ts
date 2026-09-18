@@ -30,6 +30,10 @@ export interface AdminPart {
   /** The social cut — this part with the outro appended — once it has been made (cached so a
    *  second download is instant). Cleared by a fix, since the fix changes the picture. */
   socialUrl: string | null;
+  /** Seconds cut off the FRONT of the original (Lee, 09-17: "trim the front of each of these before I do the
+   *  social posts" — the hook that works on a feed is dead weight in a series). Every fix re-cuts from the
+   *  original at this start; the social cut starts from the posted file, so it inherits it. */
+  trimStartS: number;
 }
 export interface AdminSet { setId: string; name: string; parts: AdminPart[] }
 
@@ -51,6 +55,7 @@ function partOf(p: Pub): AdminPart {
     audioOffsetMs: typeof p.audioOffsetMs === "number" ? p.audioOffsetMs : 0,
     normalizedAt: typeof p.normalizedAt === "string" ? p.normalizedAt : null,
     socialUrl: typeof p.socialUrl === "string" ? p.socialUrl : null,
+    trimStartS: typeof p.trimStartS === "number" && p.trimStartS > 0 ? p.trimStartS : 0,
   };
 }
 const isPosted = (p: Pub) => p?.kind === "blast" && p?.state === "shipped" && p?.source === "blastoff" && !!p.render?.muxPlaybackId;
@@ -117,11 +122,12 @@ export const setLearnReview = createServerFn({ method: "POST" })
 
 /** What a fix applied: the sync offset now on the posted file, and/or that its audio was normalized. */
 export const noteLearnFix = createServerFn({ method: "POST" })
-  .inputValidator((x: unknown) => z.object({ setId: z.string().min(1).max(200), takeIndex: z.number().int().min(0).max(99), audioOffsetMs: z.number().int().min(-2000).max(2000).optional(), normalized: z.boolean().optional() }).parse(x))
+  .inputValidator((x: unknown) => z.object({ setId: z.string().min(1).max(200), takeIndex: z.number().int().min(0).max(99), audioOffsetMs: z.number().int().min(-2000).max(2000).optional(), normalized: z.boolean().optional(), trimStartS: z.number().min(0).max(600).optional() }).parse(x))
   .handler(async ({ data }) => patchPubs(data.setId, (pubs) => {
     for (const p of pubs) if (isPosted(p) && p.takeIndex === data.takeIndex) {
       if (data.audioOffsetMs !== undefined) p.audioOffsetMs = data.audioOffsetMs;
       if (data.normalized) p.normalizedAt = new Date().toISOString();
+      if (data.trimStartS !== undefined) { if (data.trimStartS > 0) p.trimStartS = data.trimStartS; else delete p.trimStartS; }
       delete p.socialUrl; // the picture changed — the cached outro cut is stale
     }
   }));
@@ -157,5 +163,51 @@ export const setSocialOutro = createServerFn({ method: "POST" })
     const { error } = await d.from("site_settings").upsert({ id: 1, settings: { ...cur, socialOutroClip: clip } }, { onConflict: "id" });
     if (error) throw new Error(error.message);
     return clip;
+  });
+
+
+// ── THE FIRST WORDS of a posted video, with their times ───────────────────────────────────────
+// So Lee can see where the hook ends and tap the word the video should start on. Transcripts are
+// keyed by the canvas-media storage path (take_transcripts, 0118); a posted part's sourceUrl is
+// that file's public URL, so the path is read straight off it. Missing ⇒ transcribed now (Whisper,
+// about half a cent a minute), stored, and never billed again.
+const pathOfCanvasMedia = (url: string): string | null => {
+  const m = /\/object\/public\/canvas-media\/(.+?)(?:\?|$)/.exec(url);
+  return m ? decodeURIComponent(m[1]) : null;
+};
+export interface FirstWords { path: string; durationS: number | null; words: { t: string; s: number; e: number }[]; text: string }
+export const learnPartFirstWords = createServerFn({ method: "POST" })
+  .inputValidator((x: unknown) => z.object({ sourceUrl: z.string().url().max(600), name: z.string().max(300).optional(), seconds: z.number().min(5).max(120).default(40) }).parse(x))
+  .handler(async ({ data }): Promise<FirstWords> => {
+    await db(); // admin gate
+    const path = pathOfCanvasMedia(data.sourceUrl);
+    if (!path) throw new Error("This video's file isn't in canvas-media, so there is no transcript to read.");
+    const { transcribeTakeCore } = await import("@/lib/transcribe.functions");
+    const row = await transcribeTakeCore({ path, url: data.sourceUrl, name: data.name });
+    const words = (row.words ?? []).filter((w) => w.s <= data.seconds);
+    return { path, durationS: row.duration_s, words, text: row.text };
+  });
+
+/** WHERE DOES THE HOOK END? Haiku reads the first words and names the second the real content starts —
+ *  a suggestion Lee taps to accept or ignores. 0 means "keep the whole front". */
+export const suggestLearnTrim = createServerFn({ method: "POST" })
+  .inputValidator((x: unknown) => z.object({ words: z.array(z.object({ t: z.string(), s: z.number(), e: z.number() })).max(400), name: z.string().max(300).optional() }).parse(x))
+  .handler(async ({ data }): Promise<{ startS: number; why: string }> => {
+    await db();
+    if (!data.words.length) return { startS: 0, why: "No words to read." };
+    const { runAiTask } = await import("@/lib/ai.server");
+    const lines = data.words.map((w) => `[${w.s.toFixed(1)}] ${w.t}`).join(" ");
+    const r = await runAiTask("micro", {
+      system: "You edit short vertical accounting-lesson videos that play in a SERIES on a study site. A 'hook' is an opening line whose only job is to stop a scroll on social media ('Every accounting exam asks this…', 'Stop losing points…', a rhetorical question, a tease). In a series the hook is dead weight; the video should start where the teaching starts. Given the first words with their start times in seconds, answer with STRICT JSON only: {\"startS\": <number>, \"why\": <one short sentence>}. startS is the start time of the FIRST word of real content, or 0 if the video should keep its opening. Never cut into a sentence.",
+      user: `Video: ${data.name ?? ""}\nFirst words: ${lines}`,
+      maxOutput: 120,
+    });
+    const m = /\{[\s\S]*\}/.exec(r.text);
+    if (!m) return { startS: 0, why: "Couldn't read the suggestion." };
+    try {
+      const j = JSON.parse(m[0]) as { startS?: unknown; why?: unknown };
+      const startS = typeof j.startS === "number" && j.startS >= 0 ? Math.round(j.startS * 10) / 10 : 0;
+      return { startS, why: typeof j.why === "string" ? j.why : "" };
+    } catch { return { startS: 0, why: "Couldn't read the suggestion." }; }
   });
 

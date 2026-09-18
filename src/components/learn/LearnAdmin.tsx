@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { getAdminWho } from "@/components/AdminGate";
 import { useDictation } from "@/lib/use-dictation";
-import { getSocialOutro, listLearnAdminSets, noteLearnFix, noteSocialFile, setLearnOrder, setLearnReview, setSocialOutro, type AdminPart, type AdminSet, type SocialOutro } from "@/lib/learn-admin.functions";
+import { getSocialOutro, learnPartFirstWords, listLearnAdminSets, noteLearnFix, noteSocialFile, setLearnOrder, setLearnReview, setSocialOutro, suggestLearnTrim, type AdminPart, type AdminSet, type FirstWords, type SocialOutro } from "@/lib/learn-admin.functions";
 import { downloadVideo, readOutroClip } from "@/components/v4/stitch-room/stitch-render";
 import { resolveWorkerRender, startDissectStitch, workerPreflight } from "@/lib/render-worker.functions";
 import { resolveSitePost, startSitePost } from "@/lib/site-publish.functions";
@@ -32,11 +32,13 @@ async function wake(say: (n: string) => void) {
   }
 }
 /** Cut the part's original file with the fix applied; returns the new file's URL. */
-async function renderFix(part: AdminPart, fix: { audioOffsetMs?: number; normalize?: boolean; sampleS?: number }, say: (n: string) => void): Promise<string> {
+async function renderFix(part: AdminPart, fix: { audioOffsetMs?: number; normalize?: boolean; sampleS?: number; trimStartS?: number }, say: (n: string) => void): Promise<string> {
   const src = part.originalUrl ?? part.sourceUrl;
   if (!src) throw new Error("This part has no source file to cut from — it was posted another way.");
-  const end = fix.sampleS ?? Math.max(1, (part.durationS ?? 600) + 1);
-  const job = await startDissectStitch({ data: { urls: [src], trims: [{ start: 0, end }], gapMs: 0, gapJitterMs: 0, vertical: true, ...(fix.normalize ? { loudI: LOUD_TARGET } : {}), ...(fix.audioOffsetMs ? { audioOffsetMs: fix.audioOffsetMs } : {}) } });
+  // Always from the ORIGINAL, always from the trimmed start — so a sync fix never un-trims a video.
+  const start = fix.trimStartS ?? part.trimStartS;
+  const end = fix.sampleS ? start + fix.sampleS : Math.max(start + 1, (part.durationS ?? 600) + start + 1);
+  const job = await startDissectStitch({ data: { urls: [src], trims: [{ start, end }], gapMs: 0, gapJitterMs: 0, vertical: true, ...(fix.normalize ? { loudI: LOUD_TARGET } : {}), ...(fix.audioOffsetMs ? { audioOffsetMs: fix.audioOffsetMs } : {}) } });
   let misses = 0;
   for (;;) {
     await wait(2500);
@@ -150,6 +152,19 @@ export function LearnAdmin() {
   };
 
   // FIXES
+  /** TRIM THE FRONT: re-cut from the original at the new start, re-post, remember the start. */
+  const applyTrim = async (part: AdminPart, startS: number) => {
+    const key = `sync:${part.pubKey}`;
+    try {
+      await wake(say(key));
+      say(key)(`cutting from ${startS.toFixed(1)} s…`);
+      const url = await renderFix(part, { trimStartS: startS, audioOffsetMs: part.audioOffsetMs, normalize: !!part.normalizedAt }, say(key));
+      await repost(setId, part, url, say(key));
+      take(await noteLearnFix({ data: { setId, takeIndex: part.takeIndex, trimStartS: startS } }));
+      setFlash({ text: `#${part.takeIndex + 1} re-posted starting at ${startS.toFixed(1)} s. The social cut will use it too.` });
+    } catch (e) { setFlash({ text: e instanceof Error ? e.message : String(e), bad: true }); }
+    finally { done(key); }
+  };
   const applySync = async (part: AdminPart, ms: number) => {
     const key = `sync:${part.pubKey}`;
     try {
@@ -241,7 +256,7 @@ export function LearnAdmin() {
               dragging={dragging === i} over={over === i && dragging != null && dragging !== i}
               onDragStart={() => setDragging(i)} onDragOver={() => setOver(i)} onDrop={() => void drop(i)} onDragEnd={() => { setDragging(null); setOver(null); }}
               onReview={async (verdict, why) => { try { take(await setLearnReview({ data: { setId, takeIndex: p.takeIndex, verdict, why } })); } catch (e) { setFlash({ text: e instanceof Error ? e.message : String(e), bad: true }); } }}
-              onSync={(ms) => void applySync(p, ms)} say={say(`sync:${p.pubKey}`)} clear={() => done(`sync:${p.pubKey}`)} onFlash={(t, bad) => setFlash({ text: t, bad })} />
+              onSync={(ms) => void applySync(p, ms)} onTrim={(s) => void applyTrim(p, s)} say={say(`sync:${p.pubKey}`)} clear={() => done(`sync:${p.pubKey}`)} onFlash={(t, bad) => setFlash({ text: t, bad })} />
           ))}
         </div>
       </div>
@@ -249,14 +264,39 @@ export function LearnAdmin() {
   );
 }
 
-function PartRow({ part, n, setId, setName, busy, dragging, over, onDragStart, onDragOver, onDrop, onDragEnd, onReview, onSync, onSocial, canSocial, say, clear, onFlash }: {
+function PartRow({ part, n, setId, setName, busy, dragging, over, onDragStart, onDragOver, onDrop, onDragEnd, onReview, onSync, onTrim, onSocial, canSocial, say, clear, onFlash }: {
   part: AdminPart; n: number; setId: string; setName: string; busy: string | null; dragging: boolean; over: boolean;
   onSocial: () => void; canSocial: boolean;
   onDragStart: () => void; onDragOver: () => void; onDrop: () => void; onDragEnd: () => void;
   onReview: (verdict: "good" | "redo" | null, why: string) => Promise<void>;
-  onSync: (ms: number) => void; say: (n: string) => void; clear: () => void; onFlash: (t: string, bad?: boolean) => void;
+  onSync: (ms: number) => void; onTrim: (startS: number) => void; say: (n: string) => void; clear: () => void; onFlash: (t: string, bad?: boolean) => void;
 }) {
-  const [open, setOpen] = useState<null | "review" | "sync">(null);
+  const [open, setOpen] = useState<null | "review" | "sync" | "trim">(null);
+  // THE TRIM — the first words, tapped to pick the start.
+  const [words, setWords] = useState<FirstWords | null | "loading">(null);
+  const [trimS, setTrimS] = useState(part.trimStartS);
+  useEffect(() => setTrimS(part.trimStartS), [part.trimStartS]);
+  const [hint, setHint] = useState<string | null>(null);
+  useEffect(() => {
+    if (open !== "trim" || words || !(part.sourceUrl || part.originalUrl)) return;
+    setWords("loading");
+    learnPartFirstWords({ data: { sourceUrl: (part.originalUrl ?? part.sourceUrl)!, name: part.name } }).then(setWords).catch((e) => { setWords(null); onFlash(e instanceof Error ? e.message : String(e), true); setOpen(null); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  const [trimSample, setTrimSample] = useState<string | null>(null);
+  const [trimSampling, setTrimSampling] = useState(false);
+  const previewTrim = async () => {
+    setTrimSampling(true); setTrimSample(null);
+    try { await wake(say); say("cutting an 8-second sample from the new start…"); setTrimSample(await renderFix(part, { trimStartS: trimS, audioOffsetMs: part.audioOffsetMs, normalize: !!part.normalizedAt, sampleS: 8 }, say)); }
+    catch (e) { onFlash(e instanceof Error ? e.message : String(e), true); }
+    finally { setTrimSampling(false); clear(); }
+  };
+  const suggest = async () => {
+    if (!words || words === "loading") return;
+    setHint("thinking…");
+    try { const r = await suggestLearnTrim({ data: { words: words.words, name: part.name } }); setTrimS(r.startS); setHint(r.startS > 0 ? `Suggested ${r.startS.toFixed(1)} s — ${r.why}` : `Keep the opening — ${r.why}`); }
+    catch (e) { setHint(e instanceof Error ? e.message : String(e)); }
+  };
   const [why, setWhy] = useState(part.review?.why ?? "");
   const [verdict, setVerdict] = useState<"good" | "redo" | null>(part.review?.verdict ?? null);
   useEffect(() => { setWhy(part.review?.why ?? ""); setVerdict(part.review?.verdict ?? null); }, [part.review?.why, part.review?.verdict]);
@@ -295,6 +335,7 @@ function PartRow({ part, n, setId, setName, busy, dragging, over, onDragStart, o
         <a href={thumbHref(setId, setName, part)} target="_blank" rel="noreferrer" style={{ ...small(), textDecoration: "none" }} title="1080×1920 cover PNG">🖼 Thumb</a>
         <button type="button" style={small(open === "review")} onClick={() => setOpen(open === "review" ? null : "review")}>Good / Redo</button>
         <button type="button" style={small(open === "sync")} onClick={() => setOpen(open === "sync" ? null : "sync")}>Sync</button>
+        <button type="button" style={small(open === "trim", part.trimStartS > 0 ? MINT : GOLD)} onClick={() => setOpen(open === "trim" ? null : "trim")} title="Cut the hook off the front">{part.trimStartS > 0 ? `Trim · ${part.trimStartS.toFixed(1)}s` : "Trim"}</button>
       </div>
       {open === "review" && (
         <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, paddingLeft: 40 }}>
@@ -311,6 +352,37 @@ function PartRow({ part, n, setId, setName, busy, dragging, over, onDragStart, o
             <button type="button" style={small(true)} disabled={!verdict} onClick={() => { void onReview(verdict, why); setOpen(null); }}>Save</button>
             {part.review && <button type="button" style={small()} onClick={() => { void onReview(null, ""); setOpen(null); }}>Clear</button>}
           </div>
+        </div>
+      )}
+      {open === "trim" && (
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, paddingLeft: 40 }}>
+          <div style={{ fontSize: 12, color: MUTED }}>Tap the word the video should <b style={{ color: CREAM }}>start on</b>. Everything before it is cut from the site video and the social cut.</div>
+          {words === "loading" && <div style={{ fontSize: 12, color: GOLD }}>reading the first words… (transcribing if this is the first time)</div>}
+          {words && words !== "loading" && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 6px", lineHeight: 1.6 }}>
+              {words.words.map((w, i) => {
+                const cut = w.e <= trimS + 0.05;
+                const first = !cut && (i === 0 || words.words[i - 1].e <= trimS + 0.05);
+                return (
+                  <button key={i} type="button" onClick={() => setTrimS(i === 0 ? 0 : Math.max(0, Math.round((w.s - 0.05) * 10) / 10))}
+                    style={{ font: "inherit", fontSize: 13, padding: "1px 5px", borderRadius: 5, cursor: "pointer", border: first ? `1px solid ${GOLD}` : "1px solid transparent", background: first ? "rgba(252,163,17,0.18)" : "transparent", color: cut ? "rgba(147,163,194,0.5)" : CREAM, textDecoration: cut ? "line-through" : "none" }}
+                    title={`${w.s.toFixed(1)} s`}>{w.t}</button>
+                );
+              })}
+              {words.words.length === 0 && <span style={{ fontSize: 12, color: MUTED }}>No words in the first 40 seconds.</span>}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 11.5, color: MUTED }}>start at</label>
+            <input type="number" min={0} step={0.1} value={trimS} onChange={(e) => setTrimS(Math.max(0, Number(e.target.value) || 0))} style={{ width: 70, font: "inherit", fontSize: 12.5, background: "rgba(0,0,0,0.35)", color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 7, padding: "4px 8px" }} />
+            <span style={{ fontSize: 11.5, color: MUTED }}>s</span>
+            <button type="button" style={small()} disabled={!words || words === "loading" || hint === "thinking…"} onClick={() => void suggest()}>✨ Suggest</button>
+            <button type="button" style={small()} disabled={trimSampling || !!busy} onClick={() => void previewTrim()}>{trimSampling ? "Cutting…" : "Preview 8 s"}</button>
+            <button type="button" style={small(true)} disabled={!!busy || trimS === part.trimStartS} onClick={() => { onTrim(trimS); setOpen(null); }}>Apply to the video</button>
+            {part.trimStartS > 0 && trimS !== 0 && <button type="button" style={small()} disabled={!!busy} onClick={() => setTrimS(0)}>Keep the whole front</button>}
+          </div>
+          {hint && <div style={{ fontSize: 12, color: hint === "thinking…" ? GOLD : MUTED }}>{hint}</div>}
+          {trimSample && <video src={trimSample} controls autoPlay playsInline style={{ width: 200, aspectRatio: "9/16", background: "#000", borderRadius: 10 }} />}
         </div>
       )}
       {open === "sync" && (
