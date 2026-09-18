@@ -10,8 +10,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { getAdminWho } from "@/components/AdminGate";
 import { useDictation } from "@/lib/use-dictation";
-import { getSocialOutro, learnPartFirstWords, listLearnAdminSets, noteLearnFix, noteSocialFile, setLearnOrder, setLearnReview, setSocialOutro, suggestLearnTrim, type AdminPart, type AdminSet, type FirstWords, type SocialOutro } from "@/lib/learn-admin.functions";
+import { generateSocialCopy, getSocialOutro, learnPartFirstWords, listLearnAdminSets, noteLearnFix, noteSocialFile, setLearnOrder, setLearnReview, setSocialCopy, setSocialOutro, suggestLearnTrim, type AdminPart, type AdminSet, type FirstWords, type SocialCopy, type SocialOutro } from "@/lib/learn-admin.functions";
 import { downloadVideo, readOutroClip } from "@/components/v4/stitch-room/stitch-render";
+import { HOW_SURVIVE_WORKS_URL } from "@/components/learn/HowSurviveWorks";
 import { resolveWorkerRender, startDissectStitch, workerPreflight } from "@/lib/render-worker.functions";
 import { resolveSitePost, startSitePost } from "@/lib/site-publish.functions";
 
@@ -128,6 +129,20 @@ export function LearnAdmin() {
     } catch (e) { setFlash({ text: e instanceof Error ? e.message : String(e), bad: true }); }
     finally { done(key); }
   };
+  /** HOW SURVIVE WORKS (Lee, 09-17: "available for download too") — the site file as is, or cut with the outro. */
+  const downloadHow = async (withOutro: boolean) => {
+    const key = "social:how";
+    try {
+      if (!withOutro) { await downloadVideo(HOW_SURVIVE_WORKS_URL, "how-survive-works", false); return; }
+      if (!outro) throw new Error("No outro on the site yet.");
+      await wake(say(key));
+      const fake: AdminPart = { pubKey: "how", takeIndex: 0, name: "How Survive Works", playbackId: null, durationS: 40, coverUrl: null, originalUrl: HOW_SURVIVE_WORKS_URL, sourceUrl: HOW_SURVIVE_WORKS_URL, order: 0, review: null, audioOffsetMs: 0, normalizedAt: null, socialUrl: null, trimStartS: 0, socialCopy: null };
+      const url = await renderSocial(fake, outro, say(key));
+      say(key)("downloading…");
+      await downloadVideo(url, "how-survive-works", true);
+    } catch (e) { setFlash({ text: e instanceof Error ? e.message : String(e), bad: true }); }
+    finally { done(key); }
+  };
   /** Every part of this set, with the outro, one after another (the worker runs one job at a time anyway). */
   const downloadAllSocial = async () => {
     if (!outro) { setFlash({ text: "No outro on the site yet.", bad: true }); return; }
@@ -241,6 +256,9 @@ export function LearnAdmin() {
             : <span style={{ color: GOLD }}>no outro on the site yet</span>}
           {deviceOutro && (!outro || deviceOutro.url !== outro.url) && <button type="button" style={btn(false)} onClick={() => void useDeviceOutro()}>Use this device's outro ({deviceOutro.durationS.toFixed(1)} s)</button>}
           <span style={{ flex: 1 }} />
+          <span style={{ color: MUTED }}>How Survive Works:</span>
+          <button type="button" style={btn(false)} onClick={() => void downloadHow(false)}>⬇ as is</button>
+          <button type="button" style={btn(false)} disabled={!outro || !!busy["social:how"]} onClick={() => void downloadHow(true)}>{busy["social:how"] ? `⚡ ${busy["social:how"]}` : "⬇ with outro"}</button>
           <button type="button" style={btn(true, SKY)} disabled={!outro || !parts.length || Object.keys(busy).some((k) => k.startsWith("social:"))} onClick={() => void downloadAllSocial()}>⬇ Download all · with outro</button>
         </div>
         <div style={{ fontSize: 12.5, color: MUTED }}>New stitches are normalized automatically (−16 LUFS, two-pass) — these buttons are for videos posted before that.</div>
@@ -252,7 +270,7 @@ export function LearnAdmin() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {parts.map((p, i) => (
             <PartRow key={p.pubKey} part={p} n={i + 1} setId={setId} setName={set?.name ?? ""} busy={busy[`sync:${p.pubKey}`] ?? busy[`norm:${p.pubKey}`] ?? busy[`social:${p.pubKey}`] ?? null}
-              onSocial={() => void downloadSocial(setId, p)} canSocial={!!outro}
+              onSocial={() => void downloadSocial(setId, p)} canSocial={!!outro} onParts={take}
               dragging={dragging === i} over={over === i && dragging != null && dragging !== i}
               onDragStart={() => setDragging(i)} onDragOver={() => setOver(i)} onDrop={() => void drop(i)} onDragEnd={() => { setDragging(null); setOver(null); }}
               onReview={async (verdict, why) => { try { take(await setLearnReview({ data: { setId, takeIndex: p.takeIndex, verdict, why } })); } catch (e) { setFlash({ text: e instanceof Error ? e.message : String(e), bad: true }); } }}
@@ -264,14 +282,34 @@ export function LearnAdmin() {
   );
 }
 
-function PartRow({ part, n, setId, setName, busy, dragging, over, onDragStart, onDragOver, onDrop, onDragEnd, onReview, onSync, onTrim, onSocial, canSocial, say, clear, onFlash }: {
+function PartRow({ part, n, setId, setName, busy, dragging, over, onDragStart, onDragOver, onDrop, onDragEnd, onReview, onSync, onTrim, onSocial, canSocial, onParts, say, clear, onFlash }: {
   part: AdminPart; n: number; setId: string; setName: string; busy: string | null; dragging: boolean; over: boolean;
-  onSocial: () => void; canSocial: boolean;
+  onSocial: () => void; canSocial: boolean; onParts: (next: AdminPart[]) => void;
   onDragStart: () => void; onDragOver: () => void; onDrop: () => void; onDragEnd: () => void;
   onReview: (verdict: "good" | "redo" | null, why: string) => Promise<void>;
   onSync: (ms: number) => void; onTrim: (startS: number) => void; say: (n: string) => void; clear: () => void; onFlash: (t: string, bad?: boolean) => void;
 }) {
-  const [open, setOpen] = useState<null | "review" | "sync" | "trim">(null);
+  const [open, setOpen] = useState<null | "review" | "sync" | "trim" | "copy">(null);
+  // THE COPY — titles, descriptions, hashtags; written once, edited in place, copied per platform.
+  const blankCopy: SocialCopy = { ytTitle: "", ytDesc: "", tt: "", ig: "" };
+  const [copy, setCopy] = useState<SocialCopy>(part.socialCopy ?? blankCopy);
+  useEffect(() => { setCopy(part.socialCopy ?? blankCopy); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [part.socialCopy]);
+  const [writing, setWriting] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const writeCopy = async () => {
+    setWriting(true);
+    try { onParts(await generateSocialCopy({ data: { setId, takeIndex: part.takeIndex, name: part.name, setName, sourceUrl: part.sourceUrl ?? part.originalUrl ?? null } })); }
+    catch (e) { onFlash(e instanceof Error ? e.message : String(e), true); }
+    finally { setWriting(false); }
+  };
+  const saveCopy = async () => {
+    try { onParts(await setSocialCopy({ data: { setId, takeIndex: part.takeIndex, copy } })); onFlash("Copy saved."); }
+    catch (e) { onFlash(e instanceof Error ? e.message : String(e), true); }
+  };
+  const clip = async (label: string, text: string) => {
+    try { await navigator.clipboard.writeText(text); setCopied(label); window.setTimeout(() => setCopied(null), 1500); }
+    catch { onFlash("Couldn't reach the clipboard — select the text and copy it.", true); }
+  };
   // THE TRIM — the first words, tapped to pick the start.
   const [words, setWords] = useState<FirstWords | null | "loading">(null);
   const [trimS, setTrimS] = useState(part.trimStartS);
@@ -336,6 +374,7 @@ function PartRow({ part, n, setId, setName, busy, dragging, over, onDragStart, o
         <button type="button" style={small(open === "review")} onClick={() => setOpen(open === "review" ? null : "review")}>Good / Redo</button>
         <button type="button" style={small(open === "sync")} onClick={() => setOpen(open === "sync" ? null : "sync")}>Sync</button>
         <button type="button" style={small(open === "trim", part.trimStartS > 0 ? MINT : GOLD)} onClick={() => setOpen(open === "trim" ? null : "trim")} title="Cut the hook off the front">{part.trimStartS > 0 ? `Trim · ${part.trimStartS.toFixed(1)}s` : "Trim"}</button>
+        <button type="button" style={small(open === "copy", part.socialCopy ? MINT : GOLD)} onClick={() => setOpen(open === "copy" ? null : "copy")} title="Titles, descriptions and hashtags for YouTube, TikTok and Instagram">📋 Copy</button>
       </div>
       {open === "review" && (
         <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, paddingLeft: 40 }}>
@@ -352,6 +391,23 @@ function PartRow({ part, n, setId, setName, busy, dragging, over, onDragStart, o
             <button type="button" style={small(true)} disabled={!verdict} onClick={() => { void onReview(verdict, why); setOpen(null); }}>Save</button>
             {part.review && <button type="button" style={small()} onClick={() => { void onReview(null, ""); setOpen(null); }}>Clear</button>}
           </div>
+        </div>
+      )}
+      {open === "copy" && (
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, paddingLeft: 40 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <button type="button" style={small(true)} disabled={writing} onClick={() => void writeCopy()}>{writing ? "Writing…" : part.socialCopy ? "✨ Write it again" : "✨ Write it"}</button>
+            <button type="button" style={small()} onClick={() => void saveCopy()}>Save edits</button>
+            <span style={{ fontSize: 11.5, color: MUTED }}>Reads the name and the first words. Edit anything, then Save. Each Copy button puts that platform's text on the clipboard.</span>
+          </div>
+          {([["YouTube title", "ytTitle", 1], ["YouTube description", "ytDesc", 4], ["TikTok caption", "tt", 3], ["Instagram caption", "ig", 4]] as [string, keyof SocialCopy, number][]).map(([label, key, rows]) => (
+            <div key={key} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <div style={{ width: 130, flex: "none", fontSize: 11.5, fontWeight: 800, color: MUTED, paddingTop: 7 }}>{label}</div>
+              <textarea value={copy[key]} onChange={(e) => setCopy({ ...copy, [key]: e.target.value })} rows={rows} placeholder="—"
+                style={{ flex: 1, font: "inherit", fontSize: 12.5, background: "rgba(0,0,0,0.35)", color: CREAM, border: `1px solid ${EDGE}`, borderRadius: 8, padding: "6px 9px", resize: "vertical" }} />
+              <button type="button" style={small(copied === key, MINT)} disabled={!copy[key]} onClick={() => void clip(key, copy[key])}>{copied === key ? "Copied" : "Copy"}</button>
+            </div>
+          ))}
         </div>
       )}
       {open === "trim" && (

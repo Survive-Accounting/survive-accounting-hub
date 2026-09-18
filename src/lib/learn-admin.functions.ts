@@ -34,7 +34,11 @@ export interface AdminPart {
    *  social posts" — the hook that works on a feed is dead weight in a series). Every fix re-cuts from the
    *  original at this start; the social cut starts from the posted file, so it inherits it. */
   trimStartS: number;
+  /** Titles, descriptions and hashtags for the three platforms (Lee, 09-17: "can this be accessible
+   *  from /admin/learn?"). Written by Haiku from the name + first words, then edited by Lee. */
+  socialCopy: SocialCopy | null;
 }
+export interface SocialCopy { ytTitle: string; ytDesc: string; tt: string; ig: string }
 export interface AdminSet { setId: string; name: string; parts: AdminPart[] }
 
 type Pub = Record<string, unknown> & { id?: string; pubKey?: string; takeIndex?: number; kind?: string; state?: string; source?: string; render?: { muxPlaybackId?: string | null; durationS?: number | null } };
@@ -56,7 +60,12 @@ function partOf(p: Pub): AdminPart {
     normalizedAt: typeof p.normalizedAt === "string" ? p.normalizedAt : null,
     socialUrl: typeof p.socialUrl === "string" ? p.socialUrl : null,
     trimStartS: typeof p.trimStartS === "number" && p.trimStartS > 0 ? p.trimStartS : 0,
+    socialCopy: copyOf(p.socialCopy),
   };
+}
+function copyOf(v: unknown): SocialCopy | null {
+  const c = v as Partial<SocialCopy> | undefined;
+  return c && typeof c.ytTitle === "string" ? { ytTitle: c.ytTitle, ytDesc: String(c.ytDesc ?? ""), tt: String(c.tt ?? ""), ig: String(c.ig ?? "") } : null;
 }
 const isPosted = (p: Pub) => p?.kind === "blast" && p?.state === "shipped" && p?.source === "blastoff" && !!p.render?.muxPlaybackId;
 const sorted = (pubs: Pub[]) => pubs.filter(isPosted).map(partOf).sort((a, b) => a.order - b.order || a.takeIndex - b.takeIndex);
@@ -183,7 +192,9 @@ export const learnPartFirstWords = createServerFn({ method: "POST" })
     const path = pathOfCanvasMedia(data.sourceUrl);
     if (!path) throw new Error("This video's file isn't in canvas-media, so there is no transcript to read.");
     const { transcribeTakeCore } = await import("@/lib/transcribe.functions");
-    const row = await transcribeTakeCore({ path, url: data.sourceUrl, name: data.name });
+    // Whisper reads the format off the FILENAME. The video's title ("CA$H cheat code") has no
+    // extension and got a 400 "Unrecognized file format" (Lee, 09-17) — send the storage name.
+    const row = await transcribeTakeCore({ path, url: data.sourceUrl, name: path.split("/").pop() || "video.mp4" });
     const words = (row.words ?? []).filter((w) => w.s <= data.seconds);
     return { path, durationS: row.duration_s, words, text: row.text };
   });
@@ -210,4 +221,50 @@ export const suggestLearnTrim = createServerFn({ method: "POST" })
       return { startS, why: typeof j.why === "string" ? j.why : "" };
     } catch { return { startS: 0, why: "Couldn't read the suggestion." }; }
   });
+
+
+// ── SOCIAL COPY ───────────────────────────────────────────────────────────────────────────────
+// The house rules baked in: one plain hook, the /learn link, the platform's hashtag set, never a
+// reference to the chain ("part 3", "next video") — a Reel has to stand alone.
+const LEARN_LINK = "surviveaccounting.com/learn";
+const YT_TAGS = "#Shorts #accounting #financialaccounting #accounting101 #collegestudent";
+const TT_TAGS = "#accounting #accountingtiktok #studytok #college #financialaccounting #accounting101";
+const IG_TAGS = "#accounting #accountingstudent #financialaccounting #collegetips #studygram #accounting101 #businessmajor";
+const COPY_SCHEMA = z.object({ ytTitle: z.string().max(200), ytDesc: z.string().max(3000), tt: z.string().max(2200), ig: z.string().max(2200) });
+
+/** WRITE IT: Haiku reads the name (and the first words when there is a transcript) and returns a hook
+ *  and a topic hashtag; the fixed parts are assembled here so the link and the tag sets never drift. */
+export const generateSocialCopy = createServerFn({ method: "POST" })
+  .inputValidator((x: unknown) => z.object({ setId: z.string().min(1).max(200), takeIndex: z.number().int().min(0).max(99), name: z.string().max(300), setName: z.string().max(300), sourceUrl: z.string().url().max(600).nullable().optional() }).parse(x))
+  .handler(async ({ data }): Promise<AdminPart[]> => {
+    await db();
+    let words = "";
+    if (data.sourceUrl) {
+      try {
+        const path = pathOfCanvasMedia(data.sourceUrl);
+        if (path) { const { transcribeTakeCore } = await import("@/lib/transcribe.functions"); const row = await transcribeTakeCore({ path, url: data.sourceUrl, name: path.split("/").pop() || "video.mp4" }); words = (row.words ?? []).filter((w) => w.s <= 45).map((w) => w.t).join(" "); }
+      } catch { /* no transcript — the name is enough */ }
+    }
+    const { runAiTask } = await import("@/lib/ai.server");
+    const r = await runAiTask("micro", {
+      system: "You write captions for short vertical accounting-study videos by Lee (Survive Accounting) for college students. Voice: plain, confident, a little dry; no emoji, no exclamation marks, no 'in this video'. NEVER reference a series, chain, part number or 'next video' — each clip stands alone. Answer with STRICT JSON only: {\"hook\": <one sentence, max 90 chars, the one thing the video teaches or the trap it exposes>, \"ytTitle\": <a search-friendly title, max 70 chars, no hashtags>, \"tag\": <ONE topic hashtag like #accountingequation or #debitsandcredits, lowercase, no spaces>}",
+      user: `Set: ${data.setName}\nVideo name: ${data.name}\nFirst words (may be empty): ${words.slice(0, 900)}`,
+      maxOutput: 220,
+    });
+    const m = /\{[\s\S]*\}/.exec(r.text);
+    let hook = data.name, ytTitle = data.name, tag = "#accounting101";
+    if (m) { try { const j = JSON.parse(m[0]) as { hook?: string; ytTitle?: string; tag?: string }; if (j.hook) hook = j.hook.trim(); if (j.ytTitle) ytTitle = j.ytTitle.trim(); if (j.tag && /^#[a-z0-9]+$/.test(j.tag)) tag = j.tag; } catch { /* keep the fallbacks */ } }
+    const copy: SocialCopy = {
+      ytTitle: ytTitle.length > 100 ? ytTitle.slice(0, 97) + "…" : ytTitle,
+      ytDesc: `${hook}\n\nFree ACCY 201 cram videos + practice: ${LEARN_LINK}\n\n${YT_TAGS} ${tag}`,
+      tt: `${hook} Free cram videos in bio.\n\n${TT_TAGS} ${tag}`,
+      ig: `${hook}\n\nFree cram videos + practice — link in bio.\n\n${IG_TAGS} ${tag}`,
+    };
+    return patchPubs(data.setId, (pubs) => { for (const p of pubs) if (isPosted(p) && p.takeIndex === data.takeIndex) p.socialCopy = copy; });
+  });
+
+/** Lee's edits, kept. */
+export const setSocialCopy = createServerFn({ method: "POST" })
+  .inputValidator((x: unknown) => z.object({ setId: z.string().min(1).max(200), takeIndex: z.number().int().min(0).max(99), copy: COPY_SCHEMA }).parse(x))
+  .handler(async ({ data }) => patchPubs(data.setId, (pubs) => { for (const p of pubs) if (isPosted(p) && p.takeIndex === data.takeIndex) p.socialCopy = data.copy; }));
 
