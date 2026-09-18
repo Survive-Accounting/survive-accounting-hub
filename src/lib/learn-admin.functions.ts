@@ -224,9 +224,28 @@ export const suggestLearnTrim = createServerFn({ method: "POST" })
 
 
 // ── SOCIAL COPY ───────────────────────────────────────────────────────────────────────────────
-// The house rules baked in: one plain hook, the /learn link, the platform's hashtag set, never a
-// reference to the chain ("part 3", "next video") — a Reel has to stand alone.
+// THE HOUSE STANDARD (Lee, 2026-09-18, after reviewing the first generated set). These are rules,
+// not defaults — they hold for every caption this ever writes:
+//   · NEVER the word "free". We say what you get, not what it costs.
+//   · NEVER a campus course code (no "ACCY 201") — the same clip plays at every school.
+//   · NEVER a reference to the chain ("part 3", "next video") — a Reel has to stand alone.
+//   · The call to action is one of exactly two lines (CTA_LINK / CTA_BIO below), never improvised.
+//   · The topic hashtag is CHOSEN FROM A LIST, never invented — the model kept coining unsearched
+//     compounds like "#accountsandclassifications", which no student has ever typed into a search box.
 const LEARN_LINK = "surviveaccounting.com/learn";
+/** The two approved calls to action. Platforms that allow a link get the first; bio-link platforms
+ *  get the second. */
+const CTA_LINK = `Get cram videos + practice exams: ${LEARN_LINK}`;
+const CTA_BIO = "Get cram videos + practice exams — link in bio.";
+/** THE APPROVED TOPIC TAGS. One of these rides along with the platform set; anything the model
+ *  invents is rejected and falls back to #accounting101. Add to this list rather than loosening
+ *  the check — a real hashtag is one students actually search. */
+const TOPIC_TAGS = [
+  "#accounting101", "#accountingequation", "#debitsandcredits", "#typesofaccounts",
+  "#assets", "#liabilities", "#equity", "#revenue", "#expenses",
+  "#accountsreceivable", "#prepaidexpenses", "#unearnedrevenue", "#contraaccounts",
+  "#commonstock", "#journalentries", "#accountingtips", "#accountingstudent",
+] as const;
 const YT_TAGS = "#Shorts #accounting #financialaccounting #accounting101 #collegestudent";
 const TT_TAGS = "#accounting #accountingtiktok #studytok #college #financialaccounting #accounting101";
 const IG_TAGS = "#accounting #accountingstudent #financialaccounting #collegetips #studygram #accounting101 #businessmajor";
@@ -247,18 +266,35 @@ export const generateSocialCopy = createServerFn({ method: "POST" })
     }
     const { runAiTask } = await import("@/lib/ai.server");
     const r = await runAiTask("micro", {
-      system: "You write captions for short vertical accounting-study videos by Lee (Survive Accounting) for college students. Voice: plain, confident, a little dry; no emoji, no exclamation marks, no 'in this video'. NEVER reference a series, chain, part number or 'next video' — each clip stands alone. Answer with STRICT JSON only: {\"hook\": <one sentence, max 90 chars, the one thing the video teaches or the trap it exposes>, \"ytTitle\": <a search-friendly title, max 70 chars, no hashtags>, \"tag\": <ONE topic hashtag like #accountingequation or #debitsandcredits, lowercase, no spaces>}",
+      system: `You write captions for short vertical accounting-study videos by Lee (Survive Accounting) for college students.
+Voice: plain, confident, a little dry. No emoji, no exclamation marks, no "in this video".
+NEVER use the word "free". NEVER name a course code (no "ACCY 201") — the same clip plays at every school.
+NEVER reference a series, chain, part number or "next video" — each clip stands alone.
+Pick the topic hashtag from THIS LIST ONLY, whichever fits best; do not invent one: ${TOPIC_TAGS.join(" ")}
+Answer with STRICT JSON only: {"hook": <one sentence, max 90 chars, the one thing the video teaches or the trap it exposes>, "ytTitle": <a search-friendly title, max 70 chars, no hashtags, no course code>, "tag": <one hashtag from the list above>}`,
       user: `Set: ${data.setName}\nVideo name: ${data.name}\nFirst words (may be empty): ${words.slice(0, 900)}`,
       maxOutput: 220,
     });
     const m = /\{[\s\S]*\}/.exec(r.text);
     let hook = data.name, ytTitle = data.name, tag = "#accounting101";
-    if (m) { try { const j = JSON.parse(m[0]) as { hook?: string; ytTitle?: string; tag?: string }; if (j.hook) hook = j.hook.trim(); if (j.ytTitle) ytTitle = j.ytTitle.trim(); if (j.tag && /^#[a-z0-9]+$/.test(j.tag)) tag = j.tag; } catch { /* keep the fallbacks */ } }
+    if (m) {
+      try {
+        const j = JSON.parse(m[0]) as { hook?: string; ytTitle?: string; tag?: string };
+        if (j.hook) hook = j.hook.trim();
+        if (j.ytTitle) ytTitle = j.ytTitle.trim();
+        // ON THE LIST OR NOT AT ALL — an invented tag silently becomes the safe one.
+        const want = (j.tag ?? "").trim().toLowerCase();
+        if ((TOPIC_TAGS as readonly string[]).includes(want)) tag = want;
+      } catch { /* keep the fallbacks */ }
+    }
+    // The model still slips a course code or "free" in now and then; strip both rather than re-ask.
+    const clean = (s: string) => s.replace(/\b[A-Z]{3,4}\s?\d{3}\b/g, "").replace(/\bfor free\b/gi, "").replace(/\bfree\b/gi, "").replace(/\s{2,}/g, " ").replace(/\s+([.,!?])/g, "$1").trim();
+    hook = clean(hook); ytTitle = clean(ytTitle);
     const copy: SocialCopy = {
       ytTitle: ytTitle.length > 100 ? ytTitle.slice(0, 97) + "…" : ytTitle,
-      ytDesc: `${hook}\n\nFree ACCY 201 cram videos + practice: ${LEARN_LINK}\n\n${YT_TAGS} ${tag}`,
-      tt: `${hook} Free cram videos in bio.\n\n${TT_TAGS} ${tag}`,
-      ig: `${hook}\n\nFree cram videos + practice — link in bio.\n\n${IG_TAGS} ${tag}`,
+      ytDesc: `${hook}\n\n${CTA_LINK}\n\n${YT_TAGS} ${tag}`,
+      tt: `${hook}\n\n${CTA_BIO}\n\n${TT_TAGS} ${tag}`,
+      ig: `${hook}\n\n${CTA_BIO}\n\n${IG_TAGS} ${tag}`,
     };
     return patchPubs(data.setId, (pubs) => { for (const p of pubs) if (isPosted(p) && p.takeIndex === data.takeIndex) p.socialCopy = copy; });
   });
