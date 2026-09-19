@@ -71,3 +71,9 @@ scripts/growth-intel/campuses-all.json
 
 # Windows reserved name a tool created by accident; cannot be deleted from Git Bash
 nul
+
+# impeccable (npx impeccable install) — the skill downloads a 15 MB platform-specific
+# engine binary per harness. Re-run the installer on each machine instead of committing
+# 30 MB of windows-x64 exe that is useless on any other platform.
+**/skills/impeccable/scripts/bin/
+.claude/settings.local.json

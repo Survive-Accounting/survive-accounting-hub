@@ -371,8 +371,17 @@ function Video({ set, part, locked, demo, soundOn, onToggleSound, prog, narrow, 
     if (!v || isDemo || locked || !pid) return;
     if (paused) { v.pause(); return; }
     const go = () => { if (startAt > 5 && (!v.duration || startAt < v.duration - 10) && v.currentTime < 1) v.currentTime = startAt; void v.play().catch(() => { /* the glyph invites the tap */ }); };
-    if (v.readyState >= 1) go(); else v.addEventListener("loadedmetadata", go, { once: true });
-    return () => v.removeEventListener("loadedmetadata", go);
+    const arm = () => { if (v.readyState >= 1) go(); else v.addEventListener("loadedmetadata", go, { once: true }); };
+    // NEVER START IN A TAB NOBODY IS LOOKING AT (Lee, 2026-09-19: "I keep having this random video
+    // starting randomly on my computer"). The player autoplays WITH SOUND — soundOn defaults true —
+    // and every route in lands here: ?play=1 from the home page whose tree resolves late in a
+    // background tab, and a /learn?set=… tab the browser restores on startup. Chrome permits the
+    // sound because OUR media-engagement score is high, so it bit Lee and would not have bitten a
+    // first-time student. The intent is kept, not dropped: it starts the moment the tab is looked at.
+    if (document.visibilityState === "visible") { arm(); return () => v.removeEventListener("loadedmetadata", go); }
+    const onVis = () => { if (document.visibilityState === "visible") { document.removeEventListener("visibilitychange", onVis); arm(); } };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { document.removeEventListener("visibilitychange", onVis); v.removeEventListener("loadedmetadata", go); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pid, isDemo, locked, paused]);
     useEffect(() => { const v = ref.current; if (v) { v.muted = !soundOn; if (soundOn && v.volume === 0) { v.volume = 1; setVol(1); } } }, [soundOn]);
